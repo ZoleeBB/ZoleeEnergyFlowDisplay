@@ -162,10 +162,9 @@ esp_err_t app_payload_parse(
 
     while (parse_end < json + len &&
            (*parse_end == ' ' ||
-            *parse_end == '	' ||
-            *parse_end == '' ||
-            *parse_end == '
-')) {
+            *parse_end == '\t' ||
+            *parse_end == '\r' ||
+            *parse_end == '\n')) {
         parse_end++;
     }
 
