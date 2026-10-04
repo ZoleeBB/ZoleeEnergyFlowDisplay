@@ -620,8 +620,8 @@ static void build_dashboard(bool night)
         -1,
         APP_FONT_22,
         night?TEXT_DARK:TEXT_LIGHT);
-    lv_obj_set_width(s_title,560);
     lv_label_set_long_mode(s_title,LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_width(s_title,560);
 
     lbl(
         header,
