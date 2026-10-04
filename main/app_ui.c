@@ -63,7 +63,8 @@ static bool s_cfg_ok,s_started,s_dash_created,s_last_night;
 static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
 static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
-static lv_obj_t *s_bat_icon,*s_status_icon,*s_status_accent_a,*s_status_accent_b;
+static lv_obj_t *s_bat_icon,*s_grid_icon,*s_status_icon,*s_status_accent_a,*s_status_accent_b;
+static lv_obj_t *s_grid_node;
 static lv_obj_t *s_battery_bar,*s_status_card;
 static lv_obj_t *s_bat_soc_detail,*s_bat_power_detail,*s_bat_temp_detail;
 static lv_obj_t *s_bat_charge,*s_bat_charge_cmp,*s_bat_discharge,*s_bat_discharge_cmp;
@@ -442,7 +443,7 @@ static void build_dashboard(bool night){
     node(flow,28,55,165,90,tr("Napelem","Solar"),LV_SYMBOL_CHARGE,NULL,&s_pv,night,GREEN);
     lv_obj_t *bat_node=node(flow,28,215,165,90,tr("Akkumulátor","Battery"),LV_SYMBOL_BATTERY_3,&s_bat_icon,&s_bat,night,BLUE);
     node(flow,250,130,165,105,tr("Ház","Home"),LV_SYMBOL_HOME,NULL,&s_home,night,ORANGE);
-    node(flow,438,130,150,105,tr("Hálózat","Grid"),LV_SYMBOL_POWER,NULL,&s_grid,night,RED);
+    s_grid_node=node(flow,438,130,150,105,tr("Hálózat","Grid"),LV_SYMBOL_POWER,&s_grid_icon,&s_grid,night,RED);
 
     s_battery_bar=lv_bar_create(bat_node);
     lv_obj_set_pos(s_battery_bar,8,65);
@@ -634,7 +635,46 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     snprintf(b,sizeof(b),"%s: %d °C",tr("Hőm.","Temp."),(int)lround(s->battery_temperature_c));
     lv_label_set_text(s_bat_temp_detail,b);
     lv_obj_set_style_text_color(s_bat_temp_detail,c(bt_color),0);
-    flow_update(&f_pv,s->power_pv_kw,true,GREEN,s->night_mode,dt);flow_update(&f_bat,s->power_bat_kw,s->power_bat_kw>0,s->power_bat_kw<0?GREEN:ORANGE,s->night_mode,dt);if(s->status==3){for(int i=0;i<3;i++)lv_obj_add_flag(f_grid.dots[i],LV_OBJ_FLAG_HIDDEN);lv_obj_set_style_line_color(f_grid.line,c(GRAY),0);}else flow_update(&f_grid,s->power_grid_kw,s->power_grid_kw<0,s->power_grid_kw<0?GREEN:ORANGE,s->night_mode,dt);
+    flow_update(&f_pv,s->power_pv_kw,true,GREEN,s->night_mode,dt);
+    flow_update(
+        &f_bat,
+        s->power_bat_kw,
+        s->power_bat_kw>0,
+        s->power_bat_kw<0?GREEN:ORANGE,
+        s->night_mode,
+        dt);
+
+    /*
+     * Szigetüzemben a hálózat fizikailag leválasztottként jelenik meg:
+     * nincs áramlási pont, a kapcsolat és a hálózati kártya szürke,
+     * az ikon pedig megszakított állapotot jelez.
+     */
+    if(s->status==3){
+        for(int i=0;i<3;i++){
+            lv_obj_add_flag(f_grid.dots[i],LV_OBJ_FLAG_HIDDEN);
+        }
+        lv_obj_set_style_line_color(f_grid.line,c(GRAY),0);
+        lv_label_set_text(s_grid_icon,LV_SYMBOL_CLOSE);
+        lv_obj_set_style_text_color(s_grid_icon,c(GRAY),0);
+        lv_obj_set_style_border_color(s_grid_node,c(GRAY),0);
+    }else{
+        flow_update(
+            &f_grid,
+            s->power_grid_kw,
+            s->power_grid_kw<0,
+            s->power_grid_kw<0?GREEN:ORANGE,
+            s->night_mode,
+            dt);
+        lv_label_set_text(s_grid_icon,LV_SYMBOL_POWER);
+        lv_obj_set_style_text_color(
+            s_grid_icon,
+            c(tone(RED,s->night_mode)),
+            0);
+        lv_obj_set_style_border_color(
+            s_grid_node,
+            c(tone(RED,s->night_mode)),
+            0);
+    }
     fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->completed_interval_totals.production_kwh,st->yesterday_completed_interval_totals.production_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->completed_interval_totals.consumption_kwh,st->yesterday_completed_interval_totals.consumption_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->completed_interval_totals.grid_import_kwh,st->yesterday_completed_interval_totals.grid_import_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->completed_interval_totals.grid_export_kwh,st->yesterday_completed_interval_totals.grid_export_kwh,st->has_yesterday);
     snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->completed_interval_totals),money(&st->yesterday_completed_interval_totals),st->has_yesterday);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->completed_interval_totals),co2(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_dec(b,sizeof(b),tree(&st->totals),2);metric(6,b,tree(&st->completed_interval_totals),tree(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->completed_interval_totals),self(&st->yesterday_completed_interval_totals),st->has_yesterday);
     fmt_kwh(q,sizeof(q),st->totals.battery_charge_kwh);
@@ -719,10 +759,49 @@ static void error_screen(runtime_view_t view,const char *title,const char *detai
         lv_obj_set_pos(s_error_pulse,584,175);
         lv_obj_set_style_radius(s_error_pulse,LV_RADIUS_CIRCLE,0);
         lv_obj_set_style_border_width(s_error_pulse,0,0);
-        lv_obj_set_style_bg_color(s_error_pulse,c(fatal?RED:ORANGE),0);
+        uint32_t pulse_color=fatal?RED:ORANGE;
+        lv_obj_set_style_bg_color(s_error_pulse,c(pulse_color),0);
         lv_obj_set_style_bg_opa(s_error_pulse,LV_OPA_COVER,0);
-        lv_obj_t *bang=lbl(s_error_pulse,"!",38,20,&lv_font_montserrat_48,0xFFFFFF);
-        (void)bang;
+
+        /*
+         * A hiba típusa már a grafikából is felismerhető.
+         * A kör pulzálása minden nem normál állapotban megmarad.
+         */
+        const char *symbol="!";
+        const lv_font_t *symbol_font=&lv_font_montserrat_48;
+        int symbol_x=38;
+        int symbol_y=20;
+
+        if(view==VIEW_WIFI_ERROR){
+            symbol=LV_SYMBOL_WIFI;
+            symbol_font=APP_FONT_28;
+            symbol_x=39;
+            symbol_y=36;
+        }else if(view==VIEW_MQTT_ERROR){
+            symbol=LV_SYMBOL_CLOSE;
+            symbol_font=APP_FONT_28;
+            symbol_x=42;
+            symbol_y=35;
+        }else if(view==VIEW_WAIT_DATA){
+            symbol=LV_SYMBOL_REFRESH;
+            symbol_font=APP_FONT_28;
+            symbol_x=39;
+            symbol_y=35;
+        }else if(view==VIEW_DATA_TIMEOUT){
+            symbol=LV_SYMBOL_WARNING;
+            symbol_font=APP_FONT_28;
+            symbol_x=39;
+            symbol_y=35;
+        }
+
+        lv_obj_t *error_icon=lbl(
+            s_error_pulse,
+            symbol,
+            symbol_x,
+            symbol_y,
+            symbol_font,
+            0xFFFFFF);
+        (void)error_icon;
         lv_obj_t *t=lbl(s_screen,title,0,330,APP_FONT_28,fatal?RED:TEXT_DARK);
         lv_obj_set_width(t,W);
         lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);
