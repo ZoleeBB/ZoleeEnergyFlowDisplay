@@ -69,7 +69,13 @@ typedef enum {
 
 static weather_kind_t s_last_weather = (weather_kind_t)-1;
 
-typedef struct { lv_obj_t *line,*dots[3]; int x1,y1,x2,y2; float phase; } flow_t;
+typedef struct {
+    lv_obj_t *line;
+    lv_obj_t *dots[3];
+    lv_point_precise_t points[2];
+    int x1,y1,x2,y2;
+    float phase;
+} flow_t;
 static flow_t f_pv,f_bat,f_grid;
 
 static lv_color_t c(uint32_t x){return lv_color_hex(x);}
@@ -221,9 +227,28 @@ static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const
     return o;
 }
 static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool night){
-    f->x1=x1;f->y1=y1;f->x2=x2;f->y2=y2;f->phase=0;f->line=lv_line_create(p);
-    lv_point_precise_t *pts=lv_malloc(sizeof(lv_point_precise_t)*2);pts[0].x=x1;pts[0].y=y1;pts[1].x=x2;pts[1].y=y2;lv_line_set_points(f->line,pts,2);lv_obj_set_style_line_width(f->line,3,0);lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);
-    for(int i=0;i<3;i++){f->dots[i]=lv_obj_create(p);lv_obj_set_size(f->dots[i],9,9);lv_obj_set_style_radius(f->dots[i],LV_RADIUS_CIRCLE,0);lv_obj_set_style_border_width(f->dots[i],0,0);lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
+    f->x1=x1;
+    f->y1=y1;
+    f->x2=x2;
+    f->y2=y2;
+    f->phase=0;
+    f->points[0].x=x1;
+    f->points[0].y=y1;
+    f->points[1].x=x2;
+    f->points[1].y=y2;
+
+    f->line=lv_line_create(p);
+    lv_line_set_points(f->line,f->points,2);
+    lv_obj_set_style_line_width(f->line,3,0);
+    lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);
+
+    for(int i=0;i<3;i++){
+        f->dots[i]=lv_obj_create(p);
+        lv_obj_set_size(f->dots[i],9,9);
+        lv_obj_set_style_radius(f->dots[i],LV_RADIUS_CIRCLE,0);
+        lv_obj_set_style_border_width(f->dots[i],0,0);
+        lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);
+    }
 }
 static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool night,float dt){
     double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
