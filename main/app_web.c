@@ -148,7 +148,7 @@ static bool authorize(httpd_req_t *req)
         httpd_resp_set_hdr(
             req,
             "WWW-Authenticate",
-            "Basic realm="Zolee Energy Flow Display"");
+            "Basic realm=\"Zolee Energy Flow Display\"");
         httpd_resp_sendstr(req, "Authentication required");
         return false;
     }
@@ -229,7 +229,7 @@ static void html_escape(
             case '"':
                 replacement = "&quot;";
                 break;
-            case ''':
+            case '\\'':
                 replacement = "&#39;";
                 break;
             default:
