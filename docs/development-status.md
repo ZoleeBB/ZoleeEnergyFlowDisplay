@@ -17,6 +17,7 @@ Ez a lista a teljes fejlesztési egyeztetés, a jóváhagyott eredeti látványt
 - [x] Grafikon Y-tengely értékek, finom rács, aktuális idő jelölése és a második grafikon nullavonalának kialakítása.
 - [x] Az alsó összefoglaló sáv visszaállítása a megtakarítás / CO2 / fa-egyenérték / önellátás / státusz adatokhoz.
 - [x] A fejléc eredeti vizuális karakterének visszaállítása navigációs gombok nélkül: címikon, projektcím, alcím, dátum, időjárás, szél és idő.
+- [x] Vektoros assetkészlet bevezetése a felismerhető ikonokhoz; a dashboard, időjárás, státusz és hibaoldalak már nem LVGL karakterikonokra vagy kézzel összerakott ikon-primitívekre épülnek.
 - [ ] Második, előjeles grafikon finom áttetsző kitöltésének megvalósítása a nullavonal irányába.
 - [ ] Az egyszerű LVGL szimbólumok további közelítése az eredeti látványterv részletes napelem / hálózat / akkumulátor / ház ikonvilágához.
 - [ ] Pixel-, betűméret- és térközfinomítás valódi kijelzőfotó alapján.
