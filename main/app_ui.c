@@ -213,6 +213,80 @@ static void fmt_cmp(char *out,size_t n,double t,double y){
 }
 static uint32_t cmp_color(double t,double y){if(fabs(y)<1e-9)return GRAY;return t>=y?GREEN:ORANGE;}
 
+#if LV_DRAW_SW_COMPLEX
+static void chart_positive_gradient_cb(lv_event_t *e)
+{
+    lv_draw_task_t *task=lv_event_get_draw_task(e);
+    if(!task||lv_draw_task_get_type(task)!=LV_DRAW_TASK_TYPE_LINE)return;
+
+    lv_draw_dsc_base_t *base=(lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(task);
+    if(!base||base->part!=LV_PART_ITEMS)return;
+
+    lv_draw_line_dsc_t *line=lv_draw_task_get_line_dsc(task);
+    if(!line||line->point_cnt<2)return;
+
+    lv_obj_t *chart=lv_event_get_target_obj(e);
+    lv_area_t coords;
+    lv_obj_get_coords(chart,&coords);
+
+    lv_draw_triangle_dsc_t tri;
+    lv_draw_triangle_dsc_init(&tri);
+    tri.grad.dir=LV_GRAD_DIR_VER;
+
+    lv_draw_rect_dsc_t rect;
+    lv_draw_rect_dsc_init(&rect);
+    rect.bg_grad.dir=LV_GRAD_DIR_VER;
+
+    for(int32_t i=0;i<line->point_cnt-1;i++){
+        lv_point_precise_t p1=line->points[i];
+        lv_point_precise_t p2=line->points[i+1];
+
+        if(p1.x==LV_DRAW_LINE_POINT_NONE||p1.y==LV_DRAW_LINE_POINT_NONE||
+           p2.x==LV_DRAW_LINE_POINT_NONE||p2.y==LV_DRAW_LINE_POINT_NONE){
+            continue;
+        }
+
+        int32_t upper=LV_MIN(p1.y,p2.y);
+        int32_t lower=LV_MAX(p1.y,p2.y);
+        int32_t full_h=lv_obj_get_height(chart);
+        if(full_h<=0)continue;
+
+        int32_t upper_frac=LV_CLAMP(0,(upper-coords.y1)*255/full_h,255);
+        int32_t lower_frac=LV_CLAMP(0,(lower-coords.y1)*255/full_h,255);
+        lv_opa_t upper_opa=(lv_opa_t)(70-(upper_frac*25/255));
+        lv_opa_t lower_opa=(lv_opa_t)(55-(lower_frac*25/255));
+
+        tri.p[0].x=p1.x;tri.p[0].y=p1.y;
+        tri.p[1].x=p2.x;tri.p[1].y=p2.y;
+        tri.p[2].x=p1.y<p2.y?p1.x:p2.x;
+        tri.p[2].y=lower;
+        tri.grad.stops[0].color=line->color;
+        tri.grad.stops[0].opa=upper_opa;
+        tri.grad.stops[0].frac=0;
+        tri.grad.stops[1].color=line->color;
+        tri.grad.stops[1].opa=lower_opa;
+        tri.grad.stops[1].frac=255;
+        lv_draw_triangle(base->layer,&tri);
+
+        lv_area_t area={
+            .x1=(int32_t)p1.x,
+            .x2=(int32_t)p2.x-1,
+            .y1=lower,
+            .y2=coords.y2
+        };
+        if(area.x2<area.x1)continue;
+
+        rect.bg_grad.stops[0].color=line->color;
+        rect.bg_grad.stops[0].opa=lower_opa;
+        rect.bg_grad.stops[0].frac=0;
+        rect.bg_grad.stops[1].color=line->color;
+        rect.bg_grad.stops[1].opa=0;
+        rect.bg_grad.stops[1].frac=255;
+        lv_draw_rect(base->layer,&rect,&area);
+    }
+}
+#endif
+
 static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const char *icon,lv_obj_t **icon_out,lv_obj_t **value,bool night,uint32_t accent){
     lv_obj_t *o=lv_obj_create(p);
     lv_obj_set_pos(o,x,y);
@@ -253,7 +327,7 @@ static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool nig
 static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool night,float dt){
     double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
     uint32_t shown=tone(color,night);
-    lv_obj_set_style_line_color(f->line,c(shown),0);float speed=.10f+.55f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
+    lv_obj_set_style_line_color(f->line,c(shown),0);float speed=.75f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
     for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(shown),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
 static lv_obj_t *metric_card(lv_obj_t *p,int x,int y,const char *title,int idx,bool night){
@@ -331,6 +405,10 @@ static void build_dashboard(bool night){
     lv_obj_set_style_line_color(s_chart1,c(night?0x29322E:0xE5EAEC),LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart1,1,LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart1,2,LV_PART_ITEMS);
+#if LV_DRAW_SW_COMPLEX
+    lv_obj_add_event_cb(s_chart1,chart_positive_gradient_cb,LV_EVENT_DRAW_TASK_ADDED,NULL);
+    lv_obj_set_send_draw_task_events(s_chart1,true);
+#endif
     s_pv_ser=lv_chart_add_series(s_chart1,c(tone(GREEN,night)),LV_CHART_AXIS_PRIMARY_Y);
     s_load_ser=lv_chart_add_series(s_chart1,c(tone(ORANGE,night)),LV_CHART_AXIS_PRIMARY_Y);
     shape(cc1,343,8,8,8,tone(GREEN,night),LV_RADIUS_CIRCLE);

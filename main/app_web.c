@@ -50,6 +50,32 @@ static esp_err_t sendf(httpd_req_t *req,const char *fmt,...){
     return httpd_resp_send_chunk(req,buffer,len);
 }
 
+static void html_escape(const char *src,char *dst,size_t dst_len)
+{
+    if(!dst||dst_len==0)return;
+    size_t w=0;
+    for(size_t i=0;src&&src[i]&&w+1<dst_len;i++){
+        const char *replacement=NULL;
+        switch(src[i]){
+            case '&':replacement="&amp;";break;
+            case '<':replacement="&lt;";break;
+            case '>':replacement="&gt;";break;
+            case '"':replacement="&quot;";break;
+            case '\'':replacement="&#39;";break;
+            default:break;
+        }
+        if(replacement){
+            size_t n=strlen(replacement);
+            if(w+n>=dst_len)break;
+            memcpy(dst+w,replacement,n);
+            w+=n;
+        }else{
+            dst[w++]=src[i];
+        }
+    }
+    dst[w]=0;
+}
+
 static esp_err_t root_handler(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
 
@@ -89,7 +115,9 @@ static esp_err_t root_handler(httpd_req_t *req){
         "<style>body{font-family:system-ui;margin:28px;max-width:900px;background:#f7f8fa;color:#17202a}.card{background:#fff;border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 2px 12px #0001}table{border-collapse:collapse;width:100%}td{padding:7px;border-bottom:1px solid #eee}button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer;margin-right:8px}.muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}</style></head><body>",
         HTTPD_RESP_USE_STRLEN);
 
-    sendf(req,"<h1>%s</h1>",s_project_title[0]?s_project_title:"Zolee Energy Flow Display");
+    char safe_title[APP_PROJECT_TITLE_MAX*6];
+    html_escape(s_project_title[0]?s_project_title:"Zolee Energy Flow Display",safe_title,sizeof(safe_title));
+    sendf(req,"<h1>%s</h1>",safe_title);
     httpd_resp_send_chunk(req,s_hu?"<div class='card'><h2>Eszközinformáció</h2><table>":"<div class='card'><h2>Device information</h2><table>",HTTPD_RESP_USE_STRLEN);
     sendf(req,s_hu?"<tr><td>Firmware</td><td>%s</td></tr>":"<tr><td>Firmware</td><td>%s</td></tr>",desc?desc->version:"-");
     sendf(req,s_hu?"<tr><td>Üzemidő</td><td>%d nap %02d:%02d:%02d</td></tr>":"<tr><td>Uptime</td><td>%d days %02d:%02d:%02d</td></tr>",days,hours,mins,secs);
@@ -115,7 +143,9 @@ static esp_err_t root_handler(httpd_req_t *req){
                 strftime(when,sizeof(when),"%Y-%m-%d %H:%M:%S",&tmv);
             }
             const char *cls=events[i].level==APP_EVENT_ERROR?"error":events[i].level==APP_EVENT_WARNING?"warning":"";
-            sendf(req,"<tr><td class='muted'>%s</td><td class='%s'>%s</td><td>%s</td></tr>",when,cls,event_level_text(events[i].level),events[i].text);
+            char safe_event[APP_EVENT_TEXT_MAX*6];
+            html_escape(events[i].text,safe_event,sizeof(safe_event));
+            sendf(req,"<tr><td class='muted'>%s</td><td class='%s'>%s</td><td>%s</td></tr>",when,cls,event_level_text(events[i].level),safe_event);
         }
         httpd_resp_send_chunk(req,"</table>",HTTPD_RESP_USE_STRLEN);
     }
