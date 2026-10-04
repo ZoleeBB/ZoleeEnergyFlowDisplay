@@ -76,19 +76,25 @@ void app_main(void)
     app_state_init();
     app_events_init();
 
+    /*
+     * Az OTA rollback ellenőrzést még a kijelző inicializálása előtt elindítjuk.
+     * Így egy hibás új firmware akkor is automatikusan vissza tud állni,
+     * ha már a kijelző indítása közben megakadna.
+     */
+    app_ota_start_validation_task();
+
     /* A kijelző már a további indulási lépések állapotát is mutatja. */
     if (app_ui_init() != ESP_OK) {
         ESP_LOGE(TAG, "Display initialization failed");
+
+        /*
+         * Nem rebootolunk azonnal: ha ez próba OTA image, a validációs task
+         * három perc után szabályosan érvényteleníti és visszagörgeti.
+         */
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
-
-    /*
-     * Az OTA rollback ellenőrzés korán indul, hogy egy új firmware
-     * a háromperces érvényesítési ablakon belül bizonyíthassa működését.
-     */
-    app_ota_start_validation_task();
 
     /* SD-kártya nélkül nincs konfiguráció, ezért ez blokkoló feltétel. */
     app_ui_show_boot(APP_BOOT_SD, NULL);
