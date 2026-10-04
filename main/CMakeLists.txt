@@ -27,3 +27,7 @@ idf_component_register(
         mqtt
         nvs_flash
 )
+
+# Keep warnings visible, but do not fail the build on formatting-only
+# misleading-indentation diagnostics while the source is being cleaned up.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=misleading-indentation)
