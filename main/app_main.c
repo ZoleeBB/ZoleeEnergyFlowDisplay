@@ -51,7 +51,8 @@ void app_main(void){
     }
     app_events_add(APP_EVENT_INFO,"NTP időszinkron sikeres.");
 
-    e=app_stats_init(&s_config);if(e!=ESP_OK)app_events_add(APP_EVENT_ERROR,"Statisztika inicializálási hiba: %s",esp_err_to_name(e));
+    e=app_stats_init(&s_config);
+    if(e!=ESP_OK)fatal_forever("SD-kártya hiba","A statisztikai tárhely nem inicializálható. Ellenőrizd az SD-kártyát, majd indítsd újra az eszközt.");
     app_storage_start_recovery_task();app_stats_start_task();app_time_start_background_task();
 
     e=app_web_start(&s_config);if(e!=ESP_OK){app_events_add(APP_EVENT_ERROR,"Web/OTA felület nem indult el: %s",esp_err_to_name(e));ESP_LOGE(TAG,"Web server start failed: %s",esp_err_to_name(e));}
