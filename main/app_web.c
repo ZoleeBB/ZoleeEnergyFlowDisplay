@@ -38,7 +38,7 @@ static esp_err_t root_handler(httpd_req_t *req){
       "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Zolee Energy Flow Display</title>"
       "<style>body{font-family:system-ui;margin:28px;max-width:900px;background:#f7f8fa;color:#17202a}.card{background:#fff;border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 2px 12px #0001}td{padding:7px;border-bottom:1px solid #eee}button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer;margin-right:8px}</style></head><body>"
       "<h1>Zolee Energy Flow Display</h1><div class='card'><table><tr><td>Firmware</td><td>%s</td></tr><tr><td>Uptime</td><td>%d nap %02d:%02d:%02d</td></tr><tr><td>IP</td><td>%s</td></tr><tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr><tr><td>Utolsó MQTT csomag</td><td>%s</td></tr><tr><td>SD</td><td>%s</td></tr><tr><td>Reset oka</td><td>%s</td></tr></table></div>"
-      "<div class='card'><a href='/update'>Firmware frissítés</a><button onclick="if(confirm('Biztosan újraindítod?'))fetch('/reboot',{method:'POST'})">Eszköz újraindítása</button></div></body></html>",
+      "<div class='card'><a href='/update'>Firmware frissítés</a><form method='post' action='/reboot' style='display:inline'><button type='submit'>Eszköz újraindítása</button></form></div></body></html>",
       d?d->version:"-",days,hours,mins,secs,ip,rt.wifi_connected?rssi:0,packet,app_storage_is_ok()?"Rendben":"Hiba",reset_text(esp_reset_reason()));
     httpd_resp_set_type(req,"text/html; charset=utf-8");return httpd_resp_send(req,page,n);
 }
