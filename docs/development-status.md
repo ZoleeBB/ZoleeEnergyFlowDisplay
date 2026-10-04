@@ -10,13 +10,16 @@ Ez a lista a teljes fejlesztési egyeztetés, a jóváhagyott eredeti látványt
 - [x] Grid import/export és akkumulátor töltés/kisütés pontos integrálása akkor is, ha két minta között előjelet vált a teljesítmény.
 - [x] Futás közbeni SD-csere után a `/stats` könyvtár automatikus újralétrehozása.
 - [x] Tegnapi összehasonlítás elrejtése, ha a megfelelő lezárt időszakban valójában nincs tegnapi mérési adat.
-- [ ] A dashboard vizuális szerkezetének visszaigazítása az eredeti jóváhagyott látványtervhez.
-- [ ] A fő energiaáramlás elrendezésének és megjelenésének közelítése az eredeti látványhoz: kör alakú elemek, központi hub, külön ház-áramlási ág.
-- [ ] A napi kártyák eredeti stílusának visszaállítása: nagy ikon, cím, „Ma összesen”, nagy érték és tegnapi összehasonlítás.
-- [ ] A két grafikon jobb oldali, egymás alatti elrendezése az eredeti vizuális hierarchiának megfelelően.
-- [ ] Grafikon Y-tengely értékek, finom rács, aktuális idő jelölése és a második grafikon nullavonalának vizuális finomítása.
-- [ ] Az alsó összefoglaló sáv visszaállítása a megtakarítás / CO2 / fa-egyenérték / önellátás / státusz adatokhoz.
-- [ ] A fejléc eredeti vizuális karakterének visszaállítása navigációs gombok nélkül: címikon, projektcím, alcím, dátum, időjárás, szél és idő.
+- [x] A dashboard makro-elrendezésének visszaigazítása az eredeti jóváhagyott látványtervhez.
+- [x] A fő energiaáramlás elrendezésének közelítése az eredeti látványhoz: kör alakú elemek, központi hub, külön ház-áramlási ág.
+- [x] A napi kártyák eredeti stílusának visszaállítása: nagy ikon, cím, „Ma összesen”, nagy érték és tegnapi összehasonlítás.
+- [x] A két grafikon jobb oldali, egymás alatti elrendezése az eredeti vizuális hierarchiának megfelelően.
+- [x] Grafikon Y-tengely értékek, finom rács, aktuális idő jelölése és a második grafikon nullavonalának kialakítása.
+- [x] Az alsó összefoglaló sáv visszaállítása a megtakarítás / CO2 / fa-egyenérték / önellátás / státusz adatokhoz.
+- [x] A fejléc eredeti vizuális karakterének visszaállítása navigációs gombok nélkül: címikon, projektcím, alcím, dátum, időjárás, szél és idő.
+- [ ] Második, előjeles grafikon finom áttetsző kitöltésének megvalósítása a nullavonal irányába.
+- [ ] Az egyszerű LVGL szimbólumok további közelítése az eredeti látványterv részletes napelem / hálózat / akkumulátor / ház ikonvilágához.
+- [ ] Pixel-, betűméret- és térközfinomítás valódi kijelzőfotó alapján.
 
 ## Funkcionális ellenőrzések
 
@@ -37,6 +40,10 @@ Ez a lista a teljes fejlesztési egyeztetés, a jóváhagyott eredeti látványt
 - [x] OTA elfogadásához nem szükséges érvényes MQTT payload.
 - [x] Helyi információs és OTA weboldal.
 - [x] A statisztika webes kézi törlése szándékosan nincs megvalósítva.
+- [x] A konfigurálható NTP újraszinkron periódus ténylegesen felülírja az lwIP gyári 1 órás periódusát.
+- [x] A config.json teljes tartalmának szigorú JSON-validálása, trailing szemét elutasításával.
+- [x] Maximális hosszúságú OTA Basic Auth felhasználónév/jelszó támogatása.
+- [x] Akkumulátor SOC sáv visszaállítása a kör alakú akkumulátor-grafikába.
 - [ ] Minden felhasználónak látható webes és diagnosztikai szöveg teljes HU/EN lokalizációjának végső átvizsgálása.
 - [ ] Időzóna mező viselkedésének végleges dokumentálása nem Budapest érték esetére.
 - [ ] SD-kártya futás közbeni fizikai eltávolításának gyorsabb, írás nélküli felismerése.
@@ -57,16 +64,8 @@ Ez a lista a teljes fejlesztési egyeztetés, a jóváhagyott eredeti látványt
 
 ## Vizuális audit
 
-Az aktuális UI funkcionálisan már tartalmazza a szükséges adatokat, de még nem tekinthető az eredeti jóváhagyott látványterv pontos adaptációjának.
+A dashboard makro-elrendezése már az eredeti jóváhagyott látványtervet követi: lekerekített fejléc, bal oldali nagy napi kártyák, központi kör alakú energiaáramlás, jobb oldali egymás alatti grafikonok és alsó összefoglaló szalag.
 
-A legnagyobb eltérések:
+Szándékos eltérés az eredeti képtől, hogy a későbbi specifikáció szerint nincs navigációs tabsor vagy dátumválasztó, viszont külön hálózati vételezés és visszatáplálás, részletes akkumulátoradatok és két kombinált grafikon szerepel.
 
-1. A napi kártyák jelenleg kis, egységes rácsban vannak, míg az eredeti terv nagy, ikonközpontú kártyákat használ.
-2. A fő energiaáramlás jelenleg bal oldali panel, az eredeti tervben ez a központi vizuális elem.
-3. A jelenlegi energiaelemek téglalap kártyák; az eredeti terv kör alakú energiaikonokat és központi csomópontot használ.
-4. A házhoz nincs külön animált energiaág; ezt az eredeti struktúrához igazítva pótolni kell.
-5. A grafikonok jelenleg alul, egymás mellett vannak; az eredeti tervben jobb oldalon, egymás alatt.
-6. Az alsó összefoglaló szalag jelenleg hiányzik.
-7. A fejléc már helyesen nem tartalmaz navigációt, de vizuálisan még egyszerűbb az eredeti tervnél.
-
-A további UI-fejlesztésnél az eredeti vizuális hierarchiát tartjuk meg, miközben a később elfogadott funkcionális bővítések — külön grid import/export, két kombinált grafikon, részletes akkumulátorkártya — is megmaradnak.
+A vizuális egyezés még nem tekinthető pixelpontosan validáltnak. Ehhez a firmware-t a tényleges 1280x800-as Waveshare panelen kell lefuttatni, a kijelzőről fotót készíteni, majd az eredeti referenciával összevetni. A hátralévő vizuális munka főként az ikonok részletessége, az előjeles grafikon kitöltése, valamint a fontok, térközök és méretek finomhangolása.
