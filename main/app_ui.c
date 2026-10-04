@@ -619,8 +619,7 @@ static void build_dashboard(bool night)
         4,
         2,
         42,
-        LV_SYMBOL_HOME,
-        APP_FONT_20,
+        &app_img_header_home_leaf,
         night,
         GREEN);
 
@@ -650,13 +649,14 @@ static void build_dashboard(bool night)
         APP_FONT_16,
         night?MUTED_DARK:MUTED_LIGHT);
 
-    s_weather_icon=lv_obj_create(header);
-    lv_obj_set_pos(s_weather_icon,850,4);
-    lv_obj_set_size(s_weather_icon,48,42);
-    lv_obj_set_style_bg_opa(s_weather_icon,LV_OPA_TRANSP,0);
-    lv_obj_set_style_border_width(s_weather_icon,0,0);
-    lv_obj_set_style_pad_all(s_weather_icon,0,0);
-    lv_obj_remove_flag(s_weather_icon,LV_OBJ_FLAG_SCROLLABLE);
+    s_weather_icon=asset_image_box(
+        header,
+        850,
+        2,
+        46,
+        42,
+        &app_img_weather_sun,
+        night);
     s_last_weather=(weather_kind_t)-1;
 
     s_weather_temp=lbl(
@@ -667,7 +667,14 @@ static void build_dashboard(bool night)
         APP_FONT_16,
         night?TEXT_DARK:TEXT_LIGHT);
 
-    wind_icon_create(header,970,14,night);
+    asset_image_box(
+        header,
+        967,
+        8,
+        36,
+        30,
+        &app_img_wind,
+        night);
 
     s_wind_speed=lbl(
         header,
@@ -692,25 +699,25 @@ static void build_dashboard(bool night)
     metric_card(
         s_dash,20,82,300,132,
         tr("Mai termelés","Production"),
-        LV_SYMBOL_CHARGE,
+        &app_img_leaf,
         0,night,GREEN);
 
     metric_card(
         s_dash,20,224,300,132,
         tr("Mai fogyasztás","Consumption"),
-        LV_SYMBOL_HOME,
+        &app_img_house,
         1,night,ORANGE);
 
     metric_card(
         s_dash,20,366,300,132,
         tr("Hálózati vételezés","Grid import"),
-        LV_SYMBOL_DOWNLOAD,
+        &app_img_grid,
         2,night,ORANGE);
 
     metric_card(
         s_dash,20,508,300,142,
         tr("Visszatáplálás","Grid export"),
-        LV_SYMBOL_UPLOAD,
+        &app_img_grid,
         3,night,GREEN);
 
     /*
@@ -736,32 +743,15 @@ static void build_dashboard(bool night)
     flow_init(&f_pv,flow,344,245,280,245,night);
     flow_init(&f_home,flow,245,280,245,329,night);
 
-    /* Központi energiaelosztó hub. */
-    lv_obj_t *hub=lv_obj_create(flow);
-    lv_obj_set_pos(hub,210,210);
-    lv_obj_set_size(hub,70,70);
-    lv_obj_set_style_radius(hub,LV_RADIUS_CIRCLE,0);
-    lv_obj_set_style_bg_color(
-        hub,
-        c(night?0x303632:0xD9DEE1),
-        0);
-    lv_obj_set_style_bg_opa(hub,LV_OPA_COVER,0);
-    lv_obj_set_style_border_width(hub,3,0);
-    lv_obj_set_style_border_color(
-        hub,
-        c(night?0x5E6862:0xA9B1B5),
-        0);
-    lv_obj_set_style_pad_all(hub,0,0);
-    lv_obj_remove_flag(hub,LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *hub_icon=lbl(
-        hub,
-        LV_SYMBOL_CHARGE,
-        0,
-        0,
-        APP_FONT_28,
-        night?TEXT_DARK:0xFFFFFF);
-    lv_obj_align(hub_icon,LV_ALIGN_CENTER,0,0);
+    /* Központi energiaelosztó: a látványterv szürke, villámos hub grafikája. */
+    asset_image_box(
+        flow,
+        210,
+        210,
+        70,
+        70,
+        &app_img_hub,
+        night);
 
     /* Hálózat felül. */
     s_grid_node=energy_circle(
@@ -769,7 +759,7 @@ static void build_dashboard(bool night)
         245,
         110,
         92,
-        LV_SYMBOL_POWER,
+        &app_img_grid,
         &s_grid_icon,
         night,
         GREEN);
@@ -800,7 +790,7 @@ static void build_dashboard(bool night)
         100,
         245,
         92,
-        LV_SYMBOL_BATTERY_3,
+        &app_img_battery,
         &s_bat_icon,
         night,
         ORANGE);
@@ -869,7 +859,7 @@ static void build_dashboard(bool night)
         390,
         245,
         92,
-        LV_SYMBOL_CHARGE,
+        &app_img_solar,
         NULL,
         night,
         GREEN);
@@ -896,7 +886,7 @@ static void build_dashboard(bool night)
         245,
         375,
         92,
-        LV_SYMBOL_HOME,
+        &app_img_home_scene,
         NULL,
         night,
         ORANGE);
@@ -1167,25 +1157,25 @@ static void build_dashboard(bool night)
     summary_metric(
         summary,0,236,
         tr("Megtakarított pénz","Money saved"),
-        s_cfg.project.currency,
+        &app_img_coins,
         4,night,ORANGE);
 
     summary_metric(
         summary,236,236,
         tr("Megtakarított CO2","CO2 saved"),
-        "CO2",
+        &app_img_co2,
         5,night,GRAY);
 
     summary_metric(
         summary,472,236,
         tr("Fa-egyenérték","Tree equivalent"),
-        tr("Fa","Tree"),
+        &app_img_tree,
         6,night,GREEN);
 
     summary_metric(
         summary,708,236,
         tr("Önellátás","Self-sufficiency"),
-        "%",
+        &app_img_bulb,
         7,night,ORANGE);
 
     /* Finom elválasztók az alsó sáv szegmensei között. */
@@ -1224,16 +1214,18 @@ static void build_dashboard(bool night)
     lv_obj_set_size(s_status_bubble,50,50);
     lv_obj_set_style_radius(s_status_bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(s_status_bubble,0,0);
-    lv_obj_set_style_bg_color(s_status_bubble,c(tone(GREEN,night)),0);
-    lv_obj_set_style_bg_opa(s_status_bubble,night?LV_OPA_20:LV_OPA_20,0);
+    lv_obj_set_style_bg_opa(s_status_bubble,LV_OPA_TRANSP,0);
     lv_obj_set_style_pad_all(s_status_bubble,0,0);
     lv_obj_remove_flag(s_status_bubble,LV_OBJ_FLAG_SCROLLABLE);
 
-    s_status_icon=lv_label_create(s_status_bubble);
-    lv_label_set_text(s_status_icon,LV_SYMBOL_OK);
-    lv_obj_set_style_text_font(s_status_icon,APP_FONT_20,0);
-    lv_obj_set_style_text_color(s_status_icon,c(tone(GREEN,night)),0);
-    lv_obj_align(s_status_icon,LV_ALIGN_CENTER,0,0);
+    s_status_icon=asset_image_box(
+        s_status_bubble,
+        0,
+        0,
+        50,
+        50,
+        &app_img_status_normal,
+        night);
 
     s_status=
         lbl(s_status_card,"-",60,27,APP_FONT_16,GREEN);
