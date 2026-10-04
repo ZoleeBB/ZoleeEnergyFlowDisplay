@@ -793,7 +793,32 @@ static void build_dashboard(bool night)
         &s_bat_icon,
         night,
         ORANGE);
-    (void)battery_circle;
+
+    /*
+     * A kör alakú akkumulátor-grafikán belül külön SOC sáv is látható.
+     * A sáv hossza és színe együtt jelzi a töltöttséget, miközben maga
+     * az akkumulátor ikon is a megfelelő töltöttségi szintre vált.
+     */
+    s_battery_bar=lv_bar_create(battery_circle);
+    lv_obj_set_pos(s_battery_bar,18,68);
+    lv_obj_set_size(s_battery_bar,56,7);
+    lv_bar_set_range(s_battery_bar,0,100);
+    lv_obj_set_style_bg_color(
+        s_battery_bar,
+        c(night?0x29302C:0xE4E9E6),
+        LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(
+        s_battery_bar,
+        LV_OPA_COVER,
+        LV_PART_MAIN);
+    lv_obj_set_style_radius(
+        s_battery_bar,
+        4,
+        LV_PART_MAIN);
+    lv_obj_set_style_radius(
+        s_battery_bar,
+        4,
+        LV_PART_INDICATOR);
 
     lbl(
         flow,
