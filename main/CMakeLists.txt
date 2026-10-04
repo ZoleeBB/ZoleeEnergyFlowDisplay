@@ -2,6 +2,7 @@
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_assets.c"
         "app_config.c"
         "app_events.c"
         "app_mqtt.c"

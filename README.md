@@ -90,3 +90,5 @@ A GitHub Actions minden main push és pull request esetén ESP-IDF 5.5.4 fordít
 - [Hibakezelés](docs/errors.md)
 - [OTA és webfelület](docs/ota.md)
 - [Működési áttekintés](docs/architecture.md)
+
+- [Grafikai assetek](docs/assets.md)

@@ -53,3 +53,15 @@ CONFIG_FATFS_FS_LOCK=4
 # engedélyezett maximális 7 napnál. A tényleges újraszinkront az alkalmazás
 # resync_hours beállítása vezérli, így az alapértelmezett 6 óra valóban érvényesül.
 CONFIG_LWIP_SNTP_UPDATE_DELAY=1209600000
+
+# A végleges dashboard ikonok vektoros SVG assetek.
+# A ThorVG adja az LVGL szoftveres SVG/vector renderelését.
+CONFIG_LV_USE_THORVG=y
+CONFIG_LV_USE_THORVG_INTERNAL=y
+CONFIG_LV_USE_SVG=y
+
+# A vektoros rendereléshez az LVGL nagyobb draw-task stacket javasol.
+CONFIG_LV_DRAW_THREAD_STACK_SIZE=32768
+
+# Az SVG draw-listák újrafelhasználásához képcache-t tartunk fenn.
+CONFIG_LV_CACHE_DEF_SIZE=262144
