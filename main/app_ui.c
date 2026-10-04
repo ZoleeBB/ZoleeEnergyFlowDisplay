@@ -1867,8 +1867,121 @@ void app_ui_set_config(const app_config_t *cfg)
      */
     bsp_display_brightness_set(s_brightness);
 }
-/* Indulási folyamat aktuális lépésének megjelenítése. */
-void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,APP_FONT_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,APP_FONT_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,APP_FONT_22,GREEN);if(detail)lbl(s_screen,detail,34,225,APP_FONT_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?LV_SYMBOL_OK:i==stage?LV_SYMBOL_REFRESH:"-",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,APP_FONT_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}
+/* Indulási folyamat aktuális lépésének megjelenítése vektoros állapotikonokkal. */
+void app_ui_show_boot(
+    app_boot_stage_t stage,
+    const char *detail)
+{
+    if(bsp_display_lock(-1)!=ESP_OK){
+        return;
+    }
+
+    clear();
+    screen_style(s_screen,false);
+
+    const char *hu_steps[]={
+        "SD-kártya",
+        "Konfiguráció",
+        "Wi-Fi kapcsolat",
+        "Időszinkron",
+        "MQTT kapcsolat",
+        "Várakozás az első adatcsomagra"
+    };
+
+    const char *en_steps[]={
+        "SD card",
+        "Configuration",
+        "Wi-Fi connection",
+        "Time synchronization",
+        "MQTT connection",
+        "Waiting for first data packet"
+    };
+
+    lbl(
+        s_screen,
+        s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",
+        34,
+        30,
+        APP_FONT_28,
+        TEXT_LIGHT);
+
+    lbl(
+        s_screen,
+        tr("Rendszerindítás","Starting system"),
+        34,
+        120,
+        APP_FONT_28,
+        TEXT_LIGHT);
+
+    lbl(
+        s_screen,
+        hu()?hu_steps[stage]:en_steps[stage],
+        34,
+        180,
+        APP_FONT_22,
+        GREEN);
+
+    if(detail){
+        lv_obj_t *detail_label=lbl(
+            s_screen,
+            detail,
+            34,
+            225,
+            APP_FONT_14,
+            MUTED_LIGHT);
+        lv_obj_set_width(detail_label,1180);
+    }
+
+    /*
+     * A bootlista felismerhető állapotgrafikákat használ:
+     * kész = zöld ellenőrzött otthon, aktív = narancs adatmozgás,
+     * jövőbeli = visszafogott szürke kör.
+     */
+    for(int i=0;i<6;i++){
+        int y=300+i*57;
+
+        if(i<stage){
+            asset_image_box(
+                s_screen,
+                52,
+                y,
+                34,
+                30,
+                &app_img_status_normal,
+                false);
+        }else if(i==stage){
+            asset_image_box(
+                s_screen,
+                52,
+                y,
+                34,
+                30,
+                &app_img_waiting_data,
+                false);
+        }else{
+            lv_obj_t *dot=shape(
+                s_screen,
+                63,
+                y+10,
+                10,
+                10,
+                0xC8D0D4,
+                LV_RADIUS_CIRCLE);
+            lv_obj_set_style_bg_opa(dot,LV_OPA_COVER,0);
+        }
+
+        lbl(
+            s_screen,
+            hu()?hu_steps[i]:en_steps[i],
+            98,
+            y+5,
+            APP_FONT_18,
+            i<stage?GREEN:i==stage?ORANGE:GRAY);
+    }
+
+    bsp_display_unlock();
+}
+
 /* Végzetes indulási hiba biztonságos megjelenítése LVGL lock mellett. */
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
