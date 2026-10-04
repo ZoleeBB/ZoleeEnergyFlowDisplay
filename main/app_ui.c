@@ -167,20 +167,6 @@ static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,i
     return obj;
 }
 
-static lv_obj_t *accent_line(lv_obj_t *parent,int x1,int y1,int x2,int y2,uint32_t color)
-{
-    lv_obj_t *line=lv_line_create(parent);
-    lv_point_precise_t *pts=lv_malloc(sizeof(lv_point_precise_t)*2);
-    if(!pts)return line;
-    pts[0].x=x1;pts[0].y=y1;
-    pts[1].x=x2;pts[1].y=y2;
-    lv_line_set_points(line,pts,2);
-    lv_obj_set_style_line_width(line,2,0);
-    lv_obj_set_style_line_color(line,c(color),0);
-    lv_obj_set_style_line_rounded(line,true,0);
-    return line;
-}
-
 static void weather_draw_sun(lv_obj_t *parent,int x,int y){
     shape(parent,x+11,y+8,16,16,0xF4B942,LV_RADIUS_CIRCLE);
     shape(parent,x+18,y+1,2,5,0xF4B942,1);
@@ -430,8 +416,31 @@ static void build_dashboard(bool night){
     s_status_icon=lbl(s_status_card,LV_SYMBOL_OK,0,38,APP_FONT_20,GREEN);
     s_status=lbl(s_status_card,"-",34,35,APP_FONT_20,GREEN);
 
-    s_status_accent_a=accent_line(s_status_card,112,37,116,32,GREEN);
-    s_status_accent_b=accent_line(s_status_card,119,37,123,32,GREEN);
+    /*
+     * U+0171 (ű) is the only Hungarian glyph not present in the component's
+     * compact basic charset. Two tiny two-segment marks complete the plain
+     * 'u' visually without allocating any per-dashboard font data.
+     */
+    s_status_accent_a=lv_obj_create(s_status_card);
+    lv_obj_set_pos(s_status_accent_a,112,30);
+    lv_obj_set_size(s_status_accent_a,5,7);
+    lv_obj_set_style_bg_opa(s_status_accent_a,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(s_status_accent_a,0,0);
+    lv_obj_set_style_pad_all(s_status_accent_a,0,0);
+    lv_obj_remove_flag(s_status_accent_a,LV_OBJ_FLAG_SCROLLABLE);
+    shape(s_status_accent_a,0,3,2,4,GREEN,1);
+    shape(s_status_accent_a,2,0,2,4,GREEN,1);
+
+    s_status_accent_b=lv_obj_create(s_status_card);
+    lv_obj_set_pos(s_status_accent_b,119,30);
+    lv_obj_set_size(s_status_accent_b,5,7);
+    lv_obj_set_style_bg_opa(s_status_accent_b,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(s_status_accent_b,0,0);
+    lv_obj_set_style_pad_all(s_status_accent_b,0,0);
+    lv_obj_remove_flag(s_status_accent_b,LV_OBJ_FLAG_SCROLLABLE);
+    shape(s_status_accent_b,0,3,2,4,GREEN,1);
+    shape(s_status_accent_b,2,0,2,4,GREEN,1);
+
     lv_obj_add_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_status_accent_b,LV_OBJ_FLAG_HIDDEN);
 
@@ -611,8 +620,13 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     if(draw_double_acute){
         lv_obj_clear_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(s_status_accent_b,LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_line_color(s_status_accent_a,c(tone(status_color,s->night_mode)),0);
-        lv_obj_set_style_line_color(s_status_accent_b,c(tone(status_color,s->night_mode)),0);
+        uint32_t accent_color=tone(status_color,s->night_mode);
+        for(uint32_t i=0;i<lv_obj_get_child_count(s_status_accent_a);i++){
+            lv_obj_set_style_bg_color(lv_obj_get_child(s_status_accent_a,i),c(accent_color),0);
+        }
+        for(uint32_t i=0;i<lv_obj_get_child_count(s_status_accent_b);i++){
+            lv_obj_set_style_bg_color(lv_obj_get_child(s_status_accent_b,i),c(accent_color),0);
+        }
     }else{
         lv_obj_add_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_status_accent_b,LV_OBJ_FLAG_HIDDEN);
