@@ -66,6 +66,17 @@ static time_t slot_boundary_for(time_t t)
     return mktime(&tmv);
 }
 
+static time_t local_day_start(time_t t)
+{
+    struct tm tmv;
+    localtime_r(&t, &tmv);
+    tmv.tm_hour = 0;
+    tmv.tm_min = 0;
+    tmv.tm_sec = 0;
+    tmv.tm_isdst = -1;
+    return mktime(&tmv);
+}
+
 static bool same_local_date(time_t a, time_t b)
 {
     char da[11];
@@ -691,15 +702,59 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
-    roll_day(now);
+    bool crossed_midnight =
+        s_have_prev &&
+        !same_local_date(
+            (time_t)s_prev.received_epoch_s,
+            now);
+
+    if (crossed_midnight) {
+        double total_seconds =
+            (double)(sample->received_epoch_s - s_prev.received_epoch_s);
+
+        if (total_seconds > 0 &&
+            total_seconds <=
+                (double)s_cfg.statistics.max_integration_gap_seconds) {
+
+            time_t boundary = local_day_start(now);
+
+            if (s_prev.received_epoch_s < (int64_t)boundary &&
+                sample->received_epoch_s >= (int64_t)boundary) {
+
+                double before =
+                    (double)((int64_t)boundary - s_prev.received_epoch_s);
+                double fraction = before / total_seconds;
+
+                app_energy_sample_t middle = interpolate_sample(
+                    &s_prev,
+                    sample,
+                    fraction,
+                    (int64_t)boundary);
+
+                /*
+                 * First close the previous day exactly at local midnight.
+                 * Then roll the daily file and account the remainder in the
+                 * new day's first five-minute slot.
+                 */
+                integrate_pair(&s_prev, &middle);
+                roll_day(now);
+                integrate_pair(&middle, sample);
+            } else {
+                roll_day(now);
+            }
+        } else {
+            roll_day(now);
+        }
+    } else {
+        roll_day(now);
+        if (s_have_prev) {
+            integrate_pair(&s_prev, sample);
+        }
+    }
 
     int slot = slot_for(now);
     if (slot >= 0 && slot < APP_STATS_SLOT_COUNT) {
         slot_average_add(&s_today.slots[slot], sample);
-    }
-
-    if (s_have_prev) {
-        integrate_pair(&s_prev, sample);
     }
 
     s_prev = *sample;
