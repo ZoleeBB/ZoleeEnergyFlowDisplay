@@ -712,13 +712,13 @@ static void build_dashboard(bool night)
         s_dash,20,366,300,132,
         tr("Hálózati vételezés","Grid import"),
         &app_img_grid,
-        2,night,ORANGE);
+        2,night,BLUE);
 
     metric_card(
         s_dash,20,508,300,142,
         tr("Visszatáplálás","Grid export"),
         &app_img_grid,
-        3,night,GREEN);
+        3,night,BLUE);
 
     /*
      * Központi energiaáramlás: az eredeti látványterv szerint ez a képernyő
