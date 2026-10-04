@@ -6,6 +6,7 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#include "app_assets.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -199,74 +200,74 @@ static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,i
     return obj;
 }
 
-/* Egyszerű nap ikon kirajzolása LVGL primitívekből. */
-static void weather_draw_sun(lv_obj_t *parent,int x,int y){
-    shape(parent,x+11,y+8,16,16,0xF4B942,LV_RADIUS_CIRCLE);
-    shape(parent,x+18,y+1,2,5,0xF4B942,1);
-    shape(parent,x+18,y+26,2,5,0xF4B942,1);
-    shape(parent,x+4,y+15,5,2,0xF4B942,1);
-    shape(parent,x+29,y+15,5,2,0xF4B942,1);
+/* Átlátszó dobozba középre helyezett vektoros asset létrehozása. */
+static lv_obj_t *asset_image_box(
+    lv_obj_t *parent,
+    int x,
+    int y,
+    int box_size,
+    int image_size,
+    const lv_image_dsc_t *asset,
+    bool night)
+{
+    lv_obj_t *box=lv_obj_create(parent);
+    lv_obj_set_pos(box,x,y);
+    lv_obj_set_size(box,box_size,box_size);
+    lv_obj_set_style_bg_opa(box,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(box,0,0);
+    lv_obj_set_style_pad_all(box,0,0);
+    lv_obj_remove_flag(box,LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *image=lv_image_create(box);
+    lv_image_set_src(image,asset);
+    lv_image_set_scale(
+        image,
+        (uint32_t)((image_size*256+32)/64));
+    lv_obj_set_style_opa(
+        image,
+        night?LV_OPA_80:LV_OPA_COVER,
+        0);
+    lv_obj_align(image,LV_ALIGN_CENTER,0,0);
+    return image;
 }
 
-/* Felhő ikon kirajzolása, éjszaka tompított színnel. */
-static void weather_draw_cloud(lv_obj_t *parent,int x,int y,bool night){
-    uint32_t cloud=night?0x8C9892:0x9DA9AE;
-    shape(parent,x+5,y+17,31,12,cloud,6);
-    shape(parent,x+9,y+11,17,17,cloud,LV_RADIUS_CIRCLE);
-    shape(parent,x+20,y+8,19,19,cloud,LV_RADIUS_CIRCLE);
-}
-
-/* Az aktuális időjárási állapotnak megfelelő fejlécikon újrarajzolása. */
-static void weather_render(weather_kind_t kind,bool night){
-    /* Felesleges újrarajzolást kerülünk, ha az ikonállapot nem változott. */
-    if(!s_weather_icon||kind==s_last_weather)return;
-    lv_obj_clean(s_weather_icon);
-
+/* Az aktuális időjárási állapothoz tartozó vektoros asset kiválasztása. */
+static const lv_image_dsc_t *weather_asset(weather_kind_t kind)
+{
     switch(kind){
         case WEATHER_SUNNY:
-            weather_draw_sun(s_weather_icon,0,0);
-            break;
+            return &app_img_weather_sun;
         case WEATHER_PARTLY_CLOUDY:
-            weather_draw_sun(s_weather_icon,-2,-2);
-            weather_draw_cloud(s_weather_icon,7,6,night);
-            break;
+            return &app_img_weather_partly;
         case WEATHER_CLOUDY:
-            weather_draw_cloud(s_weather_icon,2,4,night);
-            break;
+            return &app_img_weather_cloud;
         case WEATHER_RAIN:
-            weather_draw_cloud(s_weather_icon,2,0,night);
-            shape(s_weather_icon,12,30,2,8,BLUE,1);
-            shape(s_weather_icon,22,30,2,8,BLUE,1);
-            shape(s_weather_icon,32,30,2,8,BLUE,1);
-            break;
+            return &app_img_weather_rain;
         case WEATHER_SNOW:
-            weather_draw_cloud(s_weather_icon,2,0,night);
-            shape(s_weather_icon,11,31,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
-            shape(s_weather_icon,21,34,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
-            shape(s_weather_icon,31,31,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
-            break;
+            return &app_img_weather_snow;
         case WEATHER_NIGHT:
-            shape(s_weather_icon,9,5,24,24,0xB8C7CE,LV_RADIUS_CIRCLE);
-            shape(s_weather_icon,17,1,24,24,BG_DARK,LV_RADIUS_CIRCLE);
-            break;
+        default:
+            return &app_img_weather_moon;
     }
-
-    s_last_weather=kind;
 }
 
-/* Statikus szél ikon létrehozása a fejlécben. */
-static void wind_icon_create(lv_obj_t *parent,int x,int y,bool night){
-    uint32_t col=night?MUTED_DARK:MUTED_LIGHT;
-    lv_obj_t *w=lv_obj_create(parent);
-    lv_obj_set_pos(w,x,y);
-    lv_obj_set_size(w,30,24);
-    lv_obj_set_style_bg_opa(w,LV_OPA_TRANSP,0);
-    lv_obj_set_style_border_width(w,0,0);
-    lv_obj_set_style_pad_all(w,0,0);
-    lv_obj_remove_flag(w,LV_OBJ_FLAG_SCROLLABLE);
-    shape(w,1,5,18,2,col,1);
-    shape(w,6,11,22,2,col,1);
-    shape(w,1,17,15,2,col,1);
+/* Az időjárás ikon csak állapotváltozáskor cserél assetet. */
+static void weather_render(weather_kind_t kind,bool night)
+{
+    if(!s_weather_icon||kind==s_last_weather){
+        return;
+    }
+
+    lv_image_set_src(
+        s_weather_icon,
+        weather_asset(kind));
+
+    lv_obj_set_style_opa(
+        s_weather_icon,
+        night?LV_OPA_80:LV_OPA_COVER,
+        0);
+
+    s_last_weather=kind;
 }
 
 /* Lebegőpontos szám lokalizált tizedeselválasztóval történő formázása. */
@@ -366,14 +367,13 @@ static void chart_positive_gradient_cb(lv_event_t *e)
 }
 #endif
 
-/* Lágy hátterű, kör alakú ikonjelölő a napi kártyákhoz. */
+/* Lágy hátterű, kör alakú ikonjelölő vektoros assettel. */
 static lv_obj_t *icon_bubble(
     lv_obj_t *parent,
     int x,
     int y,
     int size,
-    const char *icon,
-    const lv_font_t *font,
+    const lv_image_dsc_t *asset,
     bool night,
     uint32_t accent)
 {
@@ -382,27 +382,37 @@ static lv_obj_t *icon_bubble(
     lv_obj_set_size(bubble,size,size);
     lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(bubble,0,0);
-    lv_obj_set_style_bg_color(bubble,c(tone(accent,night)),0);
-    lv_obj_set_style_bg_opa(bubble,night?LV_OPA_20:LV_OPA_20,0);
+    lv_obj_set_style_bg_color(
+        bubble,
+        c(tone(accent,night)),
+        0);
+    lv_obj_set_style_bg_opa(
+        bubble,
+        night?LV_OPA_15:LV_OPA_20,
+        0);
     lv_obj_set_style_pad_all(bubble,0,0);
     lv_obj_remove_flag(bubble,LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *icon_label=lv_label_create(bubble);
-    lv_label_set_text(icon_label,icon?icon:"");
-    lv_obj_set_style_text_font(icon_label,font?font:APP_FONT_20,0);
-    lv_obj_set_style_text_color(icon_label,c(tone(accent,night)),0);
-    lv_obj_align(icon_label,LV_ALIGN_CENTER,0,0);
+    asset_image_box(
+        bubble,
+        0,
+        0,
+        size,
+        size-10,
+        asset,
+        night);
+
     return bubble;
 }
 
-/* Kör alakú, hangsúlyos energiaforrás/-fogyasztó ikon létrehozása. */
+/* Kör alakú energiaforrás/-fogyasztó node vektoros illusztrációval. */
 static lv_obj_t *energy_circle(
     lv_obj_t *parent,
     int center_x,
     int center_y,
     int size,
-    const char *icon,
-    lv_obj_t **icon_out,
+    const lv_image_dsc_t *asset,
+    lv_obj_t **image_out,
     bool night,
     uint32_t accent)
 {
@@ -423,20 +433,23 @@ static lv_obj_t *energy_circle(
         outer,
         c(tone(accent,night)),
         0);
+    lv_obj_set_style_shadow_width(outer,night?0:10,0);
+    lv_obj_set_style_shadow_opa(outer,night?LV_OPA_TRANSP:LV_OPA_10,0);
+    lv_obj_set_style_shadow_ofs_y(outer,night?0:3,0);
     lv_obj_set_style_pad_all(outer,0,0);
     lv_obj_remove_flag(outer,LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *icon_label=lv_label_create(outer);
-    lv_label_set_text(icon_label,icon);
-    lv_obj_set_style_text_font(icon_label,APP_FONT_28,0);
-    lv_obj_set_style_text_color(
-        icon_label,
-        c(tone(accent,night)),
-        0);
-    lv_obj_align(icon_label,LV_ALIGN_CENTER,0,0);
+    lv_obj_t *image=asset_image_box(
+        outer,
+        10,
+        10,
+        size-20,
+        size-24,
+        asset,
+        night);
 
-    if(icon_out){
-        *icon_out=icon_label;
+    if(image_out){
+        *image_out=image;
     }
 
     return outer;
@@ -487,7 +500,7 @@ static lv_obj_t *metric_card(
     int width,
     int height,
     const char *title,
-    const char *icon,
+    const lv_image_dsc_t *asset,
     int index,
     bool night,
     uint32_t accent)
@@ -502,8 +515,7 @@ static lv_obj_t *metric_card(
         10,
         25,
         64,
-        icon,
-        APP_FONT_28,
+        asset,
         night,
         accent);
 
@@ -543,7 +555,7 @@ static lv_obj_t *summary_metric(
     int x,
     int width,
     const char *title,
-    const char *icon,
+    const lv_image_dsc_t *asset,
     int index,
     bool night,
     uint32_t accent)
@@ -561,8 +573,7 @@ static lv_obj_t *summary_metric(
         4,
         18,
         54,
-        icon,
-        APP_FONT_20,
+        asset,
         night,
         accent);
 
