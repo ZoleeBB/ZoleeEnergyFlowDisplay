@@ -15,6 +15,10 @@
 // I12 BatteryTemperature [C]
 //
 // Txt1: one complete JSON document every 5 seconds.
+//
+// IMPORTANT: PicoC does not reliably support adjacent C string literal
+// concatenation. Keep the complete JSON format as ONE string literal in
+// sprintf(), otherwise the interpreter can stop at the second string fragment.
 
 #define UPDATE_INTERVAL_MS 5000
 #define JSON_BUFFER_SIZE 512
