@@ -27,6 +27,17 @@ idf_component_register(
         "assets/png/flow_house.png"
         "assets/png/flow_hub.png"
         "assets/png/flow_solar.png"
+        "assets/png/summary_co2.png"
+        "assets/png/summary_tree.png"
+        "assets/png/summary_bulb.png"
+        "assets/png/weather_sun.png"
+        "assets/png/weather_cloud.png"
+        "assets/png/weather_partly.png"
+        "assets/png/weather_rain.png"
+        "assets/png/weather_snow.png"
+        "assets/png/weather_moon.png"
+        "assets/png/wind.png"
+        "assets/png/wifi_off.png"
     REQUIRES
         app_update
         esp_event

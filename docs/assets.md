@@ -8,7 +8,7 @@ A normál dashboard fő grafikái 128×128-as, átlátszó hátterű PNG fájlok
 
 `main/assets/png/`
 
-Az elsődleges készlet:
+Az elsődleges készlet, valamint a már PNG-re migrált összefoglaló és időjárás assetek:
 
 - `header_home_leaf.png`
 - `metric_leaf.png`
@@ -20,6 +20,13 @@ Az elsődleges készlet:
 - `flow_house.png`
 - `flow_hub.png`
 - `flow_solar.png`
+- `summary_co2.png`
+- `summary_tree.png`
+- `summary_bulb.png`
+- `weather_sun.png`, `weather_cloud.png`, `weather_partly.png`
+- `weather_rain.png`, `weather_snow.png`, `weather_moon.png`
+- `wind.png`
+- `wifi_off.png`
 
 Ezek közül több közvetlenül a jóváhagyott mockup grafikai részleteiből készült, ezért a színezés, a puha körháttér, az árnyékolás és a részletezettség lényegesen közelebb áll a látványtervhez, mint a korábbi kézzel felépített SVG-k.
 
@@ -29,7 +36,7 @@ Az LVGL 9.5 LodePNG dekódere végzi a megjelenítést.
 
 ## Átmeneti SVG-k
 
-A ritkábban megjelenő időjárási, kommunikációs és speciális státuszállapotok migrációja folyamatban van. Ezek addig ugyanazon `app_assets.c` rétegen keresztül használhatók, ezért a UI kódot a PNG-re váltáskor nem kell újratervezni.
+A ritkábban megjelenő MQTT/adat-timeout és speciális státuszállapotok migrációja még folyamatban van. Az időjárás és a Wi-Fi hiba grafikái már PNG-k. Ezek addig ugyanazon `app_assets.c` rétegen keresztül használhatók, ezért a UI kódot a PNG-re váltáskor nem kell újratervezni.
 
 Az SVG források az `assets/svg/` könyvtárban referenciaként megmaradhatnak.
 
