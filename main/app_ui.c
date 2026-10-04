@@ -388,7 +388,7 @@ static lv_obj_t *icon_bubble(
         0);
     lv_obj_set_style_bg_opa(
         bubble,
-        night?LV_OPA_15:LV_OPA_20,
+        night?LV_OPA_20:LV_OPA_20,
         0);
     lv_obj_set_style_pad_all(bubble,0,0);
     lv_obj_remove_flag(bubble,LV_OBJ_FLAG_SCROLLABLE);
