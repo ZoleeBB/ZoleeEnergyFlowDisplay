@@ -175,7 +175,16 @@ static void fmt_dec(char *out,size_t n,double v,int d){snprintf(out,n,"%.*f",d,v
 static void fmt_power(char *out,size_t n,double kw){double a=fabs(kw);if(a>=1){char q[20];fmt_dec(q,sizeof(q),a,1);snprintf(out,n,"%s kW",q);}else snprintf(out,n,"%d W",(int)llround(a*1000));}
 static void fmt_kwh(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s kWh",q);}
 static void fmt_pct(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s%%",q);}
-static void fmt_cmp(char *out,size_t n,double t,double y){if(fabs(y)<1e-9){snprintf(out,n,"—");return;}double p=(t-y)/y*100;char q[20];fmt_dec(q,sizeof(q),p,1);snprintf(out,n,"%s %s%%",p>=0?"↑":"↓",q);}
+static void fmt_cmp(char *out,size_t n,double t,double y){
+    if(fabs(y)<1e-9){
+        snprintf(out,n,"-");
+        return;
+    }
+    double p=(t-y)/y*100;
+    char q[20];
+    fmt_dec(q,sizeof(q),p,1);
+    snprintf(out,n,"%s %s%%",p>=0?LV_SYMBOL_UP:LV_SYMBOL_DOWN,q);
+}
 static uint32_t cmp_color(double t,double y){if(fabs(y)<1e-9)return GRAY;return t>=y?GREEN:ORANGE;}
 
 static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const char *icon,lv_obj_t **icon_out,lv_obj_t **value,bool night,uint32_t accent){
@@ -187,7 +196,7 @@ static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const
     lbl(o,name,8,5,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
     lv_obj_t *ic=lbl(o,icon,8,33,&lv_font_montserrat_20,accent);
     if(icon_out)*icon_out=ic;
-    *value=lbl(o,"—",38,32,&lv_font_montserrat_22,night?TEXT_DARK:TEXT_LIGHT);
+    *value=lbl(o,"-",38,32,&lv_font_montserrat_22,night?TEXT_DARK:TEXT_LIGHT);
     return o;
 }
 static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool night){
@@ -201,7 +210,7 @@ static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool nig
     for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(color),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
 static lv_obj_t *metric_card(lv_obj_t *p,int x,int y,const char *title,int idx,bool night){
-    lv_obj_t *o=lv_obj_create(p);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,145,104);card_style(o,night);lbl(o,title,0,0,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);s_metric[idx]=lbl(o,"—",0,29,&lv_font_montserrat_20,night?TEXT_DARK:TEXT_LIGHT);s_cmp[idx]=lbl(o,"",0,65,&lv_font_montserrat_12,GREEN);return o;
+    lv_obj_t *o=lv_obj_create(p);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,145,104);card_style(o,night);lbl(o,title,0,0,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);s_metric[idx]=lbl(o,"-",0,29,&lv_font_montserrat_20,night?TEXT_DARK:TEXT_LIGHT);s_cmp[idx]=lbl(o,"",0,65,&lv_font_montserrat_12,GREEN);return o;
 }
 static void build_dashboard(bool night){
     clear();screen_style(s_screen,night);s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
@@ -241,7 +250,7 @@ static void build_dashboard(bool night){
     s_soc=lbl(flow,"",40,286,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
     s_bt=lbl(flow,"",115,286,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
 
-    const char *t[8]={tr("Mai termelés","Production"),tr("Mai fogyasztás","Consumption"),tr("Hálózati vételezés","Grid import"),tr("Visszatáplálás","Grid export"),tr("Megtakarított pénz","Money saved"),tr("Megtakarított CO₂","CO2 saved"),tr("Fa-egyenérték","Tree equivalent"),tr("Önellátás","Self-sufficiency")};
+    const char *t[8]={tr("Mai termelés","Production"),tr("Mai fogyasztás","Consumption"),tr("Hálózati vételezés","Grid import"),tr("Visszatáplálás","Grid export"),tr("Megtakarított pénz","Money saved"),tr("Megtakarított CO2","CO2 saved"),tr("Fa-egyenérték","Tree equivalent"),tr("Önellátás","Self-sufficiency")};
     for(int i=0;i<8;i++)metric_card(s_dash,655+(i%4)*155,78+(i/4)*114,t[i],i,night);
     s_status_card=lv_obj_create(s_dash);
     lv_obj_set_pos(s_status_card,965,306);
@@ -249,7 +258,7 @@ static void build_dashboard(bool night){
     card_style(s_status_card,night);
     lbl(s_status_card,tr("Rendszerállapot","System status"),0,0,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
     s_status_icon=lbl(s_status_card,LV_SYMBOL_OK,0,38,&lv_font_montserrat_20,GREEN);
-    s_status=lbl(s_status_card,"—",34,35,&lv_font_montserrat_20,GREEN);
+    s_status=lbl(s_status_card,"-",34,35,&lv_font_montserrat_20,GREEN);
 
     lv_obj_t *batday=lv_obj_create(s_dash);
     lv_obj_set_pos(batday,655,306);
@@ -265,10 +274,47 @@ static void build_dashboard(bool night){
     s_bat_temp_detail=lbl(batday,"",0,80,&lv_font_montserrat_12,night?TEXT_DARK:TEXT_LIGHT);
 
     lv_obj_t *cc1=lv_obj_create(s_dash);lv_obj_set_pos(cc1,20,435);lv_obj_set_size(cc1,610,345);card_style(cc1,night);lbl(cc1,tr("Termelés és fogyasztás","Production and consumption"),0,0,&lv_font_montserrat_18,night?TEXT_DARK:TEXT_LIGHT);
-    s_chart1=lv_chart_create(cc1);lv_obj_set_pos(s_chart1,20,42);lv_obj_set_size(s_chart1,565,245);lv_chart_set_type(s_chart1,LV_CHART_TYPE_CURVE);lv_chart_set_point_count(s_chart1,APP_STATS_SLOT_COUNT);lv_chart_set_div_line_count(s_chart1,5,6);lv_obj_set_style_bg_opa(s_chart1,LV_OPA_TRANSP,0);s_pv_ser=lv_chart_add_series(s_chart1,c(GREEN),LV_CHART_AXIS_PRIMARY_Y);s_load_ser=lv_chart_add_series(s_chart1,c(ORANGE),LV_CHART_AXIS_PRIMARY_Y);lbl(cc1,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    s_chart1=lv_chart_create(cc1);
+    lv_obj_set_pos(s_chart1,20,42);
+    lv_obj_set_size(s_chart1,565,245);
+    lv_chart_set_type(s_chart1,LV_CHART_TYPE_CURVE);
+    lv_chart_set_point_count(s_chart1,APP_STATS_SLOT_COUNT);
+    lv_chart_set_div_line_count(s_chart1,5,6);
+    lv_obj_set_style_bg_opa(s_chart1,LV_OPA_TRANSP,0);
+    lv_obj_set_style_line_color(s_chart1,c(night?0x29322E:0xE5EAEC),LV_PART_MAIN);
+    lv_obj_set_style_line_width(s_chart1,1,LV_PART_MAIN);
+    lv_obj_set_style_line_width(s_chart1,2,LV_PART_ITEMS);
+    s_pv_ser=lv_chart_add_series(s_chart1,c(GREEN),LV_CHART_AXIS_PRIMARY_Y);
+    s_load_ser=lv_chart_add_series(s_chart1,c(ORANGE),LV_CHART_AXIS_PRIMARY_Y);
+    shape(cc1,343,8,8,8,GREEN,LV_RADIUS_CIRCLE);
+    lbl(cc1,tr("Termelés","Production"),356,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(cc1,458,8,8,8,ORANGE,LV_RADIUS_CIRCLE);
+    lbl(cc1,tr("Fogyasztás","Consumption"),471,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    lbl(cc1,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
 
-    lv_obj_t *cc2=lv_obj_create(s_dash);lv_obj_set_pos(cc2,645,435);lv_obj_set_size(cc2,615,345);card_style(cc2,night);lbl(cc2,tr("Hálózat és akkumulátor","Grid and battery"),0,0,&lv_font_montserrat_18,night?TEXT_DARK:TEXT_LIGHT);
-    s_chart2=lv_chart_create(cc2);lv_obj_set_pos(s_chart2,20,42);lv_obj_set_size(s_chart2,570,245);lv_chart_set_type(s_chart2,LV_CHART_TYPE_CURVE);lv_chart_set_point_count(s_chart2,APP_STATS_SLOT_COUNT);lv_chart_set_div_line_count(s_chart2,5,6);lv_obj_set_style_bg_opa(s_chart2,LV_OPA_TRANSP,0);s_grid_ser=lv_chart_add_series(s_chart2,c(RED),LV_CHART_AXIS_PRIMARY_Y);s_bat_ser=lv_chart_add_series(s_chart2,c(BLUE),LV_CHART_AXIS_PRIMARY_Y);lbl(cc2,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    lv_obj_t *cc2=lv_obj_create(s_dash);
+    lv_obj_set_pos(cc2,645,435);
+    lv_obj_set_size(cc2,615,345);
+    card_style(cc2,night);
+    lbl(cc2,tr("Hálózat és akkumulátor","Grid and battery"),0,0,&lv_font_montserrat_18,night?TEXT_DARK:TEXT_LIGHT);
+    s_chart2=lv_chart_create(cc2);
+    lv_obj_set_pos(s_chart2,20,42);
+    lv_obj_set_size(s_chart2,570,245);
+    lv_chart_set_type(s_chart2,LV_CHART_TYPE_CURVE);
+    lv_chart_set_point_count(s_chart2,APP_STATS_SLOT_COUNT);
+    lv_chart_set_div_line_count(s_chart2,5,6);
+    lv_obj_set_style_bg_opa(s_chart2,LV_OPA_TRANSP,0);
+    lv_obj_set_style_line_color(s_chart2,c(night?0x29322E:0xE5EAEC),LV_PART_MAIN);
+    lv_obj_set_style_line_width(s_chart2,1,LV_PART_MAIN);
+    lv_obj_set_style_line_width(s_chart2,2,LV_PART_ITEMS);
+    s_grid_ser=lv_chart_add_series(s_chart2,c(RED),LV_CHART_AXIS_PRIMARY_Y);
+    s_bat_ser=lv_chart_add_series(s_chart2,c(BLUE),LV_CHART_AXIS_PRIMARY_Y);
+    shape(cc2,370,8,8,8,RED,LV_RADIUS_CIRCLE);
+    lbl(cc2,tr("Hálózat","Grid"),383,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(cc2,465,8,8,8,BLUE,LV_RADIUS_CIRCLE);
+    lbl(cc2,tr("Akkumulátor","Battery"),478,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(cc2,20,163,570,2,night?0x56615B:0xA7B1B5,0);
+    lbl(cc2,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
 
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),1090,52,&lv_font_montserrat_14,RED);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
@@ -424,7 +470,7 @@ esp_err_t app_ui_init(void){
     return ESP_OK;
 }
 void app_ui_set_config(const app_config_t *cfg){if(!cfg)return;s_cfg=*cfg;s_cfg_ok=true;s_target=s_cfg.display.day_brightness;}
-void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,&lv_font_montserrat_22,GREEN);if(detail)lbl(s_screen,detail,34,225,&lv_font_montserrat_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?"✓":i==stage?"●":"○",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,&lv_font_montserrat_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}
+void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,&lv_font_montserrat_22,GREEN);if(detail)lbl(s_screen,detail,34,225,&lv_font_montserrat_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?LV_SYMBOL_OK:i==stage?LV_SYMBOL_REFRESH:"-",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,&lv_font_montserrat_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
-static void runtime(void *arg){(void)arg;(void)esp_task_wdt_add(NULL);int64_t prev=esp_timer_get_time();while(true){(void)esp_task_wdt_reset();int64_t now=esp_timer_get_time();float dt=(float)(now-prev)/1000000.0f;if(dt>1)dt=.2f;prev=now;app_runtime_state_t rt;app_state_get_runtime(&rt);app_energy_sample_t s;bool have=app_state_get_sample(&s);if(have){s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;if(s_brightness!=s_target){int d=s_target-s_brightness;s_brightness+=d>0?1:-1;bsp_display_brightness_set(s_brightness);}}if(bsp_display_lock(-1)==ESP_OK){bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;if(!rt.wifi_connected)error_screen(VIEW_WIFI_ERROR,tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),tr("Kapcsolat helyreállítására várunk…","Waiting for connection to recover…"),false);else if(!rt.mqtt_connected)error_screen(VIEW_MQTT_ERROR,tr("Nincs MQTT kapcsolat","No MQTT connection"),tr("Kapcsolat helyreállítására várunk…","Waiting for connection to recover…"),false);else if(!have)error_screen(VIEW_WAIT_DATA,tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),tr("Az első érvényes adatcsomagra várunk…","Waiting for the first valid packet…"),false);else if(!fresh)error_screen(VIEW_DATA_TIMEOUT,tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),tr("Kapcsolat helyreállítására várunk…","Waiting for connection to recover…"),false);else{if(!s_dash_created||s.night_mode!=s_last_night){build_dashboard(s.night_mode);s_last_night=s.night_mode;}app_stats_snapshot_t st;app_stats_get_snapshot(&st);update(&s,&st,dt);}bsp_display_unlock();}vTaskDelay(pdMS_TO_TICKS(200));}}
+static void runtime(void *arg){(void)arg;(void)esp_task_wdt_add(NULL);int64_t prev=esp_timer_get_time();while(true){(void)esp_task_wdt_reset();int64_t now=esp_timer_get_time();float dt=(float)(now-prev)/1000000.0f;if(dt>1)dt=.2f;prev=now;app_runtime_state_t rt;app_state_get_runtime(&rt);app_energy_sample_t s;bool have=app_state_get_sample(&s);if(have){s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;if(s_brightness!=s_target){int d=s_target-s_brightness;s_brightness+=d>0?1:-1;bsp_display_brightness_set(s_brightness);}}if(bsp_display_lock(-1)==ESP_OK){bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;if(!rt.wifi_connected)error_screen(VIEW_WIFI_ERROR,tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else if(!rt.mqtt_connected)error_screen(VIEW_MQTT_ERROR,tr("Nincs MQTT kapcsolat","No MQTT connection"),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else if(!have)error_screen(VIEW_WAIT_DATA,tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),tr("Az első érvényes adatcsomagra várunk...","Waiting for the first valid packet..."),false);else if(!fresh)error_screen(VIEW_DATA_TIMEOUT,tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else{if(!s_dash_created||s.night_mode!=s_last_night){build_dashboard(s.night_mode);s_last_night=s.night_mode;}app_stats_snapshot_t st;app_stats_get_snapshot(&st);update(&s,&st,dt);}bsp_display_unlock();}vTaskDelay(pdMS_TO_TICKS(200));}}
 void app_ui_start_runtime(void){if(s_started)return;s_started=true;xTaskCreate(runtime,"ui_runtime",16384,NULL,5,NULL);}
