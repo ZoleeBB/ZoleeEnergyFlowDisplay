@@ -1,4 +1,5 @@
-# Name,     Type, SubType, Offset, Size, Flags
+# Partíciós kiosztás: név, típus, altípus, offset, méret, flag-ek
+# Két 8 MB-os OTA alkalmazáspartíció biztosítja az automatikus rollback lehetőségét.
 nvs,        data, nvs,     0x9000, 0x6000,
 otadata,    data, ota,     ,       0x2000,
 phy_init,   data, phy,     ,       0x1000,

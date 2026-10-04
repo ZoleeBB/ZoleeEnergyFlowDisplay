@@ -1,11 +1,13 @@
 name: ESP-IDF build
 
+# A firmware minden main pushnál és pull requestnél újrafordul.
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+# Ugyanazon ághoz csak a legfrissebb build fusson; a régebbi megszakítható.
 concurrency:
   group: esp-idf-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,9 +15,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # A repository aktuális commitjának letöltése.
       - uses: actions/checkout@v4
 
+      # A projekt rögzített ESP-IDF 5.5.4 verzióval, ESP32-P4 célra fordul.
       - name: Build with ESP-IDF 5.5.4
         uses: espressif/esp-idf-ci-action@v1
         with:
@@ -23,6 +28,7 @@ jobs:
           target: esp32p4
           path: '.'
 
+      # Sikeres build után a teljes első telepítéshez szükséges binárisok megmaradnak.
       - name: Upload firmware binaries
         if: success()
         uses: actions/upload-artifact@v4

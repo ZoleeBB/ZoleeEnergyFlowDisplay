@@ -1,12 +1,12 @@
-// Zolee Energy Flow Display - Loxone Pico C MQTT payload builder
+// Zolee Energy Flow Display - Loxone Pico C MQTT adatcsomag-összeállító
 //
-// Program block mapping:
-// I1  PowerGrid          [kW]  positive=import, negative=export
-// I2  PowerBat           [kW]  positive=discharge, negative=charge
-// I3  PowerPV            [kW]
-// I4  SocBat             [%]
-// I5  PowerFull          [kW]
-// I6  Temperature        [C]
+// Program blokk bemenetek:
+// I1  PowerGrid          [kW]  pozitív=vétel, negatív=visszatáplálás
+// I2  PowerBat           [kW]  pozitív=kisütés, negatív=töltés
+// I3  PowerPV            [kW]  pillanatnyi PV termelés
+// I4  SocBat             [%]   akkumulátor töltöttség
+// I5  PowerFull          [kW]  ház pillanatnyi fogyasztása
+// I6  Temperature        [C]   külső hőmérséklet
 // I7  WindSpeed          [km/h]
 // I8  HasSunRadiation    [0/1]
 // I9  HasPrecipitation   [0/1]
@@ -14,19 +14,22 @@
 // I11 NightMode          [0/1]
 // I12 BatteryTemperature [C]
 //
-// Txt1: one complete JSON document every 5 seconds.
+// Txt1 kimenet: 5 másodpercenként egy teljes JSON dokumentum.
 //
-// IMPORTANT: PicoC does not reliably support adjacent C string literal
-// concatenation. Keep the complete JSON format as ONE string literal in
-// sprintf(), otherwise the interpreter can stop at the second string fragment.
+// FONTOS: a Loxone Pico C értelmező nem kezeli megbízhatóan az egymás mellé
+// írt C string literálok automatikus összefűzését. A teljes JSON formátum
+// ezért egyetlen string literál marad az sprintf() hívásban.
 
 #define UPDATE_INTERVAL_MS 5000
 #define JSON_BUFFER_SIZE 512
 
+// A teljes MQTT JSON csomag közös munkapuffere.
 char json[JSON_BUFFER_SIZE];
 
+// A Program blokk folyamatosan fut; minden ciklus egy új állapotcsomagot készít.
 while (TRUE)
 {
+    // Az összes Loxone bemenet pillanatnyi értékének kiolvasása.
     float powerGrid = getinput(0);
     float powerBat = getinput(1);
     float powerPV = getinput(2);
@@ -40,9 +43,10 @@ while (TRUE)
     float nightMode = getinput(10);
     float batteryTemperature = getinput(11);
 
+    // A firmware által elvárt 12 kötelező mezőből egyetlen JSON objektum készül.
     sprintf(
         json,
-        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%f,\"WindSpeed\":%f,\"HasSunRadiation\":%f,\"HasPrecipitation\":%f,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f}",
+        "{"PowerGrid":%f,"PowerBat":%f,"PowerPV":%f,"SocBat":%f,"PowerFull":%f,"Temperature":%f,"WindSpeed":%f,"HasSunRadiation":%f,"HasPrecipitation":%f,"Status":%f,"NightMode":%f,"BatteryTemperature":%f}",
         powerGrid,
         powerBat,
         powerPV,
@@ -57,6 +61,9 @@ while (TRUE)
         batteryTemperature
     );
 
+    // A teljes JSON a Program blokk első szöveges kimenetére kerül.
     setoutputtext(0, json);
+
+    // A specifikáció szerinti 5 másodperces publikálási periódus.
     sleep(UPDATE_INTERVAL_MS);
 }

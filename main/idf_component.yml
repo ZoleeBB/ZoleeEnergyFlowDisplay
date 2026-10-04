@@ -1,16 +1,28 @@
+# A projekt rögzített komponensfüggőségei.
 dependencies:
+  # Csak az ESP-IDF 5.5.x sorozat támogatott; a CI konkrétan 5.5.4-et használ.
   idf:
     version: ">=5.5,<5.6"
+
+  # Waveshare ESP32-P4 10.1 colos kijelző BSP.
   waveshare/esp32_p4_wifi6_touch_lcd_x:
     version: "2.0.3"
+
+  # Felhasználói felület és grafikonok.
   lvgl/lvgl:
     version: "9.5.0"
     public: true
+
+  # Az ESP32-P4 Wi-Fi társprocesszor kommunikációs komponensei.
   espressif/esp_wifi_remote:
     version: "0.14.*"
   espressif/esp_hosted:
     version: "1.4.*"
+
+  # Helyi .local névfeloldás a web/OTA felülethez.
   espressif/mdns:
     version: "^1.8.2"
+
+  # Magyar ékezeteket tartalmazó Noto Sans fontkészlet.
   78/xiaozhi-fonts:
     version: "2.0.0"
