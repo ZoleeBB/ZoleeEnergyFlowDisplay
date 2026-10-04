@@ -488,11 +488,11 @@ static esp_err_t root_handler(httpd_req_t *req)
         s_hu
             ? "<div class='card'><a href='/update'>Firmware frissítés</a>"
               "<form method='post' action='/reboot' style='display:inline' "
-              "onsubmit="return confirm('Biztosan újraindítod az eszközt?')">"
+              "onsubmit=\"return confirm('Biztosan újraindítod az eszközt?')\">"
               "<button type='submit'>Eszköz újraindítása</button></form></div>"
             : "<div class='card'><a href='/update'>Firmware update</a>"
               "<form method='post' action='/reboot' style='display:inline' "
-              "onsubmit="return confirm('Restart the device?')">"
+              "onsubmit=\"return confirm('Restart the device?')\">"
               "<button type='submit'>Restart device</button></form></div>",
         HTTPD_RESP_USE_STRLEN);
 
