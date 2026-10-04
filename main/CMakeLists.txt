@@ -16,6 +16,17 @@ idf_component_register(
         "app_web.c"
         "app_wifi.c"
     INCLUDE_DIRS "."
+    EMBED_FILES
+        "assets/png/header_home_leaf.png"
+        "assets/png/metric_leaf.png"
+        "assets/png/metric_house.png"
+        "assets/png/metric_grid.png"
+        "assets/png/metric_coins.png"
+        "assets/png/flow_battery.png"
+        "assets/png/flow_grid.png"
+        "assets/png/flow_house.png"
+        "assets/png/flow_hub.png"
+        "assets/png/flow_solar.png"
     REQUIRES
         app_update
         esp_event

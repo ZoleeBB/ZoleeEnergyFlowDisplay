@@ -68,3 +68,7 @@ CONFIG_LV_DRAW_THREAD_STACK_SIZE=32768
 
 # Az SVG draw-listák újrafelhasználásához képcache-t tartunk fenn.
 CONFIG_LV_CACHE_DEF_SIZE=262144
+
+
+# A jóváhagyott látványtervből készült részletes PNG assetek dekódere.
+CONFIG_LV_USE_LODEPNG=y

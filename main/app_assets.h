@@ -4,13 +4,14 @@
 
 /*
  * A jóváhagyott látványterv stílusához készített, firmware-be ágyazott
- * SVG grafikai elemek. A felület ezeket használja LV_SYMBOL karakterek
- * és kézzel rajzolt ikon-primitívek helyett.
+ * grafikai elemek. A normál dashboard fő illusztrációi nagy felbontású
+ * PNG-k; a még migrálás alatt álló ritkább állapotok ideiglenesen SVG-k.
  */
 extern const lv_image_dsc_t app_img_header_home_leaf;
 extern const lv_image_dsc_t app_img_leaf;
 extern const lv_image_dsc_t app_img_house;
 extern const lv_image_dsc_t app_img_grid;
+extern const lv_image_dsc_t app_img_grid_metric;
 extern const lv_image_dsc_t app_img_grid_off;
 extern const lv_image_dsc_t app_img_coins;
 extern const lv_image_dsc_t app_img_co2;

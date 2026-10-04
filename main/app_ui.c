@@ -220,9 +220,14 @@ static lv_obj_t *asset_image_box(
 
     lv_obj_t *image=lv_image_create(box);
     lv_image_set_src(image,asset);
+    uint32_t source_width=
+        asset->header.w>0?asset->header.w:128;
+
     lv_image_set_scale(
         image,
-        (uint32_t)((image_size*256+32)/64));
+        (uint32_t)(
+            (image_size*256U+source_width/2U)/
+            source_width));
     lv_obj_set_style_opa(
         image,
         night?LV_OPA_80:LV_OPA_COVER,
@@ -382,13 +387,9 @@ static lv_obj_t *icon_bubble(
     lv_obj_set_size(bubble,size,size);
     lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(bubble,0,0);
-    lv_obj_set_style_bg_color(
-        bubble,
-        c(tone(accent,night)),
-        0);
     lv_obj_set_style_bg_opa(
         bubble,
-        night?LV_OPA_20:LV_OPA_20,
+        LV_OPA_TRANSP,
         0);
     lv_obj_set_style_pad_all(bubble,0,0);
     lv_obj_remove_flag(bubble,LV_OBJ_FLAG_SCROLLABLE);
@@ -398,7 +399,7 @@ static lv_obj_t *icon_bubble(
         0,
         0,
         size,
-        size-10,
+        size,
         asset,
         night);
 
@@ -423,28 +424,21 @@ static lv_obj_t *energy_circle(
         center_y-size/2);
     lv_obj_set_size(outer,size,size);
     lv_obj_set_style_radius(outer,LV_RADIUS_CIRCLE,0);
-    lv_obj_set_style_bg_color(
+    lv_obj_set_style_bg_opa(
         outer,
-        c(night?0x101512:0xFAFCFB),
+        LV_OPA_TRANSP,
         0);
-    lv_obj_set_style_bg_opa(outer,LV_OPA_COVER,0);
-    lv_obj_set_style_border_width(outer,4,0);
-    lv_obj_set_style_border_color(
-        outer,
-        c(tone(accent,night)),
-        0);
-    lv_obj_set_style_shadow_width(outer,night?0:10,0);
-    lv_obj_set_style_shadow_opa(outer,night?LV_OPA_TRANSP:LV_OPA_10,0);
-    lv_obj_set_style_shadow_ofs_y(outer,night?0:3,0);
+    lv_obj_set_style_border_width(outer,0,0);
+    lv_obj_set_style_shadow_width(outer,0,0);
     lv_obj_set_style_pad_all(outer,0,0);
     lv_obj_remove_flag(outer,LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *image=asset_image_box(
         outer,
-        10,
-        10,
-        size-20,
-        size-24,
+        0,
+        0,
+        size,
+        size-4,
         asset,
         night);
 
@@ -711,13 +705,13 @@ static void build_dashboard(bool night)
     metric_card(
         s_dash,20,366,300,132,
         tr("Hálózati vételezés","Grid import"),
-        &app_img_grid,
+        &app_img_grid_metric,
         2,night,BLUE);
 
     metric_card(
         s_dash,20,508,300,142,
         tr("Visszatáplálás","Grid export"),
-        &app_img_grid,
+        &app_img_grid_metric,
         3,night,BLUE);
 
     /*

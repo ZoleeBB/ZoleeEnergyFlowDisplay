@@ -7,6 +7,26 @@
  */
 #include "app_assets.h"
 
+/*
+ * A látványtervből készített, finom részletességű PNG-k közvetlenül a
+ * firmware image-be vannak ágyazva. Az LVGL LodePNG dekódere futás közben
+ * RGBA képpé alakítja őket. A fájlok 128×128-as, átlátszó hátterű assetek.
+ */
+#define PNG_IMAGE(name, embedded_symbol, byte_count) \
+    extern const uint8_t _binary_##embedded_symbol##_start[]; \
+    const lv_image_dsc_t name = { \
+        .header = { \
+            .magic = LV_IMAGE_HEADER_MAGIC, \
+            .cf = LV_COLOR_FORMAT_RAW_ALPHA, \
+            .w = 128, \
+            .h = 128, \
+            .stride = 0, \
+        }, \
+        .data_size = (byte_count), \
+        .data = _binary_##embedded_symbol##_start, \
+    }
+
+
 #define SVG_IMAGE(name, svg_text) \
     static const uint8_t name##_data[] = svg_text; \
     const lv_image_dsc_t name = { \
@@ -22,42 +42,19 @@
     }
 
 /* Fejléc: ház + levél, ugyanazzal az otthoni/öko karakterrel, mint a mockupon. */
-SVG_IMAGE(app_img_header_home_leaf,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<path d='M7 31 29 11l22 20-4 4-18-16-18 16-4-4Z' fill='#263A50'/>"
-"<path d='M13 31h32v24H13z' fill='#F8FBFD' stroke='#263A50' stroke-width='2.5'/>"
-"<path d='M25 41h9v14h-9z' fill='#263A50'/>"
-"<path d='M48 8c-8 1-14 5-16 12-1 4 0 8 4 10 3-7 7-12 14-17-5 6-9 11-12 18 6 0 11-4 13-9 2-6 1-10-3-14Z' fill='#26B936'/>"
-"<path d='M35 28c4-7 8-12 14-16' fill='none' stroke='#147523' stroke-width='2' stroke-linecap='round'/>"
-"</svg>");
+PNG_IMAGE(app_img_header_home_leaf, assets_png_header_home_leaf_png, 1717);
 
 /* Zöld levél: termelés / megújuló energia. */
-SVG_IMAGE(app_img_leaf,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<path d='M49 10C34 12 21 20 17 34c-2 8 1 15 8 18 8-13 14-21 26-30-9 11-16 20-21 31 10 0 18-6 21-16 3-10 1-19-2-27Z' fill='#2CC63B'/>"
-"<path d='M19 51c6-13 14-23 28-34' fill='none' stroke='#137722' stroke-width='3.2' stroke-linecap='round'/>"
-"<path d='M35 19c5-3 10-5 14-6-2 7-6 13-12 18' fill='#44D951' opacity='.7'/>"
-"</svg>");
+PNG_IMAGE(app_img_leaf, assets_png_metric_leaf_png, 3114);
 
 /* Narancs lakóház: fogyasztás. */
-SVG_IMAGE(app_img_house,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<path d='M8 31 32 10l24 21-4 5-20-17-20 17-4-5Z' fill='#F05A18'/>"
-"<path d='M15 31h34v23H15z' fill='#FF7429'/>"
-"<path d='M25 38h14v16H25z' fill='#FFF7F0'/>"
-"<path d='M18 37h7v8h-7zm21 0h7v8h-7z' fill='#FFD4BA'/>"
-"<path d='M15 31h34v4H15z' fill='#E84C0D' opacity='.45'/>"
-"</svg>");
+PNG_IMAGE(app_img_house, assets_png_metric_house_png, 3155);
 
 /* Kék villamos hálózati oszlop. */
-SVG_IMAGE(app_img_grid,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<path d='M31 8 19 55h5l3-13h10l3 13h5L33 8h-2Z' fill='#DCEEFF' stroke='#1E5C94' stroke-width='2.5' stroke-linejoin='round'/>"
-"<g fill='none' stroke='#2E6BA3' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'>"
-"<path d='M24 18h16M22 27h20M20 36h24M13 23h38'/>"
-"<path d='m25 17 15 10-18 9 16 8M39 17 24 27l18 9-16 8'/>"
-"</g>"
-"</svg>");
+PNG_IMAGE(app_img_grid, assets_png_flow_grid_png, 4762);
+
+/* A bal oldali napi hálózati kártya világoskék, mockup-azonos ikonja. */
+PNG_IMAGE(app_img_grid_metric, assets_png_metric_grid_png, 3657);
 
 /* Leválasztott hálózat szigetüzemhez. */
 SVG_IMAGE(app_img_grid_off,
@@ -70,17 +67,7 @@ SVG_IMAGE(app_img_grid_off,
 "</svg>");
 
 /* Arany érmek: pénzügyi megtakarítás. */
-SVG_IMAGE(app_img_coins,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<ellipse cx='25' cy='16' rx='13' ry='6' fill='#FFD23A'/>"
-"<path d='M12 16v10c0 3 6 6 13 6s13-3 13-6V16c0 3-6 6-13 6s-13-3-13-6Z' fill='#F4A900'/>"
-"<ellipse cx='25' cy='26' rx='13' ry='6' fill='#FFC21A'/>"
-"<path d='M12 26v10c0 3 6 6 13 6s13-3 13-6V26c0 3-6 6-13 6s-13-3-13-6Z' fill='#F0A000'/>"
-"<ellipse cx='25' cy='36' rx='13' ry='6' fill='#FFD23A'/>"
-"<ellipse cx='43' cy='35' rx='11' ry='5.5' fill='#FFE06A'/>"
-"<path d='M32 35v10c0 3 5 5 11 5s11-2 11-5V35c0 3-5 5-11 5s-11-2-11-5Z' fill='#F5AA00'/>"
-"<ellipse cx='43' cy='45' rx='11' ry='5.5' fill='#FFC21A'/>"
-"</svg>");
+PNG_IMAGE(app_img_coins, assets_png_metric_coins_png, 3072);
 
 /* CO2 felhő: környezeti megtakarítás. */
 SVG_IMAGE(app_img_co2,
@@ -110,41 +97,16 @@ SVG_IMAGE(app_img_bulb,
 "</svg>");
 
 /* Zöld akkumulátor villámmal. */
-SVG_IMAGE(app_img_battery,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<rect x='20' y='12' width='24' height='7' rx='2.5' fill='#56616E'/>"
-"<rect x='14' y='18' width='36' height='38' rx='6' fill='#2DBE3E'/>"
-"<path d='M18 22h28v8H18z' fill='#53D75E' opacity='.55'/>"
-"<path d='m34 24-9 16h7l-3 11 11-18h-7l1-9Z' fill='#FFFFFF'/>"
-"</svg>");
+PNG_IMAGE(app_img_battery, assets_png_flow_battery_png, 3388);
 
 /* Kék napelem + nap. */
-SVG_IMAGE(app_img_solar,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<circle cx='49' cy='14' r='7' fill='#FFC400'/>"
-"<g stroke='#FFB300' stroke-width='2' stroke-linecap='round'><path d='M49 2v5M49 21v5M37 14h5M56 14h5M40 5l3 4M58 5l-3 4'/></g>"
-"<path d='M11 28h36l5 22H7l4-22Z' fill='#1976D2' stroke='#0D5FA8' stroke-width='2.2'/>"
-"<path d='M19 28 16 50M30 28l-1 22M41 28l3 22M9 36h40M8 43h42' stroke='#D7F0FF' stroke-width='2'/>"
-"<path d='M25 50h8l4 7H21l4-7Z' fill='#607D8B'/>"
-"</svg>");
+PNG_IMAGE(app_img_solar, assets_png_flow_solar_png, 4225);
 
 /* Részletesebb ház a központi energiaábrához. */
-SVG_IMAGE(app_img_home_scene,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<path d='M10 31 32 12l22 19-4 4-18-15-18 15-4-4Z' fill='#EF4444'/>"
-"<path d='M16 31h32v23H16z' fill='#F7FAFC'/>"
-"<path d='M21 36h9v10h-9zm21 0h-9v10h9z' fill='#52B9FF'/>"
-"<path d='M29 42h7v12h-7z' fill='#2877C7'/>"
-"<circle cx='14' cy='52' r='6' fill='#2FB34A'/><circle cx='50' cy='52' r='6' fill='#2FB34A'/>"
-"</svg>");
+PNG_IMAGE(app_img_home_scene, assets_png_flow_house_png, 3742);
 
 /* Központi, szürke energiaelosztó villám. */
-SVG_IMAGE(app_img_hub,
-"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
-"<circle cx='32' cy='32' r='25' fill='#7B8794'/><circle cx='32' cy='32' r='20' fill='#909BA6'/>"
-"<path d='m35 15-13 20h9l-4 14 15-22h-9l2-12Z' fill='#FFFFFF'/>"
-"<path d='M16 14a25 25 0 0 1 32 0' fill='none' stroke='#BBC4CB' stroke-width='2' opacity='.8'/>"
-"</svg>");
+PNG_IMAGE(app_img_hub, assets_png_flow_hub_png, 2968);
 
 /* Időjárás ikonok. */
 SVG_IMAGE(app_img_weather_sun,

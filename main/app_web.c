@@ -115,11 +115,15 @@ static void build_auth(void)
             strlen(plain)) == 0) {
 
         encoded[encoded_len] = 0;
-        snprintf(
-            s_expected_auth,
-            sizeof(s_expected_auth),
-            "Basic %s",
-            encoded);
+        /*
+         * Az encoded_len ismert, ezért snprintf helyett pontos méretű
+         * másolást használunk; így a fordító sem jelezhet téves truncationt.
+         */
+        if (encoded_len + 7 <= sizeof(s_expected_auth)) {
+            memcpy(s_expected_auth, "Basic ", 6);
+            memcpy(s_expected_auth + 6, encoded, encoded_len);
+            s_expected_auth[6 + encoded_len] = 0;
+        }
     }
 }
 
