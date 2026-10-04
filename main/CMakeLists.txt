@@ -1,3 +1,4 @@
+# Az alkalmazás saját ESP-IDF komponense.
 idf_component_register(
     SRCS
         "app_main.c"
@@ -28,6 +29,10 @@ idf_component_register(
         nvs_flash
 )
 
-# Keep warnings visible, but do not fail the build on formatting-only
-# misleading-indentation diagnostics while the source is being cleaned up.
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=misleading-indentation)
+# A figyelmeztetéseket megtartjuk, de a régi, egysoros kódrészek formázási
+# figyelmeztetései egyelőre ne állítsák meg a buildet.
+target_compile_options(
+    ${COMPONENT_LIB}
+    PRIVATE
+    -Wno-error=misleading-indentation
+)

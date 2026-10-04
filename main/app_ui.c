@@ -1,3 +1,10 @@
+/*
+ * LVGL felhasználói felület a 1280x800-as fekvő kijelzőhöz.
+ *
+ * A modul kezeli az indulási képernyőt, a teljes dashboardot, az energiaáramlás
+ * animációját, a nappali/éjszakai témát, a grafikonokat és a kommunikációs
+ * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
+ */
 #include "app_ui.h"
 #include <math.h>
 #include <stdio.h>
@@ -32,8 +39,10 @@ static lv_font_t s_font_30;
 #define APP_FONT_22 (&s_font_20)
 #define APP_FONT_28 (&s_font_30)
 
+/* A célpanel logikai felbontása fekvő tájolásban. */
 #define W 1280
 #define H 800
+/* Nappali és éjszakai téma alap színei. */
 #define BG_LIGHT 0xF5F7F8
 #define BG_DARK 0x000000
 #define CARD_LIGHT 0xFFFFFF
@@ -48,6 +57,7 @@ static lv_font_t s_font_30;
 #define BLUE 0x367DC4
 #define GRAY 0x9AA5A9
 
+/* A boot után RAM-ban tartott konfiguráció és a UI életciklusának állapota. */
 static app_config_t s_cfg;
 static bool s_cfg_ok,s_started,s_dash_created,s_last_night;
 static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
@@ -64,6 +74,7 @@ static lv_obj_t *s_error_pulse;
 static int s_brightness=50,s_target=50;
 static int64_t s_last_chart_update_us;
 
+/* A runtime UI kölcsönösen kizáró fő nézetei. */
 typedef enum {
     VIEW_NONE = 0,
     VIEW_DASHBOARD,
@@ -76,6 +87,7 @@ typedef enum {
 
 static runtime_view_t s_view = VIEW_NONE;
 
+/* Az MQTT adatokból származtatott időjárási ikonállapotok. */
 typedef enum {
     WEATHER_SUNNY = 0,
     WEATHER_PARTLY_CLOUDY,
@@ -87,6 +99,10 @@ typedef enum {
 
 static weather_kind_t s_last_weather = (weather_kind_t)-1;
 
+/*
+ * Egy energiaáramlási kapcsolat LVGL objektumai.
+ * A pontok a teljesítmény irányában és nagyságával arányos sebességgel mozognak.
+ */
 typedef struct {
     lv_obj_t *line;
     lv_obj_t *dots[3];
@@ -96,10 +112,14 @@ typedef struct {
 } flow_t;
 static flow_t f_pv,f_bat,f_grid;
 
+/* 24 bites RGB szín átalakítása LVGL színobjektummá. */
 static lv_color_t c(uint32_t x){return lv_color_hex(x);}
+/* Igaz, ha a felület magyar nyelven működik. */
 static bool hu(void){return !s_cfg_ok||strcmp(s_cfg.project.language,"hu")==0;}
+/* Két beégetett fordítás közül a konfigurált nyelv kiválasztása. */
 static const char *tr(const char *a,const char *b){return hu()?a:b;}
 
+/* Noto Sans alkalmazásfontok inicializálása és ikon-fallback lánc beállítása. */
 static void fonts_init(void)
 {
     s_font_14=font_noto_sans_basic_14_1;
@@ -108,8 +128,9 @@ static void fonts_init(void)
     s_font_30=font_noto_sans_basic_30_4;
 
     /*
-     * Keep LVGL's built-in Montserrat fonts as fallbacks because they include
-     * the FontAwesome LV_SYMBOL glyphs used by the dashboard icons.
+     * Az LVGL beépített Montserrat fontjai fallbackként megmaradnak,
+     * mert ezek tartalmazzák a dashboard ikonokhoz használt LV_SYMBOL
+     * FontAwesome karaktereket.
      */
     s_font_14.fallback=&lv_font_montserrat_14;
     s_font_16.fallback=&lv_font_montserrat_16;
@@ -117,6 +138,7 @@ static void fonts_init(void)
     s_font_30.fallback=&lv_font_montserrat_28;
 }
 
+/* Éjszakai módban ugyanazon funkciószínek tompított változatának kiválasztása. */
 static uint32_t tone(uint32_t color,bool night){
     if(!night)return color;
     if(color==GREEN)return 0x23784C;
@@ -126,7 +148,9 @@ static uint32_t tone(uint32_t color,bool night){
     return color;
 }
 
+/* Teljes képernyős háttér alapstílusa. */
 static void screen_style(lv_obj_t *o,bool night){lv_obj_set_style_bg_color(o,c(night?BG_DARK:BG_LIGHT),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_pad_all(o,0,0);}
+/* Közös kártyastílus: háttér, keret, lekerekítés és nappali árnyék. */
 static void card_style(lv_obj_t *o,bool night){
     lv_obj_set_style_bg_color(o,c(night?CARD_DARK:CARD_LIGHT),0);
     lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
@@ -139,7 +163,9 @@ static void card_style(lv_obj_t *o,bool night){
     lv_obj_set_style_shadow_ofs_y(o,night?0:4,0);
     lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE);
 }
+/* Egységes LVGL címke létrehozása pozícióval, fonttal és színnel. */
 static lv_obj_t *lbl(lv_obj_t *p,const char *txt,int x,int y,const lv_font_t *font,uint32_t color){lv_obj_t *l=lv_label_create(p);lv_label_set_text(l,txt?txt:"");lv_obj_set_pos(l,x,y);if(font)lv_obj_set_style_text_font(l,font,0);lv_obj_set_style_text_color(l,c(color),0);return l;}
+/* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
 static void clear(void){
     lv_obj_clean(s_screen);
     s_dash=NULL;
@@ -148,12 +174,14 @@ static void clear(void){
     s_view=VIEW_NONE;
 }
 
+/* SOC alapján a specifikált zöld/narancs/piros akkumulátorszín kiválasztása. */
 static uint32_t battery_color(double soc){
     if(soc>50.0)return GREEN;
     if(soc>=20.0)return ORANGE;
     return RED;
 }
 
+/* Egyszerű kitöltött téglalap/kör primitív létrehozása ikonokhoz és jelölőkhöz. */
 static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius){
     lv_obj_t *obj=lv_obj_create(parent);
     lv_obj_set_pos(obj,x,y);
@@ -167,6 +195,7 @@ static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,i
     return obj;
 }
 
+/* Egyszerű nap ikon kirajzolása LVGL primitívekből. */
 static void weather_draw_sun(lv_obj_t *parent,int x,int y){
     shape(parent,x+11,y+8,16,16,0xF4B942,LV_RADIUS_CIRCLE);
     shape(parent,x+18,y+1,2,5,0xF4B942,1);
@@ -175,6 +204,7 @@ static void weather_draw_sun(lv_obj_t *parent,int x,int y){
     shape(parent,x+29,y+15,5,2,0xF4B942,1);
 }
 
+/* Felhő ikon kirajzolása, éjszaka tompított színnel. */
 static void weather_draw_cloud(lv_obj_t *parent,int x,int y,bool night){
     uint32_t cloud=night?0x8C9892:0x9DA9AE;
     shape(parent,x+5,y+17,31,12,cloud,6);
@@ -182,7 +212,9 @@ static void weather_draw_cloud(lv_obj_t *parent,int x,int y,bool night){
     shape(parent,x+20,y+8,19,19,cloud,LV_RADIUS_CIRCLE);
 }
 
+/* Az aktuális időjárási állapotnak megfelelő fejlécikon újrarajzolása. */
 static void weather_render(weather_kind_t kind,bool night){
+    /* Felesleges újrarajzolást kerülünk, ha az ikonállapot nem változott. */
     if(!s_weather_icon||kind==s_last_weather)return;
     lv_obj_clean(s_weather_icon);
 
@@ -218,6 +250,7 @@ static void weather_render(weather_kind_t kind,bool night){
     s_last_weather=kind;
 }
 
+/* Statikus szél ikon létrehozása a fejlécben. */
 static void wind_icon_create(lv_obj_t *parent,int x,int y,bool night){
     uint32_t col=night?MUTED_DARK:MUTED_LIGHT;
     lv_obj_t *w=lv_obj_create(parent);
@@ -232,10 +265,15 @@ static void wind_icon_create(lv_obj_t *parent,int x,int y,bool night){
     shape(w,1,17,15,2,col,1);
 }
 
+/* Lebegőpontos szám lokalizált tizedeselválasztóval történő formázása. */
 static void fmt_dec(char *out,size_t n,double v,int d){snprintf(out,n,"%.*f",d,v);if(hu()){char *p=strchr(out,'.');if(p)*p=',';}}
+/* Teljesítmény formázása: 1 kW alatt egész W, felette egy tizedes kW. */
 static void fmt_power(char *out,size_t n,double kw){double a=fabs(kw);if(a>=1){char q[20];fmt_dec(q,sizeof(q),a,1);snprintf(out,n,"%s kW",q);}else snprintf(out,n,"%d W",(int)llround(a*1000));}
+/* Energia formázása egy tizedes kWh értékre. */
 static void fmt_kwh(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s kWh",q);}
+/* Százalék formázása egy tizedessel. */
 static void fmt_pct(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s%%",q);}
+/* Tegnapi összehasonlítás nyíl + százalék szövegének elkészítése. */
 static void fmt_cmp(char *out,size_t n,double t,double y){
     if(fabs(y)<1e-9){
         snprintf(out,n,"%s",LV_SYMBOL_MINUS);
@@ -246,9 +284,11 @@ static void fmt_cmp(char *out,size_t n,double t,double y){
     fmt_dec(q,sizeof(q),p,1);
     snprintf(out,n,"%s %s%%",p>=0?LV_SYMBOL_UP:LV_SYMBOL_DOWN,q);
 }
+/* Összehasonlítási értékhez zöld, narancs vagy szürke szín választása. */
 static uint32_t cmp_color(double t,double y){if(fabs(y)<1e-9)return GRAY;return t>=y?GREEN:ORANGE;}
 
 #if LV_DRAW_SW_COMPLEX
+/* A termelés/fogyasztás görbék alá finom, sorozatszínű függőleges gradienst rajzol. */
 static void chart_positive_gradient_cb(lv_event_t *e)
 {
     lv_draw_task_t *task=lv_event_get_draw_task(e);
@@ -322,6 +362,7 @@ static void chart_positive_gradient_cb(lv_event_t *e)
 }
 #endif
 
+/* A fő energiaábra egy elemkártyájának létrehozása ikonnal és aktuális értékkel. */
 static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const char *icon,lv_obj_t **icon_out,lv_obj_t **value,bool night,uint32_t accent){
     lv_obj_t *o=lv_obj_create(p);
     lv_obj_set_pos(o,x,y);
@@ -335,6 +376,7 @@ static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const
     *value=lbl(o,"-",38,32,APP_FONT_22,night?TEXT_DARK:TEXT_LIGHT);
     return o;
 }
+/* Egy energiaáramlási vonal és három animált pont egyszeri létrehozása. */
 static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool night){
     f->x1=x1;
     f->y1=y1;
@@ -359,15 +401,23 @@ static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool nig
         lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);
     }
 }
+/* Energiaáramlási vonal színének, irányának és pontsebességének frissítése. */
 static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool night,float dt){
+    /* Közel nulla teljesítménynél csak a halvány statikus kapcsolat marad. */
     double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
+    /*
+     * 0..7 kW között lineárisan nő a pontsebesség, 7 kW felett telítődik.
+     * Az irányt a forward paraméter határozza meg.
+     */
     uint32_t shown=tone(color,night);
     lv_obj_set_style_line_color(f->line,c(shown),0);float speed=.75f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
     for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(shown),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
+/* Napi mutatókártya létrehozása érték- és összehasonlítási címkével. */
 static lv_obj_t *metric_card(lv_obj_t *p,int x,int y,const char *title,int idx,bool night){
     lv_obj_t *o=lv_obj_create(p);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,145,104);card_style(o,night);lbl(o,title,0,0,APP_FONT_14,night?MUTED_DARK:MUTED_LIGHT);s_metric[idx]=lbl(o,"-",0,29,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);s_cmp[idx]=lbl(o,"",0,65,APP_FONT_12,GREEN);return o;
 }
+/* A teljes 1280x800 dashboard objektumfájának felépítése nappali vagy éjszakai témában. */
 static void build_dashboard(bool night){
     clear();screen_style(s_screen,night);s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
     s_title=lbl(s_dash,s_cfg.project.title,28,16,APP_FONT_28,night?TEXT_DARK:TEXT_LIGHT);
@@ -417,9 +467,9 @@ static void build_dashboard(bool night){
     s_status=lbl(s_status_card,"-",34,35,APP_FONT_20,GREEN);
 
     /*
-     * U+0171 (ű) is the only Hungarian glyph not present in the component's
-     * compact basic charset. Two tiny two-segment marks complete the plain
-     * 'u' visually without allocating any per-dashboard font data.
+     * Az U+0171 (ű) az egyetlen szükséges magyar karakter, amely nincs benne
+     * a kompakt alap-karakterkészletben. Két apró, kétszegmenses jel egészíti
+     * ki vizuálisan a sima 'u' betűt, új dashboardonkénti fontmemória nélkül.
      */
     s_status_accent_a=lv_obj_create(s_status_card);
     lv_obj_set_pos(s_status_accent_a,112,30);
@@ -512,23 +562,32 @@ static void build_dashboard(bool night){
     s_view=VIEW_DASHBOARD;
     s_last_chart_update_us=0;
 }
+/* Napi önellátás kiszámítása 0..100% közé korlátozva. */
 static double self(const app_energy_totals_t *t){if(t->consumption_kwh<=1e-9)return 0;double x=(t->consumption_kwh-t->grid_import_kwh)/t->consumption_kwh*100;if(x<0)x=0;if(x>100)x=100;return x;}
+/* PV helyi felhasználásból és visszatáplálásból származó napi megtakarítás számítása. */
 static double money(const app_energy_totals_t *t){double local=t->production_kwh-t->grid_export_kwh;if(local<0)local=0;return local*s_cfg.energy.electricity_purchase_price+t->grid_export_kwh*s_cfg.energy.feed_in_price;}
+/* Napi PV-termeléshez tartozó megtakarított CO2 tömeg számítása. */
 static double co2(const app_energy_totals_t *t){return t->production_kwh*s_cfg.energy.co2_factor_kg_per_kwh;}
+/* Megtakarított CO2 fa-egyenértékre történő átszámítása. */
 static double tree(const app_energy_totals_t *t){return co2(t)/s_cfg.energy.tree_absorption_kg_per_year;}
+/* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
 static void metric(int i,const char *v,double today,double yesterday,bool have){lv_label_set_text(s_metric[i],v);if(!have){lv_label_set_text(s_cmp[i],"");return;}char x[32];fmt_cmp(x,sizeof(x),today,yesterday);lv_label_set_text(s_cmp[i],x);lv_obj_set_style_text_color(s_cmp[i],c(cmp_color(today,yesterday)),0);}
+/* A 288 ötperces grafikonpont és az automatikus Y-skálák frissítése. */
 static void charts(const app_stats_snapshot_t *st){
     double m1=1,m2=1;for(int i=0;i<APP_STATS_SLOT_COUNT;i++)if(st->slots[i].valid){m1=fmax(m1,fmax(st->slots[i].pv_kw,st->slots[i].load_kw));m2=fmax(m2,fmax(fabs(st->slots[i].grid_kw),fabs(st->slots[i].battery_kw)));}m1=ceil(m1);m2=ceil(m2);
     lv_chart_set_axis_range(s_chart1,LV_CHART_AXIS_PRIMARY_Y,0,(int32_t)lround(m1*1000));lv_chart_set_axis_range(s_chart2,LV_CHART_AXIS_PRIMARY_Y,(int32_t)lround(-m2*1000),(int32_t)lround(m2*1000));
     for(int i=0;i<APP_STATS_SLOT_COUNT;i++){int32_t none=LV_CHART_POINT_NONE;if(st->slots[i].valid){lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,(int32_t)lround(st->slots[i].pv_kw*1000));lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,(int32_t)lround(st->slots[i].load_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,(int32_t)lround(st->slots[i].grid_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,(int32_t)lround(st->slots[i].battery_kw*1000));}else{lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,none);lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,none);}}lv_chart_refresh(s_chart1);lv_chart_refresh(s_chart2);
 }
+/* MQTT meteorológiai mezőkből az ikonlogika szerinti időjárási állapot kiválasztása. */
 static weather_kind_t weather_kind(const app_energy_sample_t *s){
+    /* A csapadék minden más időjárási állapotnál magasabb prioritású. */
     if(s->has_precipitation)return s->temperature_c<-4?WEATHER_SNOW:WEATHER_RAIN;
     if(s->night_mode)return WEATHER_NIGHT;
     if(s->has_sun_radiation)return WEATHER_SUNNY;
     if(s->power_pv_kw>1)return WEATHER_PARTLY_CLOUDY;
     return WEATHER_CLOUDY;
 }
+/* Egy érvényes minta és statisztikai snapshot alapján minden dashboard-elem frissítése. */
 static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,float dt){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);char b[96],q[32];
     strftime(q,sizeof(q),"%H:%M",&tmv);lv_label_set_text(s_clock,q);
@@ -585,6 +644,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     snprintf(b,sizeof(b),"%s: %s",tr("Kisütés","Discharge"),q);
     lv_label_set_text(s_bat_discharge,b);
 
+    /* A tegnapi összehasonlítást csak akkor mutatjuk, ha tényleges tegnapi adat létezik. */
     if(st->has_yesterday){
         fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh);
         lv_label_set_text(s_bat_charge_cmp,q);
@@ -649,6 +709,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         s_last_chart_update_us=chart_now;
     }
 }
+/* Kommunikációs vagy végzetes teljes képernyős hibaoldal kirajzolása pulzáló jelzéssel. */
 static void error_screen(runtime_view_t view,const char *title,const char *detail,bool fatal){
     if(s_view!=view){
         clear();
@@ -678,6 +739,7 @@ static void error_screen(runtime_view_t view,const char *title,const char *detai
     }
 }
 
+/* Waveshare BSP kijelző és LVGL inicializálása fix 1280x800 fekvő tájolásban. */
 esp_err_t app_ui_init(void){
     fonts_init();
     bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=0,.mirror_x=0,.mirror_y=0}};
@@ -691,9 +753,13 @@ esp_err_t app_ui_init(void){
     app_ui_show_boot(APP_BOOT_SD, NULL);
     return ESP_OK;
 }
+/* A bootkor beolvasott konfiguráció átadása a UI modulnak. */
 void app_ui_set_config(const app_config_t *cfg){if(!cfg)return;s_cfg=*cfg;s_cfg_ok=true;s_target=s_cfg.display.day_brightness;}
+/* Indulási folyamat aktuális lépésének megjelenítése. */
 void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,APP_FONT_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,APP_FONT_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,APP_FONT_22,GREEN);if(detail)lbl(s_screen,detail,34,225,APP_FONT_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?LV_SYMBOL_OK:i==stage?LV_SYMBOL_REFRESH:"-",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,APP_FONT_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}
+/* Végzetes indulási hiba biztonságos megjelenítése LVGL lock mellett. */
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
+/* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 static void runtime(void *arg){
     (void)arg;
     (void)esp_task_wdt_add(NULL);
@@ -723,6 +789,7 @@ static void runtime(void *arg){
 
         if(bsp_display_lock(-1)==ESP_OK){
             int64_t timeout_us=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;
+            /* Az adatfrissesség kizárólag az utolsó érvényes payload időpontjától számít. */
             bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=timeout_us;
             bool first_packet_timeout=
                 !have &&
@@ -770,4 +837,5 @@ static void runtime(void *arg){
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
+/* A folyamatos UI runtime task egyszeri elindítása. */
 void app_ui_start_runtime(void){if(s_started)return;s_started=true;xTaskCreate(runtime,"ui_runtime",16384,NULL,5,NULL);}
