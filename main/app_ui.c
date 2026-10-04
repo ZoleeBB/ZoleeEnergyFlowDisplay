@@ -470,7 +470,7 @@ static void build_dashboard(bool night){
     lv_obj_set_style_line_width(s_chart1,2,LV_PART_ITEMS);
 #if LV_DRAW_SW_COMPLEX
     lv_obj_add_event_cb(s_chart1,chart_positive_gradient_cb,LV_EVENT_DRAW_TASK_ADDED,NULL);
-    lv_obj_set_send_draw_task_events(s_chart1,true);
+    lv_obj_add_flag(s_chart1,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
 #endif
     s_pv_ser=lv_chart_add_series(s_chart1,c(tone(GREEN,night)),LV_CHART_AXIS_PRIMARY_Y);
     s_load_ser=lv_chart_add_series(s_chart1,c(tone(ORANGE,night)),LV_CHART_AXIS_PRIMARY_Y);
