@@ -1,10 +1,20 @@
+/*
+ * Az alkalmazás fő belépési pontja.
+ *
+ * Feladata az alrendszerek meghatározott sorrendű inicializálása:
+ * NVS -> kijelző -> SD -> konfiguráció -> Wi-Fi -> NTP -> statisztika
+ * -> web/OTA -> MQTT -> normál futási mód.
+ */
 #include <stdio.h>
+
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "app_config.h"
 #include "app_events.h"
 #include "app_mqtt.h"
@@ -17,56 +27,213 @@
 #include "app_web.h"
 #include "app_wifi.h"
 
+/* A konfiguráció fix helye a microSD gyökerében. */
 #define CONFIG_PATH APP_SD_MOUNT_POINT "/config.json"
-static const char *TAG="app";
+
+static const char *TAG = "app";
 static app_config_t s_config;
 
-static void fatal_forever(const char *title,const char *detail){ESP_LOGE(TAG,"%s: %s",title,detail?detail:"");app_ui_show_fatal(title,detail);while(true)vTaskDelay(pdMS_TO_TICKS(1000));}
-static void init_nvs(void){esp_err_t e=nvs_flash_init();if(e==ESP_ERR_NVS_NO_FREE_PAGES||e==ESP_ERR_NVS_NEW_VERSION_FOUND){ESP_ERROR_CHECK(nvs_flash_erase());e=nvs_flash_init();}ESP_ERROR_CHECK(e);}
+/*
+ * Végzetes indulási hiba megjelenítése.
+ * Ilyenkor szándékosan nem próbálunk továbbindulni; újraindítás szükséges.
+ */
+static void fatal_forever(const char *title, const char *detail)
+{
+    ESP_LOGE(TAG, "%s: %s", title, detail ? detail : "");
+    app_ui_show_fatal(title, detail);
 
-void app_main(void){
-    init_nvs();app_state_init();app_events_init();
-    if(app_ui_init()!=ESP_OK){ESP_LOGE(TAG,"Display initialization failed");while(true)vTaskDelay(pdMS_TO_TICKS(1000));}
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+/*
+ * Az NVS inicializálása.
+ * Verzióváltás vagy elfogyott lapok esetén az ESP-IDF ajánlása szerint
+ * töröljük az NVS-t, majd egyszer újrainicializáljuk.
+ */
+static void init_nvs(void)
+{
+    esp_err_t err = nvs_flash_init();
+
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+
+    ESP_ERROR_CHECK(err);
+}
+
+/*
+ * ESP-IDF alkalmazás belépési pont.
+ * A normál dashboard csak az összes kötelező indulási feltétel után indul el.
+ */
+void app_main(void)
+{
+    /* Alap rendszerállapot és RAM eseménynapló. */
+    init_nvs();
+    app_state_init();
+    app_events_init();
+
+    /* A kijelző már a további indulási lépések állapotát is mutatja. */
+    if (app_ui_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Display initialization failed");
+        while (true) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+
+    /*
+     * Az OTA rollback ellenőrzés korán indul, hogy egy új firmware
+     * a háromperces érvényesítési ablakon belül bizonyíthassa működését.
+     */
     app_ota_start_validation_task();
 
-    app_ui_show_boot(APP_BOOT_SD,NULL);
-    esp_err_t e=app_storage_boot_mount();
-    if(e!=ESP_OK)fatal_forever("SD-kártya hiba","A rendszer nem tudja elérni az SD-kártyát. Ellenőrizd a kártyát, majd indítsd újra az eszközt.");
-
-    app_ui_show_boot(APP_BOOT_CONFIG,NULL);
-    char err[256];e=app_config_load_file(CONFIG_PATH,&s_config,err,sizeof(err));
-    if(e!=ESP_OK)fatal_forever("Konfigurációs hiba",err);
-    app_state_set_config_ok(true);app_ui_set_config(&s_config);app_events_add(APP_EVENT_INFO,"Konfiguráció betöltve.");
-
-    ESP_ERROR_CHECK(esp_netif_init());ESP_ERROR_CHECK(esp_event_loop_create_default());
-    app_ui_show_boot(APP_BOOT_WIFI,NULL);
-    e=app_wifi_start(&s_config);if(e!=ESP_OK)fatal_forever("Wi-Fi inicializálási hiba",esp_err_to_name(e));
-    while(!app_wifi_wait_connected(pdMS_TO_TICKS(1000))){}
-
-    app_ui_show_boot(APP_BOOT_NTP,NULL);
-    e=app_time_init(&s_config);if(e!=ESP_OK)fatal_forever("NTP inicializálási hiba",esp_err_to_name(e));
-    while((e=app_time_sync_once())!=ESP_OK){
-        char msg[160];snprintf(msg,sizeof(msg),"Az időszinkron nem sikerült (%s). Újrapróbálkozás %lu másodperc múlva.",esp_err_to_name(e),(unsigned long)s_config.time.startup_retry_seconds);
-        app_ui_show_boot(APP_BOOT_NTP,msg);vTaskDelay(pdMS_TO_TICKS(s_config.time.startup_retry_seconds*1000U));
-    }
-    app_events_add(APP_EVENT_INFO,"NTP időszinkron sikeres.");
-
-    e=app_stats_init(&s_config);
-    if(e!=ESP_OK)fatal_forever("SD-kártya hiba","A statisztikai tárhely nem inicializálható. Ellenőrizd az SD-kártyát, majd indítsd újra az eszközt.");
-    app_storage_start_recovery_task();app_stats_start_task();app_time_start_background_task();
-
-    e=app_web_start(&s_config);if(e!=ESP_OK){app_events_add(APP_EVENT_ERROR,"Web/OTA felület nem indult el: %s",esp_err_to_name(e));ESP_LOGE(TAG,"Web server start failed: %s",esp_err_to_name(e));}
-
-    app_ui_show_boot(APP_BOOT_MQTT,NULL);
-    e=app_mqtt_start(&s_config);if(e!=ESP_OK)fatal_forever("MQTT inicializálási hiba",esp_err_to_name(e));
-    while(!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))){
-        app_runtime_state_t rt;app_state_get_runtime(&rt);
-        if(!rt.wifi_connected)app_ui_show_boot(APP_BOOT_WIFI,"A Wi-Fi kapcsolat helyreállítására várunk…");else app_ui_show_boot(APP_BOOT_MQTT,"Kapcsolódás az MQTT brokerhez…");
+    /* SD-kártya nélkül nincs konfiguráció, ezért ez blokkoló feltétel. */
+    app_ui_show_boot(APP_BOOT_SD, NULL);
+    esp_err_t err = app_storage_boot_mount();
+    if (err != ESP_OK) {
+        fatal_forever(
+            "SD-kártya hiba",
+            "A rendszer nem tudja elérni az SD-kártyát. Ellenőrizd a kártyát, majd indítsd újra az eszközt.");
     }
 
-    app_ui_show_boot(APP_BOOT_WAIT_DATA,NULL);
-    TickType_t start=xTaskGetTickCount();
-    while(true){app_runtime_state_t rt;app_state_get_runtime(&rt);if(rt.has_valid_sample)break;if((xTaskGetTickCount()-start)>=pdMS_TO_TICKS(s_config.mqtt.data_timeout_seconds*1000U))break;vTaskDelay(pdMS_TO_TICKS(200));}
-    app_ui_start_runtime();app_events_add(APP_EVENT_INFO,"Rendszerindítás befejeződött.");
-    while(true)vTaskDelay(pdMS_TO_TICKS(60000));
+    /* A konfigurációt kizárólag induláskor olvassuk be. */
+    app_ui_show_boot(APP_BOOT_CONFIG, NULL);
+    char config_error[256];
+    err = app_config_load_file(
+        CONFIG_PATH,
+        &s_config,
+        config_error,
+        sizeof(config_error));
+
+    if (err != ESP_OK) {
+        fatal_forever("Konfigurációs hiba", config_error);
+    }
+
+    app_state_set_config_ok(true);
+    app_ui_set_config(&s_config);
+    app_events_add(APP_EVENT_INFO, "Konfiguráció betöltve.");
+
+    /* Hálózati ESP-IDF infrastruktúra inicializálása. */
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    /* Wi-Fi kapcsolat létrehozása; induláskor addig várunk, amíg fel nem áll. */
+    app_ui_show_boot(APP_BOOT_WIFI, NULL);
+    err = app_wifi_start(&s_config);
+    if (err != ESP_OK) {
+        fatal_forever("Wi-Fi inicializálási hiba", esp_err_to_name(err));
+    }
+
+    while (!app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
+        /* Az eseménykezelő és a reconnect task végzi a tényleges kapcsolódást. */
+    }
+
+    /*
+     * Az NTP szinkron indulási előfeltétel, mert a napi statisztika
+     * helyi dátumhoz és időhöz kötött.
+     */
+    app_ui_show_boot(APP_BOOT_NTP, NULL);
+    err = app_time_init(&s_config);
+    if (err != ESP_OK) {
+        fatal_forever("NTP inicializálási hiba", esp_err_to_name(err));
+    }
+
+    while ((err = app_time_sync_once()) != ESP_OK) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Az időszinkron nem sikerült (%s). Újrapróbálkozás %lu másodperc múlva.",
+            esp_err_to_name(err),
+            (unsigned long)s_config.time.startup_retry_seconds);
+
+        app_ui_show_boot(APP_BOOT_NTP, message);
+        vTaskDelay(pdMS_TO_TICKS(
+            s_config.time.startup_retry_seconds * 1000U));
+    }
+
+    app_events_add(APP_EVENT_INFO, "NTP időszinkron sikeres.");
+
+    /* A mai és tegnapi statisztika betöltése / létrehozása. */
+    err = app_stats_init(&s_config);
+    if (err != ESP_OK) {
+        fatal_forever(
+            "SD-kártya hiba",
+            "A statisztikai tárhely nem inicializálható. Ellenőrizd az SD-kártyát, majd indítsd újra az eszközt.");
+    }
+
+    /* Háttérfeladatok indulása. */
+    app_storage_start_recovery_task();
+    app_stats_start_task();
+    app_time_start_background_task();
+
+    /*
+     * A helyi web/OTA felület hasznos, de nem blokkolja az energiamonitor
+     * alapműködését, ezért hibája csak eseményként kerül naplózásra.
+     */
+    err = app_web_start(&s_config);
+    if (err != ESP_OK) {
+        app_events_add(
+            APP_EVENT_ERROR,
+            "Web/OTA felület nem indult el: %s",
+            esp_err_to_name(err));
+        ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
+    }
+
+    /* MQTT kliens és brokerkapcsolat felépítése. */
+    app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    err = app_mqtt_start(&s_config);
+    if (err != ESP_OK) {
+        fatal_forever("MQTT inicializálási hiba", esp_err_to_name(err));
+    }
+
+    while (!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))) {
+        app_runtime_state_t runtime;
+        app_state_get_runtime(&runtime);
+
+        if (!runtime.wifi_connected) {
+            app_ui_show_boot(
+                APP_BOOT_WIFI,
+                "A Wi-Fi kapcsolat helyreállítására várunk...");
+        } else {
+            app_ui_show_boot(
+                APP_BOOT_MQTT,
+                "Kapcsolódás az MQTT brokerhez...");
+        }
+    }
+
+    /*
+     * Az első érvényes payloadra legfeljebb a konfigurált adat-timeoutig várunk.
+     * Ha addig nem jön adat, a runtime UI már a megfelelő hibaoldalt kezeli.
+     */
+    app_ui_show_boot(APP_BOOT_WAIT_DATA, NULL);
+    TickType_t wait_start = xTaskGetTickCount();
+
+    while (true) {
+        app_runtime_state_t runtime;
+        app_state_get_runtime(&runtime);
+
+        if (runtime.has_valid_sample) {
+            break;
+        }
+
+        if ((xTaskGetTickCount() - wait_start) >=
+            pdMS_TO_TICKS(s_config.mqtt.data_timeout_seconds * 1000U)) {
+            break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    /* Innentől a kijelző runtime task kezeli a dashboard és hibaoldalak közti váltást. */
+    app_ui_start_runtime();
+    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+
+    /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(60000));
+    }
 }
