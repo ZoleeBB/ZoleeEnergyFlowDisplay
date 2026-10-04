@@ -17,7 +17,7 @@ void app_config_set_defaults(app_config_t *c){
     memset(c,0,sizeof(*c));
     copy_text(c->project.title,sizeof(c->project.title),"Otthoni energia");copy_text(c->project.language,sizeof(c->project.language),"hu");copy_text(c->project.currency,sizeof(c->project.currency),"Ft");
     c->wifi.reconnect_seconds=15;
-    copy_text(c->time.ntp_server,sizeof(c->time.ntp_server),"hu.pool.ntp.org");copy_text(c->time.timezone,sizeof(c->time.timezone),"Europe/Budapest");c->time.auto_dst=true;c->time.utc_offset_minutes=60;c->time.startup_retry_seconds=15;c->time.resync_hours=6;c->time.background_retry_minutes=15;
+    copy_text(c->time.ntp_server,sizeof(c->time.ntp_server),"pool.ntp.org");copy_text(c->time.timezone,sizeof(c->time.timezone),"Europe/Budapest");c->time.auto_dst=true;c->time.utc_offset_minutes=60;c->time.startup_retry_seconds=15;c->time.resync_hours=6;c->time.background_retry_minutes=15;
     c->mqtt.port=1883;copy_text(c->mqtt.topic,sizeof(c->mqtt.topic),"loxberry/mqttgateway/energymonitor/state");c->mqtt.data_timeout_seconds=30;c->mqtt.reconnect_seconds=15;
     c->display.day_brightness=80;c->display.night_brightness=20;c->statistics.save_interval_minutes=60;c->statistics.max_integration_gap_seconds=30;
     c->energy.electricity_purchase_price=65;c->energy.feed_in_price=5;c->energy.co2_factor_kg_per_kwh=0.381;c->energy.tree_absorption_kg_per_year=22;
