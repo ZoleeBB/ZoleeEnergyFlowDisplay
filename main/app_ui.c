@@ -48,15 +48,15 @@ static lv_font_t s_font_30;
 #define BG_DARK 0x000000
 #define CARD_LIGHT 0xFFFFFF
 #define CARD_DARK 0x111513
-#define TEXT_LIGHT 0x1B2428
+#define TEXT_LIGHT 0x101827
 #define TEXT_DARK 0xE7ECE9
-#define MUTED_LIGHT 0x6E7C83
+#define MUTED_LIGHT 0x7A8698
 #define MUTED_DARK 0x839087
-#define GREEN 0x2E9D62
-#define ORANGE 0xE99B38
-#define RED 0xD9534F
-#define BLUE 0x367DC4
-#define GRAY 0x9AA5A9
+#define GREEN 0x38B830
+#define ORANGE 0xF86810
+#define RED 0xE53935
+#define BLUE 0x0060C0
+#define GRAY 0x96A1AA
 
 /* A boot után RAM-ban tartott konfiguráció és a UI életciklusának állapota. */
 static app_config_t s_cfg;
