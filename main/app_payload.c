@@ -18,8 +18,23 @@ static bool integer(cJSON *i,int min,int max,int *o){ if(!cJSON_IsNumber(i)||!is
 esp_err_t app_payload_parse(const char *json,size_t len,app_energy_sample_t *out,char *error,size_t error_len){
     if(error&&error_len)error[0]=0;
     if(!json||!len||!out){fail(error,error_len,"Üres vagy érvénytelen MQTT payload",NULL);return ESP_ERR_INVALID_ARG;}
-    cJSON *root=cJSON_ParseWithLength(json,len);
-    if(!root||!cJSON_IsObject(root)){cJSON_Delete(root);fail(error,error_len,"Az MQTT payload nem érvényes JSON objektum",NULL);return ESP_ERR_INVALID_ARG;}
+    const char *parse_end=NULL;
+    cJSON *root=cJSON_ParseWithLengthOpts(json,len,&parse_end,false);
+    if(!root||!cJSON_IsObject(root)){
+        cJSON_Delete(root);
+        fail(error,error_len,"Az MQTT payload nem érvényes JSON objektum",NULL);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    while(parse_end<json+len&&
+          (*parse_end==' '||*parse_end=='\t'||*parse_end=='\r'||*parse_end=='\n')){
+        parse_end++;
+    }
+    if(parse_end!=json+len){
+        cJSON_Delete(root);
+        fail(error,error_len,"Az MQTT payload JSON után további adatot tartalmaz",NULL);
+        return ESP_ERR_INVALID_ARG;
+    }
     cJSON *fields[REQUIRED_FIELD_COUNT]={0},*it=NULL;
     cJSON_ArrayForEach(it,root){
         int id=field_id_for_name(it->string); if(id<0)continue;
