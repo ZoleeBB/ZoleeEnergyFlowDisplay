@@ -65,7 +65,7 @@ static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
 static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
 static lv_obj_t *s_bat_icon,*s_grid_icon,*s_status_icon,*s_status_accent_a,*s_status_accent_b;
-static lv_obj_t *s_grid_node,*s_status_bubble,*s_status_detail;
+static lv_obj_t *s_grid_node,*s_battery_node,*s_status_bubble,*s_status_detail;
 static lv_obj_t *s_battery_bar,*s_status_card;
 static lv_obj_t *s_bat_soc_detail,*s_bat_power_detail,*s_bat_temp_detail;
 static lv_obj_t *s_bat_charge,*s_bat_charge_cmp,*s_bat_discharge,*s_bat_discharge_cmp;
@@ -785,7 +785,7 @@ static void build_dashboard(bool night)
     lv_obj_set_style_text_align(grid_name,LV_TEXT_ALIGN_CENTER,0);
 
     /* Akkumulátor bal oldalon. */
-    lv_obj_t *battery_circle=energy_circle(
+    s_battery_node=energy_circle(
         flow,
         100,
         245,
@@ -800,7 +800,7 @@ static void build_dashboard(bool night)
      * A sáv hossza és színe együtt jelzi a töltöttséget, miközben maga
      * az akkumulátor ikon is a megfelelő töltöttségi szintre vált.
      */
-    s_battery_bar=lv_bar_create(battery_circle);
+    s_battery_bar=lv_bar_create(s_battery_node);
     lv_obj_set_pos(s_battery_bar,18,68);
     lv_obj_set_size(s_battery_bar,56,7);
     lv_bar_set_range(s_battery_bar,0,100);
@@ -1502,14 +1502,20 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
 
     lv_bar_set_value(s_battery_bar,(int32_t)lround(s->soc_bat_pct),LV_ANIM_OFF);
     uint32_t soc_color=battery_color(s->soc_bat_pct);
-    lv_obj_set_style_bg_color(s_battery_bar,c(tone(soc_color,s->night_mode)),LV_PART_INDICATOR);
-    lv_obj_set_style_text_color(s_bat_icon,c(tone(soc_color,s->night_mode)),0);
-    lv_label_set_text(s_bat_icon,
-        s->soc_bat_pct>87.5?LV_SYMBOL_BATTERY_FULL:
-        s->soc_bat_pct>62.5?LV_SYMBOL_BATTERY_3:
-        s->soc_bat_pct>37.5?LV_SYMBOL_BATTERY_2:
-        s->soc_bat_pct>12.5?LV_SYMBOL_BATTERY_1:
-        LV_SYMBOL_BATTERY_EMPTY);
+    lv_obj_set_style_bg_color(
+        s_battery_bar,
+        c(tone(soc_color,s->night_mode)),
+        LV_PART_INDICATOR);
+
+    lv_obj_set_style_border_color(
+        s_battery_node,
+        c(tone(soc_color,s->night_mode)),
+        0);
+
+    lv_obj_set_style_opa(
+        s_bat_icon,
+        s->night_mode?LV_OPA_80:LV_OPA_COVER,
+        0);
 
     fmt_pct(q,sizeof(q),s->soc_bat_pct);
     snprintf(b,sizeof(b),"SOC: %s",q);
@@ -1572,13 +1578,13 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
             c(GRAY),
             0);
 
-        lv_label_set_text(
+        lv_image_set_src(
             s_grid_icon,
-            LV_SYMBOL_CLOSE);
+            &app_img_grid_off);
 
-        lv_obj_set_style_text_color(
+        lv_obj_set_style_opa(
             s_grid_icon,
-            c(GRAY),
+            s->night_mode?LV_OPA_70:LV_OPA_COVER,
             0);
 
         lv_obj_set_style_border_color(
@@ -1601,13 +1607,13 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
             s->night_mode,
             dt);
 
-        lv_label_set_text(
+        lv_image_set_src(
             s_grid_icon,
-            LV_SYMBOL_POWER);
+            &app_img_grid);
 
-        lv_obj_set_style_text_color(
+        lv_obj_set_style_opa(
             s_grid_icon,
-            c(tone(grid_color,s->night_mode)),
+            s->night_mode?LV_OPA_80:LV_OPA_COVER,
             0);
 
         lv_obj_set_style_border_color(
@@ -1681,10 +1687,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     lv_label_set_text(s_status,stxt);
     lv_label_set_text(s_status_detail,status_detail);
 
-    lv_obj_set_style_bg_color(
-        s_status_bubble,
-        c(tone(status_color,s->night_mode)),
-        0);
+    /* Az állapot SVG saját, a mockuphoz illeszkedő színezést tartalmaz. */
 
     if(draw_double_acute){
         lv_obj_clear_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
@@ -1700,14 +1703,30 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         lv_obj_add_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_status_accent_b,LV_OBJ_FLAG_HIDDEN);
     }
-    lv_obj_set_style_text_color(s_status,c(tone(status_color,s->night_mode)),0);
-    lv_label_set_text(s_status_icon,
-        s->status==1?LV_SYMBOL_OK:
-        s->status==2?LV_SYMBOL_CHARGE:
-        s->status==3?LV_SYMBOL_CLOSE:
-        LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_color(s_status_icon,c(tone(status_color,s->night_mode)),0);
-    lv_obj_set_style_border_color(s_status_card,c(tone(status_color,s->night_mode)),0);
+    lv_obj_set_style_text_color(
+        s_status,
+        c(tone(status_color,s->night_mode)),
+        0);
+
+    const lv_image_dsc_t *status_asset=
+        s->status==1?&app_img_status_normal:
+        s->status==2?&app_img_status_prepare:
+        s->status==3?&app_img_status_island:
+        &app_img_status_error;
+
+    lv_image_set_src(
+        s_status_icon,
+        status_asset);
+
+    lv_obj_set_style_opa(
+        s_status_icon,
+        s->night_mode?LV_OPA_80:LV_OPA_COVER,
+        0);
+
+    lv_obj_set_style_border_color(
+        s_status_card,
+        c(tone(status_color,s->night_mode)),
+        0);
     lv_obj_set_style_border_width(s_status_card,s->status==4?3:1,0);
 
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_clear_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
@@ -1718,72 +1737,96 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         s_last_chart_update_us=chart_now;
     }
 }
-/* Kommunikációs vagy végzetes teljes képernyős hibaoldal kirajzolása pulzáló jelzéssel. */
-static void error_screen(runtime_view_t view,const char *title,const char *detail,bool fatal){
+/* Kommunikációs vagy végzetes teljes képernyős hibaoldal vektoros illusztrációval. */
+static void error_screen(
+    runtime_view_t view,
+    const char *title,
+    const char *detail,
+    bool fatal)
+{
     if(s_view!=view){
         clear();
         screen_style(s_screen,true);
-        s_error_pulse=lv_obj_create(s_screen);
-        lv_obj_set_size(s_error_pulse,112,112);
-        lv_obj_set_pos(s_error_pulse,584,175);
-        lv_obj_set_style_radius(s_error_pulse,LV_RADIUS_CIRCLE,0);
-        lv_obj_set_style_border_width(s_error_pulse,0,0);
-        uint32_t pulse_color=fatal?RED:ORANGE;
-        lv_obj_set_style_bg_color(s_error_pulse,c(pulse_color),0);
-        lv_obj_set_style_bg_opa(s_error_pulse,LV_OPA_COVER,0);
 
         /*
-         * A hiba típusa már a grafikából is felismerhető.
-         * A kör pulzálása minden nem normál állapotban megmarad.
+         * A központi grafika a dashboard assetstílusát követi.
+         * A külső kör pulzál, maga az ikon azonban éles, részletes SVG marad.
          */
-        const char *symbol="!";
-        const lv_font_t *symbol_font=&lv_font_montserrat_48;
-        int symbol_x=38;
-        int symbol_y=20;
-
-        if(view==VIEW_WIFI_ERROR){
-            symbol=LV_SYMBOL_WIFI;
-            symbol_font=APP_FONT_28;
-            symbol_x=39;
-            symbol_y=36;
-        }else if(view==VIEW_MQTT_ERROR){
-            symbol=LV_SYMBOL_CLOSE;
-            symbol_font=APP_FONT_28;
-            symbol_x=42;
-            symbol_y=35;
-        }else if(view==VIEW_WAIT_DATA){
-            symbol=LV_SYMBOL_REFRESH;
-            symbol_font=APP_FONT_28;
-            symbol_x=39;
-            symbol_y=35;
-        }else if(view==VIEW_DATA_TIMEOUT){
-            symbol=LV_SYMBOL_WARNING;
-            symbol_font=APP_FONT_28;
-            symbol_x=39;
-            symbol_y=35;
-        }
-
-        lv_obj_t *error_icon=lbl(
+        s_error_pulse=lv_obj_create(s_screen);
+        lv_obj_set_size(s_error_pulse,132,132);
+        lv_obj_set_pos(s_error_pulse,574,154);
+        lv_obj_set_style_radius(s_error_pulse,LV_RADIUS_CIRCLE,0);
+        lv_obj_set_style_border_width(s_error_pulse,1,0);
+        lv_obj_set_style_border_color(
             s_error_pulse,
-            symbol,
-            symbol_x,
-            symbol_y,
-            symbol_font,
-            0xFFFFFF);
-        (void)error_icon;
-        lv_obj_t *t=lbl(s_screen,title,0,330,APP_FONT_28,fatal?RED:TEXT_DARK);
-        lv_obj_set_width(t,W);
-        lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);
-        lv_obj_t *d=lbl(s_screen,detail?detail:"",0,390,APP_FONT_18,MUTED_DARK);
-        lv_obj_set_width(d,W);
-        lv_obj_set_style_text_align(d,LV_TEXT_ALIGN_CENTER,0);
+            c(fatal?RED:ORANGE),
+            0);
+        lv_obj_set_style_bg_color(
+            s_error_pulse,
+            c(fatal?0x321716:0x332619),
+            0);
+        lv_obj_set_style_bg_opa(
+            s_error_pulse,
+            LV_OPA_60,
+            0);
+        lv_obj_set_style_pad_all(s_error_pulse,0,0);
+        lv_obj_remove_flag(s_error_pulse,LV_OBJ_FLAG_SCROLLABLE);
+
+        const lv_image_dsc_t *error_asset=
+            fatal?&app_img_status_error:
+            view==VIEW_WIFI_ERROR?&app_img_wifi_off:
+            view==VIEW_MQTT_ERROR?&app_img_mqtt_off:
+            view==VIEW_WAIT_DATA?&app_img_waiting_data:
+            &app_img_timeout;
+
+        asset_image_box(
+            s_error_pulse,
+            14,
+            14,
+            104,
+            92,
+            error_asset,
+            false);
+
+        lv_obj_t *title_label=lbl(
+            s_screen,
+            title,
+            0,
+            326,
+            APP_FONT_28,
+            fatal?RED:TEXT_DARK);
+        lv_obj_set_width(title_label,W);
+        lv_obj_set_style_text_align(
+            title_label,
+            LV_TEXT_ALIGN_CENTER,
+            0);
+
+        lv_obj_t *detail_label=lbl(
+            s_screen,
+            detail?detail:"",
+            0,
+            386,
+            APP_FONT_18,
+            MUTED_DARK);
+        lv_obj_set_width(detail_label,W);
+        lv_obj_set_style_text_align(
+            detail_label,
+            LV_TEXT_ALIGN_CENTER,
+            0);
+
         s_view=view;
     }
 
     if(s_error_pulse){
         int phase=(int)((esp_timer_get_time()/10000LL)%200);
-        if(phase>100)phase=200-phase;
-        lv_obj_set_style_opa(s_error_pulse,(lv_opa_t)(150+phase),0);
+        if(phase>100){
+            phase=200-phase;
+        }
+
+        lv_obj_set_style_opa(
+            s_error_pulse,
+            (lv_opa_t)(170+phase/2),
+            0);
     }
 }
 
