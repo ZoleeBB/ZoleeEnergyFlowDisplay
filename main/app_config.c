@@ -1,70 +1,548 @@
+/*
+ * config.json beolvasása és szigorú validálása.
+ *
+ * A fájl induláskor egyszer kerül feldolgozásra. A nem megadott opcionális
+ * mezők a beépített alapértékeket öröklik, a kötelező vagy hibás mezők
+ * viszont leállítják az indulást.
+ */
 #include "app_config.h"
+
+#include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <stdarg.h>
-#include <math.h>
+
 #include "cJSON.h"
 #include "lwip/ip4_addr.h"
 
-#define CONFIG_FILE_MAX_BYTES (16*1024)
+/* Védelmi korlát: indokolatlanul nagy konfigurációs fájlt nem olvasunk be. */
+#define CONFIG_FILE_MAX_BYTES (16 * 1024)
 
-static void set_error(char *d,size_t n,const char *fmt,...){if(!d||!n)return;va_list ap;va_start(ap,fmt);vsnprintf(d,n,fmt,ap);va_end(ap);}
-static void copy_text(char *d,size_t n,const char *s){if(!d||!n)return;snprintf(d,n,"%s",s?s:"");}
+/* Formázott hibaüzenet írása a hívó pufferébe. */
+static void set_error(char *dst, size_t len, const char *fmt, ...)
+{
+    if (!dst || !len) {
+        return;
+    }
 
-void app_config_set_defaults(app_config_t *c){
-    memset(c,0,sizeof(*c));
-    copy_text(c->project.title,sizeof(c->project.title),"Otthoni energia");copy_text(c->project.language,sizeof(c->project.language),"hu");copy_text(c->project.currency,sizeof(c->project.currency),"Ft");
-    c->wifi.reconnect_seconds=15;
-    copy_text(c->time.ntp_server,sizeof(c->time.ntp_server),"pool.ntp.org");copy_text(c->time.timezone,sizeof(c->time.timezone),"Europe/Budapest");c->time.auto_dst=true;c->time.utc_offset_minutes=60;c->time.startup_retry_seconds=15;c->time.resync_hours=6;c->time.background_retry_minutes=15;
-    c->mqtt.port=1883;copy_text(c->mqtt.topic,sizeof(c->mqtt.topic),"loxberry/mqttgateway/energymonitor/state");c->mqtt.data_timeout_seconds=30;c->mqtt.reconnect_seconds=15;
-    c->display.day_brightness=80;c->display.night_brightness=20;c->statistics.save_interval_minutes=60;c->statistics.max_integration_gap_seconds=30;
-    c->energy.electricity_purchase_price=65;c->energy.feed_in_price=5;c->energy.co2_factor_kg_per_kwh=0.381;c->energy.tree_absorption_kg_per_year=22;
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(dst, len, fmt, args);
+    va_end(args);
 }
-static cJSON *obj(cJSON *p,const char *name,bool req,char *e,size_t n){cJSON *i=cJSON_GetObjectItemCaseSensitive(p,name);if(!i){if(req)set_error(e,n,"Hiányzó config szekció: %s",name);return NULL;}if(!cJSON_IsObject(i)){set_error(e,n,"A(z) %s szekciónak objektumnak kell lennie.",name);return NULL;}return i;}
-static bool strv(cJSON *o,const char *name,char *d,size_t dn,bool req,bool empty,char *e,size_t en){cJSON *i=cJSON_GetObjectItemCaseSensitive(o,name);if(!i){if(req){set_error(e,en,"Hiányzó config mező: %s",name);return false;}return true;}if(!cJSON_IsString(i)||!i->valuestring){set_error(e,en,"A(z) %s mezőnek szövegnek kell lennie.",name);return false;}size_t n=strlen(i->valuestring);if(!empty&&!n){set_error(e,en,"A(z) %s mező nem lehet üres.",name);return false;}if(n>=dn){set_error(e,en,"A(z) %s mező túl hosszú.",name);return false;}copy_text(d,dn,i->valuestring);return true;}
-static bool b01(cJSON *o,const char *name,bool *d,bool req,char *e,size_t en){cJSON *i=cJSON_GetObjectItemCaseSensitive(o,name);if(!i){if(req){set_error(e,en,"Hiányzó config mező: %s",name);return false;}return true;}if(!cJSON_IsNumber(i)||!isfinite(i->valuedouble)||(i->valuedouble!=0&&i->valuedouble!=1)){set_error(e,en,"A(z) %s mező csak 0 vagy 1 lehet.",name);return false;}*d=i->valuedouble==1;return true;}
-static bool u32(cJSON *o,const char *name,uint32_t *d,uint32_t min,uint32_t max,bool req,char *e,size_t en){cJSON *i=cJSON_GetObjectItemCaseSensitive(o,name);if(!i){if(req){set_error(e,en,"Hiányzó config mező: %s",name);return false;}return true;}if(!cJSON_IsNumber(i)||!isfinite(i->valuedouble)||floor(i->valuedouble)!=i->valuedouble||i->valuedouble<min||i->valuedouble>max){set_error(e,en,"Érvénytelen egész érték: %s",name);return false;}*d=(uint32_t)i->valuedouble;return true;}
-static bool i32(cJSON *o,const char *name,int32_t *d,int32_t min,int32_t max,bool req,char *e,size_t en){cJSON *i=cJSON_GetObjectItemCaseSensitive(o,name);if(!i){if(req){set_error(e,en,"Hiányzó config mező: %s",name);return false;}return true;}if(!cJSON_IsNumber(i)||!isfinite(i->valuedouble)||floor(i->valuedouble)!=i->valuedouble||i->valuedouble<min||i->valuedouble>max){set_error(e,en,"Érvénytelen egész érték: %s",name);return false;}*d=(int32_t)i->valuedouble;return true;}
-static bool dbl(cJSON *o,const char *name,double *d,double min,double max,bool req,char *e,size_t en){cJSON *i=cJSON_GetObjectItemCaseSensitive(o,name);if(!i){if(req){set_error(e,en,"Hiányzó config mező: %s",name);return false;}return true;}if(!cJSON_IsNumber(i)||!isfinite(i->valuedouble)||i->valuedouble<min||i->valuedouble>max){set_error(e,en,"Érvénytelen számérték: %s",name);return false;}*d=i->valuedouble;return true;}
-static bool ipv4(const char *s){ip4_addr_t a;return s&&*s&&ip4addr_aton(s,&a)!=0;}
 
-static bool parse(cJSON *r,app_config_t *c,char *e,size_t en){
-    cJSON *p=obj(r,"project",false,e,en);if(p){if(!strv(p,"title",c->project.title,sizeof(c->project.title),false,false,e,en)||!strv(p,"language",c->project.language,sizeof(c->project.language),false,false,e,en)||!strv(p,"currency",c->project.currency,sizeof(c->project.currency),false,false,e,en))return false;}else if(e&&*e)return false;
-    if(strcasecmp(c->project.language,"hu")&&strcasecmp(c->project.language,"en")){set_error(e,en,"A language csak 'hu' vagy 'en' lehet.");return false;}
-    copy_text(c->project.language,sizeof(c->project.language),strcasecmp(c->project.language,"hu")==0?"hu":"en");
-    cJSON *w=obj(r,"wifi",true,e,en);if(!w)return false;
-    if(!strv(w,"ssid",c->wifi.ssid,sizeof(c->wifi.ssid),true,false,e,en)||!strv(w,"password",c->wifi.password,sizeof(c->wifi.password),false,true,e,en)||!u32(w,"reconnect_seconds",&c->wifi.reconnect_seconds,1,3600,false,e,en))return false;
-    cJSON *nw=obj(w,"network",false,e,en);if(nw){if(!b01(nw,"use_static_ip",&c->wifi.network.use_static_ip,false,e,en)||!strv(nw,"ip",c->wifi.network.ip,sizeof(c->wifi.network.ip),false,true,e,en)||!strv(nw,"gateway",c->wifi.network.gateway,sizeof(c->wifi.network.gateway),false,true,e,en)||!strv(nw,"subnet",c->wifi.network.subnet,sizeof(c->wifi.network.subnet),false,true,e,en)||!strv(nw,"dns",c->wifi.network.dns,sizeof(c->wifi.network.dns),false,true,e,en))return false;}else if(e&&*e)return false;
-    if(c->wifi.network.use_static_ip&&(!ipv4(c->wifi.network.ip)||!ipv4(c->wifi.network.gateway)||!ipv4(c->wifi.network.subnet)||!ipv4(c->wifi.network.dns))){set_error(e,en,"Statikus IP esetén az ip/gateway/subnet/dns mezők kötelező érvényes IPv4 címek.");return false;}
-    cJSON *t=obj(r,"time",false,e,en);if(t){if(!strv(t,"ntp_server",c->time.ntp_server,sizeof(c->time.ntp_server),false,false,e,en)||!strv(t,"timezone",c->time.timezone,sizeof(c->time.timezone),false,false,e,en)||!b01(t,"auto_dst",&c->time.auto_dst,false,e,en)||!i32(t,"utc_offset_minutes",&c->time.utc_offset_minutes,-720,840,false,e,en)||!u32(t,"startup_retry_seconds",&c->time.startup_retry_seconds,1,3600,false,e,en)||!u32(t,"resync_hours",&c->time.resync_hours,1,168,false,e,en)||!u32(t,"background_retry_minutes",&c->time.background_retry_minutes,1,1440,false,e,en))return false;}else if(e&&*e)return false;
-    cJSON *m = obj(r, "mqtt", true, e, en);
-    if (!m) {
+/* Biztonságos szövegmásolás fix méretű célpufferbe. */
+static void copy_text(char *dst, size_t len, const char *src)
+{
+    if (!dst || !len) {
+        return;
+    }
+
+    snprintf(dst, len, "%s", src ? src : "");
+}
+
+/* Az összes dokumentált alapérték beállítása. */
+void app_config_set_defaults(app_config_t *cfg)
+{
+    memset(cfg, 0, sizeof(*cfg));
+
+    /* Projekt és lokalizáció. */
+    copy_text(cfg->project.title, sizeof(cfg->project.title), "Otthoni energia");
+    copy_text(cfg->project.language, sizeof(cfg->project.language), "hu");
+    copy_text(cfg->project.currency, sizeof(cfg->project.currency), "Ft");
+
+    /* Kapcsolati újrapróbálkozások. */
+    cfg->wifi.reconnect_seconds = 15;
+
+    /* Időszinkron és időzóna. */
+    copy_text(cfg->time.ntp_server, sizeof(cfg->time.ntp_server), "pool.ntp.org");
+    copy_text(cfg->time.timezone, sizeof(cfg->time.timezone), "Europe/Budapest");
+    cfg->time.auto_dst = true;
+    cfg->time.utc_offset_minutes = 60;
+    cfg->time.startup_retry_seconds = 15;
+    cfg->time.resync_hours = 6;
+    cfg->time.background_retry_minutes = 15;
+
+    /* MQTT. A broker cím kötelező, ezért nincs értelmes gyári cím. */
+    cfg->mqtt.port = 1883;
+    copy_text(
+        cfg->mqtt.topic,
+        sizeof(cfg->mqtt.topic),
+        "loxberry/mqttgateway/energymonitor/state");
+    cfg->mqtt.data_timeout_seconds = 30;
+    cfg->mqtt.reconnect_seconds = 15;
+
+    /* Kijelző és statisztika. */
+    cfg->display.day_brightness = 80;
+    cfg->display.night_brightness = 20;
+    cfg->statistics.save_interval_minutes = 60;
+    cfg->statistics.max_integration_gap_seconds = 30;
+
+    /* Pénzügyi és környezeti számítások. */
+    cfg->energy.electricity_purchase_price = 65;
+    cfg->energy.feed_in_price = 5;
+    cfg->energy.co2_factor_kg_per_kwh = 0.381;
+    cfg->energy.tree_absorption_kg_per_year = 22;
+}
+
+/*
+ * JSON objektumszekció lekérése.
+ * Kötelező szekciónál a hiány hiba, opcionálisnál NULL adható vissza.
+ */
+static cJSON *get_object_section(
+    cJSON *parent,
+    const char *name,
+    bool required,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config szekció: %s", name);
+        }
+        return NULL;
+    }
+
+    if (!cJSON_IsObject(item)) {
+        set_error(
+            error,
+            error_len,
+            "A(z) %s szekciónak objektumnak kell lennie.",
+            name);
+        return NULL;
+    }
+
+    return item;
+}
+
+/* Szöveges mező kiolvasása méret- és ürességellenőrzéssel. */
+static bool read_string(
+    cJSON *object,
+    const char *name,
+    char *dst,
+    size_t dst_len,
+    bool required,
+    bool allow_empty,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config mező: %s", name);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_IsString(item) || !item->valuestring) {
+        set_error(
+            error,
+            error_len,
+            "A(z) %s mezőnek szövegnek kell lennie.",
+            name);
         return false;
     }
-    uint32_t port = c->mqtt.port;
-    if (!strv(m, "broker", c->mqtt.broker, sizeof(c->mqtt.broker), true, false, e, en) ||
-        !u32(m, "port", &port, 1, 65535, false, e, en) ||
-        !strv(m, "topic", c->mqtt.topic, sizeof(c->mqtt.topic), false, false, e, en) ||
-        !strv(m, "username", c->mqtt.username, sizeof(c->mqtt.username), false, true, e, en) ||
-        !strv(m, "password", c->mqtt.password, sizeof(c->mqtt.password), false, true, e, en) ||
-        !u32(m, "data_timeout_seconds", &c->mqtt.data_timeout_seconds, 5, 3600, false, e, en) ||
-        !u32(m, "reconnect_seconds", &c->mqtt.reconnect_seconds, 1, 3600, false, e, en)) {
+
+    size_t len = strlen(item->valuestring);
+
+    if (!allow_empty && len == 0) {
+        set_error(error, error_len, "A(z) %s mező nem lehet üres.", name);
         return false;
     }
-    c->mqtt.port = (uint16_t)port;
-    cJSON *d=obj(r,"display",false,e,en);if(d){uint32_t day=c->display.day_brightness,night=c->display.night_brightness;if(!u32(d,"day_brightness",&day,1,100,false,e,en)||!u32(d,"night_brightness",&night,1,100,false,e,en))return false;c->display.day_brightness=(uint8_t)day;c->display.night_brightness=(uint8_t)night;}else if(e&&*e)return false;
-    cJSON *s=obj(r,"statistics",false,e,en);if(s){if(!u32(s,"save_interval_minutes",&c->statistics.save_interval_minutes,5,1440,false,e,en)||!u32(s,"max_integration_gap_seconds",&c->statistics.max_integration_gap_seconds,1,300,false,e,en))return false;}else if(e&&*e)return false;
-    cJSON *g=obj(r,"energy",false,e,en);if(g){if(!dbl(g,"electricity_purchase_price",&c->energy.electricity_purchase_price,0,100000,false,e,en)||!dbl(g,"feed_in_price",&c->energy.feed_in_price,0,100000,false,e,en)||!dbl(g,"co2_factor_kg_per_kwh",&c->energy.co2_factor_kg_per_kwh,0,100,false,e,en)||!dbl(g,"tree_absorption_kg_per_year",&c->energy.tree_absorption_kg_per_year,0.001,100000,false,e,en))return false;}else if(e&&*e)return false;
-    cJSON *o=obj(r,"ota",false,e,en);if(o){if(!strv(o,"username",c->ota.username,sizeof(c->ota.username),false,true,e,en)||!strv(o,"password",c->ota.password,sizeof(c->ota.password),false,true,e,en))return false;if((c->ota.username[0]==0)!=(c->ota.password[0]==0)){set_error(e,en,"Az OTA felhasználónév és jelszó vagy mindkettő legyen kitöltve, vagy mindkettő maradjon üres.");return false;}}else if(e&&*e)return false;
+
+    if (len >= dst_len) {
+        set_error(error, error_len, "A(z) %s mező túl hosszú.", name);
+        return false;
+    }
+
+    copy_text(dst, dst_len, item->valuestring);
     return true;
 }
 
-esp_err_t app_config_load_file(const char *path,app_config_t *c,char *e,size_t en){
-    if(!path||!c){set_error(e,en,"Érvénytelen config paraméter.");return ESP_ERR_INVALID_ARG;}if(e&&en)e[0]=0;app_config_set_defaults(c);
-    FILE *f=fopen(path,"rb");if(!f){set_error(e,en,"Nem található vagy nem olvasható: %s",path);return ESP_ERR_NOT_FOUND;}
-    if(fseek(f,0,SEEK_END)){fclose(f);set_error(e,en,"Nem olvasható a config fájl mérete.");return ESP_FAIL;}long sz=ftell(f);if(sz<=0||sz>CONFIG_FILE_MAX_BYTES){fclose(f);set_error(e,en,"A config.json mérete érvénytelen (max %d byte).",CONFIG_FILE_MAX_BYTES);return ESP_ERR_INVALID_SIZE;}rewind(f);
-    char *b=calloc(1,(size_t)sz+1);if(!b){fclose(f);set_error(e,en,"Nincs elég memória a config betöltéséhez.");return ESP_ERR_NO_MEM;}size_t n=fread(b,1,(size_t)sz,f);fclose(f);if(n!=(size_t)sz){free(b);set_error(e,en,"A config.json nem olvasható végig.");return ESP_FAIL;}
-    cJSON *r=cJSON_Parse(b);free(b);if(!r||!cJSON_IsObject(r)){cJSON_Delete(r);set_error(e,en,"A config.json nem érvényes JSON objektum.");return ESP_ERR_INVALID_ARG;}bool ok=parse(r,c,e,en);cJSON_Delete(r);return ok?ESP_OK:ESP_ERR_INVALID_ARG;
+/* 0/1 numerikus konfigurációs kapcsoló kiolvasása. */
+static bool read_bool01(
+    cJSON *object,
+    const char *name,
+    bool *dst,
+    bool required,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config mező: %s", name);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_IsNumber(item) ||
+        !isfinite(item->valuedouble) ||
+        (item->valuedouble != 0 && item->valuedouble != 1)) {
+        set_error(error, error_len, "A(z) %s mező csak 0 vagy 1 lehet.", name);
+        return false;
+    }
+
+    *dst = item->valuedouble == 1;
+    return true;
+}
+
+/* Előjel nélküli egész mező kiolvasása tartományellenőrzéssel. */
+static bool read_u32(
+    cJSON *object,
+    const char *name,
+    uint32_t *dst,
+    uint32_t minimum,
+    uint32_t maximum,
+    bool required,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config mező: %s", name);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_IsNumber(item) ||
+        !isfinite(item->valuedouble) ||
+        floor(item->valuedouble) != item->valuedouble ||
+        item->valuedouble < minimum ||
+        item->valuedouble > maximum) {
+        set_error(error, error_len, "Érvénytelen egész érték: %s", name);
+        return false;
+    }
+
+    *dst = (uint32_t)item->valuedouble;
+    return true;
+}
+
+/* Előjeles egész mező kiolvasása tartományellenőrzéssel. */
+static bool read_i32(
+    cJSON *object,
+    const char *name,
+    int32_t *dst,
+    int32_t minimum,
+    int32_t maximum,
+    bool required,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config mező: %s", name);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_IsNumber(item) ||
+        !isfinite(item->valuedouble) ||
+        floor(item->valuedouble) != item->valuedouble ||
+        item->valuedouble < minimum ||
+        item->valuedouble > maximum) {
+        set_error(error, error_len, "Érvénytelen egész érték: %s", name);
+        return false;
+    }
+
+    *dst = (int32_t)item->valuedouble;
+    return true;
+}
+
+/* Lebegőpontos mező kiolvasása tartományellenőrzéssel. */
+static bool read_double(
+    cJSON *object,
+    const char *name,
+    double *dst,
+    double minimum,
+    double maximum,
+    bool required,
+    char *error,
+    size_t error_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
+
+    if (!item) {
+        if (required) {
+            set_error(error, error_len, "Hiányzó config mező: %s", name);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_IsNumber(item) ||
+        !isfinite(item->valuedouble) ||
+        item->valuedouble < minimum ||
+        item->valuedouble > maximum) {
+        set_error(error, error_len, "Érvénytelen számérték: %s", name);
+        return false;
+    }
+
+    *dst = item->valuedouble;
+    return true;
+}
+
+/* IPv4 cím szintaktikai ellenőrzése. */
+static bool valid_ipv4(const char *text)
+{
+    ip4_addr_t address;
+    return text && *text && ip4addr_aton(text, &address) != 0;
+}
+
+/* A JSON objektum tartalmának szekciónkénti feldolgozása. */
+static bool parse_config(
+    cJSON *root,
+    app_config_t *cfg,
+    char *error,
+    size_t error_len)
+{
+    /* Projektbeállítások. */
+    cJSON *project = get_object_section(root, "project", false, error, error_len);
+    if (project) {
+        if (!read_string(project, "title", cfg->project.title, sizeof(cfg->project.title), false, false, error, error_len) ||
+            !read_string(project, "language", cfg->project.language, sizeof(cfg->project.language), false, false, error, error_len) ||
+            !read_string(project, "currency", cfg->project.currency, sizeof(cfg->project.currency), false, false, error, error_len)) {
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    if (strcasecmp(cfg->project.language, "hu") != 0 &&
+        strcasecmp(cfg->project.language, "en") != 0) {
+        set_error(error, error_len, "A language csak 'hu' vagy 'en' lehet.");
+        return false;
+    }
+
+    /* A nyelvkódot kanonikus kisbetűs alakra normalizáljuk. */
+    copy_text(
+        cfg->project.language,
+        sizeof(cfg->project.language),
+        strcasecmp(cfg->project.language, "hu") == 0 ? "hu" : "en");
+
+    /* Wi-Fi szekció kötelező. */
+    cJSON *wifi = get_object_section(root, "wifi", true, error, error_len);
+    if (!wifi) {
+        return false;
+    }
+
+    if (!read_string(wifi, "ssid", cfg->wifi.ssid, sizeof(cfg->wifi.ssid), true, false, error, error_len) ||
+        !read_string(wifi, "password", cfg->wifi.password, sizeof(cfg->wifi.password), false, true, error, error_len) ||
+        !read_u32(wifi, "reconnect_seconds", &cfg->wifi.reconnect_seconds, 1, 3600, false, error, error_len)) {
+        return false;
+    }
+
+    /* Statikus IP opcionális; engedélyezve mind a négy cím kötelezően valid. */
+    cJSON *network = get_object_section(wifi, "network", false, error, error_len);
+    if (network) {
+        if (!read_bool01(network, "use_static_ip", &cfg->wifi.network.use_static_ip, false, error, error_len) ||
+            !read_string(network, "ip", cfg->wifi.network.ip, sizeof(cfg->wifi.network.ip), false, true, error, error_len) ||
+            !read_string(network, "gateway", cfg->wifi.network.gateway, sizeof(cfg->wifi.network.gateway), false, true, error, error_len) ||
+            !read_string(network, "subnet", cfg->wifi.network.subnet, sizeof(cfg->wifi.network.subnet), false, true, error, error_len) ||
+            !read_string(network, "dns", cfg->wifi.network.dns, sizeof(cfg->wifi.network.dns), false, true, error, error_len)) {
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    if (cfg->wifi.network.use_static_ip &&
+        (!valid_ipv4(cfg->wifi.network.ip) ||
+         !valid_ipv4(cfg->wifi.network.gateway) ||
+         !valid_ipv4(cfg->wifi.network.subnet) ||
+         !valid_ipv4(cfg->wifi.network.dns))) {
+        set_error(
+            error,
+            error_len,
+            "Statikus IP esetén az ip/gateway/subnet/dns mezők kötelező érvényes IPv4 címek.");
+        return false;
+    }
+
+    /* Időkezelési szekció. */
+    cJSON *time_cfg = get_object_section(root, "time", false, error, error_len);
+    if (time_cfg) {
+        if (!read_string(time_cfg, "ntp_server", cfg->time.ntp_server, sizeof(cfg->time.ntp_server), false, false, error, error_len) ||
+            !read_string(time_cfg, "timezone", cfg->time.timezone, sizeof(cfg->time.timezone), false, false, error, error_len) ||
+            !read_bool01(time_cfg, "auto_dst", &cfg->time.auto_dst, false, error, error_len) ||
+            !read_i32(time_cfg, "utc_offset_minutes", &cfg->time.utc_offset_minutes, -720, 840, false, error, error_len) ||
+            !read_u32(time_cfg, "startup_retry_seconds", &cfg->time.startup_retry_seconds, 1, 3600, false, error, error_len) ||
+            !read_u32(time_cfg, "resync_hours", &cfg->time.resync_hours, 1, 168, false, error, error_len) ||
+            !read_u32(time_cfg, "background_retry_minutes", &cfg->time.background_retry_minutes, 1, 1440, false, error, error_len)) {
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    /* MQTT szekció kötelező, a broker cím nélkül nem tudunk működni. */
+    cJSON *mqtt = get_object_section(root, "mqtt", true, error, error_len);
+    if (!mqtt) {
+        return false;
+    }
+
+    uint32_t mqtt_port = cfg->mqtt.port;
+    if (!read_string(mqtt, "broker", cfg->mqtt.broker, sizeof(cfg->mqtt.broker), true, false, error, error_len) ||
+        !read_u32(mqtt, "port", &mqtt_port, 1, 65535, false, error, error_len) ||
+        !read_string(mqtt, "topic", cfg->mqtt.topic, sizeof(cfg->mqtt.topic), false, false, error, error_len) ||
+        !read_string(mqtt, "username", cfg->mqtt.username, sizeof(cfg->mqtt.username), false, true, error, error_len) ||
+        !read_string(mqtt, "password", cfg->mqtt.password, sizeof(cfg->mqtt.password), false, true, error, error_len) ||
+        !read_u32(mqtt, "data_timeout_seconds", &cfg->mqtt.data_timeout_seconds, 5, 3600, false, error, error_len) ||
+        !read_u32(mqtt, "reconnect_seconds", &cfg->mqtt.reconnect_seconds, 1, 3600, false, error, error_len)) {
+        return false;
+    }
+    cfg->mqtt.port = (uint16_t)mqtt_port;
+
+    /* Kijelzőfényerő. */
+    cJSON *display = get_object_section(root, "display", false, error, error_len);
+    if (display) {
+        uint32_t day = cfg->display.day_brightness;
+        uint32_t night = cfg->display.night_brightness;
+
+        if (!read_u32(display, "day_brightness", &day, 1, 100, false, error, error_len) ||
+            !read_u32(display, "night_brightness", &night, 1, 100, false, error, error_len)) {
+            return false;
+        }
+
+        cfg->display.day_brightness = (uint8_t)day;
+        cfg->display.night_brightness = (uint8_t)night;
+    } else if (error && *error) {
+        return false;
+    }
+
+    /* Statisztikai mentés és maximális integrációs rés. */
+    cJSON *statistics = get_object_section(root, "statistics", false, error, error_len);
+    if (statistics) {
+        if (!read_u32(statistics, "save_interval_minutes", &cfg->statistics.save_interval_minutes, 5, 1440, false, error, error_len) ||
+            !read_u32(statistics, "max_integration_gap_seconds", &cfg->statistics.max_integration_gap_seconds, 1, 300, false, error, error_len)) {
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    /* Pénzügyi és környezeti tényezők. */
+    cJSON *energy = get_object_section(root, "energy", false, error, error_len);
+    if (energy) {
+        if (!read_double(energy, "electricity_purchase_price", &cfg->energy.electricity_purchase_price, 0, 100000, false, error, error_len) ||
+            !read_double(energy, "feed_in_price", &cfg->energy.feed_in_price, 0, 100000, false, error, error_len) ||
+            !read_double(energy, "co2_factor_kg_per_kwh", &cfg->energy.co2_factor_kg_per_kwh, 0, 100, false, error, error_len) ||
+            !read_double(energy, "tree_absorption_kg_per_year", &cfg->energy.tree_absorption_kg_per_year, 0.001, 100000, false, error, error_len)) {
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    /*
+     * OTA hitelesítés opcionális, de félpár nem lehet:
+     * vagy mindkettő üres, vagy felhasználónév és jelszó is legyen megadva.
+     */
+    cJSON *ota = get_object_section(root, "ota", false, error, error_len);
+    if (ota) {
+        if (!read_string(ota, "username", cfg->ota.username, sizeof(cfg->ota.username), false, true, error, error_len) ||
+            !read_string(ota, "password", cfg->ota.password, sizeof(cfg->ota.password), false, true, error, error_len)) {
+            return false;
+        }
+
+        if ((cfg->ota.username[0] == 0) != (cfg->ota.password[0] == 0)) {
+            set_error(
+                error,
+                error_len,
+                "Az OTA felhasználónév és jelszó vagy mindkettő legyen kitöltve, vagy mindkettő maradjon üres.");
+            return false;
+        }
+    } else if (error && *error) {
+        return false;
+    }
+
+    return true;
+}
+
+/* A config.json fájl teljes beolvasása és feldolgozása. */
+esp_err_t app_config_load_file(
+    const char *path,
+    app_config_t *cfg,
+    char *error,
+    size_t error_len)
+{
+    if (!path || !cfg) {
+        set_error(error, error_len, "Érvénytelen config paraméter.");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (error && error_len) {
+        error[0] = 0;
+    }
+
+    /* Az opcionális mezők miatt mindig az alapértékekből indulunk. */
+    app_config_set_defaults(cfg);
+
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        set_error(error, error_len, "Nem található vagy nem olvasható: %s", path);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        set_error(error, error_len, "Nem olvasható a config fájl mérete.");
+        return ESP_FAIL;
+    }
+
+    long size = ftell(file);
+    if (size <= 0 || size > CONFIG_FILE_MAX_BYTES) {
+        fclose(file);
+        set_error(
+            error,
+            error_len,
+            "A config.json mérete érvénytelen (max %d byte).",
+            CONFIG_FILE_MAX_BYTES);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    rewind(file);
+
+    char *buffer = calloc(1, (size_t)size + 1);
+    if (!buffer) {
+        fclose(file);
+        set_error(error, error_len, "Nincs elég memória a config betöltéséhez.");
+        return ESP_ERR_NO_MEM;
+    }
+
+    size_t read = fread(buffer, 1, (size_t)size, file);
+    fclose(file);
+
+    if (read != (size_t)size) {
+        free(buffer);
+        set_error(error, error_len, "A config.json nem olvasható végig.");
+        return ESP_FAIL;
+    }
+
+    cJSON *root = cJSON_Parse(buffer);
+    free(buffer);
+
+    if (!root || !cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        set_error(error, error_len, "A config.json nem érvényes JSON objektum.");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool ok = parse_config(root, cfg, error, error_len);
+    cJSON_Delete(root);
+
+    return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }
