@@ -64,11 +64,11 @@ static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
 static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
 static lv_obj_t *s_bat_icon,*s_grid_icon,*s_status_icon,*s_status_accent_a,*s_status_accent_b;
-static lv_obj_t *s_grid_node;
+static lv_obj_t *s_grid_node,*s_status_bubble,*s_status_detail;
 static lv_obj_t *s_battery_bar,*s_status_card;
 static lv_obj_t *s_bat_soc_detail,*s_bat_power_detail,*s_bat_temp_detail;
 static lv_obj_t *s_bat_charge,*s_bat_charge_cmp,*s_bat_discharge,*s_bat_discharge_cmp;
-static lv_obj_t *s_metric[8],*s_cmp[8];
+static lv_obj_t *s_metric[8],*s_cmp[8],*s_cmp_note[8];
 static lv_obj_t *s_chart1,*s_chart2;
 static lv_obj_t *s_chart1_y_top,*s_chart1_y_mid,*s_chart1_y_bottom;
 static lv_obj_t *s_chart2_y_top,*s_chart2_y_mid,*s_chart2_y_bottom;
@@ -526,7 +526,7 @@ static lv_obj_t *metric_card(
     s_cmp[index]=
         lbl(card,"",88,91,APP_FONT_14,GREEN);
 
-    lbl(
+    s_cmp_note[index]=lbl(
         card,
         tr("tegnaphoz képest","vs yesterday"),
         155,
@@ -577,6 +577,7 @@ static lv_obj_t *summary_metric(
     s_cmp[index]=
         lbl(segment,"",68,58,APP_FONT_12,GREEN);
 
+    s_cmp_note[index]=NULL;
     return segment;
 }
 
@@ -1182,21 +1183,37 @@ static void build_dashboard(bool night)
         APP_FONT_12,
         night?MUTED_DARK:MUTED_LIGHT);
 
-    icon_bubble(
-        s_status_card,
-        2,
-        20,
-        50,
-        LV_SYMBOL_HOME,
-        APP_FONT_20,
-        night,
-        GREEN);
+    s_status_bubble=lv_obj_create(s_status_card);
+    lv_obj_set_pos(s_status_bubble,2,20);
+    lv_obj_set_size(s_status_bubble,50,50);
+    lv_obj_set_style_radius(s_status_bubble,LV_RADIUS_CIRCLE,0);
+    lv_obj_set_style_border_width(s_status_bubble,0,0);
+    lv_obj_set_style_bg_color(s_status_bubble,c(tone(GREEN,night)),0);
+    lv_obj_set_style_bg_opa(s_status_bubble,night?LV_OPA_20:LV_OPA_20,0);
+    lv_obj_set_style_pad_all(s_status_bubble,0,0);
+    lv_obj_remove_flag(s_status_bubble,LV_OBJ_FLAG_SCROLLABLE);
 
-    s_status_icon=
-        lbl(s_status_card,LV_SYMBOL_OK,59,31,APP_FONT_16,GREEN);
+    s_status_icon=lv_label_create(s_status_bubble);
+    lv_label_set_text(s_status_icon,LV_SYMBOL_OK);
+    lv_obj_set_style_text_font(s_status_icon,APP_FONT_20,0);
+    lv_obj_set_style_text_color(s_status_icon,c(tone(GREEN,night)),0);
+    lv_obj_align(s_status_icon,LV_ALIGN_CENTER,0,0);
 
     s_status=
-        lbl(s_status_card,"-",82,28,APP_FONT_16,GREEN);
+        lbl(s_status_card,"-",60,27,APP_FONT_16,GREEN);
+    lv_obj_set_width(s_status,205);
+    lv_label_set_long_mode(s_status,LV_LABEL_LONG_DOT);
+
+    s_status_detail=
+        lbl(
+            s_status_card,
+            "",
+            60,
+            51,
+            APP_FONT_12,
+            night?MUTED_DARK:MUTED_LIGHT);
+    lv_obj_set_width(s_status_detail,205);
+    lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_DOT);
 
     /*
      * Az U+0171 (ű) az egyetlen szükséges magyar karakter, amely nincs benne
@@ -1204,7 +1221,7 @@ static void build_dashboard(bool night)
      * 'u' betűjét egészíti ki.
      */
     s_status_accent_a=lv_obj_create(s_status_card);
-    lv_obj_set_pos(s_status_accent_a,145,24);
+    lv_obj_set_pos(s_status_accent_a,123,22);
     lv_obj_set_size(s_status_accent_a,5,7);
     lv_obj_set_style_bg_opa(s_status_accent_a,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(s_status_accent_a,0,0);
@@ -1214,7 +1231,7 @@ static void build_dashboard(bool night)
     shape(s_status_accent_a,2,0,2,4,GREEN,1);
 
     s_status_accent_b=lv_obj_create(s_status_card);
-    lv_obj_set_pos(s_status_accent_b,152,24);
+    lv_obj_set_pos(s_status_accent_b,130,22);
     lv_obj_set_size(s_status_accent_b,5,7);
     lv_obj_set_style_bg_opa(s_status_accent_b,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(s_status_accent_b,0,0);
@@ -1249,7 +1266,47 @@ static double co2(const app_energy_totals_t *t){return t->production_kwh*s_cfg.e
 /* Megtakarított CO2 fa-egyenértékre történő átszámítása. */
 static double tree(const app_energy_totals_t *t){return co2(t)/s_cfg.energy.tree_absorption_kg_per_year;}
 /* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
-static void metric(int i,const char *v,double today,double yesterday,bool have){lv_label_set_text(s_metric[i],v);if(!have){lv_label_set_text(s_cmp[i],"");return;}char x[32];fmt_cmp(x,sizeof(x),today,yesterday);lv_label_set_text(s_cmp[i],x);lv_obj_set_style_text_color(s_cmp[i],c(cmp_color(today,yesterday)),0);}
+static void metric(
+    int index,
+    const char *value,
+    double today,
+    double yesterday,
+    bool have_yesterday)
+{
+    lv_label_set_text(s_metric[index],value);
+
+    if(!have_yesterday){
+        lv_label_set_text(s_cmp[index],"");
+        if(s_cmp_note[index]){
+            lv_obj_add_flag(
+                s_cmp_note[index],
+                LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+    }
+
+    if(s_cmp_note[index]){
+        lv_obj_clear_flag(
+            s_cmp_note[index],
+            LV_OBJ_FLAG_HIDDEN);
+    }
+
+    char comparison[32];
+    fmt_cmp(
+        comparison,
+        sizeof(comparison),
+        today,
+        yesterday);
+
+    lv_label_set_text(
+        s_cmp[index],
+        comparison);
+
+    lv_obj_set_style_text_color(
+        s_cmp[index],
+        c(cmp_color(today,yesterday)),
+        0);
+}
 /* A 288 ötperces grafikonpont és az automatikus Y-skálák frissítése. */
 static void charts(const app_stats_snapshot_t *st)
 {
@@ -1578,8 +1635,28 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         stxt=tr("Hiba","Error");
     }
 
-    uint32_t status_color=s->status==1?GREEN:s->status==2?ORANGE:s->status==3?BLUE:RED;
+    uint32_t status_color=
+        s->status==1?GREEN:
+        s->status==2?ORANGE:
+        s->status==3?BLUE:
+        RED;
+
+    const char *status_detail=
+        s->status==1
+            ? tr("Minden rendben","Everything is OK")
+            : s->status==2
+                ? tr("Akkumulátor feltöltése","Charging battery for outage")
+                : s->status==3
+                    ? tr("Hálózatról leválasztva","Disconnected from grid")
+                    : tr("Rendszerhiba","System error");
+
     lv_label_set_text(s_status,stxt);
+    lv_label_set_text(s_status_detail,status_detail);
+
+    lv_obj_set_style_bg_color(
+        s_status_bubble,
+        c(tone(status_color,s->night_mode)),
+        0);
 
     if(draw_double_acute){
         lv_obj_clear_flag(s_status_accent_a,LV_OBJ_FLAG_HIDDEN);
@@ -1599,7 +1676,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     lv_label_set_text(s_status_icon,
         s->status==1?LV_SYMBOL_OK:
         s->status==2?LV_SYMBOL_CHARGE:
-        s->status==3?LV_SYMBOL_POWER:
+        s->status==3?LV_SYMBOL_CLOSE:
         LV_SYMBOL_WARNING);
     lv_obj_set_style_text_color(s_status_icon,c(tone(status_color,s->night_mode)),0);
     lv_obj_set_style_border_color(s_status_card,c(tone(status_color,s->night_mode)),0);
