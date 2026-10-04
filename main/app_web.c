@@ -229,7 +229,7 @@ static void html_escape(
             case '"':
                 replacement = "&quot;";
                 break;
-            case '\\'':
+            case '\'':
                 replacement = "&#39;";
                 break;
             default:
