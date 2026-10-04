@@ -76,8 +76,28 @@ static lv_color_t c(uint32_t x){return lv_color_hex(x);}
 static bool hu(void){return !s_cfg_ok||strcmp(s_cfg.project.language,"hu")==0;}
 static const char *tr(const char *a,const char *b){return hu()?a:b;}
 
+static uint32_t tone(uint32_t color,bool night){
+    if(!night)return color;
+    if(color==GREEN)return 0x23784C;
+    if(color==ORANGE)return 0xA46E2D;
+    if(color==RED)return 0x8E3A38;
+    if(color==BLUE)return 0x2B5D8B;
+    return color;
+}
+
 static void screen_style(lv_obj_t *o,bool night){lv_obj_set_style_bg_color(o,c(night?BG_DARK:BG_LIGHT),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_pad_all(o,0,0);}
-static void card_style(lv_obj_t *o,bool night){lv_obj_set_style_bg_color(o,c(night?CARD_DARK:CARD_LIGHT),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_border_color(o,c(night?0x26302A:0xE4E9EB),0);lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_radius(o,18,0);lv_obj_set_style_pad_all(o,12,0);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE);}
+static void card_style(lv_obj_t *o,bool night){
+    lv_obj_set_style_bg_color(o,c(night?CARD_DARK:CARD_LIGHT),0);
+    lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+    lv_obj_set_style_border_color(o,c(night?0x26302A:0xE4E9EB),0);
+    lv_obj_set_style_border_width(o,1,0);
+    lv_obj_set_style_radius(o,18,0);
+    lv_obj_set_style_pad_all(o,12,0);
+    lv_obj_set_style_shadow_width(o,night?0:12,0);
+    lv_obj_set_style_shadow_opa(o,night?LV_OPA_TRANSP:LV_OPA_10,0);
+    lv_obj_set_style_shadow_ofs_y(o,night?0:4,0);
+    lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE);
+}
 static lv_obj_t *lbl(lv_obj_t *p,const char *txt,int x,int y,const lv_font_t *font,uint32_t color){lv_obj_t *l=lv_label_create(p);lv_label_set_text(l,txt?txt:"");lv_obj_set_pos(l,x,y);if(font)lv_obj_set_style_text_font(l,font,0);lv_obj_set_style_text_color(l,c(color),0);return l;}
 static void clear(void){
     lv_obj_clean(s_screen);
@@ -192,9 +212,10 @@ static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const
     lv_obj_set_pos(o,x,y);
     lv_obj_set_size(o,w,h);
     card_style(o,night);
-    lv_obj_set_style_border_color(o,c(accent),0);
+    uint32_t shown_accent=tone(accent,night);
+    lv_obj_set_style_border_color(o,c(shown_accent),0);
     lbl(o,name,8,5,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
-    lv_obj_t *ic=lbl(o,icon,8,33,&lv_font_montserrat_20,accent);
+    lv_obj_t *ic=lbl(o,icon,8,33,&lv_font_montserrat_20,shown_accent);
     if(icon_out)*icon_out=ic;
     *value=lbl(o,"-",38,32,&lv_font_montserrat_22,night?TEXT_DARK:TEXT_LIGHT);
     return o;
@@ -206,8 +227,9 @@ static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool nig
 }
 static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool night,float dt){
     double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
-    lv_obj_set_style_line_color(f->line,c(color),0);float speed=.10f+.55f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
-    for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(color),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
+    uint32_t shown=tone(color,night);
+    lv_obj_set_style_line_color(f->line,c(shown),0);float speed=.10f+.55f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
+    for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(shown),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
 static lv_obj_t *metric_card(lv_obj_t *p,int x,int y,const char *title,int idx,bool night){
     lv_obj_t *o=lv_obj_create(p);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,145,104);card_style(o,night);lbl(o,title,0,0,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);s_metric[idx]=lbl(o,"-",0,29,&lv_font_montserrat_20,night?TEXT_DARK:TEXT_LIGHT);s_cmp[idx]=lbl(o,"",0,65,&lv_font_montserrat_12,GREEN);return o;
@@ -284,11 +306,11 @@ static void build_dashboard(bool night){
     lv_obj_set_style_line_color(s_chart1,c(night?0x29322E:0xE5EAEC),LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart1,1,LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart1,2,LV_PART_ITEMS);
-    s_pv_ser=lv_chart_add_series(s_chart1,c(GREEN),LV_CHART_AXIS_PRIMARY_Y);
-    s_load_ser=lv_chart_add_series(s_chart1,c(ORANGE),LV_CHART_AXIS_PRIMARY_Y);
-    shape(cc1,343,8,8,8,GREEN,LV_RADIUS_CIRCLE);
+    s_pv_ser=lv_chart_add_series(s_chart1,c(tone(GREEN,night)),LV_CHART_AXIS_PRIMARY_Y);
+    s_load_ser=lv_chart_add_series(s_chart1,c(tone(ORANGE,night)),LV_CHART_AXIS_PRIMARY_Y);
+    shape(cc1,343,8,8,8,tone(GREEN,night),LV_RADIUS_CIRCLE);
     lbl(cc1,tr("Termelés","Production"),356,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
-    shape(cc1,458,8,8,8,ORANGE,LV_RADIUS_CIRCLE);
+    shape(cc1,458,8,8,8,tone(ORANGE,night),LV_RADIUS_CIRCLE);
     lbl(cc1,tr("Fogyasztás","Consumption"),471,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     lbl(cc1,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
 
@@ -307,11 +329,11 @@ static void build_dashboard(bool night){
     lv_obj_set_style_line_color(s_chart2,c(night?0x29322E:0xE5EAEC),LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart2,1,LV_PART_MAIN);
     lv_obj_set_style_line_width(s_chart2,2,LV_PART_ITEMS);
-    s_grid_ser=lv_chart_add_series(s_chart2,c(RED),LV_CHART_AXIS_PRIMARY_Y);
-    s_bat_ser=lv_chart_add_series(s_chart2,c(BLUE),LV_CHART_AXIS_PRIMARY_Y);
-    shape(cc2,370,8,8,8,RED,LV_RADIUS_CIRCLE);
+    s_grid_ser=lv_chart_add_series(s_chart2,c(tone(RED,night)),LV_CHART_AXIS_PRIMARY_Y);
+    s_bat_ser=lv_chart_add_series(s_chart2,c(tone(BLUE,night)),LV_CHART_AXIS_PRIMARY_Y);
+    shape(cc2,370,8,8,8,tone(RED,night),LV_RADIUS_CIRCLE);
     lbl(cc2,tr("Hálózat","Grid"),383,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
-    shape(cc2,465,8,8,8,BLUE,LV_RADIUS_CIRCLE);
+    shape(cc2,465,8,8,8,tone(BLUE,night),LV_RADIUS_CIRCLE);
     lbl(cc2,tr("Akkumulátor","Battery"),478,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     shape(cc2,20,163,570,2,night?0x56615B:0xA7B1B5,0);
     lbl(cc2,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
@@ -365,8 +387,8 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
 
     lv_bar_set_value(s_battery_bar,(int32_t)lround(s->soc_bat_pct),LV_ANIM_OFF);
     uint32_t soc_color=battery_color(s->soc_bat_pct);
-    lv_obj_set_style_bg_color(s_battery_bar,c(soc_color),LV_PART_INDICATOR);
-    lv_obj_set_style_text_color(s_bat_icon,c(soc_color),0);
+    lv_obj_set_style_bg_color(s_battery_bar,c(tone(soc_color,s->night_mode)),LV_PART_INDICATOR);
+    lv_obj_set_style_text_color(s_bat_icon,c(tone(soc_color,s->night_mode)),0);
     lv_label_set_text(s_bat_icon,
         s->soc_bat_pct>87.5?LV_SYMBOL_BATTERY_FULL:
         s->soc_bat_pct>62.5?LV_SYMBOL_BATTERY_3:
@@ -410,14 +432,14 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     const char *stxt=s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Hiba","Error");
     uint32_t status_color=s->status==1?GREEN:s->status==2?ORANGE:s->status==3?BLUE:RED;
     lv_label_set_text(s_status,stxt);
-    lv_obj_set_style_text_color(s_status,c(status_color),0);
+    lv_obj_set_style_text_color(s_status,c(tone(status_color,s->night_mode)),0);
     lv_label_set_text(s_status_icon,
         s->status==1?LV_SYMBOL_OK:
         s->status==2?LV_SYMBOL_CHARGE:
         s->status==3?LV_SYMBOL_POWER:
         LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_color(s_status_icon,c(status_color),0);
-    lv_obj_set_style_border_color(s_status_card,c(status_color),0);
+    lv_obj_set_style_text_color(s_status_icon,c(tone(status_color,s->night_mode)),0);
+    lv_obj_set_style_border_color(s_status_card,c(tone(status_color,s->night_mode)),0);
     lv_obj_set_style_border_width(s_status_card,s->status==4?3:1,0);
 
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_clear_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
