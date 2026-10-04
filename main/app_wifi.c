@@ -73,8 +73,14 @@ esp_err_t app_wifi_start(const app_config_t *cfg){
     wifi_init_config_t init_cfg=WIFI_INIT_CONFIG_DEFAULT();ESP_RETURN_ON_ERROR(esp_wifi_init(&init_cfg),TAG,"esp_wifi_init failed");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT,ESP_EVENT_ANY_ID,&event_handler,NULL),TAG,"wifi handler register failed");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT,IP_EVENT_STA_GOT_IP,&event_handler,NULL),TAG,"ip handler register failed");
-    wifi_config_t wc={0};snprintf((char*)wc.sta.ssid,sizeof(wc.sta.ssid),"%s",s_cfg.ssid);snprintf((char*)wc.sta.password,sizeof(wc.sta.password),"%s",s_cfg.password);
-    wc.sta.threshold.authmode=s_cfg.password[0]?WIFI_AUTH_WPA2_PSK:WIFI_AUTH_OPEN;wc.sta.pmf_cfg.capable=true;wc.sta.pmf_cfg.required=false;
+    wifi_config_t wc = {0};
+    const size_t ssid_len = strlen(s_cfg.ssid);
+    const size_t password_len = strlen(s_cfg.password);
+    memcpy(wc.sta.ssid, s_cfg.ssid, ssid_len);
+    memcpy(wc.sta.password, s_cfg.password, password_len);
+    wc.sta.threshold.authmode = s_cfg.password[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    wc.sta.pmf_cfg.capable = true;
+    wc.sta.pmf_cfg.required = false;
     ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA),TAG,"set mode failed");ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA,&wc),TAG,"set config failed");ESP_RETURN_ON_ERROR(esp_wifi_set_ps(WIFI_PS_NONE),TAG,"set power save failed");
     if(xTaskCreate(reconnect_task,"wifi_reconnect",4096,NULL,5,&s_reconnect_task)!=pdPASS)return ESP_ERR_NO_MEM;
     s_started=true;return esp_wifi_start();
