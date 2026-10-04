@@ -1251,10 +1251,135 @@ static double tree(const app_energy_totals_t *t){return co2(t)/s_cfg.energy.tree
 /* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
 static void metric(int i,const char *v,double today,double yesterday,bool have){lv_label_set_text(s_metric[i],v);if(!have){lv_label_set_text(s_cmp[i],"");return;}char x[32];fmt_cmp(x,sizeof(x),today,yesterday);lv_label_set_text(s_cmp[i],x);lv_obj_set_style_text_color(s_cmp[i],c(cmp_color(today,yesterday)),0);}
 /* A 288 ötperces grafikonpont és az automatikus Y-skálák frissítése. */
-static void charts(const app_stats_snapshot_t *st){
-    double m1=1,m2=1;for(int i=0;i<APP_STATS_SLOT_COUNT;i++)if(st->slots[i].valid){m1=fmax(m1,fmax(st->slots[i].pv_kw,st->slots[i].load_kw));m2=fmax(m2,fmax(fabs(st->slots[i].grid_kw),fabs(st->slots[i].battery_kw)));}m1=ceil(m1);m2=ceil(m2);
-    lv_chart_set_axis_range(s_chart1,LV_CHART_AXIS_PRIMARY_Y,0,(int32_t)lround(m1*1000));lv_chart_set_axis_range(s_chart2,LV_CHART_AXIS_PRIMARY_Y,(int32_t)lround(-m2*1000),(int32_t)lround(m2*1000));
-    for(int i=0;i<APP_STATS_SLOT_COUNT;i++){int32_t none=LV_CHART_POINT_NONE;if(st->slots[i].valid){lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,(int32_t)lround(st->slots[i].pv_kw*1000));lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,(int32_t)lround(st->slots[i].load_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,(int32_t)lround(st->slots[i].grid_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,(int32_t)lround(st->slots[i].battery_kw*1000));}else{lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,none);lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,none);}}lv_chart_refresh(s_chart1);lv_chart_refresh(s_chart2);
+static void charts(const app_stats_snapshot_t *st)
+{
+    double max_positive=1.0;
+    double max_signed=1.0;
+
+    /* A két grafikon külön, automatikus Y-skálát kap. */
+    for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
+        if(!st->slots[i].valid){
+            continue;
+        }
+
+        max_positive=fmax(
+            max_positive,
+            fmax(
+                st->slots[i].pv_kw,
+                st->slots[i].load_kw));
+
+        max_signed=fmax(
+            max_signed,
+            fmax(
+                fabs(st->slots[i].grid_kw),
+                fabs(st->slots[i].battery_kw)));
+    }
+
+    max_positive=ceil(max_positive);
+    max_signed=ceil(max_signed);
+
+    lv_chart_set_axis_range(
+        s_chart1,
+        LV_CHART_AXIS_PRIMARY_Y,
+        0,
+        (int32_t)lround(max_positive*1000));
+
+    lv_chart_set_axis_range(
+        s_chart2,
+        LV_CHART_AXIS_PRIMARY_Y,
+        (int32_t)lround(-max_signed*1000),
+        (int32_t)lround(max_signed*1000));
+
+    /* A mockuphoz hasonló, egyszerű numerikus Y-tengely feliratok. */
+    char text[20];
+    fmt_dec(text,sizeof(text),max_positive,0);
+    lv_label_set_text(s_chart1_y_top,text);
+
+    fmt_dec(text,sizeof(text),max_positive/2.0,1);
+    lv_label_set_text(s_chart1_y_mid,text);
+
+    fmt_dec(text,sizeof(text),max_signed,0);
+    lv_label_set_text(s_chart2_y_top,text);
+
+    fmt_dec(text,sizeof(text),-max_signed,0);
+    lv_label_set_text(s_chart2_y_bottom,text);
+
+    /* A még nem létező jövőbeli slotok LV_CHART_POINT_NONE értéket kapnak. */
+    for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
+        int32_t none=LV_CHART_POINT_NONE;
+
+        if(st->slots[i].valid){
+            lv_chart_set_series_value_by_id(
+                s_chart1,
+                s_pv_ser,
+                i,
+                (int32_t)lround(st->slots[i].pv_kw*1000));
+
+            lv_chart_set_series_value_by_id(
+                s_chart1,
+                s_load_ser,
+                i,
+                (int32_t)lround(st->slots[i].load_kw*1000));
+
+            lv_chart_set_series_value_by_id(
+                s_chart2,
+                s_grid_ser,
+                i,
+                (int32_t)lround(st->slots[i].grid_kw*1000));
+
+            lv_chart_set_series_value_by_id(
+                s_chart2,
+                s_bat_ser,
+                i,
+                (int32_t)lround(st->slots[i].battery_kw*1000));
+        }else{
+            lv_chart_set_series_value_by_id(
+                s_chart1,
+                s_pv_ser,
+                i,
+                none);
+            lv_chart_set_series_value_by_id(
+                s_chart1,
+                s_load_ser,
+                i,
+                none);
+            lv_chart_set_series_value_by_id(
+                s_chart2,
+                s_grid_ser,
+                i,
+                none);
+            lv_chart_set_series_value_by_id(
+                s_chart2,
+                s_bat_ser,
+                i,
+                none);
+        }
+    }
+
+    /*
+     * Az aktuális helyi időt vékony függőleges vonal jelöli,
+     * hasonlóan a jóváhagyott látványtervhez.
+     */
+    time_t now=time(NULL);
+    struct tm local_time;
+    localtime_r(&now,&local_time);
+
+    int minutes=
+        local_time.tm_hour*60+
+        local_time.tm_min;
+
+    int marker_x=
+        38+
+        (int)lround(
+            (double)minutes/
+            (24.0*60.0)*
+            365.0);
+
+    lv_obj_set_x(s_chart1_now,marker_x);
+    lv_obj_set_x(s_chart2_now,marker_x);
+
+    lv_chart_refresh(s_chart1);
+    lv_chart_refresh(s_chart2);
 }
 /* MQTT meteorológiai mezőkből az ikonlogika szerinti időjárási állapot kiválasztása. */
 static weather_kind_t weather_kind(const app_energy_sample_t *s){
@@ -1312,7 +1437,22 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     snprintf(b,sizeof(b),"%s: %d °C",tr("Hőm.","Temp."),(int)lround(s->battery_temperature_c));
     lv_label_set_text(s_bat_temp_detail,b);
     lv_obj_set_style_text_color(s_bat_temp_detail,c(bt_color),0);
-    flow_update(&f_pv,s->power_pv_kw,true,GREEN,s->night_mode,dt);
+    /*
+     * Napelem: termeléskor mindig a központi hub felé mozog,
+     * és zöld energiaáramlást használ.
+     */
+    flow_update(
+        &f_pv,
+        s->power_pv_kw,
+        true,
+        GREEN,
+        s->night_mode,
+        dt);
+
+    /*
+     * Akkumulátor: pozitív PowerBat = kisütés, ezért akku -> hub és narancs.
+     * Negatív PowerBat = töltés, ezért hub -> akku és zöld.
+     */
     flow_update(
         &f_bat,
         s->power_bat_kw,
@@ -1322,38 +1462,85 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         dt);
 
     /*
+     * A ház fogyasztása külön, narancs ágon mindig a hub -> ház irányba halad.
+     */
+    flow_update(
+        &f_home,
+        s->power_full_kw,
+        true,
+        ORANGE,
+        s->night_mode,
+        dt);
+
+    /*
      * Szigetüzemben a hálózat fizikailag leválasztottként jelenik meg:
-     * nincs áramlási pont, a kapcsolat és a hálózati kártya szürke,
+     * nincs áramlási pont, a kapcsolat és a hálózati kör szürke,
      * az ikon pedig megszakított állapotot jelez.
      */
     if(s->status==3){
         for(int i=0;i<3;i++){
             lv_obj_add_flag(f_grid.dots[i],LV_OBJ_FLAG_HIDDEN);
         }
-        lv_obj_set_style_line_color(f_grid.line,c(GRAY),0);
-        lv_label_set_text(s_grid_icon,LV_SYMBOL_CLOSE);
-        lv_obj_set_style_text_color(s_grid_icon,c(GRAY),0);
-        lv_obj_set_style_border_color(s_grid_node,c(GRAY),0);
+
+        lv_obj_set_style_line_color(
+            f_grid.line,
+            c(GRAY),
+            0);
+
+        lv_label_set_text(
+            s_grid_icon,
+            LV_SYMBOL_CLOSE);
+
+        lv_obj_set_style_text_color(
+            s_grid_icon,
+            c(GRAY),
+            0);
+
+        lv_obj_set_style_border_color(
+            s_grid_node,
+            c(GRAY),
+            0);
     }else{
+        /*
+         * PowerGrid pozitív = import: hálózat -> hub, narancs.
+         * PowerGrid negatív = export: hub -> hálózat, zöld.
+         */
+        uint32_t grid_color=
+            s->power_grid_kw<0?GREEN:ORANGE;
+
         flow_update(
             &f_grid,
             s->power_grid_kw,
-            s->power_grid_kw<0,
-            s->power_grid_kw<0?GREEN:ORANGE,
+            s->power_grid_kw>0,
+            grid_color,
             s->night_mode,
             dt);
-        lv_label_set_text(s_grid_icon,LV_SYMBOL_POWER);
+
+        lv_label_set_text(
+            s_grid_icon,
+            LV_SYMBOL_POWER);
+
         lv_obj_set_style_text_color(
             s_grid_icon,
-            c(tone(RED,s->night_mode)),
+            c(tone(grid_color,s->night_mode)),
             0);
+
         lv_obj_set_style_border_color(
             s_grid_node,
-            c(tone(RED,s->night_mode)),
+            c(tone(grid_color,s->night_mode)),
             0);
     }
     fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->completed_interval_totals.production_kwh,st->yesterday_completed_interval_totals.production_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->completed_interval_totals.consumption_kwh,st->yesterday_completed_interval_totals.consumption_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->completed_interval_totals.grid_import_kwh,st->yesterday_completed_interval_totals.grid_import_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->completed_interval_totals.grid_export_kwh,st->yesterday_completed_interval_totals.grid_export_kwh,st->has_yesterday);
-    snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->completed_interval_totals),money(&st->yesterday_completed_interval_totals),st->has_yesterday);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->completed_interval_totals),co2(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_dec(b,sizeof(b),tree(&st->totals),2);metric(6,b,tree(&st->completed_interval_totals),tree(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->completed_interval_totals),self(&st->yesterday_completed_interval_totals),st->has_yesterday);
+    snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->completed_interval_totals),money(&st->yesterday_completed_interval_totals),st->has_yesterday);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->completed_interval_totals),co2(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_dec(b,sizeof(b),tree(&st->totals),2);{
+        char tree_value[32];
+        snprintf(tree_value,sizeof(tree_value),"%s %s",b,tr("fa","trees"));
+        metric(
+            6,
+            tree_value,
+            tree(&st->completed_interval_totals),
+            tree(&st->yesterday_completed_interval_totals),
+            st->has_yesterday);
+    }fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->completed_interval_totals),self(&st->yesterday_completed_interval_totals),st->has_yesterday);
     fmt_kwh(q,sizeof(q),st->totals.battery_charge_kwh);
     snprintf(b,sizeof(b),"%s: %s",tr("Töltés","Charge"),q);
     lv_label_set_text(s_bat_charge,b);
