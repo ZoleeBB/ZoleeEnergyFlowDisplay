@@ -1,0 +1,29 @@
+// Zolee Energy Flow Display - Loxone Pico C MQTT payload builder
+#define UPDATE_INTERVAL_MS 5000
+#define JSON_BUFFER_SIZE 512
+
+char json[JSON_BUFFER_SIZE];
+
+while (TRUE)
+{
+    float powerGrid = getinput(0);
+    float powerBat = getinput(1);
+    float powerPV = getinput(2);
+    float socBat = getinput(3);
+    float powerFull = getinput(4);
+    float temperature = getinput(5);
+    float windSpeed = getinput(6);
+    int hasSunRadiation = getinput(7) >= 0.5;
+    int hasPrecipitation = getinput(8) >= 0.5;
+    int status = (int)(getinput(9) + 0.5);
+    int nightMode = getinput(10) >= 0.5;
+    float batteryTemperature = getinput(11);
+
+    sprintf(json,
+        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%f,\"WindSpeed\":%f,\"HasSunRadiation\":%d,\"HasPrecipitation\":%d,\"Status\":%d,\"NightMode\":%d,\"BatteryTemperature\":%f}",
+        powerGrid, powerBat, powerPV, socBat, powerFull, temperature, windSpeed,
+        hasSunRadiation, hasPrecipitation, status, nightMode, batteryTemperature);
+
+    setoutputtext(0, json);
+    sleep(UPDATE_INTERVAL_MS);
+}
