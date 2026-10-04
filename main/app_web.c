@@ -26,7 +26,7 @@ static char s_expected_auth[256];
 static const char *reset_text(esp_reset_reason_t r){switch(r){case ESP_RST_POWERON:return"Power-on";case ESP_RST_EXT:return"External reset";case ESP_RST_SW:return"Software restart";case ESP_RST_PANIC:return"Panic";case ESP_RST_INT_WDT:return"Interrupt watchdog";case ESP_RST_TASK_WDT:return"Task watchdog";case ESP_RST_WDT:return"Watchdog";case ESP_RST_DEEPSLEEP:return"Deep sleep wake";case ESP_RST_BROWNOUT:return"Brownout";default:return"Unknown";}}
 static bool auth_enabled(void){return s_auth_cfg.username[0]!=0;}
 static void build_auth(void){s_expected_auth[0]=0;if(!auth_enabled())return;char plain[APP_OTA_USER_MAX+APP_OTA_PASSWORD_MAX+2];snprintf(plain,sizeof(plain),"%s:%s",s_auth_cfg.username,s_auth_cfg.password);unsigned char enc[192];size_t n=0;if(mbedtls_base64_encode(enc,sizeof(enc)-1,&n,(const unsigned char*)plain,strlen(plain))==0){enc[n]=0;snprintf(s_expected_auth,sizeof(s_expected_auth),"Basic %s",enc);}}
-static bool authorize(httpd_req_t *req){if(!auth_enabled())return true;size_t len=httpd_req_get_hdr_value_len(req,"Authorization");char v[256];if(!len||len>=sizeof(v)||httpd_req_get_hdr_value_str(req,"Authorization",v,sizeof(v))!=ESP_OK||strcmp(v,s_expected_auth)){httpd_resp_set_status(req,"401 Unauthorized");httpd_resp_set_hdr(req,"WWW-Authenticate","Basic realm="Zolee Energy Flow Display"");httpd_resp_sendstr(req,"Authentication required");return false;}return true;}
+static bool authorize(httpd_req_t *req){if(!auth_enabled())return true;size_t len=httpd_req_get_hdr_value_len(req,"Authorization");char v[256];if(!len||len>=sizeof(v)||httpd_req_get_hdr_value_str(req,"Authorization",v,sizeof(v))!=ESP_OK||strcmp(v,s_expected_auth)){httpd_resp_set_status(req,"401 Unauthorized");httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"Zolee Energy Flow Display\"");httpd_resp_sendstr(req,"Authentication required");return false;}return true;}
 
 static esp_err_t root_handler(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
@@ -46,7 +46,13 @@ static esp_err_t update_get(httpd_req_t *req){if(!authorize(req))return ESP_OK;s
 static void reboot_task(void *arg){(void)arg;vTaskDelay(pdMS_TO_TICKS(700));esp_restart();}
 static esp_err_t reboot_post(httpd_req_t *req){if(!authorize(req))return ESP_OK;httpd_resp_sendstr(req,"Restarting");xTaskCreate(reboot_task,"reboot",2048,NULL,8,NULL);return ESP_OK;}
 static esp_err_t ota_post(httpd_req_t *req){
-    if(!authorize(req))return ESP_OK;if(req->content_len<=0){httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Empty image");return ESP_OK;}
+    if (!authorize(req)) {
+        return ESP_OK;
+    }
+    if (req->content_len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty image");
+        return ESP_OK;
+    }
     const esp_partition_t *target=esp_ota_get_next_update_partition(NULL);if(!target||(size_t)req->content_len>target->size){httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Image too large");return ESP_OK;}
     esp_ota_handle_t ota=0;esp_err_t e=esp_ota_begin(target,(size_t)req->content_len,&ota);if(e!=ESP_OK){httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"OTA begin failed");return ESP_OK;}
     char *buf=malloc(4096);if(!buf){esp_ota_abort(ota);httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Out of memory");return ESP_OK;}
@@ -55,10 +61,20 @@ static esp_err_t ota_post(httpd_req_t *req){
     httpd_resp_sendstr(req,"Firmware feltöltve. Az eszköz újraindul.");xTaskCreate(reboot_task,"ota_reboot",2048,NULL,8,NULL);return ESP_OK;
 }
 esp_err_t app_web_start(const app_config_t *cfg){
-    if(!cfg)return ESP_ERR_INVALID_ARG;if(s_server)return ESP_ERR_INVALID_STATE;s_auth_cfg=cfg->ota;build_auth();
+    if (!cfg) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (s_server) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    s_auth_cfg = cfg->ota;
+    build_auth();
     esp_err_t e=mdns_init();if(e==ESP_OK){mdns_hostname_set(APP_DEVICE_HOSTNAME);mdns_instance_name_set("Zolee Energy Flow Display");mdns_service_add(NULL,"_http","_tcp",80,NULL,0);}else ESP_LOGW(TAG,"mDNS init failed: %s",esp_err_to_name(e));
     httpd_config_t hc=HTTPD_DEFAULT_CONFIG();hc.max_uri_handlers=8;hc.stack_size=8192;e=httpd_start(&s_server,&hc);if(e!=ESP_OK)return e;
     httpd_uri_t r={.uri="/",.method=HTTP_GET,.handler=root_handler};httpd_uri_t ug={.uri="/update",.method=HTTP_GET,.handler=update_get};httpd_uri_t up={.uri="/update",.method=HTTP_POST,.handler=ota_post};httpd_uri_t rb={.uri="/reboot",.method=HTTP_POST,.handler=reboot_post};
-    if((e=httpd_register_uri_handler(s_server,&r))!=ESP_OK)return e;if((e=httpd_register_uri_handler(s_server,&ug))!=ESP_OK)return e;if((e=httpd_register_uri_handler(s_server,&up))!=ESP_OK)return e;if((e=httpd_register_uri_handler(s_server,&rb))!=ESP_OK)return e;
+    if ((e = httpd_register_uri_handler(s_server, &r)) != ESP_OK) return e;
+    if ((e = httpd_register_uri_handler(s_server, &ug)) != ESP_OK) return e;
+    if ((e = httpd_register_uri_handler(s_server, &up)) != ESP_OK) return e;
+    if ((e = httpd_register_uri_handler(s_server, &rb)) != ESP_OK) return e;
     app_events_add(APP_EVENT_INFO,"Webes információs és OTA felület elindult.");return ESP_OK;
 }

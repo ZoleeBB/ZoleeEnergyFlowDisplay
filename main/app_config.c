@@ -38,8 +38,21 @@ static bool parse(cJSON *r,app_config_t *c,char *e,size_t en){
     cJSON *nw=obj(w,"network",false,e,en);if(nw){if(!b01(nw,"use_static_ip",&c->wifi.network.use_static_ip,false,e,en)||!strv(nw,"ip",c->wifi.network.ip,sizeof(c->wifi.network.ip),false,true,e,en)||!strv(nw,"gateway",c->wifi.network.gateway,sizeof(c->wifi.network.gateway),false,true,e,en)||!strv(nw,"subnet",c->wifi.network.subnet,sizeof(c->wifi.network.subnet),false,true,e,en)||!strv(nw,"dns",c->wifi.network.dns,sizeof(c->wifi.network.dns),false,true,e,en))return false;}else if(e&&*e)return false;
     if(c->wifi.network.use_static_ip&&(!ipv4(c->wifi.network.ip)||!ipv4(c->wifi.network.gateway)||!ipv4(c->wifi.network.subnet)||!ipv4(c->wifi.network.dns))){set_error(e,en,"Statikus IP esetén az ip/gateway/subnet/dns mezők kötelező érvényes IPv4 címek.");return false;}
     cJSON *t=obj(r,"time",false,e,en);if(t){if(!strv(t,"ntp_server",c->time.ntp_server,sizeof(c->time.ntp_server),false,false,e,en)||!strv(t,"timezone",c->time.timezone,sizeof(c->time.timezone),false,false,e,en)||!b01(t,"auto_dst",&c->time.auto_dst,false,e,en)||!i32(t,"utc_offset_minutes",&c->time.utc_offset_minutes,-720,840,false,e,en)||!u32(t,"startup_retry_seconds",&c->time.startup_retry_seconds,1,3600,false,e,en)||!u32(t,"resync_hours",&c->time.resync_hours,1,168,false,e,en)||!u32(t,"background_retry_minutes",&c->time.background_retry_minutes,1,1440,false,e,en))return false;}else if(e&&*e)return false;
-    cJSON *m=obj(r,"mqtt",true,e,en);if(!m)return false;uint32_t port=c->mqtt.port;
-    if(!strv(m,"broker",c->mqtt.broker,sizeof(c->mqtt.broker),true,false,e,en)||!u32(m,"port",&port,1,65535,false,e,en)||!strv(m,"topic",c->mqtt.topic,sizeof(c->mqtt.topic),false,false,e,en)||!strv(m,"username",c->mqtt.username,sizeof(c->mqtt.username),false,true,e,en)||!strv(m,"password",c->mqtt.password,sizeof(c->mqtt.password),false,true,e,en)||!u32(m,"data_timeout_seconds",&c->mqtt.data_timeout_seconds,5,3600,false,e,en)||!u32(m,"reconnect_seconds",&c->mqtt.reconnect_seconds,1,3600,false,e,en))return false;c->mqtt.port=(uint16_t)port;
+    cJSON *m = obj(r, "mqtt", true, e, en);
+    if (!m) {
+        return false;
+    }
+    uint32_t port = c->mqtt.port;
+    if (!strv(m, "broker", c->mqtt.broker, sizeof(c->mqtt.broker), true, false, e, en) ||
+        !u32(m, "port", &port, 1, 65535, false, e, en) ||
+        !strv(m, "topic", c->mqtt.topic, sizeof(c->mqtt.topic), false, false, e, en) ||
+        !strv(m, "username", c->mqtt.username, sizeof(c->mqtt.username), false, true, e, en) ||
+        !strv(m, "password", c->mqtt.password, sizeof(c->mqtt.password), false, true, e, en) ||
+        !u32(m, "data_timeout_seconds", &c->mqtt.data_timeout_seconds, 5, 3600, false, e, en) ||
+        !u32(m, "reconnect_seconds", &c->mqtt.reconnect_seconds, 1, 3600, false, e, en)) {
+        return false;
+    }
+    c->mqtt.port = (uint16_t)port;
     cJSON *d=obj(r,"display",false,e,en);if(d){uint32_t day=c->display.day_brightness,night=c->display.night_brightness;if(!u32(d,"day_brightness",&day,1,100,false,e,en)||!u32(d,"night_brightness",&night,1,100,false,e,en))return false;c->display.day_brightness=(uint8_t)day;c->display.night_brightness=(uint8_t)night;}else if(e&&*e)return false;
     cJSON *s=obj(r,"statistics",false,e,en);if(s){if(!u32(s,"save_interval_minutes",&c->statistics.save_interval_minutes,5,1440,false,e,en)||!u32(s,"max_integration_gap_seconds",&c->statistics.max_integration_gap_seconds,1,300,false,e,en))return false;}else if(e&&*e)return false;
     cJSON *g=obj(r,"energy",false,e,en);if(g){if(!dbl(g,"electricity_purchase_price",&c->energy.electricity_purchase_price,0,100000,false,e,en)||!dbl(g,"feed_in_price",&c->energy.feed_in_price,0,100000,false,e,en)||!dbl(g,"co2_factor_kg_per_kwh",&c->energy.co2_factor_kg_per_kwh,0,100,false,e,en)||!dbl(g,"tree_absorption_kg_per_year",&c->energy.tree_absorption_kg_per_year,0.001,100000,false,e,en))return false;}else if(e&&*e)return false;

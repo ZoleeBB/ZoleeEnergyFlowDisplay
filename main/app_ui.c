@@ -123,7 +123,14 @@ static void error_screen(const char *title,const char *detail,bool fatal){clear(
 esp_err_t app_ui_init(void){
     bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=0,.mirror_x=0,.mirror_y=0}};
     lv_display_t *disp=bsp_display_start_with_config(&cfg);if(!disp)return ESP_FAIL;bsp_display_backlight_on();bsp_display_brightness_set(50);
-    if(bsp_display_lock(-1)!=ESP_OK)return ESP_FAIL;s_screen=lv_screen_active();screen_style(s_screen,false);bsp_display_unlock();app_ui_show_boot(APP_BOOT_SD,NULL);return ESP_OK;
+    if (bsp_display_lock(-1) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    s_screen = lv_screen_active();
+    screen_style(s_screen, false);
+    bsp_display_unlock();
+    app_ui_show_boot(APP_BOOT_SD, NULL);
+    return ESP_OK;
 }
 void app_ui_set_config(const app_config_t *cfg){if(!cfg)return;s_cfg=*cfg;s_cfg_ok=true;s_target=s_cfg.display.day_brightness;}
 void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,&lv_font_montserrat_22,GREEN);if(detail)lbl(s_screen,detail,34,225,&lv_font_montserrat_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?"✓":i==stage?"●":"○",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,&lv_font_montserrat_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}

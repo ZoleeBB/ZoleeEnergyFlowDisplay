@@ -54,7 +54,13 @@ static void event_handler(void *arg,esp_event_base_t base,int32_t id,void *data)
     }
     if(base==WIFI_EVENT&&id==WIFI_EVENT_STA_DISCONNECTED){
         bool was=(xEventGroupGetBits(s_events)&WIFI_CONNECTED_BIT)!=0;xEventGroupClearBits(s_events,WIFI_CONNECTED_BIT);app_state_set_wifi_connected(false);
-        if(was)app_events_add(APP_EVENT_WARNING,"Wi-Fi kapcsolat megszakadt.");if(s_reconnect_task)xTaskNotifyGive(s_reconnect_task);return;
+        if (was) {
+            app_events_add(APP_EVENT_WARNING, "Wi-Fi kapcsolat megszakadt.");
+        }
+        if (s_reconnect_task) {
+            xTaskNotifyGive(s_reconnect_task);
+        }
+        return;
     }
     if(base==IP_EVENT&&id==IP_EVENT_STA_GOT_IP){
         ip_event_got_ip_t *evt=(ip_event_got_ip_t*)data;ESP_LOGI(TAG,"IP acquired: " IPSTR,IP2STR(&evt->ip_info.ip));xEventGroupSetBits(s_events,WIFI_CONNECTED_BIT);app_state_set_wifi_connected(true);app_events_add(APP_EVENT_INFO,"Wi-Fi kapcsolat létrejött.");

@@ -25,7 +25,14 @@ static void reset_rx(void){s_rx_total=0;s_rx[0]=0;s_rx_topic[0]=0;}
 static void complete(void){app_energy_sample_t s;char err[160];if(app_payload_parse(s_rx,(size_t)s_rx_total,&s,err,sizeof(err))==ESP_OK){app_state_set_sample(&s);app_stats_process_sample(&s);}else{ESP_LOGW(TAG,"Rejected MQTT payload: %s",err);int64_t now=esp_timer_get_time();if(now-s_last_invalid_event_us>60000000LL){app_events_add(APP_EVENT_WARNING,"Hibás MQTT adatcsomag elutasítva: %s",err);s_last_invalid_event_us=now;}}}
 static void on_data(esp_mqtt_event_handle_t e){
     if(e->current_data_offset==0){reset_rx();if(!topic_matches(e->topic,e->topic_len))return;if(e->total_data_len<=0||e->total_data_len>MQTT_MAX_PAYLOAD_BYTES)return;size_t n=e->topic_len;if(n>=sizeof(s_rx_topic))n=sizeof(s_rx_topic)-1;memcpy(s_rx_topic,e->topic,n);s_rx_topic[n]=0;s_rx_total=e->total_data_len;}
-    if(s_rx_total<=0||!s_rx_topic[0])return;if(e->current_data_offset<0||e->data_len<0||e->current_data_offset+e->data_len>s_rx_total){reset_rx();return;}
+    if (s_rx_total <= 0 || !s_rx_topic[0]) {
+        return;
+    }
+    if (e->current_data_offset < 0 || e->data_len < 0 ||
+        e->current_data_offset + e->data_len > s_rx_total) {
+        reset_rx();
+        return;
+    }
     memcpy(s_rx+e->current_data_offset,e->data,(size_t)e->data_len);if(e->current_data_offset+e->data_len==s_rx_total){s_rx[s_rx_total]=0;complete();reset_rx();}
 }
 static void handler(void *arg,esp_event_base_t base,int32_t id,void *data){(void)arg;(void)base;esp_mqtt_event_handle_t e=(esp_mqtt_event_handle_t)data;switch((esp_mqtt_event_id_t)id){
@@ -36,5 +43,22 @@ static void handler(void *arg,esp_event_base_t base,int32_t id,void *data){(void
     default:break;}}
 esp_err_t app_mqtt_start(const app_config_t *cfg){if(!cfg)return ESP_ERR_INVALID_ARG;if(s_client)return ESP_ERR_INVALID_STATE;s_cfg=cfg->mqtt;s_events=xEventGroupCreate();if(!s_events)return ESP_ERR_NO_MEM;
     esp_mqtt_client_config_t c={.broker.address.hostname=s_cfg.broker,.broker.address.port=s_cfg.port,.broker.address.transport=MQTT_TRANSPORT_OVER_TCP,.credentials.client_id=MQTT_CLIENT_ID,.network.reconnect_timeout_ms=(int)(s_cfg.reconnect_seconds*1000U),.network.timeout_ms=10000,.task.stack_size=6144,.buffer.size=2048};
-    if(s_cfg.username[0])c.credentials.username=s_cfg.username;if(s_cfg.password[0])c.credentials.authentication.password=s_cfg.password;s_client=esp_mqtt_client_init(&c);if(!s_client)return ESP_FAIL;esp_err_t e=esp_mqtt_client_register_event(s_client,ESP_EVENT_ANY_ID,handler,NULL);if(e!=ESP_OK)return e;return esp_mqtt_client_start(s_client);}
+    if (s_cfg.username[0]) {
+        c.credentials.username = s_cfg.username;
+    }
+    if (s_cfg.password[0]) {
+        c.credentials.authentication.password = s_cfg.password;
+    }
+
+    s_client = esp_mqtt_client_init(&c);
+    if (!s_client) {
+        return ESP_FAIL;
+    }
+
+    esp_err_t e = esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, handler, NULL);
+    if (e != ESP_OK) {
+        return e;
+    }
+    return esp_mqtt_client_start(s_client);
+}
 bool app_mqtt_wait_connected(TickType_t t){if(!s_events)return false;return(xEventGroupWaitBits(s_events,MQTT_CONNECTED_BIT,pdFALSE,pdTRUE,t)&MQTT_CONNECTED_BIT)!=0;}
