@@ -99,7 +99,12 @@ static void build_auth(void)
         s_auth_cfg.username,
         s_auth_cfg.password);
 
-    unsigned char encoded[192];
+    /*
+     * A maximális konfigurálható user+jelszó Base64 alakja ~212 karakter,
+     * ezért 256 bájtos puffer szükséges. A kisebb puffer hosszú hitelesítési
+     * adatoknál csendben sikertelen kódolást és használhatatlan belépést okozna.
+     */
+    unsigned char encoded[256];
     size_t encoded_len = 0;
 
     if (mbedtls_base64_encode(
