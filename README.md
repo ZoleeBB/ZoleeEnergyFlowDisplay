@@ -77,3 +77,13 @@ A rendszer a mai és a tegnapi napot tartja meg.
 ## CI
 
 A GitHub Actions minden main push és pull request esetén ESP-IDF 5.5.4 fordítást futtat.
+
+## Dokumentáció
+
+- [Konfiguráció](docs/configuration.md)
+- [MQTT protokoll](docs/mqtt.md)
+- [Loxone Program blokk](docs/loxone.md)
+- [Statisztikai számítások](docs/statistics.md)
+- [Hibakezelés](docs/errors.md)
+- [OTA és webfelület](docs/ota.md)
+- [Működési áttekintés](docs/architecture.md)
