@@ -22,7 +22,7 @@ Ha a fájl hiányzik, nem olvasható vagy egy megadott érték érvénytelen, a 
 
 ## time
 
-- `ntp_server`: `pool.ntp.org`
+- `ntp_server`: `hu.pool.ntp.org`
 - `timezone`: `Europe/Budapest`
 - `auto_dst`: 1
 - `utc_offset_minutes`: 60; csak kikapcsolt automatikus DST mellett használt

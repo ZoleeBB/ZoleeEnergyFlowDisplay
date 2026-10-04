@@ -137,16 +137,60 @@ static app_energy_totals_t energy_between(
     result.production_kwh = pv * hours;
     result.consumption_kwh = load * hours;
 
-    if (grid >= 0) {
+    /*
+     * A hálózat és az akkumulátor előjeles teljesítménye két minta között
+     * lineárisan változik. Ha az előjel közben megfordul, a nullátmetszést
+     * külön kezeljük, különben az import/export vagy töltés/kisütés részben
+     * kioltaná egymást.
+     */
+    if (a->power_grid_kw >= 0 && b->power_grid_kw >= 0) {
         result.grid_import_kwh = grid * hours;
-    } else {
+    } else if (a->power_grid_kw <= 0 && b->power_grid_kw <= 0) {
         result.grid_export_kwh = -grid * hours;
+    } else {
+        double fraction =
+            a->power_grid_kw /
+            (a->power_grid_kw - b->power_grid_kw);
+
+        double first_hours = hours * fraction;
+        double second_hours = hours - first_hours;
+
+        if (a->power_grid_kw > 0) {
+            result.grid_import_kwh =
+                0.5 * a->power_grid_kw * first_hours;
+            result.grid_export_kwh =
+                0.5 * (-b->power_grid_kw) * second_hours;
+        } else {
+            result.grid_export_kwh =
+                0.5 * (-a->power_grid_kw) * first_hours;
+            result.grid_import_kwh =
+                0.5 * b->power_grid_kw * second_hours;
+        }
     }
 
-    if (battery >= 0) {
+    if (a->power_bat_kw >= 0 && b->power_bat_kw >= 0) {
         result.battery_discharge_kwh = battery * hours;
-    } else {
+    } else if (a->power_bat_kw <= 0 && b->power_bat_kw <= 0) {
         result.battery_charge_kwh = -battery * hours;
+    } else {
+        double fraction =
+            a->power_bat_kw /
+            (a->power_bat_kw - b->power_bat_kw);
+
+        double first_hours = hours * fraction;
+        double second_hours = hours - first_hours;
+
+        if (a->power_bat_kw > 0) {
+            result.battery_discharge_kwh =
+                0.5 * a->power_bat_kw * first_hours;
+            result.battery_charge_kwh =
+                0.5 * (-b->power_bat_kw) * second_hours;
+        } else {
+            result.battery_charge_kwh =
+                0.5 * (-a->power_bat_kw) * first_hours;
+            result.battery_discharge_kwh =
+                0.5 * b->power_bat_kw * second_hours;
+        }
     }
 
     return result;
@@ -515,6 +559,16 @@ static esp_err_t save_locked(const day_data_t *day)
         return ESP_ERR_INVALID_STATE;
     }
 
+    /*
+     * Futás közbeni SD-csere után egy üres, de érvényes kártya is bekerülhet.
+     * Ilyenkor a /stats könyvtárat újra létrehozzuk az első mentés előtt.
+     */
+    if (mkdir(STATS_DIR, 0775) != 0 && errno != EEXIST) {
+        app_storage_mark_fault(
+            "stats könyvtár nem hozható létre mentés előtt");
+        return ESP_FAIL;
+    }
+
     cJSON *root = day_to_json(day);
     if (!root) {
         return ESP_ERR_NO_MEM;
@@ -662,6 +716,32 @@ static void sum_completed_slots(
     for (int i = 0; i < completed_slots; i++) {
         totals_add(out, &day->slots[i].energy);
     }
+}
+
+/* Igaz, ha a vizsgált lezárt időszakban legalább egy valódi mérési slot létezik. */
+static bool day_has_samples_until(
+    const day_data_t *day,
+    int completed_slots)
+{
+    if (!day->valid) {
+        return false;
+    }
+
+    if (completed_slots < 0) {
+        completed_slots = 0;
+    }
+    if (completed_slots > APP_STATS_SLOT_COUNT) {
+        completed_slots = APP_STATS_SLOT_COUNT;
+    }
+
+    for (int i = 0; i < completed_slots; i++) {
+        if (day->slots[i].valid &&
+            day->slots[i].sample_count > 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
@@ -821,8 +901,12 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
         completed_slots,
         &out->completed_interval_totals);
 
-    out->has_yesterday = s_yesterday.valid;
-    if (s_yesterday.valid) {
+    out->has_yesterday =
+        day_has_samples_until(
+            &s_yesterday,
+            completed_slots);
+
+    if (out->has_yesterday) {
         sum_completed_slots(
             &s_yesterday,
             completed_slots,

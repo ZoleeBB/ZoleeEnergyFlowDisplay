@@ -57,7 +57,7 @@ void app_config_set_defaults(app_config_t *cfg)
     cfg->wifi.reconnect_seconds = 15;
 
     /* Időszinkron és időzóna. */
-    copy_text(cfg->time.ntp_server, sizeof(cfg->time.ntp_server), "pool.ntp.org");
+    copy_text(cfg->time.ntp_server, sizeof(cfg->time.ntp_server), "hu.pool.ntp.org");
     copy_text(cfg->time.timezone, sizeof(cfg->time.timezone), "Europe/Budapest");
     cfg->time.auto_dst = true;
     cfg->time.utc_offset_minutes = 60;

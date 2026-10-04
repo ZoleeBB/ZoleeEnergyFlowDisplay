@@ -33,6 +33,18 @@
 static const char *TAG = "app";
 static app_config_t s_config;
 
+/* A konfiguráció betöltése után használt egyszerű HU/EN szövegválasztó. */
+static bool configured_hu(void)
+{
+    return strcmp(s_config.project.language, "en") != 0;
+}
+
+/* Lokalizált szöveg kiválasztása a már betöltött projektkonfiguráció alapján. */
+static const char *cfg_tr(const char *hu_text, const char *en_text)
+{
+    return configured_hu() ? hu_text : en_text;
+}
+
 /*
  * Végzetes indulási hiba megjelenítése.
  * Ilyenkor szándékosan nem próbálunk továbbindulni; újraindítás szükséges.
@@ -130,7 +142,9 @@ void app_main(void)
     app_ui_show_boot(APP_BOOT_WIFI, NULL);
     err = app_wifi_start(&s_config);
     if (err != ESP_OK) {
-        fatal_forever("Wi-Fi inicializálási hiba", esp_err_to_name(err));
+        fatal_forever(
+            cfg_tr("Wi-Fi inicializálási hiba", "Wi-Fi initialization error"),
+            esp_err_to_name(err));
     }
 
     while (!app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
@@ -144,7 +158,9 @@ void app_main(void)
     app_ui_show_boot(APP_BOOT_NTP, NULL);
     err = app_time_init(&s_config);
     if (err != ESP_OK) {
-        fatal_forever("NTP inicializálási hiba", esp_err_to_name(err));
+        fatal_forever(
+            cfg_tr("NTP inicializálási hiba", "NTP initialization error"),
+            esp_err_to_name(err));
     }
 
     while ((err = app_time_sync_once()) != ESP_OK) {
@@ -152,7 +168,9 @@ void app_main(void)
         snprintf(
             message,
             sizeof(message),
-            "Az időszinkron nem sikerült (%s). Újrapróbálkozás %lu másodperc múlva.",
+            cfg_tr(
+                "Az időszinkron nem sikerült (%s). Újrapróbálkozás %lu másodperc múlva.",
+                "Time synchronization failed (%s). Retrying in %lu seconds."),
             esp_err_to_name(err),
             (unsigned long)s_config.time.startup_retry_seconds);
 
@@ -167,8 +185,10 @@ void app_main(void)
     err = app_stats_init(&s_config);
     if (err != ESP_OK) {
         fatal_forever(
-            "SD-kártya hiba",
-            "A statisztikai tárhely nem inicializálható. Ellenőrizd az SD-kártyát, majd indítsd újra az eszközt.");
+            cfg_tr("SD-kártya hiba", "SD card error"),
+            cfg_tr(
+                "A statisztikai tárhely nem inicializálható. Ellenőrizd az SD-kártyát, majd indítsd újra az eszközt.",
+                "The statistics storage cannot be initialized. Check the SD card, then restart the device."));
     }
 
     /* Háttérfeladatok indulása. */
@@ -193,7 +213,9 @@ void app_main(void)
     app_ui_show_boot(APP_BOOT_MQTT, NULL);
     err = app_mqtt_start(&s_config);
     if (err != ESP_OK) {
-        fatal_forever("MQTT inicializálási hiba", esp_err_to_name(err));
+        fatal_forever(
+            cfg_tr("MQTT inicializálási hiba", "MQTT initialization error"),
+            esp_err_to_name(err));
     }
 
     while (!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))) {
@@ -203,11 +225,15 @@ void app_main(void)
         if (!runtime.wifi_connected) {
             app_ui_show_boot(
                 APP_BOOT_WIFI,
-                "A Wi-Fi kapcsolat helyreállítására várunk...");
+                cfg_tr(
+                    "A Wi-Fi kapcsolat helyreállítására várunk...",
+                    "Waiting for the Wi-Fi connection to recover..."));
         } else {
             app_ui_show_boot(
                 APP_BOOT_MQTT,
-                "Kapcsolódás az MQTT brokerhez...");
+                cfg_tr(
+                    "Kapcsolódás az MQTT brokerhez...",
+                    "Connecting to the MQTT broker..."));
         }
     }
 
