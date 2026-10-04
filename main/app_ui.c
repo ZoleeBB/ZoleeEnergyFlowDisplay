@@ -197,7 +197,7 @@ static void fmt_kwh(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),
 static void fmt_pct(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s%%",q);}
 static void fmt_cmp(char *out,size_t n,double t,double y){
     if(fabs(y)<1e-9){
-        snprintf(out,n,"-");
+        snprintf(out,n,"%s",LV_SYMBOL_MINUS);
         return;
     }
     double p=(t-y)/y*100;
@@ -312,6 +312,7 @@ static void build_dashboard(bool night){
     lbl(cc1,tr("Termelés","Production"),356,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     shape(cc1,458,8,8,8,tone(ORANGE,night),LV_RADIUS_CIRCLE);
     lbl(cc1,tr("Fogyasztás","Consumption"),471,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
+    lbl(cc1,"kW",8,43,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     lbl(cc1,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
 
     lv_obj_t *cc2=lv_obj_create(s_dash);
@@ -336,6 +337,7 @@ static void build_dashboard(bool night){
     shape(cc2,465,8,8,8,tone(BLUE,night),LV_RADIUS_CIRCLE);
     lbl(cc2,tr("Akkumulátor","Battery"),478,3,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     shape(cc2,20,163,570,2,night?0x56615B:0xA7B1B5,0);
+    lbl(cc2,"kW",8,43,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
     lbl(cc2,"00:00  04:00  08:00  12:00  16:00  20:00  24:00",42,300,&lv_font_montserrat_12,night?MUTED_DARK:MUTED_LIGHT);
 
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),1090,52,&lv_font_montserrat_14,RED);
@@ -494,5 +496,80 @@ esp_err_t app_ui_init(void){
 void app_ui_set_config(const app_config_t *cfg){if(!cfg)return;s_cfg=*cfg;s_cfg_ok=true;s_target=s_cfg.display.day_brightness;}
 void app_ui_show_boot(app_boot_stage_t stage,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;clear();screen_style(s_screen,false);const char *h[]={"SD-kártya","Konfiguráció","Wi-Fi kapcsolat","Időszinkron","MQTT kapcsolat","Várakozás az első adatcsomagra"},*e[]={"SD card","Configuration","Wi-Fi connection","Time synchronization","MQTT connection","Waiting for first data packet"};lbl(s_screen,s_cfg_ok?s_cfg.project.title:"Zolee Energy Flow Display",34,30,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,tr("Rendszerindítás","Starting system"),34,120,&lv_font_montserrat_28,TEXT_LIGHT);lbl(s_screen,hu()?h[stage]:e[stage],34,180,&lv_font_montserrat_22,GREEN);if(detail)lbl(s_screen,detail,34,225,&lv_font_montserrat_14,MUTED_LIGHT);for(int i=0;i<6;i++){char x[150];snprintf(x,sizeof(x),"%s  %s",i<stage?LV_SYMBOL_OK:i==stage?LV_SYMBOL_REFRESH:"-",hu()?h[i]:e[i]);lbl(s_screen,x,70,310+i*55,&lv_font_montserrat_18,i<stage?GREEN:i==stage?ORANGE:GRAY);}bsp_display_unlock();}
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
-static void runtime(void *arg){(void)arg;(void)esp_task_wdt_add(NULL);int64_t prev=esp_timer_get_time();while(true){(void)esp_task_wdt_reset();int64_t now=esp_timer_get_time();float dt=(float)(now-prev)/1000000.0f;if(dt>1)dt=.2f;prev=now;app_runtime_state_t rt;app_state_get_runtime(&rt);app_energy_sample_t s;bool have=app_state_get_sample(&s);if(have){s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;if(s_brightness!=s_target){int d=s_target-s_brightness;s_brightness+=d>0?1:-1;bsp_display_brightness_set(s_brightness);}}if(bsp_display_lock(-1)==ESP_OK){bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;if(!rt.wifi_connected)error_screen(VIEW_WIFI_ERROR,tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else if(!rt.mqtt_connected)error_screen(VIEW_MQTT_ERROR,tr("Nincs MQTT kapcsolat","No MQTT connection"),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else if(!have)error_screen(VIEW_WAIT_DATA,tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),tr("Az első érvényes adatcsomagra várunk...","Waiting for the first valid packet..."),false);else if(!fresh)error_screen(VIEW_DATA_TIMEOUT,tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);else{if(!s_dash_created||s.night_mode!=s_last_night){build_dashboard(s.night_mode);s_last_night=s.night_mode;}app_stats_snapshot_t st;app_stats_get_snapshot(&st);update(&s,&st,dt);}bsp_display_unlock();}vTaskDelay(pdMS_TO_TICKS(200));}}
+static void runtime(void *arg){
+    (void)arg;
+    (void)esp_task_wdt_add(NULL);
+    int64_t prev=esp_timer_get_time();
+
+    while(true){
+        (void)esp_task_wdt_reset();
+        int64_t now=esp_timer_get_time();
+        float dt=(float)(now-prev)/1000000.0f;
+        if(dt>1)dt=.2f;
+        prev=now;
+
+        app_runtime_state_t rt;
+        app_state_get_runtime(&rt);
+
+        app_energy_sample_t s;
+        bool have=app_state_get_sample(&s);
+
+        if(have){
+            s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;
+            if(s_brightness!=s_target){
+                int d=s_target-s_brightness;
+                s_brightness+=d>0?1:-1;
+                bsp_display_brightness_set(s_brightness);
+            }
+        }
+
+        if(bsp_display_lock(-1)==ESP_OK){
+            int64_t timeout_us=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;
+            bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=timeout_us;
+            bool first_packet_timeout=
+                !have &&
+                rt.mqtt_connected &&
+                rt.mqtt_connected_monotonic_us>0 &&
+                (now-rt.mqtt_connected_monotonic_us)>timeout_us;
+
+            if(!rt.wifi_connected){
+                error_screen(
+                    VIEW_WIFI_ERROR,
+                    tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
+                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+                    false);
+            }else if(!rt.mqtt_connected){
+                error_screen(
+                    VIEW_MQTT_ERROR,
+                    tr("Nincs MQTT kapcsolat","No MQTT connection"),
+                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+                    false);
+            }else if(!have&&!first_packet_timeout){
+                error_screen(
+                    VIEW_WAIT_DATA,
+                    tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),
+                    tr("Az első érvényes adatcsomagra várunk...","Waiting for the first valid packet..."),
+                    false);
+            }else if(!have||!fresh){
+                error_screen(
+                    VIEW_DATA_TIMEOUT,
+                    tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),
+                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+                    false);
+            }else{
+                if(!s_dash_created||s.night_mode!=s_last_night){
+                    build_dashboard(s.night_mode);
+                    s_last_night=s.night_mode;
+                }
+                app_stats_snapshot_t st;
+                app_stats_get_snapshot(&st);
+                update(&s,&st,dt);
+            }
+
+            bsp_display_unlock();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
 void app_ui_start_runtime(void){if(s_started)return;s_started=true;xTaskCreate(runtime,"ui_runtime",16384,NULL,5,NULL);}
