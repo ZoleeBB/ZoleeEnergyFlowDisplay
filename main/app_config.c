@@ -33,6 +33,7 @@ static bool ipv4(const char *s){ip4_addr_t a;return s&&*s&&ip4addr_aton(s,&a)!=0
 static bool parse(cJSON *r,app_config_t *c,char *e,size_t en){
     cJSON *p=obj(r,"project",false,e,en);if(p){if(!strv(p,"title",c->project.title,sizeof(c->project.title),false,false,e,en)||!strv(p,"language",c->project.language,sizeof(c->project.language),false,false,e,en)||!strv(p,"currency",c->project.currency,sizeof(c->project.currency),false,false,e,en))return false;}else if(e&&*e)return false;
     if(strcasecmp(c->project.language,"hu")&&strcasecmp(c->project.language,"en")){set_error(e,en,"A language csak 'hu' vagy 'en' lehet.");return false;}
+    copy_text(c->project.language,sizeof(c->project.language),strcasecmp(c->project.language,"hu")==0?"hu":"en");
     cJSON *w=obj(r,"wifi",true,e,en);if(!w)return false;
     if(!strv(w,"ssid",c->wifi.ssid,sizeof(c->wifi.ssid),true,false,e,en)||!strv(w,"password",c->wifi.password,sizeof(c->wifi.password),false,true,e,en)||!u32(w,"reconnect_seconds",&c->wifi.reconnect_seconds,1,3600,false,e,en))return false;
     cJSON *nw=obj(w,"network",false,e,en);if(nw){if(!b01(nw,"use_static_ip",&c->wifi.network.use_static_ip,false,e,en)||!strv(nw,"ip",c->wifi.network.ip,sizeof(c->wifi.network.ip),false,true,e,en)||!strv(nw,"gateway",c->wifi.network.gateway,sizeof(c->wifi.network.gateway),false,true,e,en)||!strv(nw,"subnet",c->wifi.network.subnet,sizeof(c->wifi.network.subnet),false,true,e,en)||!strv(nw,"dns",c->wifi.network.dns,sizeof(c->wifi.network.dns),false,true,e,en))return false;}else if(e&&*e)return false;
