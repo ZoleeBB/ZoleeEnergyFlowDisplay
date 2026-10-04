@@ -80,6 +80,9 @@ A GitHub Actions minden main push és pull request esetén ESP-IDF 5.5.4 fordít
 
 ## Dokumentáció
 
+- [Hardver](docs/hardware.md)
+- [Fordítás és feltöltés](docs/build-flash.md)
+- [microSD előkészítés](docs/sd-card.md)
 - [Konfiguráció](docs/configuration.md)
 - [MQTT protokoll](docs/mqtt.md)
 - [Loxone Program blokk](docs/loxone.md)
