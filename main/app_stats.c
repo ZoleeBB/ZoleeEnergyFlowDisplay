@@ -1,3 +1,11 @@
+/*
+ * Napi energia- és teljesítménystatisztika.
+ *
+ * A modul az érvényes MQTT mintákból trapézszabállyal számolja a napi
+ * energiamennyiségeket, 5 perces átlagpontokat készít a grafikonokhoz,
+ * óránként biztonságosan ment microSD-re, és a tegnapi azonos időszakot
+ * használja összehasonlítási alapként.
+ */
 #include "app_stats.h"
 
 #include <dirent.h>
@@ -42,6 +50,7 @@ static bool s_task_started;
 static app_energy_sample_t s_prev;
 static int64_t s_last_save_us;
 
+/* Helyi dátum előállítása YYYY-MM-DD formában. */
 static void date_for(time_t t, char out[11])
 {
     struct tm tmv;
@@ -49,6 +58,7 @@ static void date_for(time_t t, char out[11])
     strftime(out, 11, "%Y-%m-%d", &tmv);
 }
 
+/* Helyi időpont 0..287 közötti ötperces slot-indexre alakítása. */
 static int slot_for(time_t t)
 {
     struct tm tmv;
@@ -56,6 +66,7 @@ static int slot_for(time_t t)
     return tmv.tm_hour * 12 + tmv.tm_min / 5;
 }
 
+/* Az adott időponthoz tartozó ötperces slot kezdőhatára. */
 static time_t slot_boundary_for(time_t t)
 {
     struct tm tmv;
@@ -66,6 +77,7 @@ static time_t slot_boundary_for(time_t t)
     return mktime(&tmv);
 }
 
+/* Az adott helyi nap pontos 00:00 időpontja, DST-t is figyelembe véve. */
 static time_t local_day_start(time_t t)
 {
     struct tm tmv;
@@ -77,6 +89,7 @@ static time_t local_day_start(time_t t)
     return mktime(&tmv);
 }
 
+/* Két epoch időpont helyi naptári napjának összehasonlítása. */
 static bool same_local_date(time_t a, time_t b)
 {
     char da[11];
@@ -86,6 +99,7 @@ static bool same_local_date(time_t a, time_t b)
     return strcmp(da, db) == 0;
 }
 
+/* A tegnapi helyi dátum kiszámítása naptári művelettel. */
 static void yesterday_for(time_t now, char out[11])
 {
     struct tm tmv;
@@ -96,6 +110,7 @@ static void yesterday_for(time_t now, char out[11])
     date_for(previous, out);
 }
 
+/* Energiaösszesítők mezőnkénti összeadása. */
 static void totals_add(app_energy_totals_t *dst, const app_energy_totals_t *src)
 {
     dst->production_kwh += src->production_kwh;
@@ -106,6 +121,7 @@ static void totals_add(app_energy_totals_t *dst, const app_energy_totals_t *src)
     dst->battery_discharge_kwh += src->battery_discharge_kwh;
 }
 
+/* Két teljesítményminta közötti energia számítása trapézszabállyal. */
 static app_energy_totals_t energy_between(
     const app_energy_sample_t *a,
     const app_energy_sample_t *b,
@@ -136,6 +152,7 @@ static app_energy_totals_t energy_between(
     return result;
 }
 
+/* Lineáris köztes teljesítményminta képzése slot- vagy napváltási határhoz. */
 static app_energy_sample_t interpolate_sample(
     const app_energy_sample_t *a,
     const app_energy_sample_t *b,
@@ -151,6 +168,7 @@ static app_energy_sample_t interpolate_sample(
     return x;
 }
 
+/* Futó átlag frissítése az aktuális ötperces grafikon-slotban. */
 static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *sample)
 {
     slot->sample_count++;
@@ -163,6 +181,7 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     slot->valid = true;
 }
 
+/* Egy integrált energiarész hozzáadása a megfelelő ötperces slothoz. */
 static void add_slot_energy(int slot, const app_energy_totals_t *energy)
 {
     if (slot >= 0 && slot < APP_STATS_SLOT_COUNT) {
@@ -170,6 +189,7 @@ static void add_slot_energy(int slot, const app_energy_totals_t *energy)
     }
 }
 
+/* Két egymást követő érvényes minta integrálása, szükség esetén slot-határon kettévágva. */
 static void integrate_pair(
     const app_energy_sample_t *previous,
     const app_energy_sample_t *current)
@@ -223,21 +243,25 @@ static void integrate_pair(
     add_slot_energy(previous_slot, &e);
 }
 
+/* A napi fő statisztikai fájl elérési útjának összeállítása. */
 static void path_for(const char *date, char *out, size_t out_len)
 {
     snprintf(out, out_len, STATS_DIR "/%s.json", date);
 }
 
+/* Az atomi mentés ideiglenes fájlútvonalának összeállítása. */
 static void temp_path_for(const char *date, char *out, size_t out_len)
 {
     snprintf(out, out_len, STATS_DIR "/%s.json.tmp", date);
 }
 
+/* Az atomi mentés biztonsági másolatának fájlútvonala. */
 static void backup_path_for(const char *date, char *out, size_t out_len)
 {
     snprintf(out, out_len, STATS_DIR "/%s.json.bak", date);
 }
 
+/* Energiaösszesítő JSON objektummá alakítása. */
 static cJSON *totals_to_json(const app_energy_totals_t *totals)
 {
     cJSON *obj = cJSON_CreateObject();
@@ -254,6 +278,7 @@ static cJSON *totals_to_json(const app_energy_totals_t *totals)
     return obj;
 }
 
+/* Energiaösszesítő szigorú visszaolvasása JSON objektumból. */
 static bool totals_from_json(cJSON *obj, app_energy_totals_t *totals)
 {
     if (!cJSON_IsObject(obj)) {
@@ -291,6 +316,7 @@ static bool totals_from_json(cJSON *obj, app_energy_totals_t *totals)
     return true;
 }
 
+/* Egy teljes napi állapot JSON reprezentációjának felépítése. */
 static cJSON *day_to_json(const day_data_t *day)
 {
     cJSON *root = cJSON_CreateObject();
@@ -329,6 +355,7 @@ static cJSON *day_to_json(const day_data_t *day)
     return root;
 }
 
+/* Mentett napi JSON szerkezet, verzió, dátum és minden slot validálása. */
 static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *out)
 {
     if (!cJSON_IsObject(root)) {
@@ -390,6 +417,7 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     return true;
 }
 
+/* Egy napi JSON fájl méretkorlátos beolvasása és validálása. */
 static esp_err_t read_day_file(
     const char *path,
     const char *expected_date,
@@ -436,6 +464,7 @@ static esp_err_t read_day_file(
     return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }
 
+/* Napi fájl betöltése, szükség esetén .bak biztonsági másolatból helyreállítva. */
 static esp_err_t load_day(const char *date, day_data_t *out)
 {
     char path[64];
@@ -468,6 +497,7 @@ static esp_err_t load_day(const char *date, day_data_t *out)
     return main_error != ESP_ERR_NOT_FOUND ? main_error : backup_error;
 }
 
+/* Sérült főfájl megőrzése .corrupt néven diagnosztikai célból. */
 static void mark_corrupt(const char *date)
 {
     char path[64];
@@ -478,6 +508,7 @@ static void mark_corrupt(const char *date)
     (void)rename(path, corrupt);
 }
 
+/* Napi állapot biztonságos mentése: .tmp írás + fsync + .bak csere. A hívó tartja a mutexet. */
 static esp_err_t save_locked(const day_data_t *day)
 {
     if (!app_storage_is_ok()) {
@@ -542,6 +573,7 @@ static esp_err_t save_locked(const day_data_t *day)
     return ESP_OK;
 }
 
+/* A mai nap RAM struktúrájának nullázása új dátummal. */
 static void reset_today(const char *date)
 {
     memset(&s_today, 0, sizeof(s_today));
@@ -550,6 +582,7 @@ static void reset_today(const char *date)
     s_have_prev = false;
 }
 
+/* A mai és tegnapi dátumnál régebbi statisztikai állományok törlése. */
 static void cleanup_old_files(const char *today, const char *yesterday)
 {
     DIR *dir = opendir(STATS_DIR);
@@ -582,6 +615,7 @@ static void cleanup_old_files(const char *today, const char *yesterday)
     closedir(dir);
 }
 
+/* Napváltás kezelése: előző nap mentése, tegnappá tétele és új mai nap indítása. */
 static void roll_day(time_t now)
 {
     char current_date[11];
@@ -606,6 +640,7 @@ static void roll_day(time_t now)
     app_events_add(APP_EVENT_INFO, "Új nap indult: %s", current_date);
 }
 
+/* Csak a már lezárt ötperces slotok energiáinak összegzése az összehasonlításhoz. */
 static void sum_completed_slots(
     const day_data_t *day,
     int completed_slots,
@@ -629,6 +664,7 @@ static void sum_completed_slots(
     }
 }
 
+/* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
 esp_err_t app_stats_init(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -692,6 +728,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     return ESP_OK;
 }
 
+/* Egy új érvényes MQTT minta beépítése a napi energiába és az ötperces átlagba. */
 void app_stats_process_sample(const app_energy_sample_t *sample)
 {
     if (!sample || !s_mutex) {
@@ -732,9 +769,9 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
                     (int64_t)boundary);
 
                 /*
-                 * First close the previous day exactly at local midnight.
-                 * Then roll the daily file and account the remainder in the
-                 * new day's first five-minute slot.
+                 * Először pontosan helyi éjfélkor lezárjuk az előző napot.
+                 * Ezután napot váltunk, majd a mintaköz éjfél utáni részét
+                 * már az új nap első ötperces slotjához számoljuk.
                  */
                 integrate_pair(&s_prev, &middle);
                 roll_day(now);
@@ -763,6 +800,7 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     xSemaphoreGive(s_mutex);
 }
 
+/* Szálbiztos snapshot készítése a UI számára, tegnapi azonos időszakos referenciával. */
 void app_stats_get_snapshot(app_stats_snapshot_t *out)
 {
     if (!out || !s_mutex) {
@@ -794,6 +832,7 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
     xSemaphoreGive(s_mutex);
 }
 
+/* A mai állapot azonnali, szálbiztos SD-mentése. */
 esp_err_t app_stats_save_now(void)
 {
     if (!s_mutex) {
@@ -809,6 +848,7 @@ esp_err_t app_stats_save_now(void)
     return err;
 }
 
+/* Másodpercenként napváltást ellenőrző és a konfigurált periódusban mentő háttértask. */
 static void stats_task(void *arg)
 {
     (void)arg;
@@ -832,6 +872,7 @@ static void stats_task(void *arg)
     }
 }
 
+/* A statisztikai háttértask egyszeri elindítása. */
 void app_stats_start_task(void)
 {
     if (s_task_started) {
