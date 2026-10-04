@@ -33,8 +33,9 @@
 static app_config_t s_cfg;
 static bool s_cfg_ok,s_started,s_dash_created,s_last_night;
 static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
-static lv_obj_t *s_title,*s_date,*s_clock,*s_weather;
+static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
+static lv_obj_t *s_bat_icon,*s_status_icon;
 static lv_obj_t *s_battery_bar,*s_status_card;
 static lv_obj_t *s_bat_soc_detail,*s_bat_power_detail,*s_bat_temp_detail;
 static lv_obj_t *s_bat_charge,*s_bat_charge_cmp,*s_bat_discharge,*s_bat_discharge_cmp;
@@ -56,6 +57,17 @@ typedef enum {
 } runtime_view_t;
 
 static runtime_view_t s_view = VIEW_NONE;
+
+typedef enum {
+    WEATHER_SUNNY = 0,
+    WEATHER_PARTLY_CLOUDY,
+    WEATHER_CLOUDY,
+    WEATHER_RAIN,
+    WEATHER_SNOW,
+    WEATHER_NIGHT
+} weather_kind_t;
+
+static weather_kind_t s_last_weather = (weather_kind_t)-1;
 
 typedef struct { lv_obj_t *line,*dots[3]; int x1,y1,x2,y2; float phase; } flow_t;
 static flow_t f_pv,f_bat,f_grid;
@@ -81,6 +93,84 @@ static uint32_t battery_color(double soc){
     return RED;
 }
 
+static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius){
+    lv_obj_t *obj=lv_obj_create(parent);
+    lv_obj_set_pos(obj,x,y);
+    lv_obj_set_size(obj,w,h);
+    lv_obj_set_style_bg_color(obj,c(color),0);
+    lv_obj_set_style_bg_opa(obj,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(obj,0,0);
+    lv_obj_set_style_radius(obj,radius,0);
+    lv_obj_set_style_pad_all(obj,0,0);
+    lv_obj_remove_flag(obj,LV_OBJ_FLAG_SCROLLABLE);
+    return obj;
+}
+
+static void weather_draw_sun(lv_obj_t *parent,int x,int y){
+    shape(parent,x+11,y+8,16,16,0xF4B942,LV_RADIUS_CIRCLE);
+    shape(parent,x+18,y+1,2,5,0xF4B942,1);
+    shape(parent,x+18,y+26,2,5,0xF4B942,1);
+    shape(parent,x+4,y+15,5,2,0xF4B942,1);
+    shape(parent,x+29,y+15,5,2,0xF4B942,1);
+}
+
+static void weather_draw_cloud(lv_obj_t *parent,int x,int y,bool night){
+    uint32_t cloud=night?0x8C9892:0x9DA9AE;
+    shape(parent,x+5,y+17,31,12,cloud,6);
+    shape(parent,x+9,y+11,17,17,cloud,LV_RADIUS_CIRCLE);
+    shape(parent,x+20,y+8,19,19,cloud,LV_RADIUS_CIRCLE);
+}
+
+static void weather_render(weather_kind_t kind,bool night){
+    if(!s_weather_icon||kind==s_last_weather)return;
+    lv_obj_clean(s_weather_icon);
+
+    switch(kind){
+        case WEATHER_SUNNY:
+            weather_draw_sun(s_weather_icon,0,0);
+            break;
+        case WEATHER_PARTLY_CLOUDY:
+            weather_draw_sun(s_weather_icon,-2,-2);
+            weather_draw_cloud(s_weather_icon,7,6,night);
+            break;
+        case WEATHER_CLOUDY:
+            weather_draw_cloud(s_weather_icon,2,4,night);
+            break;
+        case WEATHER_RAIN:
+            weather_draw_cloud(s_weather_icon,2,0,night);
+            shape(s_weather_icon,12,30,2,8,BLUE,1);
+            shape(s_weather_icon,22,30,2,8,BLUE,1);
+            shape(s_weather_icon,32,30,2,8,BLUE,1);
+            break;
+        case WEATHER_SNOW:
+            weather_draw_cloud(s_weather_icon,2,0,night);
+            shape(s_weather_icon,11,31,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
+            shape(s_weather_icon,21,34,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
+            shape(s_weather_icon,31,31,4,4,0xE6F3FA,LV_RADIUS_CIRCLE);
+            break;
+        case WEATHER_NIGHT:
+            shape(s_weather_icon,9,5,24,24,0xB8C7CE,LV_RADIUS_CIRCLE);
+            shape(s_weather_icon,17,1,24,24,BG_DARK,LV_RADIUS_CIRCLE);
+            break;
+    }
+
+    s_last_weather=kind;
+}
+
+static void wind_icon_create(lv_obj_t *parent,int x,int y,bool night){
+    uint32_t col=night?MUTED_DARK:MUTED_LIGHT;
+    lv_obj_t *w=lv_obj_create(parent);
+    lv_obj_set_pos(w,x,y);
+    lv_obj_set_size(w,30,24);
+    lv_obj_set_style_bg_opa(w,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(w,0,0);
+    lv_obj_set_style_pad_all(w,0,0);
+    lv_obj_remove_flag(w,LV_OBJ_FLAG_SCROLLABLE);
+    shape(w,1,5,18,2,col,1);
+    shape(w,6,11,22,2,col,1);
+    shape(w,1,17,15,2,col,1);
+}
+
 static void fmt_dec(char *out,size_t n,double v,int d){snprintf(out,n,"%.*f",d,v);if(hu()){char *p=strchr(out,'.');if(p)*p=',';}}
 static void fmt_power(char *out,size_t n,double kw){double a=fabs(kw);if(a>=1){char q[20];fmt_dec(q,sizeof(q),a,1);snprintf(out,n,"%s kW",q);}else snprintf(out,n,"%d W",(int)llround(a*1000));}
 static void fmt_kwh(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s kWh",q);}
@@ -88,9 +178,17 @@ static void fmt_pct(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),
 static void fmt_cmp(char *out,size_t n,double t,double y){if(fabs(y)<1e-9){snprintf(out,n,"—");return;}double p=(t-y)/y*100;char q[20];fmt_dec(q,sizeof(q),p,1);snprintf(out,n,"%s %s%%",p>=0?"↑":"↓",q);}
 static uint32_t cmp_color(double t,double y){if(fabs(y)<1e-9)return GRAY;return t>=y?GREEN:ORANGE;}
 
-static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,lv_obj_t **value,bool night,uint32_t accent){
-    lv_obj_t *o=lv_obj_create(p);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);card_style(o,night);lv_obj_set_style_border_color(o,c(accent),0);
-    lbl(o,name,8,5,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);*value=lbl(o,"—",8,32,&lv_font_montserrat_22,night?TEXT_DARK:TEXT_LIGHT);return o;
+static lv_obj_t *node(lv_obj_t *p,int x,int y,int w,int h,const char *name,const char *icon,lv_obj_t **icon_out,lv_obj_t **value,bool night,uint32_t accent){
+    lv_obj_t *o=lv_obj_create(p);
+    lv_obj_set_pos(o,x,y);
+    lv_obj_set_size(o,w,h);
+    card_style(o,night);
+    lv_obj_set_style_border_color(o,c(accent),0);
+    lbl(o,name,8,5,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
+    lv_obj_t *ic=lbl(o,icon,8,33,&lv_font_montserrat_20,accent);
+    if(icon_out)*icon_out=ic;
+    *value=lbl(o,"—",38,32,&lv_font_montserrat_22,night?TEXT_DARK:TEXT_LIGHT);
+    return o;
 }
 static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool night){
     f->x1=x1;f->y1=y1;f->x2=x2;f->y2=y2;f->phase=0;f->line=lv_line_create(p);
@@ -107,14 +205,29 @@ static lv_obj_t *metric_card(lv_obj_t *p,int x,int y,const char *title,int idx,b
 }
 static void build_dashboard(bool night){
     clear();screen_style(s_screen,night);s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
-    s_title=lbl(s_dash,s_cfg.project.title,28,16,&lv_font_montserrat_28,night?TEXT_DARK:TEXT_LIGHT);s_date=lbl(s_dash,"",830,15,&lv_font_montserrat_18,night?MUTED_DARK:MUTED_LIGHT);s_clock=lbl(s_dash,"",1040,10,&lv_font_montserrat_28,night?TEXT_DARK:TEXT_LIGHT);s_weather=lbl(s_dash,"",830,45,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
+    s_title=lbl(s_dash,s_cfg.project.title,28,16,&lv_font_montserrat_28,night?TEXT_DARK:TEXT_LIGHT);
+    s_date=lbl(s_dash,"",760,17,&lv_font_montserrat_18,night?MUTED_DARK:MUTED_LIGHT);
+    s_clock=lbl(s_dash,"",1110,10,&lv_font_montserrat_28,night?TEXT_DARK:TEXT_LIGHT);
+
+    s_weather_icon=lv_obj_create(s_dash);
+    lv_obj_set_pos(s_weather_icon,900,8);
+    lv_obj_set_size(s_weather_icon,48,42);
+    lv_obj_set_style_bg_opa(s_weather_icon,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(s_weather_icon,0,0);
+    lv_obj_set_style_pad_all(s_weather_icon,0,0);
+    lv_obj_remove_flag(s_weather_icon,LV_OBJ_FLAG_SCROLLABLE);
+    s_last_weather=(weather_kind_t)-1;
+
+    s_weather_temp=lbl(s_dash,"",950,17,&lv_font_montserrat_18,night?TEXT_DARK:TEXT_LIGHT);
+    wind_icon_create(s_dash,1015,16,night);
+    s_wind_speed=lbl(s_dash,"",1046,17,&lv_font_montserrat_18,night?TEXT_DARK:TEXT_LIGHT);
 
     lv_obj_t *flow=lv_obj_create(s_dash);lv_obj_set_pos(flow,20,78);lv_obj_set_size(flow,620,342);card_style(flow,night);lbl(flow,tr("Energiaáramlás","Energy flow"),6,0,&lv_font_montserrat_20,night?TEXT_DARK:TEXT_LIGHT);
     flow_init(&f_pv,flow,190,102,300,172,night);flow_init(&f_bat,flow,190,250,300,190,night);flow_init(&f_grid,flow,410,181,525,181,night);
-    node(flow,28,55,165,90,tr("Napelem","Solar"),&s_pv,night,GREEN);
-    lv_obj_t *bat_node=node(flow,28,215,165,90,tr("Akkumulátor","Battery"),&s_bat,night,BLUE);
-    node(flow,250,130,165,105,tr("Ház","Home"),&s_home,night,ORANGE);
-    node(flow,438,130,150,105,tr("Hálózat","Grid"),&s_grid,night,RED);
+    node(flow,28,55,165,90,tr("Napelem","Solar"),LV_SYMBOL_CHARGE,NULL,&s_pv,night,GREEN);
+    lv_obj_t *bat_node=node(flow,28,215,165,90,tr("Akkumulátor","Battery"),LV_SYMBOL_BATTERY_3,&s_bat_icon,&s_bat,night,BLUE);
+    node(flow,250,130,165,105,tr("Ház","Home"),LV_SYMBOL_HOME,NULL,&s_home,night,ORANGE);
+    node(flow,438,130,150,105,tr("Hálózat","Grid"),LV_SYMBOL_POWER,NULL,&s_grid,night,RED);
 
     s_battery_bar=lv_bar_create(bat_node);
     lv_obj_set_pos(s_battery_bar,8,65);
@@ -135,7 +248,8 @@ static void build_dashboard(bool night){
     lv_obj_set_size(s_status_card,295,114);
     card_style(s_status_card,night);
     lbl(s_status_card,tr("Rendszerállapot","System status"),0,0,&lv_font_montserrat_14,night?MUTED_DARK:MUTED_LIGHT);
-    s_status=lbl(s_status_card,"—",0,35,&lv_font_montserrat_20,GREEN);
+    s_status_icon=lbl(s_status_card,LV_SYMBOL_OK,0,38,&lv_font_montserrat_20,GREEN);
+    s_status=lbl(s_status_card,"—",34,35,&lv_font_montserrat_20,GREEN);
 
     lv_obj_t *batday=lv_obj_create(s_dash);
     lv_obj_set_pos(batday,655,306);
@@ -172,9 +286,27 @@ static void charts(const app_stats_snapshot_t *st){
     lv_chart_set_axis_range(s_chart1,LV_CHART_AXIS_PRIMARY_Y,0,(int32_t)lround(m1*1000));lv_chart_set_axis_range(s_chart2,LV_CHART_AXIS_PRIMARY_Y,(int32_t)lround(-m2*1000),(int32_t)lround(m2*1000));
     for(int i=0;i<APP_STATS_SLOT_COUNT;i++){int32_t none=LV_CHART_POINT_NONE;if(st->slots[i].valid){lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,(int32_t)lround(st->slots[i].pv_kw*1000));lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,(int32_t)lround(st->slots[i].load_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,(int32_t)lround(st->slots[i].grid_kw*1000));lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,(int32_t)lround(st->slots[i].battery_kw*1000));}else{lv_chart_set_series_value_by_id(s_chart1,s_pv_ser,i,none);lv_chart_set_series_value_by_id(s_chart1,s_load_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_grid_ser,i,none);lv_chart_set_series_value_by_id(s_chart2,s_bat_ser,i,none);}}lv_chart_refresh(s_chart1);lv_chart_refresh(s_chart2);
 }
-static const char *weather(const app_energy_sample_t *s){if(s->has_precipitation)return s->temperature_c<-4?tr("Hó","Snow"):tr("Eső","Rain");if(s->night_mode)return tr("Éjszaka","Night");if(s->has_sun_radiation)return tr("Napos","Sunny");if(s->power_pv_kw>1)return tr("Részben felhős","Partly cloudy");return tr("Felhős","Cloudy");}
+static weather_kind_t weather_kind(const app_energy_sample_t *s){
+    if(s->has_precipitation)return s->temperature_c<-4?WEATHER_SNOW:WEATHER_RAIN;
+    if(s->night_mode)return WEATHER_NIGHT;
+    if(s->has_sun_radiation)return WEATHER_SUNNY;
+    if(s->power_pv_kw>1)return WEATHER_PARTLY_CLOUDY;
+    return WEATHER_CLOUDY;
+}
 static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,float dt){
-    time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);char b[96],q[32];strftime(q,sizeof(q),"%H:%M",&tmv);lv_label_set_text(s_clock,q);if(hu())snprintf(q,sizeof(q),"%04d.%02d.%02d.",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);else snprintf(q,sizeof(q),"%04d-%02d-%02d",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);lv_label_set_text(s_date,q);char temp[16];fmt_dec(temp,sizeof(temp),s->temperature_c,1);snprintf(b,sizeof(b),"%s  %s °C  %d km/h",weather(s),temp,(int)lround(s->wind_speed_kmh));lv_label_set_text(s_weather,b);
+    time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);char b[96],q[32];
+    strftime(q,sizeof(q),"%H:%M",&tmv);lv_label_set_text(s_clock,q);
+    if(hu())snprintf(q,sizeof(q),"%04d.%02d.%02d.",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);
+    else snprintf(q,sizeof(q),"%04d-%02d-%02d",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);
+    lv_label_set_text(s_date,q);
+
+    weather_render(weather_kind(s),s->night_mode);
+    char temp[16];
+    fmt_dec(temp,sizeof(temp),s->temperature_c,1);
+    snprintf(b,sizeof(b),"%s °C",temp);
+    lv_label_set_text(s_weather_temp,b);
+    snprintf(b,sizeof(b),"%d km/h",(int)lround(s->wind_speed_kmh));
+    lv_label_set_text(s_wind_speed,b);
     fmt_power(q,sizeof(q),s->power_pv_kw);lv_label_set_text(s_pv,q);
     fmt_power(q,sizeof(q),s->power_full_kw);lv_label_set_text(s_home,q);
     fmt_power(q,sizeof(q),s->power_bat_kw);lv_label_set_text(s_bat,q);
@@ -186,7 +318,15 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     lv_obj_set_style_text_color(s_bt,c(bt_color),0);
 
     lv_bar_set_value(s_battery_bar,(int32_t)lround(s->soc_bat_pct),LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(s_battery_bar,c(battery_color(s->soc_bat_pct)),LV_PART_INDICATOR);
+    uint32_t soc_color=battery_color(s->soc_bat_pct);
+    lv_obj_set_style_bg_color(s_battery_bar,c(soc_color),LV_PART_INDICATOR);
+    lv_obj_set_style_text_color(s_bat_icon,c(soc_color),0);
+    lv_label_set_text(s_bat_icon,
+        s->soc_bat_pct>87.5?LV_SYMBOL_BATTERY_FULL:
+        s->soc_bat_pct>62.5?LV_SYMBOL_BATTERY_3:
+        s->soc_bat_pct>37.5?LV_SYMBOL_BATTERY_2:
+        s->soc_bat_pct>12.5?LV_SYMBOL_BATTERY_1:
+        LV_SYMBOL_BATTERY_EMPTY);
 
     fmt_pct(q,sizeof(q),s->soc_bat_pct);
     snprintf(b,sizeof(b),"SOC: %s",q);
@@ -225,6 +365,12 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
     uint32_t status_color=s->status==1?GREEN:s->status==2?ORANGE:s->status==3?BLUE:RED;
     lv_label_set_text(s_status,stxt);
     lv_obj_set_style_text_color(s_status,c(status_color),0);
+    lv_label_set_text(s_status_icon,
+        s->status==1?LV_SYMBOL_OK:
+        s->status==2?LV_SYMBOL_CHARGE:
+        s->status==3?LV_SYMBOL_POWER:
+        LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_color(s_status_icon,c(status_color),0);
     lv_obj_set_style_border_color(s_status_card,c(status_color),0);
     lv_obj_set_style_border_width(s_status_card,s->status==4?3:1,0);
 
