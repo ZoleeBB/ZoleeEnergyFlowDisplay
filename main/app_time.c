@@ -108,6 +108,13 @@ esp_err_t app_time_init(const app_config_t *cfg)
     esp_sntp_config_t sntp_cfg =
         ESP_NETIF_SNTP_DEFAULT_CONFIG(s_cfg.ntp_server);
 
+    /*
+     * Nem indítjuk el automatikusan az SNTP szolgáltatást az init során.
+     * Az első lekérést az app_time_sync_once() végzi, a későbbi kézi
+     * újraindításokat pedig a konfigurálható resync_hours ütemezi.
+     */
+    sntp_cfg.start = false;
+
     esp_err_t err = esp_netif_sntp_init(&sntp_cfg);
     if (err == ESP_OK) {
         s_initialized = true;

@@ -48,3 +48,8 @@ CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_API_ENCODING_UTF_8=y
 CONFIG_FATFS_MAX_LFN=128
 CONFIG_FATFS_FS_LOCK=4
+
+# Az lwIP saját automatikus SNTP periódusa szándékosan hosszabb a konfigurációban
+# engedélyezett maximális 7 napnál. A tényleges újraszinkront az alkalmazás
+# resync_hours beállítása vezérli, így az alapértelmezett 6 óra valóban érvényesül.
+CONFIG_LWIP_SNTP_UPDATE_DELAY=1209600000
