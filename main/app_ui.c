@@ -509,8 +509,8 @@ static lv_obj_t *metric_card(
 
     lv_obj_t *title_label=
         lbl(card,title,88,8,APP_FONT_14,night?TEXT_DARK:TEXT_LIGHT);
+    lv_label_set_long_mode(title_label,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(title_label,width-110);
-    lv_label_set_long_mode(title_label,LV_LABEL_LONG_DOT);
 
     lbl(
         card,
@@ -568,8 +568,8 @@ static lv_obj_t *summary_metric(
 
     lv_obj_t *title_label=
         lbl(segment,title,68,6,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    lv_label_set_long_mode(title_label,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(title_label,width-74);
-    lv_label_set_long_mode(title_label,LV_LABEL_LONG_DOT);
 
     s_metric[index]=
         lbl(segment,"-",68,29,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);
@@ -621,7 +621,7 @@ static void build_dashboard(bool night)
         APP_FONT_22,
         night?TEXT_DARK:TEXT_LIGHT);
     lv_obj_set_width(s_title,560);
-    lv_label_set_long_mode(s_title,LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(s_title,LV_LABEL_LONG_MODE_DOTS);
 
     lbl(
         header,
@@ -1226,8 +1226,8 @@ static void build_dashboard(bool night)
 
     s_status=
         lbl(s_status_card,"-",60,27,APP_FONT_16,GREEN);
+    lv_label_set_long_mode(s_status,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(s_status,205);
-    lv_label_set_long_mode(s_status,LV_LABEL_LONG_DOT);
 
     s_status_detail=
         lbl(
@@ -1237,8 +1237,8 @@ static void build_dashboard(bool night)
             51,
             APP_FONT_12,
             night?MUTED_DARK:MUTED_LIGHT);
+    lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(s_status_detail,205);
-    lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_DOT);
 
     /*
      * Az U+0171 (ű) az egyetlen szükséges magyar karakter, amely nincs benne
