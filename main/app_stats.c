@@ -32,7 +32,7 @@
 
 #define STATS_DIR APP_SD_MOUNT_POINT "/stats"
 #define STATS_FILE_MAX (512 * 1024)
-#define STATS_VERSION 1
+#define STATS_VERSION 2
 
 static const char *TAG = "stats";
 
@@ -207,6 +207,8 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     slot->load_kw += ((float)sample->power_full_kw - slot->load_kw) / n;
     slot->grid_kw += ((float)sample->power_grid_kw - slot->grid_kw) / n;
     slot->battery_kw += ((float)sample->power_bat_kw - slot->battery_kw) / n;
+    app_energy_split_average(&slot->split,app_energy_split(sample->power_pv_kw,
+        sample->power_full_kw,sample->power_bat_kw),n);
     slot->valid = true;
 }
 
@@ -354,6 +356,12 @@ static cJSON *day_to_json(const day_data_t *day)
         cJSON_AddNumberToObject(obj, "grid", slot->grid_kw);
         cJSON_AddNumberToObject(obj, "battery", slot->battery_kw);
         cJSON_AddItemToObject(obj, "energy", totals_to_json(&slot->energy));
+        cJSON_AddBoolToObject(obj,"chart_gap",slot->chart_gap);
+        cJSON *split=cJSON_AddObjectToObject(obj,"split");
+#define SAVE_SPLIT(field) cJSON_AddNumberToObject(split,#field,slot->split.field)
+        SAVE_SPLIT(pv_home); SAVE_SPLIT(pv_export); SAVE_SPLIT(pv_stored);
+        SAVE_SPLIT(grid_home); SAVE_SPLIT(battery_home);
+#undef SAVE_SPLIT
         cJSON_AddItemToArray(slots, obj);
     }
 
@@ -374,7 +382,7 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     cJSON *slots = cJSON_GetObjectItemCaseSensitive(root, "slots");
 
     if (!cJSON_IsNumber(version) ||
-        version->valuedouble != STATS_VERSION ||
+        (version->valuedouble != 1 && version->valuedouble != STATS_VERSION) ||
         !cJSON_IsString(date) ||
         strcmp(date->valuestring, expected_date) != 0 ||
         !cJSON_IsArray(slots) ||
@@ -427,6 +435,26 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
         parsed->slots[i].load_kw = (float)load->valuedouble;
         parsed->slots[i].grid_kw = (float)grid->valuedouble;
         parsed->slots[i].battery_kw = (float)battery->valuedouble;
+        app_stats_slot_t *slot=&parsed->slots[i];
+        if(version->valuedouble==1){
+            /* Régi fájlokból csak az átlagok szerinti közelítés lehetséges. */
+            slot->split=app_energy_split(slot->pv_kw,slot->load_kw,slot->battery_kw);
+        }else{
+            cJSON *gap=cJSON_GetObjectItemCaseSensitive(obj,"chart_gap");
+            cJSON *split=cJSON_GetObjectItemCaseSensitive(obj,"split");
+            if(!cJSON_IsBool(gap) || !cJSON_IsObject(split))goto invalid;
+            slot->chart_gap=cJSON_IsTrue(gap);
+#define LOAD_SPLIT(field) do { \
+    cJSON *v=cJSON_GetObjectItemCaseSensitive(split,#field); \
+    if(!cJSON_IsNumber(v) || !isfinite(v->valuedouble) || v->valuedouble<0 || v->valuedouble>15)goto invalid; \
+    slot->split.field=(float)v->valuedouble; \
+} while(0)
+            LOAD_SPLIT(pv_home); LOAD_SPLIT(pv_export); LOAD_SPLIT(pv_stored);
+            LOAD_SPLIT(grid_home); LOAD_SPLIT(battery_home);
+#undef LOAD_SPLIT
+            if(fabs(slot->split.pv_home+slot->split.pv_export+slot->split.pv_stored-slot->pv_kw)>.001 ||
+               fabs(slot->split.pv_home+slot->split.grid_home+slot->split.battery_home-slot->load_kw)>.001)goto invalid;
+        }
     }
 
     /* A teljes napi energia és a slotok összege nem mondhat ellent egymásnak. */
@@ -804,7 +832,21 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
     roll_day(now);
-    if(s_have_prev)integrate_pair(&s_prev,sample);
+    if(s_have_prev){
+        integrate_pair(&s_prev,sample);
+        int64_t gap=sample->received_epoch_s-s_prev.received_epoch_s;
+        if(gap>(int64_t)app_config_data_timeout(&s_cfg)){
+            /* Az érintett ötperces ablakok kimaradnak; nem lesz kitalált összekötés. */
+            int64_t cursor=s_prev.received_epoch_s;
+            if(now-cursor>2*86400)cursor=now-2*86400;
+            while(cursor<=now){
+                day_data_t *missing=day_for((time_t)cursor);
+                if(missing){missing->slots[slot_for((time_t)cursor)].chart_gap=true;missing->revision++;}
+                struct tm tmv;time_t epoch=(time_t)cursor;localtime_r(&epoch,&tmv);
+                cursor+=300-(tmv.tm_min%5)*60-tmv.tm_sec;
+            }
+        }
+    }
     day_data_t *day=day_for(now);
     if(day){
         slot_average_add(&day->slots[slot_for(now)],sample);

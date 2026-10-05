@@ -102,3 +102,7 @@ A `main` ágra merge-ölt PR automatikusan új, eggyel növelt patch-verziójú 
 A GitHubon kézzel publikált release és prerelease automatikusan teljes tesztet és ESP32-P4 firmware-buildet indít. A tag például `v1.2.0` vagy `v1.2.0-rc.1`; ez jelenik meg firmware-verzióként is. Az elkészült release `-ota.bin` fájlja közvetlenül az eszköz `/update` oldalára tölthető, a `-usb.zip` az első USB-s telepítő. Részletek: [release útmutató](docs/releases.md).
 
 A konfiguráció gyökerében a `DataReceptMode` választható: `mqtt` (alapérték) vagy `http`. HTTP módban a `POST /api/energy` teljes JSON csomagot fogad, hitelesítés nélkül; MQTT broker nem szükséges. [Loxone 17.x bekötés és Pico C minta](docs/http-input.md), [teljes HTTP konfiguráció](examples/config.http.sample.json).
+
+## UI kipróbálása eszköz nélkül, Visual Studio 2026 alatt
+
+Nyisd meg a projekt gyökérmappáját, válaszd a **Windows UI demo (Debug, x64)** konfigurációt és a **zolee_simulator.exe** indítási célt, majd **F5**. A valódi kijelzőfelület 5 másodpercenként demó JSON-csomagot kap. [Telepítés, billentyűk, hibakeresés](docs/simulator.md).

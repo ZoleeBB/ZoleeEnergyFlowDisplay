@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-demo-debug",
+      "displayName": "Windows UI demo (Debug, x64)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": { "ZOLEE_SIMULATOR": "ON", "CMAKE_BUILD_TYPE": "Debug" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    }
+  ],
+  "buildPresets": [{ "name": "windows-demo-debug", "configurePreset": "windows-demo-debug" }],
+  "testPresets": [{ "name": "windows-demo-debug", "configurePreset": "windows-demo-debug", "output": { "outputOnFailure": true } }]
+}

@@ -1,6 +1,14 @@
 # Minimális CMake verzió az ESP-IDF projektkonfigurációhoz.
 cmake_minimum_required(VERSION 3.16)
 
+option(ZOLEE_SIMULATOR "Build the desktop UI simulator instead of ESP firmware" OFF)
+if(ZOLEE_SIMULATOR)
+    project(zolee_desktop C CXX)
+    enable_testing()
+    add_subdirectory(simulator)
+    return()
+endif()
+
 # Az ESP-IDF szabványos projekt-CMake rendszerének betöltése.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 

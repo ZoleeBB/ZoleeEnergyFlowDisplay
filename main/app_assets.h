@@ -40,3 +40,7 @@ extern const lv_image_dsc_t app_img_mqtt_off;
 extern const lv_image_dsc_t app_img_waiting_data;
 extern const lv_image_dsc_t app_img_timeout;
 
+
+
+LV_IMAGE_DECLARE(app_img_grid_import);
+LV_IMAGE_DECLARE(app_img_grid_export);

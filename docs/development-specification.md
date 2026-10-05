@@ -2178,3 +2178,67 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - [Loxone virtuális be- és kimenetek](https://www.loxone.com/enen/kb/virtual-inputs-outputs/): HTTP virtuális kimenetek.
 - [FlexumShare gyártói integráció a Loxone Libraryben, 7. oldal](https://api.library.loxone.com/downloader/file/2733/Instruction%20Live-Data_FlexumShare%20platform_V1.1.pdf): POST, JSON header, `<v>` body beállítás. A jelen projekt adatfogadása a felhasználó döntése szerint nem kér API-kulcsot.
 - Felhasználói döntések: 2026-10-05; Miniserver Gen 2 / 17.x, kizárólag POST, hitelesítés nélkül, 5 másodperces küldés, 30 másodperces timeout, OTA-nál nem feltétel mérési csomag.
+
+## Asztali UI-szimulátor és demó adatforrás
+
+- Windows x64 / Visual Studio Professional 2026, CMake Debug konfiguráció és F5 indítás, fizikai kijelző nélkül.
+- A firmware tényleges LVGL UI-ja, grafikonjai, ikon- és fontállományai futnak; külön rajzolt UI-másolat nem elfogadható.
+- Induláskor egy teljes demó JSON-csomag, majd 5 másodperces ciklus; közös ingest, payload-validáció és állapottárolás használata.
+- Demó forgatókönyvek: hálózati import/export, akkumulátortöltés/merítés, nappal/éjszaka, eső/hó, státuszok és akkumulátor-hőmérsékleti színváltások. Valódi UI-animáció és irány/szín logika.
+- Előre feltöltött, egyértelműen demó grafikonok és tegnapi összehasonlítás; memóriában frissülő statisztika, valódi SD-adatok módosítása nélkül.
+- Adatküldés szüneteltethető; 30 másodperc után HTTP-adathiány képernyő, érvényes új csomagnál automatikus helyreállás.
+- A demó külön asztali buildcél, firmware-ben soha nem kapcsol be automatikusan a Debug beállítástól.
+- Windows MSVC CI-fordítás és headless állapot/render regresszió. Részletes használat: `docs/simulator.md`.
+
+### UI-finomítások: villogásmentes asztali megjelenítés, függőleges SOC
+
+- A szimulátor frissítés közben nem törölheti feketére a látható ablakot; teljes képet memóriában összeállítva kell megjelenítenie, átméretezéskor is megtartva a képarányt.
+- Az akkumulátor SOC-sávja az ikon bal oldalába illesztve, a körön belül függőleges, alulról felfelé töltődik; 0–100% tartomány és a meglévő SOC-színküszöbök maradnak. Ez a firmware és az asztali szimulátor közös UI-eleme.
+
+- Pontosított SOC-elhelyezés a felhasználó piros jelölése alapján: a kör tartalmához képest x=24, y=23, 4×46 pixel; a sáv az akkumulátor testén belül, a villámtól balra helyezkedik el.
+
+### Önálló napi akkumulátorkártya
+
+- Az energiaáramlás alatt külön, azonos szélességű (490 px) kártya: „Akku infó – ma” / „Battery info – today”, akkumulátor + információjel kompozit ikonnal. A kártyák között 12 px térköz.
+- Két egyenlő oszlopban a napi összesített töltés és kisütés (kWh), nagyobb értékfelirattal és a meglévő tegnapi összehasonlítással. A SOC, pillanatnyi teljesítmény és hőmérséklet csak az áramlásábrán marad.
+- SOC-sáv: 20% alatt piros; 20–50% között, a határokat beleértve narancssárga; 50% felett zöld. Az éjszakai árnyalat ezeknek a színeknek a tompított változata.
+
+### Véglegesített kompakt akkukártya és szimmetrikus áramlásábra
+
+- Az akkukártya 490×64 px, bal oldalon nagyobb akkumulátor/információ ikonnal, mellette két adatoszloppal. Külön kártyacím nincs. Feliratok: „Össz. töltés ma”, „Össz. leadás ma” (EN: „Charged today”, „Discharged today”). Napi kWh és tegnapi összehasonlítás megmarad.
+- Energiaáramlás-kártya: 490×492 px. A négy összekötő szakasz egyformán 64 px hosszú; a hub és a négy energiacsomópont középpontjának távolsága 145 px. A kártyák között 12 px térköz. Ezek a méretek és feliratok felülírják a korábbi, magasabb akkukártya elrendezését.
+
+### Összehasonlítások, irányikonok és függőleges igazítás
+
+- A napi akkukártyán mindkét érték jobb oldalán jelenik meg az előző nap azonos lezárt időszakához tartozó százalékos összehasonlítás. Hiányzó vagy nulla tegnapi viszonyítási alap esetén „—” jelzés, nem üres hely.
+- Külön PNG ikon a hálózati vételezéshez (narancssárga nyíl: hálózat → ház) és visszatápláláshoz (zöld nyíl: ház → hálózat).
+- A bal oldali négy csempe ikonja és teljes szövegblokkja a saját kártyamagassághoz viszonyítva függőlegesen középre igazított.
+- A fejléc dátuma, időjárásikonja és hőmérséklete, szélikonja és szélsebessége, valamint órája közös függőleges középvonalon helyezkedik el.
+- Az alsó teljes szélességű összefoglaló függőleges elválasztó vonalai megszűnnek; a mezők pozíciói változatlanok.
+
+### Státusz, összefoglaló és szélriasztás finomítása
+
+- Az alsó összefoglaló szövegblokkjai függőlegesen középre igazítottak; az összes ikon, a státuszt is beleértve, azonos középvonalon, 54 px körháttéren jelenik meg.
+- A státuszmezőnek egyik állapotban sincs kerete. Az ikon halvány körháttere normál esetben zöld, áramszünetre felkészüléskor narancs, szigetüzemben kék, hiba esetén piros; éjszaka tompított árnyalatokkal.
+- Bal oldali ikonhátterek: termelés és visszatáplálás halvány zöld, fogyasztás halvány citromsárga, hálózati vételezés halvány narancs.
+- A termelés/fogyasztás grafikon jelmagyarázatában a teljes „Fogyasztás” felirat szerepel.
+- A fejléc szélsebessége 35 km/h felett félkövér narancssárga, 50 km/h felett félkövér piros. Pontosan 35-nél normál, pontosan 50-nél narancssárga; csökkenéskor az alapstílus visszaáll. A küszöbvizsgálat a kerekítetlen beérkező értékkel történik.
+
+### Beégetett programnév a fejlécben
+
+- A projektcím és a dátum közötti területen kétsoros, középre igazított „Zolee Energy” / „Folow Monitor” felirat jelenik meg, a kért név pontos írásmódjával.
+- Saját, beégetett 18 px félkövér dőlt betűkészlet, nappal mélykék, éjszaka világosabb kék színnel. A név nem konfigurálható és nem változik a nyelvválasztással.
+- A konfigurálható projektcím külön megmarad; szélessége korlátozott, hogy ne fedhesse a programnevet.
+
+### Jóváhagyott termelési és fogyasztási forrásdiagramok
+
+Ez a fejezet felülírja a korábbi kétgörbés, illetve előjeles hálózat/akku diagramleírást.
+
+- Felső kártya: „Termelés”. Halmozott területek alulról: zöld „Saját fogyasztás”, narancs „Visszatáplálás”, kék „Tárolt”. Összmagasságuk a PV teljesítménye.
+- Alsó kártya: „Fogyasztás”. Halmozott területek alulról: piros „Hálózat”, zöld „Termelés”, kék „Tároló”. Összmagasságuk a ház teljesítményigénye.
+- Mindkét kártyán áttetsző kitöltések, külön jelmagyarázatsor, 00:00–24:00 időtengely, nemnegatív automatikus kW-skála. Külön kWh és százalékos összesítések nem kellenek. A jövő üres.
+- Adatkimaradáskor nincs nullával helyettesítés vagy átkötés. A konfigurált adat-timeoutnál hosszabb mintaköz érintett ötperces ablakai hézagként jelennek meg; ez az ötperces felbontás miatt a tényleges kimaradásnál szélesebb lehet.
+- Az akkumulátor hálózatról tölthető (felkészülés), de nem exportálhat. A PV elsősorban a házat szolgálja ki; a maradékból akkutöltés és visszatáplálás történik. A hálózati akkutöltés egyik diagramon sem házfogyasztás vagy PV-tárolás.
+- Számítás minden beérkező mintán, ötperces átlagolás ELŐTT: PV→ház=min(PV,ház); PV→akku=min(PV−PV→ház,max(−PowerBat,0)); PV→hálózat=PV−PV→ház−PV→akku; akku→ház=min(ház−PV→ház,max(PowerBat,0)); hálózat→ház=ház−PV→ház−akku→ház. Minden rész nemnegatív. A felosztás a jóváhagyott prioritás szerinti becslés; az összesített mérésekből a tényleges belső útvonalak nem mérhetők külön. A napi import/export kártyák továbbra is a mért PowerGrid alapján számolnak.
+- SD statisztika v2: az öt komponens átlaga és a hézagjelölő is mentendő. V1 beolvasása támogatott; régi adatoknál csak az eltárolt nyers átlagokból becsülhető a felosztás, a korábbi irányváltások nem rekonstruálhatók.
+- Programcím: első sor csak „Zolee”, 20 px félkövér dőlt; második sor „Energy Folow Monitor”, 16 px félkövér dőlt. Beégetett, középre igazított, a korábban elfogadott kék nappali/éjszakai színnel.

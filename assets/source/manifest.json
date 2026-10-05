@@ -206,5 +206,15 @@
     "source": "timeout.png",
     "origin": "imagegen-2026-10-05",
     "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Amber clock face with dark orange hands at about 4 o'clock, small red exclamation at lower right."
+  },
+  {
+    "name": "metric_grid_import",
+    "source": "metric_grid_import.png",
+    "origin": "imagegen: blue pylon left, house right; orange arrow toward house for import, green arrow toward pylon for export; transparent glossy dashboard icon"
+  },
+  {
+    "name": "metric_grid_export",
+    "source": "metric_grid_export.png",
+    "origin": "imagegen: blue pylon left, house right; orange arrow toward house for import, green arrow toward pylon for export; transparent glossy dashboard icon"
   }
 ]
