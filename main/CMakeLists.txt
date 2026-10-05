@@ -30,16 +30,7 @@ set(app_png_files
     "assets/png/wifi_off.png"
     "assets/png/wind.png"
 )
-set(asset_sizes_header "${CMAKE_CURRENT_BINARY_DIR}/app_asset_sizes.h")
-file(WRITE "${asset_sizes_header}" "/* Generated from PNG file sizes. */\n#pragma once\n")
-foreach(png IN LISTS app_png_files)
-    set(png_path "${CMAKE_CURRENT_SOURCE_DIR}/${png}")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${png_path}")
-    file(SIZE "${png_path}" png_size)
-    get_filename_component(png_name "${png}" NAME_WE)
-    string(TOUPPER "${png_name}" png_name)
-    file(APPEND "${asset_sizes_header}" "#define APP_PNG_${png_name}_SIZE ${png_size}U\n")
-endforeach()
+
 
 # Az alkalmazás saját ESP-IDF komponense.
 idf_component_register(
@@ -73,6 +64,19 @@ idf_component_register(
         mqtt
         nvs_flash
 )
+
+# Az ESP-IDF korai függőségvizsgálata az idf_component_register() hívásnál
+# visszatér. Fájlműveleteket csak a rendes konfigurálási fázisban végzünk.
+set(asset_sizes_header "${CMAKE_CURRENT_BINARY_DIR}/app_asset_sizes.h")
+file(WRITE "${asset_sizes_header}" "/* Generated from PNG file sizes. */\n#pragma once\n")
+foreach(png IN LISTS app_png_files)
+    set(png_path "${CMAKE_CURRENT_LIST_DIR}/${png}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${png_path}")
+    file(SIZE "${png_path}" png_size)
+    get_filename_component(png_name "${png}" NAME_WE)
+    string(TOUPPER "${png_name}" png_name)
+    file(APPEND "${asset_sizes_header}" "#define APP_PNG_${png_name}_SIZE ${png_size}U\n")
+endforeach()
 
 # A figyelmeztetéseket megtartjuk, de a régi, egysoros kódrészek formázási
 # figyelmeztetései egyelőre ne állítsák meg a buildet.

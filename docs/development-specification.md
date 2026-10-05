@@ -1987,10 +1987,10 @@ Vizuálisan akkor tekinthető késznek, ha:
 A hátralévő munka prioritása:
 
 1. build stabilitás;
-2. assetek teljes PNG minőségűre cserélése;
+2. az elkészült, 29 ikonos PNG-készlet hardveres vizuális ellenőrzése;
 3. dashboard pixel- és layoutfinomítás;
 4. második grafikon nullavonalra töltött gradient fill;
-5. összes státusz- és hibaikon végleges assetre cserélése;
+5. az új státusz- és hibaikonok ellenőrzése a tényleges üzemállapotokban;
 6. HU/EN végső audit;
 7. parser/statisztika automatizált tesztek;
 8. hardveres első flash;
