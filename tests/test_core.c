@@ -153,9 +153,12 @@ static void test_tmp_and_backup(void){
     assert(rename(APP_SD_MOUNT_POINT "/stats/2026-10-05.json",APP_SD_MOUNT_POINT "/stats/2026-10-05.json.tmp")==0);
     assert(rename(APP_SD_MOUNT_POINT "/stats/2026-10-05.json.bak",APP_SD_MOUNT_POINT "/stats/2026-10-05.json")==0);
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,70./3600);
+    /* Recovery already promoted tmp, so another power loss cannot lose it. */
+    d=read_json("2026-10-05");near(total(d),70./3600);cJSON_Delete(d);
+    assert(access(APP_SD_MOUNT_POINT "/stats/2026-10-05.json.tmp",F_OK)!=0);
     assert(app_stats_save_now()==ESP_OK);
     FILE *f=fopen(APP_SD_MOUNT_POINT "/stats/2026-10-05.json","wb");assert(f);fputs("corrupt",f);fclose(f);
-    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,35./3600);tests++;
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,70./3600);tests++;
 }
 static void test_corrupt_schema(void){
     for(int scenario=0;scenario<4;scenario++){

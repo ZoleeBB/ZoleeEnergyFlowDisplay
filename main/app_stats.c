@@ -522,8 +522,15 @@ static esp_err_t load_day(const char *date,day_data_t *out)
     free(candidate);
     if(!found)return error;
     if(selected!=0){
-        /* A helyreállított RAM-példányt a mentőtask újra tartós főfájlba írja. */
-        out->saved_revision=out->revision-1;
+        /* Promote before any later save can truncate .tmp. The selected valid
+         * candidate remains intact even if removing/replacing main fails. */
+        if (selected == 1) {
+            /* Keep the previous main as fallback; never touch the winning tmp. */
+            if (remove(paths[2]) != 0 && errno != ENOENT) return ESP_FAIL;
+            if (rename(paths[0], paths[2]) != 0 && errno != ENOENT) return ESP_FAIL;
+        } else if (remove(paths[0]) != 0 && errno != ENOENT) return ESP_FAIL;
+        if (rename(paths[selected], paths[0]) != 0) return ESP_FAIL;
+        out->saved_revision=out->revision;
         app_events_add(APP_EVENT_WARNING,"Statisztika helyreállítva: %s",date);
     }
     return ESP_OK;

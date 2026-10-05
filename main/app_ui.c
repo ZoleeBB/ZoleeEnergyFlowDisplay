@@ -1702,7 +1702,7 @@ void app_ui_show_boot(
     for(int i=0;i<6;i++){
         int y=300+i*57;
 
-        if(i<stage){
+        if(i<(int)stage){
             asset_image_box(
                 s_screen,
                 52,
@@ -1711,7 +1711,7 @@ void app_ui_show_boot(
                 30,
                 &app_img_status_normal,
                 false);
-        }else if(i==stage){
+        }else if(i==(int)stage){
             asset_image_box(
                 s_screen,
                 52,
@@ -1738,7 +1738,7 @@ void app_ui_show_boot(
             98,
             y+5,
             APP_FONT_18,
-            i<stage?GREEN:i==stage?ORANGE:GRAY);
+            i<(int)stage?GREEN:i==(int)stage?ORANGE:GRAY);
     }
 
     bsp_display_unlock();

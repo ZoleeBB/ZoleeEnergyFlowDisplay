@@ -77,6 +77,11 @@ Ha nincs tegnapi adat, az összehasonlítás nem jelenik meg. Ha a tegnapi refer
 
 A RAM-ban gyűjtött statisztika alapértelmezés szerint 60 percenként kerül SD-re.
 
-A mentés ideiglenes fájllal és biztonsági cserével történik. Induláskor a firmware szükség esetén a biztonsági fájlból próbál helyreállni.
+A mentés `.tmp` fájl, `fflush`/`fsync` és `.bak` biztonsági csere használatával történik. Induláskor a fő-, ideiglenes és biztonsági fájl közül a legnagyobb érvényes `revision` értékű állapot nyer; a régi v1 fájlok revision nélkül is olvashatók. A helyreállított fájl a következő mentés előtt főfájllá válik. A betöltés ellenőrzi a mintaszámokat, teljesítménytartományokat, a slot- és napi energiaösszegek egyezését, valamint a teljes JSON dokumentumot.
+
+Az SD I/O külön zárolást használ: a statisztikai állapot zárolása csak a RAM-másolat készítéséig tart. Az MQTT-feldolgozás mentés közben is folytatódhat. Napváltáskor az előző mintát megtartjuk, így a háttértask és az MQTT-esemény sorrendjétől függetlenül pontos az éjféli integrálás. SD-helyreállítás után a mai és tegnapi RAM-állapot egyaránt mentésre kerül.
+
+A kártya jelenlétét a firmware 5 másodpercenként SDMMC státuszparanccsal vizsgálja, írás nélkül; sikertelenség után 60 másodpercenként próbál újracsatlakozni.
 
 A rendszer csak a mai és a tegnapi statisztikai napot tartja meg.
+
