@@ -2207,3 +2207,11 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 
 - Az akkukártya 490×64 px, bal oldalon nagyobb akkumulátor/információ ikonnal, mellette két adatoszloppal. Külön kártyacím nincs. Feliratok: „Össz. töltés ma”, „Össz. leadás ma” (EN: „Charged today”, „Discharged today”). Napi kWh és tegnapi összehasonlítás megmarad.
 - Energiaáramlás-kártya: 490×492 px. A négy összekötő szakasz egyformán 64 px hosszú; a hub és a négy energiacsomópont középpontjának távolsága 145 px. A kártyák között 12 px térköz. Ezek a méretek és feliratok felülírják a korábbi, magasabb akkukártya elrendezését.
+
+### Összehasonlítások, irányikonok és függőleges igazítás
+
+- A napi akkukártyán mindkét érték jobb oldalán jelenik meg az előző nap azonos lezárt időszakához tartozó százalékos összehasonlítás. Hiányzó vagy nulla tegnapi viszonyítási alap esetén „—” jelzés, nem üres hely.
+- Külön PNG ikon a hálózati vételezéshez (narancssárga nyíl: hálózat → ház) és visszatápláláshoz (zöld nyíl: ház → hálózat).
+- A bal oldali négy csempe ikonja és teljes szövegblokkja a saját kártyamagassághoz viszonyítva függőlegesen középre igazított.
+- A fejléc dátuma, időjárásikonja és hőmérséklete, szélikonja és szélsebessége, valamint órája közös függőleges középvonalon helyezkedik el.
+- Az alsó teljes szélességű összefoglaló függőleges elválasztó vonalai megszűnnek; a mezők pozíciói változatlanok.

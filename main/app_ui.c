@@ -326,7 +326,7 @@ static lv_obj_t *icon_bubble(
         0,
         0,
         size,
-        size-12,
+        (asset==&app_img_grid_import || asset==&app_img_grid_export)?size:size-12,
         asset,
         night);
 
@@ -436,40 +436,42 @@ static lv_obj_t *metric_card(
     lv_obj_set_pos(card,x,y);
     lv_obj_set_size(card,width,height);
     card_style(card,night);
+    lv_obj_set_style_pad_all(card,0,0);
+    const int top=(height-(91+APP_FONT_12->line_height))/2;
 
     icon_bubble(
         card,
-        10,
-        25,
+        23,
+        (height-64)/2,
         64,
         asset,
         night,
         accent);
 
     lv_obj_t *title_label=
-        lbl(card,title,88,8,APP_FONT_14,night?TEXT_DARK:TEXT_LIGHT);
+        lbl(card,title,101,top,APP_FONT_14,night?TEXT_DARK:TEXT_LIGHT);
     lv_label_set_long_mode(title_label,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(title_label,width-110);
 
     lbl(
         card,
         tr("Ma összesen","Today total"),
-        88,
-        27,
+        101,
+        top+19,
         APP_FONT_12,
         night?MUTED_DARK:MUTED_LIGHT);
 
     s_metric[index]=
-        lbl(card,"-",88,45,APP_FONT_28,night?TEXT_DARK:TEXT_LIGHT);
+        lbl(card,"-",101,top+37,APP_FONT_28,night?TEXT_DARK:TEXT_LIGHT);
 
     s_cmp[index]=
-        lbl(card,"",88,79,APP_FONT_14,GREEN);
+        lbl(card,"",101,top+71,APP_FONT_14,GREEN);
 
     s_cmp_note[index]=lbl(
         card,
         tr("tegnaphoz képest","vs yesterday"),
-        88,
-        99,
+        101,
+        top+91,
         APP_FONT_12,
         night?MUTED_DARK:MUTED_LIGHT);
 
@@ -594,7 +596,7 @@ static void build_dashboard(bool night)
         APP_FONT_16,
         night?TEXT_DARK:TEXT_LIGHT);
 
-    asset_image_box(
+    lv_obj_t *wind_icon=asset_image_box(
         header,
         985,
         8,
@@ -619,6 +621,15 @@ static void build_dashboard(bool night)
         APP_FONT_28,
         night?TEXT_DARK:TEXT_LIGHT);
 
+    /* A szövegek tényleges magassága alapján középre igazítunk.
+     * A kép saját dobozát igazítjuk, így a PNG középpontja is ugyanott van. */
+    lv_obj_align(s_date,LV_ALIGN_LEFT_MID,675,0);
+    lv_obj_align(s_weather_temp,LV_ALIGN_LEFT_MID,900,0);
+    lv_obj_align(s_wind_speed,LV_ALIGN_LEFT_MID,1020,0);
+    lv_obj_align(s_clock,LV_ALIGN_LEFT_MID,1125,0);
+    lv_obj_align(lv_obj_get_parent(s_weather_icon),LV_ALIGN_LEFT_MID,850,0);
+    lv_obj_align(lv_obj_get_parent(wind_icon),LV_ALIGN_LEFT_MID,985,0);
+
     /*
      * Bal oldali napi kártyák: az eredeti mockup nagy, ikonközpontú
      * összefoglaló kártyáinak szerkezete.
@@ -638,13 +649,13 @@ static void build_dashboard(bool night)
     metric_card(
         s_dash,20,366,300,132,
         tr("Hálózati vételezés","Grid import"),
-        &app_img_grid_metric,
+        &app_img_grid_import,
         2,night,BLUE);
 
     metric_card(
         s_dash,20,508,300,142,
         tr("Visszatáplálás","Grid export"),
-        &app_img_grid_metric,
+        &app_img_grid_export,
         3,night,BLUE);
 
     /*
@@ -858,8 +869,10 @@ static void build_dashboard(bool night)
     lbl(battery_detail,tr("Össz. leadás ma","Discharged today"),288,7,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
     s_bat_charge=lbl(battery_detail,"",80,23,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);
     s_bat_discharge=lbl(battery_detail,"",288,23,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);
-    s_bat_charge_cmp=lbl(battery_detail,"",80,46,APP_FONT_12,GREEN);
-    s_bat_discharge_cmp=lbl(battery_detail,"",288,46,APP_FONT_12,GREEN);
+    s_bat_charge_cmp=lbl(battery_detail,"—",174,18,APP_FONT_12,GREEN);
+    s_bat_discharge_cmp=lbl(battery_detail,"—",386,18,APP_FONT_12,GREEN);
+    lbl(battery_detail,tr("tegnaphoz","vs yesterday"),174,35,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    lbl(battery_detail,tr("tegnaphoz","vs yesterday"),386,35,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
 
     /*
      * Jobb oldali két grafikon egymás alatt, az eredeti mockup szerint.
@@ -1039,20 +1052,7 @@ static void build_dashboard(bool night)
         &app_img_bulb,
         7,night,ORANGE);
 
-    /* Finom elválasztók az alsó sáv szegmensei között. */
-    for(int i=1;i<=4;i++){
-        int x=i<4?i*236:944;
-        shape(
-            summary,
-            x,
-            10,
-            1,
-            76,
-            night?0x2D3531:0xE0E5E7,
-            0);
-    }
-
-    s_status_card=lv_obj_create(summary);
+        s_status_card=lv_obj_create(summary);
     lv_obj_set_pos(s_status_card,944,0);
     lv_obj_set_size(s_status_card,280,92);
     lv_obj_set_style_bg_opa(s_status_card,LV_OPA_TRANSP,0);
@@ -1408,23 +1408,23 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
             st->has_yesterday);
     }fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->completed_interval_totals),self(&st->yesterday_completed_interval_totals),st->has_yesterday);
     fmt_kwh(q,sizeof(q),st->totals.battery_charge_kwh);
-    fit_text(s_bat_charge,q,180,APP_FONT_20);
+    fit_text(s_bat_charge,q,88,APP_FONT_20);
     fmt_kwh(q,sizeof(q),st->totals.battery_discharge_kwh);
-    fit_text(s_bat_discharge,q,180,APP_FONT_20);
+    fit_text(s_bat_discharge,q,92,APP_FONT_20);
 
     /* A tegnapi összehasonlítást csak akkor mutatjuk, ha tényleges tegnapi adat létezik. */
     if(st->has_yesterday){
         fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh);
-        snprintf(b,sizeof(b),"%s %s",q,tr("tegnaphoz","vs yesterday"));
-        fit_text(s_bat_charge_cmp,strcmp(q,"—")==0?"":b,180,APP_FONT_12);
+        fit_text(s_bat_charge_cmp,q,94,APP_FONT_12);
         lv_obj_set_style_text_color(s_bat_charge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh),s->night_mode)),0);
         fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh);
-        snprintf(b,sizeof(b),"%s %s",q,tr("tegnaphoz","vs yesterday"));
-        fit_text(s_bat_discharge_cmp,strcmp(q,"—")==0?"":b,180,APP_FONT_12);
+        fit_text(s_bat_discharge_cmp,q,94,APP_FONT_12);
         lv_obj_set_style_text_color(s_bat_discharge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh),s->night_mode)),0);
     }else{
-        lv_label_set_text(s_bat_charge_cmp,"");
-        lv_label_set_text(s_bat_discharge_cmp,"");
+        lv_label_set_text(s_bat_charge_cmp,"—");
+        lv_obj_set_style_text_color(s_bat_charge_cmp,c(tone(GRAY,s->night_mode)),0);
+        lv_label_set_text(s_bat_discharge_cmp,"—");
+        lv_obj_set_style_text_color(s_bat_discharge_cmp,c(tone(GRAY,s->night_mode)),0);
     }
 
     const char *stxt;
