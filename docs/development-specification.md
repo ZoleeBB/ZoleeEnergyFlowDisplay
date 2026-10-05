@@ -2196,3 +2196,9 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - Az akkumulátor SOC-sávja az ikon bal oldalába illesztve, a körön belül függőleges, alulról felfelé töltődik; 0–100% tartomány és a meglévő SOC-színküszöbök maradnak. Ez a firmware és az asztali szimulátor közös UI-eleme.
 
 - Pontosított SOC-elhelyezés a felhasználó piros jelölése alapján: a kör tartalmához képest x=24, y=23, 4×46 pixel; a sáv az akkumulátor testén belül, a villámtól balra helyezkedik el.
+
+### Önálló napi akkumulátorkártya
+
+- Az energiaáramlás alatt külön, azonos szélességű (490 px) kártya: „Akku infó – ma” / „Battery info – today”, akkumulátor + információjel kompozit ikonnal. A kártyák között 12 px térköz.
+- Két egyenlő oszlopban a napi összesített töltés és kisütés (kWh), nagyobb értékfelirattal és a meglévő tegnapi összehasonlítással. A SOC, pillanatnyi teljesítmény és hőmérséklet csak az áramlásábrán marad.
+- SOC-sáv: 20% alatt piros; 20–50% között, a határokat beleértve narancssárga; 50% felett zöld. Az éjszakai árnyalat ezeknek a színeknek a tompított változata.

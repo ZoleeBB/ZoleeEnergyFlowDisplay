@@ -155,6 +155,18 @@ static void init_demo(void)
 }
 static int self_test(void)
 {
+    /* A határértékeken is a tényleges sáv indikátorszínét ellenőrizzük. */
+    const double levels[]={0,19.9,20,50,50.1,100};
+    const uint32_t colors[]={RED,RED,ORANGE,ORANGE,GREEN,GREEN};
+    for(int night=0;night<2;night++){
+        for(unsigned i=0;i<sizeof(levels)/sizeof(levels[0]);i++){
+            app_energy_sample_t sample;app_state_get_sample(&sample);
+            sample.soc_bat_pct=levels[i];sample.night_mode=night!=0;
+            app_state_set_sample(&sample);render_step(200);
+            if(!lv_color_eq(lv_obj_get_style_bg_color(s_battery_bar,LV_PART_INDICATOR),
+                c(tone(colors[i],night!=0))))return 17;
+        }
+    }
     for(scene=0;scene<9;scene++){
         send_demo();render_step(200);
         if(s_view!=VIEW_DASHBOARD)return 3;
