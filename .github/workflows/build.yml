@@ -32,6 +32,7 @@ jobs:
       - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build .preview-build -j 4
       - name: Render actual LVGL screens
+        timeout-minutes: 2
         run: |
           mkdir -p .preview-images
           cd .preview-images
@@ -40,6 +41,8 @@ jobs:
         with:
           name: ui-preview-${{ github.sha }}
           path: .preview-images/*.ppm
+          include-hidden-files: true
+          if-no-files-found: error
 
   build:
     runs-on: ubuntu-latest

@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdlib.h>
 
+_Static_assert(LV_GRADIENT_MAX_STOPS >= 3, "Signed charts require three gradient stops");
+
 typedef struct {
     bool signed_values;
     bool night;
