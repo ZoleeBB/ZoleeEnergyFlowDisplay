@@ -47,6 +47,8 @@ idf_component_register(
         "fonts/app_font_28.c"
         "app_config.c"
         "app_events.c"
+        "app_ingest.c"
+        "app_http.c"
         "app_mqtt.c"
         "app_ota.c"
         "app_payload.c"

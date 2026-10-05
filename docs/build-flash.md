@@ -76,3 +76,8 @@ Az első USB-s telepítés után a későbbi firmware az eszköz helyi weboldal�
 OTA-hoz a build könyvtárból a fő alkalmazás bináris kell:
 
 `build/zolee_energy_flow_display.bin`
+
+
+## Előre fordított firmware
+
+A GitHub release mellékletei és az automatikus build leírása: [releases.md](releases.md). Az USB-csomag magyar telepítési útmutatója: [usb-install.md](usb-install.md).

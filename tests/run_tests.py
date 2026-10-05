@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
     sources = ['tests/test_core.c', 'main/app_payload.c', 'main/app_config.c',
-               'main/app_stats.c', 'main/app_events.c', 'main/app_state.c']
+               'main/app_http.c', 'main/app_ingest.c', 'main/app_stats.c', 'main/app_events.c', 'main/app_state.c']
     command = [os.environ.get('CC', 'cc'), '-std=gnu11', '-O1', '-g', '-Wall', '-Wextra',
                '-Werror', '-Werror=frame-larger-than=8192', '-fsanitize=undefined',
                '-fno-sanitize-recover=all', '-Itests/stubs', '-Imain', '-Dtime=host_time',
@@ -27,3 +27,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     payload = json.loads(subprocess.check_output([str(temp/'picoc')], text=True))
     assert len(payload) == 12 and payload['BatteryTemperature'] == 1
     print('PASS: Pico C format produces a complete 12-field JSON payload')
+
+# Run the complete HTTP sample with stubbed Loxone I/O, including unchanged inputs.
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_http_picoc.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_release.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], check=True)

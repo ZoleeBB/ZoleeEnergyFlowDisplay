@@ -2,21 +2,35 @@ name: ESP-IDF build
 
 # A firmware minden main pushnál és pull requestnél újrafordul.
 on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: false
+        default: ''
+      release_tag:
+        type: string
+        required: true
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 # Ugyanazon ághoz csak a legfrissebb build fusson; a régebbi megszakítható.
 concurrency:
   group: esp-idf-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - run: python3 tests/run_tests.py
 
@@ -24,6 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: actions/checkout@v4
         with:
           repository: lvgl/lvgl
@@ -39,7 +55,7 @@ jobs:
           ../.preview-build/ui_preview
       - uses: actions/upload-artifact@v4
         with:
-          name: ui-preview-${{ github.sha }}
+          name: ui-preview-${{ inputs.source_sha || github.sha }}
           path: .preview-images/*.ppm
           include-hidden-files: true
           if-no-files-found: error
@@ -50,6 +66,13 @@ jobs:
     steps:
       # A repository aktuális commitjának letöltése.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+
+      - name: Set exact firmware version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
+        run: python3 tools/release/version.py --tag "$RELEASE_TAG"
 
       # A projekt rögzített ESP-IDF 5.5.4 verzióval, ESP32-P4 célra fordul.
       - name: Build with ESP-IDF 5.5.4
@@ -59,16 +82,20 @@ jobs:
           target: esp32p4
           path: '.'
 
-      # Sikeres build után a teljes első telepítéshez szükséges binárisok megmaradnak.
-      - name: Upload firmware binaries
-        if: success()
+      - name: Package OTA and complete USB installer
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
+          BUILD_COMMIT: ${{ inputs.source_sha || github.sha }}
+        run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
+
+      - name: Check USB installer against real build outputs
+        run: |
+          python3 -m zipfile -e dist/*-usb.zip .usb-check
+          python3 .usb-check/flash.py --port TEST --dry-run
+
+      - name: Upload firmware packages
         uses: actions/upload-artifact@v4
         with:
-          name: zolee-energy-flow-display-${{ github.sha }}
+          name: firmware-packages-${{ inputs.source_sha || github.sha }}
           if-no-files-found: error
-          path: |
-            build/*.bin
-            build/bootloader/*.bin
-            build/partition_table/*.bin
-            build/flasher_args.json
-
+          path: dist/*

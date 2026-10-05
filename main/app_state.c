@@ -133,3 +133,14 @@ bool app_state_get_sample(app_energy_sample_t *out)
     unlock();
     return valid;
 }
+
+
+void app_state_set_data_mode(app_data_mode_t mode)
+{ lock(); s_runtime.data_recept_mode = mode; unlock(); }
+void app_state_set_http_ready(bool ready)
+{
+    lock();
+    if (ready && !s_runtime.http_ready) s_runtime.http_ready_monotonic_us = esp_timer_get_time();
+    s_runtime.http_ready = ready;
+    unlock();
+}

@@ -11,3 +11,9 @@ sdkconfig.old
 .idea/
 
 /.preview-*/
+
+# Generated release/CI outputs
+/version.txt
+/dist/
+/.usb-check/
+__pycache__/

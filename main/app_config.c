@@ -66,6 +66,7 @@ void app_config_set_defaults(app_config_t *cfg)
     cfg->time.background_retry_minutes = 15;
 
     /* MQTT. A broker cím kötelező, ezért nincs értelmes gyári cím. */
+    cfg->http.data_timeout_seconds = 30;
     cfg->mqtt.port = 1883;
     copy_text(
         cfg->mqtt.topic,
@@ -310,6 +311,20 @@ static bool parse_config(
     char *error,
     size_t error_len)
 {
+    char mode[8] = "mqtt";
+    if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
+    if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
+    else if (strcasecmp(mode, "mqtt") != 0) {
+        set_error(error, error_len, "A DataReceptMode csak 'mqtt' vagy 'http' lehet.");
+        return false;
+    }
+    /* Csak az aktív adatfogadási mód beállításait ellenőrizzük. */
+    if (cfg->data_recept_mode == APP_DATA_HTTP) {
+        cJSON *http = get_object_section(root, "http", false, error, error_len);
+        if (http) {
+            if (!read_u32(http, "data_timeout_seconds", &cfg->http.data_timeout_seconds, 5, 3600, false, error, error_len)) return false;
+        } else if (error && *error) return false;
+    }
     /* Projektbeállítások. */
     cJSON *project = get_object_section(root, "project", false, error, error_len);
     if (project) {
@@ -388,23 +403,26 @@ static bool parse_config(
         return false;
     }
 
-    /* MQTT szekció kötelező, a broker cím nélkül nem tudunk működni. */
-    cJSON *mqtt = get_object_section(root, "mqtt", true, error, error_len);
-    if (!mqtt) {
-        return false;
-    }
+    if (cfg->data_recept_mode == APP_DATA_MQTT) {
+        /* MQTT szekció kötelező, a broker cím nélkül nem tudunk működni. */
+        cJSON *mqtt = get_object_section(root, "mqtt", true, error, error_len);
+        if (!mqtt) {
+            return false;
+        }
 
-    uint32_t mqtt_port = cfg->mqtt.port;
-    if (!read_string(mqtt, "broker", cfg->mqtt.broker, sizeof(cfg->mqtt.broker), true, false, error, error_len) ||
-        !read_u32(mqtt, "port", &mqtt_port, 1, 65535, false, error, error_len) ||
-        !read_string(mqtt, "topic", cfg->mqtt.topic, sizeof(cfg->mqtt.topic), false, false, error, error_len) ||
-        !read_string(mqtt, "username", cfg->mqtt.username, sizeof(cfg->mqtt.username), false, true, error, error_len) ||
-        !read_string(mqtt, "password", cfg->mqtt.password, sizeof(cfg->mqtt.password), false, true, error, error_len) ||
-        !read_u32(mqtt, "data_timeout_seconds", &cfg->mqtt.data_timeout_seconds, 5, 3600, false, error, error_len) ||
-        !read_u32(mqtt, "reconnect_seconds", &cfg->mqtt.reconnect_seconds, 1, 3600, false, error, error_len)) {
-        return false;
+        uint32_t mqtt_port = cfg->mqtt.port;
+        if (!read_string(mqtt, "broker", cfg->mqtt.broker, sizeof(cfg->mqtt.broker), true, false, error, error_len) ||
+            !read_u32(mqtt, "port", &mqtt_port, 1, 65535, false, error, error_len) ||
+            !read_string(mqtt, "topic", cfg->mqtt.topic, sizeof(cfg->mqtt.topic), false, false, error, error_len) ||
+            !read_string(mqtt, "username", cfg->mqtt.username, sizeof(cfg->mqtt.username), false, true, error, error_len) ||
+            !read_string(mqtt, "password", cfg->mqtt.password, sizeof(cfg->mqtt.password), false, true, error, error_len) ||
+            !read_u32(mqtt, "data_timeout_seconds", &cfg->mqtt.data_timeout_seconds, 5, 3600, false, error, error_len) ||
+            !read_u32(mqtt, "reconnect_seconds", &cfg->mqtt.reconnect_seconds, 1, 3600, false, error, error_len)) {
+            return false;
+        }
+        cfg->mqtt.port = (uint16_t)mqtt_port;
+
     }
-    cfg->mqtt.port = (uint16_t)mqtt_port;
 
     /* Kijelzőfényerő. */
     cJSON *display = get_object_section(root, "display", false, error, error_len);
