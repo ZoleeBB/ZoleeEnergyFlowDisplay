@@ -99,13 +99,18 @@ static void send_demo(void)
 }
 static void render_step(unsigned elapsed)
 {
+    static unsigned until_ui=200;
     ticks+=(int64_t)elapsed*1000;
     lv_tick_inc(elapsed);
-    app_runtime_state_t rt;app_energy_sample_t sample={0};
-    app_state_get_runtime(&rt);
-    bool have=app_state_get_sample(&sample);
-    app_stats_get_snapshot(&s_stats_snapshot);
-    render_runtime(rt,sample,have,ticks);
+    until_ui+=elapsed;
+    if(until_ui>=200){
+        until_ui=0;
+        app_runtime_state_t rt;app_energy_sample_t sample={0};
+        app_state_get_runtime(&rt);
+        bool have=app_state_get_sample(&sample);
+        app_stats_get_snapshot(&s_stats_snapshot);
+        render_runtime(rt,sample,have,ticks);
+    }
     lv_timer_handler();
 }
 static void init_demo(void)
@@ -151,9 +156,9 @@ static void init_demo(void)
 static int self_test(void)
 {
     for(scene=0;scene<9;scene++){
-        send_demo();render_step(16);
+        send_demo();render_step(200);
         if(s_view!=VIEW_DASHBOARD)return 3;
-        for(int j=0;j<8;j++)render_step(16);
+        for(int j=0;j<8;j++)render_step(200);
     }
     app_energy_sample_t before,after;app_state_get_sample(&before);
     char error[160];
@@ -161,9 +166,9 @@ static int self_test(void)
     app_state_get_sample(&after);
     if(before.received_monotonic_us!=after.received_monotonic_us)return 5;
     render_step(30001);if(s_view!=VIEW_DATA_TIMEOUT)return 6;
-    send_demo();render_step(16);if(s_view!=VIEW_DASHBOARD)return 7;
-    app_state_set_wifi_connected(false);render_step(16);if(s_view!=VIEW_WIFI_ERROR)return 8;
-    app_state_set_wifi_connected(true);scene=0;send_demo();render_step(16);
+    send_demo();render_step(200);if(s_view!=VIEW_DASHBOARD)return 7;
+    app_state_set_wifi_connected(false);render_step(200);if(s_view!=VIEW_WIFI_ERROR)return 8;
+    app_state_set_wifi_connected(true);scene=0;send_demo();render_step(200);
     if(s_view!=VIEW_DASHBOARD || f_pv.phase<=0)return 9;
     lv_refr_now(display);
     FILE *f=fopen("simulator-demo.ppm","wb");if(!f)return 10;
