@@ -2178,3 +2178,14 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - [Loxone virtuális be- és kimenetek](https://www.loxone.com/enen/kb/virtual-inputs-outputs/): HTTP virtuális kimenetek.
 - [FlexumShare gyártói integráció a Loxone Libraryben, 7. oldal](https://api.library.loxone.com/downloader/file/2733/Instruction%20Live-Data_FlexumShare%20platform_V1.1.pdf): POST, JSON header, `<v>` body beállítás. A jelen projekt adatfogadása a felhasználó döntése szerint nem kér API-kulcsot.
 - Felhasználói döntések: 2026-10-05; Miniserver Gen 2 / 17.x, kizárólag POST, hitelesítés nélkül, 5 másodperces küldés, 30 másodperces timeout, OTA-nál nem feltétel mérési csomag.
+
+## Asztali UI-szimulátor és demó adatforrás
+
+- Windows x64 / Visual Studio Professional 2026, CMake Debug konfiguráció és F5 indítás, fizikai kijelző nélkül.
+- A firmware tényleges LVGL UI-ja, grafikonjai, ikon- és fontállományai futnak; külön rajzolt UI-másolat nem elfogadható.
+- Induláskor egy teljes demó JSON-csomag, majd 5 másodperces ciklus; közös ingest, payload-validáció és állapottárolás használata.
+- Demó forgatókönyvek: hálózati import/export, akkumulátortöltés/merítés, nappal/éjszaka, eső/hó, státuszok és akkumulátor-hőmérsékleti színváltások. Valódi UI-animáció és irány/szín logika.
+- Előre feltöltött, egyértelműen demó grafikonok és tegnapi összehasonlítás; memóriában frissülő statisztika, valódi SD-adatok módosítása nélkül.
+- Adatküldés szüneteltethető; 30 másodperc után HTTP-adathiány képernyő, érvényes új csomagnál automatikus helyreállás.
+- A demó külön asztali buildcél, firmware-ben soha nem kapcsol be automatikusan a Debug beállítástól.
+- Windows MSVC CI-fordítás és headless állapot/render regresszió. Részletes használat: `docs/simulator.md`.

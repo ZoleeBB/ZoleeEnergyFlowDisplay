@@ -17,3 +17,9 @@ sdkconfig.old
 /dist/
 /.usb-check/
 __pycache__/
+
+# Desktop simulator / Visual Studio
+/out/
+/.vs/
+CMakeUserPresets.json
+simulator-demo.ppm
