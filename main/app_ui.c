@@ -726,13 +726,13 @@ static void build_dashboard(bool night)
 
     /*
      * A kör alakú akkumulátor-grafikán belül külön SOC sáv is látható.
-     * A függőleges sáv az ikon jobb szélén alulról felfelé jelzi a SOC-ot.
+     * A függőleges sáv az ikon bal oldalába illesztve alulról felfelé jelzi a SOC-ot.
      * Színe a töltöttséget követi. Az ikon állandó PNG;
      * a körvonal színe kizárólag az energiaáramlás színét követi.
      */
     s_battery_bar=lv_bar_create(s_battery_node);
-    lv_obj_set_pos(s_battery_bar,68,16);
-    lv_obj_set_size(s_battery_bar,7,56);
+    lv_obj_set_pos(s_battery_bar,24,23);
+    lv_obj_set_size(s_battery_bar,4,46);
     lv_bar_set_orientation(s_battery_bar,LV_BAR_ORIENTATION_VERTICAL);
     lv_bar_set_range(s_battery_bar,0,100);
     lv_obj_set_style_bg_color(
