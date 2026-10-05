@@ -697,7 +697,7 @@ static void build_dashboard(bool night)
         flow,
         "-",
         170,
-        31,
+        23,
         APP_FONT_22,
         night?TEXT_DARK:TEXT_LIGHT);
     lv_obj_set_width(s_grid,150);
@@ -707,7 +707,7 @@ static void build_dashboard(bool night)
         flow,
         tr("Hálózat","Grid"),
         170,
-        55,
+        46,
         APP_FONT_14,
         night?MUTED_DARK:MUTED_LIGHT);
     lv_obj_set_width(grid_name,150);

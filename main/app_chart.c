@@ -44,6 +44,8 @@ static void line(lv_draw_vector_dsc_t *draw, lv_vector_path_t *path,
     lv_fpoint_t a = {x1, y1}, b = {x2, y2};
     lv_vector_path_move_to(path, &a);
     lv_vector_path_line_to(path, &b);
+    /* ThorVG gradients ignore fill opa; reset the style before stroke-only paths. */
+    lv_draw_vector_dsc_set_fill_color(draw, lv_color_hex(0));
     lv_draw_vector_dsc_set_fill_opa(draw, LV_OPA_TRANSP);
     lv_draw_vector_dsc_set_stroke_opa(draw, LV_OPA_COVER);
     lv_draw_vector_dsc_set_stroke_color(draw, lv_color_hex(color));
@@ -112,6 +114,7 @@ static void draw_chart(lv_event_t *event)
             lv_draw_vector_dsc_set_stroke_color(draw, color);
             lv_draw_vector_dsc_set_stroke_width(draw, 2.f);
             lv_draw_vector_dsc_set_stroke_opa(draw, fill ? LV_OPA_TRANSP : LV_OPA_COVER);
+            if(!fill) lv_draw_vector_dsc_set_fill_color(draw, color);
             lv_draw_vector_dsc_set_fill_opa(draw, fill ? LV_OPA_COVER : LV_OPA_TRANSP);
             if(fill) {
                 lv_opa_t opacity = data->night ? 35 : 75;

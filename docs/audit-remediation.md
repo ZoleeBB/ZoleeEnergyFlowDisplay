@@ -32,7 +32,7 @@ Azonosítók: a 2026-10-05-i specifikáció/kód audit A01–A27 tételei.
 
 A `ui-preview` CI job a production `app_ui.c`, `app_chart.c`, PNG-k és fontok használatával hat 1280×800-as képet készít: magyar nappali, szigetüzem/SD-hiba, feltöltés, rendszerhiba, angol éjszakai és Wi-Fi-hiba állapot. A képek a workflow artifactjai között találhatók. A firmware job ESP-IDF 5.5.4 alatt ESP32-P4 célra fordít.
 
-Font újragenerálás: `python3 tools/prepare_fonts.py --help`. A Noto Sans Regular TTF szükséges; a generált C fájlok rögzítik a forrás SHA-256 lenyomatát, a licenc a `main/fonts/OFL.txt` fájlban található.
+Font újragenerálás: `python3 tools/prepare_fonts.py --help`. A Noto Sans Regular TTF és a nyilakhoz DejaVu Sans TTF szükséges (`--symbols`); a generált C fájlok rögzítik a forrás SHA-256 lenyomatát, a licencek a `main/fonts/OFL.txt` és `DejaVu-LICENSE.txt` fájlokban találhatók. A generátor ellenőrzi a karakterek tényleges meglétét, így hiányzó glyph nem válhat észrevétlenül helyettesítő téglalappá.
 
 ## Hardveren ellenőrizendő
 

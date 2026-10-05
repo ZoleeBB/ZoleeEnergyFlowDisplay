@@ -74,6 +74,13 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
+    /* Solar-only region must stay green, and the area above both signed
+     * curves must remain empty. This catches accidental implicit closure
+     * fills on stroke paths in the ThorVG backend. */
+    uint32_t solar_pixel=pixels[210*1280+1020];
+    assert(((solar_pixel>>8)&255)>((solar_pixel>>16)&255)+5);
+    assert((pixels[450*1280+910]&0xffffff)==0xffffff);
+    assert(f_pv.phase>0.f);
     sd_ok=false;sample.status=3;sample.soc_bat_pct=19.9;update(&sample,&fixture);save_frame("hu-island-sd-error");
     sd_ok=true;sample.status=2;sample.power_bat_kw=-3.5;sample.soc_bat_pct=100;update(&sample,&fixture);save_frame("hu-preparing");
     sample.status=4;sample.battery_temperature_c=51;update(&sample,&fixture);save_frame("hu-system-error");
