@@ -1,3 +1,16 @@
+## 2026-10-05 – Teljes újraalkotott PNG-készlet
+
+- 29/29 futásidejű ikon PNG: 14 elfogadott grafika és 15 új időjárás-/állapotikon.
+- A régi kivágásos PNG-k lecserélve, minden beágyazott SVG-ikon kivezetve.
+- Az eredeti nagyfelbontású generált képek és a reprodukálható méretezés a repóban.
+- Külön natív körvonal mind a négy energia-node körül; színe a kapcsolattal azonos.
+- Az akkumulátor körvonala energiairány szerinti; a SOC külön sávot vezérel.
+- A beágyazott PNG-méreteket CMake méri, nincs kézzel rögzített bájtszám.
+- Az ESP-IDF 5.5 fájlnév-alapú beágyazási szimbólumai javítják a korábbi linkerhibát.
+- A hardveren történő végső megjelenítési ellenőrzés továbbra is szükséges.
+
+Az alábbi korábbi bejegyzések történeti állapotot írnak le.
+
 # Fejlesztési állapot és hátralévő feladatok
 
 Ez a lista a teljes fejlesztési egyeztetés, a jóváhagyott eredeti látványterv és a repository aktuális állapota alapján készült.
@@ -70,3 +83,4 @@ A dashboard makro-elrendezése már az eredeti jóváhagyott látványtervet kö
 Szándékos eltérés az eredeti képtől, hogy a későbbi specifikáció szerint nincs navigációs tabsor vagy dátumválasztó, viszont külön hálózati vételezés és visszatáplálás, részletes akkumulátoradatok és két kombinált grafikon szerepel.
 
 A vizuális egyezés még nem tekinthető pixelpontosan validáltnak. Ehhez a firmware-t a tényleges 1280x800-as Waveshare panelen kell lefuttatni, a kijelzőről fotót készíteni, majd az eredeti referenciával összevetni. A hátralévő vizuális munka főként az ikonok részletessége, az előjeles grafikon kitöltése, valamint a fontok, térközök és méretek finomhangolása.
+

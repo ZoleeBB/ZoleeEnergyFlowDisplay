@@ -180,7 +180,7 @@ Elsődleges végleges irány:
 - átlátszó háttér;
 - a látványtervhez igazodó részletesség;
 - finom árnyék;
-- puha körháttér;
+- puha körháttér külön LVGL rétegen;
 - egységes stílus.
 
 SVG használható:
@@ -190,6 +190,36 @@ SVG használható:
 - ha a végeredmény vizuálisan teljesen megfelel.
 
 Ha az SVG renderelés nem adja vissza pontosan a kívánt minőséget, PNG használata az elvárt megoldás.
+
+### Újraalkotás és a körvonalak szétválasztása (2026-10-05)
+
+A látványterv etalon, **képernyőképből kivágott ikon nem használható**.
+Az ikonokat önálló, átlátszó hátterű grafikaként kell újraalkotni.
+A korábban elfogadott újragenerált grafikákat meg kell őrizni; az elfogadott
+nyolcikonos képlap elemeinek fájlokra bontása megengedett, ez nem a
+látványterv kivágása. Az eredeti képek az `assets/source/`, a firmware PNG-k
+az `main/assets/png/` könyvtárban vannak. Mind a 29 futásidejű ikon PNG,
+beleértve az időjárási, kapcsolat- és speciális állapotokat is.
+
+A középső csillagábra ház-, napelem-, hálózat- és akkumulátorikonja **nem
+állandó színű kerettel együtt tárolt kép**. A körvonal külön natív LVGL objektum.
+A keret pontosan az adott összekötő vonal és mozgó energiapontok színét kapja,
+éjszakai tompítás esetén is ugyanazzal a színértékkel.
+
+| Ág / állapot | Irány | Körvonal és áramlás |
+| --- | --- | --- |
+| Napelem termel | Napelem → központ | Zöld |
+| Ház fogyaszt | Központ → ház | Narancs |
+| `PowerGrid > 0` | Hálózat → központ (vételezés) | Narancs |
+| `PowerGrid < 0` | Központ → hálózat (visszatáplálás) | Zöld |
+| `PowerBat > 0` | Akku → központ (kisütés) | Narancs |
+| `PowerBat < 0` | Központ → akku (töltés) | Zöld |
+| `abs(Power) < 0,0005 kW` | Nincs áramló pont | Az összekötővel azonos semleges szürke |
+| Szigetüzem, hálózati ág | Leválasztva, nincs pont | Szürke |
+
+A SOC kizárólag a külön töltöttségi sávot és a numerikus értéket vezérli;
+**az akkumulátor körvonalát nem színezheti át**. A központi hub saját ezüst
+pereme a statikus hub-grafika része maradhat.
 
 ## 6.3. Tárolás
 
@@ -503,7 +533,7 @@ Nem kell tegnapi összehasonlítás:
 
 ## 11.3. SOC megjelenés
 
-A grafikus akkumulátor töltöttségi szintje tükrözze a `SocBat` értéket.
+Az akkumulátor külön töltöttségi sávjának hossza és színe tükrözze a `SocBat` értéket. Az ikon állandó PNG; a körvonal az energiairányt követi (6.2. fejezet).
 
 Szín:
 
@@ -1957,10 +1987,10 @@ Vizuálisan akkor tekinthető késznek, ha:
 A hátralévő munka prioritása:
 
 1. build stabilitás;
-2. assetek teljes PNG minőségűre cserélése;
+2. az elkészült, 29 ikonos PNG-készlet hardveres vizuális ellenőrzése;
 3. dashboard pixel- és layoutfinomítás;
 4. második grafikon nullavonalra töltött gradient fill;
-5. összes státusz- és hibaikon végleges assetre cserélése;
+5. az új státusz- és hibaikonok ellenőrzése a tényleges üzemállapotokban;
 6. HU/EN végső audit;
 7. parser/statisztika automatizált tesztek;
 8. hardveres első flash;
@@ -1989,3 +2019,4 @@ Ugyanígy egy szép UI sem tekinthető késznek, ha:
 - vagy hosszú távon instabil.
 
 A kész termék mindkét követelményt egyszerre teljesíti.
+

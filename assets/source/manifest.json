@@ -1,0 +1,210 @@
+[
+  {
+    "name": "flow_battery",
+    "source": "flow_battery.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "flow_grid",
+    "source": "flow_grid.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "flow_solar",
+    "source": "flow_solar.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "flow_house",
+    "source": "flow_house.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "flow_hub",
+    "source": "flow_hub.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "header_home_leaf",
+    "source": "header_home_leaf.png",
+    "origin": "previously-approved"
+  },
+  {
+    "name": "metric_leaf",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      0,
+      0,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "metric_house",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      362,
+      0,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "metric_grid",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      724,
+      0,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "metric_coins",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      1086,
+      0,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "summary_co2",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      0,
+      543,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "summary_tree",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      362,
+      543,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "summary_bulb",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      724,
+      543,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "status_normal",
+    "source": "approved-metrics-sheet.png",
+    "cell": [
+      1086,
+      543,
+      362,
+      543
+    ],
+    "origin": "previously-approved"
+  },
+  {
+    "name": "weather_sun",
+    "source": "weather_sun.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Bright golden-yellow sun disc with eight short rounded rays, matching sun beside temperature in dashboard."
+  },
+  {
+    "name": "weather_cloud",
+    "source": "weather_cloud.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: One softly rounded light blue-gray weather cloud with subtle dimensional highlights."
+  },
+  {
+    "name": "weather_partly",
+    "source": "weather_partly.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Golden sun with short rays partially behind a small softly rounded white/light blue cloud."
+  },
+  {
+    "name": "weather_rain",
+    "source": "weather_rain.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Rounded blue-gray rain cloud above three bright blue raindrops."
+  },
+  {
+    "name": "weather_snow",
+    "source": "weather_snow.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Rounded pale blue-gray weather cloud above three delicate blue snowflakes."
+  },
+  {
+    "name": "weather_moon",
+    "source": "weather_moon.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Golden crescent moon with soft shaded thickness, no stars."
+  },
+  {
+    "name": "wind",
+    "source": "wind.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Three graceful rounded blue-gray horizontal breeze strokes, curling ends."
+  },
+  {
+    "name": "wifi_off",
+    "source": "wifi_off.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Dark blue-gray Wi-Fi signal arcs above dot, with clear red diagonal disconnection slash."
+  },
+  {
+    "name": "grid_off",
+    "source": "grid_off.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Steel-blue lattice electricity transmission pylon matching the approved pylon silhouette, desaturated gray with small blue diagonal disconnected slash; no landscape, ring or badge."
+  },
+  {
+    "name": "status_prepare",
+    "source": "status_prepare.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Amber battery with white lightning and small orange curved charging/preparation arrow."
+  },
+  {
+    "name": "status_island",
+    "source": "status_island.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Blue house with small blue battery alongside and subtle disconnected plug symbol, coherent self-contained island mode pictogram."
+  },
+  {
+    "name": "status_error",
+    "source": "status_error.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Softly bevelled red warning triangle with centered white exclamation mark, no background badge."
+  },
+  {
+    "name": "mqtt_off",
+    "source": "mqtt_off.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Slate blue-gray cloud containing two white short message strokes, small red X at upper right indicating disconnected messaging."
+  },
+  {
+    "name": "waiting_data",
+    "source": "waiting_data.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Two amber rounded curved arrows forming a synchronization loop with small central amber dot, waiting for energy data."
+  },
+  {
+    "name": "timeout",
+    "source": "timeout.png",
+    "origin": "imagegen-2026-10-05",
+    "prompt": "Create ONE newly illustrated standalone production PNG icon for a home energy monitor. Use case: stylized-concept. Match the attached approved icon set: clean softly rounded forms, polished subtle 2.5D dimensional shading and restrained glossy highlights, bright legible colors, front view, precise antialiased silhouette, readable at 48px. Reference 1 is the accepted dashboard layout, reference 2 the approved icon artwork stylistic standard. Re-illustrate the requested subject from scratch, do NOT crop or reproduce the dashboard. Single isolated icon centered in a square canvas, artwork occupies 78% of width or height, even transparent margins, actual alpha transparency. No enclosing badge, circle, ring, panel, scenery, border or drop shadow around icon. No text, numbers, watermark, checkerboard. Subject: Amber clock face with dark orange hands at about 4 o'clock, small red exclamation at lower right."
+  }
+]
