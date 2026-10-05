@@ -1976,6 +1976,7 @@ A CI buildnek zöldnek kell lennie a hardveres tesztelés előtt.
 - Mindig a konkrét PR merge SHA-ja fordul, az új verzióval. Minden teszt és a build sikeres befejezése előfeltétel.
 - A kiadás csak az OTA/USB csomag és az ellenőrző fájlok feltöltése után publikálódik; addig draft. Sikertelen teszt/build nem hoz létre taget vagy release-t.
 - A kiadások közös, megszakítás nélküli sorban futnak (`queue: max`, maximum 100 várakozó). Ugyanaz a már kiadott merge újrafuttatva nem növeli újra a verziót.
+- A sikeres build után kizárólag a publikáló job készíthet annotált verziótaget, amely a PR/merge SHA azonosítót tartalmazza. Ez az előkészítő számára olvasási joggal is felismerhető folytatási pont; a draft release-ek listázásához nem kap külön írási jogot.
 - A feltöltés újrafuttatható, azonos tartalom kimarad; más commitra mutató tag és eltérő asset nem írható felül.
 - A workflow közvetlenül hívja az újrahasznosított firmware-buildet és publikálást, mert GITHUB_TOKEN-nel létrehozott release nem indít új release-eseményes workflow-t. Nem igényel személyes tokent.
 - Kézi release/prerelease továbbra is támogatott. A main ágba közvetlen push csak CI-ellenőrzés, nem automatikus kiadás.

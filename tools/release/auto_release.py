@@ -58,6 +58,37 @@ def find_release(releases, marker):
     return matches[0] if matches else None
 
 
+def owned_tag(root, tag, marker, commit):
+    """Read-only proof that this version was reserved by this exact merged PR."""
+    try:
+        ref = api(f'{root}/git/ref/tags/{tag}')
+    except HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+    if ref['object']['type'] != 'tag':
+        return False
+    annotation = api(f'{root}/git/tags/{ref["object"]["sha"]}')
+    return (annotation['message'].strip() == marker and
+            annotation['object']['type'] == 'commit' and annotation['object']['sha'] == commit)
+
+
+def reserve_tag(root, tag, marker, commit):
+    # Only called by the existing write-authorized publication job, after the build.
+    if owned_tag(root, tag, marker, commit):
+        return
+    annotation = api(f'{root}/git/tags', json.dumps({
+        'tag': tag, 'message': marker, 'object': commit, 'type': 'commit'
+    }).encode())
+    try:
+        api(f'{root}/git/refs', json.dumps({'ref': f'refs/tags/{tag}', 'sha': annotation['sha']}).encode())
+    except HTTPError as error:
+        if error.code != 422:
+            raise
+        if not owned_tag(root, tag, marker, commit):
+            raise ValueError('Version tag belongs to another release; no tag was moved') from error
+
+
 def prepare(repository, number, commit):
     root = f'https://api.github.com/repos/{repository}'
     marker = identity(number, commit)
@@ -69,7 +100,15 @@ def prepare(repository, number, commit):
         if existing['target_commitish'] != commit:
             raise ValueError('Existing automatic release points to a different commit')
         return {'tag': tag, 'needed': 'true' if existing['draft'] else 'false'}
-    return {'tag': next_tag(listing(root, 'tags'), releases), 'needed': 'true'}
+    # Read-only tokens cannot see draft releases. The public annotated tag records
+    # a failed publication's identity without granting preparation write access.
+    tags = listing(root, 'tags')
+    reserved = [tag['name'] for tag in tags
+                if stable_version(tag['name']) and tag['commit']['sha'] == commit
+                and owned_tag(root, tag['name'], marker, commit)]
+    if len(reserved) > 1:
+        raise ValueError('Multiple versions reserved for the same merge')
+    return {'tag': reserved[0] if reserved else next_tag(tags, releases), 'needed': 'true'}
 
 
 def finish(directory, repository, number, commit, tag):
@@ -84,23 +123,15 @@ def finish(directory, repository, number, commit, tag):
     if release and (release['tag_name'] != tag or release['target_commitish'] != commit):
         raise ValueError('Existing release identity changed')
     # Never repurpose a manual release, even if it happens to use the same commit.
+    if not release and any(r['tag_name'] == tag for r in listing(root, 'releases')):
+        raise ValueError('Version already belongs to another release')
+    reserve_tag(root, tag, marker, commit)
     if not release:
-        if any(r['tag_name'] == tag for r in listing(root, 'releases')):
-            raise ValueError('Version already belongs to another release')
         release = api(f'{root}/releases', json.dumps({
             'tag_name': tag, 'target_commitish': commit, 'name': tag,
             'body': marker + f'\n\nAutomatikus firmware-kiadás a #{number} PR main ágra történő összevonásából.',
             'draft': True, 'prerelease': False, 'generate_release_notes': True
         }).encode())
-    # Creating a draft does not always create its tag. Reserve it atomically.
-    try:
-        api(f'{root}/git/refs', json.dumps({'ref': f'refs/tags/{tag}', 'sha': commit}).encode())
-    except HTTPError as error:
-        if error.code != 422:
-            raise
-        # Existing tag is accepted only when it resolves to this exact commit.
-        if api(f'{root}/commits/{tag}')['sha'] != commit:
-            raise ValueError('Version tag belongs to another commit; no tag was moved') from error
     publish(directory, repository, tag, commit, release['id'], allow_draft=True)
     if release['draft']:
         result = api(f'{root}/releases/{release["id"]}',
