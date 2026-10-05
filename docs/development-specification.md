@@ -2189,3 +2189,8 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - Adatküldés szüneteltethető; 30 másodperc után HTTP-adathiány képernyő, érvényes új csomagnál automatikus helyreállás.
 - A demó külön asztali buildcél, firmware-ben soha nem kapcsol be automatikusan a Debug beállítástól.
 - Windows MSVC CI-fordítás és headless állapot/render regresszió. Részletes használat: `docs/simulator.md`.
+
+### UI-finomítások: villogásmentes asztali megjelenítés, függőleges SOC
+
+- A szimulátor frissítés közben nem törölheti feketére a látható ablakot; teljes képet memóriában összeállítva kell megjelenítenie, átméretezéskor is megtartva a képarányt.
+- Az akkumulátor SOC-sávja az ikon jobb szélén, a körön belül függőleges, alulról felfelé töltődik; 0–100% tartomány és a meglévő SOC-színküszöbök maradnak. Ez a firmware és az asztali szimulátor közös UI-eleme.

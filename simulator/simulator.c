@@ -158,6 +158,8 @@ static int self_test(void)
     for(scene=0;scene<9;scene++){
         send_demo();render_step(200);
         if(s_view!=VIEW_DASHBOARD)return 3;
+        lv_obj_update_layout(lv_screen_active());
+        if(lv_obj_get_height(s_battery_bar)<=lv_obj_get_width(s_battery_bar))return 13;
         for(int j=0;j<8;j++)render_step(200);
     }
     app_energy_sample_t before,after;app_state_get_sample(&before);
@@ -181,17 +183,60 @@ static int self_test(void)
     return 0;
 }
 #ifdef _WIN32
+/* A teljes ablak memóriában készül el; csak a kész kép kerül a képernyőre.
+ * A GDI puffer csak méretváltáskor foglalódik újra. */
+static HDC paint_dc;
+static HBITMAP paint_bitmap;
+static HGDIOBJ paint_original;
+static int paint_width,paint_height;
+static void release_paint_buffer(void)
+{
+    if(paint_dc){
+        if(paint_original)SelectObject(paint_dc,paint_original);
+        if(paint_bitmap)DeleteObject(paint_bitmap);
+        DeleteDC(paint_dc);
+    }
+    paint_dc=NULL;paint_bitmap=NULL;paint_original=NULL;
+    paint_width=paint_height=0;
+}
+static bool paint_frame(HDC target,int width,int height)
+{
+    if(width<=0 || height<=0)return true;
+    if(!paint_dc || width!=paint_width || height!=paint_height){
+        HDC next_dc=CreateCompatibleDC(target);
+        if(!next_dc)return false;
+        HBITMAP next_bitmap=CreateCompatibleBitmap(target,width,height);
+        if(!next_bitmap){DeleteDC(next_dc);return false;}
+        HGDIOBJ original=SelectObject(next_dc,next_bitmap);
+        if(!original || original==HGDI_ERROR){DeleteObject(next_bitmap);DeleteDC(next_dc);return false;}
+        release_paint_buffer();
+        paint_dc=next_dc;paint_bitmap=next_bitmap;paint_original=original;
+        paint_width=width;paint_height=height;
+    }
+    RECT r={0,0,width,height};
+    FillRect(paint_dc,&r,(HBRUSH)GetStockObject(BLACK_BRUSH));
+    int w=width,h=w*800/1280;if(h>height){h=height;w=h*1280/800;}
+    if(w<=0 || h<=0)return true;
+    BITMAPINFO bi={0};bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth=1280;bi.bmiHeader.biHeight=-800;bi.bmiHeader.biPlanes=1;
+    bi.bmiHeader.biBitCount=32;bi.bmiHeader.biCompression=BI_RGB;
+    int copied=StretchDIBits(paint_dc,(width-w)/2,(height-h)/2,w,h,0,0,1280,800,
+        pixels,&bi,DIB_RGB_COLORS,SRCCOPY);
+    if(copied==0 || copied==GDI_ERROR)return false;
+    return BitBlt(target,0,0,width,height,paint_dc,0,0,SRCCOPY)!=0;
+}
 static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 {
     switch(msg){
+    case WM_ERASEBKGND:
+        /* A háttér és a képarány miatti sávok is a kész képpel együtt frissülnek. */
+        return 1;
+    case WM_SIZE:
+        InvalidateRect(hwnd,NULL,FALSE);return 0;
     case WM_PAINT:{
         PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);
-        FillRect(dc,&r,(HBRUSH)GetStockObject(BLACK_BRUSH));
-        int w=r.right,h=w*800/1280;if(h>r.bottom){h=r.bottom;w=h*1280/800;}
-        BITMAPINFO bi={0};bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-        bi.bmiHeader.biWidth=1280;bi.bmiHeader.biHeight=-800;bi.bmiHeader.biPlanes=1;
-        bi.bmiHeader.biBitCount=32;bi.bmiHeader.biCompression=BI_RGB;
-        StretchDIBits(dc,(r.right-w)/2,(r.bottom-h)/2,w,h,0,0,1280,800,pixels,&bi,DIB_RGB_COLORS,SRCCOPY);
+        if(!paint_frame(dc,r.right,r.bottom))
+            fprintf(stderr,"GDI frame presentation failed: %lu\n",GetLastError());
         EndPaint(hwnd,&ps);return 0;
     }
     case WM_KEYDOWN:
@@ -202,15 +247,47 @@ static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
         if(wp=='W'){app_runtime_state_t rt;app_state_get_runtime(&rt);app_state_set_wifi_connected(!rt.wifi_connected);}
         if(wp==VK_RIGHT){scene=(scene+1)%9;send_demo();}
         return 0;
-    case WM_DESTROY:PostQuitMessage(0);return 0;
+    case WM_DESTROY:release_paint_buffer();PostQuitMessage(0);return 0;
     }
     return DefWindowProcA(hwnd,msg,wp,lp);
+}
+/* Ugyanazt a GDI megjelenítési utat ellenőrzi a Windows CI, mint az ablak.
+ * Két méret, ismételt rajzolás és fekete képarány-sávok ellenőrzése. */
+static int paint_self_test(void)
+{
+    const int sizes[2][2]={{640,550},{1280,800}};
+    for(int i=0;i<2;i++){
+        int w=sizes[i][0],h=sizes[i][1];
+        HDC dc=CreateCompatibleDC(NULL);if(!dc)return 14;
+        BITMAPINFO bi={0};bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth=w;bi.bmiHeader.biHeight=-h;
+        bi.bmiHeader.biPlanes=1;bi.bmiHeader.biBitCount=32;
+        void *data=NULL;HBITMAP bitmap=CreateDIBSection(dc,&bi,DIB_RGB_COLORS,&data,NULL,0);
+        if(!bitmap){DeleteDC(dc);return 15;}
+        HGDIOBJ original=SelectObject(dc,bitmap);
+        bool ok=paint_frame(dc,w,h) && paint_frame(dc,w,h);
+        GdiFlush();
+        uint32_t *frame=data;
+        if(i==0)ok=ok && (frame[0]&0xffffff)==0;
+        if(i==1)ok=ok && (frame[0]&0xffffff)==(pixels[0]&0xffffff);
+        unsigned visible=0;for(int n=0;n<w*h;n++)if(frame[n]&0xffffff)visible++;
+        ok=ok && visible>(unsigned)(w*h/2);
+        SelectObject(dc,original);DeleteObject(bitmap);DeleteDC(dc);
+        if(!ok){release_paint_buffer();return 16;}
+    }
+    release_paint_buffer();puts("PASS: buffered GDI presentation, resize, repeated paint and letterboxing.");
+    return 0;
 }
 #endif
 int main(int argc,char **argv)
 {
     init_demo();int result=0;
-    if(argc>1 && strcmp(argv[1],"--self-test")==0)result=self_test();
+    if(argc>1 && strcmp(argv[1],"--self-test")==0){
+        result=self_test();
+#ifdef _WIN32
+        if(result==0)result=paint_self_test();
+#endif
+    }
     else {
 #ifdef _WIN32
         SetProcessDPIAware();
