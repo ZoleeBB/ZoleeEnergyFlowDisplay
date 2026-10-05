@@ -2223,3 +2223,9 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - Bal oldali ikonhátterek: termelés és visszatáplálás halvány zöld, fogyasztás halvány citromsárga, hálózati vételezés halvány narancs.
 - A termelés/fogyasztás grafikon jelmagyarázatában a teljes „Fogyasztás” felirat szerepel.
 - A fejléc szélsebessége 35 km/h felett félkövér narancssárga, 50 km/h felett félkövér piros. Pontosan 35-nél normál, pontosan 50-nél narancssárga; csökkenéskor az alapstílus visszaáll. A küszöbvizsgálat a kerekítetlen beérkező értékkel történik.
+
+### Beégetett programnév a fejlécben
+
+- A projektcím és a dátum közötti területen kétsoros, középre igazított „Zolee Energy” / „Folow Monitor” felirat jelenik meg, a kért név pontos írásmódjával.
+- Saját, beégetett 18 px félkövér dőlt betűkészlet, nappal mélykék, éjszaka világosabb kék színnel. A név nem konfigurálható és nem változik a nyelvválasztással.
+- A konfigurálható projektcím külön megmarad; szélessége korlátozott, hogy ne fedhesse a programnevet.

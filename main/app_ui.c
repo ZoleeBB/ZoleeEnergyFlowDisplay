@@ -32,6 +32,7 @@ LV_FONT_DECLARE(app_font_16);
 #define APP_FONT_16 (&app_font_16)
 LV_FONT_DECLARE(app_font_wind_bold_16);
 #define APP_FONT_WIND_BOLD_16 (&app_font_wind_bold_16)
+LV_FONT_DECLARE(app_font_brand_18);
 LV_FONT_DECLARE(app_font_18);
 #define APP_FONT_18 (&app_font_18)
 LV_FONT_DECLARE(app_font_20);
@@ -565,7 +566,15 @@ static void build_dashboard(bool night)
         APP_FONT_22,
         night?TEXT_DARK:TEXT_LIGHT);
     lv_label_set_long_mode(s_title,LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_width(s_title,560);
+    lv_obj_set_width(s_title,350);
+
+    /* Beégetett programnév, a konfigurálható projektcímtől függetlenül. */
+    lv_obj_t *brand=lbl(header,"Zolee Energy\nFolow Monitor",430,0,
+        &app_font_brand_18,night?0xA9C5DC:0x245878);
+    lv_obj_set_width(brand,224);
+    lv_obj_set_style_text_align(brand,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_set_style_text_line_space(brand,0,0);
+    lv_obj_align(brand,LV_ALIGN_LEFT_MID,430,0);
 
     lbl(
         header,

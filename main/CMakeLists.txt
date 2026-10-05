@@ -45,6 +45,7 @@ idf_component_register(
         "fonts/app_font_16.c"
         "fonts/app_font_wind_bold_16.c"
         "fonts/app_font_18.c"
+        "fonts/app_font_brand_18.c"
         "fonts/app_font_20.c"
         "fonts/app_font_22.c"
         "fonts/app_font_28.c"
