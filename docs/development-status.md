@@ -1,3 +1,7 @@
+## 2026-10-05 – Specifikációs audit javításai
+
+A részletes javításjegyzék és ellenőrzési határok: [audit-remediation.md](audit-remediation.md). A korábbi bejegyzések lezárt vagy történeti feladatokat is tartalmaznak; az aktuális állapotot ez a jegyzék mutatja.
+
 ## 2026-10-05 – Teljes újraalkotott PNG-készlet
 
 - 29/29 futásidejű ikon PNG: 14 elfogadott grafika és 15 új időjárás-/állapotikon.
@@ -83,4 +87,5 @@ A dashboard makro-elrendezése már az eredeti jóváhagyott látványtervet kö
 Szándékos eltérés az eredeti képtől, hogy a későbbi specifikáció szerint nincs navigációs tabsor vagy dátumválasztó, viszont külön hálózati vételezés és visszatáplálás, részletes akkumulátoradatok és két kombinált grafikon szerepel.
 
 A vizuális egyezés még nem tekinthető pixelpontosan validáltnak. Ehhez a firmware-t a tényleges 1280x800-as Waveshare panelen kell lefuttatni, a kijelzőről fotót készíteni, majd az eredeti referenciával összevetni. A hátralévő vizuális munka főként az ikonok részletessége, az előjeles grafikon kitöltése, valamint a fontok, térközök és méretek finomhangolása.
+
 

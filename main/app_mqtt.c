@@ -85,8 +85,8 @@ static void process_complete_payload(void)
     if (now - s_last_invalid_event_us > 60000000LL) {
         app_events_add(
             APP_EVENT_WARNING,
-            "Hibás MQTT adatcsomag elutasítva: %s",
-            error);
+            "Hibás MQTT adatcsomag elutasítva (mező: %s).",
+            strrchr(error,':')?strrchr(error,':')+1:"JSON");
         s_last_invalid_event_us = now;
     }
 }
@@ -319,3 +319,4 @@ bool app_mqtt_wait_connected(TickType_t timeout_ticks)
 
     return (bits & MQTT_CONNECTED_BIT) != 0;
 }
+

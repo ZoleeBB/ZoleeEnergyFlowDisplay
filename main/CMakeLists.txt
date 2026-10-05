@@ -37,6 +37,14 @@ idf_component_register(
     SRCS
         "app_main.c"
         "app_assets.c"
+        "app_chart.c"
+        "fonts/app_font_12.c"
+        "fonts/app_font_14.c"
+        "fonts/app_font_16.c"
+        "fonts/app_font_18.c"
+        "fonts/app_font_20.c"
+        "fonts/app_font_22.c"
+        "fonts/app_font_28.c"
         "app_config.c"
         "app_events.c"
         "app_mqtt.c"
@@ -59,6 +67,7 @@ idf_component_register(
         esp_timer
         esp_wifi
         fatfs
+        sdmmc
         json
         mbedtls
         mqtt
@@ -84,5 +93,7 @@ target_compile_options(
     ${COMPONENT_LIB}
     PRIVATE
     -Wno-error=misleading-indentation
+    -Werror=frame-larger-than=8192
 )
+
 

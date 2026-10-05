@@ -23,6 +23,3 @@ dependencies:
   espressif/mdns:
     version: "^1.8.2"
 
-  # Magyar ékezeteket tartalmazó Noto Sans fontkészlet.
-  78/xiaozhi-fonts:
-    version: "2.0.0"

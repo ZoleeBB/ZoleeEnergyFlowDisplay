@@ -426,7 +426,7 @@ static bool parse_config(
     /* Statisztikai mentés és maximális integrációs rés. */
     cJSON *statistics = get_object_section(root, "statistics", false, error, error_len);
     if (statistics) {
-        if (!read_u32(statistics, "save_interval_minutes", &cfg->statistics.save_interval_minutes, 5, 1440, false, error, error_len) ||
+        if (!read_u32(statistics, "save_interval_minutes", &cfg->statistics.save_interval_minutes, 5, 60, false, error, error_len) ||
             !read_u32(statistics, "max_integration_gap_seconds", &cfg->statistics.max_integration_gap_seconds, 1, 300, false, error, error_len)) {
             return false;
         }
@@ -576,3 +576,4 @@ esp_err_t app_config_load_file(
 
     return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }
+

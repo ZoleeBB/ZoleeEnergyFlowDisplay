@@ -48,7 +48,7 @@ Az MQTT QoS fixen 1.
 
 ## statistics
 
-- `save_interval_minutes`: 60
+- `save_interval_minutes`: 60; megengedett tartomány 5–60 perc
 - `max_integration_gap_seconds`: 30
 
 A grafikon mintaintervalluma fixen 5 perc.
@@ -66,3 +66,4 @@ A grafikon mintaintervalluma fixen 5 perc.
 - `password`
 
 Ha mindkettő üres, a helyi webes információs és OTA oldal hitelesítés nélkül érhető el. Ha használunk hitelesítést, mindkét mezőt ki kell tölteni.
+
