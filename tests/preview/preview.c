@@ -1,4 +1,7 @@
 /* A tényleges firmware UI-jának headless LVGL renderje. Nincs külön mockup-implementáció. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <sys/stat.h>
