@@ -46,6 +46,45 @@ static void save_frame(const char *name)
     printf("Rendered %s\n",name);
 }
 
+/* Ismert, egyenként 2 kW magas rétegek, a plot tényleges koordinátáival.
+ * Nem kötjük a tesztet a demógörbe tetszőleges képpontjához. */
+static void test_stacked_charts(void)
+{
+    static app_stats_snapshot_t test_data;
+    for(int i=0;i<176;i++){
+        test_data.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=1,
+            .split=app_energy_split(6,2,-2),.chart_gap=i>=60 && i<=84};
+    }
+    app_chart_update(s_chart1,&test_data,8,877);
+    for(int i=0;i<176;i++)test_data.slots[i].split=app_energy_split(2,6,2);
+    app_chart_update(s_chart2,&test_data,8,877);
+    save_frame("stacked-chart-regression");
+    lv_obj_t *charts_to_test[]={s_chart1,s_chart2};
+    /* Alsó/középső/felső réteg domináns RGB csatornája. */
+    const int channels[2][3]={{8,16,0},{16,8,0}};
+    for(int chart=0;chart<2;chart++){
+        lv_area_t area;lv_obj_get_content_coords(charts_to_test[chart],&area);
+        int x=area.x1+(area.x2-area.x1)*120/288;
+        for(int layer=0;layer<3;layer++){
+            int y=area.y2-(area.y2-area.y1)*(2*layer+1)/8;
+            uint32_t pixel=pixels[y*1280+x];
+            int dominant=(pixel>>channels[chart][layer])&255;
+            int other=(pixel>>(channels[chart][layer]==16?8:16))&255;
+            assert(dominant>other+5);
+        }
+        /* Nincs implicit kontúrkitöltés a rétegek fölött, a hiányzó
+         * időablakban vagy a jövőben. Egyik pont sem rácsvonalra esik. */
+        int y=area.y2-(area.y2-area.y1)*7/8;
+        assert((pixels[y*1280+x]&0xffffff)==0xffffff);
+        y=area.y2-(area.y2-area.y1)*3/8;
+        int gap_x=area.x1+(area.x2-area.x1)*70/288;
+        int future_x=area.x1+(area.x2-area.x1)*230/288;
+        assert((pixels[y*1280+gap_x]&0xffffff)==0xffffff);
+        assert((pixels[y*1280+future_x]&0xffffff)==0xffffff);
+    }
+    charts(&fixture);
+}
+
 int main(void)
 {
     setenv("TZ","UTC0",1);tzset();
@@ -75,12 +114,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
-    /* Solar-only region must stay green, and the area above both signed
-     * curves must remain empty. This catches accidental implicit closure
-     * fills on stroke paths in the ThorVG backend. */
-    uint32_t solar_pixel=pixels[210*1280+1020];
-    assert(((solar_pixel>>8)&255)>((solar_pixel>>16)&255)+5);
-    assert((pixels[450*1280+910]&0xffffff)==0xffffff);
+    test_stacked_charts();
     assert(f_pv.phase>0.f);
     sd_ok=false;sample.status=3;sample.soc_bat_pct=19.9;update(&sample,&fixture);save_frame("hu-island-sd-error");
     sd_ok=true;sample.status=2;sample.power_bat_kw=-3.5;sample.soc_bat_pct=100;update(&sample,&fixture);save_frame("hu-preparing");
