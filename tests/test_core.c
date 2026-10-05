@@ -207,6 +207,33 @@ static void test_flow(void){
     float phase=.4f;phase=app_flow_advance(phase,7,true,.016f);phase=app_flow_advance(phase,7,false,.016f);near(phase,.4f);
     phase=app_flow_advance(.001f,7,false,.016f);assert(phase>=0 && phase<1);tests++;
 }
+/* Fizikai példák, irányváltás ötperces ablakon belül, mentés és adathézag. */
+static void test_energy_split(void){
+    app_energy_split_t v=app_energy_split(3,2,-4);
+    near(v.pv_home,2);near(v.pv_stored,1);near(v.pv_export,0);near(v.grid_home,0);
+    v=app_energy_split(0,2,-4);near(v.grid_home,2);near(v.pv_stored,0);
+    v=app_energy_split(7,2,-2);near(v.pv_home,2);near(v.pv_stored,2);near(v.pv_export,3);
+    v=app_energy_split(1,5,3);near(v.pv_home,1);near(v.battery_home,3);near(v.grid_home,1);
+    v=app_energy_split(0,0,0);near(v.grid_home,0);near(v.pv_export,0);
+    time_t t=instant("2026-10-05",12,0,0);reset(t);
+    app_energy_sample_t a=sample(t,4,0,-2);a.power_full_kw=2;
+    app_stats_process_sample(&a);
+    a=sample(t+5,0,0,2);a.power_full_kw=2;app_stats_process_sample(&a);
+    app_stats_get_snapshot(&snapshot);
+    v=snapshot.slots[144].split;
+    near(v.pv_home,1);near(v.pv_stored,1);near(v.battery_home,1);
+    assert(app_stats_save_now()==ESP_OK);assert(app_stats_init(&cfg)==ESP_OK);
+    app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].split.pv_stored,1);
+    /* A v1 adatok nem vesznek el: becslés a régi átlagokból. */
+    cJSON *d=read_json("2026-10-05");cJSON_SetNumberValue(cJSON_GetObjectItem(d,"version"),1);
+    write_json("2026-10-05",d);cJSON_Delete(d);assert(app_stats_init(&cfg)==ESP_OK);
+    app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].split.pv_home,2);
+    reset(t);feed(t,2,0,0);feed(t+301,2,0,0);app_stats_get_snapshot(&snapshot);
+    assert(snapshot.slots[144].chart_gap && snapshot.slots[145].chart_gap);
+    assert(app_stats_save_now()==ESP_OK);assert(app_stats_init(&cfg)==ESP_OK);
+    app_stats_get_snapshot(&snapshot);assert(snapshot.slots[144].chart_gap);
+    tests++;
+}
 static void test_events(void){
     app_event_entry_t entries[2];app_events_add(APP_EVENT_INFO,"Új nap indult: %s","2026-10-05");
     size_t n=app_events_snapshot(entries,2);assert(n>0);assert(strstr(entries[n-1].text_en,"New day started"));tests++;
@@ -219,6 +246,6 @@ int main(void){
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);
-    test_mode_config();test_http();
+    test_mode_config();test_http();test_energy_split();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

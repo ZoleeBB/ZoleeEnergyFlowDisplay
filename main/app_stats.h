@@ -7,6 +7,7 @@
 
 #include "app_config.h"
 #include "app_state.h"
+#include "app_energy_split.h"
 
 /* Egy nap 24 * 12 darab ötperces időablakból áll. */
 #define APP_STATS_SLOT_COUNT 288
@@ -34,6 +35,8 @@ typedef struct {
     float grid_kw;
     float battery_kw;
     app_energy_totals_t energy;
+    app_energy_split_t split; /* Mintánként szétválasztott, majd átlagolt kW. */
+    bool chart_gap; /* Hiányos ötperces ablak: a grafikon nem köti át. */
 } app_stats_slot_t;
 
 /*

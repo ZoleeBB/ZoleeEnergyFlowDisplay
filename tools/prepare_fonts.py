@@ -17,7 +17,7 @@ CODEPOINTS = sorted(set(range(32, 127)) | set(range(160, 256)) |
 
 
 def generate(source: Path, symbols: Path, wind_bold=False, brand=False):
-    sizes = (18,) if brand else (16,) if wind_bold else SIZES
+    sizes = (16,20) if brand else (16,) if wind_bold else SIZES
     codepoints = sorted(set(map(ord, " Zolee Energy Folow Monitor"))) if brand else sorted(set(map(ord, " 0123456789km/h"))) if wind_bold else CODEPOINTS
     out = ROOT / 'main/fonts'
     out.mkdir(parents=True, exist_ok=True)
@@ -89,6 +89,6 @@ if __name__ == '__main__':
     parser.add_argument('font', type=Path)
     parser.add_argument('--symbols', type=Path, required=True)
     parser.add_argument('--wind-bold', action='store_true', help='Generate the 16 px wind label subset from DejaVuSans-Bold.ttf')
-    parser.add_argument('--brand', action='store_true', help='Generate the fixed 18 px brand subset from DejaVuSans-BoldOblique.ttf')
+    parser.add_argument('--brand', action='store_true', help='Generate the fixed 16/20 px brand subset from DejaVuSans-BoldOblique.ttf')
     args = parser.parse_args()
     generate(args.font, args.symbols, args.wind_bold, args.brand)

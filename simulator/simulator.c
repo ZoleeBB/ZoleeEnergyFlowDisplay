@@ -63,6 +63,7 @@ void app_stats_process_sample(const app_energy_sample_t *s)
     slot->load_kw+=(float)((s->power_full_kw-slot->load_kw)/(count+1));
     slot->grid_kw+=(float)((s->power_grid_kw-slot->grid_kw)/(count+1));
     slot->battery_kw+=(float)((s->power_bat_kw-slot->battery_kw)/(count+1));
+    app_energy_split_average(&slot->split,app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw),(float)(count+1));
 }
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 {
@@ -139,9 +140,14 @@ static void init_demo(void)
     int current=tmv.tm_hour*12+tmv.tm_min/5;
     for(int i=0;i<current;i++){
         float pv=fmaxf(0,sinf((i-72)*3.14159265f/144))*7;
-        float load=1.5f+.7f*sinf(i*.13f),grid=load-pv;
+        float load=1.5f+.7f*sinf(i*.13f);
+        float battery=pv>load?-(pv-load)*.35f:(i%36<18?load*.55f:0);
+        /* Felkészülés: hajnalban hálózati akkutöltés, házfogyasztástól elkülönítve. */
+        if(i>=48 && i<60)battery=-2;
+        float grid=load-pv-battery;
         fixture.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=60,
-            .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=0};
+            .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=battery,
+            .split=app_energy_split(pv,load,battery),.chart_gap=(i==current/3)};
         fixture.totals.production_kwh+=pv/12;
         fixture.totals.consumption_kwh+=load/12;
         fixture.totals.grid_import_kwh+=fmaxf(0,grid)/12;

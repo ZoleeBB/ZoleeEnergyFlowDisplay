@@ -2229,3 +2229,16 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - A projektcím és a dátum közötti területen kétsoros, középre igazított „Zolee Energy” / „Folow Monitor” felirat jelenik meg, a kért név pontos írásmódjával.
 - Saját, beégetett 18 px félkövér dőlt betűkészlet, nappal mélykék, éjszaka világosabb kék színnel. A név nem konfigurálható és nem változik a nyelvválasztással.
 - A konfigurálható projektcím külön megmarad; szélessége korlátozott, hogy ne fedhesse a programnevet.
+
+### Jóváhagyott termelési és fogyasztási forrásdiagramok
+
+Ez a fejezet felülírja a korábbi kétgörbés, illetve előjeles hálózat/akku diagramleírást.
+
+- Felső kártya: „Termelés”. Halmozott területek alulról: zöld „Saját fogyasztás”, narancs „Visszatáplálás”, kék „Tárolt”. Összmagasságuk a PV teljesítménye.
+- Alsó kártya: „Fogyasztás”. Halmozott területek alulról: piros „Hálózat”, zöld „Termelés”, kék „Tároló”. Összmagasságuk a ház teljesítményigénye.
+- Mindkét kártyán áttetsző kitöltések, külön jelmagyarázatsor, 00:00–24:00 időtengely, nemnegatív automatikus kW-skála. Külön kWh és százalékos összesítések nem kellenek. A jövő üres.
+- Adatkimaradáskor nincs nullával helyettesítés vagy átkötés. A konfigurált adat-timeoutnál hosszabb mintaköz érintett ötperces ablakai hézagként jelennek meg; ez az ötperces felbontás miatt a tényleges kimaradásnál szélesebb lehet.
+- Az akkumulátor hálózatról tölthető (felkészülés), de nem exportálhat. A PV elsősorban a házat szolgálja ki; a maradékból akkutöltés és visszatáplálás történik. A hálózati akkutöltés egyik diagramon sem házfogyasztás vagy PV-tárolás.
+- Számítás minden beérkező mintán, ötperces átlagolás ELŐTT: PV→ház=min(PV,ház); PV→akku=min(PV−PV→ház,max(−PowerBat,0)); PV→hálózat=PV−PV→ház−PV→akku; akku→ház=min(ház−PV→ház,max(PowerBat,0)); hálózat→ház=ház−PV→ház−akku→ház. Minden rész nemnegatív. A felosztás a jóváhagyott prioritás szerinti becslés; az összesített mérésekből a tényleges belső útvonalak nem mérhetők külön. A napi import/export kártyák továbbra is a mért PowerGrid alapján számolnak.
+- SD statisztika v2: az öt komponens átlaga és a hézagjelölő is mentendő. V1 beolvasása támogatott; régi adatoknál csak az eltárolt nyers átlagokból becsülhető a felosztás, a korábbi irányváltások nem rekonstruálhatók.
+- Programcím: első sor csak „Zolee”, 20 px félkövér dőlt; második sor „Energy Folow Monitor”, 16 px félkövér dőlt. Beégetett, középre igazított, a korábban elfogadott kék nappali/éjszakai színnel.

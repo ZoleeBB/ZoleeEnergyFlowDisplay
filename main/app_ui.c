@@ -32,7 +32,8 @@ LV_FONT_DECLARE(app_font_16);
 #define APP_FONT_16 (&app_font_16)
 LV_FONT_DECLARE(app_font_wind_bold_16);
 #define APP_FONT_WIND_BOLD_16 (&app_font_wind_bold_16)
-LV_FONT_DECLARE(app_font_brand_18);
+LV_FONT_DECLARE(app_font_brand_20);
+LV_FONT_DECLARE(app_font_brand_16);
 LV_FONT_DECLARE(app_font_18);
 #define APP_FONT_18 (&app_font_18)
 LV_FONT_DECLARE(app_font_20);
@@ -569,12 +570,17 @@ static void build_dashboard(bool night)
     lv_obj_set_width(s_title,350);
 
     /* Beégetett programnév, a konfigurálható projektcímtől függetlenül. */
-    lv_obj_t *brand=lbl(header,"Zolee Energy\nFolow Monitor",430,0,
-        &app_font_brand_18,night?0xA9C5DC:0x245878);
-    lv_obj_set_width(brand,224);
-    lv_obj_set_style_text_align(brand,LV_TEXT_ALIGN_CENTER,0);
-    lv_obj_set_style_text_line_space(brand,0,0);
+    lv_obj_t *brand=lv_obj_create(header);
+    lv_obj_remove_style_all(brand);
+    lv_obj_set_size(brand,224,44);
+    lv_obj_remove_flag(brand,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(brand,LV_ALIGN_LEFT_MID,430,0);
+    lv_obj_t *brand_name=lbl(brand,"Zolee",0,0,&app_font_brand_20,night?0xA9C5DC:0x245878);
+    lv_obj_set_width(brand_name,224);
+    lv_obj_set_style_text_align(brand_name,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_t *brand_detail=lbl(brand,"Energy Folow Monitor",0,25,&app_font_brand_16,night?0xA9C5DC:0x245878);
+    lv_obj_set_width(brand_detail,224);
+    lv_obj_set_style_text_align(brand_detail,LV_TEXT_ALIGN_CENTER,0);
 
     lbl(
         header,
@@ -899,37 +905,18 @@ static void build_dashboard(bool night)
 
     lbl(
         chart_card_1,
-        tr("Termelés és fogyasztás","Production and consumption"),
+        tr("Termelés","Production"),
         0,
         0,
         APP_FONT_16,
         night?TEXT_DARK:TEXT_LIGHT);
 
-    shape(
-        chart_card_1,
-        230,7,8,8,
-        tone(GREEN,night),
-        LV_RADIUS_CIRCLE);
-    lbl(
-        chart_card_1,
-        tr("Termelés","PV"),
-        243,
-        2,
-        APP_FONT_12,
-        night?MUTED_DARK:MUTED_LIGHT);
-
-    shape(
-        chart_card_1,
-        315,7,8,8,
-        tone(ORANGE,night),
-        LV_RADIUS_CIRCLE);
-    lbl(
-        chart_card_1,
-        tr("Fogyasztás","Load"),
-        328,
-        2,
-        APP_FONT_12,
-        night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_1,38,30,7,7,tone(GREEN,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_1,tr("Saját fogyasztás","Self-consumption"),50,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_1,186,30,7,7,tone(ORANGE,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_1,tr("Visszatáplálás","Export"),198,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_1,323,30,7,7,tone(BLUE,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_1,tr("Tárolt","Stored"),335,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
 
     lbl(
         chart_card_1,
@@ -947,7 +934,7 @@ static void build_dashboard(bool night)
         lbl(chart_card_1,"0",0,217,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
 
     s_chart1=app_chart_create(chart_card_1,false,night,
-        tone(GREEN,night),tone(ORANGE,night));
+        tone(GREEN,night),tone(ORANGE,night),tone(BLUE,night));
     if(s_chart1){
         lv_obj_set_pos(s_chart1,38,48);
         lv_obj_set_size(s_chart1,350,178);
@@ -969,37 +956,18 @@ static void build_dashboard(bool night)
 
     lbl(
         chart_card_2,
-        tr("Hálózat és akkumulátor","Grid and battery"),
+        tr("Fogyasztás","Consumption"),
         0,
         0,
         APP_FONT_16,
         night?TEXT_DARK:TEXT_LIGHT);
 
-    shape(
-        chart_card_2,
-        246,7,8,8,
-        tone(RED,night),
-        LV_RADIUS_CIRCLE);
-    lbl(
-        chart_card_2,
-        tr("Hálózat","Grid"),
-        259,
-        2,
-        APP_FONT_12,
-        night?MUTED_DARK:MUTED_LIGHT);
-
-    shape(
-        chart_card_2,
-        326,7,8,8,
-        tone(BLUE,night),
-        LV_RADIUS_CIRCLE);
-    lbl(
-        chart_card_2,
-        tr("Akku","Battery"),
-        339,
-        2,
-        APP_FONT_12,
-        night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_2,38,30,7,7,tone(RED,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_2,tr("Hálózat","Grid"),50,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_2,186,30,7,7,tone(GREEN,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_2,tr("Termelés","Solar"),198,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+    shape(chart_card_2,323,30,7,7,tone(BLUE,night),LV_RADIUS_CIRCLE);
+    lbl(chart_card_2,tr("Tároló","Battery"),335,24,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
 
     lbl(
         chart_card_2,
@@ -1017,7 +985,7 @@ static void build_dashboard(bool night)
         lbl(chart_card_2,"",0,217,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
 
     s_chart2=app_chart_create(chart_card_2,true,night,
-        tone(RED,night),tone(BLUE,night));
+        tone(RED,night),tone(GREEN,night),tone(BLUE,night));
     if(s_chart2){
         lv_obj_set_pos(s_chart2,38,48);
         lv_obj_set_size(s_chart2,350,178);
@@ -1185,46 +1153,26 @@ static void metric(
 /* A 288 ötperces grafikonpont és az automatikus Y-skálák frissítése. */
 static void charts(const app_stats_snapshot_t *st)
 {
-    double max_positive=1.0;
-    double max_signed=1.0;
-
-    /* A két grafikon külön, automatikus Y-skálát kap. */
-    for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
-        if(!st->slots[i].valid){
-            continue;
-        }
-
-        max_positive=fmax(
-            max_positive,
-            fmax(
-                st->slots[i].pv_kw,
-                st->slots[i].load_kw));
-
-        max_signed=fmax(
-            max_signed,
-            fmax(
-                fabs(st->slots[i].grid_kw),
-                fabs(st->slots[i].battery_kw)));
-    }
-
-    max_positive=ceil(max_positive);
-    max_signed=ceil(max_signed);
-
-    char text[20];
-    fmt_dec(text,sizeof(text),max_positive,0);
-    lv_label_set_text(s_chart1_y_top,text);
-    fmt_dec(text,sizeof(text),max_positive/2.,1);
-    lv_label_set_text(s_chart1_y_mid,text);
-    fmt_dec(text,sizeof(text),max_signed,0);
-    lv_label_set_text(s_chart2_y_top,text);
-    fmt_dec(text,sizeof(text),-max_signed,0);
-    lv_label_set_text(s_chart2_y_bottom,text);
     time_t now=time(NULL);
-    struct tm local_time;
-    localtime_r(&now,&local_time);
+    struct tm local_time;localtime_r(&now,&local_time);
     int minutes=local_time.tm_hour*60+local_time.tm_min;
-    app_chart_update(s_chart1,st,max_positive,minutes);
-    app_chart_update(s_chart2,st,max_signed,minutes);
+    double max_production=1.0,max_consumption=1.0;
+    for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
+        if(!st->slots[i].valid || st->slots[i].chart_gap || i*5>minutes)continue;
+        const app_energy_split_t *v=&st->slots[i].split;
+        max_production=fmax(max_production,v->pv_home+v->pv_export+v->pv_stored);
+        max_consumption=fmax(max_consumption,v->grid_home+v->pv_home+v->battery_home);
+    }
+    max_production=ceil(max_production);max_consumption=ceil(max_consumption);
+    char text[20];
+    fmt_dec(text,sizeof(text),max_production,0);lv_label_set_text(s_chart1_y_top,text);
+    fmt_dec(text,sizeof(text),max_production/2.,1);lv_label_set_text(s_chart1_y_mid,text);
+    lv_label_set_text(s_chart1_y_bottom,"0");
+    fmt_dec(text,sizeof(text),max_consumption,0);lv_label_set_text(s_chart2_y_top,text);
+    fmt_dec(text,sizeof(text),max_consumption/2.,1);lv_label_set_text(s_chart2_y_mid,text);
+    lv_label_set_text(s_chart2_y_bottom,"0");
+    app_chart_update(s_chart1,st,max_production,minutes);
+    app_chart_update(s_chart2,st,max_consumption,minutes);
 }
 /* MQTT meteorológiai mezőkből az ikonlogika szerinti időjárási állapot kiválasztása. */
 static weather_kind_t weather_kind(const app_energy_sample_t *s){
