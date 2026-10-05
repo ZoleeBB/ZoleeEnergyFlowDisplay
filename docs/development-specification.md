@@ -1,5 +1,7 @@
 # Zolee Energy Flow Display – részletes fejlesztési specifikáció
 
+> **2026-10-05 – elfogadott bővítés:** GitHub Release OTA/USB csomagok és választható MQTT/HTTP adatfogadás. Az alábbi követelmények véglegesítettek; a release workflow és a HTTP firmware-fogadó megvalósítása külön fejlesztési lépés. A HTTP Pico C minta és bekötési útmutató előkészítve, Miniserver Gen 2 / 17.x hardveres átvétel még szükséges.
+
 > **Státusz:** normatív fejlesztési specifikáció  
 > **Célhardver:** Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1  
 > **Célfelbontás:** 1280×800, fix fekvő tájolás  
@@ -7,7 +9,7 @@
 > **Elsődleges nyelv:** magyar  
 > **Utolsó összefoglaló frissítés:** 2026-10-05
 
-Ez a dokumentum a projekt során végigbeszélt igényeket, elfogadott döntéseket, viselkedési szabályokat, konfigurációs alapértékeket, UI-elvárásokat, MQTT/Loxone integrációt, statisztikai számításokat, hibakezelést, OTA működést és vizuális követelményeket egyetlen specifikációban foglalja össze.
+Ez a dokumentum a projekt során végigbeszélt igényeket, elfogadott döntéseket, viselkedési szabályokat, konfigurációs alapértékeket, UI-elvárásokat, MQTT/HTTP/Loxone integrációt, statisztikai számításokat, hibakezelést, OTA működést és vizuális követelményeket egyetlen specifikációban foglalja össze.
 
 Ha a régebbi dokumentáció vagy egy korábbi implementáció ettől eltér, **ez a dokumentum tekintendő a fejlesztési cél elsődleges leírásának**, kivéve, ha egy későbbi, kifejezett felhasználói döntés módosítja.
 
@@ -19,7 +21,7 @@ A cél egy falra vagy állandó helyre szerelt, 24/7 üzemelő, önálló otthon
 
 - valós időben megjeleníti a ház energiaáramlását;
 - vizuálisan a jóváhagyott eredeti látványtervet követi;
-- Loxone rendszerből MQTT-n kapja az adatokat;
+- Loxone rendszerből a konfigurált mód szerint MQTT-n vagy közvetlen HTTP POST-tal kapja az adatokat;
 - napi statisztikát számol és tárol;
 - összehasonlítja az aktuális napot a tegnapi nap azonos időszakával;
 - nappali és éjszakai megjelenést kezel;
@@ -559,7 +561,7 @@ Szín:
 
 # 12. Rendszerállapot
 
-Az MQTT `Status` mező:
+A közös JSON adatcsomag `Status` mező:
 
 ## Status = 1
 
@@ -833,18 +835,22 @@ A második, előjeles grafikon kitöltése a nullavonal irányába történjen.
 
 ---
 
-# 18. MQTT adatforrás
+# 18. Választható adatforrás
 
-A firmware kizárólag MQTT-ről kap energiamérési adatokat.
+A `config.json` gyökérszintű `DataReceptMode` mezője választja ki az adatfogadást:
 
-Nincs közvetlen:
+| Érték | Adatút |
+|---|---|
+| `mqtt` | Loxone → MQTT broker → kijelző; a meglévő működés |
+| `http` | Loxone → HTTP POST → kijelző; közvetítő nélkül |
 
-- Loxone HTTP;
-- Loxone WebSocket;
-- Modbus;
-- inverter API.
+Hiányzó mező: `mqtt` (régi konfigurációk kompatibilitása). Az érték kis-/nagybetűtől függetlenül értelmezhető, belül kisbetűsre normalizálandó. Üres, rossz típusú vagy ismeretlen érték konfigurációs hiba, nem okozhat csendes módváltást.
 
-## 18.1. Kapcsolat
+Egyszerre egy adatforrás aktív; nincs automatikus fallback. A mód csak induláskor kerül beolvasásra, megváltoztatásához újraindítás szükséges. HTTP módban az MQTT-kliens nem indul el, a teljes `mqtt` konfiguráció elhagyható, annak hibás vagy hiányzó mezői sem blokkolják a HTTP működést. MQTT módban a korábbi broker- és hitelesítési szabályok maradnak.
+
+A két fogadási út ugyanazt a validátort és közös állapot-/statisztikafeldolgozást használja. Nincs Loxone WebSocket, Modbus vagy közvetlen inverter API. A kijelző nem kérdezi le a Loxone HTTP API-ját: a Miniserver küldi a csomagokat.
+
+## 18.1. MQTT-kapcsolat
 
 Transport:
 
@@ -874,7 +880,7 @@ Felhasználónév és jelszó:
 - opcionális;
 - üres esetén anonim kapcsolat.
 
-## 18.2. Publikálási periódus
+## 18.2. MQTT-publikálási periódus
 
 Loxone oldalról:
 
@@ -889,9 +895,36 @@ A retained üzenet korát a firmware **nem** próbálja ellenőrizni.
 
 Nincs payload timestamp mező.
 
+## 18.3. HTTP POST adatfogadás
+
+Célkörnyezet: Loxone Miniserver Gen 2, Loxone Config és firmware 17.x.
+
+- Fix útvonal: `POST http://<kijelző-IP>/api/energy`, a meglévő HTTP szerver 80-as portján.
+- Tartalomtípus: `application/json`; a `charset=utf-8` kiegészítés megengedett.
+- A body egy teljes, 12 kötelező mezős JSON objektum; mezők, mértékegységek, előjelek és tartományok a 19–21. fejezet szerint.
+- **Nincs adatfogadási hitelesítés:** sem Basic Auth, sem API-kulcs, sem token. A végpont akkor is jelszó nélkül fogad, ha az OTA/web felület jelszóval védett.
+- Nincs GET-es adatküldés, query-paraméteres vagy mezőnkénti részleges frissítés.
+- A body mérete legfeljebb 4096 bájt; üres vagy túlméretes kérés nem fogadható el. Korlátos fogadási idő és teljes body-olvasás szükséges; megszakított kérés nem frissíthet részadatot.
+- Egy érvényes kérés egyszer frissíti az élő állapotot és a statisztikát. A fogadási időt a kijelző állítja elő; nincs kötelező payload timestamp.
+- Hibás kérés nem módosíthat állapotot, statisztikát vagy az utolsó érvényes csomag időpontját.
+- Az endpoint kiszolgálása nem várhat SD-írásra; hiba vagy párhuzamos webhasználat nem állíthatja le a UI-t.
+
+| HTTP válasz | Jelentés |
+|---|---|
+| `200` + `{"ok":true}` | Az érvényes minta feldolgozása megtörtént |
+| `400` | Üres/hibás JSON, hiányzó/dupla mező, hibás típus vagy tartomány |
+| `405` | Nem POST módszer; `Allow: POST` fejléc |
+| `408` | A kérés teljes body-ja határidőn belül nem érkezett meg |
+| `409` | A HTTP adatforrás nincs kiválasztva (`DataReceptMode=mqtt`) |
+| `413` | Túl nagy body |
+| `415` | Nem támogatott tartalomtípus |
+| `503` | A feldolgozás indulás miatt még nem kész, vagy átmenetileg nem elérhető |
+
+A hibaválasz rövid JSON, gépi hibakóddal és szükség esetén mezőnévvel. Nem szabad a teljes méréstartalmat folyamatosan naplózni. A korábbi web/OTA végpontok hitelesítése és funkciói megmaradnak.
+
 ---
 
-# 19. MQTT payload
+# 19. Közös MQTT/HTTP payload
 
 Kötelező mezők:
 
@@ -984,7 +1017,7 @@ km/h
 
 ---
 
-# 20. MQTT validáció
+# 20. Közös MQTT/HTTP validáció
 
 Minden felsorolt mező kötelező.
 
@@ -1026,7 +1059,7 @@ nem frissül belőle.
 
 ---
 
-# 21. MQTT mezőtartományok
+# 21. Közös MQTT/HTTP mezőtartományok
 
 `PowerPV`
 
@@ -1084,39 +1117,20 @@ nem frissül belőle.
 
 ---
 
-# 22. MQTT adat-timeout
+# 22. Adat-timeout
 
-Alapérték:
+Mindkét módban az alapérték **30 másodperc**, az utolsó érvényes csomagtól, monoton idővel mérve. Első csomag nélkül a fogadó üzemkész állapotától számítjuk. MQTT-nél a meglévő `mqtt.data_timeout_seconds`, HTTP-nél a `http.data_timeout_seconds` beállítás érvényes; alapértékük és megengedett tartományuk azonos legyen.
 
-30 másodperc.
+Hibás csomag vagy egyszerű HTTP-kapcsolódás nem nullázza a timeoutot. Induláskor első adatra várakozó képernyő látszik, majd adat nélkül 30 másodperc után a kiválasztott módhoz tartozó teljes képernyős hibaoldal.
 
-Konfigurálható.
+| Mód | Magyar főszöveg | Angol főszöveg |
+|---|---|---|
+| MQTT | `Nem érkezett MQTT adatcsomag.` | `No MQTT data received` |
+| HTTP | `Nem érkezik HTTP adat` | `No HTTP data received` |
 
-A timeout az:
+HTTP segédszöveg: `A Loxone adatküldésére várunk...` / `Waiting for data from Loxone...`.
 
-**utolsó érvényes MQTT csomagtól**
-
-számít.
-
-Hibás csomag:
-
-- nem nullázza a timeoutot.
-
-Ha nincs érvényes adat:
-
-- teljes képernyős hiba.
-
-Felirat magyarul:
-
-`Nem érkezett MQTT adatcsomag.`
-
-Kisebb segédszöveg:
-
-`Kapcsolat helyreállítására várunk...`
-
-Érvényes csomag visszatérésekor:
-
-- dashboard automatikusan visszaáll.
+Wi-Fi kiesésekor a külön Wi-Fi hibaoldal elsőbbséget élvez. HTTP módban soha ne jelenjen meg MQTT-brokerre utaló hiba. Egy új érvényes csomag után a dashboard automatikusan visszatér, újraindítás nélkül.
 
 ---
 
@@ -1159,6 +1173,27 @@ A Loxone Pico C sajátossága miatt a JSON `sprintf()` formátum:
 - egyetlen string literal legyen;
 - ne egymás mellé írt, automatikusan összefűzendő C string darabokból álljon.
 
+## 23.1. HTTP POST minta és bekötés
+
+Minta: `examples/loxone-energy-http-post.picoc`. Cél: Miniserver Gen 2 / 17.x; a bemenetek I1–I12 megfeleltetése változatlan. A script csak a body-t állítja össze, a hálózati küldést a virtuális kimenet végzi.
+
+| Beállítás | Érték |
+|---|---|
+| Virtuális kimenet címe | `http://<kijelző-IP>` |
+| Parancs BE állapotban | `/api/energy` |
+| HTTP mód BE esetén | `POST` |
+| HTTP header BE parancshoz | `Content-Type: application/json` |
+| HTTP body BE parancshoz | `<v>` |
+| Alkalmazás digitális kimenetként | Kikapcsolva; Txt1 szöveges bekötés |
+| KI parancs | Üres |
+| Első ismétlés / ismétlések közötti távolság | `0` / `0` – nincs automatikus újraküldés |
+| HTTP válasz mentése | Üres; nincs 5 másodpercenkénti SD-napló |
+| Hitelesítés | Nincs |
+
+Öt másodpercenként friss teljes csomag szükséges változatlan mérési értékek mellett is. A mintában a JSON objektum belső whitespace-e felváltva változik: ez új szöveges kimeneti értéket ad új mérési mező vagy mesterségesen változtatott mérés nélkül. A tényleges, 5 másodperces POST-küldést Gen 2 / 17.x hardveren ellenőrizni kell.
+
+A virtuális kimenet nem ismételheti időzítve a legutóbbi body-t, mert az elfedné a Pico C program leállását. Újraküldés helyett a következő friss mintával áll helyre az adatfolyam; régi csomagokat nem kell visszajátszani. Részletes bekötés: `docs/http-input.md`.
+
 ---
 
 # 24. Wi-Fi
@@ -1197,7 +1232,9 @@ Ha nincs statikus IP:
 
 ---
 
-# 25. MQTT kapcsolatvesztés
+# 25. Adatforrás kapcsolatvesztése
+
+Az alábbi brokerkezelés kizárólag MQTT módban aktív. HTTP módban nincs tartós brokerkapcsolat; az elérhetőséget az érvényes POST-minták és a 22. fejezet timeoutja jelzi.
 
 Brokerkapcsolat megszakadásakor:
 
@@ -1220,8 +1257,11 @@ Lépések:
 2. config betöltés;
 3. Wi-Fi;
 4. NTP;
-5. MQTT;
-6. első érvényes adatcsomag.
+5. statisztika és web/OTA inicializálása;
+6. kiválasztott adatfogadó: MQTT-kapcsolat vagy HTTP POST végpont regisztrálása;
+7. első érvényes adatcsomag.
+
+A HTTP végpont csak a konfiguráció, idő és statisztika sikeres inicializálása után fogadhat mérést. HTTP módban a web/adatfogadó indítási hibája blokkoló hiba; a boot nem várhat MQTT-re.
 
 A dashboard csak a szükséges feltételek után jelenik meg.
 
@@ -1290,7 +1330,7 @@ A firmware aktuális támogatását mindig a használt ESP-IDF/FatFs konfigurác
 Ha a kártya runtime közben kiesik vagy írási hiba történik:
 
 - dashboard működjön tovább;
-- MQTT feldolgozás folytatódjon;
+- a kiválasztott MQTT/HTTP adatfeldolgozás folytatódjon;
 - statisztika RAM-ban gyűljön tovább, amennyire lehetséges;
 - jelenjen meg jól látható piros:
   - `SD-kártya hiba`;
@@ -1599,7 +1639,9 @@ A minta:
 
 `config.sample.json`
 
-minden támogatott mezőt és alapértéket tartalmazzon.
+minden implementált mezőt és alapértéket tartalmazzon. Az elfogadott bővítés implementálásakor a `DataReceptMode` és `http` mezőkkel is frissítendő.
+
+Gyökérszintű módválasztó: `"DataReceptMode": "mqtt"`. Hiányában `mqtt`; hibás értéknél blokkoló konfigurációs hiba. A módváltás újraindítást igényel.
 
 ## 42.1. project
 
@@ -1670,7 +1712,7 @@ Statikus IP:
 
 Broker:
 
-- valódi configban kötelező.
+- kizárólag `DataReceptMode=mqtt` esetén kötelező.
 
 ## 42.5. display
 
@@ -1718,6 +1760,25 @@ Ha használjuk:
 
 - mindkettő legyen kitöltve.
 
+## 42.9. http
+
+```json
+{
+  "data_timeout_seconds": 30
+}
+```
+
+A `http` objektum opcionális; hiánya esetén is 30 másodperc az alap timeout. Csak HTTP módban érvényes. Nem tartalmaz felhasználónevet, jelszót vagy API-kulcsot. A POST útvonal és a 80-as port fix. MQTT módban a HTTP adatspecifikus konfiguráció nem blokkolhatja az indulást.
+
+Példa a módválasztást érintő részletre (a többi konfigurációs objektum megtartandó):
+
+```json
+{
+  "DataReceptMode": "http",
+  "http": { "data_timeout_seconds": 30 }
+}
+```
+
 ---
 
 # 43. Fix, nem konfigurálható értékek
@@ -1754,8 +1815,9 @@ Mutassa:
 - uptime;
 - Wi-Fi RSSI;
 - IP cím;
-- MQTT kapcsolat;
-- utolsó érvényes MQTT csomag ideje;
+- aktív adatfogadási mód (`mqtt` / `http`);
+- MQTT módban brokerkapcsolat; HTTP módban a POST-fogadó üzemkészsége;
+- utolsó érvényes csomag ideje és azóta eltelt idő, a módnak megfelelő megnevezéssel;
 - SD állapot;
 - reset ok;
 - utolsó fontos események/hibák RAM-ból.
@@ -1805,11 +1867,14 @@ teljesül:
 - config betöltés sikeres;
 - Wi-Fi csatlakozott;
 - NTP sikeres;
-- MQTT broker kapcsolat sikeres.
+- MQTT módban: brokerkapcsolat sikeres;
+- HTTP módban: a HTTP szerver és a `/api/energy` POST-fogadó sikeresen elindult.
 
 **Nem feltétel:**
 
-- érvényes MQTT payload érkezése.
+- érvényes MQTT vagy HTTP mérési csomag érkezése.
+
+HTTP módban az MQTT-kapcsolat sem feltétel. A Loxone ideiglenes leállása vagy a mérési adat hiánya önmagában nem okozhat rollbacket. A háromperces érvényesítési határidő és minden más kötelező feltétel megmarad.
 
 Ha a feltételek nem teljesülnek:
 
@@ -1831,7 +1896,8 @@ Különálló hibák:
 - Wi-Fi;
 - MQTT kapcsolat;
 - MQTT adat-timeout;
-- első adatra várakozás;
+- HTTP adat-timeout (`Nem érkezik HTTP adat`);
+- első adatra várakozás a kiválasztott mód szerint;
 - SD/config fatal boot hiba.
 
 A végleges hibaikonok is asset-alapú, minőségi grafikák legyenek.
@@ -1851,7 +1917,7 @@ Elvárás:
 - SD írás gyakoriságának minimalizálása;
 - network reconnect;
 - OTA rollback;
-- hibás MQTT csomagok izolálása.
+- hibás MQTT/HTTP csomagok izolálása.
 
 ---
 
@@ -1880,7 +1946,7 @@ Nem része a specifikációnak:
 - helyi beállításszerkesztő;
 - cloud backend;
 - közvetlen inverter API;
-- közvetlen Loxone HTTP API;
+- a Loxone HTTP API-jának lekérdezése a kijelző felől (a Loxone → kijelző HTTP POST küldés viszont része a specifikációnak);
 - felhőalapú távoli OTA;
 - statisztika kézi webes törlőgombja;
 - több dashboard oldal.
@@ -1903,6 +1969,48 @@ Sikeres build artifactként legalább:
 
 A CI buildnek zöldnek kell lennie a hardveres tesztelés előtt.
 
+## 52.1. Automatikus GitHub Release csomagolás
+
+A felhasználó a GitHubon létrehozza a taget/release-t, majd **Publish release** művelettel publikálja. A `release: types: [published]` esemény indítja a fordítást normál release és pre-release esetén egyaránt. Draft mentése nem indít publikálást; puszta release-leírás szerkesztése nem fordít újra.
+
+A release tagjéhez tartozó pontos commitot kell fordítani ESP-IDF 5.5.4 alatt, ESP32-P4 célra, nem a közben elmozduló `main` ágat. A firmware fájlok a tesztek és build sikere után jelennek meg ugyanannak a release-nek az Assets részében. A publikálás és a csatolmányok megjelenése között a CI futási ideje telik el.
+
+## 52.2. Verzióazonosság
+
+- Tagformátum: `vMAJOR.MINOR.PATCH`, opcionális előzetes utótaggal, pl. `v1.2.0-rc.1`.
+- A teljes tag legyen a beégetett `PROJECT_VER`, a weboldalon kijelzett firmware-verzió és a fájlnevek verziórésze.
+- Az ESP-IDF verziómező hosszkorlátját előre ellenőrizni kell; a kiadási tag legfeljebb 31 ASCII karakter, nem csonkolható.
+- A release build ne használja a kódban maradt `0.1.0` alapverziót.
+- Mellékelni kell a tag, commit SHA, célhardver, ESP-IDF verzió és csomagformátum azonosítóit egy `build-info.json` fájlban.
+
+## 52.3. Release-csatolmányok
+
+| Fájl (példa) | Rendeltetés |
+|---|---|
+| `ZoleeEnergyFlowDisplay-v1.2.0-ota.bin` | A build alkalmazás-binárisa, közvetlenül feltölthető a `/update` oldalra |
+| `ZoleeEnergyFlowDisplay-v1.2.0-usb.zip` | Teljes első USB-telepítéshez szükséges csomag |
+| `SHA256SUMS.txt` | Az OTA bináris és az USB ZIP SHA-256 ellenőrzőösszege |
+| `build-info.json` | Verzió és eredet visszakövetése |
+
+Az OTA-fájl nyers alkalmazás-image; nem ZIP, bootloader, partíciós tábla vagy összevont teljes flash-image. A készülék továbbra is kézi fájlfeltöltéssel frissül; GitHub-belépés vagy automatikus GitHub-letöltés nem szükséges az eszközön.
+
+## 52.4. USB-s első telepítőcsomag
+
+A ZIP tartalmazza ugyanabból a buildből az alkalmazást, bootloadert, partíciós táblát és a flasher manifest által hivatkozott minden további image-et (pl. OTA-init adat, ha szükséges), valamint a hozzájuk tartozó offseteket és flash paramétereket. A csomagon belüli összes hivatkozás feloldható legyen, CI-s abszolút elérési utak nélkül.
+
+Kötelező melléklet egy magyar telepítési útmutató: Windows COM-port kiválasztás, USB boot/download mód, szükséges esptool telepítése/rögzített verziója, pontos parancs a ZIP gyökeréből, első indítás és SD-konfiguráció. A flash parancs címeit/paramétereit a build manifestből kell előállítani, nem kézzel másolni egy másik buildből. A konfigurációt és az SD-statisztikát nem szabad a firmware-csomagba beégetni.
+
+Az USB ZIP első telepítéshez/helyreállításhoz való; a szokásos frissítés az OTA `.bin` feltöltése. Az alkalmazás tartalma a két csomagban bájtra egyezzen.
+
+## 52.5. Hibák és ismételt futtatás
+
+- Hibás build, teszt, verzió vagy hiányzó USB-image esetén nincs használhatónak jelölt firmware-csomag.
+- A workflow legyen kézzel újrafuttatható ugyanarra a release-re; más taget/release-t nem módosíthat.
+- Ismételt feltöltésnél az azonos nevű és checksumú fájl megtartható; eltérő tartalmú létező release-assetet nem szabad csendben felülírni.
+- A `GITHUB_TOKEN` csak a szükséges jobban kapjon `contents: write` jogosultságot; külön személyes token ne legyen követelmény.
+- Release-futást egy új main push vagy másik release ne szakíthasson meg.
+- GitHub immutable release esetén a publikálás utáni csatolás tiltott lehet. Ezt az implementáció során ellenőrizni kell; ilyen ütközésnél egyértelmű hiba szükséges, a repository védelmeit nem szabad automatikusan kikapcsolni.
+
 ---
 
 # 53. Kötelező példafájlok
@@ -1915,7 +2023,13 @@ Repository-ban legyen:
 
 `examples/loxone-energy-payload.picoc`
 
-A Loxone példa legyen használható, dokumentált és a firmware payload formátumával azonos.
+További kötelező minta:
+
+`examples/loxone-energy-http-post.picoc`
+
+HTTP bekötési útmutató: `docs/http-input.md`.
+
+Mindkét Loxone példa a közös payload formátumot használja. A HTTP-minta a POST body-t állítja elő, nem közvetlen socket-/HTTP-kliens a Pico C programon belül.
 
 ---
 
@@ -1956,6 +2070,29 @@ Kötelező hardveres validáció:
 - napváltás;
 - legalább egy hosszabb, lehetőleg teljes napos folyamatos futás.
 
+## 54.1. HTTP mód elfogadása
+
+- Hiányzó `DataReceptMode` mellett változatlan MQTT működés; ismeretlen mód blokkoló config hiba.
+- HTTP módban MQTT-config és broker nélkül indulás, MQTT-kliens elindítása nélkül.
+- Miniserver Gen 2 / 17.x → POST → kijelző lánc; minden mező, előjel és mértékegység megfelel.
+- Legalább 60 másodperc teljesen változatlan mérési értékek mellett is 5 másodpercenként új POST érkezik.
+- Pico C program leállítása után nem indul újraküldési ciklus: 30 másodperc elteltével HTTP adat-timeout.
+- Első csomag hiánya, hibás/hiányos/duplikált mezős JSON, hibás tartomány, nem JSON tartalom, GET, túlméretes és megszakított body nem módosít élő/statisztikai állapotot.
+- Új érvényes csomag automatikusan visszaállítja a dashboardot; Wi-Fi kiesés és visszatérés mindkét módban helyes.
+- HTTP adatfogadás bekapcsolt OTA Basic Auth mellett is hitelesítés nélkül működik; az OTA/web oldalak védelme megmarad.
+- HTTP módban OTA elfogadása mérési adat és MQTT-broker nélkül; a POST-fogadó indítási hibája viszont nem teljesíti az OTA feltételt.
+- HTTP-minták ugyanazt az integrálási, napváltási és SD-helyreállítási regressziós ellenőrzést teljesítik, mint MQTT-nél.
+
+## 54.2. Release és telepítő elfogadása
+
+- Normál és pre-release publikáláskor is a megfelelő tagből készül build; draft mentésekor nincs csomagolás.
+- A tag, beégetett verzió, csomagnevek és `build-info.json` összhangban vannak.
+- Az Assets részben OTA bináris, teljes USB ZIP, checksum és buildinformáció található; az ellenőrzőösszegek helyesek.
+- Az USB manifest összes fájlja szerepel a ZIP-ben; az OTA image azonos az USB-csomag alkalmazásával.
+- A release OTA `.bin` a meglévő `/update` oldalon ténylegesen feltölthető, újraindul és a kiválasztott mód szerint validálódik.
+- Üres/helyreállítandó Waveshare eszköz USB-s első telepítése a csomagolt magyar útmutató szerint sikeres.
+- Hibás build/teszt és ismételt workflow-futás nem eredményez másik release-hez tartozó vagy csendben felülírt binárist.
+
 ---
 
 # 55. Vizuális elfogadási teszt
@@ -1965,7 +2102,7 @@ A végleges UI-t a tényleges kijelzőn kell ellenőrizni.
 Eljárás:
 
 1. firmware felprogramozása;
-2. valós/szimulált MQTT adatok küldése;
+2. valós/szimulált MQTT és HTTP adatok küldése a kiválasztott módban;
 3. nappali dashboard fotó;
 4. éjszakai dashboard fotó;
 5. összevetés a jóváhagyott eredeti látványtervvel;
@@ -2020,3 +2157,12 @@ Ugyanígy egy szép UI sem tekinthető késznek, ha:
 
 A kész termék mindkét követelményt egyszerre teljesíti.
 
+
+
+# 58. A 2026-10-05-i bővítés forrásai
+
+- [GitHub Actions release események](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release): `published`, normál és pre-release.
+- [GitHub immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases): publikált csatolmányok módosíthatósága.
+- [Loxone virtuális be- és kimenetek](https://www.loxone.com/enen/kb/virtual-inputs-outputs/): HTTP virtuális kimenetek.
+- [FlexumShare gyártói integráció a Loxone Libraryben, 7. oldal](https://api.library.loxone.com/downloader/file/2733/Instruction%20Live-Data_FlexumShare%20platform_V1.1.pdf): POST, JSON header, `<v>` body beállítás. A jelen projekt adatfogadása a felhasználó döntése szerint nem kér API-kulcsot.
+- Felhasználói döntések: 2026-10-05; Miniserver Gen 2 / 17.x, kizárólag POST, hitelesítés nélkül, 5 másodperces küldés, 30 másodperces timeout, OTA-nál nem feltétel mérési csomag.

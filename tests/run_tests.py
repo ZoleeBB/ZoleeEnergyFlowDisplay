@@ -27,3 +27,6 @@ with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     payload = json.loads(subprocess.check_output([str(temp/'picoc')], text=True))
     assert len(payload) == 12 and payload['BatteryTemperature'] == 1
     print('PASS: Pico C format produces a complete 12-field JSON payload')
+
+# Run the complete HTTP sample with stubbed Loxone I/O, including unchanged inputs.
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_http_picoc.py")], check=True)

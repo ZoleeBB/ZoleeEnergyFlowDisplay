@@ -41,3 +41,7 @@ A teljes JSON egy üzenetben kerül publikálásra.
 ## Hibakeresés
 
 A Program blokk `Etxt` kimenetén jelennek meg az interpreter/szintaxis hibák. A script végtelen ciklusában szándékosan van `sleep(5000)`, hogy ne terhelje feleslegesen a Miniserv​ert.
+
+## Közvetlen HTTP POST bővítés
+
+A 2026-10-05-én elfogadott `DataReceptMode=http` módhoz külön minta készült: [loxone-energy-http-post.picoc](../examples/loxone-energy-http-post.picoc). A [HTTP bekötési útmutató](http-input.md) a Miniserver Gen 2 / 17.x beállításait tartalmazza. A HTTP firmware-fogadó megvalósítása és a hardveres átvétel még szükséges; a fenti MQTT-minta a meglévő működéshez tartozik.
