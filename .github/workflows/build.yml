@@ -2,21 +2,31 @@ name: ESP-IDF build
 
 # A firmware minden main pushnál és pull requestnél újrafordul.
 on:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        required: true
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 # Ugyanazon ághoz csak a legfrissebb build fusson; a régebbi megszakítható.
 concurrency:
   group: esp-idf-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - run: python3 tests/run_tests.py
 
@@ -24,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: actions/checkout@v4
         with:
           repository: lvgl/lvgl
@@ -50,6 +62,13 @@ jobs:
     steps:
       # A repository aktuális commitjának letöltése.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set exact firmware version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
+        run: python3 tools/release/version.py --tag "$RELEASE_TAG"
 
       # A projekt rögzített ESP-IDF 5.5.4 verzióval, ESP32-P4 célra fordul.
       - name: Build with ESP-IDF 5.5.4
@@ -59,16 +78,19 @@ jobs:
           target: esp32p4
           path: '.'
 
-      # Sikeres build után a teljes első telepítéshez szükséges binárisok megmaradnak.
-      - name: Upload firmware binaries
-        if: success()
+      - name: Package OTA and complete USB installer
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
+        run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$GITHUB_SHA"
+
+      - name: Check USB installer against real build outputs
+        run: |
+          python3 -m zipfile -e dist/*-usb.zip .usb-check
+          python3 .usb-check/flash.py --port TEST --dry-run
+
+      - name: Upload firmware packages
         uses: actions/upload-artifact@v4
         with:
-          name: zolee-energy-flow-display-${{ github.sha }}
+          name: firmware-packages-${{ github.sha }}
           if-no-files-found: error
-          path: |
-            build/*.bin
-            build/bootloader/*.bin
-            build/partition_table/*.bin
-            build/flasher_args.json
-
+          path: dist/*

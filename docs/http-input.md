@@ -1,6 +1,6 @@
 # Közvetlen Loxone HTTP POST adatküldés
 
-**Állapot:** 2026-10-05-én elfogadott fejlesztési igény és előkészített minta. A dokumentum az új HTTP-fogadó implementálása után alkalmazható a kijelzőn; a jelen módosítás nem kapcsol be HTTP-adatfogadást a firmware-ben. A minta célkörnyezete Miniserver Gen 2, Loxone Config és firmware 17.x; a tényleges Miniserveren végzett próba még szükséges.
+**Állapot:** a HTTP POST fogadó megvalósítva. A minta célkörnyezete Miniserver Gen 2, Loxone Config és firmware 17.x; a tényleges Miniserveren végzett próba még szükséges.
 
 ## Adatút
 
@@ -9,6 +9,8 @@ A Program blokk I1–I12 bemeneteiből a Pico C program öt másodpercenként te
 Minta: [loxone-energy-http-post.picoc](../examples/loxone-energy-http-post.picoc).
 
 ## Kijelző konfigurációja
+
+Teljes, broker nélküli minta: [config.http.sample.json](../examples/config.http.sample.json).
 
 A meglévő SD `config.json` gyökerébe az alábbi mezők kerülnek. Ez csak kiegészítési részlet, nem teljes konfiguráció:
 

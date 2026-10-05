@@ -88,6 +88,21 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     build_dashboard(true);s_last_night=true;update(&sample,&fixture);save_frame("en-night");
     error_screen(VIEW_WIFI_ERROR,"No Wi-Fi connection","Waiting for connection to recover...",false);save_frame("en-wifi-error");
+    snprintf(config.project.language,sizeof(config.project.language),"hu");
+    sample.night_mode=false;
+    config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
+    app_ui_set_config(&config);
+    app_ui_show_boot(APP_BOOT_MQTT,NULL);save_frame("http-boot-hu");
+    app_runtime_state_t rt={.data_recept_mode=APP_DATA_HTTP,.wifi_connected=true,.http_ready=true,.http_ready_monotonic_us=1000000};
+    render_runtime(rt,sample,false,30000000);assert(s_view==VIEW_WAIT_DATA);save_frame("http-wait-hu");
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-hu");
+    rt.wifi_connected=false;
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_WIFI_ERROR);
+    rt.wifi_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
+    s_stats_snapshot=fixture;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);save_frame("http-recovered-hu");
+    snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
+    render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
     /* Következő állapotváltáskor az összes korábbi chart/ikon objektum felszabadul. */
     clear();lv_display_delete(display);lv_deinit();return 0;
 }

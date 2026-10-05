@@ -1,0 +1,43 @@
+name: Release firmware
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-firmware-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  firmware:
+    uses: ./.github/workflows/build.yml
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
+
+  publish:
+    needs: firmware
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-packages-${{ github.sha }}
+          path: dist
+      - name: Attach assets to the published release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: >-
+          python3 tools/release/publish.py
+          --repository "$GITHUB_REPOSITORY"
+          --tag "$RELEASE_TAG"
+          --commit "$GITHUB_SHA"
+          --release-id "$RELEASE_ID"

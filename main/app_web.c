@@ -11,6 +11,7 @@
  * a HTTP Basic Auth hitelesítést használja.
  */
 #include "app_web.h"
+#include "app_http.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -375,21 +376,12 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr>",
         runtime.wifi_connected ? rssi : 0);
 
-    sendf(
-        req,
-        s_hu
-            ? "<tr><td>MQTT kapcsolat</td><td>%s</td></tr>"
-            : "<tr><td>MQTT connection</td><td>%s</td></tr>",
-        runtime.mqtt_connected
-            ? (s_hu ? "Kapcsolódva" : "Connected")
-            : (s_hu ? "Nincs kapcsolat" : "Disconnected"));
-
-    sendf(
-        req,
-        s_hu
-            ? "<tr><td>Utolsó MQTT csomag</td><td>%s</td></tr>"
-            : "<tr><td>Last MQTT packet</td><td>%s</td></tr>",
-        packet_time);
+    const char *mode = runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    sendf(req, "<tr><td>%s</td><td>%s</td></tr>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
+    sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", mode,
+        s_hu ? "adatfogadó" : "receiver",
+        app_state_data_ready(&runtime) ? (s_hu ? "Készen áll" : "Ready") : (s_hu ? "Nem elérhető" : "Unavailable"));
+    sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", s_hu ? "Utolsó érvényes csomag:" : "Last valid packet:", mode, packet_time);
 
     sendf(
         req,
@@ -802,31 +794,39 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = httpd_register_uri_handler(
             s_server,
             &root_uri)) != ESP_OK) {
-        return err;
+        goto failed;
     }
 
     if ((err = httpd_register_uri_handler(
             s_server,
             &update_get_uri)) != ESP_OK) {
-        return err;
+        goto failed;
     }
 
     if ((err = httpd_register_uri_handler(
             s_server,
             &update_post_uri)) != ESP_OK) {
-        return err;
+        goto failed;
     }
 
     if ((err = httpd_register_uri_handler(
             s_server,
             &reboot_uri)) != ESP_OK) {
-        return err;
+        goto failed;
     }
+
+    if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
+    app_state_set_http_ready(cfg->data_recept_mode == APP_DATA_HTTP);
 
     app_events_add(
         APP_EVENT_INFO,
         "Webes információs és OTA felület elindult.");
 
     return ESP_OK;
+failed:
+    httpd_stop(s_server);
+    s_server = NULL;
+    app_state_set_http_ready(false);
+    return err;
 }
 

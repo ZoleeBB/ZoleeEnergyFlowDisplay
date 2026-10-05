@@ -1,6 +1,6 @@
 # Zolee Energy Flow Display – részletes fejlesztési specifikáció
 
-> **2026-10-05 – elfogadott bővítés:** GitHub Release OTA/USB csomagok és választható MQTT/HTTP adatfogadás. Az alábbi követelmények véglegesítettek; a release workflow és a HTTP firmware-fogadó megvalósítása külön fejlesztési lépés. A HTTP Pico C minta és bekötési útmutató előkészítve, Miniserver Gen 2 / 17.x hardveres átvétel még szükséges.
+> **2026-10-05 – elfogadott bővítés:** GitHub Release OTA/USB csomagok és választható MQTT/HTTP adatfogadás. A release workflow, OTA/USB-csomagolás és HTTP firmware-fogadó megvalósítva; a host regressziós tesztek és a firmware CI ellenőrzik. A HTTP Pico C minta és bekötési útmutató elkészült, Miniserver Gen 2 / 17.x hardveres átvétel még szükséges.
 
 > **Státusz:** normatív fejlesztési specifikáció  
 > **Célhardver:** Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1  

@@ -19,6 +19,7 @@
 #include "app_config.h"
 #include "app_events.h"
 #include "app_mqtt.h"
+#include "app_ingest.h"
 #include "app_ota.h"
 #include "app_state.h"
 #include "app_stats.h"
@@ -132,6 +133,7 @@ void app_main(void)
         fatal_forever("Konfigurációs hiba", config_error);
     }
 
+    app_state_set_data_mode(s_config.data_recept_mode);
     app_state_set_config_ok(true);
     app_ui_set_config(&s_config);
     app_events_add(APP_EVENT_INFO, "Konfiguráció betöltve.");
@@ -193,6 +195,9 @@ void app_main(void)
                 "The statistics storage cannot be initialized. Check the SD card, then restart the device."));
     }
 
+    if (app_ingest_init(s_config.data_recept_mode) != ESP_OK)
+        fatal_forever(cfg_tr("Memóriahiba", "Memory error"), cfg_tr("Az adatfogadó nem indítható.", "Data receiver initialization failed"));
+
     /* Háttérfeladatok indulása. */
     if(app_storage_start_recovery_task()!=ESP_OK ||
        app_stats_start_task()!=ESP_OK || app_time_start_background_task()!=ESP_OK){
@@ -201,9 +206,10 @@ void app_main(void)
     }
 
     /*
-     * A helyi web/OTA felület hasznos, de nem blokkolja az energiamonitor
-     * alapműködését, ezért hibája csak eseményként kerül naplózásra.
+     * A web/OTA felület hibája MQTT módban nem végzetes; HTTP módban
+     * a működő adatfogadó nélkül nem léphetünk tovább.
      */
+    if (s_config.data_recept_mode == APP_DATA_HTTP) app_ui_show_boot(APP_BOOT_MQTT, NULL);
     err = app_web_start(&s_config);
     if (err != ESP_OK) {
         app_events_add(
@@ -211,43 +217,26 @@ void app_main(void)
             "Web/OTA felület nem indult el: %s",
             esp_err_to_name(err));
         ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
+        if (s_config.data_recept_mode == APP_DATA_HTTP)
+            fatal_forever(cfg_tr("HTTP inicializálási hiba", "HTTP initialization error"), esp_err_to_name(err));
     }
 
-    /* MQTT kliens és brokerkapcsolat felépítése. */
-    app_ui_show_boot(APP_BOOT_MQTT, NULL);
-    err = app_mqtt_start(&s_config);
-    if (err != ESP_OK) {
-        fatal_forever(
-            cfg_tr("MQTT inicializálási hiba", "MQTT initialization error"),
-            esp_err_to_name(err));
-    }
+    if (s_config.data_recept_mode == APP_DATA_MQTT) {
+        /* MQTT kliens és brokerkapcsolat felépítése. */
+        app_ui_show_boot(APP_BOOT_MQTT, NULL);
+        err = app_mqtt_start(&s_config);
+        if (err != ESP_OK) {
+            fatal_forever(
+                cfg_tr("MQTT inicializálási hiba", "MQTT initialization error"),
+                esp_err_to_name(err));
+        }
 
-    while (!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))) {
-        /* A LVGL timer mutatja a Wi-Fi/MQTT hibát; a kliens magától újracsatlakozik. */
-    }
+        while (!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))) {
+            /* A LVGL timer mutatja a Wi-Fi/MQTT hibát; a kliens magától újracsatlakozik. */
+        }
 
-    /*
-     * Az első érvényes payloadra legfeljebb a konfigurált adat-timeoutig várunk.
-     * Ha addig nem jön adat, a runtime UI már a megfelelő hibaoldalt kezeli.
-     */
+    }
     app_ui_show_boot(APP_BOOT_WAIT_DATA, NULL);
-    TickType_t wait_start = xTaskGetTickCount();
-
-    while (true) {
-        app_runtime_state_t runtime;
-        app_state_get_runtime(&runtime);
-
-        if (runtime.has_valid_sample) {
-            break;
-        }
-
-        if ((xTaskGetTickCount() - wait_start) >=
-            pdMS_TO_TICKS(s_config.mqtt.data_timeout_seconds * 1000U)) {
-            break;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
 
     /* Innentől a kijelző runtime task kezeli a dashboard és hibaoldalak közti váltást. */
     if(app_ui_start_runtime()!=ESP_OK){

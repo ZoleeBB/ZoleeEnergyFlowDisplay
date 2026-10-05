@@ -1344,7 +1344,7 @@ static void animation_tick(lv_timer_t *timer)
         if(!state.wifi_connected)
             error_screen(VIEW_WIFI_ERROR,tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
                 tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);
-        else if(s_boot_stage>=APP_BOOT_MQTT && !state.mqtt_connected)
+        else if(s_boot_stage>=APP_BOOT_MQTT && s_cfg.data_recept_mode==APP_DATA_MQTT && !state.mqtt_connected)
             error_screen(VIEW_MQTT_ERROR,tr("Nincs MQTT kapcsolat","No MQTT connection"),
                 tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);
     }
@@ -1646,7 +1646,7 @@ void app_ui_show_boot(
         "Konfiguráció",
         "Wi-Fi kapcsolat",
         "Időszinkron",
-        "MQTT kapcsolat",
+        s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP adatfogadó":"MQTT kapcsolat",
         "Várakozás az első adatcsomagra"
     };
 
@@ -1655,7 +1655,7 @@ void app_ui_show_boot(
         "Configuration",
         "Wi-Fi connection",
         "Time synchronization",
-        "MQTT connection",
+        s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP receiver":"MQTT connection",
         "Waiting for first data packet"
     };
 
@@ -1747,6 +1747,46 @@ void app_ui_show_boot(
 /* Végzetes indulási hiba biztonságos megjelenítése LVGL lock mellett. */
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
+/* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
+static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
+{
+    bool timed_out=app_state_data_timed_out(&rt,now,app_config_data_timeout(&s_cfg));
+    bool http=s_cfg.data_recept_mode==APP_DATA_HTTP;
+
+    if(!rt.wifi_connected){
+        error_screen(
+            VIEW_WIFI_ERROR,
+            tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
+            tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+            false);
+    }else if(!http&&!rt.mqtt_connected){
+        error_screen(
+            VIEW_MQTT_ERROR,
+            tr("Nincs MQTT kapcsolat","No MQTT connection"),
+            tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+            false);
+    }else if(!have&&!timed_out){
+        error_screen(
+            VIEW_WAIT_DATA,
+            http?tr("Várakozás HTTP adatcsomagra","Waiting for HTTP data"):tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),
+            tr("Az első érvényes adatcsomagra várunk...","Waiting for the first valid packet..."),
+            false);
+    }else if(!have||timed_out){
+        error_screen(
+            VIEW_DATA_TIMEOUT,
+            http?tr("Nem érkezik HTTP adat","No HTTP data received"):tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),
+            tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
+            false);
+    }else{
+        if(!s_dash_created||s.night_mode!=s_last_night){
+            build_dashboard(s.night_mode);
+            s_last_night=s.night_mode;
+        }
+        update(&s,&s_stats_snapshot);
+    }
+
+}
+
 static void runtime(void *arg){
     (void)arg;
     (void)esp_task_wdt_add(NULL);
@@ -1758,7 +1798,7 @@ static void runtime(void *arg){
         app_runtime_state_t rt;
         app_state_get_runtime(&rt);
 
-        app_energy_sample_t s;
+        app_energy_sample_t s={0};
         bool have=app_state_get_sample(&s);
         if(have)app_stats_get_snapshot(&s_stats_snapshot);
 
@@ -1772,46 +1812,7 @@ static void runtime(void *arg){
         }
 
         if(bsp_display_lock(-1)==ESP_OK){
-            int64_t timeout_us=(int64_t)s_cfg.mqtt.data_timeout_seconds*1000000LL;
-            /* Az adatfrissesség kizárólag az utolsó érvényes payload időpontjától számít. */
-            bool fresh=have&&(now-rt.last_valid_packet_monotonic_us)<=timeout_us;
-            bool first_packet_timeout=
-                !have &&
-                rt.mqtt_connected &&
-                rt.mqtt_connected_monotonic_us>0 &&
-                (now-rt.mqtt_connected_monotonic_us)>timeout_us;
-
-            if(!rt.wifi_connected){
-                error_screen(
-                    VIEW_WIFI_ERROR,
-                    tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
-                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
-                    false);
-            }else if(!rt.mqtt_connected){
-                error_screen(
-                    VIEW_MQTT_ERROR,
-                    tr("Nincs MQTT kapcsolat","No MQTT connection"),
-                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
-                    false);
-            }else if(!have&&!first_packet_timeout){
-                error_screen(
-                    VIEW_WAIT_DATA,
-                    tr("Várakozás MQTT adatcsomagra","Waiting for MQTT data"),
-                    tr("Az első érvényes adatcsomagra várunk...","Waiting for the first valid packet..."),
-                    false);
-            }else if(!have||!fresh){
-                error_screen(
-                    VIEW_DATA_TIMEOUT,
-                    tr("Nem érkezett MQTT adatcsomag.","No MQTT data packet received."),
-                    tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
-                    false);
-            }else{
-                if(!s_dash_created||s.night_mode!=s_last_night){
-                    build_dashboard(s.night_mode);
-                    s_last_night=s.night_mode;
-                }
-                update(&s,&s_stats_snapshot);
-            }
+            render_runtime(rt,s,have,now);
 
             bsp_display_unlock();
         }

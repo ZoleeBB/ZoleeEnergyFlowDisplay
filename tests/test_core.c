@@ -211,6 +211,7 @@ static void test_events(void){
     app_event_entry_t entries[2];app_events_add(APP_EVENT_INFO,"Új nap indult: %s","2026-10-05");
     size_t n=app_events_snapshot(entries,2);assert(n>0);assert(strstr(entries[n-1].text_en,"New day started"));tests++;
 }
+#include "http_cases.inc"
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -218,5 +219,6 @@ int main(void){
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);
+    test_mode_config();test_http();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

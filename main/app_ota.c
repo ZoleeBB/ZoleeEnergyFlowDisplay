@@ -43,11 +43,7 @@ static void validation_task(void *arg)
         app_runtime_state_t runtime;
         app_state_get_runtime(&runtime);
 
-        if (runtime.sd_ok &&
-            runtime.config_ok &&
-            runtime.wifi_connected &&
-            runtime.time_synced &&
-            runtime.mqtt_connected) {
+        if (app_state_ota_ready(&runtime)) {
 
             esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
             if (err == ESP_OK) {

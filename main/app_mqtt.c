@@ -14,7 +14,7 @@
 #include "freertos/event_groups.h"
 
 #include "app_events.h"
-#include "app_payload.h"
+#include "app_ingest.h"
 #include "app_state.h"
 #include "app_stats.h"
 
@@ -63,19 +63,15 @@ static void reset_rx(void)
 /* Egy teljesen összeállított MQTT csomag validálása és továbbítása. */
 static void process_complete_payload(void)
 {
-    app_energy_sample_t sample;
     char error[160];
 
-    if (app_payload_parse(
-            s_rx,
+    if (app_ingest_process(
+            APP_DATA_MQTT, s_rx,
             (size_t)s_rx_total,
-            &sample,
             error,
             sizeof(error)) == ESP_OK) {
 
         /* Csak teljesen érvényes payload frissítheti a rendszert. */
-        app_state_set_sample(&sample);
-        app_stats_process_sample(&sample);
         return;
     }
 
@@ -254,6 +250,8 @@ esp_err_t app_mqtt_start(const app_config_t *cfg)
     if (!cfg) {
         return ESP_ERR_INVALID_ARG;
     }
+
+    if (cfg->data_recept_mode != APP_DATA_MQTT) return ESP_ERR_INVALID_STATE;
 
     if (s_client) {
         return ESP_ERR_INVALID_STATE;
