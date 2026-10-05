@@ -32,3 +32,5 @@ with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_http_picoc.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_release.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], check=True)

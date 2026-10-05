@@ -97,6 +97,8 @@ A GitHub Actions minden main push és pull request esetén ESP-IDF 5.5.4 fordít
 
 ## Release és közvetlen HTTP adatfogadás
 
-A GitHubon publikált release és prerelease automatikusan teljes tesztet és ESP32-P4 firmware-buildet indít. A tag például `v1.2.0` vagy `v1.2.0-rc.1`; ez jelenik meg firmware-verzióként is. Az elkészült release `-ota.bin` fájlja közvetlenül az eszköz `/update` oldalára tölthető, a `-usb.zip` az első USB-s telepítő. Részletek: [release útmutató](docs/releases.md).
+A `main` ágra merge-ölt PR automatikusan új, eggyel növelt patch-verziójú release-t készít a sikeres tesztek és firmware-build után, OTA- és USB-csomagokkal. A puszta PR-jóváhagyás még nem indít kiadást.
+
+A GitHubon kézzel publikált release és prerelease automatikusan teljes tesztet és ESP32-P4 firmware-buildet indít. A tag például `v1.2.0` vagy `v1.2.0-rc.1`; ez jelenik meg firmware-verzióként is. Az elkészült release `-ota.bin` fájlja közvetlenül az eszköz `/update` oldalára tölthető, a `-usb.zip` az első USB-s telepítő. Részletek: [release útmutató](docs/releases.md).
 
 A konfiguráció gyökerében a `DataReceptMode` választható: `mqtt` (alapérték) vagy `http`. HTTP módban a `POST /api/energy` teljes JSON csomagot fogad, hitelesítés nélkül; MQTT broker nem szükséges. [Loxone 17.x bekötés és Pico C minta](docs/http-input.md), [teljes HTTP konfiguráció](examples/config.http.sample.json).

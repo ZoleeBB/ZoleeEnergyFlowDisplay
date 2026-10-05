@@ -1,5 +1,21 @@
 # Automatikus firmware-release
 
+## Automatikus kiadás PR-merge után
+
+A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.
+
+A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri, ezért a 2026-10-05-i állapotból a következő verzió `v0.0.2`. Korábbi verzió nélkül `v0.0.1`-gyel indul. A minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
+
+A kiválasztott verzióval a PR pontos merge-commitja fordul újra, és minden regressziós/LVGL ellenőrzés lefut. A workflow csak ezután hoz létre draft release-t, feltölti az OTA/USB-csomagokat és a kísérőfájlokat, végül publikálja a kész kiadást. Ez az immutable release beállítással is összeegyeztethető: a fájlok a lezárás előtt kerülnek fel.
+
+A verzióválasztástól a publikálásig egy kiadás fut egyszerre. A GitHub `queue: max` sorába legfeljebb 100 futás várhat; a gyors egymásutáni merge-ek nem írják felül a várakozó futást. A sorrend a GitHub sorba állítását követi. A workflow a GITHUB_TOKEN használata miatt közvetlenül hívja a közös buildet és publikálót; nem támaszkodik egy második, automatikusan kiváltott release-eseményre. Külön PAT nem szükséges.
+
+Sikertelen teszt/build esetén nincs új tag vagy release. Feltöltési hiba esetén a draft megmarad, és az Actions **Re-run failed jobs** ugyanazokat a firmware-fájlokat használhatja újra. A már publikált merge újrafuttatása nem növeli újra a verziót. Meglévő tag más commitra mozgatása és release-fájl felülírása tiltott. Egy manuális kiadással ütköző verzió esetén a folyamat hibával leáll.
+
+A `pull_request_target: closed` trigger kizárólag `merged == true` esetben indul tovább; soha nem checkoutolja a nyitott PR fejét. A merge SHA-t és a main célágat a GitHub API-val is ellenőrzi. Írási jogosultság csak a publikáló jobnak jár.
+
+## Kézi release publikálása
+
 A `.github/workflows/release.yml` a GitHub **Publish release** eseményére indul, normál release és prerelease esetén is. A tag által jelölt commitot fordítja ESP-IDF 5.5.4-gyel ESP32-P4 célra. A release-tagben levő kódnak már tartalmaznia kell ezt a workflow-t.
 
 1. Válaszd ki a kiadás commitját, és készíts például `v1.2.0` vagy `v1.2.0-rc.1` taget. A teljes tag legfeljebb 31 ASCII karakter; hibás verziót a build elutasít.

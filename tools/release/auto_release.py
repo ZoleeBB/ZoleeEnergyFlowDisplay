@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Create one complete, patch-versioned release per merged main PR."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+from urllib.error import HTTPError
+from publish import api, publish
+from version import validate_tag
+
+
+def stable_version(value):
+    match = re.fullmatch(r'v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', value or '')
+    return tuple(map(int, match.groups())) if match else None
+
+
+def next_tag(tags, releases):
+    versions = [stable_version(tag['name']) for tag in tags]
+    # Legacy releases may have a non-version tag (e.g. Prod), but a numeric title.
+    for release in releases:
+        version = stable_version(release['tag_name'])
+        if version is None and not release.get('prerelease'):
+            version = stable_version(release.get('name'))
+        versions.append(version)
+    major, minor, patch = max((v for v in versions if v is not None), default=(0, 0, 0))
+    return validate_tag(f'v{major}.{minor}.{patch + 1}')
+
+
+def listing(root, endpoint):
+    result = []
+    page = 1
+    while True:
+        batch = api(f'{root}/{endpoint}?per_page=100&page={page}')
+        result.extend(batch)
+        if len(batch) < 100:
+            return result
+        page += 1
+
+
+def identity(number, commit):
+    if number <= 0 or not re.fullmatch('[0-9a-f]{40}', commit):
+        raise ValueError('Invalid PR number or merge commit')
+    return f'<!-- zolee-auto-release:pr={number};commit={commit} -->'
+
+
+def verify_merge(root, repository, number, commit):
+    pr = api(f'{root}/pulls/{number}')
+    if (not pr['merged'] or pr['base']['ref'] != 'main' or
+            pr['base']['repo']['full_name'] != repository or pr['merge_commit_sha'] != commit):
+        raise ValueError('Only the verified, merged main PR commit may be released')
+
+
+def find_release(releases, marker):
+    matches = [r for r in releases if marker in (r.get('body') or '')]
+    if len(matches) > 1:
+        raise ValueError('Multiple releases claim the same merge; refusing to guess')
+    return matches[0] if matches else None
+
+
+def prepare(repository, number, commit):
+    root = f'https://api.github.com/repos/{repository}'
+    marker = identity(number, commit)
+    verify_merge(root, repository, number, commit)
+    releases = listing(root, 'releases')
+    existing = find_release(releases, marker)
+    if existing:
+        tag = validate_tag(existing['tag_name'])
+        if existing['target_commitish'] != commit:
+            raise ValueError('Existing automatic release points to a different commit')
+        return {'tag': tag, 'needed': 'true' if existing['draft'] else 'false'}
+    return {'tag': next_tag(listing(root, 'tags'), releases), 'needed': 'true'}
+
+
+def finish(directory, repository, number, commit, tag):
+    root = f'https://api.github.com/repos/{repository}'
+    marker = identity(number, commit)
+    validate_tag(tag)
+    verify_merge(root, repository, number, commit)
+    info = json.loads((directory / 'build-info.json').read_text())
+    if info['tag'] != tag or info['commit'] != commit:
+        raise ValueError('Firmware does not match the selected merge and version')
+    release = find_release(listing(root, 'releases'), marker)
+    if release and (release['tag_name'] != tag or release['target_commitish'] != commit):
+        raise ValueError('Existing release identity changed')
+    # Never repurpose a manual release, even if it happens to use the same commit.
+    if not release:
+        if any(r['tag_name'] == tag for r in listing(root, 'releases')):
+            raise ValueError('Version already belongs to another release')
+        release = api(f'{root}/releases', json.dumps({
+            'tag_name': tag, 'target_commitish': commit, 'name': tag,
+            'body': marker + f'\n\nAutomatikus firmware-kiadás a #{number} PR main ágra történő összevonásából.',
+            'draft': True, 'prerelease': False, 'generate_release_notes': True
+        }).encode())
+    # Creating a draft does not always create its tag. Reserve it atomically.
+    try:
+        api(f'{root}/git/refs', json.dumps({'ref': f'refs/tags/{tag}', 'sha': commit}).encode())
+    except HTTPError as error:
+        if error.code != 422:
+            raise
+        # Existing tag is accepted only when it resolves to this exact commit.
+        if api(f'{root}/commits/{tag}')['sha'] != commit:
+            raise ValueError('Version tag belongs to another commit; no tag was moved') from error
+    publish(directory, repository, tag, commit, release['id'], allow_draft=True)
+    if release['draft']:
+        result = api(f'{root}/releases/{release["id"]}',
+                     json.dumps({'draft': False}).encode(), method='PATCH')
+        if result['draft']:
+            raise ValueError('Release was not published')
+    print(f'Release ready: {tag}')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('action', choices=['prepare', 'finish'])
+    parser.add_argument('--repository', required=True)
+    parser.add_argument('--pr', type=int, required=True)
+    parser.add_argument('--commit', required=True)
+    parser.add_argument('--tag')
+    parser.add_argument('--directory', type=Path, default=Path('dist'))
+    args = parser.parse_args()
+    if args.action == 'prepare':
+        result = prepare(args.repository, args.pr, args.commit)
+        with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+            for key, value in result.items():
+                output.write(f'{key}={value}\n')
+        print(json.dumps(result))
+    else:
+        if not args.tag:
+            parser.error('--tag is required for finish')
+        finish(args.directory, args.repository, args.pr, args.commit, args.tag)

@@ -1969,6 +1969,17 @@ Sikeres build artifactként legalább:
 
 A CI buildnek zöldnek kell lennie a hardveres tesztelés előtt.
 
+## 52.0. Automatikus release a main ágra történő PR-merge után
+
+- A kiadás a PR tényleges main-merge-je után indul; review-jóváhagyás vagy merge nélküli lezárás önmagában nem elég.
+- A patch verzió automatikusan nő: `v1.2.3 → v1.2.4`. A legnagyobb stabil verziótag/release az alap; prerelease és CI-verzió kimarad. A régi `Prod` taghez tartozó `0.0.1` release-cím is verzióalap, tehát ebből `v0.0.2` következik. Verzióelőzmény nélkül `v0.0.1` az első.
+- Mindig a konkrét PR merge SHA-ja fordul, az új verzióval. Minden teszt és a build sikeres befejezése előfeltétel.
+- A kiadás csak az OTA/USB csomag és az ellenőrző fájlok feltöltése után publikálódik; addig draft. Sikertelen teszt/build nem hoz létre taget vagy release-t.
+- A kiadások közös, megszakítás nélküli sorban futnak (`queue: max`, maximum 100 várakozó). Ugyanaz a már kiadott merge újrafuttatva nem növeli újra a verziót.
+- A feltöltés újrafuttatható, azonos tartalom kimarad; más commitra mutató tag és eltérő asset nem írható felül.
+- A workflow közvetlenül hívja az újrahasznosított firmware-buildet és publikálást, mert GITHUB_TOKEN-nel létrehozott release nem indít új release-eseményes workflow-t. Nem igényel személyes tokent.
+- Kézi release/prerelease továbbra is támogatott. A main ágba közvetlen push csak CI-ellenőrzés, nem automatikus kiadás.
+
 ## 52.1. Automatikus GitHub Release csomagolás
 
 A felhasználó a GitHubon létrehozza a taget/release-t, majd **Publish release** művelettel publikálja. A `release: types: [published]` esemény indítja a fordítást normál release és pre-release esetén egyaránt. Draft mentése nem indít publikálást; puszta release-leírás szerkesztése nem fordít újra.

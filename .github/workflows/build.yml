@@ -4,6 +4,10 @@ name: ESP-IDF build
 on:
   workflow_call:
     inputs:
+      source_sha:
+        type: string
+        required: false
+        default: ''
       release_tag:
         type: string
         required: true
@@ -18,7 +22,7 @@ permissions:
 # Ugyanazon ághoz csak a legfrissebb build fusson; a régebbi megszakítható.
 concurrency:
   group: esp-idf-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   regression:
@@ -26,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_sha || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - run: python3 tests/run_tests.py
 
@@ -35,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: actions/checkout@v4
         with:
           repository: lvgl/lvgl
@@ -51,7 +55,7 @@ jobs:
           ../.preview-build/ui_preview
       - uses: actions/upload-artifact@v4
         with:
-          name: ui-preview-${{ github.sha }}
+          name: ui-preview-${{ inputs.source_sha || github.sha }}
           path: .preview-images/*.ppm
           include-hidden-files: true
           if-no-files-found: error
@@ -63,7 +67,7 @@ jobs:
       # A repository aktuális commitjának letöltése.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_sha || github.sha }}
 
       - name: Set exact firmware version
         env:
@@ -81,7 +85,8 @@ jobs:
       - name: Package OTA and complete USB installer
         env:
           RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
-        run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$GITHUB_SHA"
+          BUILD_COMMIT: ${{ inputs.source_sha || github.sha }}
+        run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
 
       - name: Check USB installer against real build outputs
         run: |
@@ -91,6 +96,6 @@ jobs:
       - name: Upload firmware packages
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-packages-${{ github.sha }}
+          name: firmware-packages-${{ inputs.source_sha || github.sha }}
           if-no-files-found: error
           path: dist/*

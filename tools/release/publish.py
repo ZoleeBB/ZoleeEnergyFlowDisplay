@@ -10,8 +10,8 @@ import urllib.request
 from version import validate_tag
 
 
-def api(url, data=None, content_type='application/json'):
-    request = urllib.request.Request(url, data=data, headers={
+def api(url, data=None, content_type='application/json', method=None):
+    request = urllib.request.Request(url, data=data, method=method, headers={
         'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
         'Accept': 'application/vnd.github+json', 'Content-Type': content_type,
         'X-GitHub-Api-Version': '2022-11-28'})
@@ -19,11 +19,11 @@ def api(url, data=None, content_type='application/json'):
         return json.load(response)
 
 
-def publish(directory, repository, tag, commit, release_id):
+def publish(directory, repository, tag, commit, release_id, allow_draft=False):
     validate_tag(tag)
     root = f'https://api.github.com/repos/{repository}'
     release = api(f'{root}/releases/{release_id}')
-    if release['tag_name'] != tag or release['draft']:
+    if release['tag_name'] != tag or (release['draft'] and not allow_draft):
         raise ValueError('Release identity changed or release is a draft')
     actual = api(f'{root}/commits/{urllib.parse.quote(tag, safe="")}')['sha']
     if actual != commit:
