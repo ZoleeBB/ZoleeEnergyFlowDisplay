@@ -167,6 +167,25 @@ static int self_test(void)
                 c(tone(colors[i],night!=0))))return 17;
         }
     }
+    /* Wind thresholds and recovery must change both weight and color. */
+    const double winds[]={35.0,35.1,50.0,50.1,35.0};
+    for(int night=0;night<2;night++){
+        for(unsigned i=0;i<sizeof(winds)/sizeof(winds[0]);i++){
+            app_energy_sample_t sample;app_state_get_sample(&sample);
+            sample.wind_speed_kmh=winds[i];sample.night_mode=night!=0;
+            app_state_set_sample(&sample);render_step(200);
+            uint32_t expected=winds[i]>50?RED:winds[i]>35?ORANGE:night?TEXT_DARK:TEXT_LIGHT;
+            if(!lv_color_eq(lv_obj_get_style_text_color(s_wind_speed,0),c(tone(expected,night!=0))))return 18;
+            if((lv_obj_get_style_text_font(s_wind_speed,0)==APP_FONT_WIND_BOLD_16)!=(winds[i]>35))return 19;
+        }
+        const uint32_t accents[]={GREEN,ORANGE,BLUE,RED};
+        for(int status=1;status<=4;status++){
+            app_energy_sample_t sample;app_state_get_sample(&sample);sample.status=status;
+            app_state_set_sample(&sample);render_step(200);
+            if(lv_obj_get_style_border_width(s_status_card,0)!=0)return 20;
+            if(!lv_color_eq(lv_obj_get_style_bg_color(s_status_bubble,0),c(tone(accents[status-1],night!=0))))return 21;
+        }
+    }
     for(scene=0;scene<9;scene++){
         send_demo();render_step(200);
         if(s_view!=VIEW_DASHBOARD)return 3;

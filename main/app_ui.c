@@ -30,6 +30,8 @@ LV_FONT_DECLARE(app_font_14);
 #define APP_FONT_14 (&app_font_14)
 LV_FONT_DECLARE(app_font_16);
 #define APP_FONT_16 (&app_font_16)
+LV_FONT_DECLARE(app_font_wind_bold_16);
+#define APP_FONT_WIND_BOLD_16 (&app_font_wind_bold_16)
 LV_FONT_DECLARE(app_font_18);
 #define APP_FONT_18 (&app_font_18)
 LV_FONT_DECLARE(app_font_20);
@@ -53,6 +55,7 @@ LV_FONT_DECLARE(app_font_28);
 #define MUTED_DARK 0x839087
 #define GREEN 0x38B830
 #define ORANGE 0xF86810
+#define YELLOW 0xF2D600
 #define RED 0xE53935
 #define BLUE 0x0060C0
 #define GRAY 0x96A1AA
@@ -133,6 +136,7 @@ static uint32_t tone(uint32_t color,bool night){
     if(!night)return color;
     if(color==GREEN)return 0x23784C;
     if(color==ORANGE)return 0xA46E2D;
+    if(color==YELLOW)return 0x95852B;
     if(color==RED)return 0x8E3A38;
     if(color==BLUE)return 0x2B5D8B;
     if(color==GRAY)return 0x56615B;
@@ -491,7 +495,8 @@ static lv_obj_t *summary_metric(
 {
     lv_obj_t *segment=lv_obj_create(parent);
     lv_obj_set_pos(segment,x,0);
-    lv_obj_set_size(segment,width,92);
+    lv_obj_set_size(segment,width,98);
+    const int top=(98-(52+APP_FONT_14->line_height))/2;
     lv_obj_set_style_bg_opa(segment,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(segment,0,0);
     lv_obj_set_style_pad_all(segment,0,0);
@@ -500,22 +505,22 @@ static lv_obj_t *summary_metric(
     icon_bubble(
         segment,
         4,
-        18,
+        (98-54)/2,
         54,
         asset,
         night,
         accent);
 
     lv_obj_t *title_label=
-        lbl(segment,title,68,6,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
+        lbl(segment,title,68,top,APP_FONT_12,night?MUTED_DARK:MUTED_LIGHT);
     lv_label_set_long_mode(title_label,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(title_label,width-74);
 
     s_metric[index]=
-        lbl(segment,"-",68,29,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);
+        lbl(segment,"-",68,top+23,APP_FONT_20,night?TEXT_DARK:TEXT_LIGHT);
 
     s_cmp[index]=
-        lbl(segment,"",68,58,APP_FONT_12,GREEN);
+        lbl(segment,"",68,top+52,APP_FONT_12,GREEN);
 
     s_cmp_note[index]=NULL;
     return segment;
@@ -644,19 +649,19 @@ static void build_dashboard(bool night)
         s_dash,20,224,300,132,
         tr("Mai fogyasztás","Consumption"),
         &app_img_house,
-        1,night,ORANGE);
+        1,night,YELLOW);
 
     metric_card(
         s_dash,20,366,300,132,
         tr("Hálózati vételezés","Grid import"),
         &app_img_grid_import,
-        2,night,BLUE);
+        2,night,ORANGE);
 
     metric_card(
         s_dash,20,508,300,142,
         tr("Visszatáplálás","Grid export"),
         &app_img_grid_export,
-        3,night,BLUE);
+        3,night,GREEN);
 
     /*
      * Központi energiaáramlás: az eredeti látványterv szerint ez a képernyő
@@ -911,7 +916,7 @@ static void build_dashboard(bool night)
         LV_RADIUS_CIRCLE);
     lbl(
         chart_card_1,
-        tr("Fogy.","Load"),
+        tr("Fogyasztás","Load"),
         328,
         2,
         APP_FONT_12,
@@ -1052,30 +1057,30 @@ static void build_dashboard(bool night)
         &app_img_bulb,
         7,night,ORANGE);
 
-        s_status_card=lv_obj_create(summary);
+    s_status_card=lv_obj_create(summary);
     lv_obj_set_pos(s_status_card,944,0);
-    lv_obj_set_size(s_status_card,280,92);
+    lv_obj_set_size(s_status_card,280,98);
+    const int status_top=(98-(52+APP_FONT_12->line_height))/2;
     lv_obj_set_style_bg_opa(s_status_card,LV_OPA_TRANSP,0);
-    lv_obj_set_style_border_color(s_status_card,c(tone(GREEN,night)),0);
-    lv_obj_set_style_border_width(s_status_card,1,0);
+    lv_obj_set_style_border_width(s_status_card,0,0);
     lv_obj_set_style_radius(s_status_card,14,0);
-    lv_obj_set_style_pad_all(s_status_card,8,0);
+    lv_obj_set_style_pad_all(s_status_card,0,0);
     lv_obj_remove_flag(s_status_card,LV_OBJ_FLAG_SCROLLABLE);
 
     lbl(
         s_status_card,
         tr("Állapot","Status"),
-        58,
-        5,
+        68,
+        status_top,
         APP_FONT_12,
         night?MUTED_DARK:MUTED_LIGHT);
 
     s_status_bubble=lv_obj_create(s_status_card);
-    lv_obj_set_pos(s_status_bubble,2,20);
-    lv_obj_set_size(s_status_bubble,50,50);
+    lv_obj_set_pos(s_status_bubble,4,(98-54)/2);
+    lv_obj_set_size(s_status_bubble,54,54);
     lv_obj_set_style_radius(s_status_bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(s_status_bubble,0,0);
-    lv_obj_set_style_bg_opa(s_status_bubble,LV_OPA_TRANSP,0);
+    lv_obj_set_style_bg_opa(s_status_bubble,night?LV_OPA_10:LV_OPA_20,0);
     lv_obj_set_style_pad_all(s_status_bubble,0,0);
     lv_obj_remove_flag(s_status_bubble,LV_OBJ_FLAG_SCROLLABLE);
 
@@ -1083,13 +1088,13 @@ static void build_dashboard(bool night)
         s_status_bubble,
         0,
         0,
-        50,
-        50,
+        54,
+        42,
         &app_img_status_normal,
         night);
 
     s_status=
-        lbl(s_status_card,"-",60,27,APP_FONT_16,GREEN);
+        lbl(s_status_card,"-",68,status_top+23,APP_FONT_16,GREEN);
     lv_label_set_long_mode(s_status,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(s_status,205);
 
@@ -1097,8 +1102,8 @@ static void build_dashboard(bool night)
         lbl(
             s_status_card,
             "",
-            60,
-            51,
+            68,
+            status_top+52,
             APP_FONT_12,
             night?MUTED_DARK:MUTED_LIGHT);
     lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_MODE_DOTS);
@@ -1367,6 +1372,11 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     fit_text(s_weather_temp,b,78,APP_FONT_16);
     snprintf(b,sizeof(b),"%d km/h",(int)lround(s->wind_speed_kmh));
     fit_text(s_wind_speed,b,98,APP_FONT_16);
+    if(s->wind_speed_kmh>35.0)
+        lv_obj_set_style_text_font(s_wind_speed,APP_FONT_WIND_BOLD_16,0);
+    const uint32_t wind_color=s->wind_speed_kmh>50.0?RED:
+        s->wind_speed_kmh>35.0?ORANGE:(s->night_mode?TEXT_DARK:TEXT_LIGHT);
+    lv_obj_set_style_text_color(s_wind_speed,c(tone(wind_color,s->night_mode)),0);
     fmt_power(q,sizeof(q),s->power_pv_kw);lv_label_set_text(s_pv,q);
     fmt_power(q,sizeof(q),s->power_full_kw);lv_label_set_text(s_home,q);
     fmt_power(q,sizeof(q),s->power_bat_kw);lv_label_set_text(s_bat,q);
@@ -1482,11 +1492,10 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
         s->night_mode?LV_OPA_80:LV_OPA_COVER,
         0);
 
-    lv_obj_set_style_border_color(
-        s_status_card,
+    lv_obj_set_style_bg_color(
+        s_status_bubble,
         c(tone(status_color,s->night_mode)),
         0);
-    lv_obj_set_style_border_width(s_status_card,s->status==4?3:1,0);
 
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_clear_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
 

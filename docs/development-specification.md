@@ -2215,3 +2215,11 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - A bal oldali négy csempe ikonja és teljes szövegblokkja a saját kártyamagassághoz viszonyítva függőlegesen középre igazított.
 - A fejléc dátuma, időjárásikonja és hőmérséklete, szélikonja és szélsebessége, valamint órája közös függőleges középvonalon helyezkedik el.
 - Az alsó teljes szélességű összefoglaló függőleges elválasztó vonalai megszűnnek; a mezők pozíciói változatlanok.
+
+### Státusz, összefoglaló és szélriasztás finomítása
+
+- Az alsó összefoglaló szövegblokkjai függőlegesen középre igazítottak; az összes ikon, a státuszt is beleértve, azonos középvonalon, 54 px körháttéren jelenik meg.
+- A státuszmezőnek egyik állapotban sincs kerete. Az ikon halvány körháttere normál esetben zöld, áramszünetre felkészüléskor narancs, szigetüzemben kék, hiba esetén piros; éjszaka tompított árnyalatokkal.
+- Bal oldali ikonhátterek: termelés és visszatáplálás halvány zöld, fogyasztás halvány citromsárga, hálózati vételezés halvány narancs.
+- A termelés/fogyasztás grafikon jelmagyarázatában a teljes „Fogyasztás” felirat szerepel.
+- A fejléc szélsebessége 35 km/h felett félkövér narancssárga, 50 km/h felett félkövér piros. Pontosan 35-nél normál, pontosan 50-nél narancssárga; csökkenéskor az alapstílus visszaáll. A küszöbvizsgálat a kerekítetlen beérkező értékkel történik.
