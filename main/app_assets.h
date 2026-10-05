@@ -5,7 +5,7 @@
 /*
  * A jóváhagyott látványterv stílusához készített, firmware-be ágyazott
  * grafikai elemek. A normál dashboard fő illusztrációi nagy felbontású
- * PNG-k; a még migrálás alatt álló ritkább állapotok ideiglenesen SVG-k.
+ * PNG-k; az időjárás, kapcsolati és ritka állapotok is PNG-k.
  */
 extern const lv_image_dsc_t app_img_header_home_leaf;
 extern const lv_image_dsc_t app_img_leaf;
@@ -39,3 +39,4 @@ extern const lv_image_dsc_t app_img_wifi_off;
 extern const lv_image_dsc_t app_img_mqtt_off;
 extern const lv_image_dsc_t app_img_waiting_data;
 extern const lv_image_dsc_t app_img_timeout;
+

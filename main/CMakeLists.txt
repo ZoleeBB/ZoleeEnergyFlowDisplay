@@ -1,3 +1,46 @@
+# A teljes PNG készlet és a valódi fájlméretek egy forrásból származnak.
+set(app_png_files
+    "assets/png/flow_battery.png"
+    "assets/png/flow_grid.png"
+    "assets/png/flow_house.png"
+    "assets/png/flow_hub.png"
+    "assets/png/flow_solar.png"
+    "assets/png/grid_off.png"
+    "assets/png/header_home_leaf.png"
+    "assets/png/metric_coins.png"
+    "assets/png/metric_grid.png"
+    "assets/png/metric_house.png"
+    "assets/png/metric_leaf.png"
+    "assets/png/mqtt_off.png"
+    "assets/png/status_error.png"
+    "assets/png/status_island.png"
+    "assets/png/status_normal.png"
+    "assets/png/status_prepare.png"
+    "assets/png/summary_bulb.png"
+    "assets/png/summary_co2.png"
+    "assets/png/summary_tree.png"
+    "assets/png/timeout.png"
+    "assets/png/waiting_data.png"
+    "assets/png/weather_cloud.png"
+    "assets/png/weather_moon.png"
+    "assets/png/weather_partly.png"
+    "assets/png/weather_rain.png"
+    "assets/png/weather_snow.png"
+    "assets/png/weather_sun.png"
+    "assets/png/wifi_off.png"
+    "assets/png/wind.png"
+)
+set(asset_sizes_header "${CMAKE_CURRENT_BINARY_DIR}/app_asset_sizes.h")
+file(WRITE "${asset_sizes_header}" "/* Generated from PNG file sizes. */\n#pragma once\n")
+foreach(png IN LISTS app_png_files)
+    set(png_path "${CMAKE_CURRENT_SOURCE_DIR}/${png}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${png_path}")
+    file(SIZE "${png_path}" png_size)
+    get_filename_component(png_name "${png}" NAME_WE)
+    string(TOUPPER "${png_name}" png_name)
+    file(APPEND "${asset_sizes_header}" "#define APP_PNG_${png_name}_SIZE ${png_size}U\n")
+endforeach()
+
 # Az alkalmazás saját ESP-IDF komponense.
 idf_component_register(
     SRCS
@@ -15,29 +58,8 @@ idf_component_register(
         "app_ui.c"
         "app_web.c"
         "app_wifi.c"
-    INCLUDE_DIRS "."
-    EMBED_FILES
-        "assets/png/header_home_leaf.png"
-        "assets/png/metric_leaf.png"
-        "assets/png/metric_house.png"
-        "assets/png/metric_grid.png"
-        "assets/png/metric_coins.png"
-        "assets/png/flow_battery.png"
-        "assets/png/flow_grid.png"
-        "assets/png/flow_house.png"
-        "assets/png/flow_hub.png"
-        "assets/png/flow_solar.png"
-        "assets/png/summary_co2.png"
-        "assets/png/summary_tree.png"
-        "assets/png/summary_bulb.png"
-        "assets/png/weather_sun.png"
-        "assets/png/weather_cloud.png"
-        "assets/png/weather_partly.png"
-        "assets/png/weather_rain.png"
-        "assets/png/weather_snow.png"
-        "assets/png/weather_moon.png"
-        "assets/png/wind.png"
-        "assets/png/wifi_off.png"
+    INCLUDE_DIRS "." "${CMAKE_CURRENT_BINARY_DIR}"
+    EMBED_FILES ${app_png_files}
     REQUIRES
         app_update
         esp_event
@@ -59,3 +81,4 @@ target_compile_options(
     PRIVATE
     -Wno-error=misleading-indentation
 )
+

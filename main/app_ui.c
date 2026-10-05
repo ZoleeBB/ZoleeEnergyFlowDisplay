@@ -65,7 +65,7 @@ static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
 static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
 static lv_obj_t *s_bat_icon,*s_grid_icon,*s_status_icon,*s_status_accent_a,*s_status_accent_b;
-static lv_obj_t *s_grid_node,*s_battery_node,*s_status_bubble,*s_status_detail;
+static lv_obj_t *s_grid_node,*s_battery_node,*s_pv_node,*s_home_node,*s_status_bubble,*s_status_detail;
 static lv_obj_t *s_battery_bar,*s_status_card;
 static lv_obj_t *s_bat_soc_detail,*s_bat_power_detail,*s_bat_temp_detail;
 static lv_obj_t *s_bat_charge,*s_bat_charge_cmp,*s_bat_discharge,*s_bat_discharge_cmp;
@@ -372,7 +372,7 @@ static void chart_positive_gradient_cb(lv_event_t *e)
 }
 #endif
 
-/* Lágy hátterű, kör alakú ikonjelölő vektoros assettel. */
+/* A körháttér külön LVGL réteg, az ikon átlátszó PNG. */
 static lv_obj_t *icon_bubble(
     lv_obj_t *parent,
     int x,
@@ -387,10 +387,8 @@ static lv_obj_t *icon_bubble(
     lv_obj_set_size(bubble,size,size);
     lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(bubble,0,0);
-    lv_obj_set_style_bg_opa(
-        bubble,
-        LV_OPA_TRANSP,
-        0);
+    lv_obj_set_style_bg_color(bubble,c(tone(accent,night)),0);
+    lv_obj_set_style_bg_opa(bubble,night?LV_OPA_10:LV_OPA_20,0);
     lv_obj_set_style_pad_all(bubble,0,0);
     lv_obj_remove_flag(bubble,LV_OBJ_FLAG_SCROLLABLE);
 
@@ -399,14 +397,14 @@ static lv_obj_t *icon_bubble(
         0,
         0,
         size,
-        size,
+        size-12,
         asset,
         night);
 
     return bubble;
 }
 
-/* Kör alakú energiaforrás/-fogyasztó node vektoros illusztrációval. */
+/* Energia-node: natív, dinamikus körvonal és külön átlátszó PNG. */
 static lv_obj_t *energy_circle(
     lv_obj_t *parent,
     int center_x,
@@ -424,12 +422,12 @@ static lv_obj_t *energy_circle(
         center_y-size/2);
     lv_obj_set_size(outer,size,size);
     lv_obj_set_style_radius(outer,LV_RADIUS_CIRCLE,0);
-    lv_obj_set_style_bg_opa(
-        outer,
-        LV_OPA_TRANSP,
-        0);
-    lv_obj_set_style_border_width(outer,0,0);
-    lv_obj_set_style_shadow_width(outer,0,0);
+    lv_obj_set_style_bg_color(outer,c(night?0x202B30:0xF2FBFE),0);
+    lv_obj_set_style_bg_opa(outer,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(outer,4,0);
+    lv_obj_set_style_border_color(outer,c(tone(accent,night)),0);
+    lv_obj_set_style_shadow_width(outer,12,0);
+    lv_obj_set_style_shadow_opa(outer,LV_OPA_10,0);
     lv_obj_set_style_pad_all(outer,0,0);
     lv_obj_remove_flag(outer,LV_OBJ_FLAG_SCROLLABLE);
 
@@ -437,8 +435,8 @@ static lv_obj_t *energy_circle(
         outer,
         0,
         0,
-        size,
-        size-4,
+        size-8,
+        size-16,
         asset,
         night);
 
@@ -474,15 +472,21 @@ static void flow_init(flow_t *f,lv_obj_t *p,int x1,int y1,int x2,int y2,bool nig
         lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);
     }
 }
+/* A körvonal és a kapcsolat ugyanazt a nappali/éjszakai színt kapja. */
+static uint32_t flow_color(double kw,uint32_t active_color,bool night)
+{
+    return fabs(kw)<0.0005?(night?0x333B37:0xDCE3E5):tone(active_color,night);
+}
+
 /* Energiaáramlási vonal színének, irányának és pontsebességének frissítése. */
 static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool night,float dt){
     /* Közel nulla teljesítménynél csak a halvány statikus kapcsolat marad. */
-    double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(night?0x333B37:0xDCE3E5),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
+    double m=fabs(kw);if(m<0.0005){lv_obj_set_style_line_color(f->line,c(flow_color(kw,color,night)),0);for(int i=0;i<3;i++)lv_obj_add_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);return;}
     /*
      * 0..7 kW között lineárisan nő a pontsebesség, 7 kW felett telítődik.
      * Az irányt a forward paraméter határozza meg.
      */
-    uint32_t shown=tone(color,night);
+    uint32_t shown=flow_color(kw,color,night);
     lv_obj_set_style_line_color(f->line,c(shown),0);float speed=.75f*(float)fmin(m/7.0,1.0);f->phase+=dt*speed;while(f->phase>=1)f->phase-=1;
     for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;if(!forward)t=1-t;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(shown),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
@@ -791,8 +795,8 @@ static void build_dashboard(bool night)
 
     /*
      * A kör alakú akkumulátor-grafikán belül külön SOC sáv is látható.
-     * A sáv hossza és színe együtt jelzi a töltöttséget, miközben maga
-     * az akkumulátor ikon is a megfelelő töltöttségi szintre vált.
+     * A sáv hossza és színe jelzi a SOC-ot. Az ikon állandó PNG;
+     * a körvonal színe kizárólag az energiaáramlás színét követi.
      */
     s_battery_bar=lv_bar_create(s_battery_node);
     lv_obj_set_pos(s_battery_bar,18,68);
@@ -848,7 +852,7 @@ static void build_dashboard(bool night)
         night?MUTED_DARK:MUTED_LIGHT);
 
     /* Napelem jobb oldalon. */
-    energy_circle(
+    s_pv_node=energy_circle(
         flow,
         390,
         245,
@@ -875,7 +879,7 @@ static void build_dashboard(bool night)
         night?TEXT_DARK:TEXT_LIGHT);
 
     /* Ház alul. */
-    energy_circle(
+    s_home_node=energy_circle(
         flow,
         245,
         375,
@@ -1501,11 +1505,6 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         c(tone(soc_color,s->night_mode)),
         LV_PART_INDICATOR);
 
-    lv_obj_set_style_border_color(
-        s_battery_node,
-        c(tone(soc_color,s->night_mode)),
-        0);
-
     lv_obj_set_style_opa(
         s_bat_icon,
         s->night_mode?LV_OPA_80:LV_OPA_COVER,
@@ -1556,6 +1555,13 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
         ORANGE,
         s->night_mode,
         dt);
+
+    lv_obj_set_style_border_color(s_pv_node,
+        c(flow_color(s->power_pv_kw,GREEN,s->night_mode)),0);
+    lv_obj_set_style_border_color(s_battery_node,
+        c(flow_color(s->power_bat_kw,s->power_bat_kw<0?GREEN:ORANGE,s->night_mode)),0);
+    lv_obj_set_style_border_color(s_home_node,
+        c(flow_color(s->power_full_kw,ORANGE,s->night_mode)),0);
 
     /*
      * Szigetüzemben a hálózat fizikailag leválasztottként jelenik meg:
@@ -1612,7 +1618,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st,f
 
         lv_obj_set_style_border_color(
             s_grid_node,
-            c(tone(grid_color,s->night_mode)),
+            c(flow_color(s->power_grid_kw,grid_color,s->night_mode)),
             0);
     }
     fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->completed_interval_totals.production_kwh,st->yesterday_completed_interval_totals.production_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->completed_interval_totals.consumption_kwh,st->yesterday_completed_interval_totals.consumption_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->completed_interval_totals.grid_import_kwh,st->yesterday_completed_interval_totals.grid_import_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->completed_interval_totals.grid_export_kwh,st->yesterday_completed_interval_totals.grid_export_kwh,st->has_yesterday);
@@ -2058,3 +2064,4 @@ static void runtime(void *arg){
 }
 /* A folyamatos UI runtime task egyszeri elindítása. */
 void app_ui_start_runtime(void){if(s_started)return;s_started=true;xTaskCreate(runtime,"ui_runtime",16384,NULL,5,NULL);}
+
