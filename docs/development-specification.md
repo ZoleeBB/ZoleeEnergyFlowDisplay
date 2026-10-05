@@ -2202,3 +2202,8 @@ A kész termék mindkét követelményt egyszerre teljesíti.
 - Az energiaáramlás alatt külön, azonos szélességű (490 px) kártya: „Akku infó – ma” / „Battery info – today”, akkumulátor + információjel kompozit ikonnal. A kártyák között 12 px térköz.
 - Két egyenlő oszlopban a napi összesített töltés és kisütés (kWh), nagyobb értékfelirattal és a meglévő tegnapi összehasonlítással. A SOC, pillanatnyi teljesítmény és hőmérséklet csak az áramlásábrán marad.
 - SOC-sáv: 20% alatt piros; 20–50% között, a határokat beleértve narancssárga; 50% felett zöld. Az éjszakai árnyalat ezeknek a színeknek a tompított változata.
+
+### Véglegesített kompakt akkukártya és szimmetrikus áramlásábra
+
+- Az akkukártya 490×64 px, bal oldalon nagyobb akkumulátor/információ ikonnal, mellette két adatoszloppal. Külön kártyacím nincs. Feliratok: „Össz. töltés ma”, „Össz. leadás ma” (EN: „Charged today”, „Discharged today”). Napi kWh és tegnapi összehasonlítás megmarad.
+- Energiaáramlás-kártya: 490×492 px. A négy összekötő szakasz egyformán 64 px hosszú; a hub és a négy energiacsomópont középpontjának távolsága 145 px. A kártyák között 12 px térköz. Ezek a méretek és feliratok felülírják a korábbi, magasabb akkukártya elrendezését.
