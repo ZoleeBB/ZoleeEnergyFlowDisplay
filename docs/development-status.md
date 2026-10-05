@@ -6,6 +6,7 @@
 - Külön natív körvonal mind a négy energia-node körül; színe a kapcsolattal azonos.
 - Az akkumulátor körvonala energiairány szerinti; a SOC külön sávot vezérel.
 - A beágyazott PNG-méreteket CMake méri, nincs kézzel rögzített bájtszám.
+- Az ESP-IDF 5.5 fájlnév-alapú beágyazási szimbólumai javítják a korábbi linkerhibát.
 - A hardveren történő végső megjelenítési ellenőrzés továbbra is szükséges.
 
 Az alábbi korábbi bejegyzések történeti állapotot írnak le.
