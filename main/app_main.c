@@ -94,7 +94,8 @@ void app_main(void)
      * Így egy hibás új firmware akkor is automatikusan vissza tud állni,
      * ha már a kijelző indítása közben megakadna.
      */
-    app_ota_start_validation_task();
+    /* Indítási memóriahiba esetén újraindulunk; pending OTA-nál a bootloader rollbackel. */
+    ESP_ERROR_CHECK(app_ota_start_validation_task());
 
     /* A kijelző már a további indulási lépések állapotát is mutatja. */
     if (app_ui_init() != ESP_OK) {
@@ -193,9 +194,11 @@ void app_main(void)
     }
 
     /* Háttérfeladatok indulása. */
-    app_storage_start_recovery_task();
-    app_stats_start_task();
-    app_time_start_background_task();
+    if(app_storage_start_recovery_task()!=ESP_OK ||
+       app_stats_start_task()!=ESP_OK || app_time_start_background_task()!=ESP_OK){
+        fatal_forever(cfg_tr("Memóriahiba","Memory error"),
+            cfg_tr("A háttérfeladat nem indítható.","A required background task could not start."));
+    }
 
     /*
      * A helyi web/OTA felület hasznos, de nem blokkolja az energiamonitor
@@ -220,22 +223,7 @@ void app_main(void)
     }
 
     while (!app_mqtt_wait_connected(pdMS_TO_TICKS(1000))) {
-        app_runtime_state_t runtime;
-        app_state_get_runtime(&runtime);
-
-        if (!runtime.wifi_connected) {
-            app_ui_show_boot(
-                APP_BOOT_WIFI,
-                cfg_tr(
-                    "A Wi-Fi kapcsolat helyreállítására várunk...",
-                    "Waiting for the Wi-Fi connection to recover..."));
-        } else {
-            app_ui_show_boot(
-                APP_BOOT_MQTT,
-                cfg_tr(
-                    "Kapcsolódás az MQTT brokerhez...",
-                    "Connecting to the MQTT broker..."));
-        }
+        /* A LVGL timer mutatja a Wi-Fi/MQTT hibát; a kliens magától újracsatlakozik. */
     }
 
     /*
@@ -262,7 +250,10 @@ void app_main(void)
     }
 
     /* Innentől a kijelző runtime task kezeli a dashboard és hibaoldalak közti váltást. */
-    app_ui_start_runtime();
+    if(app_ui_start_runtime()!=ESP_OK){
+        fatal_forever(cfg_tr("Memóriahiba","Memory error"),
+            cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
+    }
     app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
 
     /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */
@@ -270,3 +261,4 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(60000));
     }
 }
+

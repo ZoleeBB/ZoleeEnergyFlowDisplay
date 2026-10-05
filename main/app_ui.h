@@ -31,4 +31,5 @@ void app_ui_show_fatal(
     const char *detail);
 
 /* Normál runtime UI task elindítása. */
-void app_ui_start_runtime(void);
+esp_err_t app_ui_start_runtime(void);
+

@@ -47,25 +47,25 @@ static const char *reset_text(esp_reset_reason_t reason)
 {
     switch (reason) {
         case ESP_RST_POWERON:
-            return "Power-on";
+            return (s_hu?"Bekapcsolás":"Power-on");
         case ESP_RST_EXT:
-            return "External reset";
+            return (s_hu?"Külső reset":"External reset");
         case ESP_RST_SW:
-            return "Software restart";
+            return (s_hu?"Szoftveres újraindítás":"Software restart");
         case ESP_RST_PANIC:
-            return "Panic";
+            return (s_hu?"Programhiba":"Panic");
         case ESP_RST_INT_WDT:
-            return "Interrupt watchdog";
+            return (s_hu?"Megszakítási watchdog":"Interrupt watchdog");
         case ESP_RST_TASK_WDT:
-            return "Task watchdog";
+            return (s_hu?"Feladat-watchdog":"Task watchdog");
         case ESP_RST_WDT:
-            return "Watchdog";
+            return (s_hu?"Watchdog":"Watchdog");
         case ESP_RST_DEEPSLEEP:
-            return "Deep sleep wake";
+            return (s_hu?"Ébredés mélyalvásból":"Deep sleep wake");
         case ESP_RST_BROWNOUT:
-            return "Brownout";
+            return (s_hu?"Tápfeszültség-esés":"Brownout");
         default:
-            return "Unknown";
+            return (s_hu?"Ismeretlen":"Unknown");
     }
 }
 
@@ -153,7 +153,7 @@ static bool authorize(httpd_req_t *req)
             req,
             "WWW-Authenticate",
             "Basic realm=\"Zolee Energy Flow Display\"");
-        httpd_resp_sendstr(req, "Authentication required");
+        httpd_resp_sendstr(req, (s_hu?"Hitelesítés szükséges":"Authentication required"));
         return false;
     }
 
@@ -461,7 +461,7 @@ static esp_err_t root_handler(httpd_req_t *req)
 
             char safe_event[APP_EVENT_TEXT_MAX * 6];
             html_escape(
-                events[i].text,
+                s_hu?events[i].text:events[i].text_en,
                 safe_event,
                 sizeof(safe_event));
 
@@ -569,17 +569,12 @@ static esp_err_t reboot_post(httpd_req_t *req)
         return ESP_OK;
     }
 
-    httpd_resp_sendstr(
-        req,
-        s_hu ? "Újraindítás..." : "Restarting...");
-
-    xTaskCreate(
-        reboot_task,
-        "reboot",
-        2048,
-        NULL,
-        8,
-        NULL);
+    if(xTaskCreate(reboot_task,"reboot",2048,NULL,8,NULL)!=pdPASS){
+        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
+            s_hu?"Az újraindítás nem ütemezhető.":"Could not schedule restart.");
+        return ESP_OK;
+    }
+    httpd_resp_sendstr(req,s_hu?"Újraindítás...":"Restarting...");
 
     return ESP_OK;
 }
@@ -598,7 +593,7 @@ static esp_err_t ota_post(httpd_req_t *req)
         httpd_resp_send_err(
             req,
             HTTPD_400_BAD_REQUEST,
-            "Empty image");
+            (s_hu?"Üres firmware-fájl":"Empty image"));
         return ESP_OK;
     }
 
@@ -610,7 +605,7 @@ static esp_err_t ota_post(httpd_req_t *req)
         httpd_resp_send_err(
             req,
             HTTPD_400_BAD_REQUEST,
-            "Image too large");
+            (s_hu?"Túl nagy firmware-fájl":"Image too large"));
         return ESP_OK;
     }
 
@@ -625,7 +620,7 @@ static esp_err_t ota_post(httpd_req_t *req)
         httpd_resp_send_err(
             req,
             HTTPD_500_INTERNAL_SERVER_ERROR,
-            "OTA begin failed");
+            (s_hu?"A frissítés nem indítható":"OTA begin failed"));
         return ESP_OK;
     }
 
@@ -635,11 +630,12 @@ static esp_err_t ota_post(httpd_req_t *req)
         httpd_resp_send_err(
             req,
             HTTPD_500_INTERNAL_SERVER_ERROR,
-            "Out of memory");
+            (s_hu?"Nincs elegendő memória":"Out of memory"));
         return ESP_OK;
     }
 
     int remaining = req->content_len;
+    int64_t last_progress=esp_timer_get_time();
 
     while (remaining > 0) {
         int block_size =
@@ -653,7 +649,12 @@ static esp_err_t ota_post(httpd_req_t *req)
 
         /* A HTTP socket timeout átmeneti, ilyenkor ugyanazt a blokkot újra kérjük. */
         if (received == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
+            if(esp_timer_get_time()-last_progress<30000000LL)continue;
+            free(buffer);
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_err(req,HTTPD_408_REQ_TIMEOUT,
+                s_hu?"A feltöltés 30 másodperce nem halad.":"Upload stalled for 30 seconds.");
+            return ESP_OK;
         }
 
         if (received <= 0) {
@@ -662,7 +663,7 @@ static esp_err_t ota_post(httpd_req_t *req)
             httpd_resp_send_err(
                 req,
                 HTTPD_500_INTERNAL_SERVER_ERROR,
-                "Upload interrupted");
+                (s_hu?"A feltöltés megszakadt":"Upload interrupted"));
             return ESP_OK;
         }
 
@@ -677,11 +678,12 @@ static esp_err_t ota_post(httpd_req_t *req)
             httpd_resp_send_err(
                 req,
                 HTTPD_500_INTERNAL_SERVER_ERROR,
-                "Write failed");
+                (s_hu?"A firmware írása sikertelen":"Write failed"));
             return ESP_OK;
         }
 
         remaining -= received;
+        last_progress=esp_timer_get_time();
     }
 
     free(buffer);
@@ -700,7 +702,7 @@ static esp_err_t ota_post(httpd_req_t *req)
         httpd_resp_send_err(
             req,
             HTTPD_500_INTERNAL_SERVER_ERROR,
-            "Validation failed");
+            (s_hu?"A firmware ellenőrzése sikertelen":"Validation failed"));
         return ESP_OK;
     }
 
@@ -708,19 +710,13 @@ static esp_err_t ota_post(httpd_req_t *req)
         APP_EVENT_INFO,
         "Új OTA firmware feltöltve; újraindítás következik.");
 
-    httpd_resp_sendstr(
-        req,
-        s_hu
-            ? "Firmware feltöltve. Az eszköz újraindul."
-            : "Firmware uploaded. The device will restart.");
-
-    xTaskCreate(
-        reboot_task,
-        "ota_reboot",
-        2048,
-        NULL,
-        8,
-        NULL);
+    if(xTaskCreate(reboot_task,"ota_reboot",2048,NULL,8,NULL)!=pdPASS){
+        httpd_resp_sendstr(req,s_hu?"Firmware elmentve. Indítsd újra az eszközt.":
+            "Firmware saved. Please restart the device.");
+        return ESP_OK;
+    }
+    httpd_resp_sendstr(req,s_hu?"Firmware feltöltve. Az eszköz újraindul.":
+        "Firmware uploaded. The device will restart.");
 
     return ESP_OK;
 }
@@ -770,7 +766,8 @@ esp_err_t app_web_start(const app_config_t *cfg)
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
     http_cfg.max_uri_handlers = 8;
-    http_cfg.stack_size = 8192;
+    http_cfg.stack_size = 12288;
+    http_cfg.recv_wait_timeout = 5;
 
     err = httpd_start(&s_server, &http_cfg);
     if (err != ESP_OK) {
@@ -832,3 +829,4 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     return ESP_OK;
 }
+

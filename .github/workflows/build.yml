@@ -13,6 +13,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
+      - run: python3 tests/run_tests.py
+
+  ui-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: lvgl/lvgl
+          ref: v9.5.0
+          path: .preview-lvgl
+      - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build .preview-build -j 4
+      - name: Render actual LVGL screens
+        run: |
+          mkdir -p .preview-images
+          cd .preview-images
+          ../.preview-build/ui_preview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-preview-${{ github.sha }}
+          path: .preview-images/*.ppm
+
   build:
     runs-on: ubuntu-latest
 
@@ -40,3 +68,4 @@ jobs:
             build/bootloader/*.bin
             build/partition_table/*.bin
             build/flasher_args.json
+

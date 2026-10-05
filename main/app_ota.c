@@ -77,18 +77,10 @@ static void validation_task(void *arg)
 }
 
 /* Az OTA validációs task egyszeri indítása. */
-void app_ota_start_validation_task(void)
+esp_err_t app_ota_start_validation_task(void)
 {
-    if (s_started) {
-        return;
-    }
-
-    s_started = true;
-    xTaskCreate(
-        validation_task,
-        "ota_validate",
-        4096,
-        NULL,
-        7,
-        NULL);
+    if(s_started)return ESP_OK;
+    if(xTaskCreate(validation_task,"validation_task",4096,NULL,7,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    s_started=true;
+    return ESP_OK;
 }

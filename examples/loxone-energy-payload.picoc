@@ -46,7 +46,7 @@ while (TRUE)
     // A firmware által elvárt 12 kötelező mezőből egyetlen JSON objektum készül.
     sprintf(
         json,
-        "{"PowerGrid":%f,"PowerBat":%f,"PowerPV":%f,"SocBat":%f,"PowerFull":%f,"Temperature":%f,"WindSpeed":%f,"HasSunRadiation":%f,"HasPrecipitation":%f,"Status":%f,"NightMode":%f,"BatteryTemperature":%f}",
+        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%f,\"WindSpeed\":%f,\"HasSunRadiation\":%f,\"HasPrecipitation\":%f,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f}",
         powerGrid,
         powerBat,
         powerPV,
@@ -67,3 +67,4 @@ while (TRUE)
     // A specifikáció szerinti 5 másodperces publikálási periódus.
     sleep(UPDATE_INTERVAL_MS);
 }
+

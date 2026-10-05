@@ -59,7 +59,11 @@ void app_stats_process_sample(const app_energy_sample_t *sample);
 void app_stats_get_snapshot(app_stats_snapshot_t *out);
 
 /* Periodikus mentést és napváltást végző task indítása. */
-void app_stats_start_task(void);
+esp_err_t app_stats_start_task(void);
+
+/* Egy karbantartási lépés: RAM-napváltás és szükség szerinti mentés. */
+void app_stats_tick(void);
 
 /* Azonnali kézi mentés, például diagnosztikai célra. */
 esp_err_t app_stats_save_now(void);
+

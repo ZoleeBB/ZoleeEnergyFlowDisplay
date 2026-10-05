@@ -11,6 +11,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <math.h>
+#include <stdint.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,9 +41,13 @@ typedef struct {
     app_energy_totals_t totals;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
     bool valid;
+    uint32_t revision;
+    uint32_t saved_revision;
 } day_data_t;
 
 static SemaphoreHandle_t s_mutex;
+/* Az I/O külön zárat kap; a mérési adat mutexét csak rövid másolás tartja. */
+static SemaphoreHandle_t s_save_mutex;
 static app_config_t s_cfg;
 static day_data_t s_today;
 static day_data_t s_yesterday;
@@ -66,17 +72,6 @@ static int slot_for(time_t t)
     return tmv.tm_hour * 12 + tmv.tm_min / 5;
 }
 
-/* Az adott időponthoz tartozó ötperces slot kezdőhatára. */
-static time_t slot_boundary_for(time_t t)
-{
-    struct tm tmv;
-    localtime_r(&t, &tmv);
-    tmv.tm_min = (tmv.tm_min / 5) * 5;
-    tmv.tm_sec = 0;
-    tmv.tm_isdst = -1;
-    return mktime(&tmv);
-}
-
 /* Az adott helyi nap pontos 00:00 időpontja, DST-t is figyelembe véve. */
 static time_t local_day_start(time_t t)
 {
@@ -87,16 +82,6 @@ static time_t local_day_start(time_t t)
     tmv.tm_sec = 0;
     tmv.tm_isdst = -1;
     return mktime(&tmv);
-}
-
-/* Két epoch időpont helyi naptári napjának összehasonlítása. */
-static bool same_local_date(time_t a, time_t b)
-{
-    char da[11];
-    char db[11];
-    date_for(a, da);
-    date_for(b, db);
-    return strcmp(da, db) == 0;
 }
 
 /* A tegnapi helyi dátum kiszámítása naptári művelettel. */
@@ -225,66 +210,41 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     slot->valid = true;
 }
 
-/* Egy integrált energiarész hozzáadása a megfelelő ötperces slothoz. */
-static void add_slot_energy(int slot, const app_energy_totals_t *energy)
+/* Az intervallum bal végének helyi dátuma dönti el a mai/tegnapi célstruktúrát. */
+static day_data_t *day_for(time_t epoch)
 {
-    if (slot >= 0 && slot < APP_STATS_SLOT_COUNT) {
-        totals_add(&s_today.slots[slot].energy, energy);
-    }
+    char date[11];
+    date_for(epoch,date);
+    if(s_today.valid && strcmp(date,s_today.date)==0)return &s_today;
+    if(s_yesterday.valid && strcmp(date,s_yesterday.date)==0)return &s_yesterday;
+    return NULL;
 }
 
-/* Két egymást követő érvényes minta integrálása, szükség esetén slot-határon kettévágva. */
-static void integrate_pair(
-    const app_energy_sample_t *previous,
-    const app_energy_sample_t *current)
+/* Ötperces és éjféli határokon is pontosan vágunk; a háttértask sorrendjétől függetlenül. */
+static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current)
 {
-    double seconds = (double)(current->received_epoch_s - previous->received_epoch_s);
-    if (seconds <= 0 ||
-        seconds > (double)s_cfg.statistics.max_integration_gap_seconds) {
-        return;
-    }
-
-    int previous_slot = slot_for((time_t)previous->received_epoch_s);
-    int current_slot = slot_for((time_t)current->received_epoch_s);
-
-    if (previous_slot == current_slot) {
-        app_energy_totals_t e = energy_between(previous, current, seconds / 3600.0);
-        totals_add(&s_today.totals, &e);
-        add_slot_energy(current_slot, &e);
-        return;
-    }
-
-    if (same_local_date(
-            (time_t)previous->received_epoch_s,
-            (time_t)current->received_epoch_s) &&
-        current_slot == previous_slot + 1) {
-
-        time_t boundary = slot_boundary_for((time_t)current->received_epoch_s);
-        double before = (double)((int64_t)boundary - previous->received_epoch_s);
-        double after = (double)(current->received_epoch_s - (int64_t)boundary);
-
-        if (before > 0 && after >= 0 && before + after > 0) {
-            double fraction = before / (before + after);
-            app_energy_sample_t middle = interpolate_sample(
-                previous,
-                current,
-                fraction,
-                (int64_t)boundary);
-
-            app_energy_totals_t first = energy_between(previous, &middle, before / 3600.0);
-            app_energy_totals_t second = energy_between(&middle, current, after / 3600.0);
-
-            totals_add(&s_today.totals, &first);
-            totals_add(&s_today.totals, &second);
-            add_slot_energy(previous_slot, &first);
-            add_slot_energy(current_slot, &second);
-            return;
+    int64_t duration=current->received_epoch_s-previous->received_epoch_s;
+    if(duration<=0 || duration>s_cfg.statistics.max_integration_gap_seconds)return;
+    int64_t cursor=previous->received_epoch_s;
+    while(cursor<current->received_epoch_s){
+        struct tm local;
+        time_t epoch=(time_t)cursor;
+        localtime_r(&epoch,&local);
+        int64_t next=cursor+300-(local.tm_min%5)*60-local.tm_sec;
+        if(next>current->received_epoch_s)next=current->received_epoch_s;
+        app_energy_sample_t a=interpolate_sample(previous,current,
+            (double)(cursor-previous->received_epoch_s)/duration,cursor);
+        app_energy_sample_t b=interpolate_sample(previous,current,
+            (double)(next-previous->received_epoch_s)/duration,next);
+        day_data_t *day=day_for((time_t)cursor);
+        if(day){
+            app_energy_totals_t energy=energy_between(&a,&b,(next-cursor)/3600.);
+            totals_add(&day->totals,&energy);
+            totals_add(&day->slots[slot_for((time_t)cursor)].energy,&energy);
+            day->revision++;
         }
+        cursor=next;
     }
-
-    app_energy_totals_t e = energy_between(previous, current, seconds / 3600.0);
-    totals_add(&s_today.totals, &e);
-    add_slot_energy(previous_slot, &e);
 }
 
 /* A napi fő statisztikai fájl elérési útjának összeállítása. */
@@ -369,6 +329,7 @@ static cJSON *day_to_json(const day_data_t *day)
     }
 
     cJSON_AddNumberToObject(root, "version", STATS_VERSION);
+    cJSON_AddNumberToObject(root, "revision", day->revision);
     cJSON_AddStringToObject(root, "date", day->date);
     cJSON_AddItemToObject(root, "totals", totals_to_json(&day->totals));
 
@@ -408,11 +369,12 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
 
     cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "version");
     cJSON *date = cJSON_GetObjectItemCaseSensitive(root, "date");
+    cJSON *revision = cJSON_GetObjectItemCaseSensitive(root, "revision");
     cJSON *totals = cJSON_GetObjectItemCaseSensitive(root, "totals");
     cJSON *slots = cJSON_GetObjectItemCaseSensitive(root, "slots");
 
     if (!cJSON_IsNumber(version) ||
-        version->valueint != STATS_VERSION ||
+        version->valuedouble != STATS_VERSION ||
         !cJSON_IsString(date) ||
         strcmp(date->valuestring, expected_date) != 0 ||
         !cJSON_IsArray(slots) ||
@@ -420,11 +382,20 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
         return false;
     }
 
-    day_data_t parsed = {0};
-    snprintf(parsed.date, sizeof(parsed.date), "%s", expected_date);
+    /* A napi struktúra nagyobb a main task verménél. */
+    day_data_t *parsed = calloc(1, sizeof(*parsed));
+    if (!parsed) {errno=ENOMEM;return false;}
+    snprintf(parsed->date, sizeof(parsed->date), "%s", expected_date);
+    if(revision){
+        if(!cJSON_IsNumber(revision) || !isfinite(revision->valuedouble) ||
+           revision->valuedouble<0 || revision->valuedouble>UINT32_MAX ||
+           floor(revision->valuedouble)!=revision->valuedouble)goto invalid;
+        parsed->revision=(uint32_t)revision->valuedouble;
+    }
+    parsed->saved_revision=parsed->revision;
 
-    if (!totals_from_json(totals, &parsed.totals)) {
-        return false;
+    if (!totals_from_json(totals, &parsed->totals)) {
+        goto invalid;
     }
 
     for (int i = 0; i < APP_STATS_SLOT_COUNT; i++) {
@@ -439,26 +410,41 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
 
         if (!cJSON_IsBool(valid) ||
             !cJSON_IsNumber(count) ||
-            count->valuedouble < 0 ||
-            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) ||
-            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) ||
-            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) ||
-            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) ||
-            !totals_from_json(energy, &parsed.slots[i].energy)) {
-            return false;
+            !isfinite(count->valuedouble) || count->valuedouble < 0 ||
+            count->valuedouble > UINT32_MAX || floor(count->valuedouble)!=count->valuedouble ||
+            (cJSON_IsTrue(valid)!=(count->valuedouble>0)) ||
+            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) || pv->valuedouble<0 || pv->valuedouble>15 ||
+            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) || load->valuedouble<0 || load->valuedouble>15 ||
+            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) || fabs(grid->valuedouble)>15 ||
+            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) || fabs(battery->valuedouble)>15 ||
+            !totals_from_json(energy, &parsed->slots[i].energy)) {
+            goto invalid;
         }
 
-        parsed.slots[i].valid = cJSON_IsTrue(valid);
-        parsed.slots[i].sample_count = (uint32_t)count->valuedouble;
-        parsed.slots[i].pv_kw = (float)pv->valuedouble;
-        parsed.slots[i].load_kw = (float)load->valuedouble;
-        parsed.slots[i].grid_kw = (float)grid->valuedouble;
-        parsed.slots[i].battery_kw = (float)battery->valuedouble;
+        parsed->slots[i].valid = cJSON_IsTrue(valid);
+        parsed->slots[i].sample_count = (uint32_t)count->valuedouble;
+        parsed->slots[i].pv_kw = (float)pv->valuedouble;
+        parsed->slots[i].load_kw = (float)load->valuedouble;
+        parsed->slots[i].grid_kw = (float)grid->valuedouble;
+        parsed->slots[i].battery_kw = (float)battery->valuedouble;
     }
 
-    parsed.valid = true;
-    *out = parsed;
+    /* A teljes napi energia és a slotok összege nem mondhat ellent egymásnak. */
+    app_energy_totals_t sum={0};
+    for(int i=0;i<APP_STATS_SLOT_COUNT;i++)totals_add(&sum,&parsed->slots[i].energy);
+#define MATCH_TOTAL(field) if(fabs(sum.field-parsed->totals.field)>1e-6)goto invalid
+    MATCH_TOTAL(production_kwh); MATCH_TOTAL(consumption_kwh);
+    MATCH_TOTAL(grid_import_kwh); MATCH_TOTAL(grid_export_kwh);
+    MATCH_TOTAL(battery_charge_kwh); MATCH_TOTAL(battery_discharge_kwh);
+#undef MATCH_TOTAL
+    parsed->valid = true;
+    *out = *parsed;
+    free(parsed);
     return true;
+
+invalid:
+    free(parsed);
+    return false;
 }
 
 /* Egy napi JSON fájl méretkorlátos beolvasása és validálása. */
@@ -469,7 +455,7 @@ static esp_err_t read_day_file(
 {
     FILE *file = fopen(path, "rb");
     if (!file) {
-        return ESP_ERR_NOT_FOUND;
+        return errno==ENOENT?ESP_ERR_NOT_FOUND:ESP_FAIL;
     }
 
     if (fseek(file, 0, SEEK_END) != 0) {
@@ -500,45 +486,47 @@ static esp_err_t read_day_file(
     }
 
     buffer[read] = 0;
-    cJSON *root = cJSON_Parse(buffer);
+    const char *end=NULL;
+    cJSON *root=cJSON_ParseWithLengthOpts(buffer,(size_t)size,&end,false);
+    if(root)while(end<buffer+size && isspace((unsigned char)*end))end++;
+    errno=0;
+    bool ok=root && end==buffer+size && day_from_json(root,expected_date,out);
+    bool allocation_failed=errno==ENOMEM;
     free(buffer);
-
-    bool ok = root && day_from_json(root, expected_date, out);
     cJSON_Delete(root);
-    return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
+    return ok ? ESP_OK : allocation_failed ? ESP_ERR_NO_MEM : ESP_ERR_INVALID_ARG;
 }
 
-/* Napi fájl betöltése, szükség esetén .bak biztonsági másolatból helyreállítva. */
-static esp_err_t load_day(const char *date, day_data_t *out)
+/* A legújabb érvényes fő/tmp/bak állapot nyer; félbemaradt első mentés is helyreáll. */
+static esp_err_t load_day(const char *date,day_data_t *out)
 {
-    char path[64];
-    char backup[72];
-    char temp[72];
-    path_for(date, path, sizeof(path));
-    backup_path_for(date, backup, sizeof(backup));
-    temp_path_for(date, temp, sizeof(temp));
-
-    esp_err_t main_error = read_day_file(path, date, out);
-    if (main_error == ESP_OK) {
-        remove(backup);
-        remove(temp);
-        return ESP_OK;
+    char paths[3][72];
+    path_for(date,paths[0],sizeof(paths[0]));
+    temp_path_for(date,paths[1],sizeof(paths[1]));
+    backup_path_for(date,paths[2],sizeof(paths[2]));
+    day_data_t *candidate=malloc(sizeof(*candidate));
+    if(!candidate)return ESP_ERR_NO_MEM;
+    bool found=false;
+    int selected=0;
+    esp_err_t error=ESP_ERR_NOT_FOUND;
+    for(int i=0;i<3;i++){
+        esp_err_t result=read_day_file(paths[i],date,candidate);
+        if(result==ESP_OK){
+            if(!found || candidate->revision>out->revision){
+                *out=*candidate;
+                selected=i;
+                found=true;
+            }
+        }else if(result!=ESP_ERR_NOT_FOUND)error=result;
     }
-
-    esp_err_t backup_error = read_day_file(backup, date, out);
-    if (backup_error == ESP_OK) {
-        remove(path);
-        if (rename(backup, path) == 0) {
-            app_events_add(
-                APP_EVENT_WARNING,
-                "Statisztika helyreállítva biztonsági másolatból: %s",
-                date);
-        }
-        remove(temp);
-        return ESP_OK;
+    free(candidate);
+    if(!found)return error;
+    if(selected!=0){
+        /* A helyreállított RAM-példányt a mentőtask újra tartós főfájlba írja. */
+        out->saved_revision=out->revision-1;
+        app_events_add(APP_EVENT_WARNING,"Statisztika helyreállítva: %s",date);
     }
-
-    return main_error != ESP_ERR_NOT_FOUND ? main_error : backup_error;
+    return ESP_OK;
 }
 
 /* Sérült főfájl megőrzése .corrupt néven diagnosztikai célból. */
@@ -552,8 +540,8 @@ static void mark_corrupt(const char *date)
     (void)rename(path, corrupt);
 }
 
-/* Napi állapot biztonságos mentése: .tmp írás + fsync + .bak csere. A hívó tartja a mutexet. */
-static esp_err_t save_locked(const day_data_t *day)
+/* Napi állapot biztonságos mentése: .tmp írás + fsync + .bak csere. Csak a külön SD I/O-zárat tartja. */
+static esp_err_t save_day_file(const day_data_t *day)
 {
     if (!app_storage_is_ok()) {
         return ESP_ERR_INVALID_STATE;
@@ -565,7 +553,7 @@ static esp_err_t save_locked(const day_data_t *day)
      */
     if (mkdir(STATS_DIR, 0775) != 0 && errno != EEXIST) {
         app_storage_mark_fault(
-            "stats könyvtár nem hozható létre mentés előtt");
+            "STATS_MKDIR");
         return ESP_FAIL;
     }
 
@@ -590,7 +578,7 @@ static esp_err_t save_locked(const day_data_t *day)
     FILE *file = fopen(temp, "wb");
     if (!file) {
         cJSON_free(json);
-        app_storage_mark_fault("stats ideiglenes fájl megnyitás sikertelen");
+        app_storage_mark_fault("STATS_OPEN");
         return ESP_FAIL;
     }
 
@@ -601,29 +589,27 @@ static esp_err_t save_locked(const day_data_t *day)
     if (write_ok) {
         write_ok = fflush(file) == 0 && fsync(fileno(file)) == 0;
     }
-    fclose(file);
+    if(fclose(file)!=0)write_ok=false;
 
     if (!write_ok) {
         remove(temp);
-        app_storage_mark_fault("stats fájl írás sikertelen");
+        app_storage_mark_fault("STATS_WRITE");
         return ESP_FAIL;
     }
 
     remove(backup);
     if (rename(path, backup) != 0 && errno != ENOENT) {
-        remove(temp);
-        app_storage_mark_fault("stats biztonsági másolat készítése sikertelen");
+        app_storage_mark_fault("STATS_BACKUP");
         return ESP_FAIL;
     }
 
     if (rename(temp, path) != 0) {
         (void)rename(backup, path);
-        remove(temp);
-        app_storage_mark_fault("stats fájl cseréje sikertelen");
+        app_storage_mark_fault("STATS_RENAME");
         return ESP_FAIL;
     }
 
-    remove(backup);
+    /* Az előző jó főfájl .bak formában megmarad sérülés esetére. */
     return ESP_OK;
 }
 
@@ -633,7 +619,7 @@ static void reset_today(const char *date)
     memset(&s_today, 0, sizeof(s_today));
     snprintf(s_today.date, sizeof(s_today.date), "%s", date);
     s_today.valid = true;
-    s_have_prev = false;
+    s_today.revision=1;
 }
 
 /* A mai és tegnapi dátumnál régebbi statisztikai állományok törlése. */
@@ -661,7 +647,7 @@ static void cleanup_old_files(const char *today, const char *yesterday)
             continue;
         }
 
-        char path[128];
+        char path[sizeof(STATS_DIR)+256];
         snprintf(path, sizeof(path), STATS_DIR "/%s", entry->d_name);
         (void)remove(path);
     }
@@ -669,29 +655,17 @@ static void cleanup_old_files(const char *today, const char *yesterday)
     closedir(dir);
 }
 
-/* Napváltás kezelése: előző nap mentése, tegnappá tétele és új mai nap indítása. */
+/* RAM-napváltás I/O nélkül. Az előző minta megmarad az éjféli intervallum vágásához. */
 static void roll_day(time_t now)
 {
-    char current_date[11];
-    date_for(now, current_date);
-
-    if (strcmp(current_date, s_today.date) == 0) {
-        return;
-    }
-
-    if (s_today.valid && app_storage_is_ok()) {
-        (void)save_locked(&s_today);
-    }
-
-    s_yesterday = s_today;
-    reset_today(current_date);
-    s_last_save_us = esp_timer_get_time();
-
-    if (app_storage_is_ok()) {
-        cleanup_old_files(s_today.date, s_yesterday.date);
-    }
-
-    app_events_add(APP_EVENT_INFO, "Új nap indult: %s", current_date);
+    char current[11],yesterday[11];
+    date_for(now,current);
+    if(strcmp(current,s_today.date)<=0)return;
+    yesterday_for(now,yesterday);
+    if(s_today.valid && strcmp(s_today.date,yesterday)==0)s_yesterday=s_today;
+    else memset(&s_yesterday,0,sizeof(s_yesterday));
+    reset_today(current);
+    app_events_add(APP_EVENT_INFO,"Új nap indult: %s",current);
 }
 
 /* Csak a már lezárt ötperces slotok energiáinak összegzése az összehasonlításhoz. */
@@ -754,14 +728,15 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     if (!s_mutex) {
         s_mutex = xSemaphoreCreateMutex();
     }
-    if (!s_mutex) {
+    if (!s_save_mutex)s_save_mutex=xSemaphoreCreateMutex();
+    if (!s_mutex || !s_save_mutex) {
         return ESP_ERR_NO_MEM;
     }
 
     s_cfg = *cfg;
 
     if (mkdir(STATS_DIR, 0775) != 0 && errno != EEXIST) {
-        app_storage_mark_fault("stats könyvtár nem hozható létre");
+        app_storage_mark_fault("STATS_MKDIR");
         return ESP_FAIL;
     }
 
@@ -778,6 +753,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 
     esp_err_t err = load_day(today, &s_today);
     if (err != ESP_OK) {
+        if(err==ESP_ERR_NO_MEM || err==ESP_FAIL){xSemaphoreGive(s_mutex);return err;}
         if (err != ESP_ERR_NOT_FOUND) {
             mark_corrupt(today);
             app_events_add(
@@ -789,6 +765,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 
     err = load_day(yesterday, &s_yesterday);
     if (err != ESP_OK) {
+        if(err==ESP_ERR_NO_MEM || err==ESP_FAIL){xSemaphoreGive(s_mutex);return err;}
         if (err != ESP_ERR_NOT_FOUND) {
             mark_corrupt(yesterday);
             app_events_add(
@@ -819,59 +796,12 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
-    bool crossed_midnight =
-        s_have_prev &&
-        !same_local_date(
-            (time_t)s_prev.received_epoch_s,
-            now);
-
-    if (crossed_midnight) {
-        double total_seconds =
-            (double)(sample->received_epoch_s - s_prev.received_epoch_s);
-
-        if (total_seconds > 0 &&
-            total_seconds <=
-                (double)s_cfg.statistics.max_integration_gap_seconds) {
-
-            time_t boundary = local_day_start(now);
-
-            if (s_prev.received_epoch_s < (int64_t)boundary &&
-                sample->received_epoch_s >= (int64_t)boundary) {
-
-                double before =
-                    (double)((int64_t)boundary - s_prev.received_epoch_s);
-                double fraction = before / total_seconds;
-
-                app_energy_sample_t middle = interpolate_sample(
-                    &s_prev,
-                    sample,
-                    fraction,
-                    (int64_t)boundary);
-
-                /*
-                 * Először pontosan helyi éjfélkor lezárjuk az előző napot.
-                 * Ezután napot váltunk, majd a mintaköz éjfél utáni részét
-                 * már az új nap első ötperces slotjához számoljuk.
-                 */
-                integrate_pair(&s_prev, &middle);
-                roll_day(now);
-                integrate_pair(&middle, sample);
-            } else {
-                roll_day(now);
-            }
-        } else {
-            roll_day(now);
-        }
-    } else {
-        roll_day(now);
-        if (s_have_prev) {
-            integrate_pair(&s_prev, sample);
-        }
-    }
-
-    int slot = slot_for(now);
-    if (slot >= 0 && slot < APP_STATS_SLOT_COUNT) {
-        slot_average_add(&s_today.slots[slot], sample);
+    roll_day(now);
+    if(s_have_prev)integrate_pair(&s_prev,sample);
+    day_data_t *day=day_for(now);
+    if(day){
+        slot_average_add(&day->slots[slot_for(now)],sample);
+        day->revision++;
     }
 
     s_prev = *sample;
@@ -916,53 +846,79 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
     xSemaphoreGive(s_mutex);
 }
 
-/* A mai állapot azonnali, szálbiztos SD-mentése. */
+/* Mindkét megtartott nap konzisztens másolatának mentése. A lassú I/O nem fogja a mérési zárat. */
 esp_err_t app_stats_save_now(void)
 {
-    if (!s_mutex) {
-        return ESP_ERR_INVALID_STATE;
+    if(!s_mutex || !s_save_mutex)return ESP_ERR_INVALID_STATE;
+    if(!app_storage_is_ok())return ESP_ERR_INVALID_STATE;
+    day_data_t *copy=malloc(sizeof(*copy));
+    if(!copy)return ESP_ERR_NO_MEM;
+    xSemaphoreTake(s_save_mutex,portMAX_DELAY);
+    esp_err_t error=app_storage_lock();
+    if(error!=ESP_OK){xSemaphoreGive(s_save_mutex);free(copy);return error;}
+    char today[11],yesterday[11];
+    for(int i=0;i<2;i++){
+        xSemaphoreTake(s_mutex,portMAX_DELAY);
+        *copy=i==0?s_yesterday:s_today;
+        xSemaphoreGive(s_mutex);
+        if(!copy->valid)continue;
+        error=save_day_file(copy);
+        if(error!=ESP_OK)break;
+        xSemaphoreTake(s_mutex,portMAX_DELAY);
+        /* Napváltás történhet írás közben: dátum alapján keressük a mentett példányt. */
+        day_data_t *day=strcmp(copy->date,s_today.date)==0?&s_today:
+            strcmp(copy->date,s_yesterday.date)==0?&s_yesterday:NULL;
+        if(day)day->saved_revision=copy->revision;
+        xSemaphoreGive(s_mutex);
     }
-
-    xSemaphoreTake(s_mutex, portMAX_DELAY);
-    esp_err_t err = save_locked(&s_today);
-    if (err == ESP_OK) {
-        s_last_save_us = esp_timer_get_time();
+    if(error==ESP_OK){
+        xSemaphoreTake(s_mutex,portMAX_DELAY);
+        snprintf(today,sizeof(today),"%s",s_today.date);
+        snprintf(yesterday,sizeof(yesterday),"%s",s_yesterday.date);
+        s_last_save_us=esp_timer_get_time();
+        xSemaphoreGive(s_mutex);
+        cleanup_old_files(today,yesterday);
     }
-    xSemaphoreGive(s_mutex);
-    return err;
+    app_storage_unlock();
+    xSemaphoreGive(s_save_mutex);
+    free(copy);
+    return error;
 }
 
-/* Másodpercenként napváltást ellenőrző és a konfigurált periódusban mentő háttértask. */
+/* A karbantartás külön is hívható a napváltási sorrend regressziós tesztjeiben. */
+void app_stats_tick(void)
+{
+    static bool previous_sd_ok=true;
+    time_t now=time(NULL);
+    bool sd_ok=app_storage_is_ok();
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    roll_day(now);
+    bool due=(esp_timer_get_time()-s_last_save_us)>=
+        (int64_t)s_cfg.statistics.save_interval_minutes*60LL*1000000LL;
+    /* Megvárjuk az utolsó éjféli mintaköz végét, mielőtt tegnapot végleg elmentjük. */
+    bool yesterday_dirty=s_yesterday.valid && s_yesterday.revision!=s_yesterday.saved_revision &&
+        now-local_day_start(now)>=s_cfg.statistics.max_integration_gap_seconds;
+    xSemaphoreGive(s_mutex);
+    if(sd_ok && (due || yesterday_dirty || !previous_sd_ok)){
+        if(app_stats_save_now()!=ESP_OK){previous_sd_ok=false;return;}
+    }
+    previous_sd_ok=sd_ok;
+}
+
+/* Másodperces RAM-karbantartás; a mentés végig külön I/O-zárral fut. */
 static void stats_task(void *arg)
 {
     (void)arg;
-
-    while (true) {
-        time_t now = time(NULL);
-
-        xSemaphoreTake(s_mutex, portMAX_DELAY);
-        roll_day(now);
-        bool due =
-            (esp_timer_get_time() - s_last_save_us) >=
-            (int64_t)s_cfg.statistics.save_interval_minutes *
-                60LL * 1000000LL;
-        xSemaphoreGive(s_mutex);
-
-        if (due && app_storage_is_ok()) {
-            (void)app_stats_save_now();
-        }
-
+    while(true){
+        app_stats_tick();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-/* A statisztikai háttértask egyszeri elindítása. */
-void app_stats_start_task(void)
+esp_err_t app_stats_start_task(void)
 {
-    if (s_task_started) {
-        return;
-    }
-
-    s_task_started = true;
-    xTaskCreate(stats_task, "stats", 6144, NULL, 4, NULL);
+    if(s_task_started)return ESP_OK;
+    if(xTaskCreate(stats_task,"stats",6144,NULL,4,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    s_task_started=true;
+    return ESP_OK;
 }

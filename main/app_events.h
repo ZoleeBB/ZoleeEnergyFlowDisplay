@@ -21,6 +21,7 @@ typedef struct {
     int64_t epoch_s;
     app_event_level_t level;
     char text[APP_EVENT_TEXT_MAX];
+    char text_en[APP_EVENT_TEXT_MAX];
 } app_event_entry_t;
 
 /* Körkörös RAM eseménynapló inicializálása. */
@@ -31,3 +32,4 @@ void app_events_add(app_event_level_t level, const char *fmt, ...);
 
 /* A legfrissebb események másolása a hívó által megadott tömbbe. */
 size_t app_events_snapshot(app_event_entry_t *out, size_t max_items);
+
