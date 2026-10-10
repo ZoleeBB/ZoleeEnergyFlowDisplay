@@ -1,0 +1,1022 @@
+{
+  "schema": 1,
+  "id": "03-instruments",
+  "name": "Műszerfal",
+  "version": 1,
+  "light": {
+    "background": "#EDF1F8",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Műszerfal",
+        "text_en": "Műszerfal",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Pillanatnyi teljesítmény / kW",
+        "text_en": "Pillanatnyi teljesítmény / kW",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#19352F"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 59,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "pv",
+        "color": "#36AE7C",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 146,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 50,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "TERMELÉS",
+        "text_en": "TERMELÉS",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 67,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "pv",
+        "font": 28,
+        "color": "#36AE7C",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 72,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 367,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "home",
+        "color": "#EA9C3B",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 454,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 358,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "FOGYASZTÁS",
+        "text_en": "FOGYASZTÁS",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 375,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "home",
+        "font": 28,
+        "color": "#EA9C3B",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 380,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 675,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "grid",
+        "color": "#E66B6B",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 762,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "label",
+        "x": 666,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "HÁLÓZAT",
+        "text_en": "HÁLÓZAT",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 683,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "grid",
+        "font": 28,
+        "color": "#E66B6B",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 688,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 663,
+        "y": 471,
+        "w": 262,
+        "h": 28,
+        "source": "grid_direction",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 983,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "battery",
+        "color": "#559CDE",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 1070,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 974,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "AKKUMULÁTOR",
+        "text_en": "AKKUMULÁTOR",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 991,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "battery",
+        "font": 28,
+        "color": "#559CDE",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 996,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 971,
+        "y": 471,
+        "w": 262,
+        "h": 28,
+        "source": "battery_direction",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 551,
+        "w": 1216,
+        "h": 78,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 56,
+        "y": 577,
+        "w": 225,
+        "h": 30,
+        "text": "Tároló töltöttsége",
+        "text_en": "Tároló töltöttsége",
+        "font": 20,
+        "color": "#19352F"
+      },
+      {
+        "type": "bar",
+        "x": 299,
+        "y": 582,
+        "w": 430,
+        "h": 16,
+        "source": "soc",
+        "color": "#559CDE"
+      },
+      {
+        "type": "value",
+        "x": 760,
+        "y": 572,
+        "w": 160,
+        "h": 40,
+        "source": "soc",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "value",
+        "x": 910,
+        "y": 577,
+        "w": 300,
+        "h": 28,
+        "source": "status",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#559CDE"
+      }
+    ]
+  },
+  "dark": {
+    "background": "#0B1525",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Műszerfal",
+        "text_en": "Műszerfal",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Pillanatnyi teljesítmény / kW",
+        "text_en": "Pillanatnyi teljesítmény / kW",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 59,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "pv",
+        "color": "#36AE7C",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 146,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 50,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "TERMELÉS",
+        "text_en": "TERMELÉS",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 67,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "pv",
+        "font": 28,
+        "color": "#36AE7C",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 72,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 367,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "home",
+        "color": "#EA9C3B",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 454,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 358,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "FOGYASZTÁS",
+        "text_en": "FOGYASZTÁS",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 375,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "home",
+        "font": 28,
+        "color": "#EA9C3B",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 380,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 675,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "grid",
+        "color": "#E66B6B",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 762,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "label",
+        "x": 666,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "HÁLÓZAT",
+        "text_en": "HÁLÓZAT",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 683,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "grid",
+        "font": 28,
+        "color": "#E66B6B",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 688,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 663,
+        "y": 471,
+        "w": 262,
+        "h": 28,
+        "source": "grid_direction",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 136,
+        "w": 292,
+        "h": 395,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "gauge",
+        "x": 983,
+        "y": 190,
+        "w": 238,
+        "h": 238,
+        "source": "battery",
+        "color": "#559CDE",
+        "max": 15
+      },
+      {
+        "type": "image",
+        "x": 1070,
+        "y": 215,
+        "w": 64,
+        "h": 64,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 974,
+        "y": 163,
+        "w": 256,
+        "h": 26,
+        "text": "AKKUMULÁTOR",
+        "text_en": "AKKUMULÁTOR",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 991,
+        "y": 296,
+        "w": 228,
+        "h": 40,
+        "source": "battery",
+        "font": 28,
+        "color": "#559CDE",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 996,
+        "y": 423,
+        "w": 220,
+        "h": 22,
+        "text": "0                    15 kW",
+        "text_en": "0                    15 kW",
+        "font": 12,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 971,
+        "y": 471,
+        "w": 262,
+        "h": 28,
+        "source": "battery_direction",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 551,
+        "w": 1216,
+        "h": 78,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 56,
+        "y": 577,
+        "w": 225,
+        "h": 30,
+        "text": "Tároló töltöttsége",
+        "text_en": "Tároló töltöttsége",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "bar",
+        "x": 299,
+        "y": 582,
+        "w": 430,
+        "h": 16,
+        "source": "soc",
+        "color": "#559CDE"
+      },
+      {
+        "type": "value",
+        "x": 760,
+        "y": 572,
+        "w": 160,
+        "h": 40,
+        "source": "soc",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "value",
+        "x": 910,
+        "y": 577,
+        "w": 300,
+        "h": 28,
+        "source": "status",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#559CDE"
+      }
+    ]
+  }
+}

@@ -21,7 +21,10 @@ bool app_storage_is_ok(void);
 /* Percenkénti automatikus helyreállítást végző task elindítása. */
 esp_err_t app_storage_start_recovery_task(void);
 
-/* Kizárólag SD műveletekhez; a UI/MQTT nem kérheti ezt a zárat. */
+/* Kizárólag SD műveletekhez; LVGL lock alatt és MQTT callbackből tilos.
+ * A sablonok előtöltése a grafikus lock megszerzése ELŐTT történik. */
 esp_err_t app_storage_lock(void);
+/* UI-előtöltéshez: soha nem vár hosszú feltöltésre/mentésre. */
+bool app_storage_try_lock(void);
 void app_storage_unlock(void);
 

@@ -12,6 +12,7 @@
  */
 #include "app_web.h"
 #include "app_http.h"
+#include "app_templates.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -482,11 +483,11 @@ static esp_err_t root_handler(httpd_req_t *req)
     httpd_resp_send_chunk(
         req,
         s_hu
-            ? "<div class='card'><a href='/update'>Firmware frissítés</a>"
+            ? "<div class='card'><a href='/templates'>Sablonkezelő</a> | <a href='/update'>Firmware frissítés</a>"
               "<form method='post' action='/reboot' style='display:inline' "
               "onsubmit=\"return confirm('Biztosan újraindítod az eszközt?')\">"
               "<button type='submit'>Eszköz újraindítása</button></form></div>"
-            : "<div class='card'><a href='/update'>Firmware update</a>"
+            : "<div class='card'><a href='/templates'>Templates</a> | <a href='/update'>Firmware update</a>"
               "<form method='post' action='/reboot' style='display:inline' "
               "onsubmit=\"return confirm('Restart the device?')\">"
               "<button type='submit'>Restart device</button></form></div>",
@@ -714,6 +715,7 @@ static esp_err_t ota_post(httpd_req_t *req)
 }
 
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
+#include "app_template_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -757,7 +759,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 8;
+    http_cfg.max_uri_handlers = 16;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -816,6 +818,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
     }
 
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
+    if ((err = template_register(s_server)) != ESP_OK) goto failed;
     app_state_set_http_ready(cfg->data_recept_mode == APP_DATA_HTTP);
 
     app_events_add(

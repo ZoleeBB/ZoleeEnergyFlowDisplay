@@ -1,0 +1,632 @@
+{
+  "schema": 1,
+  "id": "04-daily-balance",
+  "name": "Napi mérleg",
+  "version": 1,
+  "light": {
+    "background": "#F3F6F8",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Napi mérleg",
+        "text_en": "Napi mérleg",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Teljesítmény és energia, egyetlen áttekintésben",
+        "text_en": "Teljesítmény és energia, egyetlen áttekintésben",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#19352F"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 120,
+        "w": 1216,
+        "h": 247,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 135,
+        "w": 190,
+        "h": 30,
+        "text": "Termelés",
+        "text_en": "Termelés",
+        "font": 20,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 700,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Saját fogyasztás",
+        "text_en": "Saját fogyasztás",
+        "font": 16,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 877,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Visszatáplálás",
+        "text_en": "Visszatáplálás",
+        "font": 16,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "label",
+        "x": 1054,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Tárolt",
+        "text_en": "Tárolt",
+        "font": 16,
+        "color": "#559CDE"
+      },
+      {
+        "type": "chart",
+        "x": 53,
+        "y": 176,
+        "w": 1160,
+        "h": 174,
+        "kind": "production",
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 385,
+        "w": 1216,
+        "h": 247,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 400,
+        "w": 190,
+        "h": 30,
+        "text": "Fogyasztás",
+        "text_en": "Fogyasztás",
+        "font": 20,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 700,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Hálózat",
+        "text_en": "Hálózat",
+        "font": 16,
+        "color": "#E66B6B"
+      },
+      {
+        "type": "label",
+        "x": 877,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Termelés",
+        "text_en": "Termelés",
+        "font": 16,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 1054,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Tároló",
+        "text_en": "Tároló",
+        "font": 16,
+        "color": "#559CDE"
+      },
+      {
+        "type": "chart",
+        "x": 53,
+        "y": 441,
+        "w": 1160,
+        "h": 174,
+        "kind": "consumption",
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#559CDE"
+      }
+    ]
+  },
+  "dark": {
+    "background": "#152128",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Napi mérleg",
+        "text_en": "Napi mérleg",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Teljesítmény és energia, egyetlen áttekintésben",
+        "text_en": "Teljesítmény és energia, egyetlen áttekintésben",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 120,
+        "w": 1216,
+        "h": 247,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 135,
+        "w": 190,
+        "h": 30,
+        "text": "Termelés",
+        "text_en": "Termelés",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 700,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Saját fogyasztás",
+        "text_en": "Saját fogyasztás",
+        "font": 16,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 877,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Visszatáplálás",
+        "text_en": "Visszatáplálás",
+        "font": 16,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "label",
+        "x": 1054,
+        "y": 139,
+        "w": 173,
+        "h": 26,
+        "text": "Tárolt",
+        "text_en": "Tárolt",
+        "font": 16,
+        "color": "#559CDE"
+      },
+      {
+        "type": "chart",
+        "x": 53,
+        "y": 176,
+        "w": 1160,
+        "h": 174,
+        "kind": "production",
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 385,
+        "w": 1216,
+        "h": 247,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 400,
+        "w": 190,
+        "h": 30,
+        "text": "Fogyasztás",
+        "text_en": "Fogyasztás",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 700,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Hálózat",
+        "text_en": "Hálózat",
+        "font": 16,
+        "color": "#E66B6B"
+      },
+      {
+        "type": "label",
+        "x": 877,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Termelés",
+        "text_en": "Termelés",
+        "font": 16,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 1054,
+        "y": 404,
+        "w": 173,
+        "h": 26,
+        "text": "Tároló",
+        "text_en": "Tároló",
+        "font": 16,
+        "color": "#559CDE"
+      },
+      {
+        "type": "chart",
+        "x": 53,
+        "y": 441,
+        "w": 1160,
+        "h": 174,
+        "kind": "consumption",
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#559CDE"
+      }
+    ]
+  }
+}

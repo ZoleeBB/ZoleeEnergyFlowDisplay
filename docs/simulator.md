@@ -7,7 +7,7 @@ A szimulátor ugyanazt az `app_ui.c`, `app_chart.c`, PNG-ikonokat és betűkész
 1. Töltsd le/checkoutold az ezt a fejlesztést tartalmazó ágat.
 2. Visual Studio: **File → Open → Folder**, válaszd a repository gyökérmappáját.
 3. Válaszd a **Windows UI demo (Debug, x64)** CMake-konfigurációt (`windows-demo-debug`).
-4. Várd meg a CMake konfigurálást. Első alkalommal internet kell: automatikusan letölti az LVGL 9.5.0 és cJSON 1.7.19 forrását. Python, SDL és külön vcpkg-telepítés nem szükséges.
+4. Várd meg a CMake konfigurálást. Első alkalommal internet kell: automatikusan letölti az LVGL 9.5.0, cJSON 1.7.19 és zlib 1.3.1 forrását. Python, SDL és külön vcpkg-telepítés nem szükséges.
 5. Az indítási cél legyen **zolee_simulator.exe**, majd **F5**.
 
 Ha a preset nem jelenik meg: **Tools → Options → CMake → General** alatt engedélyezd a CMakePresets.json használatát, és nyisd újra a mappát. Töréspont tehető például a `main/app_payload.c`, `main/app_ui.c` vagy `simulator/simulator.c` fájlba.
@@ -20,7 +20,8 @@ Az első adatcsomag induláskor, a továbbiak 5 másodpercenként érkeznek. Kil
 
 | Billentyű | Művelet |
 |---|---|
-| Jobbra nyíl | Következő demó állapot, azonnali csomag |
+| Balra/jobbra nyíl vagy vízszintes egérhúzás | Előző/következő sablon |
+| D | Következő demó állapot, azonnali csomag |
 | Space | Automatikus adatküldés szüneteltetése/folytatása; 30 másodperc után HTTP-adathiány képernyő |
 | N | Nappali/éjszakai mód kézi felülbírálása, azonnali csomag |
 | W | Wi-Fi kapcsolat megszakításának/helyreállásának szimulációja |
@@ -28,6 +29,14 @@ Az első adatcsomag induláskor, a továbbiak 5 másodpercenként érkeznek. Kil
 | Esc | Kilépés |
 
 A kézi állapot-/témaváltás szünet közben is küld csomagot, ezért újraindítja a timeoutot. Folytatáskor legfeljebb 5 másodperc múlva érkezik a következő csomag. A konzolban látható az elküldött JSON. A demó jelölés az ablakban és a kijelző címében is szerepel.
+
+Az öt SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
+A futási munkakönyvtár legyen a build `simulator` mappája; ott a `templates`
+alkönyvtár tárolja a választást. A `ZOLEE_TEMPLATE_ROOT` környezeti változóval
+más tesztkönyvtár is megadható. A forráscsomagok így nem változnak meg.
+A sablonok nem váltanak automatikusan. Az N billentyű továbbra is a demó
+adatcsomag `NightMode` mezőjét változtatja. A webes feltöltés firmware-funkció;
+a szimulátor nem indít HTTP-szervert.
 
 A grafikonok és a tegnapi összehasonlítás szintetikus előzményt kapnak; az új minták memóriában frissítik a demó statisztikát. Ez nem az SD-statisztika/tartós mentés tesztje. A szimulátor nem nyit hálózati végpontot. A hardveres fényerő, OTA, Wi-Fi és SD-kezelés itt adapterrel helyettesített. Az ESP-IDF fordítás alapértelmezése változatlan; a demó csak `ZOLEE_SIMULATOR=ON` mellett fordul, sem Debug, sem Release firmware-be nem kerül bele.
 

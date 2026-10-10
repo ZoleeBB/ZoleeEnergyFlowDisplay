@@ -13,6 +13,14 @@ static int64_t ticks;
 static bool sd_ok=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
+static lv_point_t touch_point;
+static bool touch_pressed;
+static void touch_read(lv_indev_t *input,lv_indev_data_t *data){
+    (void)input;data->point=touch_point;data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
+}
+static void touch_sample(int x,bool pressed){
+    touch_point=(lv_point_t){x,400};touch_pressed=pressed;ticks+=40000;lv_tick_inc(40);lv_timer_handler();
+}
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
@@ -138,6 +146,36 @@ int main(void)
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);save_frame("http-recovered-hu");
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
-    /* Következő állapotváltáskor az összes korábbi chart/ikon objektum felszabadul. */
-    clear();lv_display_delete(display);lv_deinit();return 0;
+    if(getenv("ZOLEE_TEMPLATE_ROOT")){
+        assert(app_templates_init()==ESP_OK);
+        app_template_info_t list[APP_TEMPLATE_MAX];char active[33];
+        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==6);
+        sample.power_pv_kw=7;sample.power_bat_kw=-2.5;sample.power_grid_kw=-2.4;sample.power_full_kw=2.1;
+        sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
+        snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
+        for(unsigned i=1;i<count;i++){
+            assert(app_templates_select(list[i].id)==ESP_OK);template_prepare();
+            for(int night=0;night<2;night++){
+                sample.night_mode=night;rt.wifi_connected=true;
+                render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
+                char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
+                rt.wifi_connected=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_WIFI_ERROR);
+                rt.wifi_connected=true;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+                assert(!strcmp(template_view.id,list[i].id));assert(s_last_night==(bool)night);
+            }
+        }
+        app_templates_step(1);template_prepare();render_runtime(rt,sample,true,31000000);assert(!template_is_active());
+        lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_display(input,display);lv_indev_set_read_cb(input,touch_read);
+        for(unsigned i=1;i<=count;i++){
+            lv_obj_update_layout(s_screen);
+            touch_sample(1050,true);touch_sample(850,true);touch_sample(650,true);touch_sample(650,false);
+            template_prepare();render_runtime(rt,sample,true,31000000);
+            if(strcmp(template_view.id,list[i%count].id))fprintf(stderr,"Swipe %u: got %s expected %s\n",i,template_view.id,list[i%count].id);
+            assert(!strcmp(template_view.id,list[i%count].id));
+        }
+        lv_indev_delete(input);
+        puts("PASS: 10 template renders, common error/recovery, NightMode and actual LVGL swipe across all 6 layouts");
+    }
+    clear();template_release_cache();app_templates_view_free(&template_view);
+    lv_display_delete(display);lv_deinit();return 0;
 }

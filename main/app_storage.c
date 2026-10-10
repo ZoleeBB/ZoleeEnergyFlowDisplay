@@ -21,6 +21,7 @@ esp_err_t app_storage_lock(void)
     return xSemaphoreTake(s_io_mutex,portMAX_DELAY)==pdTRUE?ESP_OK:ESP_FAIL;
 }
 void app_storage_unlock(void){xSemaphoreGive(s_io_mutex);}
+bool app_storage_try_lock(void){return s_io_mutex&&xSemaphoreTake(s_io_mutex,0)==pdTRUE;}
 
 esp_err_t app_storage_boot_mount(void)
 {

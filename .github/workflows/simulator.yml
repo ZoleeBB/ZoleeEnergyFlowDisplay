@@ -24,3 +24,4 @@ jobs:
             out/simulator/simulator/Debug/zolee_simulator.exe
             out/simulator/simulator/Debug/zolee_simulator.pdb
             out/simulator/simulator/simulator-demo.ppm
+            out/simulator/simulator/templates/

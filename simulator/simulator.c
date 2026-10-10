@@ -110,7 +110,7 @@ static void render_step(unsigned elapsed)
         app_state_get_runtime(&rt);
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
-        render_runtime(rt,sample,have,ticks);
+        template_prepare();render_runtime(rt,sample,have,ticks);
     }
     lv_timer_handler();
 }
@@ -264,7 +264,10 @@ static bool paint_frame(HDC target,int width,int height)
 }
 static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 {
+    static int drag_x;
     switch(msg){
+    case WM_LBUTTONDOWN:drag_x=(short)LOWORD(lp);SetCapture(hwnd);return 0;
+    case WM_LBUTTONUP:{int delta=(short)LOWORD(lp)-drag_x;ReleaseCapture();if(abs(delta)>60)app_templates_step(delta<0?1:-1);return 0;}
     case WM_ERASEBKGND:
         /* A háttér és a képarány miatti sávok is a kész képpel együtt frissülnek. */
         return 1;
@@ -282,7 +285,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
         if(wp=='N'){night_override=night_override==1?0:1;send_demo();}
         if(wp=='S'){sd_ok=!sd_ok;}
         if(wp=='W'){app_runtime_state_t rt;app_state_get_runtime(&rt);app_state_set_wifi_connected(!rt.wifi_connected);}
-        if(wp==VK_RIGHT){scene=(scene+1)%9;send_demo();}
+        if(wp==VK_RIGHT||wp==VK_LEFT)app_templates_step(wp==VK_RIGHT?1:-1);
+        if(wp=='D'){scene=(scene+1)%9;send_demo();}
         return 0;
     case WM_DESTROY:release_paint_buffer();PostQuitMessage(0);return 0;
     }
@@ -318,6 +322,8 @@ static int paint_self_test(void)
 #endif
 int main(int argc,char **argv)
 {
+    app_templates_init();
+    if(argc>1&&!strcmp(argv[1],"--self-test"))app_templates_select("builtin");
     init_demo();int result=0;
     if(argc>1 && strcmp(argv[1],"--self-test")==0){
         result=self_test();
@@ -333,7 +339,7 @@ int main(int argc,char **argv)
         wc.lpszClassName="ZoleeSimulator";wc.hCursor=LoadCursor(NULL,IDC_ARROW);
         if(!RegisterClassA(&wc))return 11;
         RECT rect={0,0,1280,800};AdjustWindowRect(&rect,WS_OVERLAPPEDWINDOW,FALSE);
-        window=CreateWindowA(wc.lpszClassName,"Zolee DEMO | Space: pause | Right: scene | N: night | W: Wi-Fi | S: SD",
+        window=CreateWindowA(wc.lpszClassName,"Zolee DEMO | Left/Right: template | D: scene | N: night | Space: pause | W: Wi-Fi | S: SD",
             WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,rect.right-rect.left,rect.bottom-rect.top,NULL,NULL,instance,NULL);
         if(!window)return 12;
         ShowWindow(window,SW_SHOW);

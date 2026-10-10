@@ -67,7 +67,7 @@ CONFIG_LV_USE_SVG=y
 CONFIG_LV_DRAW_THREAD_STACK_SIZE=32768
 
 # A dekódolt képek újrafelhasználásához képcache-t tartunk fenn.
-CONFIG_LV_CACHE_DEF_SIZE=262144
+CONFIG_LV_CACHE_DEF_SIZE=6291456
 
 
 # Az önállóan újraalkotott, átlátszó PNG assetek dekódere.

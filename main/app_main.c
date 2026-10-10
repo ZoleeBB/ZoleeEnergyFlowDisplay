@@ -27,6 +27,7 @@
 #include "app_time.h"
 #include "app_ui.h"
 #include "app_web.h"
+#include "app_templates.h"
 #include "app_wifi.h"
 
 /* A konfiguráció fix helye a microSD gyökerében. */
@@ -136,6 +137,7 @@ void app_main(void)
     app_state_set_data_mode(s_config.data_recept_mode);
     app_state_set_config_ok(true);
     app_ui_set_config(&s_config);
+    if(app_templates_init()!=ESP_OK)app_events_add(APP_EVENT_WARNING,"Sablonkezelő nem indult; alapnézet aktív.");
     app_events_add(APP_EVENT_INFO, "Konfiguráció betöltve.");
 
     /* Hálózati ESP-IDF infrastruktúra inicializálása. */

@@ -23,6 +23,7 @@
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
+#include "app_templates.h"
 
 LV_FONT_DECLARE(app_font_12);
 #define APP_FONT_12 (&app_font_12)
@@ -85,6 +86,9 @@ static app_stats_snapshot_t s_stats_snapshot;
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
+static bool template_is_active(void);
+static void template_animate(float dt);
+static void template_gesture(lv_event_t *event);
 
 /* A runtime UI kölcsönösen kizáró fő nézetei. */
 typedef enum {
@@ -537,7 +541,8 @@ static void build_dashboard(bool night)
     s_dash=lv_obj_create(s_screen);
     lv_obj_set_size(s_dash,W,H);
     screen_style(s_dash,night);
-    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(s_dash,template_gesture,LV_EVENT_GESTURE,NULL);
 
     /*
      * Fejléc: az eredeti látványterv fehér, lekerekített fejlécét tartjuk meg,
@@ -1307,7 +1312,8 @@ static void animation_tick(lv_timer_t *timer)
     float dt=s_animation_us?(now-s_animation_us)/1000000.f:0.f;
     s_animation_us=now;
     if(dt>.25f)dt=.016f;
-    if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
+    if(template_is_active())template_animate(dt);
+    else if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
     if(s_error_pulse){
         float wave=(sinf(now/1000000.f*3.14159265f)+1.f)*.5f;
         lv_obj_set_style_opa(s_error_pulse,(lv_opa_t)(175+65*wave),0);
@@ -1696,8 +1702,10 @@ void app_ui_show_boot(
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
+#include "app_template_ui.inc"
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    template_apply();
     bool timed_out=app_state_data_timed_out(&rt,now,app_config_data_timeout(&s_cfg));
     bool http=s_cfg.data_recept_mode==APP_DATA_HTTP;
 
@@ -1727,10 +1735,10 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
             false);
     }else{
         if(!s_dash_created||s.night_mode!=s_last_night){
-            build_dashboard(s.night_mode);
+            if(template_is_active())template_build(s.night_mode);else build_dashboard(s.night_mode);
             s_last_night=s.night_mode;
         }
-        update(&s,&s_stats_snapshot);
+        if(template_is_active())template_update(&s,&s_stats_snapshot);else update(&s,&s_stats_snapshot);
     }
 
 }
@@ -1759,6 +1767,7 @@ static void runtime(void *arg){
             }
         }
 
+        template_prepare();
         if(bsp_display_lock(-1)==ESP_OK){
             render_runtime(rt,s,have,now);
 

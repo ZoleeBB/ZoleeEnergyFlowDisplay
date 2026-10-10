@@ -1,0 +1,632 @@
+{
+  "schema": 1,
+  "id": "05-calm-home",
+  "name": "Nyugodt otthon",
+  "version": 1,
+  "light": {
+    "background": "#F3F0E7",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Nyugodt otthon",
+        "text_en": "Nyugodt otthon",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Csak ami igazán fontos",
+        "text_en": "Csak ami igazán fontos",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#19352F"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 136,
+        "w": 490,
+        "h": 494,
+        "background": "#E3EBDF",
+        "radius": 30
+      },
+      {
+        "type": "value",
+        "x": 72,
+        "y": 175,
+        "w": 400,
+        "h": 108,
+        "source": "clock",
+        "font": 96,
+        "color": "#19352F",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 130,
+        "y": 290,
+        "w": 300,
+        "h": 32,
+        "source": "date",
+        "font": 20,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "weather",
+        "x": 178,
+        "y": 345,
+        "w": 160,
+        "h": 160
+      },
+      {
+        "type": "value",
+        "x": 88,
+        "y": 520,
+        "w": 220,
+        "h": 60,
+        "source": "temperature",
+        "font": 48,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 345,
+        "y": 517,
+        "w": 140,
+        "h": 26,
+        "text": "Szél",
+        "text_en": "Szél",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 345,
+        "y": 550,
+        "w": 150,
+        "h": 40,
+        "source": "wind",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 136,
+        "w": 706,
+        "h": 158,
+        "background": "#FFFFFF",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 161,
+        "w": 100,
+        "h": 100,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 163,
+        "w": 480,
+        "h": 30,
+        "text": "Az otthon fogyasztása",
+        "text_en": "Az otthon fogyasztása",
+        "font": 20,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 206,
+        "w": 480,
+        "h": 60,
+        "source": "home",
+        "font": 48,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 304,
+        "w": 706,
+        "h": 158,
+        "background": "#FFFFFF",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 329,
+        "w": 100,
+        "h": 100,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 331,
+        "w": 480,
+        "h": 30,
+        "text": "A nap ereje",
+        "text_en": "A nap ereje",
+        "font": 20,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 374,
+        "w": 480,
+        "h": 60,
+        "source": "pv",
+        "font": 48,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 472,
+        "w": 706,
+        "h": 158,
+        "background": "#FFFFFF",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 497,
+        "w": 100,
+        "h": 100,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 499,
+        "w": 480,
+        "h": 30,
+        "text": "Energia a tárolóban",
+        "text_en": "Energia a tárolóban",
+        "font": 20,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 542,
+        "w": 480,
+        "h": 60,
+        "source": "soc",
+        "font": 48,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 1216,
+        "h": 108,
+        "background": "#FFFFFF",
+        "radius": 30
+      },
+      {
+        "type": "value",
+        "x": 60,
+        "y": 690,
+        "w": 420,
+        "h": 32,
+        "source": "status",
+        "font": 20,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 550,
+        "y": 670,
+        "w": 300,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 550,
+        "y": 699,
+        "w": 300,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 925,
+        "y": 670,
+        "w": 290,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 925,
+        "y": 699,
+        "w": 290,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      }
+    ]
+  },
+  "dark": {
+    "background": "#242C29",
+    "elements": [
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Folow Monitor",
+        "text_en": "Energy Folow Monitor",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 500,
+        "h": 38,
+        "text": "Nyugodt otthon",
+        "text_en": "Nyugodt otthon",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 600,
+        "h": 26,
+        "text": "Csak ami igazán fontos",
+        "text_en": "Csak ami igazán fontos",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 136,
+        "w": 490,
+        "h": 494,
+        "background": "#303D36",
+        "radius": 30
+      },
+      {
+        "type": "value",
+        "x": 72,
+        "y": 175,
+        "w": 400,
+        "h": 108,
+        "source": "clock",
+        "font": 96,
+        "color": "#EDF4F8",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 130,
+        "y": 290,
+        "w": 300,
+        "h": 32,
+        "source": "date",
+        "font": 20,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "weather",
+        "x": 178,
+        "y": 345,
+        "w": 160,
+        "h": 160
+      },
+      {
+        "type": "value",
+        "x": 88,
+        "y": 520,
+        "w": 220,
+        "h": 60,
+        "source": "temperature",
+        "font": 48,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 345,
+        "y": 517,
+        "w": 140,
+        "h": 26,
+        "text": "Szél",
+        "text_en": "Szél",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 345,
+        "y": 550,
+        "w": 150,
+        "h": 40,
+        "source": "wind",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 136,
+        "w": 706,
+        "h": 158,
+        "background": "#1B2C3B",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 161,
+        "w": 100,
+        "h": 100,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 163,
+        "w": 480,
+        "h": 30,
+        "text": "Az otthon fogyasztása",
+        "text_en": "Az otthon fogyasztása",
+        "font": 20,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 206,
+        "w": 480,
+        "h": 60,
+        "source": "home",
+        "font": 48,
+        "color": "#EA9C3B"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 304,
+        "w": 706,
+        "h": 158,
+        "background": "#1B2C3B",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 329,
+        "w": 100,
+        "h": 100,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 331,
+        "w": 480,
+        "h": 30,
+        "text": "A nap ereje",
+        "text_en": "A nap ereje",
+        "font": 20,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 374,
+        "w": 480,
+        "h": 60,
+        "source": "pv",
+        "font": 48,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "box",
+        "x": 542,
+        "y": 472,
+        "w": 706,
+        "h": 158,
+        "background": "#1B2C3B",
+        "radius": 30
+      },
+      {
+        "type": "image",
+        "x": 575,
+        "y": 497,
+        "w": 100,
+        "h": 100,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 708,
+        "y": 499,
+        "w": 480,
+        "h": 30,
+        "text": "Energia a tárolóban",
+        "text_en": "Energia a tárolóban",
+        "font": 20,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 708,
+        "y": 542,
+        "w": 480,
+        "h": 60,
+        "source": "soc",
+        "font": 48,
+        "color": "#559CDE"
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 1216,
+        "h": 108,
+        "background": "#1B2C3B",
+        "radius": 30
+      },
+      {
+        "type": "value",
+        "x": 60,
+        "y": 690,
+        "w": 420,
+        "h": 32,
+        "source": "status",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 550,
+        "y": 670,
+        "w": 300,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 550,
+        "y": 699,
+        "w": 300,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C"
+      },
+      {
+        "type": "label",
+        "x": 925,
+        "y": 670,
+        "w": 290,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 925,
+        "y": 699,
+        "w": 290,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B"
+      }
+    ]
+  }
+}

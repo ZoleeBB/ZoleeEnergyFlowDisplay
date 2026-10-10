@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Exercise the actual C installer against valid packages and hostile/corrupt input."""
+import copy
+import ctypes as C
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import zipfile
+
+ROOT=Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
+    tmp=Path(tmp)
+    subprocess.run(['cc','-std=gnu11','-shared','-fPIC','-g','-O1','-Wall','-Wextra','-Werror',
+                    '-Wno-misleading-indentation','-Werror=frame-larger-than=8192','-fsanitize=undefined',
+                    '-fno-sanitize-recover=all','-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
+                    'main/app_templates.c','main/app_template_zip.c','-lz','-lm','-l:libcjson.so.1',
+                    '-o',str(tmp/'templates.so')],cwd=ROOT,check=True)
+    lib=C.CDLL(str(tmp/'templates.so'))
+    lib.app_templates_validate.argtypes=[C.c_char_p,C.c_void_p,C.c_char_p]
+    lib.app_templates_validate.restype=C.c_bool
+    lib.app_templates_install.argtypes=[C.c_char_p,C.c_char_p]
+    lib.app_templates_select.argtypes=[C.c_char_p]
+    lib.app_templates_delete.argtypes=[C.c_char_p,C.c_char_p]
+    lib.app_templates_list.argtypes=[C.c_void_p,C.c_uint,C.c_char_p]
+    lib.app_templates_load_pending.argtypes=[C.c_void_p]
+    lib.app_templates_load_pending.restype=C.c_bool
+    lib.app_templates_view_free.argtypes=[C.c_void_p]
+    error=C.create_string_buffer(160)
+    for package in sorted((ROOT/'templates').iterdir()):
+        assert lib.app_templates_validate(os.fsencode(package),None,error), (package.name,error.value)
+    print('PASS: all 5 packages, both themes, references, PNG CRC/decompression and bounds')
+    sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
+    assert lib.app_templates_init()==0
+    def active():
+        name=C.create_string_buffer(33);n=lib.app_templates_list(None,16,name)
+        return n,name.value.decode()
+    def archive(name,document=None,extra=None,compression=zipfile.ZIP_DEFLATED):
+        path=tmp/(name+'.zip')
+        with zipfile.ZipFile(path,'w',compression) as z:
+            if document is not None:z.writestr('template.json',json.dumps(document).encode())
+            for key,value in (extra or {}).items():z.writestr(key,value)
+        return path
+    empty=dict(background='#FFFFFF',elements=[])
+    doc=dict(schema=1,id='test-layout',name='Test',version=1,light=empty,dark=empty)
+    good=archive('good',doc)
+    assert lib.app_templates_install(os.fsencode(good),error)==0,error.value
+    assert active()==(2,'builtin')
+    assert lib.app_templates_select(b'test-layout')==0
+    # Opaque aligned view storage is deliberately larger than the public struct.
+    view=(C.c_uint64*1024)()
+    assert lib.app_templates_load_pending(view)
+    assert (sd/'selection.txt').read_text()=='test-layout'
+    lib.app_templates_view_free(view)
+    assert lib.app_templates_init()==0 and active()==(2,'test-layout')
+    assert lib.app_templates_install(os.fsencode(good),error)!=0 # no silent overwrite
+    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13)]:
+        bad=copy.deepcopy(doc);bad['id']='invalid'
+        element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
+        element[field]=value;bad['light']['elements']=[element]
+        assert lib.app_templates_install(os.fsencode(archive('bad-schema',bad)),error)!=0,(field,error.value)
+    for name,data in [('../escaped.png',b'x'),('/absolute.png',b'x'),('nested/a.png',b'x'),
+                      ('UPPER.png',b'x'),('broken.png',b'not png'),('huge.png',b'x'*(2*1024*1024+1))]:
+        assert lib.app_templates_install(os.fsencode(archive('bad-path',dict(doc,id='invalid'),{name:data})),error)!=0,name
+    # A valid PNG with corrupt compressed payload or CRC must not pass schema validation.
+    png=bytearray((ROOT/'main/assets/png/flow_house.png').read_bytes());png[80]^=1
+    assert lib.app_templates_install(os.fsencode(archive('crc',dict(doc,id='invalid'),{'house.png':png})),error)!=0
+    symlink=tmp/'symlink.zip'
+    with zipfile.ZipFile(symlink,'w') as z:
+        z.writestr('template.json',json.dumps(dict(doc,id='invalid')))
+        entry=zipfile.ZipInfo('house.png');entry.create_system=3;entry.external_attr=0o120777<<16
+        z.writestr(entry,'../../outside')
+    assert lib.app_templates_install(os.fsencode(symlink),error)!=0
+    truncated=tmp/'truncated.zip';truncated.write_bytes(good.read_bytes()[:-10])
+    assert lib.app_templates_install(os.fsencode(truncated),error)!=0
+    duplicate=tmp/'duplicate.zip'
+    with zipfile.ZipFile(duplicate,'w') as z:
+        z.writestr('template.json',json.dumps(dict(doc,id='invalid')))
+        z.writestr('template.json',json.dumps(dict(doc,id='invalid')))
+    assert lib.app_templates_install(os.fsencode(duplicate),error)!=0
+    assert active()==(2,'test-layout') and not (tmp/'escaped.png').exists()
+    assert not (sd/'.install').exists()
+    assert lib.app_templates_delete(b'builtin',error)!=0
+    assert lib.app_templates_delete(b'test-layout',error)==0 and active()==(1,'builtin')
+    assert lib.app_templates_load_pending(view);lib.app_templates_view_free(view)
+    assert lib.app_templates_init()==0 and active()==(1,'builtin')
+    # Stored ZIP and missing selected package fallback.
+    assert lib.app_templates_install(os.fsencode(archive('stored',doc,compression=zipfile.ZIP_STORED)),error)==0
+    assert lib.app_templates_select(b'test-layout')==0
+    shutil.rmtree(sd/'test-layout')
+    assert lib.app_templates_load_pending(view);lib.app_templates_view_free(view)
+    assert active()[1]=='builtin'
+    print('PASS: install, persistence, delete, builtin protection, fallback, stored/deflate ZIP, rejected unsafe/corrupt packages')
