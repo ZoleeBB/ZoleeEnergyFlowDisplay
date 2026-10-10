@@ -1,7 +1,8 @@
 # A projekt rögzített komponensfüggőségei.
 dependencies:
   espressif/zlib:
-    version: "1.3.1"
+    # A project_include.cmake a libpng számára is exportálja a ZLIB::ZLIB célt.
+    version: "1.3.2~1"
   # Csak az ESP-IDF 5.5.x sorozat támogatott; a CI konkrétan 5.5.4-et használ.
   idf:
     version: ">=5.5,<5.6"
