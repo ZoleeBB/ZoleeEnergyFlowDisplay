@@ -119,7 +119,12 @@ static void test_template_indicators(const app_energy_sample_t *sample){
         template_animate(.1f);int first=lv_obj_get_style_bg_opa(node->obj,0);
         template_animate(.3f);assert(first!=lv_obj_get_style_bg_opa(node->obj,0));
     }
-    template_update(sample,&fixture);
+    template_chart_time=0;template_update(sample,&fixture);
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];const char *kind=ts(node->spec,"kind");
+        if(!strcmp(ts(node->spec,"type"),"chart")&&(!strcmp(kind,"grid")||!strcmp(kind,"battery")))
+            assert(lv_label_get_text(node->axis[2])[0]=='-');
+    }
 }
 
 static void test_template_weather(const app_energy_sample_t *sample){

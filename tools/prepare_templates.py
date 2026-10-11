@@ -98,9 +98,9 @@ def house(dark):
         (1090, 264, 'Akkumulátor', 'battery', BLUE, 'battery_direction'),
         (520, 554, 'Ház fogyasztás', 'home', ORANGE, None)]:
         width = 185 if source == 'battery' else 270
-        s.label(title, x, y, width, 16, s.muted)
+        s.label(title, x, y, width, 16, s.muted, align="center" if source=="home" else "left")
         if extra: s.value(extra, x, y+26, width, 16, color)
-        s.value(source, x, y+(52 if extra else 28), width, 48, color)
+        s.value(source, x, y+(52 if extra else 28), width, 48, color, align="center" if source=="home" else "left")
     s.label('Töltöttség', 1090, 392, 180, 16, s.muted, en='State of charge')
     s.value('soc', 1090, 418, 180, 28, BLUE)
     s.label('Akku hőmérséklet', 1090, 467, 185, 16, s.muted, en='Battery temperature')

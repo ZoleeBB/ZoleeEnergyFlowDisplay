@@ -223,6 +223,7 @@
         "text_en": "Hálózat",
         "font": 16,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -234,7 +235,8 @@
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#FFFFFF",
+        "align": "left"
       },
       {
         "type": "value",
@@ -266,6 +268,7 @@
         "source": "grid",
         "font": 48,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -276,7 +279,8 @@
         "h": 60,
         "source": "grid",
         "font": 48,
-        "color": "#FF1744"
+        "color": "#FF1744",
+        "align": "left"
       },
       {
         "type": "label",
@@ -288,6 +292,7 @@
         "text_en": "Napelem",
         "font": 16,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -299,7 +304,8 @@
         "text": "Napelem",
         "text_en": "Napelem",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#FFFFFF",
+        "align": "left"
       },
       {
         "type": "value",
@@ -310,6 +316,7 @@
         "source": "pv",
         "font": 48,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -320,7 +327,8 @@
         "h": 60,
         "source": "pv",
         "font": 48,
-        "color": "#00E676"
+        "color": "#00E676",
+        "align": "left"
       },
       {
         "type": "label",
@@ -332,6 +340,7 @@
         "text_en": "Akkumulátor",
         "font": 16,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -343,7 +352,8 @@
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#FFFFFF",
+        "align": "left"
       },
       {
         "type": "value",
@@ -375,6 +385,7 @@
         "source": "battery",
         "font": 48,
         "color": "#000000",
+        "align": "left",
         "shadow": true
       },
       {
@@ -385,7 +396,8 @@
         "h": 60,
         "source": "battery",
         "font": 48,
-        "color": "#00B0FF"
+        "color": "#00B0FF",
+        "align": "left"
       },
       {
         "type": "label",
@@ -397,6 +409,7 @@
         "text_en": "Ház fogyasztás",
         "font": 16,
         "color": "#000000",
+        "align": "center",
         "shadow": true
       },
       {
@@ -408,7 +421,8 @@
         "text": "Ház fogyasztás",
         "text_en": "Ház fogyasztás",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#FFFFFF",
+        "align": "center"
       },
       {
         "type": "value",
@@ -419,6 +433,7 @@
         "source": "home",
         "font": 48,
         "color": "#000000",
+        "align": "center",
         "shadow": true
       },
       {
@@ -429,7 +444,8 @@
         "h": 60,
         "source": "home",
         "font": 48,
-        "color": "#FFAB00"
+        "color": "#FFAB00",
+        "align": "center"
       },
       {
         "type": "label",
@@ -834,7 +850,8 @@
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "align": "left"
       },
       {
         "type": "value",
@@ -854,7 +871,8 @@
         "h": 60,
         "source": "grid",
         "font": 48,
-        "color": "#E66B6B"
+        "color": "#E66B6B",
+        "align": "left"
       },
       {
         "type": "label",
@@ -865,7 +883,8 @@
         "text": "Napelem",
         "text_en": "Napelem",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "align": "left"
       },
       {
         "type": "value",
@@ -875,7 +894,8 @@
         "h": 60,
         "source": "pv",
         "font": 48,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "align": "left"
       },
       {
         "type": "label",
@@ -886,7 +906,8 @@
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "align": "left"
       },
       {
         "type": "value",
@@ -906,7 +927,8 @@
         "h": 60,
         "source": "battery",
         "font": 48,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "align": "left"
       },
       {
         "type": "label",
@@ -917,7 +939,8 @@
         "text": "Ház fogyasztás",
         "text_en": "Ház fogyasztás",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "align": "center"
       },
       {
         "type": "value",
@@ -927,7 +950,8 @@
         "h": 60,
         "source": "home",
         "font": 48,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "align": "center"
       },
       {
         "type": "label",
