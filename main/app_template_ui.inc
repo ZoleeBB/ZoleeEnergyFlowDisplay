@@ -49,6 +49,21 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
     V("import_today",st->totals.grid_import_kwh);V("export_today",st->totals.grid_export_kwh);
     V("charge_today",st->totals.battery_charge_kwh);V("discharge_today",st->totals.battery_discharge_kwh);
+    app_stats_metrics_t metrics=app_stats_metrics(&st->totals,&s_cfg.energy);
+    app_stats_metrics_t month=app_stats_metrics(&s_month_period.totals,&s_cfg.energy);
+    V("self_sufficiency_pct",metrics.self_sufficiency_pct);V("self_consumption_pct",metrics.self_consumption_pct);
+    V("pv_home_today",st->totals.pv_home_kwh);V("pv_export_today",st->totals.pv_export_kwh);V("pv_stored_today",st->totals.pv_stored_kwh);
+    V("grid_home_today",st->totals.grid_home_kwh);V("battery_home_today",st->totals.battery_home_kwh);
+    V("pv_home_pct",st->totals.production_kwh>0?100*st->totals.pv_home_kwh/st->totals.production_kwh:0);
+    V("pv_export_pct",st->totals.production_kwh>0?100*st->totals.pv_export_kwh/st->totals.production_kwh:0);
+    V("pv_stored_pct",st->totals.production_kwh>0?100*st->totals.pv_stored_kwh/st->totals.production_kwh:0);
+    V("pv_load_pct",st->totals.consumption_kwh>0?100*st->totals.pv_home_kwh/st->totals.consumption_kwh:0);
+    V("grid_home_pct",st->totals.consumption_kwh>0?100*st->totals.grid_home_kwh/st->totals.consumption_kwh:0);
+    V("battery_home_pct",st->totals.consumption_kwh>0?100*st->totals.battery_home_kwh/st->totals.consumption_kwh:0);
+    V("grid_net_today",st->totals.grid_import_kwh-st->totals.grid_export_kwh);
+    V("battery_net_today",st->totals.battery_discharge_kwh-st->totals.battery_charge_kwh);
+    V("purchase_day",metrics.purchase_cost);V("revenue_day",metrics.export_revenue);V("savings_day",metrics.savings);V("net_day",metrics.net_cost);
+    V("purchase_month",month.purchase_cost);V("revenue_month",month.export_revenue);V("savings_month",month.savings);V("net_month",month.net_cost);
     V("pv_home",split.pv_home);V("pv_export",split.pv_export);V("pv_stored",split.pv_stored);
 #undef V
     return 0;
@@ -62,7 +77,9 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
     double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,1);
     const char *unit="kW";
-    if(strstr(source,"_today"))unit="kWh";
+    if(strstr(source,"_pct"))unit="%";
+    else if(strstr(source,"_day")||strstr(source,"_month"))unit=s_cfg.project.currency;
+    else if(strstr(source,"_today"))unit="kWh";
     else if(!strcmp(source,"soc"))unit="%";
     else if(!strcmp(source,"temperature")||!strcmp(source,"battery_temp"))unit="°C";
     else if(!strcmp(source,"wind")){fmt_dec(value,sizeof(value),v,0);unit="km/h";}
@@ -151,10 +168,21 @@ static void template_build(bool night){
             lv_obj_set_style_arc_color(node->obj,c(tc(e,"background",night?0x25394A:0xDFE8ED)),0);lv_obj_set_style_arc_width(node->obj,12,0);lv_obj_set_style_opa(node->obj,LV_OPA_TRANSP,LV_PART_KNOB);
         }else if(!strcmp(type,"chart")){
             bool consumption=!strcmp(ts(e,"kind"),"consumption");
-            node->obj=app_chart_create(s_dash,consumption,night,tc(palette,consumption?"grid":"pv",tone(consumption?RED:GREEN,night)),tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night)),tc(palette,"battery",tone(BLUE,night)));
+            const char *kind=ts(e,"kind");
+            app_chart_kind_t chart_kind=!strcmp(kind,"grid")?APP_CHART_GRID:!strcmp(kind,"battery")?APP_CHART_BATTERY:
+                !strcmp(kind,"soc")?APP_CHART_SOC:!strcmp(kind,"week")?APP_CHART_WEEK:!strcmp(kind,"month")?APP_CHART_MONTH:
+                consumption?APP_CHART_CONSUMPTION:APP_CHART_PRODUCTION;
+            uint32_t first=tc(palette,consumption?"grid":"pv",tone(consumption?RED:GREEN,night));
+            uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
+            if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
+            else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
+            node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,"battery",tone(BLUE,night)));
+            if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))app_chart_set_reference_style(node->obj);
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);
             for(int i=0;i<3;i++)node->axis[i]=lbl(s_dash,"",x,y+(h-35)*i/2,APP_FONT_12,text);
-            for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(s_dash,time,x+20+(w-46)*i/4,y+h-19,APP_FONT_12,text);}
+            if(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH){
+                lbl(s_dash,chart_kind==APP_CHART_WEEK?tr("Hétfő – Vasárnap · kWh","Mon – Sun · kWh"):tr("1 – hónap vége · kWh","1 – month end · kWh"),x+35,y+h-19,APP_FONT_12,text);
+            }else for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(s_dash,time,x+20+(w-46)*i/4,y+h-19,APP_FONT_12,text);}
         }else{
             node->obj=lv_obj_create(s_dash);lv_obj_remove_style_all(node->obj);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);
             lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);lv_obj_set_style_bg_opa(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
@@ -195,10 +223,26 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 lv_image_set_scale_x(node->obj,tn(e,"w",128)*256/128);lv_image_set_scale_y(node->obj,tn(e,"h",128)*256/128);
             }
         }else if(!strcmp(type,"chart")&&redraw){
-            bool consumption=!strcmp(ts(e,"kind"),"consumption");double maximum=1;time_t t=time(NULL);struct tm tmv;localtime_r(&t,&tmv);int minute=tmv.tm_hour*60+tmv.tm_min;
-            for(int j=0;j<APP_STATS_SLOT_COUNT;j++)if(stats->slots[j].valid&&!stats->slots[j].chart_gap&&j*5<=minute)maximum=fmax(maximum,consumption?stats->slots[j].load_kw:stats->slots[j].pv_kw);
-            maximum=ceil(maximum);app_chart_update(node->obj,stats,maximum,minute);
-            for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum*(2-j)/2,j==1?1:0);lv_label_set_text(node->axis[j],text);}
+            const char *kind=ts(e,"kind");double maximum=1,minimum=0;
+            time_t t=time(NULL);struct tm tmv;localtime_r(&t,&tmv);int minute=tmv.tm_hour*60+tmv.tm_min;
+            bool period=!strcmp(kind,"week")||!strcmp(kind,"month");
+            if(period){
+                const app_stats_period_t *p=!strcmp(kind,"month")?&s_month_period:&s_week_period;
+                app_chart_update_period(node->obj,p);
+                for(unsigned j=0;j<p->count;j++)if(p->days[j].valid){
+                    maximum=fmax(maximum,fmax(p->days[j].totals.production_kwh,fmax(p->days[j].totals.consumption_kwh,p->days[j].totals.grid_import_kwh)));
+                }
+            }else{
+                for(int j=0;j<APP_STATS_SLOT_COUNT;j++)if(stats->slots[j].valid&&!stats->slots[j].chart_gap&&j*5<=minute){
+                    const app_stats_slot_t *slot=&stats->slots[j];
+                    maximum=fmax(maximum,!strcmp(kind,"grid")?fabs(slot->grid_kw):!strcmp(kind,"battery")?fabs(slot->battery_kw):!strcmp(kind,"consumption")?slot->load_kw:slot->pv_kw);
+                }
+                maximum=!strcmp(kind,"soc")?100:ceil(maximum);
+                if(!strcmp(kind,"grid")||!strcmp(kind,"battery"))minimum=-maximum;
+                app_chart_update(node->obj,stats,maximum,minute);
+            }
+            maximum=ceil(maximum);
+            for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum-(maximum-minimum)*j/2,j==1?1:0);lv_label_set_text(node->axis[j],text);}
         }
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;

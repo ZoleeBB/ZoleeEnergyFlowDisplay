@@ -83,6 +83,7 @@ static int s_brightness=50,s_target=50;
 static int64_t s_last_chart_update_us;
 /* A 20 kB-os snapshot a UI modul tulajdona, nem a task vermét terheli. */
 static app_stats_snapshot_t s_stats_snapshot;
+static app_stats_period_t s_week_period,s_month_period;
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
@@ -1756,7 +1757,13 @@ static void runtime(void *arg){
 
         app_energy_sample_t s={0};
         bool have=app_state_get_sample(&s);
-        if(have)app_stats_get_snapshot(&s_stats_snapshot);
+        if(have){
+            app_stats_get_snapshot(&s_stats_snapshot);
+            static int64_t period_update;
+            if(!period_update||now-period_update>=5000000){
+                app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);period_update=now;
+            }
+        }
 
         if(have){
             s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;

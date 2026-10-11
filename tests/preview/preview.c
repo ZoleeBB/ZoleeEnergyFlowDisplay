@@ -35,6 +35,17 @@ void vTaskDelay(unsigned ms){(void)ms;}
 void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=true,.mqtt_connected=true};}
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
+void app_stats_get_period(bool month,app_stats_period_t *out){
+    memset(out,0,sizeof(*out));out->count=month?31:7;
+    for(unsigned i=0;i<out->count;i++){
+        snprintf(out->days[i].date,11,"2026-10-%02u",i+1);
+        out->days[i].valid=i!=2;out->days[i].totals=fixture.totals;
+        out->days[i].totals.production_kwh=18+i%7*2;out->days[i].totals.consumption_kwh=24+i%5;
+        out->days[i].totals.grid_import_kwh=5+i%4;
+        if(out->days[i].valid){out->totals.grid_import_kwh+=out->days[i].totals.grid_import_kwh;out->totals.grid_export_kwh+=3;}
+    }
+}
+
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 {(void)area;(void)map;lv_display_flush_ready(disp);}
@@ -149,6 +160,33 @@ static void test_stacked_charts(void)
     charts(&fixture);
 }
 
+static void test_signed_and_soc_charts(void){
+    static app_stats_snapshot_t samples;
+    for(int i=0;i<220;i++)samples.slots[i]=(app_stats_slot_t){.valid=true,.soc_valid=true,
+        .grid_kw=i<96?2:-2,.battery_kw=i<96?2:-2,.soc_pct=60,.chart_gap=i>=140&&i<=165};
+    lv_obj_t *parent=lv_obj_create(s_screen);lv_obj_remove_style_all(parent);
+    lv_obj_set_size(parent,1280,800);lv_obj_set_style_bg_color(parent,c(0xFFFFFF),0);lv_obj_set_style_bg_opa(parent,255,0);
+    for(int kind=APP_CHART_GRID;kind<=APP_CHART_SOC;kind++){
+        lv_obj_t *chart=app_chart_create_kind(parent,kind,false,0xFF0066,0xFF9900,0x0099FF);
+        lv_obj_set_pos(chart,100,100);lv_obj_set_size(chart,600,200);
+        app_chart_update(chart,&samples,4,1100);save_frame("signed-soc-regression");
+        lv_area_t area;lv_obj_get_content_coords(chart,&area);
+        int positive_x=area.x1+(area.x2-area.x1)*40/288;
+        int negative_x=area.x1+(area.x2-area.x1)*115/288;
+        int gap_x=area.x1+(area.x2-area.x1)*152/288;
+        int y=kind==APP_CHART_SOC?area.y2-40:area.y1+70;
+        assert((pixels[y*1280+positive_x]&0xffffff)!=0xffffff);
+        if(kind!=APP_CHART_SOC){
+            assert((pixels[(area.y1+130)*1280+negative_x]&0xffffff)!=0xffffff);
+            assert((pixels[y*1280+negative_x]&0xffffff)==0xffffff);
+        }
+        assert((pixels[y*1280+gap_x]&0xffffff)==0xffffff);
+        lv_obj_delete(chart);
+    }
+    lv_obj_delete(parent);
+    puts("PASS: positive/negative fills, zero axis and SOC gaps in actual rendered pixels");
+}
+
 int main(void)
 {
     setenv("TZ","UTC0",1);tzset();
@@ -165,13 +203,13 @@ int main(void)
     config.energy.electricity_purchase_price=65;config.energy.feed_in_price=5;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
-    fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4};
+    fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};
     fixture.has_yesterday=true;
     for(int i=0;i<176;i++){
         float daylight=fmaxf(0,sinf((i-72)*3.14159265f/144));
-        fixture.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=60,.pv_kw=daylight*7,
+        fixture.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=60,.soc_pct=20+daylight*80,.soc_valid=true,.pv_kw=daylight*7,
             .load_kw=1.5f+.7f*sinf(i*.13f),.grid_kw=1.4f*sinf(i*.05f),.battery_kw=2.f*cosf(i*.04f)};
         fixture.slots[i].split=app_energy_split(fixture.slots[i].pv_kw,fixture.slots[i].load_kw,fixture.slots[i].battery_kw);
     }
@@ -198,14 +236,15 @@ int main(void)
     rt.wifi_connected=false;
     render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_WIFI_ERROR);
     rt.wifi_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
-    s_stats_snapshot=fixture;
+    s_stats_snapshot=fixture;app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);save_frame("http-recovered-hu");
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
+    test_signed_and_soc_charts();
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
         app_template_info_t list[APP_TEMPLATE_MAX];char active[33];
-        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==8);
+        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==9);
         sample.power_pv_kw=7;sample.power_bat_kw=-2.5;sample.power_grid_kw=-2.4;sample.power_full_kw=2.1;
         sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
         snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
@@ -249,7 +288,7 @@ int main(void)
             assert(!strcmp(template_view.id,list[i%count].id));
         }
         lv_indev_delete(input);
-        puts("PASS: 14 template renders, common error/recovery, NightMode and actual LVGL swipe across all 8 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
+        puts("PASS: 16 template renders, common error/recovery, NightMode and actual LVGL swipe across all 9 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
     clear();template_release_cache();app_templates_view_free(&template_view);
     lv_display_delete(display);lv_deinit();return 0;

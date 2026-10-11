@@ -58,7 +58,18 @@ typedef struct {
     double purchase_cost, export_revenue, savings, net_cost;
 } app_stats_metrics_t;
 void app_stats_get_period(bool month, app_stats_period_t *out);
-app_stats_metrics_t app_stats_metrics(const app_energy_totals_t *totals, const app_energy_config_t *cfg);
+static inline app_stats_metrics_t app_stats_metrics(const app_energy_totals_t *t,const app_energy_config_t *cfg){
+    double local=t->pv_home_kwh+t->battery_home_kwh;
+    return (app_stats_metrics_t){
+        .self_sufficiency_pct=t->consumption_kwh>0?fmin(100,100*local/t->consumption_kwh):0,
+        .self_consumption_pct=t->production_kwh>0?fmin(100,100*(t->pv_home_kwh+t->pv_stored_kwh)/t->production_kwh):0,
+        .purchase_cost=t->grid_import_kwh*cfg->electricity_purchase_price,
+        .export_revenue=t->grid_export_kwh*cfg->feed_in_price,
+        .net_cost=t->grid_import_kwh*cfg->electricity_purchase_price-t->grid_export_kwh*cfg->feed_in_price,
+        .savings=local*cfg->electricity_purchase_price+t->grid_export_kwh*cfg->feed_in_price
+    };
+}
+
 
 /*
  * A UI számára készített teljes snapshot.

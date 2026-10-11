@@ -185,3 +185,7 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 ![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)
 
 Az energiautak `glow: 0..24` mezője állítható fényudvart ad. A fény intenzitása és a pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a fény kialszik. A kézi sablonváltás 160 ms belépő áttűnést használ: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.
+
+## 08 – Energiastatisztika
+
+Világos és sötét, 1280×800-as nézet: csak számszerű pillanatnyi energiaáramlás; napi termelési/fogyasztási forrásdiagramok, előjeles import/export, előjeles akkumulátorteljesítmény és SOC-görbe. A sorozatokat a valós ötperces mérési átlagok adják; az összes energiát időben integráljuk. A heti/havi kártyán napi termelési, fogyasztási és import oszlopok láthatók; a hiányzó nap szürke jel. Az alsó sor a napi/havi pénzügyeket és az energiaarányokat mutatja.

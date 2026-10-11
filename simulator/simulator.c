@@ -98,6 +98,15 @@ static void send_demo(void)
     packets++;
     printf("Demo %u: %s\n",i+1,json);
 }
+void app_stats_get_period(bool month,app_stats_period_t *out){
+    memset(out,0,sizeof(*out));out->count=month?31:7;
+    for(unsigned i=0;i<out->count;i++){
+        out->days[i].valid=i!=2;out->days[i].totals=fixture.totals;
+        out->days[i].totals.production_kwh=18+i%7*2;out->days[i].totals.consumption_kwh=24+i%5;
+        out->days[i].totals.grid_import_kwh=5+i%4;
+        if(out->days[i].valid)out->totals.grid_import_kwh+=out->days[i].totals.grid_import_kwh;
+    }
+}
 static void render_step(unsigned elapsed)
 {
     static unsigned until_ui=200;
@@ -110,6 +119,7 @@ static void render_step(unsigned elapsed)
         app_state_get_runtime(&rt);
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
+        app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
         template_prepare();render_runtime(rt,sample,have,ticks);
     }
     lv_timer_handler();
@@ -146,8 +156,13 @@ static void init_demo(void)
         if(i>=48 && i<60)battery=-2;
         float grid=load-pv-battery;
         fixture.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=60,
-            .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=battery,
+            .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=battery,.soc_pct=fminf(100,20+pv*10),.soc_valid=true,
             .split=app_energy_split(pv,load,battery),.chart_gap=(i==current/3)};
+        app_energy_split_t split=fixture.slots[i].split;
+        fixture.totals.pv_home_kwh+=split.pv_home/12;fixture.totals.pv_export_kwh+=split.pv_export/12;
+        fixture.totals.pv_stored_kwh+=split.pv_stored/12;fixture.totals.grid_home_kwh+=split.grid_home/12;
+        fixture.totals.battery_home_kwh+=split.battery_home/12;
+        fixture.totals.battery_charge_kwh+=fmaxf(0,-battery)/12;fixture.totals.battery_discharge_kwh+=fmaxf(0,battery)/12;
         fixture.totals.production_kwh+=pv/12;
         fixture.totals.consumption_kwh+=load/12;
         fixture.totals.grid_import_kwh+=fmaxf(0,grid)/12;

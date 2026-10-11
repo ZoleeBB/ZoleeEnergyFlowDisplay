@@ -23,8 +23,8 @@
         "y": 59,
         "w": 250,
         "h": 26,
-        "text": "Energy Folow Monitor",
-        "text_en": "Energy Folow Monitor",
+        "text": "Energy Flow Monitor",
+        "text_en": "Energy Flow Monitor",
         "font": 16,
         "color": "#657A75"
       },
@@ -589,8 +589,8 @@
         "y": 59,
         "w": 250,
         "h": 26,
-        "text": "Energy Folow Monitor",
-        "text_en": "Energy Folow Monitor",
+        "text": "Energy Flow Monitor",
+        "text_en": "Energy Flow Monitor",
         "font": 16,
         "color": "#A2B5BE"
       },

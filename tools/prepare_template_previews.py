@@ -24,7 +24,7 @@ def main(source):
         for col,theme in enumerate(('light','dark')):
             with Image.open(source/f'template-{package.name}-{theme}.ppm') as frame:
                 sheet.paste(frame.resize((400,250),Image.Resampling.LANCZOS),(col*400,row*280+30))
-            draw.text((col*400+10,row*280+5),NAMES[row]+(' · nappal' if col==0 else ' · éjjel'),font=font,fill='#19352F')
+            draw.text((col*400+10,row*280+5),__import__('json').loads((package/'template.json').read_text())['name']+(' · nappal' if col==0 else ' · éjjel'),font=font,fill='#19352F')
         idraw.text((12,row*150+55),NAMES[row],font=font,fill='#19352F')
         for col,name in enumerate(('flow_solar','flow_house','flow_grid','flow_battery','flow_hub')):
             asset=package/(name+'.png')

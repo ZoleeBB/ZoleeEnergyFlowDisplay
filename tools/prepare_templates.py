@@ -45,7 +45,7 @@ class Scene:
 
     def header(self, title, subtitle):
         self.label('Zolee', 32, 24, 150, 28)
-        self.label('Energy Folow Monitor', 32, 59, 250, 16, self.muted)
+        self.label('Energy Flow Monitor', 32, 59, 250, 16, self.muted)
         self.label(title, 338, 24, 500, 28)
         self.label(subtitle, 338, 60, 600, 16, self.muted)
         self.value('clock', 1080, 20, 175, 48)
@@ -281,11 +281,71 @@ def ledger(dark):
     return s
 
 
+def statistics(dark):
+    s=Scene(dark,'#142737' if dark else '#F0F4FA')
+    s.header('Energiastatisztika','Élő értékek · napi görbék · heti és havi összesítés')
+    for i,(label,source,color) in enumerate([('Termelés','pv',GREEN),('Fogyasztás','home',GREEN),
+            ('Hálózat','grid',RED),('Akkumulátor','battery',BLUE),('Töltöttség','soc',BLUE)]):
+        x=32+i*246
+        s.label(label,x,99,230,16,s.muted)
+        s.value(source,x,123,230,28,color)
+        if source in ('grid','battery'):s.value(source+'_direction',x+130,102,114,12,s.muted)
+    # Az energiaáramlást itt kizárólag számok mutatják, nincs node vagy mozgó vonal.
+    cards=[(32,180,'production','Termelés','production_today'),
+           (446,180,'consumption','Fogyasztás','consumption_today'),
+           (860,180,'soc','Tároló szintje','soc'),
+           (32,426,'grid','Hálózati betáp','grid_net_today'),
+           (446,426,'battery','Tároló','battery_net_today')]
+    for x,y,kind,title,total in cards:
+        s.box(x,y,388,230,radius=24)
+        s.label(title,x+16,y+14,220,20,en={'production':'Production','consumption':'Consumption','soc':'Battery level','grid':'Grid','battery':'Battery'}[kind])
+        s.value(total,x+227,y+17,150,16)
+        s.add('chart',x+12,y+47,358,128,kind=kind,color=s.muted,reference_style=True)
+        if kind in ('production','consumption'):
+            specs=[('Hálózatra','pv_export_today','pv_export_pct',ORANGE),('Házhoz','pv_home_today','pv_home_pct',GREEN),('Tárolóba','pv_stored_today','pv_stored_pct',BLUE)] if kind=='production' else [
+                  ('Hálózatról','grid_home_today','grid_home_pct',RED),('Termelésből','pv_home_today','pv_home_pct',GREEN),('Tárolóból','battery_home_today','battery_home_pct',BLUE)]
+            for j,(label,source,percent,color) in enumerate(specs):
+                xx=x+16+j*120
+                s.value(source,xx,y+170,118,16,color)
+                # Consumption PV ratio needs consumption denominator.
+                if kind=='consumption' and source=='pv_home_today':percent='pv_load_pct'
+                s.value(percent,xx,y+193,118,12,color)
+                s.label(label,xx,y+212,118,12,s.muted)
+        elif kind=='grid':
+            s.label('Import (+)',x+16,y+177,171,12,RED,en='Import (+)')
+            s.label('Export (-)',x+205,y+177,171,12,ORANGE,en='Export (-)')
+            s.value('import_today',x+16,y+198,171,16,RED)
+            s.value('export_today',x+205,y+198,171,16,ORANGE)
+        elif kind=='battery':
+            s.label('Töltés (-)',x+16,y+177,171,12,BLUE,en='Charge (-)')
+            s.label('Leadás (+)',x+205,y+177,171,12,BLUE,en='Discharge (+)')
+            s.value('charge_today',x+16,y+198,171,16,BLUE)
+            s.value('discharge_today',x+205,y+198,171,16,BLUE)
+        else:
+            s.label('Töltöttség · %',x+16,y+177,270,16,BLUE,en='State of charge · %')
+            s.value('battery_temp',x+16,y+201,250,16,s.muted)
+    s.box(860,426,388,230,radius=24)
+    for yy,kind,title,en in [(439,'week','Ezen a héten','This week'),(544,'month','Ebben a hónapban','This month')]:
+        s.label(title,876,yy,220,16,en=en)
+        s.add('chart',872,yy+22,358,78,kind=kind,color=s.muted)
+    s.box(32,674,1216,96,radius=20)
+    labels=[('Önellátás','self_sufficiency_pct',GREEN),('Helyben felhaszn.','self_consumption_pct',GREEN),
+            ('Vásárlás ma','purchase_day',RED),('Bevétel ma','revenue_day',ORANGE),('Becsült megtak.','savings_day',GREEN),
+            ('Vásárlás / hó','purchase_month',RED),('Bevétel / hó','revenue_month',ORANGE),('Megtak. / hó','savings_month',GREEN)]
+    for i,(label,source,color) in enumerate(labels):
+        x=48+i*149
+        s.label(label,x,688,145,12,s.muted)
+        s.value(source,x,710,145,16,color)
+    s.label('Heti/havi: termelés / fogyasztás / import · hiányzó nap: szürke jel · ma részleges',48,747,1175,12,s.muted,
+            en='Week/month: production / consumption / import · missing day: grey dash · today partial')
+    return s
+
+
 def main():
     for ident,name,builder in [('01-live-home','Élő otthon',house), ('02-energy-paths','Energiautak',paths),
                                ('03-instruments','Műszerfal',instruments), ('04-daily-balance','Napi mérleg',balance),
                                ('05-calm-home','Nyugodt otthon',calm),
-                               ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger)]:
+                               ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger),('08-statistics','Energiastatisztika',statistics)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
         doc=dict(schema=1,id=ident,name=name,version=4 if ident=='01-live-home' else 3,
                  light=builder(False).document(),dark=builder(True).document())

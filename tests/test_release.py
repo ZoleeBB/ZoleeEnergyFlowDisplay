@@ -73,7 +73,7 @@ class ReleaseTests(unittest.TestCase):
         for name in ('templates.md','template-authoring.md','template-icon-prompts.json',
                      'previews/templates.png','previews/template-icons.png','previews/live-home-flow.gif'):
             self.assertTrue((unpack/name).is_file(),name)
-        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),7)
+        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),8)
         cmd = command(unpack,'COM5',115200)
         self.assertIn('--no-stub',cmd)
         for address,name in self.flash.items():
