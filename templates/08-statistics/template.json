@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "08-statistics",
   "name": "Energiastatisztika",
-  "version": 4,
+  "version": 5,
   "light": {
     "background": "#F0F4FA",
     "elements": [
@@ -775,7 +775,8 @@
         "h": 128,
         "kind": "battery",
         "color": "#657A75",
-        "reference_style": true
+        "reference_style": true,
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "label",
@@ -1869,7 +1870,8 @@
         "h": 128,
         "kind": "battery",
         "color": "#A2B5BE",
-        "reference_style": true
+        "reference_style": true,
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "label",

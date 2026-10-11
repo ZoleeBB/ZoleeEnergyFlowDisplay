@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 4,
+  "version": 5,
   "light": {
     "background": "#F4F7F1",
     "elements": [
@@ -21,7 +21,7 @@
         "w": 1280,
         "h": 800,
         "background": "#F4F7F1",
-        "opacity": 222,
+        "opacity": 174,
         "radius": 0
       },
       {
@@ -102,7 +102,7 @@
         "h": 496,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "flow",
@@ -368,7 +368,7 @@
         "h": 142,
         "background": "#F4F7F1",
         "radius": 70,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -412,7 +412,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -446,7 +446,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -480,7 +480,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -514,7 +514,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -566,7 +566,7 @@
         "w": 1280,
         "h": 800,
         "background": "#13272A",
-        "opacity": 214,
+        "opacity": 164,
         "radius": 0
       },
       {
@@ -647,7 +647,7 @@
         "h": 496,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "flow",
@@ -913,7 +913,7 @@
         "h": 142,
         "background": "#13272A",
         "radius": 70,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -957,7 +957,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -991,7 +991,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1025,7 +1025,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1059,7 +1059,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",

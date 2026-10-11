@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 4,
+  "version": 5,
   "light": {
     "background": "#F6F2EA",
     "elements": [
@@ -21,7 +21,7 @@
         "w": 1280,
         "h": 800,
         "background": "#F6F2EA",
-        "opacity": 222,
+        "opacity": 174,
         "radius": 0
       },
       {
@@ -50,7 +50,7 @@
         "type": "label",
         "x": 338,
         "y": 24,
-        "w": 500,
+        "w": 464,
         "h": 38,
         "text": "Energiafőkönyv",
         "text_en": "Energiafőkönyv",
@@ -61,7 +61,7 @@
         "type": "label",
         "x": 338,
         "y": 60,
-        "w": 600,
+        "w": 464,
         "h": 26,
         "text": "Pillanatnyi értékek és a mai energia egymás mellett",
         "text_en": "Pillanatnyi értékek és a mai energia egymás mellett",
@@ -95,6 +95,47 @@
         "shadow_opacity": 40
       },
       {
+        "type": "weather",
+        "x": 814,
+        "y": 18,
+        "w": 54,
+        "h": 54,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 872,
+        "y": 20,
+        "w": 192,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "value",
+        "x": 872,
+        "y": 52,
+        "w": 192,
+        "h": 28,
+        "source": "wind",
+        "font": 16,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
         "type": "box",
         "x": 32,
         "y": 126,
@@ -102,7 +143,7 @@
         "h": 500,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -145,7 +186,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -200,7 +241,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -255,7 +296,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -334,7 +375,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -413,7 +454,7 @@
         "h": 238,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -469,7 +510,7 @@
         "h": 241,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -527,7 +568,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -561,7 +602,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -595,7 +636,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -629,7 +670,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -681,7 +722,7 @@
         "w": 1280,
         "h": 800,
         "background": "#18292B",
-        "opacity": 214,
+        "opacity": 164,
         "radius": 0
       },
       {
@@ -710,7 +751,7 @@
         "type": "label",
         "x": 338,
         "y": 24,
-        "w": 500,
+        "w": 464,
         "h": 38,
         "text": "Energiafőkönyv",
         "text_en": "Energiafőkönyv",
@@ -721,7 +762,7 @@
         "type": "label",
         "x": 338,
         "y": 60,
-        "w": 600,
+        "w": 464,
         "h": 26,
         "text": "Pillanatnyi értékek és a mai energia egymás mellett",
         "text_en": "Pillanatnyi értékek és a mai energia egymás mellett",
@@ -755,6 +796,47 @@
         "shadow_opacity": 100
       },
       {
+        "type": "weather",
+        "x": 814,
+        "y": 18,
+        "w": 54,
+        "h": 54,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 872,
+        "y": 20,
+        "w": 192,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "value",
+        "x": 872,
+        "y": 52,
+        "w": 192,
+        "h": 28,
+        "source": "wind",
+        "font": 16,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
         "type": "box",
         "x": 32,
         "y": 126,
@@ -762,7 +844,7 @@
         "h": 500,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -805,7 +887,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -860,7 +942,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -915,7 +997,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -994,7 +1076,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "image",
@@ -1073,7 +1155,7 @@
         "h": 238,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1129,7 +1211,7 @@
         "h": 241,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1187,7 +1269,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1221,7 +1303,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1255,7 +1337,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",
@@ -1289,7 +1371,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 205
+        "opacity": 150
       },
       {
         "type": "label",

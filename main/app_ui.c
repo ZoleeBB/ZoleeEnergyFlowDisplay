@@ -93,6 +93,7 @@ static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
 static bool template_is_active(void);
 static void template_animate(float dt);
+static unsigned template_catalogue_count(void);
 static void template_gesture(lv_event_t *event);
 
 /* A runtime UI kölcsönösen kizáró fő nézetei. */
@@ -1017,9 +1018,10 @@ static void build_dashboard(bool night)
      */
     lv_obj_t *summary=lv_obj_create(s_dash);
     lv_obj_set_pos(summary,20,664);
-    lv_obj_set_size(summary,1240,116);
+    lv_obj_set_size(summary,1240,110);
     card_style(summary,night);
     lv_obj_set_style_pad_all(summary,8,0);
+    lv_obj_set_style_pad_bottom(summary,2,0);
 
     summary_metric(
         summary,0,236,
@@ -1096,6 +1098,9 @@ static void build_dashboard(bool night)
             night?MUTED_DARK:MUTED_LIGHT);
     lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(s_status_detail,205);
+
+    unsigned theme_count=template_catalogue_count();
+    for(unsigned i=0;i<theme_count;i++)shape(s_dash,640-(int)theme_count*10+(int)i*20,781,7,7,i==0?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
 
     /* Futás közbeni SD-hiba kis, nem blokkoló piros figyelmeztetése. */
     s_sd_warn=lbl(

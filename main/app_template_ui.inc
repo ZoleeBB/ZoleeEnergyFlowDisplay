@@ -9,6 +9,7 @@ typedef struct {
     lv_point_precise_t points[65];float segments[64],length;unsigned point_count;double power;float phase;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
+static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
 static template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
@@ -219,6 +220,7 @@ static void template_build(bool night){
             uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
             if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
             else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
+            if(chart_kind==APP_CHART_BATTERY)second=tc(e,"positive_color",first);
             node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH)?"grid":"battery",tone(BLUE,night)));
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))app_chart_set_reference_style(node->obj);
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);

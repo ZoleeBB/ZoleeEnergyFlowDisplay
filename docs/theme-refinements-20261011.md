@@ -2,7 +2,7 @@
 
 ## Megvalósítás
 
-- Élő otthon: fogyasztás a (650,526) csomópont alatt; fehér/sárga pulzáló pont; Töltöttség felirat; mai visszatáplálás az alsó sáv harmadik mezőjében. A sáv 20 képponttal lejjebb, kizárólag ez kap 32/255 áttetsző fehér buborékot.
+- Élő otthon: fogyasztás a (650,526) csomópont alatt; fehér/sárga pulzáló pont; Töltöttség felirat; mai visszatáplálás az alsó sáv harmadik mezőjében. A sáv 20 képponttal lejjebb, kizárólag ez kap 58/255 áttetsző fehér buborékot.
 - Energiautak: négypontos köbös Bézier-görbék, egyetlen vektoros stroke, lekerekített csatlakozások és végek. Nincs szegmensenként egymásra rajzolt áttetszőség. A mozgó pontok ugyanannak a görbének a mintavételezett pontjait követik. Halvány fotóháttér, a nappali képből generált éjszakai változat.
 - Műszerfal: hálózati import az eredeti szín, export #FFEB38; akkutöltés az eredeti szín, leadás #2BB1FE. Finom áramköri fotóháttér, egyező éjszakai kép.
 - Napi mérleg: a Tárolt és Hálózat jelmagyarázata mellől eltűnt a két felesleges ikon.
@@ -22,6 +22,10 @@ A képek a beépített image_gen eszközzel készültek. A három háttérpár 1
 
 ## Validálás
 
-A teljes helyi C/Python/JavaScript regressziós csomag sikeres: adatkezelés, telepítés, ZIP, PNG, webes validálás és kiadási csomagolás. A tényleges LVGL-firmware felület szigorú figyelmeztetésekkel fordul; 16 nappali/éjszakai render, mozgási irány, nulla/7 kW korlát, időjárásváltás, irányfüggő műszerszínek és pulzálás ellenőrzött. Az eredeti rendszer témához nem változott kód vagy asset; 13 korábbi render pixelpontosan egyezik.
+A teljes helyi C/Python/JavaScript regressziós csomag sikeres: adatkezelés, telepítés, ZIP, PNG, webes validálás és kiadási csomagolás. A tényleges LVGL-firmware felület szigorú figyelmeztetésekkel fordul; 16 nappali/éjszakai render, mozgási irány, nulla/7 kW korlát, időjárásváltás, irányfüggő műszerszínek és pulzálás ellenőrzött. Az új kérés szerint a rendszertéma összegzője 116 helyett 110 képpont magas, változatlan tartalomtérrel (az alsó padding 8 helyett 2). Alatta a kilenc témát jelző pontok látszanak; a többi elrendezés és a rendszerikonok változatlanok.
 
 A távoli feltöltés az explicit fejlesztési jogosultság tisztázása után megtörtént. A végleges GitHub CI-eredmények és a firmware-csomagok státusza a PR #6 leírásában követhető. Fizikai ESP32-P4 átvételi próba szükséges.
+
+## Második finomítás
+
+A hálózat görbéje a háttérképen lévő oszlop felső vezetékétől (136,178) indul. Az Élő otthon buborékja középen, 140 képpontos oldalmargókkal jelenik meg; három középre igazított oszlopot tartalmaz. Az Energiautak, Műszerfal és Főkönyv maszkolása nappal 174/255, éjjel 164/255; a mezők 150/255 opacitásúak. A Főkönyvben hatállapotú időjárásikon, hőmérséklet és széladat kerül az óra elé. A statisztikai akkuegyenleg pozitív görbéje és kitöltése #2BB1FE alapszínű, a negatív rész megtartja a témaszínt.

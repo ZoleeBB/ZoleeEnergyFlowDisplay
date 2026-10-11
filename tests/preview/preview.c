@@ -201,6 +201,10 @@ static void test_signed_and_soc_charts(void){
         int gap_x=area.x1+(area.x2-area.x1)*152/288;
         int y=kind==APP_CHART_SOC?area.y2-40:area.y1+70;
         assert((pixels[y*1280+positive_x]&0xffffff)!=0xffffff);
+        if(kind==APP_CHART_BATTERY){
+            uint32_t positive=pixels[y*1280+positive_x],negative=pixels[(area.y1+130)*1280+negative_x];
+            assert(((positive>>8)&255) > ((negative>>8)&255));
+        }
         if(kind!=APP_CHART_SOC){
             assert((pixels[(area.y1+130)*1280+negative_x]&0xffffff)!=0xffffff);
             assert((pixels[y*1280+negative_x]&0xffffff)==0xffffff);

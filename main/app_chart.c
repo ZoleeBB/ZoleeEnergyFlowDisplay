@@ -118,7 +118,7 @@ static void draw_chart(lv_event_t *event)
             for(int part=0;part<pieces;part++){
                 lv_fpoint_t start=part?crossing:a,end=(pieces==2&&part==0)?crossing:b;
                 float sign=part?values[1]:values[0]+(pieces==1?values[1]:0);
-                uint32_t color=data->colors[data->kind==APP_CHART_GRID&&sign<0?1:0];
+                uint32_t color=data->colors[((data->kind==APP_CHART_GRID&&sign<0)||(data->kind==APP_CHART_BATTERY&&sign>0))?1:0];
                 lv_fpoint_t lower_end={end.x,zero.y},lower_start={start.x,zero.y};
                 lv_vector_path_clear(path);lv_vector_path_move_to(path,&start);lv_vector_path_line_to(path,&end);
                 lv_vector_path_line_to(path,&lower_end);lv_vector_path_line_to(path,&lower_start);lv_vector_path_close(path);
