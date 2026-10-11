@@ -178,6 +178,36 @@ static void test_payload(void){
     app_energy_sample_t result={0};char error[160];
     assert(app_payload_parse(payload,strlen(payload),&result,error,sizeof(error))==ESP_OK);
     near(result.power_bat_kw,-2);
+    assert(result.temperature_valid && result.wind_speed_valid && result.sun_radiation_valid && result.precipitation_valid);
+    const char *weather_fields[]={"Temperature","WindSpeed","HasSunRadiation","HasPrecipitation"};
+    for(unsigned mask=0;mask<16;mask++){
+        cJSON *weather=cJSON_Parse(payload);
+        for(unsigned j=0;j<4;j++)cJSON_ReplaceItemInObject(weather,weather_fields[j],
+            mask&(1u<<j)?cJSON_CreateNumber(0):cJSON_CreateNull());
+        char *weather_text=cJSON_PrintUnformatted(weather);
+        assert(app_payload_parse(weather_text,strlen(weather_text),&result,error,sizeof(error))==ESP_OK);
+        assert(result.temperature_valid==!!(mask&1));assert(result.wind_speed_valid==!!(mask&2));
+        assert(result.sun_radiation_valid==!!(mask&4));assert(result.precipitation_valid==!!(mask&8));
+        near(result.temperature_c,0);near(result.wind_speed_kmh,0);
+        assert(!result.has_sun_radiation && !result.has_precipitation);
+        cJSON_free(weather_text);cJSON_Delete(weather);
+    }
+    for(unsigned j=0;j<4;j++){
+        cJSON *weather=cJSON_Parse(payload);cJSON_DeleteItemFromObject(weather,weather_fields[j]);
+        char *weather_text=cJSON_PrintUnformatted(weather);
+        assert(app_payload_parse(weather_text,strlen(weather_text),&result,error,sizeof(error))!=ESP_OK);
+        cJSON_free(weather_text);cJSON_Delete(weather);
+    }
+    assert(app_payload_parse(payload,strlen(payload),&result,error,sizeof(error))==ESP_OK);
+    assert(result.temperature_valid && result.wind_speed_valid && result.sun_radiation_valid && result.precipitation_valid);
+    for(unsigned j=0;j<12;j++){
+        const char *all[]={"PowerGrid","PowerBat","PowerPV","SocBat","PowerFull","Temperature","WindSpeed","HasSunRadiation","HasPrecipitation","Status","NightMode","BatteryTemperature"};
+        cJSON *d=cJSON_Parse(payload);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateString("null"));
+        char *text=cJSON_PrintUnformatted(d);assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);
+        cJSON_free(text);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateNull());text=cJSON_PrintUnformatted(d);
+        bool optional=j>=5 && j<=8;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
+        cJSON_free(text);cJSON_Delete(d);
+    }
     const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","BatteryTemperature","WindSpeed"};
     double bad[]={101,1.5,2,-.051,-36,81,-1};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){

@@ -68,7 +68,7 @@ LV_FONT_DECLARE(app_font_28);
 static app_config_t s_cfg;
 static bool s_cfg_ok,s_started,s_dash_created,s_last_night;
 static lv_obj_t *s_screen,*s_dash,*s_sd_warn;
-static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon;
+static lv_obj_t *s_title,*s_date,*s_clock,*s_weather_temp,*s_wind_speed,*s_weather_icon,*s_wind_icon;
 static lv_obj_t *s_pv,*s_home,*s_bat,*s_grid,*s_soc,*s_bt,*s_status;
 static lv_obj_t *s_bat_icon,*s_grid_icon,*s_status_icon;
 static lv_obj_t *s_grid_node,*s_battery_node,*s_pv_node,*s_home_node,*s_status_bubble,*s_status_detail;
@@ -628,7 +628,7 @@ static void build_dashboard(bool night)
         APP_FONT_16,
         night?TEXT_DARK:TEXT_LIGHT);
 
-    lv_obj_t *wind_icon=asset_image_box(
+    s_wind_icon=asset_image_box(
         header,
         985,
         8,
@@ -660,7 +660,7 @@ static void build_dashboard(bool night)
     lv_obj_align(s_wind_speed,LV_ALIGN_LEFT_MID,1020,0);
     lv_obj_align(s_clock,LV_ALIGN_LEFT_MID,1125,0);
     lv_obj_align(lv_obj_get_parent(s_weather_icon),LV_ALIGN_LEFT_MID,850,0);
-    lv_obj_align(lv_obj_get_parent(wind_icon),LV_ALIGN_LEFT_MID,985,0);
+    lv_obj_align(lv_obj_get_parent(s_wind_icon),LV_ALIGN_LEFT_MID,985,0);
 
     /*
      * Bal oldali napi kártyák: az eredeti mockup nagy, ikonközpontú
@@ -1191,6 +1191,14 @@ static void charts(const app_stats_snapshot_t *st)
     app_chart_update(s_chart2,st,max_consumption,minutes);
 }
 /* MQTT meteorológiai mezőkből az ikonlogika szerinti időjárási állapot kiválasztása. */
+/* Az ikonhoz minden osztályozó adat kell; hiányból nem következtetünk időjárásra. */
+static bool weather_available(const app_energy_sample_t *s){
+    return s->temperature_valid && s->sun_radiation_valid && s->precipitation_valid;
+}
+static void weather_visibility(lv_obj_t *obj,bool visible){
+    if(visible)lv_obj_remove_flag(obj,LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(obj,LV_OBJ_FLAG_HIDDEN);
+}
 static weather_kind_t weather_kind(const app_energy_sample_t *s){
     /* A csapadék minden más időjárási állapotnál magasabb prioritású. */
     if(s->has_precipitation)return s->temperature_c<-4?WEATHER_SNOW:WEATHER_RAIN;
@@ -1339,7 +1347,11 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     else snprintf(q,sizeof(q),"%04d-%02d-%02d",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);
     lv_label_set_text(s_date,q);
 
-    weather_render(weather_kind(s),s->night_mode);
+    weather_visibility(lv_obj_get_parent(s_weather_icon),weather_available(s));
+    weather_visibility(lv_obj_get_parent(s_wind_icon),s->wind_speed_valid);
+    weather_visibility(s_weather_temp,s->temperature_valid);
+    weather_visibility(s_wind_speed,s->wind_speed_valid);
+    if(weather_available(s))weather_render(weather_kind(s),s->night_mode);
     char temp[16];
     fmt_dec(temp,sizeof(temp),s->temperature_c,1);
     snprintf(b,sizeof(b),"%s °C",temp);

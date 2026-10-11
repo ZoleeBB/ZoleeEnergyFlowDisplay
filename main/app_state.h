@@ -18,6 +18,12 @@ typedef struct {
     double temperature_c;
     double wind_speed_kmh;
 
+    /* A null külön állapot: a valódi 0 továbbra is érvényes mérés. */
+    bool temperature_valid;
+    bool wind_speed_valid;
+    bool sun_radiation_valid;
+    bool precipitation_valid;
+
     bool has_sun_radiation;
     bool has_precipitation;
 

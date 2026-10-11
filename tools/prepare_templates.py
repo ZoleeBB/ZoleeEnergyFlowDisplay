@@ -207,7 +207,7 @@ def calm(dark):
     s.value('date',130,290,300,20,s.muted,align='center')
     s.add('weather',178,345,160,160,files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
     s.value('temperature',88,520,220,48)
-    s.label('Szél',345,517,140,16,s.muted)
+    s.label('Szél',345,517,140,16,s.muted,en='Wind',source='wind')
     s.value('wind',345,550,150,28)
     for y,name,source,color,icon in [
         (136,'Az otthon fogyasztása','home',ORANGE,'flow_house'),
@@ -399,7 +399,7 @@ def main():
                 for e in scene['elements']:
                     if e['type']=='chart' and e.get('kind')=='battery':e['negative_color']='#1565C0'
                 scene['palette']=dict(pv=vivid[GREEN],home=vivid[ORANGE],grid=vivid[RED],battery=vivid[BLUE])
-        doc=dict(schema=1,id=ident,name=name,version={'01-live-home':9,'02-energy-paths':7,'03-instruments':7,'04-daily-balance':5,'05-calm-home':5,'06-energy-orbit':6,'07-energy-ledger':7,'08-statistics':6}[ident],
+        doc=dict(schema=1,id=ident,name=name,version={'01-live-home':9,'02-energy-paths':7,'03-instruments':7,'04-daily-balance':5,'05-calm-home':6,'06-energy-orbit':6,'07-energy-ledger':7,'08-statistics':6}[ident],
                  light=scenes[0],dark=scenes[1])
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):

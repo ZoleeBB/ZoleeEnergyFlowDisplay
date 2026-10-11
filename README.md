@@ -32,6 +32,8 @@ Alapértelmezett topic:
 
 Példa payload: `examples/mqtt-payload.sample.json`.
 
+A négy időjárási mező értéke lehet `null`, a kulcsuk továbbra is kötelező; ilyenkor a megfelelő időjáráskijelzés eltűnik. [Időjárás nélküli minta](examples/mqtt-payload.no-weather.sample.json).
+
 A kijelző minden kötelező mezőt ellenőriz. Hibás vagy hiányos csomag esetén az egész csomag elutasításra kerül.
 
 ## Loxone

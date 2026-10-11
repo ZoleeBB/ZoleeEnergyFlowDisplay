@@ -2285,3 +2285,12 @@ Ez a fejezet felülírja a korábbi kétgörbés, illetve előjeles hálózat/ak
   időjárás-kiválasztási logika megtartásával.
 - Gyakorlati, példákkal és tesztelési/telepítési lépésekkel ellátott
   [sablonkészítési útmutató](template-authoring.md) a repository része.
+
+
+### 2026-10-11: kötelező kulcs, opcionális időjárási érték
+
+A korábbi kötelező numerikus időjárási szabályt felülírja: Temperature,
+WindSpeed, HasSunRadiation, HasPrecipitation JSON null is lehet. A kulcsok
+kötelezőek; a többi mező, az I1–I12 sorrend és minden numerikus tartomány
+változatlan. Jelenlétjelzés a minták eddig szabad I13 bemenetén, a
+[bekötési útmutató](loxone.md#időjárás-jelenlétjelzés-i13) szerint.
