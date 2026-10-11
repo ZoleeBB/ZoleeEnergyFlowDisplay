@@ -380,8 +380,8 @@ def main():
                     if source in ('battery','battery_direction'):e.update(positive_color=e['color'],negative_color='#1875D1')
             if ident in ('02-energy-paths','06-energy-orbit'):
                 for e in scene['elements']:
-                    if e['type']=='flow':
-                        if e['source']=='grid':e.update(negative_color='#FFEB38')
+                    if e['type']=='flow' or (ident=='06-energy-orbit' and e['type']=='value' and e.get('source') in ('grid','battery')):
+                        if e['source']=='grid':e.update(positive_color='#EA9C3B' if dark else '#C57212',negative_color='#FFEB38')
                         if e['source']=='battery':e.update(negative_color='#1875D1',positive_color='#2BB1FE')
             if ident in ('04-daily-balance','06-energy-orbit','07-energy-ledger'):
                 for e in scene['elements']:

@@ -163,6 +163,7 @@
             "y": 0
           }
         ],
+        "positive_color": "#C57212",
         "negative_color": "#FFEB38"
       },
       {
@@ -752,6 +753,7 @@
             "y": 0
           }
         ],
+        "positive_color": "#EA9C3B",
         "negative_color": "#FFEB38"
       },
       {
