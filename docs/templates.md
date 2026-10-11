@@ -157,10 +157,14 @@ oszlop, jobb oldali tároló; nappal világoszöld kert, éjjel sötét környez
 ablakfény. Minden szöveg, szám, panel, nyíl és energiaút nélkül. A kimenetet
 1280×800 RGB PNG-re méreteztük. A képfájlok a csomag `day.png`/`night.png`
 állományai; az értékek, vonalak és pöttyök élő LVGL-elemek.
-Az Élő otthon 3. verziójában az értékek közvetlenül a házképen jelennek meg:
+Az Élő otthon 4. verziójában az értékek közvetlenül a házképen jelennek meg:
 nincsenek adatmeződobozok, fejléc- vagy összesítőkártyák, illetve külön eszközikonok.
 A ház, a napelem, a hálózati oszlop és a tároló maga a háttérillusztráció része.
 A korábban generált saját ikonfájlok megmaradnak a csomagban, de ez a nézet nem rajzolja ki őket.
+Nappal telítettebb zöld, piros, kék és narancs értékek, valamint minden felirat és
+érték mögött 2 px-es fekete árnyék segíti az olvashatóságot. Az energiautak 7 px vastagok.
+Az árnyék `shadow: true` jelölése megőrzi a fekete színt hőmérsékleti riasztásnál is;
+a fő hőmérsékletérték figyelmeztető színei továbbra is működnek.
 A többi csomag a saját, sablononként különálló PNG-ikonjait használja.
 
 ## Sablon készítése

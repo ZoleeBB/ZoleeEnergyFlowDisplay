@@ -215,6 +215,21 @@ int main(void)
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
                 test_template_weather(&sample);test_template_motion();
+                if(!night&&!strcmp(list[i].id,"01-live-home")){
+                    /* Warning recolouring must never turn temperature shadows red. */
+                    app_energy_sample_t hot=sample;hot.battery_temperature_c=51;
+                    template_update(&hot,&fixture);
+                    bool temperature_shadow=false;
+                    for(unsigned n=0;n<template_node_count;n++){
+                        template_node_t *node=&template_nodes[n];
+                        if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"shadow"))){
+                            lv_color_t ink=lv_obj_get_style_text_color(node->obj,0);
+                            assert(ink.red==0&&ink.green==0&&ink.blue==0);
+                            if(!strcmp(ts(node->spec,"source"),"battery_temp"))temperature_shadow=true;
+                        }
+                    }
+                    assert(temperature_shadow);template_update(&sample,&fixture);
+                }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);

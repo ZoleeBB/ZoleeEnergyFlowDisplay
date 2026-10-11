@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     lib.app_templates_view_free(view)
     assert lib.app_templates_init()==0 and active()==(2,'test-layout')
     assert lib.app_templates_install(os.fsencode(good),error)!=0 # no silent overwrite
-    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13)]:
+    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true')]:
         bad=copy.deepcopy(doc);bad['id']='invalid'
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
         element[field]=value;bad['light']['elements']=[element]

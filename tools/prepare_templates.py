@@ -67,7 +67,7 @@ class Scene:
 
 def house(dark):
     s = Scene(dark)
-    if not dark: s.muted = '#19352F'
+    if not dark: s.text = s.muted = '#FFFFFF'
     s.add('image', 0, 0, 1280, 800, file='night.png' if dark else 'day.png')
     # The approved house concept uses text directly on the illustration:
     # no header card, value cards or duplicate miniature device icons.
@@ -77,9 +77,9 @@ def house(dark):
     s.value('clock', 892, 46, 165, 28)
     s.value('status', 1070, 28, 200, 16)
     # Live links: grid->house, solar->house, battery->house (reverse while charging).
-    s.flow('grid', [(100,316),(330,316),(330,526),(650,526)], RED, curve='bezier')
-    s.flow('pv', [(640,300),(600,380),(700,425),(650,526)], GREEN, curve='bezier')
-    s.flow('battery', [(1050,530),(930,595),(800,475),(650,526)], BLUE, curve='bezier')
+    s.flow('grid', [(100,316),(330,316),(330,526),(650,526)], RED, 7, curve='bezier')
+    s.flow('pv', [(640,300),(600,380),(700,425),(650,526)], GREEN, 7, curve='bezier')
+    s.flow('battery', [(1050,530),(930,595),(800,475),(650,526)], BLUE, 7, curve='bezier')
     for x, y, title, source, color, extra in [
         (72, 340, 'Hálózat', 'grid', RED, 'grid_direction'),
         (305, 90, 'Napelem', 'pv', GREEN, None),
@@ -99,16 +99,17 @@ def house(dark):
         (960, 'Akku', 'soc', BLUE)]:
         s.label(title, x, 678, 270, 16, s.muted)
         s.value(source, x, 706, 270, 28, color)
-    # A fine text halo keeps data readable over the detailed daytime garden
-    # without putting a rectangular field or a panel behind any value.
+    # Strong daylight accents with a black drop shadow, including dynamic
+    # temperatures. No rectangular field or panel is placed behind any value.
     if not dark:
-        outlined = []
+        accents = {GREEN:'#00E676', RED:'#FF1744', BLUE:'#00B0FF', ORANGE:'#FFAB00'}
+        shadowed = []
         for element in s.elements:
-            if element['type'] in ('label', 'value') and element.get('source') != 'battery_temp':
-                for offset in (-1, 1):
-                    outlined.append(dict(element, x=element['x']+offset, y=element['y']+offset, color='#FFFFFF'))
-            outlined.append(element)
-        s.elements = outlined
+            if 'color' in element: element['color'] = accents.get(element['color'], element['color'])
+            if element['type'] in ('label', 'value'):
+                shadowed.append(dict(element, x=element['x']+2, y=element['y']+2, color='#000000', shadow=True))
+            shadowed.append(element)
+        s.elements = shadowed
     return s
 
 
@@ -274,7 +275,7 @@ def main():
                                ('05-calm-home','Nyugodt otthon',calm),
                                ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
-        doc=dict(schema=1,id=ident,name=name,version=3 if ident=='01-live-home' else 2,
+        doc=dict(schema=1,id=ident,name=name,version=4 if ident=='01-live-home' else 2,
                  light=builder(False).document(),dark=builder(True).document())
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):

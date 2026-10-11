@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#F0F5F3",
     "elements": [
@@ -16,25 +16,15 @@
       },
       {
         "type": "label",
-        "x": 31,
-        "y": 23,
+        "x": 34,
+        "y": 26,
         "w": 245,
         "h": 26,
         "text": "Zolee Energy Flow Monitor",
         "text_en": "Zolee Energy Flow Monitor",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 33,
-        "y": 25,
-        "w": 245,
-        "h": 26,
-        "text": "Zolee Energy Flow Monitor",
-        "text_en": "Zolee Energy Flow Monitor",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -45,29 +35,19 @@
         "text": "Zolee Energy Flow Monitor",
         "text_en": "Zolee Energy Flow Monitor",
         "font": 16,
-        "color": "#19352F"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
-        "x": 299,
-        "y": 23,
+        "x": 302,
+        "y": 26,
         "w": 290,
         "h": 26,
         "text": "01 — ÉLŐ OTTHON",
         "text_en": "01 — LIVE HOME",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 301,
-        "y": 25,
-        "w": 290,
-        "h": 26,
-        "text": "01 — ÉLŐ OTTHON",
-        "text_en": "01 — LIVE HOME",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -78,27 +58,18 @@
         "text": "01 — ÉLŐ OTTHON",
         "text_en": "01 — LIVE HOME",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 891,
-        "y": 19,
-        "w": 155,
-        "h": 28,
-        "source": "date",
-        "font": 16,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 893,
-        "y": 21,
+        "x": 894,
+        "y": 22,
         "w": 155,
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -108,27 +79,18 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 891,
-        "y": 45,
-        "w": 165,
-        "h": 40,
-        "source": "clock",
-        "font": 28,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 893,
-        "y": 47,
+        "x": 894,
+        "y": 48,
         "w": 165,
         "h": 40,
         "source": "clock",
         "font": 28,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -138,27 +100,18 @@
         "h": 40,
         "source": "clock",
         "font": 28,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 1069,
-        "y": 27,
-        "w": 200,
-        "h": 28,
-        "source": "status",
-        "font": 16,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 1071,
-        "y": 29,
+        "x": 1072,
+        "y": 30,
         "w": 200,
         "h": 28,
         "source": "status",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -168,7 +121,7 @@
         "h": 28,
         "source": "status",
         "font": 16,
-        "color": "#19352F"
+        "color": "#FFFFFF"
       },
       {
         "type": "flow",
@@ -177,8 +130,8 @@
         "w": 551,
         "h": 211,
         "source": "grid",
-        "color": "#E66B6B",
-        "radius": 5,
+        "color": "#FF1744",
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {
@@ -206,8 +159,8 @@
         "w": 101,
         "h": 227,
         "source": "pv",
-        "color": "#36AE7C",
-        "radius": 5,
+        "color": "#00E676",
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {
@@ -235,8 +188,8 @@
         "w": 401,
         "h": 121,
         "source": "battery",
-        "color": "#559CDE",
-        "radius": 5,
+        "color": "#00B0FF",
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {
@@ -259,25 +212,15 @@
       },
       {
         "type": "label",
-        "x": 71,
-        "y": 339,
+        "x": 74,
+        "y": 342,
         "w": 270,
         "h": 26,
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 73,
-        "y": 341,
-        "w": 270,
-        "h": 26,
-        "text": "Hálózat",
-        "text_en": "Hálózat",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -288,27 +231,18 @@
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 71,
-        "y": 365,
-        "w": 270,
-        "h": 28,
-        "source": "grid_direction",
-        "font": 16,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 73,
-        "y": 367,
+        "x": 74,
+        "y": 368,
         "w": 270,
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -318,27 +252,18 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#E66B6B"
+        "color": "#FF1744"
       },
       {
         "type": "value",
-        "x": 71,
-        "y": 391,
+        "x": 74,
+        "y": 394,
         "w": 270,
         "h": 60,
         "source": "grid",
         "font": 48,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "value",
-        "x": 73,
-        "y": 393,
-        "w": 270,
-        "h": 60,
-        "source": "grid",
-        "font": 48,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -348,29 +273,19 @@
         "h": 60,
         "source": "grid",
         "font": 48,
-        "color": "#E66B6B"
+        "color": "#FF1744"
       },
       {
         "type": "label",
-        "x": 304,
-        "y": 89,
+        "x": 307,
+        "y": 92,
         "w": 270,
         "h": 26,
         "text": "Napelem",
         "text_en": "Napelem",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 306,
-        "y": 91,
-        "w": 270,
-        "h": 26,
-        "text": "Napelem",
-        "text_en": "Napelem",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -381,27 +296,18 @@
         "text": "Napelem",
         "text_en": "Napelem",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 304,
-        "y": 117,
-        "w": 270,
-        "h": 60,
-        "source": "pv",
-        "font": 48,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 306,
-        "y": 119,
+        "x": 307,
+        "y": 120,
         "w": 270,
         "h": 60,
         "source": "pv",
         "font": 48,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -411,29 +317,19 @@
         "h": 60,
         "source": "pv",
         "font": 48,
-        "color": "#36AE7C"
+        "color": "#00E676"
       },
       {
         "type": "label",
-        "x": 1089,
-        "y": 263,
+        "x": 1092,
+        "y": 266,
         "w": 185,
         "h": 26,
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 1091,
-        "y": 265,
-        "w": 185,
-        "h": 26,
-        "text": "Akkumulátor",
-        "text_en": "Akkumulátor",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -444,27 +340,18 @@
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 1089,
-        "y": 289,
-        "w": 185,
-        "h": 28,
-        "source": "battery_direction",
-        "font": 16,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 1091,
-        "y": 291,
+        "x": 1092,
+        "y": 292,
         "w": 185,
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -474,27 +361,18 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#559CDE"
+        "color": "#00B0FF"
       },
       {
         "type": "value",
-        "x": 1089,
-        "y": 315,
+        "x": 1092,
+        "y": 318,
         "w": 185,
         "h": 60,
         "source": "battery",
         "font": 48,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "value",
-        "x": 1091,
-        "y": 317,
-        "w": 185,
-        "h": 60,
-        "source": "battery",
-        "font": 48,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -504,29 +382,19 @@
         "h": 60,
         "source": "battery",
         "font": 48,
-        "color": "#559CDE"
+        "color": "#00B0FF"
       },
       {
         "type": "label",
-        "x": 231,
-        "y": 525,
+        "x": 234,
+        "y": 528,
         "w": 270,
         "h": 26,
         "text": "Ház fogyasztás",
         "text_en": "Ház fogyasztás",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 233,
-        "y": 527,
-        "w": 270,
-        "h": 26,
-        "text": "Ház fogyasztás",
-        "text_en": "Ház fogyasztás",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -537,27 +405,18 @@
         "text": "Ház fogyasztás",
         "text_en": "Ház fogyasztás",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 231,
-        "y": 553,
-        "w": 270,
-        "h": 60,
-        "source": "home",
-        "font": 48,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 233,
-        "y": 555,
+        "x": 234,
+        "y": 556,
         "w": 270,
         "h": 60,
         "source": "home",
         "font": 48,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -567,29 +426,19 @@
         "h": 60,
         "source": "home",
         "font": 48,
-        "color": "#EA9C3B"
+        "color": "#FFAB00"
       },
       {
         "type": "label",
-        "x": 1089,
-        "y": 391,
+        "x": 1092,
+        "y": 394,
         "w": 180,
         "h": 26,
         "text": "SOC",
         "text_en": "SOC",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 1091,
-        "y": 393,
-        "w": 180,
-        "h": 26,
-        "text": "SOC",
-        "text_en": "SOC",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -600,27 +449,18 @@
         "text": "SOC",
         "text_en": "SOC",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 1089,
-        "y": 417,
-        "w": 180,
-        "h": 40,
-        "source": "soc",
-        "font": 28,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 1091,
-        "y": 419,
+        "x": 1092,
+        "y": 420,
         "w": 180,
         "h": 40,
         "source": "soc",
         "font": 28,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -630,29 +470,19 @@
         "h": 40,
         "source": "soc",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#00B0FF"
       },
       {
         "type": "label",
-        "x": 1089,
-        "y": 466,
+        "x": 1092,
+        "y": 469,
         "w": 185,
         "h": 26,
         "text": "Akku hőmérséklet",
         "text_en": "Battery temperature",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 1091,
-        "y": 468,
-        "w": 185,
-        "h": 26,
-        "text": "Akku hőmérséklet",
-        "text_en": "Battery temperature",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -663,7 +493,18 @@
         "text": "Akku hőmérséklet",
         "text_en": "Battery temperature",
         "font": 16,
-        "color": "#19352F"
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "x": 1092,
+        "y": 495,
+        "w": 180,
+        "h": 40,
+        "source": "battery_temp",
+        "font": 28,
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -673,29 +514,19 @@
         "h": 40,
         "source": "battery_temp",
         "font": 28,
-        "color": "#19352F"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
-        "x": 279,
-        "y": 677,
+        "x": 282,
+        "y": 680,
         "w": 270,
         "h": 26,
         "text": "Termelés ma",
         "text_en": "Termelés ma",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 281,
-        "y": 679,
-        "w": 270,
-        "h": 26,
-        "text": "Termelés ma",
-        "text_en": "Termelés ma",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -706,27 +537,18 @@
         "text": "Termelés ma",
         "text_en": "Termelés ma",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 279,
-        "y": 705,
-        "w": 270,
-        "h": 40,
-        "source": "production_today",
-        "font": 28,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 281,
-        "y": 707,
+        "x": 282,
+        "y": 708,
         "w": 270,
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -736,29 +558,19 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#00E676"
       },
       {
         "type": "label",
-        "x": 619,
-        "y": 677,
+        "x": 622,
+        "y": 680,
         "w": 270,
         "h": 26,
         "text": "Fogyasztás ma",
         "text_en": "Fogyasztás ma",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 621,
-        "y": 679,
-        "w": 270,
-        "h": 26,
-        "text": "Fogyasztás ma",
-        "text_en": "Fogyasztás ma",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -769,27 +581,18 @@
         "text": "Fogyasztás ma",
         "text_en": "Fogyasztás ma",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 619,
-        "y": 705,
-        "w": 270,
-        "h": 40,
-        "source": "consumption_today",
-        "font": 28,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 621,
-        "y": 707,
+        "x": 622,
+        "y": 708,
         "w": 270,
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -799,29 +602,19 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#FFAB00"
       },
       {
         "type": "label",
-        "x": 959,
-        "y": 677,
+        "x": 962,
+        "y": 680,
         "w": 270,
         "h": 26,
         "text": "Akku",
         "text_en": "Akku",
         "font": 16,
-        "color": "#FFFFFF"
-      },
-      {
-        "type": "label",
-        "x": 961,
-        "y": 679,
-        "w": 270,
-        "h": 26,
-        "text": "Akku",
-        "text_en": "Akku",
-        "font": 16,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "label",
@@ -832,27 +625,18 @@
         "text": "Akku",
         "text_en": "Akku",
         "font": 16,
-        "color": "#19352F"
-      },
-      {
-        "type": "value",
-        "x": 959,
-        "y": 705,
-        "w": 270,
-        "h": 40,
-        "source": "soc",
-        "font": 28,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
-        "x": 961,
-        "y": 707,
+        "x": 962,
+        "y": 708,
         "w": 270,
         "h": 40,
         "source": "soc",
         "font": 28,
-        "color": "#FFFFFF"
+        "color": "#000000",
+        "shadow": true
       },
       {
         "type": "value",
@@ -862,7 +646,7 @@
         "h": 40,
         "source": "soc",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#00B0FF"
       }
     ]
   },
@@ -937,7 +721,7 @@
         "h": 211,
         "source": "grid",
         "color": "#E66B6B",
-        "radius": 5,
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {
@@ -966,7 +750,7 @@
         "h": 227,
         "source": "pv",
         "color": "#36AE7C",
-        "radius": 5,
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {
@@ -995,7 +779,7 @@
         "h": 121,
         "source": "battery",
         "color": "#559CDE",
-        "radius": 5,
+        "radius": 7,
         "curve": "bezier",
         "points": [
           {

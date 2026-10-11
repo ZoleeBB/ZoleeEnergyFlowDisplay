@@ -133,6 +133,8 @@ static bool validate_scene(const cJSON *scene){
         if(cJSON_GetObjectItem(e,"x")->valueint+cJSON_GetObjectItem(e,"w")->valueint>1280 ||
            cJSON_GetObjectItem(e,"y")->valueint+cJSON_GetObjectItem(e,"h")->valueint>800)return false;
         if(source&&!one_of(source,sources))return false;
+        if(cJSON_HasObjectItem(e,"shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"shadow"))||
+           (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;

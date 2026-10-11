@@ -164,7 +164,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             maximum=ceil(maximum);app_chart_update(node->obj,stats,maximum,minute);
             for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum*(2-j)/2,j==1?1:0);lv_label_set_text(node->axis[j],text);}
         }
-        if(!strcmp(type,"value")&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
+        if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;
             lv_obj_set_style_text_color(node->obj,c(value>50?RED:value>warn?ORANGE:tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
         }

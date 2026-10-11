@@ -80,6 +80,12 @@ Az adatokat a `source` köti a meglévő energiacsomaghoz/statisztikához: péld
 `pv`, `home`, `grid`, `battery`, `soc`, `production_today`, `consumption_today`.
 A napi érték kWh, a pillanatnyi teljesítmény kW; a megjelenítő formázza az egységet.
 
+Szövegárnyékhoz helyezz a fő `label` vagy `value` elé egy ugyanolyan tartalmú,
+2 px-rel eltolt fekete elemet `shadow: true` mezővel. A dinamikus értéknél
+ugyanaz legyen a `source`. Így a fekete árnyék a hőmérséklet figyelmeztető
+színezésénél is fekete marad. A `shadow` csak logikai érték lehet, és csak
+`label` vagy `value` elemen használható; mindkét réteg beleszámít a 96 elembe.
+
 ## 4. Valódi görbe energiaút
 
 ```json
