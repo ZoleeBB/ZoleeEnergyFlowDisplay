@@ -43,7 +43,7 @@ function pngInfo(bytes){
 }
 function validateManifest(doc,files){
  if(!doc||doc.schema!==1||!Number.isInteger(doc.version)||doc.version<1||doc.version>65535||typeof doc.name!=='string'||new TextEncoder().encode(doc.name).length>80||!/^([a-z0-9_-]{1,32})$/.test(doc.id)||doc.id==='builtin')throw Error('Sablonazonosító / manifest');
- const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','label','value','image','weather','bar','gauge','flow','chart'];
+ const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','label','value','image','weather','bar','gauge','flow','chart'];
  let encoded=0,decoded=0,assets=0;
  for(const [name,data] of files)if(name!=='template.json'){if(++assets>32)throw Error('PNG count');const info=pngInfo(data);encoded+=data.length;decoded+=info.decoded;}
  if(encoded>4194304||decoded>12582912||files.get('template.json').length>65536)throw Error('Memóriakorlát / memory limit');
@@ -52,7 +52,7 @@ function validateManifest(doc,files){
   for(const e of scene.elements){
    if(!types.includes(e.type)||!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)throw Error('Elemhatár / element bounds');
    if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Adatforrás / source');
-   for(const key of ['color','background'])if(e[key]!==undefined&&!color(e[key]))throw Error('Szín / color');
+   for(const key of ['color','background','positive_color','negative_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Szín / color');
    if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG / missing image');
    if(e.type==='weather'&&e.files)for(const key of ['sunny','partly_cloudy','cloudy','rain','snow','night'])if(!safeAsset(e.files[key])||!files.has(e.files[key]))throw Error('Weather assets');
    if(e.type==='chart'&&!['production','consumption','grid','battery','soc','week','month'].includes(e.kind))throw Error('Chart kind');
@@ -104,7 +104,8 @@ function drawPreview(canvas,scene,images){
    const text=e.type==='label'?e.text:demoText(e.source);ctx.font=(e.font??20)+'px system-ui';ctx.textBaseline='top';ctx.textAlign=e.align==='center'?'center':'left';
    if(e.text_shadow){ctx.shadowColor='#000000';ctx.shadowBlur=1;ctx.shadowOffsetX=e.shadow_offset??1;ctx.shadowOffsetY=e.shadow_offset??1;}
    ctx.fillText(text,e.align==='center'?e.x+e.w/2:e.x,e.y);
-  }else if(e.type==='flow'){ctx.beginPath();ctx.moveTo(e.x+e.points[0].x,e.y+e.points[0].y);if(e.curve==='bezier')for(let i=1;i+2<e.points.length;i+=3)ctx.bezierCurveTo(e.x+e.points[i].x,e.y+e.points[i].y,e.x+e.points[i+1].x,e.y+e.points[i+1].y,e.x+e.points[i+2].x,e.y+e.points[i+2].y);else for(let p of e.points.slice(1))ctx.lineTo(e.x+p.x,e.y+p.y);ctx.lineWidth=e.radius??3;ctx.shadowBlur=e.glow??0;ctx.shadowColor=e.color;ctx.stroke();}
+  }else if(e.type==='flow'){ctx.beginPath();ctx.moveTo(e.x+e.points[0].x,e.y+e.points[0].y);if(e.curve==='bezier')for(let i=1;i+2<e.points.length;i+=3)ctx.bezierCurveTo(e.x+e.points[i].x,e.y+e.points[i].y,e.x+e.points[i+1].x,e.y+e.points[i+1].y,e.x+e.points[i+2].x,e.y+e.points[i+2].y);else for(let p of e.points.slice(1))ctx.lineTo(e.x+p.x,e.y+p.y);ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=e.radius??3;ctx.shadowBlur=e.glow??0;ctx.shadowColor=e.color;ctx.stroke();}
+  else if(e.type==='pulse'){ctx.shadowBlur=e.glow??20;ctx.shadowColor=e.color;ctx.beginPath();ctx.arc(e.x+e.w/2,e.y+e.h/2,e.w/2,0,2*Math.PI);ctx.fill();}
   else if(e.type==='bar')ctx.fillRect(e.x,e.y,e.w*.74,e.h);
   else if(e.type==='gauge'){ctx.lineWidth=14;ctx.beginPath();ctx.arc(e.x+e.w/2,e.y+e.h/2,e.w/2-12,.75*Math.PI,2*Math.PI);ctx.stroke();}
   else if(e.type==='chart')previewChart(ctx,e,palette);

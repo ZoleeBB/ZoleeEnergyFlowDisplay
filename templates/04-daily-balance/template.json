@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#F3F6F8",
     "elements": [
@@ -353,22 +353,6 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
-      },
-      {
-        "type": "image",
-        "x": 650,
-        "y": 390,
-        "w": 32,
-        "h": 32,
-        "file": "flow_grid.png"
-      },
-      {
-        "type": "image",
-        "x": 1015,
-        "y": 125,
-        "w": 32,
-        "h": 32,
-        "file": "flow_battery.png"
       }
     ],
     "gradient": "#D9F0E6",
@@ -729,22 +713,6 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
-      },
-      {
-        "type": "image",
-        "x": 650,
-        "y": 390,
-        "w": 32,
-        "h": 32,
-        "file": "flow_grid.png"
-      },
-      {
-        "type": "image",
-        "x": 1015,
-        "y": 125,
-        "w": 32,
-        "h": 32,
-        "file": "flow_battery.png"
       }
     ],
     "gradient": "#22394A",

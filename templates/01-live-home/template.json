@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#F0F5F3",
     "elements": [
@@ -389,8 +389,8 @@
       },
       {
         "type": "label",
-        "x": 234,
-        "y": 528,
+        "x": 522,
+        "y": 556,
         "w": 270,
         "h": 26,
         "text": "Ház fogyasztás",
@@ -401,8 +401,8 @@
       },
       {
         "type": "label",
-        "x": 232,
-        "y": 526,
+        "x": 520,
+        "y": 554,
         "w": 270,
         "h": 26,
         "text": "Ház fogyasztás",
@@ -412,8 +412,8 @@
       },
       {
         "type": "value",
-        "x": 234,
-        "y": 556,
+        "x": 522,
+        "y": 584,
         "w": 270,
         "h": 60,
         "source": "home",
@@ -423,8 +423,8 @@
       },
       {
         "type": "value",
-        "x": 232,
-        "y": 554,
+        "x": 520,
+        "y": 582,
         "w": 270,
         "h": 60,
         "source": "home",
@@ -437,8 +437,8 @@
         "y": 394,
         "w": 180,
         "h": 26,
-        "text": "SOC",
-        "text_en": "SOC",
+        "text": "Töltöttség",
+        "text_en": "State of charge",
         "font": 16,
         "color": "#000000",
         "shadow": true
@@ -449,8 +449,8 @@
         "y": 392,
         "w": 180,
         "h": 26,
-        "text": "SOC",
-        "text_en": "SOC",
+        "text": "Töltöttség",
+        "text_en": "State of charge",
         "font": 16,
         "color": "#FFFFFF"
       },
@@ -520,9 +520,28 @@
         "color": "#FFFFFF"
       },
       {
+        "type": "pulse",
+        "x": 643,
+        "y": 519,
+        "w": 14,
+        "h": 14,
+        "color": "#FFF9CF",
+        "glow": 20
+      },
+      {
+        "type": "box",
+        "x": 258,
+        "y": 692,
+        "w": 997,
+        "h": 76,
+        "background": "#FFFFFF",
+        "radius": 24,
+        "opacity": 32
+      },
+      {
         "type": "label",
         "x": 282,
-        "y": 680,
+        "y": 700,
         "w": 270,
         "h": 26,
         "text": "Termelés ma",
@@ -534,7 +553,7 @@
       {
         "type": "label",
         "x": 280,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
         "text": "Termelés ma",
@@ -545,7 +564,7 @@
       {
         "type": "value",
         "x": 282,
-        "y": 708,
+        "y": 728,
         "w": 270,
         "h": 40,
         "source": "production_today",
@@ -556,7 +575,7 @@
       {
         "type": "value",
         "x": 280,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
         "source": "production_today",
@@ -566,7 +585,7 @@
       {
         "type": "label",
         "x": 622,
-        "y": 680,
+        "y": 700,
         "w": 270,
         "h": 26,
         "text": "Fogyasztás ma",
@@ -578,7 +597,7 @@
       {
         "type": "label",
         "x": 620,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
         "text": "Fogyasztás ma",
@@ -589,7 +608,7 @@
       {
         "type": "value",
         "x": 622,
-        "y": 708,
+        "y": 728,
         "w": 270,
         "h": 40,
         "source": "consumption_today",
@@ -600,7 +619,7 @@
       {
         "type": "value",
         "x": 620,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
         "source": "consumption_today",
@@ -610,11 +629,11 @@
       {
         "type": "label",
         "x": 962,
-        "y": 680,
+        "y": 700,
         "w": 270,
         "h": 26,
-        "text": "Akku",
-        "text_en": "Akku",
+        "text": "Visszatáplálás ma",
+        "text_en": "Visszatáplálás ma",
         "font": 16,
         "color": "#000000",
         "shadow": true
@@ -622,21 +641,21 @@
       {
         "type": "label",
         "x": 960,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
-        "text": "Akku",
-        "text_en": "Akku",
+        "text": "Visszatáplálás ma",
+        "text_en": "Visszatáplálás ma",
         "font": 16,
         "color": "#FFFFFF"
       },
       {
         "type": "value",
         "x": 962,
-        "y": 708,
+        "y": 728,
         "w": 270,
         "h": 40,
-        "source": "soc",
+        "source": "export_today",
         "font": 28,
         "color": "#000000",
         "shadow": true
@@ -644,12 +663,12 @@
       {
         "type": "value",
         "x": 960,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
-        "source": "soc",
+        "source": "export_today",
         "font": 28,
-        "color": "#00B0FF"
+        "color": "#FFAB00"
       }
     ]
   },
@@ -891,8 +910,8 @@
       },
       {
         "type": "label",
-        "x": 232,
-        "y": 526,
+        "x": 520,
+        "y": 554,
         "w": 270,
         "h": 26,
         "text": "Ház fogyasztás",
@@ -902,8 +921,8 @@
       },
       {
         "type": "value",
-        "x": 232,
-        "y": 554,
+        "x": 520,
+        "y": 582,
         "w": 270,
         "h": 60,
         "source": "home",
@@ -916,8 +935,8 @@
         "y": 392,
         "w": 180,
         "h": 26,
-        "text": "SOC",
-        "text_en": "SOC",
+        "text": "Töltöttség",
+        "text_en": "State of charge",
         "font": 16,
         "color": "#A2B5BE"
       },
@@ -953,9 +972,28 @@
         "color": "#EDF4F8"
       },
       {
+        "type": "pulse",
+        "x": 643,
+        "y": 519,
+        "w": 14,
+        "h": 14,
+        "color": "#FFF9CF",
+        "glow": 20
+      },
+      {
+        "type": "box",
+        "x": 258,
+        "y": 692,
+        "w": 997,
+        "h": 76,
+        "background": "#FFFFFF",
+        "radius": 24,
+        "opacity": 32
+      },
+      {
         "type": "label",
         "x": 280,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
         "text": "Termelés ma",
@@ -966,7 +1004,7 @@
       {
         "type": "value",
         "x": 280,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
         "source": "production_today",
@@ -976,7 +1014,7 @@
       {
         "type": "label",
         "x": 620,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
         "text": "Fogyasztás ma",
@@ -987,7 +1025,7 @@
       {
         "type": "value",
         "x": 620,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
         "source": "consumption_today",
@@ -997,23 +1035,23 @@
       {
         "type": "label",
         "x": 960,
-        "y": 678,
+        "y": 698,
         "w": 270,
         "h": 26,
-        "text": "Akku",
-        "text_en": "Akku",
+        "text": "Visszatáplálás ma",
+        "text_en": "Visszatáplálás ma",
         "font": 16,
         "color": "#A2B5BE"
       },
       {
         "type": "value",
         "x": 960,
-        "y": 706,
+        "y": 726,
         "w": 270,
         "h": 40,
-        "source": "soc",
+        "source": "export_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#EA9C3B"
       }
     ]
   }

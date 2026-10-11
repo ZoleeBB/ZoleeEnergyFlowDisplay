@@ -96,21 +96,23 @@ def house(dark):
         (72, 340, 'Hálózat', 'grid', RED, 'grid_direction'),
         (305, 90, 'Napelem', 'pv', GREEN, None),
         (1090, 264, 'Akkumulátor', 'battery', BLUE, 'battery_direction'),
-        (232, 526, 'Ház fogyasztás', 'home', ORANGE, None)]:
+        (520, 554, 'Ház fogyasztás', 'home', ORANGE, None)]:
         width = 185 if source == 'battery' else 270
         s.label(title, x, y, width, 16, s.muted)
         if extra: s.value(extra, x, y+26, width, 16, color)
         s.value(source, x, y+(52 if extra else 28), width, 48, color)
-    s.label('SOC', 1090, 392, 180, 16, s.muted)
+    s.label('Töltöttség', 1090, 392, 180, 16, s.muted, en='State of charge')
     s.value('soc', 1090, 418, 180, 28, BLUE)
     s.label('Akku hőmérséklet', 1090, 467, 185, 16, s.muted, en='Battery temperature')
     s.value('battery_temp', 1090, 493, 180, 28)
+    s.add('pulse', 643, 519, 14, 14, color='#FFF9CF', glow=20)
+    s.box(258, 692, 997, 76, background='#FFFFFF', opacity=32, radius=24)
     for x, title, source, color in [
         (280, 'Termelés ma', 'production_today', GREEN),
         (620, 'Fogyasztás ma', 'consumption_today', ORANGE),
-        (960, 'Akku', 'soc', BLUE)]:
-        s.label(title, x, 678, 270, 16, s.muted)
-        s.value(source, x, 706, 270, 28, color)
+        (960, 'Visszatáplálás ma', 'export_today', ORANGE)]:
+        s.label(title, x, 698, 270, 16, s.muted)
+        s.value(source, x, 726, 270, 28, color)
     # Strong daylight accents with a black drop shadow, including dynamic
     # temperatures. No rectangular field or panel is placed behind any value.
     if not dark:
@@ -129,10 +131,10 @@ def paths(dark):
     s = Scene(dark, '#13272A' if dark else '#F4F7F1')
     s.header('Energiautak', 'Honnan érkezik és merre halad az energia?')
     s.box(32, 126, 1216, 496)
-    s.flow('pv', [(244, 240), (440, 240), (620, 378)], GREEN, 28)
-    s.flow('grid', [(244, 475), (440, 475), (620, 378)], ORANGE, 28)
-    s.flow('home', [(650, 378), (840, 235), (1020, 235)], GREEN, 28)
-    s.flow('battery', [(1020, 475), (840, 475), (650, 378)], BLUE, 28)
+    s.flow('pv', [(244, 240), (430, 240), (460, 378), (620, 378)], GREEN, 28, curve='bezier')
+    s.flow('grid', [(244, 475), (430, 475), (460, 378), (620, 378)], ORANGE, 28, curve='bezier')
+    s.flow('home', [(650, 378), (810, 378), (835, 235), (1020, 235)], GREEN, 28, curve='bezier')
+    s.flow('battery', [(1020, 475), (835, 475), (810, 378), (650, 378)], BLUE, 28, curve='bezier')
     for x, y, icon, title, source, color in [
         (70, 160, 'flow_solar', 'Napelemek', 'pv', GREEN),
         (70, 390, 'flow_grid', 'Hálózat', 'grid', ORANGE),
@@ -157,7 +159,7 @@ def instruments(dark):
         ('HÁLÓZAT', 'grid', RED, 'flow_grid'), ('AKKUMULÁTOR', 'battery', BLUE, 'flow_battery')]):
         x=32+i*308
         s.box(x, 136, 292, 395)
-        s.add('gauge', x+27, 190, 238, 238, source=source, color=color, max=15)
+        s.add('gauge', x+27, 190, 238, 238, source=source, color=color, max=15, **({'negative_color':'#FFEB38'} if source=='grid' else {'positive_color':'#2BB1FE'} if source=='battery' else {}))
         s.icon(icon, x+114, 215, 64)
         s.label(name, x+18, 163, 256, 16, s.muted, align='center')
         s.value(source, x+35, 296, 228, 28, color, align='center')
@@ -186,8 +188,6 @@ def balance(dark):
             s.label(name,700+i*177,y+19,173,16,color)
         s.add('chart',53,y+56,1160,174,kind=kind,color=s.muted)
     s.daily()
-    s.icon('flow_grid',650,390,32)
-    s.icon('flow_battery',1015,125,32)
     return s
 
 
@@ -283,7 +283,10 @@ def ledger(dark):
 
 def statistics(dark):
     s=Scene(dark,'#142737' if dark else '#F0F4FA')
-    s.header('Energiastatisztika','Élő értékek · napi görbék · heti és havi összesítés')
+    s.header('Energiastatisztika','Napi görbék · heti és havi összesítés')
+    s.add('weather', 824, 18, 54, 54)
+    s.value('temperature', 890, 20, 174, 20)
+    s.value('wind', 890, 52, 174, 16)
     for i,(label,source,color) in enumerate([('Termelés','pv',GREEN),('Fogyasztás','home',GREEN),
             ('Hálózat','grid',RED),('Akkumulátor','battery',BLUE),('Töltöttség','soc',BLUE)]):
         x=32+i*246
@@ -293,9 +296,9 @@ def statistics(dark):
     # Az energiaáramlást itt kizárólag számok mutatják, nincs node vagy mozgó vonal.
     cards=[(32,180,'production','Termelés','production_today'),
            (446,180,'consumption','Fogyasztás','consumption_today'),
-           (860,180,'soc','Tároló szintje','soc'),
-           (32,426,'grid','Hálózati betáp','grid_net_today'),
-           (446,426,'battery','Tároló','battery_net_today')]
+           (860,180,'soc','Töltöttség','soc'),
+           (32,426,'grid','Hálózati egyenleg','grid_net_today'),
+           (446,426,'battery','Akku egyenleg','battery_net_today')]
     for x,y,kind,title,total in cards:
         s.box(x,y,388,230,radius=24)
         s.label(title,x+16,y+14,220,20,en={'production':'Production','consumption':'Consumption','soc':'Battery level','grid':'Grid','battery':'Battery'}[kind])
@@ -336,8 +339,8 @@ def statistics(dark):
         x=48+i*149
         s.label(label,x,688,145,12,s.muted)
         s.value(source,x,710,145,16,color)
-    s.label('Heti/havi: termelés / fogyasztás / import · hiányzó nap: szürke jel · ma részleges',48,747,1175,12,s.muted,
-            en='Week/month: production / consumption / import · missing day: grey dash · today partial')
+    s.label('Heti/havi: termelés / fogyasztás / import · ma részleges · forrásarányok becslések',48,747,1175,12,s.muted,
+            en='Week/month: production / consumption / import · today partial · source shares estimated')
     return s
 
 
@@ -347,8 +350,23 @@ def main():
                                ('05-calm-home','Nyugodt otthon',calm),
                                ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger),('08-statistics','Energiastatisztika',statistics)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
-        doc=dict(schema=1,id=ident,name=name,version=5 if ident=='01-live-home' else 3,
-                 light=builder(False).document(),dark=builder(True).document())
+        scenes=[builder(False).document(),builder(True).document()]
+        for dark,scene in enumerate(scenes):
+            if ident in ('02-energy-paths','03-instruments','07-energy-ledger'):
+                scene.pop('gradient',None)
+                scene['elements'].insert(0,dict(type='image',x=0,y=0,w=1280,h=800,file='background-night.png' if dark else 'background-day.png'))
+                scene['elements'].insert(1,dict(type='box',x=0,y=0,w=1280,h=800,background=scene['background'],opacity=214 if dark else 222,radius=0))
+                for e in scene['elements'][2:]:
+                    if e['type']=='box':e['opacity']=205
+            if ident=='08-statistics':
+                vivid={GREEN:'#00C67F',ORANGE:'#FFB52E',BLUE:'#2BB1FE',RED:'#FF4876'} if dark else {GREEN:'#009B55',ORANGE:'#D78000',BLUE:'#007CCD',RED:'#E32655'}
+                old={GREEN:'#16965F',ORANGE:'#C57212',BLUE:'#087FC2',RED:'#D92C5B'} if not dark else {}
+                mapping={old.get(k,k):v for k,v in vivid.items()}
+                for e in scene['elements']:
+                    if 'color' in e:e['color']=mapping.get(e['color'],e['color'])
+                scene['palette']=dict(pv=vivid[GREEN],home=vivid[ORANGE],grid=vivid[RED],battery=vivid[BLUE])
+        doc=dict(schema=1,id=ident,name=name,version=6 if ident=='01-live-home' else 4,
+                 light=scenes[0],dark=scenes[1])
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):
             for element in doc[theme]['elements']:

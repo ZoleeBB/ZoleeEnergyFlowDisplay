@@ -40,6 +40,40 @@ static void template_path(template_node_t *node,const cJSON *e){
         node->segments[i-1]=sqrtf(dx*dx+dy*dy);node->length+=node->segments[i-1];
     }
 }
+/* Egyetlen vektoros stroke: nincs szegmensenként összeadódó áttetszőség. */
+static void template_flow_draw(lv_event_t *event){
+    lv_obj_t *obj=lv_event_get_target(event);
+    template_node_t *node=lv_event_get_user_data(event);
+    if(lv_event_get_code(event)==LV_EVENT_REFR_EXT_DRAW_SIZE){
+        lv_event_set_ext_draw_size(event,32);return;
+    }
+    if(lv_event_get_code(event)!=LV_EVENT_DRAW_MAIN)return;
+    lv_area_t area;lv_obj_get_coords(obj,&area);
+    lv_draw_vector_dsc_t *draw=lv_draw_vector_dsc_create(lv_event_get_layer(event));
+    lv_vector_path_t *path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
+    if(!draw||!path){if(draw)lv_draw_vector_dsc_delete(draw);if(path)lv_vector_path_delete(path);return;}
+    lv_fpoint_t a={area.x1+node->points[0].x,area.y1+node->points[0].y};lv_vector_path_move_to(path,&a);
+    if(!strcmp(ts(node->spec,"curve"),"bezier")){
+        const cJSON *pts=cJSON_GetObjectItem(node->spec,"points");
+        for(int i=1;i+2<cJSON_GetArraySize(pts);i+=3){
+            lv_fpoint_t controls[3];
+            for(int j=0;j<3;j++){const cJSON *p=cJSON_GetArrayItem(pts,i+j);controls[j]=(lv_fpoint_t){area.x1+tn(p,"x",0),area.y1+tn(p,"y",0)};}
+            lv_vector_path_cubic_to(path,&controls[0],&controls[1],&controls[2]);
+        }
+    }else for(unsigned i=1;i<node->point_count;i++){lv_fpoint_t b={area.x1+node->points[i].x,area.y1+node->points[i].y};lv_vector_path_line_to(path,&b);}
+    lv_draw_vector_dsc_set_fill_opa(draw,LV_OPA_TRANSP);
+    lv_draw_vector_dsc_set_stroke_color(draw,lv_obj_get_style_line_color(obj,0));
+    lv_draw_vector_dsc_set_stroke_width(draw,lv_obj_get_style_line_width(obj,0));
+    lv_draw_vector_dsc_set_stroke_opa(draw,lv_obj_get_style_line_opa(obj,0));
+    lv_draw_vector_dsc_set_stroke_cap(draw,LV_VECTOR_STROKE_CAP_ROUND);
+    lv_draw_vector_dsc_set_stroke_join(draw,LV_VECTOR_STROKE_JOIN_ROUND);
+    lv_draw_vector_dsc_add_path(draw,path);lv_draw_vector(draw);
+    lv_vector_path_delete(path);lv_draw_vector_dsc_delete(draw);
+}
+static lv_obj_t *template_flow_object(template_node_t *node,int x,int y,int w,int h){
+    lv_obj_t *obj=lv_obj_create(s_dash);lv_obj_remove_style_all(obj);lv_obj_set_pos(obj,x,y);lv_obj_set_size(obj,w,h);
+    lv_obj_add_event_cb(obj,template_flow_draw,LV_EVENT_ALL,node);return obj;
+}
 static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==48?&app_font_numbers_48:size==28?APP_FONT_28:size==20?APP_FONT_20:size==16?APP_FONT_16:APP_FONT_12;}
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
@@ -148,15 +182,14 @@ static void template_build(bool night){
         }else if(!strcmp(type,"flow")){
             template_path(node,e);
             if(tn(e,"glow",0)>0){
-                node->detail=lv_line_create(s_dash);lv_line_set_points(node->detail,node->points,node->point_count);
+                node->detail=template_flow_object(node,x,y,w,h);
                 lv_obj_set_pos(node->detail,x,y);lv_obj_set_style_line_color(node->detail,c(text),0);
                 lv_obj_set_style_line_width(node->detail,tn(e,"radius",3)+tn(e,"glow",8),0);
                 lv_obj_set_style_line_opa(node->detail,24,0);lv_obj_set_style_line_rounded(node->detail,true,0);
             }
-            node->obj=lv_line_create(s_dash);
-            lv_line_set_points(node->obj,node->points,node->point_count);lv_obj_set_pos(node->obj,x,y);
+            node->obj=template_flow_object(node,x,y,w,h);
             lv_obj_set_style_line_color(node->obj,c(text),0);lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
-            lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,strcmp(ts(e,"curve"),"bezier")!=0,0);
+            lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,true,0);
             for(int i=0;i<4;i++){
                 node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
                 if(tn(e,"glow",0)>0){
@@ -165,6 +198,10 @@ static void template_build(bool night){
                     lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_40,0);
                 }
             }
+        }else if(!strcmp(type,"pulse")){
+            node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
+            lv_obj_set_style_shadow_color(node->obj,c(text),0);
+            lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",20),0);
         }else if(!strcmp(type,"bar")){
             node->obj=lv_bar_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_bar_set_range(node->obj,0,tn(e,"max",100));
             lv_obj_set_style_bg_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?0x24312D:0xE2EAE5)),0);
@@ -219,7 +256,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
             if(!strcmp(source,"soc"))lv_obj_set_style_bg_color(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
         }
-        else if(!strcmp(type,"gauge"))lv_arc_set_value(node->obj,(int)(fabs(value)*10));
+        else if(!strcmp(type,"gauge")){
+            lv_arc_set_value(node->obj,(int)(fabs(value)*10));
+            lv_obj_set_style_arc_color(node->obj,c(tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE))),LV_PART_INDICATOR);
+        }
         else if(!strcmp(type,"weather")){
             const cJSON *files=cJSON_GetObjectItem(e,"files");
             if(files){
@@ -261,7 +301,14 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
 static void template_animate(float dt){
     if(!template_view.document||!s_dash_created||s_view!=VIEW_DASHBOARD)return;
     for(unsigned n=0;n<template_node_count;n++){
-        template_node_t *node=&template_nodes[n];if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        template_node_t *node=&template_nodes[n];
+        if(!strcmp(ts(node->spec,"type"),"pulse")){
+            node->phase=fmodf(node->phase+dt*.7f,1.f);
+            int alpha=145+(int)(110*(.5f+.5f*sinf(node->phase*6.2831853f)));
+            lv_obj_set_style_bg_opa(node->obj,alpha,0);
+            lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
+        }
+        if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(node->detail){
             int glow=fabs(node->power)<.001?0:20+(int)(fmin(7,fabs(node->power))*6);
             lv_obj_set_style_line_opa(node->detail,glow,0);

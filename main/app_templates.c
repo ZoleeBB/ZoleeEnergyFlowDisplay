@@ -120,7 +120,7 @@ static bool duplicates(const cJSON *o){
     for(const cJSON *a=o->child;a;a=a->next)if(duplicates(a))return true;return false;
 }
 static bool validate_scene(const cJSON *scene){
-    static const char *const types[]={"box","label","value","image","bar","gauge","flow","chart","weather",NULL};
+    static const char *const types[]={"box","pulse","label","value","image","bar","gauge","flow","chart","weather",NULL};
     static const char *const sources[]={"pv","home","grid","battery","soc","battery_temp","temperature","wind","clock","date","status","grid_direction","battery_direction","production_today","consumption_today","import_today","export_today","charge_today","discharge_today","pv_home","pv_export","pv_stored","pv_home_today","pv_export_today","pv_stored_today","grid_home_today","battery_home_today","self_sufficiency_pct","self_consumption_pct","pv_home_pct","pv_load_pct","pv_export_pct","pv_stored_pct","grid_home_pct","battery_home_pct","purchase_day","revenue_day","savings_day","net_day","purchase_month","revenue_month","savings_month","net_month","grid_net_today","battery_net_today",NULL};
     if(!cJSON_IsObject(scene)||!color(str(scene,"background")))return false;
     if(cJSON_HasObjectItem(scene,"gradient")&&!color(str(scene,"gradient")))return false;
@@ -148,7 +148,7 @@ static bool validate_scene(const cJSON *scene){
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
-        const char *keys[]={"color","background","muted",NULL};
+        const char *keys[]={"color","background","muted","positive_color","negative_color",NULL};
         for(int i=0;keys[i];i++)if(cJSON_HasObjectItem(e,keys[i])&&!color(str(e,keys[i])))return false;
         if(!number(e,"font",12,96,true)||!number(e,"opacity",0,255,true)||!number(e,"radius",0,200,true)||!number(e,"max",1,100,true))return false;
         if(cJSON_HasObjectItem(e,"font")){int f=cJSON_GetObjectItem(e,"font")->valueint;if(f!=12&&f!=16&&f!=20&&f!=28&&f!=48&&f!=96)return false;}
