@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#E8E9FA",
     "elements": [
@@ -112,7 +112,8 @@
         "h": 238,
         "source": "pv",
         "color": "#16965F",
-        "max": 15
+        "max": 15,
+        "outline_color": "#21343E"
       },
       {
         "type": "image",
@@ -178,7 +179,8 @@
         "h": 238,
         "source": "home",
         "color": "#C57212",
-        "max": 15
+        "max": 15,
+        "outline_color": "#21343E"
       },
       {
         "type": "image",
@@ -245,7 +247,8 @@
         "source": "grid",
         "color": "#D92C5B",
         "max": 15,
-        "negative_color": "#FFEB38"
+        "negative_color": "#FFEB38",
+        "outline_color": "#21343E"
       },
       {
         "type": "image",
@@ -326,7 +329,8 @@
         "source": "battery",
         "color": "#087FC2",
         "max": 15,
-        "positive_color": "#2BB1FE"
+        "positive_color": "#2BB1FE",
+        "outline_color": "#21343E"
       },
       {
         "type": "image",
@@ -416,7 +420,8 @@
         "w": 430,
         "h": 16,
         "source": "soc",
-        "color": "#087FC2"
+        "color": "#087FC2",
+        "outline_color": "#21343E"
       },
       {
         "type": "value",
@@ -697,7 +702,8 @@
         "h": 238,
         "source": "pv",
         "color": "#36AE7C",
-        "max": 15
+        "max": 15,
+        "outline_color": "#DEEAF2"
       },
       {
         "type": "image",
@@ -763,7 +769,8 @@
         "h": 238,
         "source": "home",
         "color": "#EA9C3B",
-        "max": 15
+        "max": 15,
+        "outline_color": "#DEEAF2"
       },
       {
         "type": "image",
@@ -830,7 +837,8 @@
         "source": "grid",
         "color": "#E66B6B",
         "max": 15,
-        "negative_color": "#FFEB38"
+        "negative_color": "#FFEB38",
+        "outline_color": "#DEEAF2"
       },
       {
         "type": "image",
@@ -911,7 +919,8 @@
         "source": "battery",
         "color": "#559CDE",
         "max": 15,
-        "positive_color": "#2BB1FE"
+        "positive_color": "#2BB1FE",
+        "outline_color": "#DEEAF2"
       },
       {
         "type": "image",
@@ -1001,7 +1010,8 @@
         "w": 430,
         "h": 16,
         "source": "soc",
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "outline_color": "#DEEAF2"
       },
       {
         "type": "value",

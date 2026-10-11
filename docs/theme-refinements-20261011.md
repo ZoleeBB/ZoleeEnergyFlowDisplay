@@ -29,3 +29,13 @@ A távoli feltöltés az explicit fejlesztési jogosultság tisztázása után m
 ## Második finomítás
 
 A hálózat görbéje a háttérképen lévő oszlop felső vezetékétől (136,178) indul. Az Élő otthon buborékja középen, 140 képpontos oldalmargókkal jelenik meg; három középre igazított oszlopot tartalmaz. Az Energiautak, Műszerfal és Főkönyv maszkolása nappal 174/255, éjjel 164/255; a mezők 150/255 opacitásúak. A Főkönyvben hatállapotú időjárásikon, hőmérséklet és széladat kerül az óra elé. A statisztikai akkuegyenleg pozitív görbéje és kitöltése #2BB1FE alapszínű, a negatív rész megtartja a témaszínt.
+
+## Harmadik finomítás
+
+- Élő otthon összegzőbuborék: 76/255 opacitás. Jobb felső sarokban hatállapotú realisztikus időjárás, hőmérséklet és szél. Hálózati exportnál az út, pontok, teljesítmény és irányfelirat #FFEB38; akkuleadás az adott mód korábbi világoskék színe, töltés #1875D1. A színváltás élő adatfrissítéskor történik, a fekete szövegárnyék megmarad.
+- Energiautak: mezők 130/255 opacitással; időjárás és szél az óra előtt.
+- Műszerfal: egy képpontos kontúr a műszerek aktív és háttérívén, valamint a SOC-sávon. Nappal #21343E, éjjel #DEEAF2. Az alatta rajzolt ív azonos középvonalat és értéket követ.
+- Energiakör: négy út közös csomópontja (640,366), 32×32 pulzáló világos ponttal. A középső mező eltűnik; Töltöttség és a kisebb, 20-as érték az akku alatt.
+- Energiafőkönyv: mezők 130/255 opacitással.
+
+A meglévő, generált időjárásképek kerültek az új helyekre; nem készültek eltérő stílusú változatok. A regressziós csomag, a szigorú LVGL-fordítás és a 16 témanézet sikeres. Irányváltási teszt ellenőrzi a vonal/pont/érték/felirat színeit, a kontúr színét és az ívek szinkronértékét.

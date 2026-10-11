@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#F6F2EA",
     "elements": [
@@ -143,7 +143,7 @@
         "h": 500,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -186,7 +186,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -241,7 +241,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -296,7 +296,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -375,7 +375,7 @@
         "h": 98,
         "background": "#F6F2EA",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -454,7 +454,7 @@
         "h": 238,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -510,7 +510,7 @@
         "h": 241,
         "background": "#FFFEFA",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -568,7 +568,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -602,7 +602,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -636,7 +636,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -670,7 +670,7 @@
         "h": 106,
         "background": "#FFFEFA",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -844,7 +844,7 @@
         "h": 500,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -887,7 +887,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -942,7 +942,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -997,7 +997,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -1076,7 +1076,7 @@
         "h": 98,
         "background": "#18292B",
         "radius": 12,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "image",
@@ -1155,7 +1155,7 @@
         "h": 238,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -1211,7 +1211,7 @@
         "h": 241,
         "background": "#233A3B",
         "radius": 16,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -1269,7 +1269,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -1303,7 +1303,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -1337,7 +1337,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",
@@ -1371,7 +1371,7 @@
         "h": 106,
         "background": "#233A3B",
         "radius": 22,
-        "opacity": 150
+        "opacity": 130
       },
       {
         "type": "label",

@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 7,
+  "version": 8,
   "light": {
     "background": "#F0F5F3",
     "elements": [
@@ -124,6 +124,63 @@
         "color": "#FFFFFF"
       },
       {
+        "type": "weather",
+        "x": 1080,
+        "y": 82,
+        "w": 96,
+        "h": 96,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1178,
+        "y": 103,
+        "w": 100,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#000000",
+        "shadow": true
+      },
+      {
+        "type": "value",
+        "x": 1176,
+        "y": 101,
+        "w": 100,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "x": 1082,
+        "y": 190,
+        "w": 190,
+        "h": 32,
+        "source": "wind",
+        "font": 20,
+        "color": "#000000",
+        "shadow": true
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 188,
+        "w": 190,
+        "h": 32,
+        "source": "wind",
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
         "type": "flow",
         "x": 136,
         "y": 178,
@@ -151,7 +208,8 @@
             "x": 514,
             "y": 348
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -211,7 +269,9 @@
             "x": 0,
             "y": 51
           }
-        ]
+        ],
+        "positive_color": "#00B0FF",
+        "negative_color": "#1875D1"
       },
       {
         "type": "label",
@@ -257,7 +317,8 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#FF1744"
+        "color": "#FF1744",
+        "negative_color": "#FFEB38"
       },
       {
         "type": "value",
@@ -280,7 +341,8 @@
         "source": "grid",
         "font": 48,
         "color": "#FF1744",
-        "align": "left"
+        "align": "left",
+        "negative_color": "#FFEB38"
       },
       {
         "type": "label",
@@ -374,7 +436,9 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#00B0FF"
+        "color": "#00B0FF",
+        "positive_color": "#00B0FF",
+        "negative_color": "#1875D1"
       },
       {
         "type": "value",
@@ -397,7 +461,9 @@
         "source": "battery",
         "font": 48,
         "color": "#00B0FF",
-        "align": "left"
+        "align": "left",
+        "positive_color": "#00B0FF",
+        "negative_color": "#1875D1"
       },
       {
         "type": "label",
@@ -552,7 +618,7 @@
         "h": 76,
         "background": "#FFFFFF",
         "radius": 24,
-        "opacity": 58
+        "opacity": 76
       },
       {
         "type": "label",
@@ -764,6 +830,41 @@
         "color": "#EDF4F8"
       },
       {
+        "type": "weather",
+        "x": 1080,
+        "y": 82,
+        "w": 96,
+        "h": 96,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1176,
+        "y": 101,
+        "w": 100,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 188,
+        "w": 190,
+        "h": 32,
+        "source": "wind",
+        "font": 20,
+        "color": "#EDF4F8"
+      },
+      {
         "type": "flow",
         "x": 136,
         "y": 178,
@@ -791,7 +892,8 @@
             "x": 514,
             "y": 348
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -851,7 +953,9 @@
             "x": 0,
             "y": 51
           }
-        ]
+        ],
+        "positive_color": "#559CDE",
+        "negative_color": "#1875D1"
       },
       {
         "type": "label",
@@ -873,7 +977,8 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#E66B6B"
+        "color": "#E66B6B",
+        "negative_color": "#FFEB38"
       },
       {
         "type": "value",
@@ -884,7 +989,8 @@
         "source": "grid",
         "font": 48,
         "color": "#E66B6B",
-        "align": "left"
+        "align": "left",
+        "negative_color": "#FFEB38"
       },
       {
         "type": "label",
@@ -929,7 +1035,9 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "positive_color": "#559CDE",
+        "negative_color": "#1875D1"
       },
       {
         "type": "value",
@@ -940,7 +1048,9 @@
         "source": "battery",
         "font": 48,
         "color": "#559CDE",
-        "align": "left"
+        "align": "left",
+        "positive_color": "#559CDE",
+        "negative_color": "#1875D1"
       },
       {
         "type": "label",
@@ -1024,7 +1134,7 @@
         "h": 76,
         "background": "#FFFFFF",
         "radius": 24,
-        "opacity": 58
+        "opacity": 76
       },
       {
         "type": "label",

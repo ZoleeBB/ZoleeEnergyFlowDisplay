@@ -148,7 +148,7 @@ static bool validate_scene(const cJSON *scene){
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
-        const char *keys[]={"color","background","muted","positive_color","negative_color",NULL};
+        const char *keys[]={"color","background","muted","positive_color","negative_color","outline_color",NULL};
         for(int i=0;keys[i];i++)if(cJSON_HasObjectItem(e,keys[i])&&!color(str(e,keys[i])))return false;
         if(!number(e,"font",12,96,true)||!number(e,"opacity",0,255,true)||!number(e,"radius",0,200,true)||!number(e,"max",1,100,true))return false;
         if(cJSON_HasObjectItem(e,"font")){int f=cJSON_GetObjectItem(e,"font")->valueint;if(f!=12&&f!=16&&f!=20&&f!=28&&f!=48&&f!=96)return false;}

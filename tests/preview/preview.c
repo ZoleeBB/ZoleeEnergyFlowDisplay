@@ -108,7 +108,21 @@ static void test_template_indicators(const app_energy_sample_t *sample){
         template_update(&state,&fixture);
         for(unsigned i=0;i<template_node_count;i++){
             template_node_t *node=&template_nodes[i];
-            if(strcmp(ts(node->spec,"type"),"gauge"))continue;
+            const char *type=ts(node->spec,"type"),*source=ts(node->spec,"source");
+            if(!cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"shadow"))&&(*ts(node->spec,"positive_color")||*ts(node->spec,"negative_color"))&&(!strcmp(source,"grid")||!strcmp(source,"battery")||strstr(source,"direction"))){
+                uint32_t expected=tc(node->spec,direction<0?"negative_color":"positive_color",tc(node->spec,"color",BLUE));
+                if(!strcmp(type,"value"))assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(expected)));
+                if(!strcmp(type,"flow")){
+                    assert(lv_color_eq(lv_obj_get_style_line_color(node->obj,0),c(expected)));
+                    for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_bg_color(node->dots[d],0),c(expected)));
+                }
+            }
+            if(*ts(node->spec,"outline_color")){
+                uint32_t outline=tc(node->spec,"outline_color",0);
+                if(!strcmp(type,"bar"))assert(lv_obj_get_style_border_width(node->obj,LV_PART_INDICATOR)==1);
+                if(!strcmp(type,"gauge")){assert(node->detail);assert(lv_color_eq(lv_obj_get_style_arc_color(node->detail,LV_PART_INDICATOR),c(outline)));assert(lv_arc_get_value(node->detail)==lv_arc_get_value(node->obj));}
+            }
+            if(strcmp(type,"gauge"))continue;
             uint32_t expected=tc(node->spec,direction<0?"negative_color":"positive_color",tc(node->spec,"color",BLUE));
             assert(lv_color_eq(lv_obj_get_style_arc_color(node->obj,LV_PART_INDICATOR),c(expected)));
         }

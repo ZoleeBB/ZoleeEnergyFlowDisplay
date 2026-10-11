@@ -206,7 +206,17 @@ static void template_build(bool night){
         }else if(!strcmp(type,"bar")){
             node->obj=lv_bar_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_bar_set_range(node->obj,0,tn(e,"max",100));
             lv_obj_set_style_bg_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?0x24312D:0xE2EAE5)),0);
+            if(*ts(e,"outline_color")){
+                for(int part=0;part<2;part++){lv_style_selector_t selector=part?LV_PART_INDICATOR:LV_PART_MAIN;
+                    lv_obj_set_style_border_width(node->obj,1,selector);lv_obj_set_style_border_color(node->obj,c(tc(e,"outline_color",0)),selector);}
+            }
         }else if(!strcmp(type,"gauge")){
+            if(*ts(e,"outline_color")){
+                node->detail=lv_arc_create(s_dash);lv_obj_set_pos(node->detail,x-1,y-1);lv_obj_set_size(node->detail,w+2,h+2);lv_arc_set_range(node->detail,0,tn(e,"max",15)*10);
+                lv_arc_set_bg_angles(node->detail,135,405);
+                for(int part=0;part<2;part++){lv_style_selector_t selector=part?LV_PART_INDICATOR:LV_PART_MAIN;lv_obj_set_style_arc_color(node->detail,c(tc(e,"outline_color",0)),selector);lv_obj_set_style_arc_width(node->detail,part?16:14,selector);}
+                lv_obj_set_style_opa(node->detail,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_remove_flag(node->detail,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+            }
             node->obj=lv_arc_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_arc_set_range(node->obj,0,tn(e,"max",15)*10);
             lv_arc_set_bg_angles(node->obj,135,405);lv_obj_set_style_arc_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_arc_width(node->obj,14,LV_PART_INDICATOR);
             lv_obj_set_style_arc_color(node->obj,c(tc(e,"background",night?0x25394A:0xDFE8ED)),0);lv_obj_set_style_arc_width(node->obj,12,0);lv_obj_set_style_opa(node->obj,LV_OPA_TRANSP,LV_PART_KNOB);
@@ -260,6 +270,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         }
         else if(!strcmp(type,"gauge")){
             lv_arc_set_value(node->obj,(int)(fabs(value)*10));
+            if(node->detail)lv_arc_set_value(node->detail,(int)(fabs(value)*10));
             lv_obj_set_style_arc_color(node->obj,c(tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE))),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"weather")){
@@ -292,6 +303,15 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             }
             maximum=ceil(maximum);
             for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum-(maximum-minimum)*j/2,j==1?1:0);lv_label_set_text(node->axis[j],text);}
+        }
+        if(!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(*ts(e,"positive_color")||*ts(e,"negative_color"))){
+            double direction=!strcmp(source,"grid_direction")?s->power_grid_kw:!strcmp(source,"battery_direction")?s->power_bat_kw:value;
+            uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
+            if(!strcmp(type,"value"))lv_obj_set_style_text_color(node->obj,c(color),0);
+            if(!strcmp(type,"flow")){
+                lv_obj_set_style_line_color(node->obj,c(color),0);if(node->detail)lv_obj_set_style_line_color(node->detail,c(color),0);
+                for(int d=0;d<4;d++){lv_obj_set_style_bg_color(node->dots[d],c(color),0);lv_obj_set_style_shadow_color(node->dots[d],c(color),0);}
+            }
         }
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;
