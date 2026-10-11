@@ -37,6 +37,7 @@ typedef struct {
     float battery_kw;
     float soc_pct;
     bool soc_valid;
+    uint32_t soc_sample_count;
     app_energy_totals_t energy;
     app_energy_split_t split; /* Mintánként szétválasztott, majd átlagolt kW. */
     bool chart_gap; /* Hiányos ötperces ablak: a grafikon nem köti át. */

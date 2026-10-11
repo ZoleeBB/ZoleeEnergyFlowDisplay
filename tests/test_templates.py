@@ -22,6 +22,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     lib=C.CDLL(str(tmp/'templates.so'))
     lib.app_templates_validate.argtypes=[C.c_char_p,C.c_void_p,C.c_char_p]
     lib.app_templates_validate.restype=C.c_bool
+    lib.app_templates_probe.argtypes=[C.c_char_p,C.POINTER(C.c_void_p),C.c_char_p]
+    lib.cJSON_Delete.argtypes=[C.c_void_p]
     lib.app_templates_install.argtypes=[C.c_char_p,C.c_char_p]
     lib.app_templates_select.argtypes=[C.c_char_p]
     lib.app_templates_delete.argtypes=[C.c_char_p,C.c_char_p]
@@ -58,6 +60,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     empty=dict(background='#FFFFFF',elements=[])
     doc=dict(schema=1,id='test-layout',name='Test',version=1,light=empty,dark=empty)
     good=archive('good',doc)
+    report=C.c_void_p();before=active()
+    assert lib.app_templates_probe(os.fsencode(good),C.byref(report),error)==0,error.value
+    assert report.value and active()==before and not (sd/'test-layout').exists() and not (sd/'.check').exists()
+    lib.cJSON_Delete(report)
     assert lib.app_templates_install(os.fsencode(good),error)==0,error.value
     assert active()==(2,'builtin')
     assert lib.app_templates_select(b'test-layout')==0
@@ -107,6 +113,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         z.writestr(entry,'../../outside')
     assert lib.app_templates_install(os.fsencode(symlink),error)!=0
     truncated=tmp/'truncated.zip';truncated.write_bytes(good.read_bytes()[:-10])
+    assert lib.app_templates_probe(os.fsencode(truncated),C.byref(report),error)!=0
+    assert not report.value and active()==(2,'test-layout') and not (sd/'.check').exists()
     assert lib.app_templates_install(os.fsencode(truncated),error)!=0
     duplicate=tmp/'duplicate.zip'
     with zipfile.ZipFile(duplicate,'w') as z:

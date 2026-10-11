@@ -257,6 +257,12 @@ static void test_period_metrics(void){
     app_energy_totals_t zero={0};m=app_stats_metrics(&zero,&cfg.energy);near(m.self_consumption_pct,0);
     clock_at(instant("2028-02-10",12,0,0));assert(app_stats_init(&cfg)==ESP_OK);
     app_stats_get_period(true,&week);assert(week.count==29);
+    /* Régi slot átlagába az első új SOC-minta nem hígulhat bele. */
+    reset(t);feed(t,2,0,0);assert(app_stats_save_now()==ESP_OK);
+    cJSON *old=read_json("2026-10-05");cJSON_SetNumberValue(cJSON_GetObjectItem(old,"version"),2);
+    write_json("2026-10-05",old);cJSON_Delete(old);assert(app_stats_init(&cfg)==ESP_OK);
+    a=sample(t+5,2,0,0);a.soc_bat_pct=80;clock_at(t+5);app_stats_process_sample(&a);
+    app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].soc_pct,80);
     tests++;
 }
 int main(void){

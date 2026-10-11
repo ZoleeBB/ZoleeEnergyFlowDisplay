@@ -22,6 +22,8 @@ unsigned app_templates_list(app_template_info_t *out,unsigned capacity,char acti
 esp_err_t app_templates_select(const char *id);
 void app_templates_step(int direction);
 esp_err_t app_templates_delete(const char *id,char error[160]);
+/* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
+esp_err_t app_templates_probe(const char *zip_path,cJSON **report,char error[160]);
 esp_err_t app_templates_install(const char *zip_path,char error[160]);
 /* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */
 bool app_templates_load_pending(app_template_view_t *out);

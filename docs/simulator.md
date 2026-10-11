@@ -30,7 +30,7 @@ Az első adatcsomag induláskor, a továbbiak 5 másodpercenként érkeznek. Kil
 
 A kézi állapot-/témaváltás szünet közben is küld csomagot, ezért újraindítja a timeoutot. Folytatáskor legfeljebb 5 másodperc múlva érkezik a következő csomag. A konzolban látható az elküldött JSON. A demó jelölés az ablakban és a kijelző címében is szerepel.
 
-A hét SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
+A nyolc SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
 A futási munkakönyvtár legyen a build `simulator` mappája; ott a `templates`
 alkönyvtár tárolja a választást. A `ZOLEE_TEMPLATE_ROOT` környezeti változóval
 más tesztkönyvtár is megadható. A forráscsomagok így nem változnak meg.
@@ -53,3 +53,5 @@ ctest --preset windows-demo-debug
 A `zolee_simulator.exe --self-test` ablak nélkül ellenőrzi a demó csomagokat, érvénytelen JSON elutasítását, timeoutot, helyreállást és az animációt; `simulator-demo.ppm` képet ment. Ugyanezt MSVC Debug fordítással a Windows CI is futtatja. A headless teszt Linuxon is fordítható `cmake -S . -B out/sim -DZOLEE_SIMULATOR=ON` paranccsal.
 
 Az ablak pufferelt GDI-rajzolást használ: a háttér és a kijelző képe memóriában áll össze, majd egyetlen másolással jelenik meg. Az animációk közben nincs teljes ablakos fekete háttértörlés. A Windows CI ezt a megjelenítési utat is ellenőrzi ismételt rajzolással és méretváltással.
+
+Az **I** billentyű a közös diagnosztikai nézetet nyitja/zárja. A statisztikai téma demó SOC- és forrásenergia-adatokat, valamint hiányzó napot jelölő heti/havi oszlopdiagramokat is mutat.

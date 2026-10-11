@@ -1,6 +1,6 @@
 # SD-kártyás sablonok
 
-Az eredeti nézet a firmware része, mindig elérhető. A hét új elrendezés a repository
+Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható elrendezés a repository
 `templates/` könyvtárában van, mindegyik saját világos és sötét témával.
 
 | Csomag | Nézet |
@@ -12,6 +12,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A hét új elrendezés a
 | `05-calm-home` | Nyugodt otthon: nagy óra, saját kerámia időjárásikonok, három fő adat |
 | `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, középen SOC |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
+| `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 
 ## Használat
 
@@ -178,7 +179,7 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 ![Élő otthon: közvetlen adatok, világos téma](previews/live-home-light.png)
 ![Élő otthon: közvetlen adatok, sötét téma](previews/live-home-dark.png)
 
-![A hét sablon nappali és éjszakai nézete](previews/templates.png)
+![A nyolc sablon nappali és éjszakai nézete](previews/templates.png)
 
 ![Hét különálló ikonkészlet és saját időjárás](previews/template-icons.png)
 
@@ -189,3 +190,14 @@ Az energiautak `glow: 0..24` mezője állítható fényudvart ad. A fény intenz
 ## 08 – Energiastatisztika
 
 Világos és sötét, 1280×800-as nézet: csak számszerű pillanatnyi energiaáramlás; napi termelési/fogyasztási forrásdiagramok, előjeles import/export, előjeles akkumulátorteljesítmény és SOC-görbe. A sorozatokat a valós ötperces mérési átlagok adják; az összes energiát időben integráljuk. A heti/havi kártyán napi termelési, fogyasztási és import oszlopok láthatók; a hiányzó nap szürke jel. Az alsó sor a napi/havi pénzügyeket és az energiaarányokat mutatja.
+
+## Feltöltés előtti webes előnézet
+
+A `/templates` oldalon válaszd ki a ZIP-et: a böngésző helyben bontja ki, ellenőrzi a ZIP/PNG CRC-t, és demóadatokkal nappali/sötét előnézetet rajzol. Megjelenik a sablonverzió, a tömörített képek mérete és az összes dekódolt kép felső memória-becslése. Ez utóbbi nem a teljes firmware RAM-fogyasztása. Modern, `DecompressionStream('deflate-raw')` támogatású böngésző szükséges.
+
+Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben küldi a ZIP-et. A C-validátor változatlan követelményekkel ellenőrzi, majd törli az ideiglenes fájlokat; nem telepít, nem aktivál és nem írja át a katalógust. A **Telepítés** csak pozitív eredmény után engedélyezett; a telepítő ismét ellenőriz. Már létező azonosító nem írható felül. Új ZIP kiválasztása érvényteleníti a korábbi jóváhagyott állapotot.
+
+A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python tools/prepare_web.py`.
+
+![Statisztika nappal](previews/statistics-light.png)
+![Statisztika sötétben](previews/statistics-dark.png)

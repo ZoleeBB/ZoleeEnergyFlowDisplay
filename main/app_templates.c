@@ -247,6 +247,7 @@ esp_err_t app_templates_init(void){
     xSemaphoreTake(lock,portMAX_DELAY);
     if(STORAGE_TAKE()!=ESP_OK){xSemaphoreGive(lock);return ESP_FAIL;}
     MKDIR(app_templates_root());char stage[256];path_join(stage,app_templates_root(),".install");remove_stage(stage);
+    path_join(stage,app_templates_root(),".check");remove_stage(stage);
     scan();char path[256];path_join(path,app_templates_root(),"selection.txt");FILE *f=fopen(path,"rb");
     if(!f){path_join(path,app_templates_root(),"selection.bak");f=fopen(path,"rb");}
     char id[34]={0};if(f){size_t read=fread(id,1,33,f);id[read]=0;fclose(f);}
@@ -319,4 +320,32 @@ esp_err_t app_templates_delete(const char *id,char error[160]){
     if(!strcmp(selected,id)){snprintf(selected,33,"builtin");generation++;save_selection=true;}
     remove_stage(path);struct stat st;bool ok=stat(path,&st)!=0;scan();
     generation++;STORAGE_GIVE();xSemaphoreGive(lock);if(!ok)error_set(error,"Törlési hiba / Delete failed");return ok?ESP_OK:ESP_FAIL;
+}
+
+esp_err_t app_templates_probe(const char *zip,cJSON **report,char error[160]){
+    if(report)*report=NULL;
+    if(!lock||!report)return ESP_ERR_INVALID_STATE;
+    xSemaphoreTake(lock,portMAX_DELAY);
+    if(STORAGE_TAKE()!=ESP_OK){xSemaphoreGive(lock);error_set(error,"SD unavailable");return ESP_FAIL;}
+    char stage[256];path_join(stage,app_templates_root(),".check");remove_stage(stage);MKDIR(stage);
+    cJSON *doc=NULL,*result=NULL;esp_err_t status=ESP_FAIL;
+    if(!app_template_unzip(zip,stage,error)||!app_templates_validate(stage,&doc,error))goto done;
+    size_t encoded=0,decoded=0;char path[256];DIR *dir=opendir(stage);struct dirent *entry;
+    if(!dir)goto done;
+    while((entry=readdir(dir))){
+        if(!app_templates_safe_asset(entry->d_name))continue;
+        path_join(path,stage,entry->d_name);size_t size=0;unsigned char *png=read_file(path,2*1024*1024,&size);
+        if(!png){closedir(dir);goto done;}
+        encoded+=size;decoded+=(size_t)be32(png+16)*be32(png+20)*4;free(png);
+    }
+    closedir(dir);result=cJSON_CreateObject();if(!result){status=ESP_ERR_NO_MEM;goto done;}
+    bool exists=false;for(unsigned i=0;i<count;i++)if(!strcmp(catalogue[i].id,str(doc,"id")))exists=true;
+    cJSON_AddBoolToObject(result,"valid",true);cJSON_AddBoolToObject(result,"installable",!exists&&count<APP_TEMPLATE_MAX);
+    cJSON_AddStringToObject(result,"id",str(doc,"id"));cJSON_AddStringToObject(result,"name",str(doc,"name"));
+    cJSON_AddNumberToObject(result,"version",cJSON_GetObjectItem(doc,"version")->valueint);
+    cJSON_AddNumberToObject(result,"encoded_bytes",encoded);cJSON_AddNumberToObject(result,"decoded_image_bytes",decoded);
+    cJSON_AddStringToObject(result,"message",exists?"Az azonosító már létezik / ID already installed":count>=APP_TEMPLATE_MAX?"Sablonlista megtelt / Catalogue full":"Érvényes, telepíthető / Valid, ready to install");
+    *report=result;result=NULL;status=ESP_OK;
+done:
+    cJSON_Delete(result);cJSON_Delete(doc);remove_stage(stage);STORAGE_GIVE();xSemaphoreGive(lock);return status;
 }

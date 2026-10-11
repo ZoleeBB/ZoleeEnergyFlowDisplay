@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 4,
+  "version": 5,
   "light": {
     "background": "#F0F5F3",
     "elements": [

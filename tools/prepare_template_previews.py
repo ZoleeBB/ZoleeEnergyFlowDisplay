@@ -6,26 +6,28 @@ mockups. Usage: prepare_template_previews.py .preview-images
 """
 from pathlib import Path
 import sys
+import json
 from PIL import Image,ImageDraw,ImageFont
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'docs/previews'
-NAMES=['Élő otthon','Energiautak','Műszerfal','Napi mérleg','Nyugodt otthon','Energiakör','Energiafőkönyv']
 
 
 def main(source):
     source=Path(source);OUT.mkdir(parents=True,exist_ok=True)
     try:font=ImageFont.truetype('DejaVuSans.ttf',16)
     except OSError:font=ImageFont.load_default()
-    packages=sorted((ROOT/'templates').iterdir())
+    packages=sorted(p for p in (ROOT/'templates').iterdir() if p.is_dir() and (p/'template.json').exists())
     sheet=Image.new('RGB',(800,len(packages)*280),'#DCE3E4');draw=ImageDraw.Draw(sheet)
     icons=Image.new('RGBA',(950,1280),'#E6ECE9');idraw=ImageDraw.Draw(icons)
     for row,package in enumerate(packages):
+        name=json.loads((package/'template.json').read_text())['name']
         for col,theme in enumerate(('light','dark')):
             with Image.open(source/f'template-{package.name}-{theme}.ppm') as frame:
                 sheet.paste(frame.resize((400,250),Image.Resampling.LANCZOS),(col*400,row*280+30))
-            draw.text((col*400+10,row*280+5),__import__('json').loads((package/'template.json').read_text())['name']+(' · nappal' if col==0 else ' · éjjel'),font=font,fill='#19352F')
-        idraw.text((12,row*150+55),NAMES[row],font=font,fill='#19352F')
+            draw.text((col*400+10,row*280+5),name+(' · nappal' if col==0 else ' · éjjel'),font=font,fill='#19352F')
+        if row>=7:continue
+        idraw.text((12,row*150+55),name,font=font,fill='#19352F')
         for col,name in enumerate(('flow_solar','flow_house','flow_grid','flow_battery','flow_hub')):
             asset=package/(name+'.png')
             if asset.exists():
@@ -43,6 +45,10 @@ def main(source):
     if frames:frames[0].save(OUT/'live-home-flow.gif',save_all=True,append_images=frames[1:],duration=120,loop=0)
     for ident in ('06-energy-orbit','07-energy-ledger'):
         with Image.open(source/f'template-{ident}-light.ppm') as frame:frame.save(OUT/(ident+'.png'),optimize=True)
+    for theme in ('light','dark'):
+        with Image.open(source/f'template-08-statistics-{theme}.ppm') as frame:
+            frame.save(OUT/f'statistics-{theme}.png',optimize=True)
+    with Image.open(source/'diagnostics-common.ppm') as frame:frame.save(OUT/'diagnostics.png',optimize=True)
     print('Exported actual LVGL template previews, own icon sets and curved flow animation')
 
 

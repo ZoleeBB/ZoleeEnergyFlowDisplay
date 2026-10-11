@@ -232,7 +232,8 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     slot->battery_kw += ((float)sample->power_bat_kw - slot->battery_kw) / n;
     app_energy_split_average(&slot->split,app_energy_split(sample->power_pv_kw,
         sample->power_full_kw,sample->power_bat_kw),n);
-    slot->soc_pct += ((float)sample->soc_bat_pct-slot->soc_pct)/n;
+    slot->soc_sample_count++;
+    slot->soc_pct += ((float)sample->soc_bat_pct-slot->soc_pct)/(float)slot->soc_sample_count;
     slot->soc_valid = true;
     slot->valid = true;
 }
@@ -392,6 +393,7 @@ static cJSON *day_to_json(const day_data_t *day)
         cJSON_AddNumberToObject(obj, "battery", slot->battery_kw);
         cJSON_AddNumberToObject(obj,"soc",slot->soc_pct);
         cJSON_AddBoolToObject(obj,"soc_valid",slot->soc_valid);
+        cJSON_AddNumberToObject(obj,"soc_count",slot->soc_sample_count);
         cJSON_AddItemToObject(obj, "energy", totals_to_json(&slot->energy));
         cJSON_AddBoolToObject(obj,"chart_gap",slot->chart_gap);
         cJSON *split=cJSON_AddObjectToObject(obj,"split");
@@ -478,6 +480,12 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             cJSON *soc_valid=cJSON_GetObjectItemCaseSensitive(obj,"soc_valid");
             if(!cJSON_IsNumber(soc)||!isfinite(soc->valuedouble)||soc->valuedouble<0||soc->valuedouble>100||!cJSON_IsBool(soc_valid))goto invalid;
             slot->soc_pct=soc->valuedouble;slot->soc_valid=cJSON_IsTrue(soc_valid);
+            cJSON *soc_count=cJSON_GetObjectItemCaseSensitive(obj,"soc_count");
+            if(soc_count){
+                if(!cJSON_IsNumber(soc_count)||soc_count->valuedouble<0||soc_count->valuedouble>slot->sample_count||floor(soc_count->valuedouble)!=soc_count->valuedouble)goto invalid;
+                slot->soc_sample_count=(uint32_t)soc_count->valuedouble;
+            }else slot->soc_sample_count=slot->soc_valid?slot->sample_count:0;
+            if(slot->soc_valid!=(slot->soc_sample_count>0))goto invalid;
         }
         if(version->valuedouble==1){
             /* Régi fájlokból csak az átlagok szerinti közelítés lehetséges. */
@@ -507,6 +515,12 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     MATCH_TOTAL(production_kwh); MATCH_TOTAL(consumption_kwh);
     MATCH_TOTAL(grid_import_kwh); MATCH_TOTAL(grid_export_kwh);
     MATCH_TOTAL(battery_charge_kwh); MATCH_TOTAL(battery_discharge_kwh);
+    if(version->valuedouble>=3){
+        MATCH_TOTAL(pv_home_kwh);MATCH_TOTAL(pv_export_kwh);MATCH_TOTAL(pv_stored_kwh);
+        MATCH_TOTAL(grid_home_kwh);MATCH_TOTAL(battery_home_kwh);
+        if(fabs(parsed->totals.pv_home_kwh+parsed->totals.pv_export_kwh+parsed->totals.pv_stored_kwh-parsed->totals.production_kwh)>1e-5)goto invalid;
+        if(fabs(parsed->totals.pv_home_kwh+parsed->totals.grid_home_kwh+parsed->totals.battery_home_kwh-parsed->totals.consumption_kwh)>1e-5)goto invalid;
+    }
 #undef MATCH_TOTAL
     if(version->valuedouble<3){
         /* Régi napokra az átlagolt forrásarányok energiaarányos becslése. */
@@ -756,8 +770,13 @@ static void cleanup_old_files(const char *today, const char *yesterday)
     closedir(dir);
 }
 
+static bool day_has_any_samples(const day_data_t *day){
+    if(!day->valid)return false;
+    for(int i=0;i<APP_STATS_SLOT_COUNT;i++)if(day->slots[i].valid)return true;
+    return false;
+}
 static void history_put(const day_data_t *day){
-    if(!day->valid)return;
+    if(!day_has_any_samples(day))return;
     unsigned index=0;
     for(unsigned i=0;i<APP_STATS_HISTORY_DAYS;i++){
         if(!strcmp(s_history[i].date,day->date)){index=i;goto put;}
@@ -1074,7 +1093,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
         app_stats_day_t *target=&out->days[i];date_for(epoch,target->date);
         const day_data_t *current=!strcmp(target->date,s_today.date)?&s_today:
             !strcmp(target->date,s_yesterday.date)?&s_yesterday:NULL;
-        if(current&&current->valid){target->valid=true;target->totals=current->totals;}
+        if(current&&day_has_any_samples(current)){target->valid=true;target->totals=current->totals;}
         else for(unsigned j=0;j<APP_STATS_HISTORY_DAYS;j++)if(!strcmp(target->date,s_history[j].date)){*target=s_history[j];break;}
         if(target->valid)totals_add(&out->totals,&target->totals);
     }

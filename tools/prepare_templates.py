@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build seven editable JSON layouts and flat, independently installable ZIPs.
+"""Build eight editable JSON layouts and flat, independently installable ZIPs.
 
 House backgrounds are checked-in generated art. All data, lines, dots, charts and
 labels are real runtime widgets, never baked into screenshots.
@@ -347,7 +347,7 @@ def main():
                                ('05-calm-home','Nyugodt otthon',calm),
                                ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger),('08-statistics','Energiastatisztika',statistics)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
-        doc=dict(schema=1,id=ident,name=name,version=4 if ident=='01-live-home' else 3,
+        doc=dict(schema=1,id=ident,name=name,version=5 if ident=='01-live-home' else 3,
                  light=builder(False).document(),dark=builder(True).document())
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):

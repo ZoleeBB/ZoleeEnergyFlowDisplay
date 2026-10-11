@@ -66,9 +66,9 @@ def package(build, output, tag, commit):
     # Ready for direct SD copy, independently of the firmware flash operation.
     files['SABLONOK.md'] = (ROOT / 'docs/templates.md').read_bytes()
     # Keep relative links usable offline in the USB package as well.
-    for name in ('templates.md', 'template-authoring.md', 'template-icon-prompts.json'):
+    for name in ('templates.md', 'template-authoring.md', 'template-icon-prompts.json','enhancements-20261011.md','statistics.md','architecture.md'):
         files[name] = (ROOT / 'docs' / name).read_bytes()
-    for name in ('templates.png', 'template-icons.png', 'live-home-flow.gif'):
+    for name in ('templates.png', 'template-icons.png', 'live-home-flow.gif','statistics-light.png','statistics-dark.png','diagnostics.png'):
         files['previews/' + name] = (ROOT / 'docs/previews' / name).read_bytes()
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
