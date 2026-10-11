@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 2,
+  "version": 3,
   "light": {
     "background": "#F3F6F8",
     "elements": [
@@ -58,7 +58,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -68,7 +71,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -77,7 +83,8 @@
         "w": 1216,
         "h": 247,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -107,7 +114,7 @@
         "text": "Saját fogyasztás",
         "text_en": "Saját fogyasztás",
         "font": 16,
-        "color": "#36AE7C"
+        "color": "#16965F"
       },
       {
         "type": "label",
@@ -118,7 +125,7 @@
         "text": "Visszatáplálás",
         "text_en": "Visszatáplálás",
         "font": 16,
-        "color": "#EA9C3B"
+        "color": "#C57212"
       },
       {
         "type": "label",
@@ -129,7 +136,7 @@
         "text": "Tárolt",
         "text_en": "Tárolt",
         "font": 16,
-        "color": "#559CDE"
+        "color": "#087FC2"
       },
       {
         "type": "chart",
@@ -147,7 +154,8 @@
         "w": 1216,
         "h": 247,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -177,7 +185,7 @@
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#E66B6B"
+        "color": "#D92C5B"
       },
       {
         "type": "label",
@@ -188,7 +196,7 @@
         "text": "Termelés",
         "text_en": "Termelés",
         "font": 16,
-        "color": "#36AE7C"
+        "color": "#16965F"
       },
       {
         "type": "label",
@@ -199,7 +207,7 @@
         "text": "Tároló",
         "text_en": "Tároló",
         "font": 16,
-        "color": "#559CDE"
+        "color": "#087FC2"
       },
       {
         "type": "chart",
@@ -217,7 +225,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -238,7 +247,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -247,7 +259,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -268,7 +281,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -277,7 +293,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -298,7 +315,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -307,7 +327,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -328,7 +349,10 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "image",
@@ -346,7 +370,14 @@
         "h": 32,
         "file": "flow_battery.png"
       }
-    ]
+    ],
+    "gradient": "#D9F0E6",
+    "palette": {
+      "pv": "#16965F",
+      "home": "#C57212",
+      "grid": "#D92C5B",
+      "battery": "#087FC2"
+    }
   },
   "dark": {
     "background": "#152128",
@@ -403,7 +434,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -413,7 +447,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -422,7 +459,8 @@
         "w": 1216,
         "h": 247,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -492,7 +530,8 @@
         "w": 1216,
         "h": 247,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -562,7 +601,8 @@
         "w": 292,
         "h": 106,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -583,7 +623,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -592,7 +635,8 @@
         "w": 292,
         "h": 106,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -613,7 +657,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -622,7 +669,8 @@
         "w": 292,
         "h": 106,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -643,7 +691,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -652,7 +703,8 @@
         "w": 292,
         "h": 106,
         "background": "#1B2C3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -673,7 +725,10 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "image",
@@ -691,6 +746,13 @@
         "h": 32,
         "file": "flow_battery.png"
       }
-    ]
+    ],
+    "gradient": "#22394A",
+    "palette": {
+      "pv": "#36AE7C",
+      "home": "#EA9C3B",
+      "grid": "#E66B6B",
+      "battery": "#559CDE"
+    }
   }
 }

@@ -178,3 +178,7 @@ python3 tools/prepare_template_previews.py .preview-images
 
 Fizikai kijelzőn a végső átvételhez még ellenőrizd a tényleges SD-olvasást,
 a szabad memóriát, az animáció simaságát és a webes telepítést.
+
+## Sablononkénti olvashatóság és paletta
+
+A scene opcionális `gradient` színe vízszintes színátmenetet ad a `background` mellett. `palette`: `pv`, `home`, `grid`, `battery` hexaszínek, a diagramokkal közösen. A value/label elemek `text_shadow: true`, `shadow_offset: 0..4`, `shadow_opacity: 0..255` beállítása fekete szövegárnyékot ad. A `font` és `color` elem szintjén állítható. A rendszer alapnézetét ezek a sablonbeállítások nem érintik.

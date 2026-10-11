@@ -26,7 +26,7 @@ class Scene:
         self.elements.append(dict(type=element_type, x=x, y=y, w=w, h=h, **kw))
 
     def box(self, x, y, w, h, **kw):
-        self.add('box', x, y, w, h, background=kw.pop('background', self.card), radius=kw.pop('radius', 22), **kw)
+        self.add('box', x, y, w, h, background=kw.pop('background', self.card), radius=kw.pop('radius', 22), opacity=kw.pop('opacity',235), **kw)
 
     def label(self, text, x, y, w=250, font=20, color=None, en=None, **kw):
         self.add('label', x, y, w, font+10, text=text, text_en=en or text, font=font, color=color or self.text, **kw)
@@ -61,8 +61,20 @@ class Scene:
             self.value(source, x+20, y+46, 262, 28, color)
 
     def document(self):
+        # Erős nappali kontraszt; ugyanaz a szerepszín az ikonoknál és a ploton.
+        colors={GREEN:'#16965F', ORANGE:'#C57212', BLUE:'#087FC2', RED:'#D92C5B'} if not self.dark else {}
+        for e in self.elements:
+            if 'color' in e:e['color']=colors.get(e['color'],e['color'])
         assert len(self.elements) <= 96
-        return dict(background=self.bg, elements=self.elements)
+        doc=dict(background=self.bg, elements=self.elements)
+        if not any(e.get('file') in ('day.png','night.png') for e in self.elements):
+            doc['gradient']='#22394A' if self.dark else '#D9F0E6'
+            doc['palette']=dict(pv=colors.get(GREEN,GREEN),home=colors.get(ORANGE,ORANGE),
+                                grid=colors.get(RED,RED),battery=colors.get(BLUE,BLUE))
+            # Sablononként szerkeszthető árnyék, méret és kontraszt a JSON-ban.
+            for e in self.elements:
+                if e['type']=='value':e.update(text_shadow=True,shadow_offset=1,shadow_opacity=40 if not self.dark else 100)
+        return doc
 
 
 def house(dark):
@@ -138,7 +150,7 @@ def paths(dark):
 
 
 def instruments(dark):
-    s = Scene(dark, '#0B1525' if dark else '#EDF1F8')
+    s = Scene(dark, '#151E36' if dark else '#E8E9FA')
     s.header('Műszerfal', 'Pillanatnyi teljesítmény / kW')
     for i, (name, source, color, icon) in enumerate([
         ('TERMELÉS', 'pv', GREEN, 'flow_solar'), ('FOGYASZTÁS', 'home', ORANGE, 'flow_house'),
@@ -275,7 +287,7 @@ def main():
                                ('05-calm-home','Nyugodt otthon',calm),
                                ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
-        doc=dict(schema=1,id=ident,name=name,version=4 if ident=='01-live-home' else 2,
+        doc=dict(schema=1,id=ident,name=name,version=4 if ident=='01-live-home' else 3,
                  light=builder(False).document(),dark=builder(True).document())
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):

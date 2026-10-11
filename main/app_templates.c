@@ -123,6 +123,12 @@ static bool validate_scene(const cJSON *scene){
     static const char *const types[]={"box","label","value","image","bar","gauge","flow","chart","weather",NULL};
     static const char *const sources[]={"pv","home","grid","battery","soc","battery_temp","temperature","wind","clock","date","status","grid_direction","battery_direction","production_today","consumption_today","import_today","export_today","charge_today","discharge_today","pv_home","pv_export","pv_stored",NULL};
     if(!cJSON_IsObject(scene)||!color(str(scene,"background")))return false;
+    if(cJSON_HasObjectItem(scene,"gradient")&&!color(str(scene,"gradient")))return false;
+    const cJSON *palette=cJSON_GetObjectItemCaseSensitive(scene,"palette");
+    if(palette){
+        const char *keys[]={"pv","home","grid","battery",NULL};
+        for(int i=0;keys[i];i++)if(!color(str(palette,keys[i])))return false;
+    }
     const cJSON *elements=cJSON_GetObjectItemCaseSensitive(scene,"elements");
     if(!cJSON_IsArray(elements)||cJSON_GetArraySize(elements)>96)return false;
     const cJSON *e;
@@ -135,6 +141,9 @@ static bool validate_scene(const cJSON *scene){
         if(source&&!one_of(source,sources))return false;
         if(cJSON_HasObjectItem(e,"shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
+        if(cJSON_HasObjectItem(e,"text_shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"text_shadow"))||
+           (strcmp(type,"value")&&strcmp(type,"label"))))return false;
+        if(!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;

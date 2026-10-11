@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 2,
+  "version": 3,
   "light": {
     "background": "#F6F2EA",
     "elements": [
@@ -58,7 +58,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -68,7 +71,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -77,7 +83,8 @@
         "w": 786,
         "h": 500,
         "background": "#FFFEFA",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -119,7 +126,8 @@
         "w": 754,
         "h": 98,
         "background": "#F6F2EA",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -148,7 +156,10 @@
         "h": 40,
         "source": "pv",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -158,7 +169,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -167,7 +181,8 @@
         "w": 754,
         "h": 98,
         "background": "#F6F2EA",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -196,7 +211,10 @@
         "h": 40,
         "source": "home",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -206,7 +224,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -215,7 +236,8 @@
         "w": 754,
         "h": 98,
         "background": "#F6F2EA",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -244,7 +266,10 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -254,7 +279,10 @@
         "h": 40,
         "source": "grid",
         "font": 28,
-        "color": "#E66B6B"
+        "color": "#D92C5B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -264,7 +292,10 @@
         "h": 40,
         "source": "import_today",
         "font": 28,
-        "color": "#E66B6B"
+        "color": "#D92C5B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "label",
@@ -284,7 +315,8 @@
         "w": 754,
         "h": 98,
         "background": "#F6F2EA",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -313,7 +345,10 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -323,7 +358,10 @@
         "h": 40,
         "source": "battery",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -333,7 +371,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "label",
@@ -353,7 +394,8 @@
         "w": 406,
         "h": 238,
         "background": "#FFFEFA",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -374,7 +416,10 @@
         "h": 60,
         "source": "soc",
         "font": 48,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "bar",
@@ -383,7 +428,7 @@
         "w": 350,
         "h": 16,
         "source": "soc",
-        "color": "#559CDE"
+        "color": "#087FC2"
       },
       {
         "type": "value",
@@ -393,7 +438,10 @@
         "h": 40,
         "source": "battery_temp",
         "font": 28,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -402,7 +450,8 @@
         "w": 406,
         "h": 241,
         "background": "#FFFEFA",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -423,7 +472,10 @@
         "h": 60,
         "source": "export_today",
         "font": 48,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "label",
@@ -444,7 +496,10 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -453,7 +508,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFEFA",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -474,7 +530,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -483,7 +542,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFEFA",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -504,7 +564,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -513,7 +576,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFEFA",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -534,7 +598,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -543,7 +610,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFEFA",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -564,9 +632,19 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       }
-    ]
+    ],
+    "gradient": "#D9F0E6",
+    "palette": {
+      "pv": "#16965F",
+      "home": "#C57212",
+      "grid": "#D92C5B",
+      "battery": "#087FC2"
+    }
   },
   "dark": {
     "background": "#18292B",
@@ -623,7 +701,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -633,7 +714,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -642,7 +726,8 @@
         "w": 786,
         "h": 500,
         "background": "#233A3B",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -684,7 +769,8 @@
         "w": 754,
         "h": 98,
         "background": "#18292B",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -713,7 +799,10 @@
         "h": 40,
         "source": "pv",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -723,7 +812,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -732,7 +824,8 @@
         "w": 754,
         "h": 98,
         "background": "#18292B",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -761,7 +854,10 @@
         "h": 40,
         "source": "home",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -771,7 +867,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -780,7 +879,8 @@
         "w": 754,
         "h": 98,
         "background": "#18292B",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -809,7 +909,10 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -819,7 +922,10 @@
         "h": 40,
         "source": "grid",
         "font": 28,
-        "color": "#E66B6B"
+        "color": "#E66B6B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -829,7 +935,10 @@
         "h": 40,
         "source": "import_today",
         "font": 28,
-        "color": "#E66B6B"
+        "color": "#E66B6B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "label",
@@ -849,7 +958,8 @@
         "w": 754,
         "h": 98,
         "background": "#18292B",
-        "radius": 12
+        "radius": 12,
+        "opacity": 235
       },
       {
         "type": "image",
@@ -878,7 +988,10 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -888,7 +1001,10 @@
         "h": 40,
         "source": "battery",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -898,7 +1014,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "label",
@@ -918,7 +1037,8 @@
         "w": 406,
         "h": 238,
         "background": "#233A3B",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -939,7 +1059,10 @@
         "h": 60,
         "source": "soc",
         "font": 48,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "bar",
@@ -958,7 +1081,10 @@
         "h": 40,
         "source": "battery_temp",
         "font": 28,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -967,7 +1093,8 @@
         "w": 406,
         "h": 241,
         "background": "#233A3B",
-        "radius": 16
+        "radius": 16,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -988,7 +1115,10 @@
         "h": 60,
         "source": "export_today",
         "font": 48,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "label",
@@ -1009,7 +1139,10 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -1018,7 +1151,8 @@
         "w": 292,
         "h": 106,
         "background": "#233A3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -1039,7 +1173,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -1048,7 +1185,8 @@
         "w": 292,
         "h": 106,
         "background": "#233A3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -1069,7 +1207,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -1078,7 +1219,8 @@
         "w": 292,
         "h": 106,
         "background": "#233A3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -1099,7 +1241,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -1108,7 +1253,8 @@
         "w": 292,
         "h": 106,
         "background": "#233A3B",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -1129,8 +1275,18 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       }
-    ]
+    ],
+    "gradient": "#22394A",
+    "palette": {
+      "pv": "#36AE7C",
+      "home": "#EA9C3B",
+      "grid": "#E66B6B",
+      "battery": "#559CDE"
+    }
   }
 }

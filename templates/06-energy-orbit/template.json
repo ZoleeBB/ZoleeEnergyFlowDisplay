@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 2,
+  "version": 3,
   "light": {
     "background": "#EFF2FB",
     "elements": [
@@ -58,7 +58,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "value",
@@ -68,7 +71,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -77,7 +83,8 @@
         "w": 1216,
         "h": 502,
         "background": "#FFFFFF",
-        "radius": 36
+        "radius": 36,
+        "opacity": 235
       },
       {
         "type": "flow",
@@ -86,7 +93,7 @@
         "w": 444,
         "h": 237,
         "source": "pv",
-        "color": "#36AE7C",
+        "color": "#16965F",
         "radius": 8,
         "curve": "bezier",
         "points": [
@@ -115,7 +122,7 @@
         "w": 444,
         "h": 230,
         "source": "grid",
-        "color": "#E66B6B",
+        "color": "#D92C5B",
         "radius": 8,
         "curve": "bezier",
         "points": [
@@ -144,7 +151,7 @@
         "w": 391,
         "h": 192,
         "source": "home",
-        "color": "#EA9C3B",
+        "color": "#C57212",
         "radius": 8,
         "curve": "bezier",
         "points": [
@@ -173,7 +180,7 @@
         "w": 391,
         "h": 215,
         "source": "battery",
-        "color": "#559CDE",
+        "color": "#087FC2",
         "radius": 8,
         "curve": "bezier",
         "points": [
@@ -202,7 +209,8 @@
         "w": 276,
         "h": 174,
         "background": "#EFF2FB",
-        "radius": 80
+        "radius": 80,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -224,8 +232,11 @@
         "h": 60,
         "source": "soc",
         "font": 48,
-        "color": "#559CDE",
-        "align": "center"
+        "color": "#087FC2",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "bar",
@@ -234,7 +245,7 @@
         "w": 182,
         "h": 8,
         "source": "soc",
-        "color": "#559CDE"
+        "color": "#087FC2"
       },
       {
         "type": "image",
@@ -264,8 +275,11 @@
         "h": 40,
         "source": "pv",
         "font": 28,
-        "color": "#36AE7C",
-        "align": "center"
+        "color": "#16965F",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "image",
@@ -295,8 +309,11 @@
         "h": 40,
         "source": "grid",
         "font": 28,
-        "color": "#E66B6B",
-        "align": "center"
+        "color": "#D92C5B",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "image",
@@ -326,8 +343,11 @@
         "h": 40,
         "source": "home",
         "font": 28,
-        "color": "#EA9C3B",
-        "align": "center"
+        "color": "#C57212",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "image",
@@ -357,8 +377,11 @@
         "h": 40,
         "source": "battery",
         "font": 28,
-        "color": "#559CDE",
-        "align": "center"
+        "color": "#087FC2",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -367,7 +390,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -388,7 +412,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -397,7 +424,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -418,7 +446,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -427,7 +458,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -448,7 +480,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       },
       {
         "type": "box",
@@ -457,7 +492,8 @@
         "w": 292,
         "h": 106,
         "background": "#FFFFFF",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -478,9 +514,19 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
       }
-    ]
+    ],
+    "gradient": "#D9F0E6",
+    "palette": {
+      "pv": "#16965F",
+      "home": "#C57212",
+      "grid": "#D92C5B",
+      "battery": "#087FC2"
+    }
   },
   "dark": {
     "background": "#11142A",
@@ -537,7 +583,10 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "value",
@@ -547,7 +596,10 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -556,7 +608,8 @@
         "w": 1216,
         "h": 502,
         "background": "#20243F",
-        "radius": 36
+        "radius": 36,
+        "opacity": 235
       },
       {
         "type": "flow",
@@ -681,7 +734,8 @@
         "w": 276,
         "h": 174,
         "background": "#11142A",
-        "radius": 80
+        "radius": 80,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -704,7 +758,10 @@
         "source": "soc",
         "font": 48,
         "color": "#559CDE",
-        "align": "center"
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "bar",
@@ -744,7 +801,10 @@
         "source": "pv",
         "font": 28,
         "color": "#36AE7C",
-        "align": "center"
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "image",
@@ -775,7 +835,10 @@
         "source": "grid",
         "font": 28,
         "color": "#E66B6B",
-        "align": "center"
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "image",
@@ -806,7 +869,10 @@
         "source": "home",
         "font": 28,
         "color": "#EA9C3B",
-        "align": "center"
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "image",
@@ -837,7 +903,10 @@
         "source": "battery",
         "font": 28,
         "color": "#559CDE",
-        "align": "center"
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -846,7 +915,8 @@
         "w": 292,
         "h": 106,
         "background": "#20243F",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -867,7 +937,10 @@
         "h": 40,
         "source": "production_today",
         "font": 28,
-        "color": "#36AE7C"
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -876,7 +949,8 @@
         "w": 292,
         "h": 106,
         "background": "#20243F",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -897,7 +971,10 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -906,7 +983,8 @@
         "w": 292,
         "h": 106,
         "background": "#20243F",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -927,7 +1005,10 @@
         "h": 40,
         "source": "charge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       },
       {
         "type": "box",
@@ -936,7 +1017,8 @@
         "w": 292,
         "h": 106,
         "background": "#20243F",
-        "radius": 22
+        "radius": 22,
+        "opacity": 235
       },
       {
         "type": "label",
@@ -957,8 +1039,18 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE"
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
       }
-    ]
+    ],
+    "gradient": "#22394A",
+    "palette": {
+      "pv": "#36AE7C",
+      "home": "#EA9C3B",
+      "grid": "#E66B6B",
+      "battery": "#559CDE"
+    }
   }
 }

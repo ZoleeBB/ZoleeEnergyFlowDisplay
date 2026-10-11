@@ -93,12 +93,25 @@ static void template_build(bool night){
     s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
     lv_obj_set_style_radius(s_dash,0,0);
     lv_obj_set_style_bg_color(s_dash,c(tc(scene,"background",BG_LIGHT)),0);
+    if(*ts(scene,"gradient")){
+        lv_obj_set_style_bg_grad_color(s_dash,c(tc(scene,"gradient",BG_LIGHT)),0);
+        lv_obj_set_style_bg_grad_dir(s_dash,LV_GRAD_DIR_HOR,0);
+    }
+    const cJSON *palette=cJSON_GetObjectItem(scene,"palette");
     lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);lv_obj_add_event_cb(s_dash,template_gesture,LV_EVENT_GESTURE,NULL);
     const cJSON *e;cJSON_ArrayForEach(e,cJSON_GetObjectItem(scene,"elements")){
         template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;
         const char *type=ts(e,"type");int x=tn(e,"x",0),y=tn(e,"y",0),w=tn(e,"w",1),h=tn(e,"h",1);
         uint32_t text=tc(e,"color",night?TEXT_DARK:TEXT_LIGHT);
         if(!strcmp(type,"label")||!strcmp(type,"value")){
+            if(cJSON_IsTrue(cJSON_GetObjectItem(e,"text_shadow"))){
+                int offset=tn(e,"shadow_offset",1);
+                node->detail=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",
+                    x+offset,y+offset,tf(tn(e,"font",20)),0x000000);
+                lv_obj_set_size(node->detail,w,h);lv_label_set_long_mode(node->detail,LV_LABEL_LONG_MODE_DOTS);
+                lv_obj_set_style_text_opa(node->detail,tn(e,"shadow_opacity",100),0);
+                if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->detail,LV_TEXT_ALIGN_CENTER,0);
+            }
             node->obj=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",x,y,tf(tn(e,"font",20)),text);
             lv_obj_set_size(node->obj,w,h);lv_label_set_long_mode(node->obj,LV_LABEL_LONG_MODE_DOTS);
             if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->obj,LV_TEXT_ALIGN_CENTER,0);
@@ -121,7 +134,7 @@ static void template_build(bool night){
             lv_obj_set_style_arc_color(node->obj,c(tc(e,"background",night?0x25394A:0xDFE8ED)),0);lv_obj_set_style_arc_width(node->obj,12,0);lv_obj_set_style_opa(node->obj,LV_OPA_TRANSP,LV_PART_KNOB);
         }else if(!strcmp(type,"chart")){
             bool consumption=!strcmp(ts(e,"kind"),"consumption");
-            node->obj=app_chart_create(s_dash,consumption,night,tone(consumption?RED:GREEN,night),tone(consumption?GREEN:ORANGE,night),tone(BLUE,night));
+            node->obj=app_chart_create(s_dash,consumption,night,tc(palette,consumption?"grid":"pv",tone(consumption?RED:GREEN,night)),tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night)),tc(palette,"battery",tone(BLUE,night)));
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);
             for(int i=0;i<3;i++)node->axis[i]=lbl(s_dash,"",x,y+(h-35)*i/2,APP_FONT_12,text);
             for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(s_dash,time,x+20+(w-46)*i/4,y+h-19,APP_FONT_12,text);}
@@ -143,7 +156,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
         double value=template_value(source,s,stats);node->power=value;
-        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);lv_label_set_text(node->obj,text);}
+        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);lv_label_set_text(node->obj,text);if(node->detail)lv_label_set_text(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
             if(!strcmp(source,"soc"))lv_obj_set_style_bg_color(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
