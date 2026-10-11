@@ -85,3 +85,11 @@ A kártya jelenlétét a firmware 5 másodpercenként SDMMC státuszparanccsal v
 
 A rendszer csak a mai és a tegnapi statisztikai napot tartja meg.
 
+
+## Heti/havi statisztika és pénzügyek
+
+35 helyi naptári nap megőrzése, hétfőtől vasárnapig tartó hét és aktuális naptári hónap. A hiányzó napok külön jelöltek, nem nulla mérésként szerepelnek. A mai nap részleges. A v3 fájlok SOC-átlagot és időben integrált forrásenergiát is tartalmaznak; v1/v2 fájlok továbbra is olvashatók, forrásarányaik közelítettek, SOC-görbéjük hiányzó.
+
+Önellátás = (közvetlen PV a háznak + akkumulátorból a háznak) / fogyasztás. Helyben felhasználás = (PV a háznak + PV tárolás) / termelés. A forrásfelosztás becslés: PV először a háznak, majd tárolásra; az akkumulátor nem exportál. A hálózatról korábban töltött akkumulátor eredete ebből a mérésből nem állapítható meg.
+
+Vásárlási költség = import × vételi tarifa; bevétel = export × visszatáplálási tarifa. Becsült megtakarítás = helyi házellátás × vételi tarifa + bevétel; nettó költség = vásárlás − bevétel. A napi/havi értékek a jelenlegi konfigurált tarifákkal számolódnak; a tarifa időbeli változása nincs historizálva.

@@ -20,6 +20,7 @@ typedef struct {
     double grid_export_kwh;
     double battery_charge_kwh;
     double battery_discharge_kwh;
+    double pv_home_kwh, pv_export_kwh, pv_stored_kwh, grid_home_kwh, battery_home_kwh;
 } app_energy_totals_t;
 
 /*
@@ -34,10 +35,30 @@ typedef struct {
     float load_kw;
     float grid_kw;
     float battery_kw;
+    float soc_pct;
+    bool soc_valid;
     app_energy_totals_t energy;
     app_energy_split_t split; /* Mintánként szétválasztott, majd átlagolt kW. */
     bool chart_gap; /* Hiányos ötperces ablak: a grafikon nem köti át. */
 } app_stats_slot_t;
+
+#define APP_STATS_HISTORY_DAYS 35
+typedef struct {
+    char date[11];
+    bool valid;
+    app_energy_totals_t totals;
+} app_stats_day_t;
+typedef struct {
+    app_stats_day_t days[31];
+    unsigned count;
+    app_energy_totals_t totals;
+} app_stats_period_t;
+typedef struct {
+    double self_sufficiency_pct, self_consumption_pct;
+    double purchase_cost, export_revenue, savings, net_cost;
+} app_stats_metrics_t;
+void app_stats_get_period(bool month, app_stats_period_t *out);
+app_stats_metrics_t app_stats_metrics(const app_energy_totals_t *totals, const app_energy_config_t *cfg);
 
 /*
  * A UI számára készített teljes snapshot.

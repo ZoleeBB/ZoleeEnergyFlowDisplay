@@ -32,7 +32,7 @@
 
 #define STATS_DIR APP_SD_MOUNT_POINT "/stats"
 #define STATS_FILE_MAX (512 * 1024)
-#define STATS_VERSION 2
+#define STATS_VERSION 3
 
 static const char *TAG = "stats";
 
@@ -51,6 +51,7 @@ static SemaphoreHandle_t s_save_mutex;
 static app_config_t s_cfg;
 static day_data_t s_today;
 static day_data_t s_yesterday;
+static app_stats_day_t s_history[APP_STATS_HISTORY_DAYS];
 static bool s_have_prev;
 static bool s_task_started;
 static app_energy_sample_t s_prev;
@@ -104,6 +105,9 @@ static void totals_add(app_energy_totals_t *dst, const app_energy_totals_t *src)
     dst->grid_export_kwh += src->grid_export_kwh;
     dst->battery_charge_kwh += src->battery_charge_kwh;
     dst->battery_discharge_kwh += src->battery_discharge_kwh;
+#define ADD(field) dst->field += src->field
+    ADD(pv_home_kwh); ADD(pv_export_kwh); ADD(pv_stored_kwh); ADD(grid_home_kwh); ADD(battery_home_kwh);
+#undef ADD
 }
 
 /* Két teljesítményminta közötti energia számítása trapézszabállyal. */
@@ -178,6 +182,25 @@ static app_energy_totals_t energy_between(
         }
     }
 
+    /* A min/max felosztás töréspontjainál vágunk, így az energiaarányok
+     * előjelváltás és PV/ház keresztezés esetén sem mintaszám-függők. */
+    double cuts[5]={0,1}; int n=2;
+    double av[]={a->power_pv_kw-a->power_full_kw,a->power_bat_kw,
+                 a->power_pv_kw-a->power_full_kw+a->power_bat_kw};
+    double bv[]={b->power_pv_kw-b->power_full_kw,b->power_bat_kw,
+                 b->power_pv_kw-b->power_full_kw+b->power_bat_kw};
+    for(int i=0;i<3;i++)if(av[i]*bv[i]<0)cuts[n++]=av[i]/(av[i]-bv[i]);
+    for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(cuts[j]<cuts[i]){double t=cuts[i];cuts[i]=cuts[j];cuts[j]=t;}
+    for(int i=1;i<n;i++){
+        double x=cuts[i-1],y=cuts[i];
+        app_energy_split_t u=app_energy_split(a->power_pv_kw+(b->power_pv_kw-a->power_pv_kw)*x,
+            a->power_full_kw+(b->power_full_kw-a->power_full_kw)*x,a->power_bat_kw+(b->power_bat_kw-a->power_bat_kw)*x);
+        app_energy_split_t v=app_energy_split(a->power_pv_kw+(b->power_pv_kw-a->power_pv_kw)*y,
+            a->power_full_kw+(b->power_full_kw-a->power_full_kw)*y,a->power_bat_kw+(b->power_bat_kw-a->power_bat_kw)*y);
+#define INTEGRATE(field) result.field##_kwh+=(u.field+v.field)*.5*hours*(y-x)
+        INTEGRATE(pv_home); INTEGRATE(pv_export); INTEGRATE(pv_stored); INTEGRATE(grid_home); INTEGRATE(battery_home);
+#undef INTEGRATE
+    }
     return result;
 }
 
@@ -209,6 +232,8 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     slot->battery_kw += ((float)sample->power_bat_kw - slot->battery_kw) / n;
     app_energy_split_average(&slot->split,app_energy_split(sample->power_pv_kw,
         sample->power_full_kw,sample->power_bat_kw),n);
+    slot->soc_pct += ((float)sample->soc_bat_pct-slot->soc_pct)/n;
+    slot->soc_valid = true;
     slot->valid = true;
 }
 
@@ -281,6 +306,10 @@ static cJSON *totals_to_json(const app_energy_totals_t *totals)
     cJSON_AddNumberToObject(obj, "grid_export_kwh", totals->grid_export_kwh);
     cJSON_AddNumberToObject(obj, "battery_charge_kwh", totals->battery_charge_kwh);
     cJSON_AddNumberToObject(obj, "battery_discharge_kwh", totals->battery_discharge_kwh);
+#define SAVE_ENERGY(field) cJSON_AddNumberToObject(obj,#field,totals->field)
+    SAVE_ENERGY(pv_home_kwh); SAVE_ENERGY(pv_export_kwh); SAVE_ENERGY(pv_stored_kwh);
+    SAVE_ENERGY(grid_home_kwh); SAVE_ENERGY(battery_home_kwh);
+#undef SAVE_ENERGY
     return obj;
 }
 
@@ -319,6 +348,12 @@ static bool totals_from_json(cJSON *obj, app_energy_totals_t *totals)
         *values[i] = value->valuedouble;
     }
 
+#define LOAD_ENERGY(field) do { cJSON *v=cJSON_GetObjectItemCaseSensitive(obj,#field); \
+    if(v && (!cJSON_IsNumber(v)||!isfinite(v->valuedouble)||v->valuedouble<0))return false; \
+    totals->field=v?v->valuedouble:0; } while(0)
+    LOAD_ENERGY(pv_home_kwh); LOAD_ENERGY(pv_export_kwh); LOAD_ENERGY(pv_stored_kwh);
+    LOAD_ENERGY(grid_home_kwh); LOAD_ENERGY(battery_home_kwh);
+#undef LOAD_ENERGY
     return true;
 }
 
@@ -355,6 +390,8 @@ static cJSON *day_to_json(const day_data_t *day)
         cJSON_AddNumberToObject(obj, "load", slot->load_kw);
         cJSON_AddNumberToObject(obj, "grid", slot->grid_kw);
         cJSON_AddNumberToObject(obj, "battery", slot->battery_kw);
+        cJSON_AddNumberToObject(obj,"soc",slot->soc_pct);
+        cJSON_AddBoolToObject(obj,"soc_valid",slot->soc_valid);
         cJSON_AddItemToObject(obj, "energy", totals_to_json(&slot->energy));
         cJSON_AddBoolToObject(obj,"chart_gap",slot->chart_gap);
         cJSON *split=cJSON_AddObjectToObject(obj,"split");
@@ -382,7 +419,7 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     cJSON *slots = cJSON_GetObjectItemCaseSensitive(root, "slots");
 
     if (!cJSON_IsNumber(version) ||
-        (version->valuedouble != 1 && version->valuedouble != STATS_VERSION) ||
+        (version->valuedouble != 1 && version->valuedouble != 2 && version->valuedouble != STATS_VERSION) ||
         !cJSON_IsString(date) ||
         strcmp(date->valuestring, expected_date) != 0 ||
         !cJSON_IsArray(slots) ||
@@ -436,6 +473,12 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
         parsed->slots[i].grid_kw = (float)grid->valuedouble;
         parsed->slots[i].battery_kw = (float)battery->valuedouble;
         app_stats_slot_t *slot=&parsed->slots[i];
+        if(version->valuedouble>=3){
+            cJSON *soc=cJSON_GetObjectItemCaseSensitive(obj,"soc");
+            cJSON *soc_valid=cJSON_GetObjectItemCaseSensitive(obj,"soc_valid");
+            if(!cJSON_IsNumber(soc)||!isfinite(soc->valuedouble)||soc->valuedouble<0||soc->valuedouble>100||!cJSON_IsBool(soc_valid))goto invalid;
+            slot->soc_pct=soc->valuedouble;slot->soc_valid=cJSON_IsTrue(soc_valid);
+        }
         if(version->valuedouble==1){
             /* Régi fájlokból csak az átlagok szerinti közelítés lehetséges. */
             slot->split=app_energy_split(slot->pv_kw,slot->load_kw,slot->battery_kw);
@@ -465,6 +508,26 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     MATCH_TOTAL(grid_import_kwh); MATCH_TOTAL(grid_export_kwh);
     MATCH_TOTAL(battery_charge_kwh); MATCH_TOTAL(battery_discharge_kwh);
 #undef MATCH_TOTAL
+    if(version->valuedouble<3){
+        /* Régi napokra az átlagolt forrásarányok energiaarányos becslése. */
+        for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
+            app_stats_slot_t *slot=&parsed->slots[i];
+            double pv=slot->pv_kw,load=slot->load_kw;
+            slot->energy.pv_home_kwh=pv>0?slot->energy.production_kwh*slot->split.pv_home/pv:0;
+            slot->energy.pv_export_kwh=pv>0?slot->energy.production_kwh*slot->split.pv_export/pv:0;
+            slot->energy.pv_stored_kwh=pv>0?slot->energy.production_kwh*slot->split.pv_stored/pv:0;
+            slot->energy.grid_home_kwh=load>0?slot->energy.consumption_kwh*slot->split.grid_home/load:0;
+            slot->energy.battery_home_kwh=load>0?slot->energy.consumption_kwh*slot->split.battery_home/load:0;
+        }
+        parsed->totals.pv_home_kwh=parsed->totals.pv_export_kwh=parsed->totals.pv_stored_kwh=0;
+        parsed->totals.grid_home_kwh=parsed->totals.battery_home_kwh=0;
+        for(int i=0;i<APP_STATS_SLOT_COUNT;i++){
+            app_energy_totals_t *e=&parsed->slots[i].energy;
+            parsed->totals.pv_home_kwh+=e->pv_home_kwh;parsed->totals.pv_export_kwh+=e->pv_export_kwh;
+            parsed->totals.pv_stored_kwh+=e->pv_stored_kwh;parsed->totals.grid_home_kwh+=e->grid_home_kwh;
+            parsed->totals.battery_home_kwh+=e->battery_home_kwh;
+        }
+    }
     parsed->valid = true;
     *out = *parsed;
     free(parsed);
@@ -660,6 +723,10 @@ static void reset_today(const char *date)
 /* A mai és tegnapi dátumnál régebbi statisztikai állományok törlése. */
 static void cleanup_old_files(const char *today, const char *yesterday)
 {
+    (void)yesterday;
+    struct tm oldest;time_t epoch=time(NULL);localtime_r(&epoch,&oldest);
+    oldest.tm_mday-=APP_STATS_HISTORY_DAYS-1;oldest.tm_isdst=-1;
+    char cutoff[11];date_for(mktime(&oldest),cutoff);
     DIR *dir = opendir(STATS_DIR);
     if (!dir) {
         return;
@@ -677,8 +744,7 @@ static void cleanup_old_files(const char *today, const char *yesterday)
         char date[11] = {0};
         memcpy(date, entry->d_name, 10);
 
-        if (strcmp(date, today) == 0 ||
-            strcmp(date, yesterday) == 0) {
+        if (strcmp(date, cutoff)>=0 && strcmp(date, today)<=0) {
             continue;
         }
 
@@ -690,6 +756,17 @@ static void cleanup_old_files(const char *today, const char *yesterday)
     closedir(dir);
 }
 
+static void history_put(const day_data_t *day){
+    if(!day->valid)return;
+    unsigned index=0;
+    for(unsigned i=0;i<APP_STATS_HISTORY_DAYS;i++){
+        if(!strcmp(s_history[i].date,day->date)){index=i;goto put;}
+        if(strcmp(s_history[i].date,s_history[index].date)<0)index=i;
+    }
+put: s_history[index]=(app_stats_day_t){.valid=true,.totals=day->totals};
+    snprintf(s_history[index].date,11,"%s",day->date);
+}
+
 /* RAM-napváltás I/O nélkül. Az előző minta megmarad az éjféli intervallum vágásához. */
 static void roll_day(time_t now)
 {
@@ -697,6 +774,7 @@ static void roll_day(time_t now)
     date_for(now,current);
     if(strcmp(current,s_today.date)<=0)return;
     yesterday_for(now,yesterday);
+    history_put(&s_today);
     if(s_today.valid && strcmp(s_today.date,yesterday)==0)s_yesterday=s_today;
     else memset(&s_yesterday,0,sizeof(s_yesterday));
     reset_today(current);
@@ -810,6 +888,15 @@ esp_err_t app_stats_init(const app_config_t *cfg)
         memset(&s_yesterday, 0, sizeof(s_yesterday));
     }
 
+    memset(s_history,0,sizeof(s_history));
+    day_data_t *historical=malloc(sizeof(*historical));
+    if(!historical){xSemaphoreGive(s_mutex);return ESP_ERR_NO_MEM;}
+    for(int i=2;i<APP_STATS_HISTORY_DAYS;i++){
+        struct tm tmv;localtime_r(&now,&tmv);tmv.tm_mday-=i;tmv.tm_isdst=-1;
+        char date[11];date_for(mktime(&tmv),date);
+        if(load_day(date,historical)==ESP_OK)history_put(historical);
+    }
+    free(historical);
     cleanup_old_files(today, yesterday);
     s_have_prev = false;
     s_last_save_us = esp_timer_get_time();
@@ -970,4 +1057,37 @@ esp_err_t app_stats_start_task(void)
     if(xTaskCreate(stats_task,"stats",6144,NULL,4,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
     s_task_started=true;
     return ESP_OK;
+}
+
+/* Naptári hét (hétfőtől) vagy aktuális hónap; hiányzó nap nem nulla mérés. */
+void app_stats_get_period(bool month,app_stats_period_t *out){
+    if(!out)return;
+    memset(out,0,sizeof(*out));if(!s_mutex)return;
+    time_t now=time(NULL);struct tm local;localtime_r(&now,&local);
+    local.tm_hour=local.tm_min=local.tm_sec=0;
+    if(month)local.tm_mday=1;else local.tm_mday-=(local.tm_wday+6)%7;
+    int original_month=local.tm_mon;out->count=month?31:7;
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    for(unsigned i=0;i<out->count;i++){
+        struct tm day=local;day.tm_mday+=(int)i;day.tm_isdst=-1;time_t epoch=mktime(&day);
+        if(month&&day.tm_mon!=original_month){out->count=i;break;}
+        app_stats_day_t *target=&out->days[i];date_for(epoch,target->date);
+        const day_data_t *current=!strcmp(target->date,s_today.date)?&s_today:
+            !strcmp(target->date,s_yesterday.date)?&s_yesterday:NULL;
+        if(current&&current->valid){target->valid=true;target->totals=current->totals;}
+        else for(unsigned j=0;j<APP_STATS_HISTORY_DAYS;j++)if(!strcmp(target->date,s_history[j].date)){*target=s_history[j];break;}
+        if(target->valid)totals_add(&out->totals,&target->totals);
+    }
+    xSemaphoreGive(s_mutex);
+}
+app_stats_metrics_t app_stats_metrics(const app_energy_totals_t *t,const app_energy_config_t *cfg){
+    double local=t->pv_home_kwh+t->battery_home_kwh;
+    return (app_stats_metrics_t){
+        .self_sufficiency_pct=t->consumption_kwh>0?fmin(100,100*local/t->consumption_kwh):0,
+        .self_consumption_pct=t->production_kwh>0?fmin(100,100*(t->pv_home_kwh+t->pv_stored_kwh)/t->production_kwh):0,
+        .purchase_cost=t->grid_import_kwh*cfg->electricity_purchase_price,
+        .export_revenue=t->grid_export_kwh*cfg->feed_in_price,
+        .net_cost=t->grid_import_kwh*cfg->electricity_purchase_price-t->grid_export_kwh*cfg->feed_in_price,
+        .savings=local*cfg->electricity_purchase_price+t->grid_export_kwh*cfg->feed_in_price
+    };
 }
