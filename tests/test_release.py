@@ -70,6 +70,10 @@ class ReleaseTests(unittest.TestCase):
         manifest = json.loads((unpack/'flasher_args.json').read_text())
         self.assertEqual(manifest['flash_files'],self.flash)
         self.assertEqual((unpack/'app.bin').read_bytes(),ota.read_bytes())
+        for name in ('templates.md','template-authoring.md','template-icon-prompts.json',
+                     'previews/templates.png','previews/template-icons.png','previews/live-home-flow.gif'):
+            self.assertTrue((unpack/name).is_file(),name)
+        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),8)
         cmd = command(unpack,'COM5',115200)
         self.assertIn('--no-stub',cmd)
         for address,name in self.flash.items():

@@ -1,0 +1,1186 @@
+{
+  "schema": 1,
+  "id": "02-energy-paths",
+  "name": "Energiautak",
+  "version": 7,
+  "light": {
+    "background": "#F4F7F1",
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-day.png"
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "background": "#F4F7F1",
+        "opacity": 174,
+        "radius": 0
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Flow Monitor",
+        "text_en": "Energy Flow Monitor",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 464,
+        "h": 38,
+        "text": "Energiautak",
+        "text_en": "Energiautak",
+        "font": 28,
+        "color": "#19352F"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 464,
+        "h": 26,
+        "text": "Honnan érkezik és merre halad az energia?",
+        "text_en": "Honnan érkezik és merre halad az energia?",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 126,
+        "w": 1216,
+        "h": 496,
+        "background": "#FFFFFF",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "flow",
+        "x": 244,
+        "y": 240,
+        "w": 377,
+        "h": 139,
+        "source": "pv",
+        "color": "#16965F",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 186,
+            "y": 0
+          },
+          {
+            "x": 216,
+            "y": 138
+          },
+          {
+            "x": 376,
+            "y": 138
+          }
+        ]
+      },
+      {
+        "type": "flow",
+        "x": 244,
+        "y": 378,
+        "w": 377,
+        "h": 98,
+        "source": "grid",
+        "color": "#C57212",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 97
+          },
+          {
+            "x": 186,
+            "y": 97
+          },
+          {
+            "x": 216,
+            "y": 0
+          },
+          {
+            "x": 376,
+            "y": 0
+          }
+        ],
+        "positive_color": "#C57212",
+        "negative_color": "#FFEB38"
+      },
+      {
+        "type": "flow",
+        "x": 650,
+        "y": 235,
+        "w": 371,
+        "h": 144,
+        "source": "home",
+        "color": "#F04438",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 143
+          },
+          {
+            "x": 160,
+            "y": 143
+          },
+          {
+            "x": 185,
+            "y": 0
+          },
+          {
+            "x": 370,
+            "y": 0
+          }
+        ]
+      },
+      {
+        "type": "flow",
+        "x": 650,
+        "y": 378,
+        "w": 371,
+        "h": 98,
+        "source": "battery",
+        "color": "#087FC2",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 370,
+            "y": 97
+          },
+          {
+            "x": 185,
+            "y": 97
+          },
+          {
+            "x": 160,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
+      },
+      {
+        "type": "image",
+        "x": 100,
+        "y": 160,
+        "w": 100,
+        "h": 100,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 70,
+        "y": 265,
+        "w": 205,
+        "h": 26,
+        "text": "Napelemek",
+        "text_en": "Napelemek",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 65,
+        "y": 295,
+        "w": 215,
+        "h": 40,
+        "source": "pv",
+        "font": 28,
+        "color": "#16965F",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "image",
+        "x": 100,
+        "y": 390,
+        "w": 100,
+        "h": 100,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "label",
+        "x": 70,
+        "y": 495,
+        "w": 205,
+        "h": 26,
+        "text": "Hálózat",
+        "text_en": "Hálózat",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 65,
+        "y": 525,
+        "w": 215,
+        "h": 40,
+        "source": "grid",
+        "font": 28,
+        "color": "#C57212",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "image",
+        "x": 1030,
+        "y": 150,
+        "w": 100,
+        "h": 100,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 1000,
+        "y": 255,
+        "w": 205,
+        "h": 26,
+        "text": "Otthon",
+        "text_en": "Otthon",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 995,
+        "y": 285,
+        "w": 215,
+        "h": 40,
+        "source": "home",
+        "font": 28,
+        "color": "#16965F",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "image",
+        "x": 1030,
+        "y": 380,
+        "w": 100,
+        "h": 100,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 1000,
+        "y": 485,
+        "w": 205,
+        "h": 26,
+        "text": "Tároló",
+        "text_en": "Tároló",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 995,
+        "y": 515,
+        "w": 215,
+        "h": 40,
+        "source": "battery",
+        "font": 28,
+        "color": "#087FC2",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 530,
+        "y": 326,
+        "w": 220,
+        "h": 142,
+        "background": "#F4F7F1",
+        "radius": 70,
+        "opacity": 130
+      },
+      {
+        "type": "image",
+        "x": 595,
+        "y": 329,
+        "w": 90,
+        "h": 90,
+        "file": "flow_hub.png"
+      },
+      {
+        "type": "label",
+        "x": 553,
+        "y": 425,
+        "w": 175,
+        "h": 26,
+        "text": "ENERGIA",
+        "text_en": "ENERGIA",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 440,
+        "y": 558,
+        "w": 400,
+        "h": 28,
+        "source": "status",
+        "font": 16,
+        "color": "#657A75",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "weather",
+        "x": 814,
+        "y": 20,
+        "w": 60,
+        "h": 60,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 882,
+        "y": 20,
+        "w": 182,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "value",
+        "x": 882,
+        "y": 52,
+        "w": 182,
+        "h": 28,
+        "source": "wind",
+        "font": 16,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#16965F",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#C57212",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#FFFFFF",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#087FC2",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 40
+      }
+    ],
+    "palette": {
+      "pv": "#16965F",
+      "home": "#C57212",
+      "grid": "#D92C5B",
+      "battery": "#087FC2"
+    }
+  },
+  "dark": {
+    "background": "#13272A",
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-night.png"
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "background": "#13272A",
+        "opacity": 164,
+        "radius": 0
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 24,
+        "w": 150,
+        "h": 38,
+        "text": "Zolee",
+        "text_en": "Zolee",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 59,
+        "w": 250,
+        "h": 26,
+        "text": "Energy Flow Monitor",
+        "text_en": "Energy Flow Monitor",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 24,
+        "w": 464,
+        "h": 38,
+        "text": "Energiautak",
+        "text_en": "Energiautak",
+        "font": 28,
+        "color": "#EDF4F8"
+      },
+      {
+        "type": "label",
+        "x": 338,
+        "y": 60,
+        "w": 464,
+        "h": 26,
+        "text": "Honnan érkezik és merre halad az energia?",
+        "text_en": "Honnan érkezik és merre halad az energia?",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 1080,
+        "y": 20,
+        "w": 175,
+        "h": 60,
+        "source": "clock",
+        "font": 48,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "value",
+        "x": 1090,
+        "y": 75,
+        "w": 155,
+        "h": 28,
+        "source": "date",
+        "font": 16,
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 126,
+        "w": 1216,
+        "h": 496,
+        "background": "#1B2C3B",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "flow",
+        "x": 244,
+        "y": 240,
+        "w": 377,
+        "h": 139,
+        "source": "pv",
+        "color": "#36AE7C",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 186,
+            "y": 0
+          },
+          {
+            "x": 216,
+            "y": 138
+          },
+          {
+            "x": 376,
+            "y": 138
+          }
+        ]
+      },
+      {
+        "type": "flow",
+        "x": 244,
+        "y": 378,
+        "w": 377,
+        "h": 98,
+        "source": "grid",
+        "color": "#EA9C3B",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 97
+          },
+          {
+            "x": 186,
+            "y": 97
+          },
+          {
+            "x": 216,
+            "y": 0
+          },
+          {
+            "x": 376,
+            "y": 0
+          }
+        ],
+        "positive_color": "#EA9C3B",
+        "negative_color": "#FFEB38"
+      },
+      {
+        "type": "flow",
+        "x": 650,
+        "y": 235,
+        "w": 371,
+        "h": 144,
+        "source": "home",
+        "color": "#F04438",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 0,
+            "y": 143
+          },
+          {
+            "x": 160,
+            "y": 143
+          },
+          {
+            "x": 185,
+            "y": 0
+          },
+          {
+            "x": 370,
+            "y": 0
+          }
+        ]
+      },
+      {
+        "type": "flow",
+        "x": 650,
+        "y": 378,
+        "w": 371,
+        "h": 98,
+        "source": "battery",
+        "color": "#559CDE",
+        "radius": 28,
+        "curve": "bezier",
+        "glow": 10,
+        "points": [
+          {
+            "x": 370,
+            "y": 97
+          },
+          {
+            "x": 185,
+            "y": 97
+          },
+          {
+            "x": 160,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
+      },
+      {
+        "type": "image",
+        "x": 100,
+        "y": 160,
+        "w": 100,
+        "h": 100,
+        "file": "flow_solar.png"
+      },
+      {
+        "type": "label",
+        "x": 70,
+        "y": 265,
+        "w": 205,
+        "h": 26,
+        "text": "Napelemek",
+        "text_en": "Napelemek",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 65,
+        "y": 295,
+        "w": 215,
+        "h": 40,
+        "source": "pv",
+        "font": 28,
+        "color": "#36AE7C",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "image",
+        "x": 100,
+        "y": 390,
+        "w": 100,
+        "h": 100,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "label",
+        "x": 70,
+        "y": 495,
+        "w": 205,
+        "h": 26,
+        "text": "Hálózat",
+        "text_en": "Hálózat",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 65,
+        "y": 525,
+        "w": 215,
+        "h": 40,
+        "source": "grid",
+        "font": 28,
+        "color": "#EA9C3B",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "image",
+        "x": 1030,
+        "y": 150,
+        "w": 100,
+        "h": 100,
+        "file": "flow_house.png"
+      },
+      {
+        "type": "label",
+        "x": 1000,
+        "y": 255,
+        "w": 205,
+        "h": 26,
+        "text": "Otthon",
+        "text_en": "Otthon",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 995,
+        "y": 285,
+        "w": 215,
+        "h": 40,
+        "source": "home",
+        "font": 28,
+        "color": "#36AE7C",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "image",
+        "x": 1030,
+        "y": 380,
+        "w": 100,
+        "h": 100,
+        "file": "flow_battery.png"
+      },
+      {
+        "type": "label",
+        "x": 1000,
+        "y": 485,
+        "w": 205,
+        "h": 26,
+        "text": "Tároló",
+        "text_en": "Tároló",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 995,
+        "y": 515,
+        "w": 215,
+        "h": 40,
+        "source": "battery",
+        "font": 28,
+        "color": "#559CDE",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 530,
+        "y": 326,
+        "w": 220,
+        "h": 142,
+        "background": "#13272A",
+        "radius": 70,
+        "opacity": 130
+      },
+      {
+        "type": "image",
+        "x": 595,
+        "y": 329,
+        "w": 90,
+        "h": 90,
+        "file": "flow_hub.png"
+      },
+      {
+        "type": "label",
+        "x": 553,
+        "y": 425,
+        "w": 175,
+        "h": 26,
+        "text": "ENERGIA",
+        "text_en": "ENERGIA",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 440,
+        "y": 558,
+        "w": 400,
+        "h": 28,
+        "source": "status",
+        "font": 16,
+        "color": "#A2B5BE",
+        "align": "center",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "weather",
+        "x": 814,
+        "y": 20,
+        "w": 60,
+        "h": 60,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 882,
+        "y": 20,
+        "w": 182,
+        "h": 32,
+        "source": "temperature",
+        "font": 20,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "value",
+        "x": 882,
+        "y": 52,
+        "w": 182,
+        "h": 28,
+        "source": "wind",
+        "font": 16,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 32,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 52,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Termelés ma",
+        "text_en": "Termelés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 52,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "production_today",
+        "font": 28,
+        "color": "#36AE7C",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 340,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 360,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Fogyasztás ma",
+        "text_en": "Fogyasztás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 360,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "consumption_today",
+        "font": 28,
+        "color": "#EA9C3B",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 668,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. töltés ma",
+        "text_en": "Össz. töltés ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 668,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "box",
+        "x": 956,
+        "y": 650,
+        "w": 292,
+        "h": 106,
+        "background": "#1B2C3B",
+        "radius": 22,
+        "opacity": 130
+      },
+      {
+        "type": "label",
+        "x": 976,
+        "y": 666,
+        "w": 260,
+        "h": 26,
+        "text": "Össz. leadás ma",
+        "text_en": "Össz. leadás ma",
+        "font": 16,
+        "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 976,
+        "y": 696,
+        "w": 262,
+        "h": 40,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#559CDE",
+        "text_shadow": true,
+        "shadow_offset": 1,
+        "shadow_opacity": 100
+      }
+    ],
+    "palette": {
+      "pv": "#36AE7C",
+      "home": "#EA9C3B",
+      "grid": "#E66B6B",
+      "battery": "#559CDE"
+    }
+  }
+}

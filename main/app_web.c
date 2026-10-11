@@ -12,6 +12,8 @@
  */
 #include "app_web.h"
 #include "app_http.h"
+#include "app_templates.h"
+#include "app_diagnostics.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -482,11 +484,11 @@ static esp_err_t root_handler(httpd_req_t *req)
     httpd_resp_send_chunk(
         req,
         s_hu
-            ? "<div class='card'><a href='/update'>Firmware frissítés</a>"
+            ? "<div class='card'><a href='/templates'>Sablonkezelő</a> | <a href='/update'>Firmware frissítés</a>"
               "<form method='post' action='/reboot' style='display:inline' "
               "onsubmit=\"return confirm('Biztosan újraindítod az eszközt?')\">"
               "<button type='submit'>Eszköz újraindítása</button></form></div>"
-            : "<div class='card'><a href='/update'>Firmware update</a>"
+            : "<div class='card'><a href='/templates'>Templates</a> | <a href='/update'>Firmware update</a>"
               "<form method='post' action='/reboot' style='display:inline' "
               "onsubmit=\"return confirm('Restart the device?')\">"
               "<button type='submit'>Restart device</button></form></div>",
@@ -713,7 +715,38 @@ static esp_err_t ota_post(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t diagnostics_get(httpd_req_t *req){
+    if(!authorize(req))return ESP_OK;
+    app_diagnostics_t d;app_diagnostics_capture(&d);
+    cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
+    cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
+    cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
+    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddBoolToObject(o,"data_ready",app_state_data_ready(&d.runtime));
+    cJSON_AddBoolToObject(o,"mqtt_connected",d.runtime.mqtt_connected);
+    cJSON_AddBoolToObject(o,"sd_ok",d.runtime.sd_ok);cJSON_AddBoolToObject(o,"time_synced",d.runtime.time_synced);
+    if(d.packet_age_seconds<0)cJSON_AddNullToObject(o,"packet_age_seconds");else cJSON_AddNumberToObject(o,"packet_age_seconds",d.packet_age_seconds);
+    cJSON_AddStringToObject(o,"firmware",d.firmware);cJSON_AddNumberToObject(o,"uptime_seconds",d.uptime_seconds);
+    cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
+    char *json=cJSON_PrintUnformatted(o);cJSON_Delete(o);if(!json)return ESP_ERR_NO_MEM;
+    httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
+}
+static esp_err_t diagnostics_page(httpd_req_t *req){
+    if(!authorize(req))return ESP_OK;
+    httpd_resp_set_type(req,"text/html; charset=utf-8");
+    return httpd_resp_sendstr(req,"<!doctype html><html><meta charset='utf-8'><title>Diagnostics</title>"
+        "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
+        "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
+        "<script>const names={wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
+        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)'};"
+        "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
+        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;row.insertCell().textContent=v===null?'—':v;}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
+        "refresh();setInterval(refresh,3000);</script></html>");
+}
+
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
+#include "app_template_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -757,7 +790,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 8;
+    http_cfg.max_uri_handlers = 20;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -816,6 +849,11 @@ esp_err_t app_web_start(const app_config_t *cfg)
     }
 
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
+    if ((err = template_register(s_server)) != ESP_OK) goto failed;
+    const httpd_uri_t diagnostic_routes[]={
+        {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
+        {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get}};
+    for(unsigned i=0;i<2;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
     app_state_set_http_ready(cfg->data_recept_mode == APP_DATA_HTTP);
 
     app_events_add(

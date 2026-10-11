@@ -31,7 +31,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
-      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - run: python3 tests/run_tests.py
 
   ui-preview:
@@ -40,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev
       - uses: actions/checkout@v4
         with:
           repository: lvgl/lvgl
@@ -51,6 +55,8 @@ jobs:
         timeout-minutes: 2
         run: |
           mkdir -p .preview-images
+          cp -r templates .preview-template-sd
+          export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
           cd .preview-images
           ../.preview-build/ui_preview
       - uses: actions/upload-artifact@v4
@@ -58,6 +64,19 @@ jobs:
           name: ui-preview-${{ inputs.source_sha || github.sha }}
           path: .preview-images/*.ppm
           include-hidden-files: true
+          if-no-files-found: error
+
+  template-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+      - run: python3 tools/prepare_templates.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: template-packages-${{ inputs.source_sha || github.sha }}
+          path: dist/templates/*.zip
           if-no-files-found: error
 
   build:

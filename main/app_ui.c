@@ -23,6 +23,8 @@
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
+#include "app_templates.h"
+#include "app_diagnostics.h"
 
 LV_FONT_DECLARE(app_font_12);
 #define APP_FONT_12 (&app_font_12)
@@ -82,14 +84,23 @@ static int s_brightness=50,s_target=50;
 static int64_t s_last_chart_update_us;
 /* A 20 kB-os snapshot a UI modul tulajdona, nem a task vermét terheli. */
 static app_stats_snapshot_t s_stats_snapshot;
+static app_stats_period_t s_week_period,s_month_period;
+static app_diagnostics_t s_diagnostics;
+static bool s_diagnostics_requested;
+static lv_obj_t *s_diagnostic_values[6];
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
+static bool template_is_active(void);
+static void template_animate(float dt);
+static unsigned template_catalogue_count(void);
+static void template_gesture(lv_event_t *event);
 
 /* A runtime UI kölcsönösen kizáró fő nézetei. */
 typedef enum {
     VIEW_NONE = 0,
     VIEW_DASHBOARD,
+    VIEW_DIAGNOSTICS,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
     VIEW_WAIT_DATA,
@@ -537,7 +548,8 @@ static void build_dashboard(bool night)
     s_dash=lv_obj_create(s_screen);
     lv_obj_set_size(s_dash,W,H);
     screen_style(s_dash,night);
-    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(s_dash,template_gesture,LV_EVENT_GESTURE,NULL);
 
     /*
      * Fejléc: az eredeti látványterv fehér, lekerekített fejlécét tartjuk meg,
@@ -1006,9 +1018,10 @@ static void build_dashboard(bool night)
      */
     lv_obj_t *summary=lv_obj_create(s_dash);
     lv_obj_set_pos(summary,20,664);
-    lv_obj_set_size(summary,1240,116);
+    lv_obj_set_size(summary,1240,110);
     card_style(summary,night);
     lv_obj_set_style_pad_all(summary,8,0);
+    lv_obj_set_style_pad_bottom(summary,2,0);
 
     summary_metric(
         summary,0,236,
@@ -1085,6 +1098,9 @@ static void build_dashboard(bool night)
             night?MUTED_DARK:MUTED_LIGHT);
     lv_label_set_long_mode(s_status_detail,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(s_status_detail,205);
+
+    unsigned theme_count=template_catalogue_count();
+    for(unsigned i=0;i<theme_count;i++)shape(s_dash,640-(int)theme_count*10+(int)i*20,781,7,7,i==0?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
 
     /* Futás közbeni SD-hiba kis, nem blokkoló piros figyelmeztetése. */
     s_sd_warn=lbl(
@@ -1307,7 +1323,8 @@ static void animation_tick(lv_timer_t *timer)
     float dt=s_animation_us?(now-s_animation_us)/1000000.f:0.f;
     s_animation_us=now;
     if(dt>.25f)dt=.016f;
-    if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
+    if(template_is_active())template_animate(dt);
+    else if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
     if(s_error_pulse){
         float wave=(sinf(now/1000000.f*3.14159265f)+1.f)*.5f;
         lv_obj_set_style_opa(s_error_pulse,(lv_opa_t)(175+65*wave),0);
@@ -1552,6 +1569,7 @@ esp_err_t app_ui_init(void){
         return ESP_FAIL;
     }
     s_screen = lv_screen_active();
+    lv_obj_add_event_cb(s_screen,template_gesture,LV_EVENT_GESTURE,NULL);
     screen_style(s_screen, false);
     if(!lv_timer_create(animation_tick,16,NULL)){bsp_display_unlock();return ESP_ERR_NO_MEM;}
     bsp_display_unlock();
@@ -1696,8 +1714,14 @@ void app_ui_show_boot(
 void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock(-1)!=ESP_OK)return;error_screen(VIEW_FATAL,title,detail,true);bsp_display_unlock();}
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
+#include "app_template_ui.inc"
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    template_apply();
+    if(s_diagnostics_requested){
+        diagnostics_render(rt);return;
+    }
+    if(s_view==VIEW_DIAGNOSTICS)clear();
     bool timed_out=app_state_data_timed_out(&rt,now,app_config_data_timeout(&s_cfg));
     bool http=s_cfg.data_recept_mode==APP_DATA_HTTP;
 
@@ -1727,10 +1751,10 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
             false);
     }else{
         if(!s_dash_created||s.night_mode!=s_last_night){
-            build_dashboard(s.night_mode);
+            if(template_is_active())template_build(s.night_mode);else build_dashboard(s.night_mode);
             s_last_night=s.night_mode;
         }
-        update(&s,&s_stats_snapshot);
+        if(template_is_active())template_update(&s,&s_stats_snapshot);else update(&s,&s_stats_snapshot);
     }
 
 }
@@ -1748,7 +1772,13 @@ static void runtime(void *arg){
 
         app_energy_sample_t s={0};
         bool have=app_state_get_sample(&s);
-        if(have)app_stats_get_snapshot(&s_stats_snapshot);
+        if(have){
+            app_stats_get_snapshot(&s_stats_snapshot);
+            static int64_t period_update;
+            if(!period_update||now-period_update>=5000000){
+                app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);period_update=now;
+            }
+        }
 
         if(have){
             s_target=s.night_mode?s_cfg.display.night_brightness:s_cfg.display.day_brightness;
@@ -1759,6 +1789,8 @@ static void runtime(void *arg){
             }
         }
 
+        app_diagnostics_capture(&s_diagnostics);
+        template_prepare();
         if(bsp_display_lock(-1)==ESP_OK){
             render_runtime(rt,s,have,now);
 

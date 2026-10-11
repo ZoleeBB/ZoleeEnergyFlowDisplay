@@ -239,6 +239,32 @@ static void test_events(void){
     size_t n=app_events_snapshot(entries,2);assert(n>0);assert(strstr(entries[n-1].text_en,"New day started"));tests++;
 }
 #include "http_cases.inc"
+static void test_period_metrics(void){
+    time_t t=instant("2026-10-05",12,0,0);reset(t);
+    app_energy_sample_t a=sample(t,6,-2,-2);a.power_full_kw=2;
+    clock_at(t);app_stats_process_sample(&a);a.received_epoch_s=t+10;clock_at(t+10);app_stats_process_sample(&a);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.pv_home_kwh,20./3600);near(snapshot.totals.pv_stored_kwh,20./3600);
+    near(snapshot.totals.pv_export_kwh,20./3600);near(snapshot.slots[144].soc_pct,50);
+    app_stats_metrics_t m=app_stats_metrics(&snapshot.totals,&cfg.energy);
+    near(m.self_sufficiency_pct,100);near(m.self_consumption_pct,200./3);
+    app_stats_period_t week;app_stats_get_period(false,&week);assert(week.count==7);
+    assert(!strcmp(week.days[0].date,"2026-10-05")&&week.days[0].valid&&!week.days[1].valid);
+    assert(app_stats_save_now()==ESP_OK);
+    clock_at(instant("2026-10-10",12,0,0));assert(app_stats_init(&cfg)==ESP_OK);
+    app_stats_get_period(true,&week);assert(week.count==31&&week.days[4].valid);
+    near(week.totals.pv_home_kwh,20./3600);
+    app_energy_totals_t zero={0};m=app_stats_metrics(&zero,&cfg.energy);near(m.self_consumption_pct,0);
+    clock_at(instant("2028-02-10",12,0,0));assert(app_stats_init(&cfg)==ESP_OK);
+    app_stats_get_period(true,&week);assert(week.count==29);
+    /* Régi slot átlagába az első új SOC-minta nem hígulhat bele. */
+    reset(t);feed(t,2,0,0);assert(app_stats_save_now()==ESP_OK);
+    cJSON *old=read_json("2026-10-05");cJSON_SetNumberValue(cJSON_GetObjectItem(old,"version"),2);
+    write_json("2026-10-05",old);cJSON_Delete(old);assert(app_stats_init(&cfg)==ESP_OK);
+    a=sample(t+5,2,0,0);a.soc_bat_pct=80;clock_at(t+5);app_stats_process_sample(&a);
+    app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].soc_pct,80);
+    tests++;
+}
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -246,6 +272,7 @@ int main(void){
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);
+    test_period_metrics();
     test_mode_config();test_http();test_energy_split();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

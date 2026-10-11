@@ -34,3 +34,6 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_http_picoc.py")], check=
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_release.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)

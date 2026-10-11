@@ -1,0 +1,34 @@
+#pragma once
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "cJSON.h"
+#include "esp_err.h"
+
+#define APP_TEMPLATE_MAX 16
+#define APP_TEMPLATE_ZIP_MAX (8U*1024U*1024U)
+#define APP_TEMPLATE_ROOT APP_SD_MOUNT_POINT "/templates"
+typedef struct { char id[33],name[81]; } app_template_info_t;
+typedef struct { char name[65]; uint8_t *bytes; size_t size; unsigned width,height; } app_template_asset_t;
+/* A UI tulajdona; a webszál soha nem módosítja ezt a pillanatképet. */
+typedef struct {
+    char id[33]; cJSON *document;
+    app_template_asset_t assets[32]; unsigned asset_count;
+    unsigned generation, catalogue_count, catalogue_index;
+} app_template_view_t;
+
+esp_err_t app_templates_init(void);
+unsigned app_templates_list(app_template_info_t *out,unsigned capacity,char active[33]);
+esp_err_t app_templates_select(const char *id);
+void app_templates_step(int direction);
+esp_err_t app_templates_delete(const char *id,char error[160]);
+/* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
+esp_err_t app_templates_probe(const char *zip_path,cJSON **report,char error[160]);
+esp_err_t app_templates_install(const char *zip_path,char error[160]);
+/* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */
+bool app_templates_load_pending(app_template_view_t *out);
+void app_templates_view_free(app_template_view_t *view);
+bool app_templates_validate(const char *directory,cJSON **document,char error[160]);
+bool app_templates_safe_id(const char *id);
+bool app_templates_safe_asset(const char *path);
+const char *app_templates_root(void);

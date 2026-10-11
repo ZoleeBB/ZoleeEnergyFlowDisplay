@@ -2242,3 +2242,46 @@ Ez a fejezet felülírja a korábbi kétgörbés, illetve előjeles hálózat/ak
 - Számítás minden beérkező mintán, ötperces átlagolás ELŐTT: PV→ház=min(PV,ház); PV→akku=min(PV−PV→ház,max(−PowerBat,0)); PV→hálózat=PV−PV→ház−PV→akku; akku→ház=min(ház−PV→ház,max(PowerBat,0)); hálózat→ház=ház−PV→ház−akku→ház. Minden rész nemnegatív. A felosztás a jóváhagyott prioritás szerinti becslés; az összesített mérésekből a tényleges belső útvonalak nem mérhetők külön. A napi import/export kártyák továbbra is a mért PowerGrid alapján számolnak.
 - SD statisztika v2: az öt komponens átlaga és a hézagjelölő is mentendő. V1 beolvasása támogatott; régi adatoknál csak az eltárolt nyers átlagokból becsülhető a felosztás, a korábbi irányváltások nem rekonstruálhatók.
 - Programcím: első sor csak „Zolee”, 20 px félkövér dőlt; második sor „Energy Folow Monitor”, 16 px félkövér dőlt. Beégetett, középre igazított, a korábban elfogadott kék nappali/éjszakai színnel.
+
+### Jóváhagyott SD-s sablonkezelő (2026-10-10)
+
+- A jelenlegi megjelenítés beépített, nem törölhető alapnézet. Öt további sablon:
+  Élő otthon, Energiautak, Műszerfal, Napi mérleg, Nyugodt otthon.
+- Mindegyikhez világos és sötét téma. Az Élő otthon világos változatában nappali,
+  világoszöld kert, a sötét változatban esti ház legyen. Az adatokat és animációt
+  a program rajzolja a háttérképre, nem képre írt statikus értékek.
+- A sablon a meglévő adatokból dolgozik; nem kötelező mindent megjelenítenie.
+  Más geometria és megjelenítési mód (köríves mérő, nagy szám, diagram, áramlási
+  útvonal) is használható. Az elrendezés a csomag JSON-leírásából épül fel;
+  új támogatott elrendezéshez nem kell új firmware.
+- Balra/jobbra kézi lapozás választ elrendezést. Nincs automatikus rotáció.
+  A világos/sötét váltást kizárólag a beérkező `NightMode` vezérli.
+- A kiválasztás SD-re menthető és újraindítás után visszaállítandó.
+  Hiányzó/sérült sablonnál alapnézet. A csomagok a `/templates/<id>/` alatt vannak.
+- Webes sablonkezelő a meglévő webfelületen: ZIP feltöltés, elkülönített kibontás,
+  séma/kép/erőforrás/útvonal-ellenőrzés, csak siker esetén végleges SD-telepítés.
+  Ugyanaz a hitelesítés, mint az OTA-oldalon. Aktív sablon választható és SD-s
+  csomag törölhető; az aktív törlése az alapnézetre vált.
+- Az indítási, hálózati, adatkimaradási és egyéb rendszeroldalak közösek,
+  nem sablonfüggők. Helyreálláskor a kiválasztott elrendezés tér vissza.
+- A korábbi MQTT/HTTP adatfogadás, statisztika, energiafelosztás és fényerőkezelés
+  közös marad. A ZIP-feldolgozás nem akadályozhatja az aktív UI animációját.
+- Az öt csomag, leírófájlok és képek a repository részei; a szimulátor is ugyanazt
+  a JSON-alapú rajzolót használja. Telepíthető ZIP-ek a CI artifactjában,
+  SD-re másolható csomagok a USB-telepítőben is legyenek.
+- Részletes séma, korlátok, telepítés és támogatott adatkapcsolatok:
+  [Sablonkezelő](templates.md).
+
+### Saját ikonkészletek és görbe energiautak (2026-10-11)
+
+- Minden SD-sablon saját, újragenerált PNG-készletet használ, nem az alapnézet
+  ikonjait. Az alapnézet és a közös hibaoldalak grafikája változatlan marad.
+- Két további sablon: Energiakör és Energiafőkönyv. Így hét SD-csomag és a
+  beépített nézet érhető el, mindegyik SD-sablon két témával.
+- Az Élő otthon energiaútjai valódi köbös Bézier-görbék; a megjelenített vonal
+  és az irányhelyes mozgó pontok közös pályát használnak. Nulla teljesítménynél
+  nincs pont, 7 kW fölött a sebesség nem nő tovább.
+- Az időjárásos sablon saját hatállapotú ikoncsomagot adhat meg, a meglévő
+  időjárás-kiválasztási logika megtartásával.
+- Gyakorlati, példákkal és tesztelési/telepítési lépésekkel ellátott
+  [sablonkészítési útmutató](template-authoring.md) a repository része.

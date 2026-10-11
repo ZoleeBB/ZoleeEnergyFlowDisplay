@@ -35,3 +35,7 @@ A minták és feliratok frissítése 200 ms-os ciklusban történik. Az energia�
 A két grafikon saját LVGL vektoros rajzolót használ közös plot-koordinátákkal. A kitöltés a nulla felé áttetsző, az előjeles grafikon mindkét térfélen működik. Az időfeliratok külön pozicionált objektumok. A beépített Noto Sans fontok valódi magyar ékezetes karaktereket tartalmaznak.
 
 Minden háttértask indítását ellenőrizzük. Az OTA HTTP-fogadás legfeljebb 30 másodpercig vár új adatra. A fordítás hibának tekinti a 8 KiB-nál nagyobb alkalmazásbeli veremkereteket.
+
+## Közös diagnosztika
+
+Minden témából felfelé húzással megnyitható, lefelé húzással visszatér a kiválasztott témához. A szimulátorban az I billentyű használható. A helyi weben `/diagnostics`, gépi snapshot: `/api/diagnostics`. Wi-Fi/IP/RSSI, HTTP/MQTT állapot, utolsó csomag kora, SD, NTP, firmware, üzemidő és szabad memória. Jelszavak és teljes konfiguráció nem kerülnek a snapshotba. Ugyanaz a Basic Auth védi, mint az OTA-t.

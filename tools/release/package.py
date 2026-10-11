@@ -63,6 +63,16 @@ def package(build, output, tag, commit):
     files['TELEPITES.md'] = (ROOT / 'docs/usb-install.md').read_bytes()
     files['config.sample.json'] = (ROOT / 'config.sample.json').read_bytes()
     files['config.http.sample.json'] = (ROOT / 'examples/config.http.sample.json').read_bytes()
+    # Ready for direct SD copy, independently of the firmware flash operation.
+    files['SABLONOK.md'] = (ROOT / 'docs/templates.md').read_bytes()
+    # Keep relative links usable offline in the USB package as well.
+    for name in ('templates.md', 'template-authoring.md', 'template-icon-prompts.json','enhancements-20261011.md','statistics.md','architecture.md'):
+        files[name] = (ROOT / 'docs' / name).read_bytes()
+    for name in ('templates.png', 'template-icons.png', 'live-home-flow.gif','statistics-light.png','statistics-dark.png','diagnostics.png'):
+        files['previews/' + name] = (ROOT / 'docs/previews' / name).read_bytes()
+    for path in sorted((ROOT/'templates').glob('*/*')):
+        if path.is_file() and path.suffix in ('.json','.png'):
+            files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()
     info = {'tag': tag, 'commit': commit, 'target': 'esp32p4', 'board': 'Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1',
             'esp_idf': description['git_revision'], 'esptool': '5.1.0', 'application_sha256': digest(app),
             'flash_files': {address: {'file': name, 'sha256': digest(files[name])} for address, name in portable.items()}}

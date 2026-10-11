@@ -72,7 +72,7 @@ Firmware frissítés:
 /stats/YYYY-MM-DD.json
 ```
 
-A rendszer a mai és a tegnapi napot tartja meg.
+A rendszer 35 helyi naptári napot tart meg; a részletes mai/tegnapi adatok mellett heti és havi összesítés is elérhető.
 
 ## CI
 
@@ -106,3 +106,13 @@ A konfiguráció gyökerében a `DataReceptMode` választható: `mqtt` (alapért
 ## UI kipróbálása eszköz nélkül, Visual Studio 2026 alatt
 
 Nyisd meg a projekt gyökérmappáját, válaszd a **Windows UI demo (Debug, x64)** konfigurációt és a **zolee_simulator.exe** indítási célt, majd **F5**. A valódi kijelzőfelület 5 másodpercenként demó JSON-csomagot kap. [Telepítés, billentyűk, hibakeresés](docs/simulator.md).
+
+## SD-sablonok
+
+[Telepítés és séma](docs/templates.md) · [Saját sablon készítése, lépésről lépésre](docs/template-authoring.md)
+
+## Új statisztikai téma és diagnosztika
+
+Nyolc SD-s elrendezés, mindegyik nappali/sötét változattal; a rendszer alapnézete változatlan. Az `08-statistics` öt napi grafikonon mutatja a termelést, fogyasztást, előjeles hálózati és akkumulátorteljesítményt és SOC-ot. A pillanatnyi energiaáramlás csak számokkal jelenik meg. Heti/havi oszlopok, önellátási arányok és konfigurált tarifák szerinti pénzügyek is elérhetők.
+
+Közös diagnosztika: felfelé húzás, vissza: lefelé; web: `/diagnostics`. A webes sablonkezelő a feltöltés előtt világos/sötét előnézetet és memória-becslést ad, majd telepítés nélkül ellenőriz az eszközön. [A tíz fejlesztés és a hat commit-szakasz](docs/enhancements-20261011.md).

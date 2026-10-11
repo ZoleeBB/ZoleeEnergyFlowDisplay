@@ -38,8 +38,13 @@ set(app_png_files
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_diagnostics.c"
         "app_assets.c"
         "app_chart.c"
+        "app_templates.c"
+        "app_template_zip.c"
+        "fonts/app_font_numbers_48.c"
+        "fonts/app_font_numbers_96.c"
         "fonts/app_font_12.c"
         "fonts/app_font_14.c"
         "fonts/app_font_16.c"
