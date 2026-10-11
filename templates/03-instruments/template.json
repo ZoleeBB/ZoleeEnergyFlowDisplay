@@ -2,10 +2,28 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#E8E9FA",
     "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-day.png"
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "background": "#E8E9FA",
+        "opacity": 222,
+        "radius": 0
+      },
       {
         "type": "label",
         "x": 32,
@@ -84,7 +102,7 @@
         "h": 395,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -150,7 +168,7 @@
         "h": 395,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -216,7 +234,7 @@
         "h": 395,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -226,7 +244,8 @@
         "h": 238,
         "source": "grid",
         "color": "#D92C5B",
-        "max": 15
+        "max": 15,
+        "negative_color": "#FFEB38"
       },
       {
         "type": "image",
@@ -296,7 +315,7 @@
         "h": 395,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -306,7 +325,8 @@
         "h": 238,
         "source": "battery",
         "color": "#087FC2",
-        "max": 15
+        "max": 15,
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "image",
@@ -376,7 +396,7 @@
         "h": 78,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -432,7 +452,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -466,7 +486,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -500,7 +520,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -534,7 +554,7 @@
         "h": 106,
         "background": "#FFFFFF",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -561,7 +581,6 @@
         "shadow_opacity": 40
       }
     ],
-    "gradient": "#D9F0E6",
     "palette": {
       "pv": "#16965F",
       "home": "#C57212",
@@ -572,6 +591,24 @@
   "dark": {
     "background": "#151E36",
     "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-night.png"
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "background": "#151E36",
+        "opacity": 214,
+        "radius": 0
+      },
       {
         "type": "label",
         "x": 32,
@@ -650,7 +687,7 @@
         "h": 395,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -716,7 +753,7 @@
         "h": 395,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -782,7 +819,7 @@
         "h": 395,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -792,7 +829,8 @@
         "h": 238,
         "source": "grid",
         "color": "#E66B6B",
-        "max": 15
+        "max": 15,
+        "negative_color": "#FFEB38"
       },
       {
         "type": "image",
@@ -862,7 +900,7 @@
         "h": 395,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "gauge",
@@ -872,7 +910,8 @@
         "h": 238,
         "source": "battery",
         "color": "#559CDE",
-        "max": 15
+        "max": 15,
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "image",
@@ -942,7 +981,7 @@
         "h": 78,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -998,7 +1037,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -1032,7 +1071,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -1066,7 +1105,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -1100,7 +1139,7 @@
         "h": 106,
         "background": "#1B2C3B",
         "radius": 22,
-        "opacity": 235
+        "opacity": 205
       },
       {
         "type": "label",
@@ -1127,7 +1166,6 @@
         "shadow_opacity": 100
       }
     ],
-    "gradient": "#22394A",
     "palette": {
       "pv": "#36AE7C",
       "home": "#EA9C3B",
