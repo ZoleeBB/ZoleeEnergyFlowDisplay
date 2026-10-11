@@ -156,8 +156,12 @@ házlátvány alapján. Prompt: ugyanaz a modern napelemes ház, bal oldali hál
 oszlop, jobb oldali tároló; nappal világoszöld kert, éjjel sötét környezet/meleg
 ablakfény. Minden szöveg, szám, panel, nyíl és energiaút nélkül. A kimenetet
 1280×800 RGB PNG-re méreteztük. A képfájlok a csomag `day.png`/`night.png`
-állományai; az értékek, kártyák, vonalak és pöttyök élő LVGL-elemek.
-A többi csomag a projekt meglévő PNG-ikonjait használja.
+állományai; az értékek, vonalak és pöttyök élő LVGL-elemek.
+Az Élő otthon 3. verziójában az értékek közvetlenül a házképen jelennek meg:
+nincsenek adatmeződobozok, fejléc- vagy összesítőkártyák, illetve külön eszközikonok.
+A ház, a napelem, a hálózati oszlop és a tároló maga a háttérillusztráció része.
+A korábban generált saját ikonfájlok megmaradnak a csomagban, de ez a nézet nem rajzolja ki őket.
+A többi csomag a saját, sablononként különálló PNG-ikonjait használja.
 
 ## Sablon készítése
 
@@ -166,6 +170,9 @@ A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két 
 ## Tényleges LVGL-előnézetek
 
 Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
+
+![Élő otthon: közvetlen adatok, világos téma](previews/live-home-light.png)
+![Élő otthon: közvetlen adatok, sötét téma](previews/live-home-dark.png)
 
 ![A hét sablon nappali és éjszakai nézete](previews/templates.png)
 

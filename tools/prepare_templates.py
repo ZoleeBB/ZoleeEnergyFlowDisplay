@@ -67,27 +67,48 @@ class Scene:
 
 def house(dark):
     s = Scene(dark)
+    if not dark: s.muted = '#19352F'
     s.add('image', 0, 0, 1280, 800, file='night.png' if dark else 'day.png')
-    s.box(20, 16, 1240, 96, opacity=230)
-    s.header('Élő otthon', 'Az otthonod energiája, valós időben')
+    # The approved house concept uses text directly on the illustration:
+    # no header card, value cards or duplicate miniature device icons.
+    s.label('Zolee Energy Flow Monitor', 32, 24, 245, 16)
+    s.label('01 — ÉLŐ OTTHON', 300, 24, 290, 16, en='01 — LIVE HOME')
+    s.value('date', 892, 20, 155, 16, s.muted)
+    s.value('clock', 892, 46, 165, 28)
+    s.value('status', 1070, 28, 200, 16)
     # Live links: grid->house, solar->house, battery->house (reverse while charging).
     s.flow('grid', [(100,316),(330,316),(330,526),(650,526)], RED, curve='bezier')
     s.flow('pv', [(640,300),(600,380),(700,425),(650,526)], GREEN, curve='bezier')
     s.flow('battery', [(1050,530),(930,595),(800,475),(650,526)], BLUE, curve='bezier')
     for x, y, title, source, color, extra in [
-        (32, 160, 'Hálózat', 'grid', RED, 'grid_direction'),
-        (480, 145, 'Napelemek', 'pv', GREEN, None),
-        (980, 350, 'Akkumulátor', 'battery', BLUE, 'battery_direction'),
-        (478, 540, 'Otthon', 'home', GREEN, None)]:
-        s.box(x, y, 270, 110, opacity=237)
-        s.icon({'grid':'flow_grid','pv':'flow_solar','battery':'flow_battery','home':'flow_house'}[source], x+9,y+20,54)
-        s.label(title, x+73, y+12, 190, 16, s.muted)
-        s.value(source, x+73, y+37, 190, 28, color)
-        if extra: s.value(extra, x+18, y+78, 235, 12, s.muted)
-    s.box(980, 476, 270, 86, opacity=237)
-    s.value('soc', 1000, 484, 220, 28, BLUE)
-    s.add('bar', 1000, 532, 225, 8, source='soc', color=BLUE)
-    s.daily(660)
+        (72, 340, 'Hálózat', 'grid', RED, 'grid_direction'),
+        (305, 90, 'Napelem', 'pv', GREEN, None),
+        (1090, 264, 'Akkumulátor', 'battery', BLUE, 'battery_direction'),
+        (232, 526, 'Ház fogyasztás', 'home', ORANGE, None)]:
+        width = 185 if source == 'battery' else 270
+        s.label(title, x, y, width, 16, s.muted)
+        if extra: s.value(extra, x, y+26, width, 16, color)
+        s.value(source, x, y+(52 if extra else 28), width, 48, color)
+    s.label('SOC', 1090, 392, 180, 16, s.muted)
+    s.value('soc', 1090, 418, 180, 28, BLUE)
+    s.label('Akku hőmérséklet', 1090, 467, 185, 16, s.muted, en='Battery temperature')
+    s.value('battery_temp', 1090, 493, 180, 28)
+    for x, title, source, color in [
+        (280, 'Termelés ma', 'production_today', GREEN),
+        (620, 'Fogyasztás ma', 'consumption_today', ORANGE),
+        (960, 'Akku', 'soc', BLUE)]:
+        s.label(title, x, 678, 270, 16, s.muted)
+        s.value(source, x, 706, 270, 28, color)
+    # A fine text halo keeps data readable over the detailed daytime garden
+    # without putting a rectangular field or a panel behind any value.
+    if not dark:
+        outlined = []
+        for element in s.elements:
+            if element['type'] in ('label', 'value') and element.get('source') != 'battery_temp':
+                for offset in (-1, 1):
+                    outlined.append(dict(element, x=element['x']+offset, y=element['y']+offset, color='#FFFFFF'))
+            outlined.append(element)
+        s.elements = outlined
     return s
 
 
@@ -253,7 +274,8 @@ def main():
                                ('05-calm-home','Nyugodt otthon',calm),
                                ('06-energy-orbit','Energiakör',orbit),('07-energy-ledger','Energiafőkönyv',ledger)]:
         folder=PACKAGES/ident;folder.mkdir(parents=True,exist_ok=True)
-        doc=dict(schema=1,id=ident,name=name,version=2,light=builder(False).document(),dark=builder(True).document())
+        doc=dict(schema=1,id=ident,name=name,version=3 if ident=='01-live-home' else 2,
+                 light=builder(False).document(),dark=builder(True).document())
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):
             for element in doc[theme]['elements']:
