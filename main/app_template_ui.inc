@@ -89,6 +89,10 @@ static void template_text(char out[128],const char *source,const app_energy_samp
 static void template_gesture(lv_event_t *event){
     (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
     lv_dir_t direction=lv_indev_get_gesture_dir(input);
+    if(direction==LV_DIR_TOP||direction==LV_DIR_BOTTOM){
+        s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
+    }
+    if(s_diagnostics_requested)return;
     if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){app_templates_step(direction==LV_DIR_LEFT?1:-1);lv_indev_wait_release(input);}
 }
 static void template_release_cache(void){for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);}
@@ -270,4 +274,37 @@ static void template_animate(float dt){
                 tn(node->spec,"y",0)+(int)(node->points[k].y+(node->points[k+1].y-node->points[k].y)*ratio)-3);
         }
     }
+}
+
+/* Közös oldal: sem az elrendezés, sem az adatok nem függnek a sablontól. */
+static void diagnostics_render(app_runtime_state_t rt){
+    if(s_view!=VIEW_DIAGNOSTICS){
+        clear();screen_style(s_screen,true);
+        lbl(s_screen,tr("Eszközdiagnosztika","Device diagnostics"),32,28,APP_FONT_28,TEXT_DARK);
+        lbl(s_screen,tr("Lefelé húzás: vissza az előző témához","Swipe down to return to the selected theme"),32,73,APP_FONT_16,MUTED_DARK);
+        const char *titles[]={"Wi-Fi / IP",tr("Adatfogadás","Data input"),tr("Utolsó adatcsomag","Last data packet"),
+            tr("SD-kártya","SD card"),"Firmware",tr("Üzemidő / memória","Uptime / memory")};
+        for(int i=0;i<6;i++){
+            int x=32+(i%2)*622,y=131+(i/2)*199;
+            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,x,y);lv_obj_set_size(card,594,177);card_style(card,true);
+            lv_obj_remove_flag(card,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(card,LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lbl(card,titles[i],18,16,APP_FONT_20,MUTED_DARK);
+            s_diagnostic_values[i]=lbl(card,"",18,55,APP_FONT_20,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],552,105);
+            lv_obj_add_flag(s_diagnostic_values[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
+        }
+        s_view=VIEW_DIAGNOSTICS;
+    }
+    char text[160];
+    snprintf(text,sizeof(text),"%s\n%s · %d dBm",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.ip,s_diagnostics.rssi);
+    lv_label_set_text(s_diagnostic_values[0],text);
+    snprintf(text,sizeof(text),"%s\n%s",rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
+    lv_label_set_text(s_diagnostic_values[1],text);
+    if(s_diagnostics.packet_age_seconds<0)snprintf(text,sizeof(text),"%s",tr("Még nem érkezett","No packet received"));
+    else snprintf(text,sizeof(text),"%lld s\n%s",(long long)s_diagnostics.packet_age_seconds,
+        app_state_data_timed_out(&rt,esp_timer_get_time(),app_config_data_timeout(&s_cfg))?tr("Lejárt adat","Stale data"):tr("Érvényes adat","Valid data"));
+    lv_label_set_text(s_diagnostic_values[2],text);
+    lv_label_set_text(s_diagnostic_values[3],rt.sd_ok?tr("Elérhető · mentés aktív","Available · saving active"):tr("Hiba · kijelzés RAM-ból","Fault · display continues from RAM"));
+    lv_label_set_text(s_diagnostic_values[4],s_diagnostics.firmware);
+    snprintf(text,sizeof(text),"%lld min\n%u KiB",(long long)(s_diagnostics.uptime_seconds/60),s_diagnostics.free_heap_kib);
+    lv_label_set_text(s_diagnostic_values[5],text);
 }

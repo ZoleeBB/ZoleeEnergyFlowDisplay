@@ -300,6 +300,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
         if(wp=='N'){night_override=night_override==1?0:1;send_demo();}
         if(wp=='S'){sd_ok=!sd_ok;}
         if(wp=='W'){app_runtime_state_t rt;app_state_get_runtime(&rt);app_state_set_wifi_connected(!rt.wifi_connected);}
+        if(wp=='I'){s_diagnostics_requested=!s_diagnostics_requested;app_diagnostics_capture(&s_diagnostics);}
         if(wp==VK_RIGHT||wp==VK_LEFT)app_templates_step(wp==VK_RIGHT?1:-1);
         if(wp=='D'){scene=(scene+1)%9;send_demo();}
         return 0;

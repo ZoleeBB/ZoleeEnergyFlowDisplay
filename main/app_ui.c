@@ -24,6 +24,7 @@
 #include "app_stats.h"
 #include "app_storage.h"
 #include "app_templates.h"
+#include "app_diagnostics.h"
 
 LV_FONT_DECLARE(app_font_12);
 #define APP_FONT_12 (&app_font_12)
@@ -84,6 +85,9 @@ static int64_t s_last_chart_update_us;
 /* A 20 kB-os snapshot a UI modul tulajdona, nem a task vermét terheli. */
 static app_stats_snapshot_t s_stats_snapshot;
 static app_stats_period_t s_week_period,s_month_period;
+static app_diagnostics_t s_diagnostics;
+static bool s_diagnostics_requested;
+static lv_obj_t *s_diagnostic_values[6];
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
@@ -95,6 +99,7 @@ static void template_gesture(lv_event_t *event);
 typedef enum {
     VIEW_NONE = 0,
     VIEW_DASHBOARD,
+    VIEW_DIAGNOSTICS,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
     VIEW_WAIT_DATA,
@@ -1559,6 +1564,7 @@ esp_err_t app_ui_init(void){
         return ESP_FAIL;
     }
     s_screen = lv_screen_active();
+    lv_obj_add_event_cb(s_screen,template_gesture,LV_EVENT_GESTURE,NULL);
     screen_style(s_screen, false);
     if(!lv_timer_create(animation_tick,16,NULL)){bsp_display_unlock();return ESP_ERR_NO_MEM;}
     bsp_display_unlock();
@@ -1707,6 +1713,10 @@ void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
     template_apply();
+    if(s_diagnostics_requested){
+        diagnostics_render(rt);return;
+    }
+    if(s_view==VIEW_DIAGNOSTICS)clear();
     bool timed_out=app_state_data_timed_out(&rt,now,app_config_data_timeout(&s_cfg));
     bool http=s_cfg.data_recept_mode==APP_DATA_HTTP;
 
@@ -1774,6 +1784,7 @@ static void runtime(void *arg){
             }
         }
 
+        app_diagnostics_capture(&s_diagnostics);
         template_prepare();
         if(bsp_display_lock(-1)==ESP_OK){
             render_runtime(rt,s,have,now);

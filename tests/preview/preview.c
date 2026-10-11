@@ -241,6 +241,9 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
     test_signed_and_soc_charts();
+    app_diagnostics_capture(&s_diagnostics);s_diagnostics_requested=true;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);save_frame("diagnostics-common");
+    s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
         app_template_info_t list[APP_TEMPLATE_MAX];char active[33];

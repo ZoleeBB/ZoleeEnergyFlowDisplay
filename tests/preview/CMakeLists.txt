@@ -21,7 +21,7 @@ foreach(PNG IN LISTS PNG_FILES)
         WORKING_DIRECTORY "${APP_ROOT}/main/assets/png" DEPENDS "${PNG}")
     list(APPEND PNG_OBJECTS "${OBJECT}")
 endforeach()
-add_executable(ui_preview preview.c "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
+add_executable(ui_preview preview.c "${APP_ROOT}/main/app_diagnostics.c" "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
     "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_OBJECTS})
 target_include_directories(ui_preview PRIVATE "${APP_ROOT}/simulator/compat" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main" "${CMAKE_BINARY_DIR}")
 target_compile_definitions(ui_preview PRIVATE time=host_time APP_TEMPLATE_DESKTOP)
