@@ -106,3 +106,7 @@ A konfiguráció gyökerében a `DataReceptMode` választható: `mqtt` (alapért
 ## UI kipróbálása eszköz nélkül, Visual Studio 2026 alatt
 
 Nyisd meg a projekt gyökérmappáját, válaszd a **Windows UI demo (Debug, x64)** konfigurációt és a **zolee_simulator.exe** indítási célt, majd **F5**. A valódi kijelzőfelület 5 másodpercenként demó JSON-csomagot kap. [Telepítés, billentyűk, hibakeresés](docs/simulator.md).
+
+## SD-sablonok
+
+[Telepítés és séma](docs/templates.md) · [Saját sablon készítése, lépésről lépésre](docs/template-authoring.md)

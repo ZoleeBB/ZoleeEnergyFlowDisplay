@@ -65,6 +65,11 @@ def package(build, output, tag, commit):
     files['config.http.sample.json'] = (ROOT / 'examples/config.http.sample.json').read_bytes()
     # Ready for direct SD copy, independently of the firmware flash operation.
     files['SABLONOK.md'] = (ROOT / 'docs/templates.md').read_bytes()
+    # Keep relative links usable offline in the USB package as well.
+    for name in ('templates.md', 'template-authoring.md', 'template-icon-prompts.json'):
+        files[name] = (ROOT / 'docs' / name).read_bytes()
+    for name in ('templates.png', 'template-icons.png', 'live-home-flow.gif'):
+        files['previews/' + name] = (ROOT / 'docs/previews' / name).read_bytes()
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()

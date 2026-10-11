@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 1,
+  "version": 2,
   "light": {
     "background": "#F0F5F3",
     "elements": [
@@ -93,70 +93,85 @@
         "x": 100,
         "y": 316,
         "w": 551,
-        "h": 221,
+        "h": 211,
         "source": "grid",
-        "color": "#EA9C3B",
+        "color": "#E66B6B",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
             "x": 0,
             "y": 0
           },
           {
-            "x": 160,
+            "x": 230,
             "y": 0
           },
           {
-            "x": 280,
-            "y": 220
+            "x": 230,
+            "y": 210
           },
           {
             "x": 550,
-            "y": 220
+            "y": 210
           }
         ]
       },
       {
         "type": "flow",
-        "x": 640,
+        "x": 600,
         "y": 300,
-        "w": 11,
-        "h": 237,
+        "w": 101,
+        "h": 227,
         "source": "pv",
         "color": "#36AE7C",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
-            "x": 0,
+            "x": 40,
             "y": 0
           },
           {
-            "x": 10,
-            "y": 236
+            "x": 0,
+            "y": 80
+          },
+          {
+            "x": 100,
+            "y": 125
+          },
+          {
+            "x": 50,
+            "y": 226
           }
         ]
       },
       {
         "type": "flow",
         "x": 650,
-        "y": 530,
+        "y": 475,
         "w": 401,
-        "h": 7,
+        "h": 121,
         "source": "battery",
         "color": "#559CDE",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
             "x": 400,
+            "y": 55
+          },
+          {
+            "x": 280,
+            "y": 120
+          },
+          {
+            "x": 150,
             "y": 0
           },
           {
-            "x": 310,
-            "y": 6
-          },
-          {
             "x": 0,
-            "y": 6
+            "y": 51
           }
         ]
       },
@@ -171,10 +186,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 41,
+        "y": 180,
+        "w": 54,
+        "h": 54,
+        "file": "flow_grid.png"
+      },
+      {
         "type": "label",
-        "x": 50,
+        "x": 105,
         "y": 172,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Hálózat",
         "text_en": "Hálózat",
@@ -183,13 +206,13 @@
       },
       {
         "type": "value",
-        "x": 50,
+        "x": 105,
         "y": 197,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "grid",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#E66B6B"
       },
       {
         "type": "value",
@@ -212,10 +235,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 489,
+        "y": 165,
+        "w": 54,
+        "h": 54,
+        "file": "flow_solar.png"
+      },
+      {
         "type": "label",
-        "x": 498,
+        "x": 553,
         "y": 157,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Napelemek",
         "text_en": "Napelemek",
@@ -224,9 +255,9 @@
       },
       {
         "type": "value",
-        "x": 498,
+        "x": 553,
         "y": 182,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "pv",
         "font": 28,
@@ -243,10 +274,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 989,
+        "y": 370,
+        "w": 54,
+        "h": 54,
+        "file": "flow_battery.png"
+      },
+      {
         "type": "label",
-        "x": 998,
+        "x": 1053,
         "y": 362,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
@@ -255,9 +294,9 @@
       },
       {
         "type": "value",
-        "x": 998,
+        "x": 1053,
         "y": 387,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "battery",
         "font": 28,
@@ -284,10 +323,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 487,
+        "y": 560,
+        "w": 54,
+        "h": 54,
+        "file": "flow_house.png"
+      },
+      {
         "type": "label",
-        "x": 496,
+        "x": 551,
         "y": 552,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Otthon",
         "text_en": "Otthon",
@@ -296,9 +343,9 @@
       },
       {
         "type": "value",
-        "x": 496,
+        "x": 551,
         "y": 577,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "home",
         "font": 28,
@@ -545,70 +592,85 @@
         "x": 100,
         "y": 316,
         "w": 551,
-        "h": 221,
+        "h": 211,
         "source": "grid",
-        "color": "#EA9C3B",
+        "color": "#E66B6B",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
             "x": 0,
             "y": 0
           },
           {
-            "x": 160,
+            "x": 230,
             "y": 0
           },
           {
-            "x": 280,
-            "y": 220
+            "x": 230,
+            "y": 210
           },
           {
             "x": 550,
-            "y": 220
+            "y": 210
           }
         ]
       },
       {
         "type": "flow",
-        "x": 640,
+        "x": 600,
         "y": 300,
-        "w": 11,
-        "h": 237,
+        "w": 101,
+        "h": 227,
         "source": "pv",
         "color": "#36AE7C",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
-            "x": 0,
+            "x": 40,
             "y": 0
           },
           {
-            "x": 10,
-            "y": 236
+            "x": 0,
+            "y": 80
+          },
+          {
+            "x": 100,
+            "y": 125
+          },
+          {
+            "x": 50,
+            "y": 226
           }
         ]
       },
       {
         "type": "flow",
         "x": 650,
-        "y": 530,
+        "y": 475,
         "w": 401,
-        "h": 7,
+        "h": 121,
         "source": "battery",
         "color": "#559CDE",
         "radius": 5,
+        "curve": "bezier",
         "points": [
           {
             "x": 400,
+            "y": 55
+          },
+          {
+            "x": 280,
+            "y": 120
+          },
+          {
+            "x": 150,
             "y": 0
           },
           {
-            "x": 310,
-            "y": 6
-          },
-          {
             "x": 0,
-            "y": 6
+            "y": 51
           }
         ]
       },
@@ -623,10 +685,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 41,
+        "y": 180,
+        "w": 54,
+        "h": 54,
+        "file": "flow_grid.png"
+      },
+      {
         "type": "label",
-        "x": 50,
+        "x": 105,
         "y": 172,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Hálózat",
         "text_en": "Hálózat",
@@ -635,13 +705,13 @@
       },
       {
         "type": "value",
-        "x": 50,
+        "x": 105,
         "y": 197,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "grid",
         "font": 28,
-        "color": "#EA9C3B"
+        "color": "#E66B6B"
       },
       {
         "type": "value",
@@ -664,10 +734,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 489,
+        "y": 165,
+        "w": 54,
+        "h": 54,
+        "file": "flow_solar.png"
+      },
+      {
         "type": "label",
-        "x": 498,
+        "x": 553,
         "y": 157,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Napelemek",
         "text_en": "Napelemek",
@@ -676,9 +754,9 @@
       },
       {
         "type": "value",
-        "x": 498,
+        "x": 553,
         "y": 182,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "pv",
         "font": 28,
@@ -695,10 +773,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 989,
+        "y": 370,
+        "w": 54,
+        "h": 54,
+        "file": "flow_battery.png"
+      },
+      {
         "type": "label",
-        "x": 998,
+        "x": 1053,
         "y": 362,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
@@ -707,9 +793,9 @@
       },
       {
         "type": "value",
-        "x": 998,
+        "x": 1053,
         "y": 387,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "battery",
         "font": 28,
@@ -736,10 +822,18 @@
         "opacity": 237
       },
       {
+        "type": "image",
+        "x": 487,
+        "y": 560,
+        "w": 54,
+        "h": 54,
+        "file": "flow_house.png"
+      },
+      {
         "type": "label",
-        "x": 496,
+        "x": 551,
         "y": 552,
-        "w": 240,
+        "w": 190,
         "h": 26,
         "text": "Otthon",
         "text_en": "Otthon",
@@ -748,9 +842,9 @@
       },
       {
         "type": "value",
-        "x": 496,
+        "x": 551,
         "y": 577,
-        "w": 235,
+        "w": 190,
         "h": 40,
         "source": "home",
         "font": 28,

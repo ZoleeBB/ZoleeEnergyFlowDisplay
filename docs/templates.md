@@ -1,6 +1,6 @@
 # SD-kártyás sablonok
 
-Az eredeti nézet a firmware része, mindig elérhető. Az öt új elrendezés a repository
+Az eredeti nézet a firmware része, mindig elérhető. A hét új elrendezés a repository
 `templates/` könyvtárában van, mindegyik saját világos és sötét témával.
 
 | Csomag | Nézet |
@@ -9,7 +9,9 @@ Az eredeti nézet a firmware része, mindig elérhető. Az öt új elrendezés a
 | `02-energy-paths` | Energiautak: széles színes összeköttetések, irányjelző pöttyök |
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
-| `05-calm-home` | Nyugodt otthon: nagy óra, időjárás, három fő adat |
+| `05-calm-home` | Nyugodt otthon: nagy óra, saját kerámia időjárásikonok, három fő adat |
+| `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, középen SOC |
+| `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 
 ## Használat
 
@@ -87,10 +89,10 @@ közös lapjelzőnek/SD-hibajelzésnek szabadon hagyni.
 | `label` | Szöveg: `text`, opcionális `text_en`, `font`, `color`, `align` |
 | `value` | Élő adat: `source`, `font`, `color`, `align` |
 | `image` | Csomagon belüli PNG: `file`; a képet a `w`/`h` méretre skálázza |
-| `weather` | A közös időjáráslogika és a firmware időjárásikonjai; négyzetes méret ajánlott |
+| `weather` | Közös időjáráslogika, opcionális saját `files` készlet: `sunny`, `partly_cloudy`, `cloudy`, `rain`, `snow`, `night` |
 | `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek |
 | `gauge` | Köríves mérő: `source`, `max` (alapérték 15), `color`, `background` |
-| `flow` | `source`, `color`, `radius` (vonalvastagság), 2–8 relatív `{x,y}` pontból álló `points` |
+| `flow` | `source`, `color`, `radius` (vonalvastagság), relatív `{x,y}` pontok: alapból 2–8 pontos `polyline`; `curve: "bezier"` esetén 4 vagy 7 vezérlőpont |
 | `chart` | `kind`: `production` vagy `consumption`; minimum 150×100 |
 
 Színek: `#RRGGBB`. Átlátszóság: 0–255. Betűméretek: 12, 16, 20, 28;
@@ -156,3 +158,17 @@ ablakfény. Minden szöveg, szám, panel, nyíl és energiaút nélkül. A kimen
 1280×800 RGB PNG-re méreteztük. A képfájlok a csomag `day.png`/`night.png`
 állományai; az értékek, kártyák, vonalak és pöttyök élő LVGL-elemek.
 A többi csomag a projekt meglévő PNG-ikonjait használja.
+
+## Sablon készítése
+
+A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két témától a Bézier-energiautakon át a ZIP ellenőrzéséig és telepítéséig vezet. A [generálási promptok](template-icon-prompts.json) a hét különálló ikonkészlet forrását rögzítik.
+
+## Tényleges LVGL-előnézetek
+
+Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
+
+![A hét sablon nappali és éjszakai nézete](previews/templates.png)
+
+![Hét különálló ikonkészlet és saját időjárás](previews/template-icons.png)
+
+![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)

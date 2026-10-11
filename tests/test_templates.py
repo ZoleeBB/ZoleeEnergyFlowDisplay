@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the actual C installer against valid packages and hostile/corrupt input."""
+import hashlib
 import copy
 import ctypes as C
 import json
@@ -31,7 +32,18 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     error=C.create_string_buffer(160)
     for package in sorted((ROOT/'templates').iterdir()):
         assert lib.app_templates_validate(os.fsencode(package),None,error), (package.name,error.value)
-    print('PASS: all 5 packages, both themes, references, PNG CRC/decompression and bounds')
+    print('PASS: all 7 packages, both themes, references, PNG CRC/decompression and bounds')
+    builtin={hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/'main/assets/png').glob('*.png')}
+    seen=set()
+    for package in sorted((ROOT/'templates').iterdir()):
+        for asset in package.glob('*.png'):
+            if asset.name in ('day.png','night.png'):continue
+            digest=hashlib.sha256(asset.read_bytes()).hexdigest()
+            assert digest not in builtin, f'{asset}: copied builtin icon'
+            assert digest not in seen, f'{asset}: shared template icon'
+            seen.add(digest)
+    assert len(seen)>=35, len(seen)
+    print('PASS: 35 independent template icons, no copied builtin or shared sets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0
     def active():
@@ -61,6 +73,27 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
         element[field]=value;bad['light']['elements']=[element]
         assert lib.app_templates_install(os.fsencode(archive('bad-schema',bad)),error)!=0,(field,error.value)
+    # Curve controls are validated before the runtime samples them.
+    flow=dict(type='flow',source='grid',x=0,y=0,w=200,h=200,curve='bezier',
+              points=[dict(x=0,y=0),dict(x=100,y=0),dict(x=100,y=199),dict(x=199,y=199)])
+    curved=copy.deepcopy(doc);curved['id']='curved';curved['light']['elements']=[flow]
+    assert lib.app_templates_install(os.fsencode(archive('curved',curved)),error)==0,error.value
+    assert lib.app_templates_delete(b'curved',error)==0
+    two=copy.deepcopy(curved);two['light']['elements'][0]['points']+=flow['points'][1:]
+    assert lib.app_templates_install(os.fsencode(archive('two-curves',two)),error)==0,error.value
+    assert lib.app_templates_delete(b'curved',error)==0
+    for curve,points in [('spline',flow['points']),('bezier',flow['points'][:3]),('bezier',flow['points']*2)]:
+        bad=copy.deepcopy(curved);bad['light']['elements'][0].update(curve=curve,points=points)
+        assert lib.app_templates_install(os.fsencode(archive('bad-curve',bad)),error)!=0
+    bad=copy.deepcopy(curved);bad['light']['elements'][0]['points'][1]['x']=200
+    assert lib.app_templates_install(os.fsencode(archive('outside-curve',bad)),error)!=0
+    # All six custom weather states must exist; no silent builtin fallback.
+    weather=dict(type='weather',x=0,y=0,w=128,h=128,files={k:'missing.png' for k in
+                  ('sunny','partly_cloudy','cloudy','rain','snow','night')})
+    bad=copy.deepcopy(doc);bad['id']='weather';bad['light']['elements']=[weather]
+    assert lib.app_templates_install(os.fsencode(archive('missing-weather',bad)),error)!=0
+    del weather['files']['night']
+    assert lib.app_templates_install(os.fsencode(archive('incomplete-weather',bad)),error)!=0
     for name,data in [('../escaped.png',b'x'),('/absolute.png',b'x'),('nested/a.png',b'x'),
                       ('UPPER.png',b'x'),('broken.png',b'not png'),('huge.png',b'x'*(2*1024*1024+1))]:
         assert lib.app_templates_install(os.fsencode(archive('bad-path',dict(doc,id='invalid'),{name:data})),error)!=0,name

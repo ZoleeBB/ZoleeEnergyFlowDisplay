@@ -54,6 +54,62 @@ static void save_frame(const char *name)
     printf("Rendered %s\n",name);
 }
 
+/* Exercise actual line objects and dot positions, including reverse/zero/cap. */
+static void test_template_motion(void){
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];
+        if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        if(!strcmp(ts(node->spec,"curve"),"bezier")){
+            unsigned controls=cJSON_GetArraySize(cJSON_GetObjectItem(node->spec,"points"));
+            assert(node->point_count==(controls==4?33:65));
+            const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
+            assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
+            assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
+            assert(lv_line_get_points(node->obj)==node->points);
+        }
+        double original=node->power;
+        node->phase=.5f;node->power=7;template_animate(.02f);float capped=node->phase;
+        assert(capped>.5f);
+        node->phase=.5f;node->power=15;template_animate(.02f);assert(fabs(node->phase-capped)<.00001);
+        node->phase=.5f;node->power=-7;template_animate(.02f);assert(node->phase<.5f);
+        node->phase=.5f;node->power=0;template_animate(.02f);
+        for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
+        node->power=original;
+    }
+    template_animate(.02f);lv_obj_update_layout(s_screen);
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];if(strcmp(ts(node->spec,"type"),"flow")||fabs(node->power)<.001)continue;
+        for(int d=0;d<4;d++){
+            float x=lv_obj_get_x(node->dots[d])+3-tn(node->spec,"x",0),y=lv_obj_get_y(node->dots[d])+3-tn(node->spec,"y",0),distance=10000;
+            for(unsigned k=1;k<node->point_count;k++){
+                float ax=node->points[k-1].x,ay=node->points[k-1].y,dx=node->points[k].x-ax,dy=node->points[k].y-ay;
+                float sq=dx*dx+dy*dy,t=sq?((x-ax)*dx+(y-ay)*dy)/sq:0;t=fmaxf(0,fminf(1,t));
+                distance=fminf(distance,hypotf(x-ax-t*dx,y-ay-t*dy));
+            }
+            assert(distance<2); /* integer display rounding only */
+        }
+    }
+}
+
+static void test_template_weather(const app_energy_sample_t *sample){
+    static const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night"};
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];const cJSON *files=cJSON_GetObjectItem(node->spec,"files");
+        if(strcmp(ts(node->spec,"type"),"weather")||!files)continue;
+        for(int k=0;k<6;k++){
+            app_energy_sample_t state=*sample;state.night_mode=k==5;state.has_precipitation=k==3||k==4;
+            state.has_sun_radiation=k==0;state.power_pv_kw=k==1?2:0;state.temperature_c=k==4?-6:20;
+            template_update(&state,&fixture);assert(weather_kind(&state)==(weather_kind_t)k);
+            bool matched=false;
+            for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[k]),template_view.assets[a].name)){
+                assert(lv_image_get_src(node->obj)==&template_images[a]);matched=true;
+            }
+            assert(matched);
+        }
+    }
+    template_update(sample,&fixture);
+}
+
 /* Ismert, egyenként 2 kW magas rétegek, a plot tényleges koordinátáival.
  * Nem kötjük a tesztet a demógörbe tetszőleges képpontjához. */
 static void test_stacked_charts(void)
@@ -149,7 +205,7 @@ int main(void)
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
         app_template_info_t list[APP_TEMPLATE_MAX];char active[33];
-        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==6);
+        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==8);
         sample.power_pv_kw=7;sample.power_bat_kw=-2.5;sample.power_grid_kw=-2.4;sample.power_full_kw=2.1;
         sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
         snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
@@ -158,7 +214,11 @@ int main(void)
             for(int night=0;night<2;night++){
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
+                test_template_weather(&sample);test_template_motion();
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
+                if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
+                    template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);
+                }
                 rt.wifi_connected=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_WIFI_ERROR);
                 rt.wifi_connected=true;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
                 assert(!strcmp(template_view.id,list[i].id));assert(s_last_night==(bool)night);
@@ -174,7 +234,7 @@ int main(void)
             assert(!strcmp(template_view.id,list[i%count].id));
         }
         lv_indev_delete(input);
-        puts("PASS: 10 template renders, common error/recovery, NightMode and actual LVGL swipe across all 6 layouts");
+        puts("PASS: 14 template renders, common error/recovery, NightMode and actual LVGL swipe across all 8 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
     clear();template_release_cache();app_templates_view_free(&template_view);
     lv_display_delete(display);lv_deinit();return 0;

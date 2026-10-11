@@ -1,0 +1,317 @@
+[
+  {
+    "template": "01-live-home",
+    "name": "flow_solar",
+    "file": "templates/01-live-home/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: soft realistic miniature architectural models, warm cream stucco, moss green details, isometric 3D, subtle natural materials. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. This is the exclusive icon set for 01-live-home, not the builtin template.",
+    "original_sha256": "818cd2d38c874848b2d4c0bf2197b0dd86881e17ee855092c2d2ee6354cff5b7",
+    "runtime_sha256": "989563ffae74208996f984f15ef696135fd32456d22e66395044bee2e02f734c"
+  },
+  {
+    "template": "01-live-home",
+    "name": "flow_house",
+    "file": "templates/01-live-home/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: soft realistic miniature architectural models, warm cream stucco, moss green details, isometric 3D, subtle natural materials. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 01-live-home.",
+    "original_sha256": "8c1d5bdfe3e877e66e876075933a3b03d6dd303ea567294fae158f5aa29b8ea4",
+    "runtime_sha256": "d5e2ba48462f360598d854e2224cd8decfddfccc81a5031c8f34246d074a41dc"
+  },
+  {
+    "template": "01-live-home",
+    "name": "flow_grid",
+    "file": "templates/01-live-home/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: soft realistic miniature architectural models, warm cream stucco, moss green details, isometric 3D, subtle natural materials. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 01-live-home.",
+    "original_sha256": "071bd1c851e57f7aeeb850c537cbf1464011d2992ae4941fd773c8168240f3f5",
+    "runtime_sha256": "7770dd65164c3c365c780d0e348b285b7f3e8254c42002ccc1a2407fe92383ec"
+  },
+  {
+    "template": "01-live-home",
+    "name": "flow_battery",
+    "file": "templates/01-live-home/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: soft realistic miniature architectural models, warm cream stucco, moss green details, isometric 3D, subtle natural materials. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 01-live-home.",
+    "original_sha256": "8f51bb325717b2a14a6b994a0521cd402def8fb35f5b94f61f15a69a53a71a76",
+    "runtime_sha256": "5500fe7823350fb75289b98ff2c0ca3367c5425fada1698e40fa0bb7fce4b466"
+  },
+  {
+    "template": "02-energy-paths",
+    "name": "flow_solar",
+    "file": "templates/02-energy-paths/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: polished translucent jade and frosted glass objects, elegant isometric product render, luminous internal highlights, precise sculpted edges. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 02-energy-paths.",
+    "original_sha256": "916f3f0cdc56fea44576611da09844cd141c4d84773f733e40ac8d143155b6f3",
+    "runtime_sha256": "a07235f566b7de858ea0b5e22e1bb38d4fd885f59bbcbd542ed30c845a20cafe"
+  },
+  {
+    "template": "02-energy-paths",
+    "name": "flow_house",
+    "file": "templates/02-energy-paths/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: polished translucent jade and frosted glass objects, elegant isometric product render, luminous internal highlights, precise sculpted edges. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 02-energy-paths.",
+    "original_sha256": "fa83ebc459a638b69f3b6dca1be69b83691300fe5136617c8f7389d258bae42e",
+    "runtime_sha256": "070743e09efedb21c1d62ceb39866f2ddcf0bef1b903b626d49f379698641dc6"
+  },
+  {
+    "template": "02-energy-paths",
+    "name": "flow_grid",
+    "file": "templates/02-energy-paths/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: polished translucent jade and frosted glass objects, elegant isometric product render, luminous internal highlights, precise sculpted edges. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 02-energy-paths.",
+    "original_sha256": "5e7eca84cd68400e732b6aaadf2b402363ce6401a308917a18e6cfcda712e1c1",
+    "runtime_sha256": "0d601b1f80e3a388e509ec2094e9b333d52c737c47412357cbf068744ab925b1"
+  },
+  {
+    "template": "02-energy-paths",
+    "name": "flow_battery",
+    "file": "templates/02-energy-paths/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: polished translucent jade and frosted glass objects, elegant isometric product render, luminous internal highlights, precise sculpted edges. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 02-energy-paths.",
+    "original_sha256": "f4c53c7f9740fd5c3c4e82592eedf3bfadcbd083b13b6a533b5eb5b9872ccefb",
+    "runtime_sha256": "8f856c50fc0109a51f9b3bd89998bd087c3627f001ed8791480cddac60bdb77a"
+  },
+  {
+    "template": "03-instruments",
+    "name": "flow_solar",
+    "file": "templates/03-instruments/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "e963032b1c6ebd88621cc77f2299a3d812117ee1b0718c4eb926f58577dcd9d6",
+    "runtime_sha256": "6767a2c63d06f4e48cd30fb336bcb694bf701d63c23c01bd6e5df98ce4ab9ce5"
+  },
+  {
+    "template": "03-instruments",
+    "name": "flow_house",
+    "file": "templates/03-instruments/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "d728da579887cef10e3c2c7af96467cd292a5a29459486f81e8ec43f6d7f9cc2",
+    "runtime_sha256": "a9aeb7e771754d38797c8973d50206549a9b48cf0758de22f8b51bed63f64059"
+  },
+  {
+    "template": "03-instruments",
+    "name": "flow_grid",
+    "file": "templates/03-instruments/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "ce16ae475262a1a66580d4a588441d1cc49dd8dd019558fde7a1630167723b99",
+    "runtime_sha256": "068642edd09ccf594f15ac4f0d5bd8de3c7550bc5c84d52353f69fc4b688eaeb"
+  },
+  {
+    "template": "03-instruments",
+    "name": "flow_battery",
+    "file": "templates/03-instruments/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "50b79c896a7fbc08bda77c849c81278589bfc3cb4d5734cf389182d3a85d7c3b",
+    "runtime_sha256": "890557e015bfba5e3293116167ab879831b43fe0cc987151f25e4a1428aebcc3"
+  },
+  {
+    "template": "04-daily-balance",
+    "name": "flow_solar",
+    "file": "templates/04-daily-balance/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "837b62e0d7d717ce43046622f4b70bb999366189b9116bf638ada0044fedd66c",
+    "runtime_sha256": "b2fa166cdec2d7afb8dcb34ed5f4f21488b98a9a4afdbe8f21ad47d617165505"
+  },
+  {
+    "template": "04-daily-balance",
+    "name": "flow_house",
+    "file": "templates/04-daily-balance/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "59f73093594a835ae072ec96749fbaad75a4d29d5643f3888c9174b2f4c86aa7",
+    "runtime_sha256": "b16cef6771b891fc338f7191ab454b6434b46a068d0553de580e11fee4d396b0"
+  },
+  {
+    "template": "04-daily-balance",
+    "name": "flow_grid",
+    "file": "templates/04-daily-balance/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "1c75670f18b67626544e9a8792b62745f25753cecd249cbef995213d74c1a751",
+    "runtime_sha256": "6e431b488378778a942c36024a30b32a24699b06496b12c0b5bd7f42a178bd9f"
+  },
+  {
+    "template": "04-daily-balance",
+    "name": "flow_battery",
+    "file": "templates/04-daily-balance/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "5dfea326b7b4bd0a2b83600d53530565d0f42b46ae66a9d91e3a883ba679f1b9",
+    "runtime_sha256": "770d36e8e499fcc608ec01149a348194b1d830a4e982e8d4db60daa09a4177d9"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "flow_solar",
+    "file": "templates/05-calm-home/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: handcrafted matte ceramic miniature, cream, sage and terracotta glazes, soft organic shape, sophisticated Scandinavian product render. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 05-calm-home.",
+    "original_sha256": "30f6fc5aa4d653fea735fd89b57d871162952b8b1f9793292c760c0cd7004454",
+    "runtime_sha256": "67907bd472ea89a66f2237678575652ac311206fd98064affc00661a38358ce7"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "flow_house",
+    "file": "templates/05-calm-home/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: handcrafted matte ceramic miniature, cream, sage and terracotta glazes, soft organic shape, sophisticated Scandinavian product render. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 05-calm-home.",
+    "original_sha256": "07016a60ee4b0a90f7c09e9949ac3ac17a639ce87c711655dca488b833105445",
+    "runtime_sha256": "2c4dd8fc222d1d86b5faa45f7e9129ae82f2e53708963dc139034b7a5d378e7e"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "flow_grid",
+    "file": "templates/05-calm-home/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: handcrafted matte ceramic miniature, cream, sage and terracotta glazes, soft organic shape, sophisticated Scandinavian product render. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 05-calm-home.",
+    "original_sha256": "8340c99c75052aa7384651393ebd8ab2519a705455aa656dce269ea5cccf6b51",
+    "runtime_sha256": "99b03ae7619da1061b93ed2249c62c46cdc61c3ae487c5bac165ea8a661f0285"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "flow_battery",
+    "file": "templates/05-calm-home/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: handcrafted matte ceramic miniature, cream, sage and terracotta glazes, soft organic shape, sophisticated Scandinavian product render. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 05-calm-home.",
+    "original_sha256": "34d383f74edcc3b6dca47eccb9b4c5d9d614487317b519b3ae6ccc2e8b777115",
+    "runtime_sha256": "7f86e3d5553c7a0f2c5f018a16986660e2ed1b7885817cd2045b3688a512b15c"
+  },
+  {
+    "template": "06-energy-orbit",
+    "name": "flow_solar",
+    "file": "templates/06-energy-orbit/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: futuristic luminous crystal miniature, midnight blue glass, turquoise light and violet accents, sculpted faceted 3D holographic product render. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 06-energy-orbit.",
+    "original_sha256": "4b2c570bcf91b0bd1b3ae6920971bf10c075df7426705cd13ef577eaafdd38ac",
+    "runtime_sha256": "6a7905e0f521b8ecf79e5540675d016f49e9b6170c9fb43f7765bed23493ef05"
+  },
+  {
+    "template": "06-energy-orbit",
+    "name": "flow_house",
+    "file": "templates/06-energy-orbit/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: futuristic luminous crystal miniature, midnight blue glass, turquoise light and violet accents, sculpted faceted 3D holographic product render. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 06-energy-orbit.",
+    "original_sha256": "ac45abe30001e4a81e0c65df795062af1be16e8b8f15acb42dd1401560a1b3d7",
+    "runtime_sha256": "854d25db488cb50ab65891d8b3dcf6e891fb19f31292107f892b4e29e317b37e"
+  },
+  {
+    "template": "06-energy-orbit",
+    "name": "flow_grid",
+    "file": "templates/06-energy-orbit/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: futuristic luminous crystal miniature, midnight blue glass, turquoise light and violet accents, sculpted faceted 3D holographic product render. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 06-energy-orbit.",
+    "original_sha256": "ac19815b1943e3396006a1d491aac705672f8bdfd384c9f743ad407fdcd7af0a",
+    "runtime_sha256": "74744f40f0ef70a4a6a018dba4703bf4a2730060e9943de61b34a7df3827a9ee"
+  },
+  {
+    "template": "06-energy-orbit",
+    "name": "flow_battery",
+    "file": "templates/06-energy-orbit/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: futuristic luminous crystal miniature, midnight blue glass, turquoise light and violet accents, sculpted faceted 3D holographic product render. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 06-energy-orbit.",
+    "original_sha256": "f50c8195c964182f4da073b484cc5b8e2c9014d88dd03fdc4c3c1bd460d33761",
+    "runtime_sha256": "1e65548ddc9a52264ca56d3a69a3a754dce42a955f9e7de71af3f17199dd4b02"
+  },
+  {
+    "template": "07-energy-ledger",
+    "name": "flow_solar",
+    "file": "templates/07-energy-ledger/flow_solar.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: refined copper and ivory bas-relief miniature, delicate engraved technical details, dark teal inlays, sophisticated architectural product illustration. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 07-energy-ledger.",
+    "original_sha256": "9ef0e46d9ac3f6e9207bdd4f221f3b9975166b78b8d1af1e8362c3560a166a74",
+    "runtime_sha256": "92cbc505b537d0c55bf5382d8cdaf27d9973f64d6c7ee74e88c538bdbba5aec7"
+  },
+  {
+    "template": "07-energy-ledger",
+    "name": "flow_house",
+    "file": "templates/07-energy-ledger/flow_house.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: refined copper and ivory bas-relief miniature, delicate engraved technical details, dark teal inlays, sophisticated architectural product illustration. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 07-energy-ledger.",
+    "original_sha256": "fc7592c397fb908bb623a89293e6c426c2190c48fd9b106032802b048a4c4449",
+    "runtime_sha256": "993369ef8d730fa8bc15c07543fd6cbff12ae70dca767ea03595a1121ee7f421"
+  },
+  {
+    "template": "07-energy-ledger",
+    "name": "flow_grid",
+    "file": "templates/07-energy-ledger/flow_grid.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: an electricity transmission pylon with symmetric crossarms and hanging insulators. Style: refined copper and ivory bas-relief miniature, delicate engraved technical details, dark teal inlays, sophisticated architectural product illustration. Palette: coral red grid accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 07-energy-ledger.",
+    "original_sha256": "a322b39e28fba67250039a3a85edd1583d8af1fe4d82127d51b7d90a409736da",
+    "runtime_sha256": "506561d974e349cfe8c14cbe16499feb0c5f531e32c2d4f1246d87a3a711b81f"
+  },
+  {
+    "template": "07-energy-ledger",
+    "name": "flow_battery",
+    "file": "templates/07-energy-ledger/flow_battery.png",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: refined copper and ivory bas-relief miniature, delicate engraved technical details, dark teal inlays, sophisticated architectural product illustration. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 07-energy-ledger.",
+    "original_sha256": "784d7d0be93fbf9ed9373d986e00c2e0e815f96feee762bd4f1ae24a1da40899",
+    "runtime_sha256": "efdf045471a8c8c6f89a178fe890e704714b9258dc3b612cf11d9ea1640377a2"
+  },
+  {
+    "template": "02-energy-paths",
+    "name": "flow_hub",
+    "file": "templates/02-energy-paths/flow_hub.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single UI icon, a sophisticated home energy inverter hub with visible connectors, polished translucent jade and frosted glass objects, elegant isometric product render, luminous internal highlights, precise sculpted edges, centered isolated object, transparent background actual alpha, readable at128px, no border/tile/text.",
+    "original_sha256": "0fcc4587b0ad252d1f1db2d8124b1e980b0d45db54ca63dd07f12b8ee51760f1",
+    "runtime_sha256": "84d88368e28d8b4ec28b47a71cb8db55ccadc4d20008c6bcdf1e4ad39ecb7763"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_sunny",
+    "file": "templates/05-calm-home/weather_sunny.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: golden sun with carefully sculpted rays. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "775a074aef8491a508cdda8dd6c392650a971ef5de44287dfc782b3f423d0558",
+    "runtime_sha256": "53c7c3da2f6d0fc72605634ddcb5336ce5942daa414e91e8bd0c81431c9586ab"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_partly_cloudy",
+    "file": "templates/05-calm-home/weather_partly_cloudy.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: golden sun peeking behind a soft ivory cloud. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "2defd33ba44f7583a34e5a8a97866d323ac470963e00a4e4b3551b1825d23681",
+    "runtime_sha256": "a9da0e57c6266a0eac046953918704803f81c2dd4f330268da45a0c6c76936f7"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_cloudy",
+    "file": "templates/05-calm-home/weather_cloudy.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: two softly overlapping ivory clouds. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "6fbf13f3ff4a42225135dfa072a4795c5b7ae80c98f21cd31474a23d1b8629a6",
+    "runtime_sha256": "ca3a983984cbab53686bf12a14a40c9ec98dad2271cb84ebf832ab9e73c41162"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_rain",
+    "file": "templates/05-calm-home/weather_rain.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: soft cloud with blue falling rain droplets. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "f9c17f30b942fa7e400ee1518df8924c4b9fe25316bda8c679b2ee83931f36fa",
+    "runtime_sha256": "681a1aadb6dca737899cf75b2a8c07c38b7a50cb30832d94f8f836d6acc6b6f6"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_snow",
+    "file": "templates/05-calm-home/weather_snow.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: soft cloud with delicate snow crystals. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "eb735a98f60f63eb43784bc11e615eda8587dc988e8321e80daff6f3b88be1a9",
+    "runtime_sha256": "5e07eabc63ef3e03e803bde54131f224b04dccd19ca9a6b7b94cbaeb3e28f278"
+  },
+  {
+    "template": "05-calm-home",
+    "name": "weather_night",
+    "file": "templates/05-calm-home/weather_night.png",
+    "generator": "built-in image_gen",
+    "prompt": "Single weather UI icon: golden crescent moon with two small stars. Sophisticated handcrafted matte ceramic miniature with cream, sage and terracotta glazes, soft organic shapes and restrained satin details. Centered isolated composition readable at128px. Transparent background actual alpha. No tile, border, frame, words or other icons. Same ceramic style as Calm Home energy icons.",
+    "original_sha256": "ca02f06758da56fe2cae1f6a3a9c0886c0b11178381f9816e6f3651efe51e83f",
+    "runtime_sha256": "268cf464d3afa25ca38b72c9ab810b49053beaab358b304b24bbc14a83e32e2b"
+  }
+]

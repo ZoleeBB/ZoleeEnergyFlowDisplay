@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 1,
+  "version": 2,
   "light": {
     "background": "#F4F7F1",
     "elements": [
@@ -88,6 +88,7 @@
         "source": "pv",
         "color": "#36AE7C",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -112,6 +113,7 @@
         "source": "grid",
         "color": "#EA9C3B",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -136,6 +138,7 @@
         "source": "home",
         "color": "#36AE7C",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -160,6 +163,7 @@
         "source": "battery",
         "color": "#559CDE",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 370,
@@ -546,6 +550,7 @@
         "source": "pv",
         "color": "#36AE7C",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -570,6 +575,7 @@
         "source": "grid",
         "color": "#EA9C3B",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -594,6 +600,7 @@
         "source": "home",
         "color": "#36AE7C",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 0,
@@ -618,6 +625,7 @@
         "source": "battery",
         "color": "#559CDE",
         "radius": 28,
+        "curve": "polyline",
         "points": [
           {
             "x": 370,

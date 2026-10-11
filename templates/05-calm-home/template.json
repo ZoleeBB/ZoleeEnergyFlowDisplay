@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 1,
+  "version": 2,
   "light": {
     "background": "#F3F0E7",
     "elements": [
@@ -106,7 +106,15 @@
         "x": 178,
         "y": 345,
         "w": 160,
-        "h": 160
+        "h": 160,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
       },
       {
         "type": "value",
@@ -263,10 +271,18 @@
         "radius": 30
       },
       {
+        "type": "image",
+        "x": 465,
+        "y": 681,
+        "w": 50,
+        "h": 50,
+        "file": "flow_grid.png"
+      },
+      {
         "type": "value",
         "x": 60,
         "y": 690,
-        "w": 420,
+        "w": 370,
         "h": 32,
         "source": "status",
         "font": 20,
@@ -419,7 +435,15 @@
         "x": 178,
         "y": 345,
         "w": 160,
-        "h": 160
+        "h": 160,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
       },
       {
         "type": "value",
@@ -576,10 +600,18 @@
         "radius": 30
       },
       {
+        "type": "image",
+        "x": 465,
+        "y": 681,
+        "w": 50,
+        "h": 50,
+        "file": "flow_grid.png"
+      },
+      {
         "type": "value",
         "x": 60,
         "y": 690,
-        "w": 420,
+        "w": 370,
         "h": 32,
         "source": "status",
         "font": 20,

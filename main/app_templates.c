@@ -148,10 +148,19 @@ static bool validate_scene(const cJSON *scene){
         if(cJSON_HasObjectItem(e,"font")&&cJSON_GetObjectItem(e,"font")->valueint>=48&&
            (strcmp(type,"value")||!source||!strcmp(source,"status")||strstr(source,"direction")))return false;
         if(!strcmp(type,"image")&&!app_templates_safe_asset(str(e,"file")))return false;
+        if(!strcmp(type,"weather")&&cJSON_HasObjectItem(e,"files")){
+            const cJSON *files=cJSON_GetObjectItem(e,"files");
+            const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night",NULL};
+            if(!cJSON_IsObject(files)||cJSON_GetArraySize(files)!=6)return false;
+            for(int i=0;keys[i];i++)if(!app_templates_safe_asset(str(files,keys[i])))return false;
+        }
         if(!strcmp(type,"chart")&&(!str(e,"kind")||(strcmp(str(e,"kind"),"production")&&strcmp(str(e,"kind"),"consumption"))))return false;
         if(!strcmp(type,"flow")){
             const cJSON *pts=cJSON_GetObjectItem(e,"points");int n=cJSON_GetArraySize(pts);
             if(!cJSON_IsArray(pts)||n<2||n>8)return false;
+            const char *curve=str(e,"curve");
+            if(cJSON_HasObjectItem(e,"curve")&&(!curve||(strcmp(curve,"polyline")&&strcmp(curve,"bezier"))))return false;
+            if(curve&&!strcmp(curve,"bezier")&&n!=4&&n!=7)return false;
             for(int i=0;i<n;i++){
                 const cJSON *pt=cJSON_GetArrayItem(pts,i);
                 if(!number(pt,"x",0,cJSON_GetObjectItem(e,"w")->valueint-1,false)||!number(pt,"y",0,cJSON_GetObjectItem(e,"h")->valueint-1,false))return false;
@@ -187,9 +196,15 @@ bool app_templates_validate(const char *directory,cJSON **document,char error[16
     const char *themes[]={"light","dark"};
     for(int t=0;valid&&t<2;t++){
         const cJSON *e; cJSON_ArrayForEach(e,cJSON_GetObjectItem(cJSON_GetObjectItem(root,themes[t]),"elements")){
-            if(strcmp(str(e,"type"),"image"))continue;
-            path_join(path,directory,str(e,"file"));struct stat st;
-            if(stat(path,&st)||!S_ISREG(st.st_mode))valid=false;
+            if(!strcmp(str(e,"type"),"image")){
+                path_join(path,directory,str(e,"file"));struct stat st;
+                if(stat(path,&st)||!S_ISREG(st.st_mode))valid=false;
+            }else if(!strcmp(str(e,"type"),"weather")){
+                const cJSON *file;cJSON_ArrayForEach(file,cJSON_GetObjectItem(e,"files")){
+                    path_join(path,directory,cJSON_GetStringValue(file));struct stat st;
+                    if(stat(path,&st)||!S_ISREG(st.st_mode))valid=false;
+                }
+            }
         }
     }
     if(!valid){cJSON_Delete(root);return error_set(error,"Hiányzó, sérült vagy túl nagy PNG / Invalid assets");}

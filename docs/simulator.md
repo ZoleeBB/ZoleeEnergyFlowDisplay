@@ -30,7 +30,7 @@ Az első adatcsomag induláskor, a továbbiak 5 másodpercenként érkeznek. Kil
 
 A kézi állapot-/témaváltás szünet közben is küld csomagot, ezért újraindítja a timeoutot. Folytatáskor legfeljebb 5 másodperc múlva érkezik a következő csomag. A konzolban látható az elküldött JSON. A demó jelölés az ablakban és a kijelző címében is szerepel.
 
-Az öt SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
+A hét SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
 A futási munkakönyvtár legyen a build `simulator` mappája; ott a `templates`
 alkönyvtár tárolja a választást. A `ZOLEE_TEMPLATE_ROOT` környezeti változóval
 más tesztkönyvtár is megadható. A forráscsomagok így nem változnak meg.

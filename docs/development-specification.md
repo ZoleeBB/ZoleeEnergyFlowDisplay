@@ -2271,3 +2271,17 @@ Ez a fejezet felülírja a korábbi kétgörbés, illetve előjeles hálózat/ak
   SD-re másolható csomagok a USB-telepítőben is legyenek.
 - Részletes séma, korlátok, telepítés és támogatott adatkapcsolatok:
   [Sablonkezelő](templates.md).
+
+### Saját ikonkészletek és görbe energiautak (2026-10-11)
+
+- Minden SD-sablon saját, újragenerált PNG-készletet használ, nem az alapnézet
+  ikonjait. Az alapnézet és a közös hibaoldalak grafikája változatlan marad.
+- Két további sablon: Energiakör és Energiafőkönyv. Így hét SD-csomag és a
+  beépített nézet érhető el, mindegyik SD-sablon két témával.
+- Az Élő otthon energiaútjai valódi köbös Bézier-görbék; a megjelenített vonal
+  és az irányhelyes mozgó pontok közös pályát használnak. Nulla teljesítménynél
+  nincs pont, 7 kW fölött a sebesség nem nő tovább.
+- Az időjárásos sablon saját hatállapotú ikoncsomagot adhat meg, a meglévő
+  időjárás-kiválasztási logika megtartásával.
+- Gyakorlati, példákkal és tesztelési/telepítési lépésekkel ellátott
+  [sablonkészítési útmutató](template-authoring.md) a repository része.

@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 1,
+  "version": 2,
   "light": {
     "background": "#F3F6F8",
     "elements": [
@@ -80,8 +80,16 @@
         "radius": 22
       },
       {
+        "type": "image",
+        "x": 50,
+        "y": 125,
+        "w": 43,
+        "h": 43,
+        "file": "flow_solar.png"
+      },
+      {
         "type": "label",
-        "x": 54,
+        "x": 104,
         "y": 135,
         "w": 190,
         "h": 30,
@@ -142,8 +150,16 @@
         "radius": 22
       },
       {
+        "type": "image",
+        "x": 50,
+        "y": 390,
+        "w": 43,
+        "h": 43,
+        "file": "flow_house.png"
+      },
+      {
         "type": "label",
-        "x": 54,
+        "x": 104,
         "y": 400,
         "w": 190,
         "h": 30,
@@ -313,6 +329,22 @@
         "source": "discharge_today",
         "font": 28,
         "color": "#559CDE"
+      },
+      {
+        "type": "image",
+        "x": 650,
+        "y": 390,
+        "w": 32,
+        "h": 32,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "image",
+        "x": 1015,
+        "y": 125,
+        "w": 32,
+        "h": 32,
+        "file": "flow_battery.png"
       }
     ]
   },
@@ -393,8 +425,16 @@
         "radius": 22
       },
       {
+        "type": "image",
+        "x": 50,
+        "y": 125,
+        "w": 43,
+        "h": 43,
+        "file": "flow_solar.png"
+      },
+      {
         "type": "label",
-        "x": 54,
+        "x": 104,
         "y": 135,
         "w": 190,
         "h": 30,
@@ -455,8 +495,16 @@
         "radius": 22
       },
       {
+        "type": "image",
+        "x": 50,
+        "y": 390,
+        "w": 43,
+        "h": 43,
+        "file": "flow_house.png"
+      },
+      {
         "type": "label",
-        "x": 54,
+        "x": 104,
         "y": 400,
         "w": 190,
         "h": 30,
@@ -626,6 +674,22 @@
         "source": "discharge_today",
         "font": 28,
         "color": "#559CDE"
+      },
+      {
+        "type": "image",
+        "x": 650,
+        "y": 390,
+        "w": 32,
+        "h": 32,
+        "file": "flow_grid.png"
+      },
+      {
+        "type": "image",
+        "x": 1015,
+        "y": 125,
+        "w": 32,
+        "h": 32,
+        "file": "flow_battery.png"
       }
     ]
   }
