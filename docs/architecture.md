@@ -1,41 +1,13 @@
-# Működési áttekintés
+# Felépítés
 
-## Indítási sorrend
+Az ESP32-P4 firmware közös állapotmodellt használ az MQTT- és HTTP-adatfogadáshoz. A kiválasztott fogadó ellenőrzi a teljes JSON-csomagot, majd az érvényes mintát a statisztika és a kijelző kapja meg. Hibás csomag nem módosít állapotot és nem hosszabbítja meg az adatfrissességet.
 
-1. kijelző/LVGL inicializálás
-2. SD-kártya csatlakoztatás
-3. `config.json` betöltés és ellenőrzés
-4. Wi-Fi kapcsolat
-5. NTP időszinkron
-6. statisztika betöltés
-7. helyi web/OTA szolgáltatás
-8. MQTT kapcsolat
-9. első érvényes MQTT állapotcsomag
-10. dashboard
+A konfiguráció a FAT32 microSD gyökerében található. A Wi-Fi csatlakozás után az NTP időszinkron szükséges a helyi naptári statisztikához. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
 
-Az SD vagy konfiguráció induláskori hibája blokkoló hiba. Futás közbeni SD-hiba nem állítja le az MQTT megfigyelést és a kijelzőt.
+A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció időlépése 16 ms, a diagramok frissítése 5 másodperc. A képek gyorsítótára 6 MiB; a kijelző három részleges RGB565 pufferrel működik. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
 
-## Adatfeldolgozás
+A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
-Az MQTT payload minden mezője kötelező. A csomag csak akkor frissíti a kijelzőt és a statisztikát, ha minden mező típusa és tartománya megfelelő.
+A beépített nézet és nyolc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
-A pillanatnyi mintákból folyamatos energia-integrálás történik. A 30 másodpercnél nagyobb minta-kimaradást alapértelmezés szerint nem extrapoláljuk.
-
-A grafikonok 5 perces átlagpontokból állnak, napi 288 ponttal.
-
-## OTA rollback
-
-Az új OTA firmware legfeljebb 3 percet kap arra, hogy sikeresen elérje az SD-kártyát, betöltse a konfigurációt, csatlakozzon Wi-Fihez, időt szinkronizáljon és kapcsolódjon az MQTT brokerhez. Érvényes MQTT adatcsomag érkezése nem feltétele az OTA firmware elfogadásának.
-
-
-## UI és háttérfeladatok
-
-A minták és feliratok frissítése 200 ms-os ciklusban történik. Az energiaáramlási pöttyök és a hibaállapot pulzálása külön, 16 ms-os LVGL időzítőt kap; az irányváltás megtartja a pöttyök pozícióját. Az animáció sebessége 7 kW-nál telítődik.
-
-A két grafikon saját LVGL vektoros rajzolót használ közös plot-koordinátákkal. A kitöltés a nulla felé áttetsző, az előjeles grafikon mindkét térfélen működik. Az időfeliratok külön pozicionált objektumok. A beépített Noto Sans fontok valódi magyar ékezetes karaktereket tartalmaznak.
-
-Minden háttértask indítását ellenőrizzük. Az OTA HTTP-fogadás legfeljebb 30 másodpercig vár új adatra. A fordítás hibának tekinti a 8 KiB-nál nagyobb alkalmazásbeli veremkereteket.
-
-## Közös diagnosztika
-
-Minden témából felfelé húzással megnyitható, lefelé húzással visszatér a kiválasztott témához. A szimulátorban az I billentyű használható. A helyi weben `/diagnostics`, gépi snapshot: `/api/diagnostics`. Wi-Fi/IP/RSSI, HTTP/MQTT állapot, utolsó csomag kora, SD, NTP, firmware, üzemidő és szabad memória. Jelszavak és teljes konfiguráció nem kerülnek a snapshotba. Ugyanaz a Basic Auth védi, mint az OTA-t.
+Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).

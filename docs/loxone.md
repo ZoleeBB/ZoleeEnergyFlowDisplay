@@ -44,7 +44,7 @@ A Program blokk `Etxt` kimenetén jelennek meg az interpreter/szintaxis hibák. 
 
 ## Közvetlen HTTP POST bővítés
 
-A 2026-10-05-én elfogadott `DataReceptMode=http` módhoz külön minta készült: [loxone-energy-http-post.picoc](../examples/loxone-energy-http-post.picoc). A [HTTP bekötési útmutató](http-input.md) a Miniserver Gen 2 / 17.x beállításait tartalmazza. A HTTP firmware-fogadó megvalósítása és a hardveres átvétel még szükséges; a fenti MQTT-minta a meglévő működéshez tartozik.
+A `DataReceptMode=http` módhoz közvetlen POST-minta tartozik: [loxone-energy-http-post.picoc](../examples/loxone-energy-http-post.picoc). A [HTTP bekötési útmutató](http-input.md) a Miniserver Gen 2 / 17.x beállításait tartalmazza. A firmware mindkét fogadási módot támogatja; a konfiguráció választja ki az aktív módot.
 
 ## Időjárás jelenlétjelzés (I13)
 
@@ -74,3 +74,5 @@ A valódi 0 °C, 0 km/h és 0 állapotjel bekötött/jelenlévő bit mellett meg
 
 Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp-content/uploads/sites/2/2016/08/CustomScriptProgramming.pdf).
 A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

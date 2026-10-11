@@ -1,120 +1,51 @@
 # Zolee Energy Flow Display
 
-Otthoni energiaáramlás-kijelző a **Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1** hardverhez.
+Otthoni energiaáramlás-kijelző a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150) panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja.
 
-## Főbb jellemzők
-
-- 1280x800, fix fekvő LVGL felület
-- ESP-IDF 5.5.4
-- MQTT adatforrás, QoS 1
-- PV / ház / akkumulátor / hálózat energiaáramlás
-- 5 perces napi grafikonok
-- mai és tegnapi, azonos időpontig számolt összehasonlítás
-- microSD konfiguráció és statisztika
-- nappali / éjszakai mód
-- helyi információs weboldal
-- Wi-Fi OTA, két OTA partíció és automatikus rollback
+A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy közvetlen HTTP POST fogadja a teljes mérési JSON-t, javasoltan öt másodpercenként. FAT32 microSD tárolja a konfigurációt, nyolc választható sablont és 35 nap statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
 
 ## Első indítás
 
-1. A `config.sample.json` alapján hozz létre egy `config.json` fájlt.
-2. Másold a microSD gyökerébe: `/config.json`.
-3. Állítsd be legalább a Wi-Fi SSID-t és az MQTT broker címét.
-4. Indítsd el a készüléket.
+1. Telepítsd a firmware-t az [USB útmutató](docs/usb-install.md) szerint.
+2. A [MQTT konfigurációt](config.sample.json) vagy [HTTP konfigurációt](examples/config.http.sample.json) töltsd ki, és másold az SD gyökerébe `config.json` néven.
+3. A repó `templates` vagy az USB-csomag `sd-card/templates` könyvtárát másold az SD gyökerébe.
+4. Állítsd be a [Loxone adatküldést](docs/loxone.md), majd indítsd a kijelzőt. Wi-Fi és NTP szükséges az induláshoz.
 
-A `config.json` szándékosan nincs verziókezelve.
+Az I1–I12 bemenetek sorrendje fix. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-## MQTT
+Balra/jobbra húzás lapoz a rendszernézet és a nyolc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
 
-Alapértelmezett topic:
+![A nyolc sablon világos és sötét nézete](docs/previews/templates.png)
 
-`loxberry/mqttgateway/energymonitor/state`
-
-Példa payload: `examples/mqtt-payload.sample.json`.
-
-A négy időjárási mező értéke lehet `null`, a kulcsuk továbbra is kötelező; ilyenkor a megfelelő időjáráskijelzés eltűnik. [Időjárás nélküli minta](examples/mqtt-payload.no-weather.sample.json).
-
-A kijelző minden kötelező mezőt ellenőriz. Hibás vagy hiányos csomag esetén az egész csomag elutasításra kerül.
-
-## Loxone
-
-A szükséges JSON összeállítására kész Pico C példa található itt:
-
-`examples/loxone-energy-payload.picoc`
-
-Részletes bekötés: `docs/loxone.md`.
-
-## Fordítás
-
-```bash
-idf.py set-target esp32p4
-idf.py build
-```
-
-A projekt célverziója: **ESP-IDF 5.5.4**.
-
-## OTA / információs oldal
-
-Hostname:
-
-`zolee-energy-flow-display`
-
-Információs oldal:
-
-`http://zolee-energy-flow-display.local/`
-
-Firmware frissítés:
-
-`http://zolee-energy-flow-display.local/update`
-
-## SD-kártya
-
-```text
-/config.json
-/stats/YYYY-MM-DD.json
-```
-
-A rendszer 35 helyi naptári napot tart meg; a részletes mai/tegnapi adatok mellett heti és havi összesítés is elérhető.
-
-## CI
-
-A GitHub Actions minden main push és pull request esetén ESP-IDF 5.5.4 fordítást futtat.
+További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [rendszernézet lapjelzővel](docs/previews/builtin-pagination.png), [közös diagnosztika](docs/previews/diagnostics.png).
 
 ## Dokumentáció
 
-- [Teljes fejlesztési specifikáció](docs/development-specification.md)
 - [Hardver](docs/hardware.md)
-- [Fordítás és feltöltés](docs/build-flash.md)
-- [microSD előkészítés](docs/sd-card.md)
 - [Konfiguráció](docs/configuration.md)
-- [MQTT protokoll](docs/mqtt.md)
-- [Loxone Program blokk](docs/loxone.md)
-- [Statisztikai számítások](docs/statistics.md)
+- [JSON és MQTT](docs/mqtt.md)
+- [HTTP adatfogadás](docs/http-input.md)
+- [Loxone mintaprogramok](docs/loxone.md)
+- [SD-kártya](docs/sd-card.md)
+- [Nyolc választható téma](docs/templates.md)
+- [Saját sablon készítése](docs/template-authoring.md)
+- [Statisztika és számítások](docs/statistics.md)
+- [Webfelület és OTA](docs/ota.md)
 - [Hibakezelés](docs/errors.md)
-- [OTA és webfelület](docs/ota.md)
-- [Működési áttekintés](docs/architecture.md)
+- [Fordítás és flash](docs/build-flash.md)
+- [USB telepítés](docs/usb-install.md)
+- [Windows szimulátor](docs/simulator.md)
+- [Automatikus kiadás](docs/releases.md)
+- [Felépítés](docs/architecture.md)
+- [Képek és licencek](docs/assets.md)
 
-- [Grafikai assetek](docs/assets.md)
+## Fejlesztői ellenőrzés
 
+```sh
+python3 tests/run_tests.py
+python3 tools/prepare_templates.py
+```
 
-## Release és közvetlen HTTP adatfogadás
+ESP-IDF környezetben: `idf.py set-target esp32p4`, majd `idf.py build`. A CI host regressziós teszteket, valódi LVGL renderelést, firmware-fordítást/csomagolást és külön Windows-szimulátortesztet futtat. A fizikai panelen való működést és a Loxone bekötést hardveres próbával kell ellenőrizni.
 
-A `main` ágra merge-ölt PR automatikusan új, eggyel növelt patch-verziójú release-t készít a sikeres tesztek és firmware-build után, OTA- és USB-csomagokkal. A puszta PR-jóváhagyás még nem indít kiadást.
-
-A GitHubon kézzel publikált release és prerelease automatikusan teljes tesztet és ESP32-P4 firmware-buildet indít. A tag például `v1.2.0` vagy `v1.2.0-rc.1`; ez jelenik meg firmware-verzióként is. Az elkészült release `-ota.bin` fájlja közvetlenül az eszköz `/update` oldalára tölthető, a `-usb.zip` az első USB-s telepítő. Részletek: [release útmutató](docs/releases.md).
-
-A konfiguráció gyökerében a `DataReceptMode` választható: `mqtt` (alapérték) vagy `http`. HTTP módban a `POST /api/energy` teljes JSON csomagot fogad, hitelesítés nélkül; MQTT broker nem szükséges. [Loxone 17.x bekötés és Pico C minta](docs/http-input.md), [teljes HTTP konfiguráció](examples/config.http.sample.json).
-
-## UI kipróbálása eszköz nélkül, Visual Studio 2026 alatt
-
-Nyisd meg a projekt gyökérmappáját, válaszd a **Windows UI demo (Debug, x64)** konfigurációt és a **zolee_simulator.exe** indítási célt, majd **F5**. A valódi kijelzőfelület 5 másodpercenként demó JSON-csomagot kap. [Telepítés, billentyűk, hibakeresés](docs/simulator.md).
-
-## SD-sablonok
-
-[Telepítés és séma](docs/templates.md) · [Saját sablon készítése, lépésről lépésre](docs/template-authoring.md)
-
-## Új statisztikai téma és diagnosztika
-
-Nyolc SD-s elrendezés, mindegyik nappali/sötét változattal; a rendszer alapnézete változatlan. Az `08-statistics` öt napi grafikonon mutatja a termelést, fogyasztást, előjeles hálózati és akkumulátorteljesítményt és SOC-ot. A pillanatnyi energiaáramlás csak számokkal jelenik meg. Heti/havi oszlopok, önellátási arányok és konfigurált tarifák szerinti pénzügyek is elérhetők.
-
-Közös diagnosztika: felfelé húzás, vissza: lefelé; web: `/diagnostics`. A webes sablonkezelő a feltöltés előtt világos/sötét előnézetet és memória-becslést ad, majd telepítés nélkül ellenőriz az eszközön. [A tíz fejlesztés és a hat commit-szakasz](docs/enhancements-20261011.md).
+A személyes `config.json`, buildkönyvtárak és generált telepítőcsomagok nem részei a verziókezelt forrásnak. A beágyazott képek, betűkészletek, licencek és a generált webheader szükséges fordítási bemenetek.

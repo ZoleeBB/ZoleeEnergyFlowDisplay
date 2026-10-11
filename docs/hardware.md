@@ -35,3 +35,5 @@ Ha ez nem sikerül:
 ## Fontos
 
 A firmware kifejezetten ehhez a 10.1 colos panelhez készül. Más Waveshare ESP32-P4 panelre ne töltsd fel változtatás nélkül.
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

@@ -22,7 +22,6 @@ PNG_IMAGE(app_img_header_home_leaf, header_home_leaf_png, APP_PNG_HEADER_HOME_LE
 PNG_IMAGE(app_img_leaf, metric_leaf_png, APP_PNG_METRIC_LEAF_SIZE);
 PNG_IMAGE(app_img_house, metric_house_png, APP_PNG_METRIC_HOUSE_SIZE);
 PNG_IMAGE(app_img_grid, flow_grid_png, APP_PNG_FLOW_GRID_SIZE);
-PNG_IMAGE(app_img_grid_metric, metric_grid_png, APP_PNG_METRIC_GRID_SIZE);
 PNG_IMAGE(app_img_coins, metric_coins_png, APP_PNG_METRIC_COINS_SIZE);
 PNG_IMAGE(app_img_co2, summary_co2_png, APP_PNG_SUMMARY_CO2_SIZE);
 PNG_IMAGE(app_img_tree, summary_tree_png, APP_PNG_SUMMARY_TREE_SIZE);

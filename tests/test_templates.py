@@ -43,7 +43,20 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
             digest=hashlib.sha256(asset.read_bytes()).hexdigest()
             assert digest not in builtin, f'{asset}: copied builtin icon'
             seen.add(digest)
-    assert sum(len(list(p.glob('flow_*.png'))) for p in (ROOT/'templates').iterdir() if p.is_dir())>=28
+    # Checked-in PNGs must be used by a current scene, not historical leftovers.
+    def referenced(value):
+        if isinstance(value, str): return {value} if value.endswith('.png') else set()
+        if isinstance(value, dict): return set().union(*(referenced(v) for v in value.values()))
+        if isinstance(value, list): return set().union(*(referenced(v) for v in value))
+        return set()
+    for package in (ROOT/'templates').iterdir():
+        if (package/'template.json').is_file():
+            refs = referenced(json.loads((package/'template.json').read_text()))
+            assert {p.name for p in package.glob('*.png')} == refs, package.name
+    manifest = json.loads((ROOT/'assets/template-manifest.json').read_text())
+    assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')}
+    for item in manifest:
+        assert hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest() == item['sha256']
     print('PASS: generated template icons, no copied builtin assets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0

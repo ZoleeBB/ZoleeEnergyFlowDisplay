@@ -10,7 +10,8 @@ Az alábbi hibák esetén a normál dashboard nem indul el:
 - Wi-Fi inicializálás sikertelen
 - NTP inicializálás sikertelen
 - statisztikai tárhely nem inicializálható
-- MQTT inicializálás sikertelen
+- HTTP módban a fogadó webszerver nem indítható
+- szükséges háttérfeladat nem indítható
 
 A képernyőn a konkrét hiba látható, a részletes technikai log a soros konzolon érhető el.
 
@@ -24,13 +25,13 @@ Azonnal teljes képernyős `Nincs Wi-Fi kapcsolat` állapot jelenik meg.
 
 Külön MQTT kapcsolati hibaképernyő jelenik meg. Az újracsatlakozási idő alapértelmezés szerint 15 másodperc.
 
-## MQTT adat timeout
+## Adatkimaradás
 
-Ha van broker kapcsolat, de a konfigurált időn belül nem érkezik érvényes csomag, teljes képernyős `Nem érkezett MQTT adatcsomag.` hiba jelenik meg.
+Ha az aktív MQTT- vagy HTTP-fogadó kész, de a konfigurált időn belül nincs érvényes csomag, teljes képernyős adathiányjelzés jelenik meg. A hibás csomag nem indítja újra az időkorlátot; érvényes csomagnál a felület automatikusan helyreáll.
 
 ## Futás közbeni SD hiba
 
-A dashboard és az MQTT feldolgozás tovább működik RAM-ból.
+A dashboard és az adatfeldolgozás tovább működik RAM-ból.
 
 A képernyőn piros `SD-kártya hiba` figyelmeztetés jelenik meg. A firmware 1 percenként megpróbálja helyreállítani az SD kapcsolatot.
 
@@ -45,3 +46,5 @@ A firmware task watchdogot használ. A soros logban a reset oka is megjelenik, �
 ## RAM eseménynapló
 
 A legutóbbi fontos események és hibák RAM-ban tárolódnak és a helyi webes információs oldalon megjelennek. Folyamatos SD logolás nincs.
+
+MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendszer végzetes inicializálási hibájával. Az időjárási `null` érték nem hiba, csak a kapcsolódó kijelzés marad rejtve.

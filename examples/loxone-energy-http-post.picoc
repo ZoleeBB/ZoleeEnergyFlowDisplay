@@ -1,7 +1,7 @@
 // Zolee Energy Flow Display - Loxone Pico C HTTP POST body-összeállító
 //
 // Cél: Miniserver Gen 2 / Loxone Config és firmware 17.x.
-// Az új DataReceptMode=http firmware-funkcióhoz; megvalósítás/átvétel még szükséges.
+// DataReceptMode=http: a firmware fogadója kész; a helyi bekötést hardveren ellenőrizd.
 // Txt1 -> nem digitális virtuális kimeneti parancs.
 // Cím: http://KIJELZO_IP; BE parancs: /api/energy; módszer: POST.
 // Header: Content-Type: application/json; body: <v>; hitelesítés nincs.

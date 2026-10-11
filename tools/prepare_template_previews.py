@@ -43,11 +43,6 @@ def main(source):
         with Image.open(path) as image:
             frames.append(image.crop((0,112,1280,650)).resize((640,269),Image.Resampling.LANCZOS).quantize(colors=96))
     if frames:frames[0].save(OUT/'live-home-flow.gif',save_all=True,append_images=frames[1:],duration=120,loop=0)
-    for ident in ('06-energy-orbit','07-energy-ledger'):
-        with Image.open(source/f'template-{ident}-light.ppm') as frame:frame.save(OUT/(ident+'.png'),optimize=True)
-    for theme in ('light','dark'):
-        with Image.open(source/f'template-08-statistics-{theme}.ppm') as frame:
-            frame.save(OUT/f'statistics-{theme}.png',optimize=True)
     with Image.open(source/'diagnostics-common.ppm') as frame:frame.save(OUT/'diagnostics.png',optimize=True)
     print('Exported actual LVGL template previews, own icon sets and curved flow animation')
 

@@ -24,3 +24,6 @@ __pycache__/
 CMakeUserPresets.json
 simulator-demo.ppm
 /templates/selection.*
+
+# Headless LVGL renders are generated verification output.
+/*.ppm

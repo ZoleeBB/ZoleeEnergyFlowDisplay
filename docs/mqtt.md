@@ -68,3 +68,5 @@ Ez a rendszertémára és minden SD-témára, nappali és éjszakai módban is �
 Egy új null érték azonnal elrejti a korábbi kijelzést; az adat visszatérése
 újra megjeleníti. Az energiaadatok feldolgozása és a timeout működése folytatódik.
 Minta: [mqtt-payload.no-weather.sample.json](../examples/mqtt-payload.no-weather.sample.json).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

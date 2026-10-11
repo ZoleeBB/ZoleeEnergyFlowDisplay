@@ -52,17 +52,6 @@
     "origin": "previously-approved"
   },
   {
-    "name": "metric_grid",
-    "source": "approved-metrics-sheet.png",
-    "cell": [
-      724,
-      0,
-      362,
-      543
-    ],
-    "origin": "previously-approved"
-  },
-  {
     "name": "metric_coins",
     "source": "approved-metrics-sheet.png",
     "cell": [

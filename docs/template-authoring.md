@@ -15,8 +15,7 @@ el kell távolítani, majd az új ZIP-et feltölteni; a telepítő nem írja fel
 
 ## 2. Saját vizuális világ és ikonok
 
-Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A hét mellékelt
-sablon hét külön ikonkészletet használ. Az alapnézet PNG-it ne másold át új
+Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A nyolc mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
 sablonba. Részletes, kis méretben is felismerhető, keret nélküli képeket készíts;
 a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
@@ -31,18 +30,10 @@ a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
   PNG interlace/palettás formátum nem támogatott; a CRC és a tömörített
   képadat ellenőrzésen megy át.
 
-| Sablon | Saját ikonstílus |
-|---|---|
-| Élő otthon | Természetes anyagú, építészeti miniatűrök |
-| Energiautak | Jáde és matt üveg, fényes belső részletek |
-| Műszerfal | Szálcsiszolt fém, sötét műszaki zománc |
-| Napi mérleg | Rétegelt, finoman domborított papír |
-| Nyugodt otthon | Matt kerámia, krém és zsálya színek |
-| Energiakör | Fazettás kristály, türkiz és ibolya fény |
-| Energiafőkönyv | Réz és elefántcsont dombormű, gravírozott részletek |
+Az Élő otthon eszközei a házkép részei. A többi nézet saját képkészletet használ; az Energiautak invertere és tárolója Sofar jellegű, a hálózati ikonok villanyoszlopokat ábrázolnak. A jelenlegi képeket a [képi áttekintő](templates.md) mutatja.
 
 A generált készletek stílusai és pontos promptjai:
-[template-icon-prompts.json](template-icon-prompts.json). A forrásképekből
+[aktuális assetjegyzék](../assets/template-manifest.json). A forrásképekből
 az alfa megtartásával készültek a csomagok 128×128-as runtime képei.
 A `prepare_templates.py` saját ikon hiányában hibát jelez, és soha nem
 helyettesíti az alapnézet ikonjával.
@@ -108,7 +99,7 @@ négy mozgó pont ugyanazt a mintavételezett pályát használja; a pöttyök
 Pozitív `grid`: hálózat → ház, negatív: visszatáplálás. Pozitív `battery`:
 akku → ház, negatív: töltés. Ennek megfelelően add meg a kezdő- és végpontot.
 Nulla teljesítménynél a pontok eltűnnek; a sebesség 7 kW-nál éri el a maximumot.
-Az útvonal nem színeződik át irányváltáskor.
+Az útvonal `positive_color` és `negative_color` megadásával előjel szerint színezhető; ezek nélkül a `color` marad érvényes.
 
 ## 5. Saját időjáráskészlet
 
@@ -146,10 +137,9 @@ python3 -m zipfile -c my-home.zip templates/08-my-home/template.json templates/0
 ```
 
 Ez a parancs a fájlneveket a ZIP gyökerébe teszi. Ne a teljes könyvtárat add
-át neki. A mellékelt hét sablon JSON-ját és ZIP-jeit a
+át neki. A mellékelt nyolc sablon JSON-ját és ZIP-jeit a
 `python3 tools/prepare_templates.py` állítja elő. Új generált sablonhoz a
-builder függvényt és a `main()` katalógusát is bővítsd; kézzel szerkesztett,
-nyolcadik csomagot ez a script nem ír át.
+builder függvényt és a `main()` katalógusát is bővítsd; kézzel szerkesztett, további csomagot ez a script nem ír át.
 
 A Windows-szimulátorban az SD-csomagokat a futtatható program melletti
 `templates/` könyvtárba másold, majd indítsd újra. Bal/jobb nyíllal lapozz,
@@ -165,7 +155,7 @@ A webes kezelés és a memóriakorlátok részletei: [templates.md](templates.md
 
 ## Ellenőrzött referencia
 
-A hét csomag 14 témáját, mind a nyolc nézeten át vezető érintési lapozást,
+A nyolc csomag 16 témáját, mind a kilenc nézeten át vezető érintési lapozást,
 a közös hiba utáni visszatérést és mind a hat saját időjárásállapotot a headless
 LVGL-teszt ellenőrzi. Az energiautaknál külön vizsgálja a vonal/pont pályaazonosságát,
 a pozitív és negatív irányt, a nullát és a 7/15 kW sebességegyezést.

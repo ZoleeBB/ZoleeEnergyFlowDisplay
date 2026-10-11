@@ -8,7 +8,6 @@ set(app_png_files
     "assets/png/grid_off.png"
     "assets/png/header_home_leaf.png"
     "assets/png/metric_coins.png"
-    "assets/png/metric_grid.png"
     "assets/png/metric_grid_import.png"
     "assets/png/metric_grid_export.png"
     "assets/png/metric_house.png"

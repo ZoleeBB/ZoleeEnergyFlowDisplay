@@ -118,3 +118,5 @@ A valódi 0 °C, 0 km/h és 0 állapotjel bekötött/jelenlévő bit mellett meg
 
 Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp-content/uploads/sites/2/2016/08/CustomScriptProgramming.pdf).
 A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
