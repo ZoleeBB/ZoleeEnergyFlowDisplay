@@ -84,13 +84,13 @@ def house(dark):
     # The approved house concept uses text directly on the illustration:
     # no header card, value cards or duplicate miniature device icons.
     s.label('Zolee Energy Flow Monitor', 32, 24, 245, 16)
-    s.label('01 — ÉLŐ OTTHON', 300, 24, 290, 16, en='01 — LIVE HOME')
+    s.label('Élő otthon', 300, 24, 290, 16, en='Live home')
     s.value('date', 892, 20, 155, 16, s.muted)
     s.value('clock', 892, 46, 165, 28)
     s.value('status', 1070, 28, 200, 16)
-    s.add('weather', 1080, 82, 96, 96, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
-    s.value('temperature', 1176, 101, 100, 20)
-    s.value('wind', 1080, 188, 190, 20)
+    s.add('weather', 1080, 64, 64, 64, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
+    s.value('temperature', 1148, 64, 128, 20)
+    s.value('wind', 1148, 96, 128, 20)
     # Live links: grid->house, solar->house, battery->house (reverse while charging).
     s.flow('grid', [(136,178),(330,178),(330,526),(650,526)], RED, 7, curve='bezier')
     s.flow('pv', [(640,300),(600,380),(700,425),(650,526)], GREEN, 7, curve='bezier')
@@ -136,7 +136,7 @@ def paths(dark):
     s.box(32, 126, 1216, 496)
     s.flow('pv', [(244, 240), (430, 240), (460, 378), (620, 378)], GREEN, 28, curve='bezier')
     s.flow('grid', [(244, 475), (430, 475), (460, 378), (620, 378)], ORANGE, 28, curve='bezier')
-    s.flow('home', [(650, 378), (810, 378), (835, 235), (1020, 235)], GREEN, 28, curve='bezier')
+    s.flow('home', [(650, 378), (810, 378), (835, 235), (1020, 235)], '#F04438', 28, curve='bezier')
     s.flow('battery', [(1020, 475), (835, 475), (810, 378), (650, 378)], BLUE, 28, curve='bezier')
     for x, y, icon, title, source, color in [
         (70, 160, 'flow_solar', 'Napelemek', 'pv', GREEN),
@@ -146,15 +146,15 @@ def paths(dark):
         s.icon(icon, x+30, y, 100)
         s.label(title, x, y+105, 205, 16, s.muted, align='center')
         s.value(source, x-5, y+135, 215, 28, color, align='center')
-    s.box(530, 306, 220, 142, background=s.bg, radius=70)
-    s.icon('flow_hub', 589, 309, 90)
-    s.label('ENERGIA', 553, 405, 175, 16, s.muted, align='center')
+    s.box(530, 326, 220, 142, background=s.bg, radius=70)
+    s.icon('flow_hub', 595, 329, 90)
+    s.label('ENERGIA', 553, 425, 175, 16, s.muted, align='center')
     s.value('status', 440, 558, 400, 16, s.muted, align='center')
     for e in s.elements:
         if e['type']=='label' and e['x']==338:e['w']=464
-    s.add('weather', 814, 18, 54, 54, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
-    s.value('temperature', 872, 20, 192, 20)
-    s.value('wind', 872, 52, 192, 16)
+    s.add('weather', 814, 20, 60, 60, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
+    s.value('temperature', 882, 20, 182, 20)
+    s.value('wind', 882, 52, 182, 16)
     s.daily()
     return s
 
@@ -220,10 +220,12 @@ def calm(dark):
     s.box(32,650,1216,108,radius=30)
     s.icon('flow_grid',465,681,50)
     s.value('status',60,690,370,20)
-    s.label('Termelés ma',550,670,300,16,s.muted)
-    s.value('production_today',550,699,300,28,GREEN)
-    s.label('Fogyasztás ma',925,670,290,16,s.muted)
-    s.value('consumption_today',925,699,290,28,ORANGE)
+    s.label('Termelés ma',536,670,220,16,s.muted)
+    s.value('production_today',536,699,220,28,GREEN)
+    s.label('Fogyasztás ma',772,670,220,16,s.muted)
+    s.value('consumption_today',772,699,220,28,ORANGE)
+    s.label('Visszatáplálás ma',1008,670,220,16,s.muted)
+    s.value('export_today',1008,699,220,28,'#FFEB38')
     return s
 
 
@@ -234,8 +236,8 @@ def orbit(dark):
     s.box(32,128,1216,502,radius=36)
     for source,points,color in [
         ('pv',[(197,210),(390,110),(540,140),(640,366)],GREEN),
-        ('grid',[(197,460),(390,615),(565,610),(640,366)],RED),
-        ('home',[(640,366),(760,165),(900,155),(1040,238)],ORANGE),
+        ('grid',[(197,460),(390,615),(565,610),(640,366)],ORANGE),
+        ('home',[(640,366),(760,165),(900,155),(1040,238)],'#F04438'),
         ('battery',[(1040,512),(900,600),(740,575),(640,366)],BLUE)]:
         s.flow(source,points,color,8,curve='bezier')
     s.add('pulse', 624, 350, 32, 32, color='#FFE36B', glow=24)
@@ -259,9 +261,9 @@ def ledger(dark):
     s.header('Energiafőkönyv','Pillanatnyi értékek és a mai energia egymás mellett')
     for element in s.elements:
         if element['type']=='label' and element['x']==338:element['w']=464
-    s.add('weather', 814, 18, 54, 54, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
-    s.value('temperature', 872, 20, 192, 20)
-    s.value('wind', 872, 52, 192, 16)
+    s.add('weather', 814, 20, 60, 60, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
+    s.value('temperature', 882, 20, 182, 20)
+    s.value('wind', 882, 52, 182, 16)
     s.box(32,126,786,500,radius=16)
     s.label('ENERGIAFORRÁS',60,144,270,16,s.muted)
     s.label('MOST',377,144,210,16,s.muted)
@@ -296,9 +298,9 @@ def ledger(dark):
 def statistics(dark):
     s=Scene(dark,'#142737' if dark else '#F0F4FA')
     s.header('Energiastatisztika','Napi görbék · heti és havi összesítés')
-    s.add('weather', 824, 18, 54, 54, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
-    s.value('temperature', 890, 20, 174, 20)
-    s.value('wind', 890, 52, 174, 16)
+    s.add('weather', 824, 20, 60, 60, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
+    s.value('temperature', 894, 20, 170, 20)
+    s.value('wind', 894, 52, 170, 16)
     for i,(label,source,color) in enumerate([('Termelés','pv',GREEN),('Fogyasztás','home',ORANGE),
             ('Hálózat','grid',RED),('Akkumulátor','battery',BLUE),('Töltöttség','soc',BLUE)]):
         x=32+i*246
@@ -376,17 +378,28 @@ def main():
                     source=e.get('source')
                     if source in ('grid','grid_direction'):e.update(negative_color='#FFEB38')
                     if source in ('battery','battery_direction'):e.update(positive_color=e['color'],negative_color='#1875D1')
+            if ident in ('02-energy-paths','06-energy-orbit'):
+                for e in scene['elements']:
+                    if e['type']=='flow':
+                        if e['source']=='grid':e.update(negative_color='#FFEB38')
+                        if e['source']=='battery':e.update(negative_color='#1875D1',positive_color='#2BB1FE')
+            if ident in ('04-daily-balance','06-energy-orbit','07-energy-ledger'):
+                for e in scene['elements']:
+                    if e.get('source')=='discharge_today':e['color']='#2BB1FE'
             if ident=='03-instruments':
                 for e in scene['elements']:
                     if e['type'] in ('bar','gauge'):e.update(outline_color='#DEEAF2' if dark else '#21343E')
+                    if e['type']=='gauge':e['animate_ms']=280
             if ident=='08-statistics':
                 vivid={GREEN:'#00C67F',ORANGE:'#FFB52E',BLUE:'#2BB1FE',RED:'#FF4876'} if dark else {GREEN:'#009B55',ORANGE:'#D78000',BLUE:'#007CCD',RED:'#E32655'}
                 old={GREEN:'#16965F',ORANGE:'#C57212',BLUE:'#087FC2',RED:'#D92C5B'} if not dark else {}
                 mapping={old.get(k,k):v for k,v in vivid.items()}
                 for e in scene['elements']:
                     if 'color' in e:e['color']=mapping.get(e['color'],e['color'])
+                for e in scene['elements']:
+                    if e['type']=='chart' and e.get('kind')=='battery':e['negative_color']='#1565C0'
                 scene['palette']=dict(pv=vivid[GREEN],home=vivid[ORANGE],grid=vivid[RED],battery=vivid[BLUE])
-        doc=dict(schema=1,id=ident,name=name,version=8 if ident=='01-live-home' else 6 if ident in ('02-energy-paths','03-instruments','07-energy-ledger') else 5 if ident in ('06-energy-orbit','08-statistics') else 4,
+        doc=dict(schema=1,id=ident,name=name,version={'01-live-home':9,'02-energy-paths':7,'03-instruments':7,'04-daily-balance':5,'05-calm-home':5,'06-energy-orbit':6,'07-energy-ledger':7,'08-statistics':6}[ident],
                  light=scenes[0],dark=scenes[1])
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         for theme in ('light','dark'):

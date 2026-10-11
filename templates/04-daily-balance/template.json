@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 4,
+  "version": 5,
   "light": {
     "background": "#F3F6F8",
     "elements": [
@@ -349,7 +349,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#087FC2",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -709,7 +709,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100

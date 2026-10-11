@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#F4F7F1",
     "elements": [
@@ -162,7 +162,8 @@
             "x": 376,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -171,7 +172,7 @@
         "w": 371,
         "h": 144,
         "source": "home",
-        "color": "#16965F",
+        "color": "#F04438",
         "radius": 28,
         "curve": "bezier",
         "glow": 10,
@@ -222,7 +223,9 @@
             "x": 0,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "image",
@@ -363,7 +366,7 @@
       {
         "type": "box",
         "x": 530,
-        "y": 306,
+        "y": 326,
         "w": 220,
         "h": 142,
         "background": "#F4F7F1",
@@ -372,8 +375,8 @@
       },
       {
         "type": "image",
-        "x": 589,
-        "y": 309,
+        "x": 595,
+        "y": 329,
         "w": 90,
         "h": 90,
         "file": "flow_hub.png"
@@ -381,7 +384,7 @@
       {
         "type": "label",
         "x": 553,
-        "y": 405,
+        "y": 425,
         "w": 175,
         "h": 26,
         "text": "ENERGIA",
@@ -407,9 +410,9 @@
       {
         "type": "weather",
         "x": 814,
-        "y": 18,
-        "w": 54,
-        "h": 54,
+        "y": 20,
+        "w": 60,
+        "h": 60,
         "files": {
           "sunny": "weather_sunny.png",
           "partly_cloudy": "weather_partly_cloudy.png",
@@ -421,9 +424,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 20,
-        "w": 192,
+        "w": 182,
         "h": 32,
         "source": "temperature",
         "font": 20,
@@ -434,9 +437,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 52,
-        "w": 192,
+        "w": 182,
         "h": 28,
         "source": "wind",
         "font": 16,
@@ -748,7 +751,8 @@
             "x": 376,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -757,7 +761,7 @@
         "w": 371,
         "h": 144,
         "source": "home",
-        "color": "#36AE7C",
+        "color": "#F04438",
         "radius": 28,
         "curve": "bezier",
         "glow": 10,
@@ -808,7 +812,9 @@
             "x": 0,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "image",
@@ -949,7 +955,7 @@
       {
         "type": "box",
         "x": 530,
-        "y": 306,
+        "y": 326,
         "w": 220,
         "h": 142,
         "background": "#13272A",
@@ -958,8 +964,8 @@
       },
       {
         "type": "image",
-        "x": 589,
-        "y": 309,
+        "x": 595,
+        "y": 329,
         "w": 90,
         "h": 90,
         "file": "flow_hub.png"
@@ -967,7 +973,7 @@
       {
         "type": "label",
         "x": 553,
-        "y": 405,
+        "y": 425,
         "w": 175,
         "h": 26,
         "text": "ENERGIA",
@@ -993,9 +999,9 @@
       {
         "type": "weather",
         "x": 814,
-        "y": 18,
-        "w": 54,
-        "h": 54,
+        "y": 20,
+        "w": 60,
+        "h": 60,
         "files": {
           "sunny": "weather_sunny.png",
           "partly_cloudy": "weather_partly_cloudy.png",
@@ -1007,9 +1013,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 20,
-        "w": 192,
+        "w": 182,
         "h": 32,
         "source": "temperature",
         "font": 20,
@@ -1020,9 +1026,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 52,
-        "w": 192,
+        "w": 182,
         "h": 28,
         "source": "wind",
         "font": 16,

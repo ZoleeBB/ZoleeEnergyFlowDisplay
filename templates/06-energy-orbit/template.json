@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#EFF2FB",
     "elements": [
@@ -123,7 +123,7 @@
         "w": 444,
         "h": 250,
         "source": "grid",
-        "color": "#D92C5B",
+        "color": "#C57212",
         "radius": 8,
         "curve": "bezier",
         "glow": 10,
@@ -144,7 +144,8 @@
             "x": 443,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -153,7 +154,7 @@
         "w": 401,
         "h": 212,
         "source": "home",
-        "color": "#C57212",
+        "color": "#F04438",
         "radius": 8,
         "curve": "bezier",
         "glow": 10,
@@ -204,7 +205,9 @@
             "x": 0,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "pulse",
@@ -508,7 +511,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#087FC2",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -642,7 +645,7 @@
         "w": 444,
         "h": 250,
         "source": "grid",
-        "color": "#E66B6B",
+        "color": "#EA9C3B",
         "radius": 8,
         "curve": "bezier",
         "glow": 10,
@@ -663,7 +666,8 @@
             "x": 443,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#FFEB38"
       },
       {
         "type": "flow",
@@ -672,7 +676,7 @@
         "w": 401,
         "h": 212,
         "source": "home",
-        "color": "#EA9C3B",
+        "color": "#F04438",
         "radius": 8,
         "curve": "bezier",
         "glow": 10,
@@ -723,7 +727,9 @@
             "x": 0,
             "y": 0
           }
-        ]
+        ],
+        "negative_color": "#1875D1",
+        "positive_color": "#2BB1FE"
       },
       {
         "type": "pulse",
@@ -1027,7 +1033,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100

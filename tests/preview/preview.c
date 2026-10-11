@@ -129,6 +129,19 @@ static void test_template_indicators(const app_energy_sample_t *sample){
     }
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];
+        if(strcmp(ts(node->spec,"type"),"gauge")||strcmp(ts(node->spec,"source"),"grid")||!tn(node->spec,"animate_ms",0))continue;
+        state.power_grid_kw=2;template_update(&state,&fixture);
+        for(int k=0;k<24;k++){ticks+=16000;lv_tick_inc(16);lv_timer_handler();}
+        assert(lv_arc_get_value(node->obj)==20);
+        state.power_grid_kw=5;template_update(&state,&fixture);assert(lv_arc_get_value(node->obj)==20);
+        for(int k=0;k<6;k++){ticks+=16000;lv_tick_inc(16);lv_timer_handler();assert(lv_arc_get_value(node->obj)==lv_arc_get_value(node->detail));}
+        int middle=lv_arc_get_value(node->obj);assert(middle>20&&middle<50);
+        state.power_grid_kw=1;template_update(&state,&fixture);assert(lv_arc_get_value(node->obj)==middle);
+        for(int k=0;k<24;k++){ticks+=16000;lv_tick_inc(16);lv_timer_handler();}
+        assert(lv_arc_get_value(node->obj)==10&&lv_arc_get_value(node->detail)==10);
+    }
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];
         if(strcmp(ts(node->spec,"type"),"pulse"))continue;
         template_animate(.1f);int first=lv_obj_get_style_bg_opa(node->obj,0);
         template_animate(.3f);assert(first!=lv_obj_get_style_bg_opa(node->obj,0));

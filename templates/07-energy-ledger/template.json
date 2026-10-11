@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#F6F2EA",
     "elements": [
@@ -97,9 +97,9 @@
       {
         "type": "weather",
         "x": 814,
-        "y": 18,
-        "w": 54,
-        "h": 54,
+        "y": 20,
+        "w": 60,
+        "h": 60,
         "files": {
           "sunny": "weather_sunny.png",
           "partly_cloudy": "weather_partly_cloudy.png",
@@ -111,9 +111,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 20,
-        "w": 192,
+        "w": 182,
         "h": 32,
         "source": "temperature",
         "font": 20,
@@ -124,9 +124,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 52,
-        "w": 192,
+        "w": 182,
         "h": 28,
         "source": "wind",
         "font": 16,
@@ -555,7 +555,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#087FC2",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -691,7 +691,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#087FC2",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -798,9 +798,9 @@
       {
         "type": "weather",
         "x": 814,
-        "y": 18,
-        "w": 54,
-        "h": 54,
+        "y": 20,
+        "w": 60,
+        "h": 60,
         "files": {
           "sunny": "weather_sunny.png",
           "partly_cloudy": "weather_partly_cloudy.png",
@@ -812,9 +812,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 20,
-        "w": 192,
+        "w": 182,
         "h": 32,
         "source": "temperature",
         "font": 20,
@@ -825,9 +825,9 @@
       },
       {
         "type": "value",
-        "x": 872,
+        "x": 882,
         "y": 52,
-        "w": 192,
+        "w": 182,
         "h": 28,
         "source": "wind",
         "font": 16,
@@ -1256,7 +1256,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
@@ -1392,7 +1392,7 @@
         "h": 40,
         "source": "discharge_today",
         "font": 28,
-        "color": "#559CDE",
+        "color": "#2BB1FE",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100

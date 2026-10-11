@@ -6,7 +6,7 @@ LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 32 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[65];float segments[64],length;unsigned point_count;double power;float phase;
+    lv_point_precise_t points[65];float segments[64],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
@@ -230,7 +230,7 @@ static void template_build(bool night){
             uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
             if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
             else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
-            if(chart_kind==APP_CHART_BATTERY)second=tc(e,"positive_color",first);
+            if(chart_kind==APP_CHART_BATTERY){first=tc(e,"negative_color",first);second=tc(e,"positive_color",first);}
             node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH)?"grid":"battery",tone(BLUE,night)));
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))app_chart_set_reference_style(node->obj);
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);
@@ -257,6 +257,12 @@ static void template_build(bool night){
         lv_anim_start(&anim);template_enter_transition=false;
     }
 }
+static void template_gauge_value(void *object,int32_t value){
+    lv_arc_set_value(object,value);
+    for(unsigned i=0;i<template_node_count;i++)if(template_nodes[i].obj==object){
+        if(template_nodes[i].detail)lv_arc_set_value(template_nodes[i].detail,value);break;
+    }
+}
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
@@ -269,8 +275,15 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             if(!strcmp(source,"soc"))lv_obj_set_style_bg_color(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"gauge")){
-            lv_arc_set_value(node->obj,(int)(fabs(value)*10));
-            if(node->detail)lv_arc_set_value(node->detail,(int)(fabs(value)*10));
+            int target=(int)fmin(tn(e,"max",15)*10,fabs(value)*10);
+            if(!node->gauge_initialized){template_gauge_value(node->obj,target);node->gauge_initialized=true;node->gauge_target=target;}
+            else if(target!=node->gauge_target){
+                lv_anim_delete(node->obj,template_gauge_value);node->gauge_target=target;
+                if(tn(e,"animate_ms",0)>0){
+                    lv_anim_t anim;lv_anim_init(&anim);lv_anim_set_var(&anim,node->obj);lv_anim_set_exec_cb(&anim,template_gauge_value);
+                    lv_anim_set_values(&anim,lv_arc_get_value(node->obj),target);lv_anim_set_duration(&anim,tn(e,"animate_ms",280));lv_anim_set_path_cb(&anim,lv_anim_path_ease_out);lv_anim_start(&anim);
+                }else template_gauge_value(node->obj,target);
+            }
             lv_obj_set_style_arc_color(node->obj,c(tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE))),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"weather")){

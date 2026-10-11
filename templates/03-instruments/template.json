@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#E8E9FA",
     "elements": [
@@ -113,7 +113,8 @@
         "source": "pv",
         "color": "#16965F",
         "max": 15,
-        "outline_color": "#21343E"
+        "outline_color": "#21343E",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -180,7 +181,8 @@
         "source": "home",
         "color": "#C57212",
         "max": 15,
-        "outline_color": "#21343E"
+        "outline_color": "#21343E",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -248,7 +250,8 @@
         "color": "#D92C5B",
         "max": 15,
         "negative_color": "#FFEB38",
-        "outline_color": "#21343E"
+        "outline_color": "#21343E",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -330,7 +333,8 @@
         "color": "#087FC2",
         "max": 15,
         "positive_color": "#2BB1FE",
-        "outline_color": "#21343E"
+        "outline_color": "#21343E",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -703,7 +707,8 @@
         "source": "pv",
         "color": "#36AE7C",
         "max": 15,
-        "outline_color": "#DEEAF2"
+        "outline_color": "#DEEAF2",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -770,7 +775,8 @@
         "source": "home",
         "color": "#EA9C3B",
         "max": 15,
-        "outline_color": "#DEEAF2"
+        "outline_color": "#DEEAF2",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -838,7 +844,8 @@
         "color": "#E66B6B",
         "max": 15,
         "negative_color": "#FFEB38",
-        "outline_color": "#DEEAF2"
+        "outline_color": "#DEEAF2",
+        "animate_ms": 280
       },
       {
         "type": "image",
@@ -920,7 +927,8 @@
         "color": "#559CDE",
         "max": 15,
         "positive_color": "#2BB1FE",
-        "outline_color": "#DEEAF2"
+        "outline_color": "#DEEAF2",
+        "animate_ms": 280
       },
       {
         "type": "image",

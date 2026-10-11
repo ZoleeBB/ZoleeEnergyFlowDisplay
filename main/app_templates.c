@@ -150,6 +150,7 @@ static bool validate_scene(const cJSON *scene){
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
         const char *keys[]={"color","background","muted","positive_color","negative_color","outline_color",NULL};
         for(int i=0;keys[i];i++)if(cJSON_HasObjectItem(e,keys[i])&&!color(str(e,keys[i])))return false;
+        if(!number(e,"animate_ms",0,1000,true))return false;
         if(!number(e,"font",12,96,true)||!number(e,"opacity",0,255,true)||!number(e,"radius",0,200,true)||!number(e,"max",1,100,true))return false;
         if(cJSON_HasObjectItem(e,"font")){int f=cJSON_GetObjectItem(e,"font")->valueint;if(f!=12&&f!=16&&f!=20&&f!=28&&f!=48&&f!=96)return false;}
         if(!strcmp(type,"label")&&(!str(e,"text")||strlen(str(e,"text"))>160))return false;

@@ -39,3 +39,13 @@ A hálózat görbéje a háttérképen lévő oszlop felső vezetékétől (136,
 - Energiafőkönyv: mezők 130/255 opacitással.
 
 A meglévő, generált időjárásképek kerültek az új helyekre; nem készültek eltérő stílusú változatok. A regressziós csomag, a szigorú LVGL-fordítás és a 16 témanézet sikeres. Irányváltási teszt ellenőrzi a vonal/pont/érték/felirat színeit, a kontúr színét és az ívek szinkronértékét.
+
+## Negyedik finomítás
+
+Élő otthon: egyszerű témacím; időjárás 64×64, két közvetlenül egymás alatti 20-as értékkel, feljebb helyezve. Energiautak: piros (#F04438) házirány, az inverter takarja a csomópontot; hálózati export #FFEB38, akkutöltés #1875D1, leadás #2BB1FE. A fejléc időjárásikonjai az értékpár 60 képpontos magasságához igazodnak (Energiautak, Főkönyv, Statisztika).
+
+Műszerfal: 280 ms ease-out értékanimáció, retarget az aktuális állásból; első adat azonnal megjelenik, a kontúr ugyanazt az animált értéket követi. Az LVGL objektumtörlés automatikusan törli az objektumhoz kötött animációt. A beállítás sablononként animate_ms, 0–1000 ms; alapértelmezetten 0.
+
+Napi mérleg, Energiakör és Főkönyv: összes leadás #2BB1FE. Nyugodt otthon: három arányos napi oszlop, új citromsárga visszatáplálás. Energiakör: piros házirány, narancs import, sárga export, sötétkék töltés és világoskék leadás. Statisztika: negatív akkuegyenleg #1565C0, pozitív #2BB1FE. A rendszer téma változatlan ebben a körben.
+
+A teljes helyi tesztcsomag, szigorú fordítás és 16 render sikeres. Külön animációteszt igazolja a köztes állást, ugrás nélküli retargetet, célértéket és a kontúr szinkronját mindkét módban.
