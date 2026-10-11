@@ -89,3 +89,34 @@ Hardveres próba: legalább egy percig változatlan bemenetek mellett is érkezz
 
 - [Loxone: virtuális be- és kimenetek](https://www.loxone.com/enen/kb/virtual-inputs-outputs/)
 - [FlexumShare gyártói integráció a Loxone Libraryben, 7. oldal](https://api.library.loxone.com/downloader/file/2733/Instruction%20Live-Data_FlexumShare%20platform_V1.1.pdf) – POST és `<v>` JSON body mintabeállítás; a jelen projektben az ott szereplő API-kulcs nem használandó.
+
+## Időjárás jelenlétjelzés (I13)
+
+Az **I1–I12 sorrendje változatlan**. A minták az eddig szabad **I13** bemenetet
+használják `WeatherPresent` jelenlétmaszkként; ez nem lesz új JSON-mező.
+A dokumentált Pico C API-ban nincs bekötöttség-lekérdezés: a `getinput()`
+értéket ad vissza, a `getinputevent()` változást jelez. Emiatt a bekötetlen
+bemenetet nem lehet megbízhatóan megkülönböztetni egy valódi nulla értéktől.
+A jelenlétet ezért a Loxone Configban kell megadni, vagy adatérvényességi jelekből
+előállítani. **A script nem ismeri fel önállóan a vezeték csatlakoztatását.**
+
+| Bekötött és érvényes adat | A maszkhoz hozzáadandó érték |
+| --- | ---: |
+| I6: Temperature | 1 |
+| I7: WindSpeed | 2 |
+| I8: HasSunRadiation | 4 |
+| I9: HasPrecipitation | 8 |
+
+Minden időjárásbemenet használatakor I13 = **15**. Ha például csak a hőmérséklet
+és a szél van bekötve, I13 = **3**. Időjárás nélkül I13 = **0** (bekötetlen
+I13 esetén is ez az alaphelyzet). A nem használt bemenet bitjét 0-ra kell
+állítani: ekkor annak JSON-értéke `null`, miközben a kulcs megmarad. Egy
+jel leválasztásakor a maszkot is módosítani kell. Ha érzékelőadat kimarad,
+a maszk megfelelő bitjét annak adatérvényességi jelével kell kikapcsolni.
+Negatív, 15 feletti vagy tört maszk biztonságosan 0-ra esik vissza.
+A valódi 0 °C, 0 km/h és 0 állapotjel bekötött/jelenlévő bit mellett megmarad.
+
+Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp-content/uploads/sites/2/2016/08/CustomScriptProgramming.pdf).
+A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

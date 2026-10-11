@@ -1,69 +1,22 @@
 # Konfiguráció
 
-A firmware a konfigurációt kizárólag induláskor olvassa be a microSD gyökeréből:
+A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config.http.sample.json) másold a FAT32 microSD gyökerébe `config.json` néven. A személyes konfiguráció nincs verziókezelve. Újraindításkor töltődik be.
 
-`/config.json`
+| Rész | Beállítás |
+| --- | --- |
+| `DataReceptMode` | `mqtt` (alapérték) vagy `http` |
+| `project` | Cím, nyelv (`hu`/`en`), pénznem felirata |
+| `wifi` | SSID, jelszó, újracsatlakozás; opcionális statikus IP, átjáró, maszk, DNS |
+| `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
+| `http` | HTTP módban adatkimaradási timeout |
+| `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
+| `display` | Nappali/éjszakai fényerő, százalékban 1–100 |
+| `statistics` | Mentési időköz és maximális integrálási adatrés |
+| `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező |
+| `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
 
-Ha a fájl hiányzik, nem olvasható vagy egy megadott érték érvénytelen, a normál működés nem indul el. Az opcionális mezők hiánya nem hiba: ilyenkor a firmware az alapértéket használja. Ismeretlen extra mezők figyelmen kívül maradnak.
+HTTP módban MQTT broker nem szükséges. A kiválasztott mód adatkimaradási időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli.
 
-## project
+A `Europe/Budapest` időzónát a firmware CET/CEST szabályként kezeli. `auto_dst=0` esetén fix `utc_offset_minutes` érvényes; más automatikus időzónához POSIX TZ szabály kell, nincs általános IANA-időzónaadatbázis. Alap NTP: `hu.pool.ntp.org`, ismételt szinkron 6 óránként, háttérbeli újrapróbálás 15 percenként.
 
-- `title`: kijelző fejlécének neve. Alapérték: `Otthoni energia`
-- `language`: `hu` vagy `en`, kis-/nagybetűtől függetlenül
-- `currency`: egyszerű megjelenített pénznemszöveg. Alapérték: `Ft`
-
-## wifi
-
-- `ssid`: kötelező
-- `password`: üres lehet
-- `reconnect_seconds`: alapérték 15
-- `network.use_static_ip`: 0 = DHCP, 1 = statikus IP
-- statikus IP esetén az `ip`, `gateway`, `subnet`, `dns` mezők kötelezőek
-
-## time
-
-- `ntp_server`: `hu.pool.ntp.org`
-- `timezone`: `Europe/Budapest`
-- `auto_dst`: 1
-- `utc_offset_minutes`: 60; csak kikapcsolt automatikus DST mellett használt
-- `startup_retry_seconds`: 15
-- `resync_hours`: 6
-- `background_retry_minutes`: 15
-
-## mqtt
-
-- `broker`: kötelező hostname vagy IP
-- `port`: 1883
-- `topic`: `loxberry/mqttgateway/energymonitor/state`
-- `username`, `password`: opcionális
-- `data_timeout_seconds`: 30
-- `reconnect_seconds`: 15
-
-Az MQTT QoS fixen 1.
-
-## display
-
-- `day_brightness`: 80
-- `night_brightness`: 20
-
-## statistics
-
-- `save_interval_minutes`: 60; megengedett tartomány 5–60 perc
-- `max_integration_gap_seconds`: 30
-
-A grafikon mintaintervalluma fixen 5 perc.
-
-## energy
-
-- `electricity_purchase_price`: 65
-- `feed_in_price`: 5
-- `co2_factor_kg_per_kwh`: 0.381
-- `tree_absorption_kg_per_year`: 22
-
-## ota
-
-- `username`
-- `password`
-
-Ha mindkettő üres, a helyi webes információs és OTA oldal hitelesítés nélkül érhető el. Ha használunk hitelesítést, mindkét mezőt ki kell tölteni.
-
+Az OTA hitelesítésnél mindkét mező legyen kitöltve vagy mindkettő üres. Ez a sablonkezelőt és diagnosztikát is védi; a `POST /api/energy` nem kér hitelesítést. Az időjárás hiányát a JSON `null` értékek jelzik, nem konfigurációs kapcsoló.

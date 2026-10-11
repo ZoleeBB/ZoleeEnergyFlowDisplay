@@ -154,6 +154,22 @@ static void test_template_indicators(const app_energy_sample_t *sample){
     }
 }
 
+static void test_weather_visibility(const app_energy_sample_t *sample){
+    for(unsigned mask=0;mask<16;mask++){
+        app_energy_sample_t state=*sample;
+        state.temperature_valid=!!(mask&1);state.wind_speed_valid=!!(mask&2);
+        state.sun_radiation_valid=!!(mask&4);state.precipitation_valid=!!(mask&8);
+        template_update(&state,&fixture);
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *n=&template_nodes[i];const char *source=ts(n->spec,"source");
+            bool visible=!strcmp(ts(n->spec,"type"),"weather")?weather_available(&state):
+                !strcmp(source,"temperature")?state.temperature_valid:!strcmp(source,"wind")?state.wind_speed_valid:true;
+            assert(lv_obj_has_flag(n->obj,LV_OBJ_FLAG_HIDDEN)==!visible);
+            if(n->detail)assert(lv_obj_has_flag(n->detail,LV_OBJ_FLAG_HIDDEN)==!visible);
+        }
+    }
+    template_update(sample,&fixture);
+}
 static void test_template_weather(const app_energy_sample_t *sample){
     static const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night"};
     for(unsigned i=0;i<template_node_count;i++){
@@ -270,12 +286,24 @@ int main(void)
         fixture.slots[i].split=app_energy_split(fixture.slots[i].pv_kw,fixture.slots[i].load_kw,fixture.slots[i].battery_kw);
     }
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
+        .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
     test_stacked_charts();
     assert(f_pv.phase>0.f);
     sd_ok=false;sample.status=3;sample.soc_bat_pct=19.9;update(&sample,&fixture);save_frame("hu-island-sd-error");
     sd_ok=true;sample.status=2;sample.power_bat_kw=-3.5;sample.soc_bat_pct=100;update(&sample,&fixture);save_frame("hu-preparing");
+    for(unsigned mask=0;mask<16;mask++){
+        app_energy_sample_t optional=sample;
+        optional.temperature_valid=!!(mask&1);optional.wind_speed_valid=!!(mask&2);
+        optional.sun_radiation_valid=!!(mask&4);optional.precipitation_valid=!!(mask&8);
+        update(&optional,&fixture);
+        assert(lv_obj_has_flag(lv_obj_get_parent(s_weather_icon),LV_OBJ_FLAG_HIDDEN)==!weather_available(&optional));
+        assert(lv_obj_has_flag(s_weather_temp,LV_OBJ_FLAG_HIDDEN)==!optional.temperature_valid);
+        assert(lv_obj_has_flag(s_wind_speed,LV_OBJ_FLAG_HIDDEN)==!optional.wind_speed_valid);
+        assert(lv_obj_has_flag(lv_obj_get_parent(s_wind_icon),LV_OBJ_FLAG_HIDDEN)==!optional.wind_speed_valid);
+    }
+    update(&sample,&fixture);
     sample.status=4;sample.battery_temperature_c=51;update(&sample,&fixture);save_frame("hu-system-error");
     sample.status=1;sample.night_mode=true;sample.power_pv_kw=0;sample.has_sun_radiation=false;
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
@@ -314,7 +342,7 @@ int main(void)
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
                 const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(tc(scene,"background",0))));
-                test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;

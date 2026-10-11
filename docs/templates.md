@@ -9,8 +9,8 @@ Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható el
 | `02-energy-paths` | Energiautak: széles színes összeköttetések, irányjelző pöttyök |
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
-| `05-calm-home` | Nyugodt otthon: nagy óra, saját kerámia időjárásikonok, három fő adat |
-| `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, középen SOC |
+| `05-calm-home` | Nyugodt otthon: nagy óra, részletes időjárásikonok, három fő adat |
+| `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, töltöttség az akkumulátor alatt, pulzáló középpont |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 
@@ -94,7 +94,7 @@ közös lapjelzőnek/SD-hibajelzésnek szabadon hagyni.
 | `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek |
 | `gauge` | Köríves mérő: `source`, `max` (alapérték 15), `color`, `background` |
 | `flow` | `source`, `color`, `radius` (vonalvastagság), relatív `{x,y}` pontok: alapból 2–8 pontos `polyline`; `curve: "bezier"` esetén 4 vagy 7 vezérlőpont |
-| `chart` | `kind`: `production` vagy `consumption`; minimum 150×100 |
+| `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`; minimum 150×100 |
 
 Színek: `#RRGGBB`. Átlátszóság: 0–255. Betűméretek: 12, 16, 20, 28;
 48 és 96 csak numerikus élő adathoz, órához/dátumhoz. Ezek számjegyeket és
@@ -147,7 +147,7 @@ Az LVGL képcache 6 MiB: a házhátteret nem kell minden animációs képkockán
 
 `python tests/test_templates.py`: a tényleges C telepítő, séma, PNG-k,
 hibás ZIP-ek, megőrzés, törlés és visszaállás tesztjei.
-A `ui-preview` CI tíz valódi LVGL-sablonképet renderel, és ellenőrzi a közös
+A `ui-preview` CI tizenhat valódi LVGL-sablonképet renderel, és ellenőrzi a közös
 hibaoldalból visszatérést. A Windows szimulátor ugyanazt a sablonrajzolót használja.
 A fizikai kijelzőn a húzás érzékenységét, a nagy házháttér animációs sebességét és
 az SD-kártya sebességét külön hardveres próba igazolja.
@@ -158,10 +158,7 @@ oszlop, jobb oldali tároló; nappal világoszöld kert, éjjel sötét környez
 ablakfény. Minden szöveg, szám, panel, nyíl és energiaút nélkül. A kimenetet
 1280×800 RGB PNG-re méreteztük. A képfájlok a csomag `day.png`/`night.png`
 állományai; az értékek, vonalak és pöttyök élő LVGL-elemek.
-Az Élő otthon 4. verziójában az értékek közvetlenül a házképen jelennek meg:
-nincsenek adatmeződobozok, fejléc- vagy összesítőkártyák, illetve külön eszközikonok.
-A ház, a napelem, a hálózati oszlop és a tároló maga a háttérillusztráció része.
-A korábban generált saját ikonfájlok megmaradnak a csomagban, de ez a nézet nem rajzolja ki őket.
+Az Élő otthonban az adatok a házképen jelennek meg; csak az alsó összegző sáv kap áttetsző mezőt. A ház és az energiaeszközök a háttér részei, külön eszközikonokat nem igényelnek.
 Nappal telítettebb zöld, piros, kék és narancs értékek, valamint minden felirat és
 érték mögött 2 px-es fekete árnyék segíti az olvashatóságot. Az energiautak 7 px vastagok.
 Az árnyék `shadow: true` jelölése megőrzi a fekete színt hőmérsékleti riasztásnál is;
@@ -170,18 +167,16 @@ A többi csomag a saját, sablononként különálló PNG-ikonjait használja.
 
 ## Sablon készítése
 
-A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két témától a Bézier-energiautakon át a ZIP ellenőrzéséig és telepítéséig vezet. A [generálási promptok](template-icon-prompts.json) a hét különálló ikonkészlet forrását rögzítik.
+A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két témától a Bézier-energiautakon át a ZIP ellenőrzéséig és telepítéséig vezet. A [assetjegyzék](../assets/template-manifest.json) a jelenlegi képek ellenőrzőösszegeit és ismert eredetét rögzíti.
 
 ## Tényleges LVGL-előnézetek
 
 Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
 
-![Élő otthon: közvetlen adatok, világos téma](previews/live-home-light.png)
-![Élő otthon: közvetlen adatok, sötét téma](previews/live-home-dark.png)
 
 ![A nyolc sablon nappali és éjszakai nézete](previews/templates.png)
 
-![Hét különálló ikonkészlet és saját időjárás](previews/template-icons.png)
+![Aktuális ikonok és időjárás](previews/template-icons.png)
 
 ![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)
 
@@ -199,5 +194,8 @@ Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben kül
 
 A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python tools/prepare_web.py`.
 
-![Statisztika nappal](previews/statistics-light.png)
-![Statisztika sötétben](previews/statistics-dark.png)
+## Aktuális irányjelzések és opcionális elemek
+
+A házhoz vezető út piros, hálózati vételezés narancs, export citromsárga. Akku töltése sötétebb, leadása világosabb kék. Az elem opcionális `positive_color`/`negative_color` mezője követi az előjelet. A `pulse` elem pulzáló csomópont; a mérősávok `outline_color` körvonala és az értékváltozási animáció a Műszerfal olvashatóságát segíti.
+
+Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapadék is érvényes. A hőmérséklet és szél külön-külön rejtőzik null értéknél, minden témában. A kapcsolódó statikus címkének is adj `source` mezőt. [Adatprotokoll](mqtt.md).

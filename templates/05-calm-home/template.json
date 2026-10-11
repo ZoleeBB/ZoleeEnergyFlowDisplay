@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#F3F0E7",
     "elements": [
@@ -149,9 +149,10 @@
         "w": 140,
         "h": 26,
         "text": "Szél",
-        "text_en": "Szél",
+        "text_en": "Wind",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "source": "wind"
       },
       {
         "type": "value",
@@ -550,9 +551,10 @@
         "w": 140,
         "h": 26,
         "text": "Szél",
-        "text_en": "Szél",
+        "text_en": "Wind",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "source": "wind"
       },
       {
         "type": "value",

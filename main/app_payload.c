@@ -3,6 +3,7 @@
  *
  * A csomag csak akkor kerül tovább a rendszerbe, ha mind a 12 kötelező mező
  * megtalálható, megfelelő típusú és a specifikált tartományban van.
+ * A négy időjárási mező JSON null értéke is megengedett.
  */
 #include "app_payload.h"
 
@@ -236,11 +237,16 @@ esp_err_t app_payload_parse(
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_POWER_FULL]);
         goto invalid;
     }
-    if (!number_in_range(fields[F_TEMPERATURE], -35, 50, &sample.temperature_c)) {
+    sample.temperature_valid = !cJSON_IsNull(fields[F_TEMPERATURE]);
+    sample.wind_speed_valid = !cJSON_IsNull(fields[F_WIND_SPEED]);
+    sample.sun_radiation_valid = !cJSON_IsNull(fields[F_HAS_SUN]);
+    sample.precipitation_valid = !cJSON_IsNull(fields[F_HAS_PRECIP]);
+
+    if (sample.temperature_valid && !number_in_range(fields[F_TEMPERATURE], -35, 50, &sample.temperature_c)) {
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_TEMPERATURE]);
         goto invalid;
     }
-    if (!number_in_range(fields[F_WIND_SPEED], 0, 150, &sample.wind_speed_kmh)) {
+    if (sample.wind_speed_valid && !number_in_range(fields[F_WIND_SPEED], 0, 150, &sample.wind_speed_kmh)) {
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_WIND_SPEED]);
         goto invalid;
     }
@@ -252,17 +258,18 @@ esp_err_t app_payload_parse(
     /* A logikai mezők a protokoll szerint kizárólag numerikus 0/1 értékek lehetnek. */
     int integer_value = 0;
 
-    if (!integer_in_range(fields[F_HAS_SUN], 0, 1, &integer_value)) {
+    if (sample.sun_radiation_valid && !integer_in_range(fields[F_HAS_SUN], 0, 1, &integer_value)) {
         fail(error, error_len, "Csak numerikus 0 vagy 1 megengedett", s_names[F_HAS_SUN]);
         goto invalid;
     }
-    sample.has_sun_radiation = integer_value == 1;
+    sample.has_sun_radiation = sample.sun_radiation_valid && integer_value == 1;
+    integer_value = 0;
 
-    if (!integer_in_range(fields[F_HAS_PRECIP], 0, 1, &integer_value)) {
+    if (sample.precipitation_valid && !integer_in_range(fields[F_HAS_PRECIP], 0, 1, &integer_value)) {
         fail(error, error_len, "Csak numerikus 0 vagy 1 megengedett", s_names[F_HAS_PRECIP]);
         goto invalid;
     }
-    sample.has_precipitation = integer_value == 1;
+    sample.has_precipitation = sample.precipitation_valid && integer_value == 1;
 
     if (!integer_in_range(fields[F_STATUS], 1, 4, &sample.status)) {
         fail(error, error_len, "Csak 1..4 megengedett", s_names[F_STATUS]);
@@ -295,3 +302,4 @@ invalid:
     cJSON_Delete(root);
     return ESP_ERR_INVALID_ARG;
 }
+

@@ -268,6 +268,12 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
+        bool visible = !strcmp(type,"weather") ? weather_available(s) :
+            !strcmp(source,"temperature") ? s->temperature_valid :
+            !strcmp(source,"wind") ? s->wind_speed_valid : true;
+        weather_visibility(node->obj,visible);
+        if(node->detail)weather_visibility(node->detail,visible);
+        if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);lv_label_set_text(node->obj,text);if(node->detail)lv_label_set_text(node->detail,text);}
         else if(!strcmp(type,"bar")){

@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main(manifest):
-    provenance = []
+    output_manifest = ROOT/'assets/template-manifest.json'
+    provenance = {item['asset']: item for item in json.loads(output_manifest.read_text(encoding='utf-8'))}
     for item in json.loads(Path(manifest).read_text(encoding='utf-8')):
         ident, name = item['template'], item['name']
         if not re.fullmatch(r'[a-z0-9_-]{1,32}', ident) or not re.fullmatch(r'[a-z0-9_-]{1,60}', name):
@@ -33,13 +34,13 @@ def main(manifest):
             folder.mkdir(parents=True,exist_ok=True)
             destination = folder/(name+'.png')
             output.save(destination,optimize=True)
-        provenance.append(dict(template=ident,name=name,file=str(destination.relative_to(ROOT)),
+        provenance[destination.relative_to(ROOT).as_posix()] = dict(asset=destination.relative_to(ROOT).as_posix(),
                                generator='built-in image_gen',prompt=item['prompt'],
                                original_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
-                               runtime_sha256=hashlib.sha256(destination.read_bytes()).hexdigest()))
+                               sha256=hashlib.sha256(destination.read_bytes()).hexdigest())
         print(ident,name,destination.stat().st_size)
-    (ROOT/'docs/template-icon-prompts.json').write_text(
-        json.dumps(provenance,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    output_manifest.write_text(
+        json.dumps([provenance[key] for key in sorted(provenance) if (ROOT/key).is_file()],ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
 
 if __name__ == '__main__':

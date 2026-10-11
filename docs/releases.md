@@ -4,7 +4,7 @@
 
 A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.
 
-A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri, ezért a 2026-10-05-i állapotból a következő verzió `v0.0.2`. Korábbi verzió nélkül `v0.0.1`-gyel indul. A minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
+A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri. Korábbi verzió nélkül `v0.0.1`-gyel indul. A minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
 
 A kiválasztott verzióval a PR pontos merge-commitja fordul újra, és minden regressziós/LVGL ellenőrzés lefut. A workflow csak ezután hoz létre draft release-t, feltölti az OTA/USB-csomagokat és a kísérőfájlokat, végül publikálja a kész kiadást. Ez az immutable release beállítással is összeegyeztethető: a fájlok a lezárás előtt kerülnek fel.
 
@@ -19,7 +19,7 @@ A `pull_request_target: closed` trigger kizárólag `merged == true` esetben ind
 A `.github/workflows/release.yml` a GitHub **Publish release** eseményére indul, normál release és prerelease esetén is. A tag által jelölt commitot fordítja ESP-IDF 5.5.4-gyel ESP32-P4 célra. A release-tagben levő kódnak már tartalmaznia kell ezt a workflow-t.
 
 1. Válaszd ki a kiadás commitját, és készíts például `v1.2.0` vagy `v1.2.0-rc.1` taget. A teljes tag legfeljebb 31 ASCII karakter; hibás verziót a build elutasít.
-2. Publikáld a hozzá tartozó GitHub release-t. A három ellenőrzés (regressziós tesztek, tényleges LVGL render, firmware-build és csomagolás) lefut.
+2. Publikáld a hozzá tartozó GitHub release-t. Az ellenőrzések (regressziós tesztek, tényleges LVGL render, firmware-build és csomagolás) lefut.
 3. Siker után az Assets között megjelenik:
 
    - `ZoleeEnergyFlowDisplay-v1.2.0-ota.bin`: ezt töltsd fel a `http://ESZKOZ-IP/update` oldalon.
@@ -40,3 +40,5 @@ Csak a publikáló job kap `contents: write` jogosultságot, a teszt/build jobok
 Ha a repository azonnal **immutable** állapotba zárja a publikált release-t, a GitHub nem enged utólag fájlokat hozzáadni. Ezt a workflow világos hibával jelzi, az elkészült csomagok az Actions artifactban megmaradnak; a repository védelmét nem módosítja. Ilyen beállításnál külön, publikálás előtti csomagfeltöltési folyamat szükséges.
 
 A tesztek a HTTP hibákat, konfigurációt, közös adatfeldolgozást, timeout/OTA állapotokat, a Pico C minta ciklusait, az USB-csomag teljességét és a release-feltöltés újrafuttatását is ellenőrzik. A fizikai USB/OTA telepítés és a Miniserver Gen 2 / 17.x integráció hardveres átvételi próba marad.
+
+Az USB ZIP a `docs/` teljes aktuális útmutatókészletét, az `examples/` mintáit és az assetjegyzéket is tartalmazza; a gyökérbeli `TELEPITES.md` a telepítési útmutatóra vezet. A fejlesztési munkanaplók és elvetett javaslatok nem kerülnek a csomagba.

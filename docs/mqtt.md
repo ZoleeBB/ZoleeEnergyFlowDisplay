@@ -35,7 +35,7 @@ A mezőnevek kis-/nagybetű érzéketlenek. Ha ugyanaz a mező eltérő írásm�
 
 Ismeretlen extra JSON mezők megengedettek és figyelmen kívül maradnak.
 
-Ha bármely kötelező mező hiányzik, rossz típusú vagy tartományon kívüli, a teljes payload elutasításra kerül. A kijelző és a statisztika csak teljesen érvényes csomagtól frissül.
+A négy időjárási mező null kivételétől eltekintve, ha bármely kötelező mező hiányzik, rossz típusú vagy tartományon kívüli, a teljes payload elutasításra kerül. A kijelző és a statisztika csak teljesen érvényes csomagtól frissül.
 
 ## Status
 
@@ -51,3 +51,22 @@ Szigetüzemben a fő energiaábra a hálózatot leválasztottnak mutatja, de a s
 A kijelző az utolsó érvényes értékeket megtartja a konfigurált `data_timeout_seconds` idejéig. Alapérték: 30 másodperc.
 
 A timeout után teljes képernyős MQTT-adathiány hiba jelenik meg. Érvényes csomag érkezésekor a dashboard automatikusan visszatér.
+
+
+## Opcionális időjárási értékek
+
+A 12 JSON-kulcs továbbra is kötelező. A `Temperature`, `WindSpeed`,
+`HasSunRadiation` és `HasPrecipitation` értéke lehet JSON `null` (idézőjelek
+nélkül). A numerikus 0 érvényes adat, nem hiányjelzés. A többi nyolc mező
+változatlanul nem lehet null; különösen a `NightMode` vezérli a teljes témát,
+és a `BatteryTemperature` akkumulátoradat.
+
+A hőmérséklet és a szél külön-külön jelenik meg, ha van adat. Az időjárásikon
+csak érvényes hőmérséklet-, napsugárzás- és csapadékadat mellett látszik,
+hogy hiányzó állapotból ne keletkezzen hamis napos/esős/havas jelzés.
+Ez a rendszertémára és minden SD-témára, nappali és éjszakai módban is érvényes.
+Egy új null érték azonnal elrejti a korábbi kijelzést; az adat visszatérése
+újra megjeleníti. Az energiaadatok feldolgozása és a timeout működése folytatódik.
+Minta: [mqtt-payload.no-weather.sample.json](../examples/mqtt-payload.no-weather.sample.json).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

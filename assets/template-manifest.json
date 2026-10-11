@@ -1,0 +1,423 @@
+[
+  {
+    "asset": "templates/01-live-home/day.png",
+    "sha256": "9641df8bc70cafff3876d883e3c05d1666d5ffc9306656570343fd76bfe23d99"
+  },
+  {
+    "asset": "templates/01-live-home/night.png",
+    "sha256": "ea39da5a35eced203b39e50b885a9221722e80971045cd0ffb2c8d0a2102fb74"
+  },
+  {
+    "asset": "templates/01-live-home/weather_cloudy.png",
+    "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/01-live-home/weather_night.png",
+    "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic luminous crescent moon with three small stars. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "773b7d93a047e450a2f8ae9e20e7979047922e33307b0b03cfcfcc5e4e0d2035"
+  },
+  {
+    "asset": "templates/01-live-home/weather_partly_cloudy.png",
+    "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: golden sun partially behind a soft realistic white cloud. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "6129e4f00d2d0746ac22a6615476009ff1a8e71e25522afd1151a73404128604"
+  },
+  {
+    "asset": "templates/01-live-home/weather_rain.png",
+    "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey rain cloud with several distinct blue falling raindrops. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "35c5f01d5dbfccdea720dfad2459aa9a50c67e409366face270c807f22239322"
+  },
+  {
+    "asset": "templates/01-live-home/weather_snow.png",
+    "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey cloud with several distinct detailed white and pale blue snowflakes. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5e4eb147cf101d469ad966fb8844dc52ebb2b4278109f4cc1387108425c629b0"
+  },
+  {
+    "asset": "templates/01-live-home/weather_sunny.png",
+    "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/02-energy-paths/background-day.png",
+    "sha256": "0f77c45661753be19e12a4c546213fbacb4ac10a7d6241ea0c47e8c234d2b035",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: photorealistic-natural. Asset: landscape background for an energy monitor. Photorealistic modern detached home with rooftop solar panels in lush green suburban garden, mature trees, lawn, calm daylight, wide 16:10 composition, no people, no text, no graphics. Image will be faint behind UI so balanced unobtrusive detail. High quality architectural photography.",
+    "original_sha256": "ee8ce953c47f8c399f1f8fa1cf3251313fb2050acf39a1611a648da6726e4f78"
+  },
+  {
+    "asset": "templates/02-energy-paths/background-night.png",
+    "sha256": "126c0fd2630d21bf3011023fe3ac9b0fa39ea3517ee3ad581b7e43ecacf5884b",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: photorealistic-natural. Create a night-time version of the reference home photograph. Preserve exactly the house, camera, garden and composition. Dark blue night sky, illuminated windows, gentle garden lighting. No text.",
+    "original_sha256": "5a04fd79f473c8b18d5af1f7af5281590c88806af076e0f2f264329ea9208ee9"
+  },
+  {
+    "asset": "templates/02-energy-paths/flow_battery.png",
+    "sha256": "b0cc71102a07b8c832296611f747cb9ceb2463f886d224f557235c953c0b441c",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: SOFAR BTS 5K style modular residential battery: white broad rectangular low-profile stack of two battery modules on a plinth with a slim top control unit, black narrow central vertical trim and indicator, realistic cabinet seams. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "23ba210cece52ed8699c9cf767a18741b60cef6e53f740bbbf7dd17a99ffb302"
+  },
+  {
+    "asset": "templates/02-energy-paths/flow_grid.png",
+    "sha256": "95449be92af87231d6a53a753c61b80e8dddd61e3b48960b948184a578b99b75",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: A realistic tall galvanized steel high-voltage electricity transmission lattice pylon with symmetrical crossarms, ceramic insulators and short overhead wires. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "c42cb43c70af2e105540f5d59f8335c3362baac297c85a3fecdb35ae46ba20dd"
+  },
+  {
+    "asset": "templates/02-energy-paths/flow_house.png",
+    "sha256": "cc0344713431501a505d0d22da862717064d005e3715b3523b6de8fbeb6ebe49",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: A realistic modern small European two-storey white home with dark tiled roof, windows and a little greenery. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "23231dd77ecc9769d522fda274057d2921bb27957b8c69cb1fc5a4db97b3466e"
+  },
+  {
+    "asset": "templates/02-energy-paths/flow_hub.png",
+    "sha256": "0980c14f10af9f7851202ac2f3cde9e25281dd2a643cd0e14852275ae9460e66",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: SOFAR HYD 10KTL-3PH style three-phase hybrid inverter: compact upright white rectangular wall-mounted cabinet, black central vertical display fascia, rounded corners, subtle SOFAR wordmark, realistic cooling casing, no extra equipment. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "938fb05681c022de7f92c38c1282021594ddad0bdc90a9e997ac1edbee8bc6f8"
+  },
+  {
+    "asset": "templates/02-energy-paths/flow_solar.png",
+    "sha256": "c0db8a7fd89a3549cbc9e8ca4bd789ffa0cecd56b2255e5960c9b5ee5e4e0482",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: Four blue crystalline photovoltaic panels in a realistic silver mounting frame, three-quarter view. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "73c220644954223611ce2743bf2e4063dbc1295f7a87384cbe3dd1ee8ce903ad"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_cloudy.png",
+    "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_night.png",
+    "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic luminous crescent moon with three small stars. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "773b7d93a047e450a2f8ae9e20e7979047922e33307b0b03cfcfcc5e4e0d2035"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_partly_cloudy.png",
+    "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: golden sun partially behind a soft realistic white cloud. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "6129e4f00d2d0746ac22a6615476009ff1a8e71e25522afd1151a73404128604"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_rain.png",
+    "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey rain cloud with several distinct blue falling raindrops. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "35c5f01d5dbfccdea720dfad2459aa9a50c67e409366face270c807f22239322"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_snow.png",
+    "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey cloud with several distinct detailed white and pale blue snowflakes. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5e4eb147cf101d469ad966fb8844dc52ebb2b4278109f4cc1387108425c629b0"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_sunny.png",
+    "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/03-instruments/background-day.png",
+    "sha256": "185a8d8fbf1f425e69d4d0bb8d2ee1eec6f5f994831278b85e2572abbc203ea5",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Landscape 16:10 subtle photorealistic premium technology background for an energy instrument dashboard, metallic circuit board with fine cyan traces and microelectronics, tasteful restrained detail, no text or gauges.",
+    "original_sha256": "6ccb066ceb83b6a8840273eedba99f4197ee8073e83b9b283f12e1503eb06f71"
+  },
+  {
+    "asset": "templates/03-instruments/background-night.png",
+    "sha256": "a369824ae1650831509726ed673ccd59c8c7e37a5d9b930c2d87679a81835986",
+    "generator": "built-in image_gen",
+    "prompt": "Change only the lighting of this reference photograph to a dark nighttime technology scene, subtle luminous cyan circuit traces, dark metallic surfaces. Preserve all circuit board components and exact composition, no added text.",
+    "original_sha256": "b168fa3602cc7fd8a6b30d6ee4f602013ea4022304a24c795484679968e98481"
+  },
+  {
+    "asset": "templates/03-instruments/flow_battery.png",
+    "sha256": "890557e015bfba5e3293116167ab879831b43fe0cc987151f25e4a1428aebcc3",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a stationary home storage battery cabinet with small charge indicator and fine panel seams. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: azure blue battery accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "50b79c896a7fbc08bda77c849c81278589bfc3cb4d5734cf389182d3a85d7c3b"
+  },
+  {
+    "asset": "templates/03-instruments/flow_grid.png",
+    "sha256": "95449be92af87231d6a53a753c61b80e8dddd61e3b48960b948184a578b99b75",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Asset type: realistic energy dashboard icon, square transparent PNG. Subject: A realistic tall galvanized steel high-voltage electricity transmission lattice pylon with symmetrical crossarms, ceramic insulators and short overhead wires. Photorealistic polished 3D product render, centered entire object, three-quarter perspective, soft studio light, crisp silhouette readable at 128 pixels. Isolated on genuine transparent background. No scenery, no circle, no caption, no watermark, no decorative symbols. Keep generous clear padding.",
+    "original_sha256": "c42cb43c70af2e105540f5d59f8335c3362baac297c85a3fecdb35ae46ba20dd"
+  },
+  {
+    "asset": "templates/03-instruments/flow_house.png",
+    "sha256": "a9aeb7e771754d38797c8973d50206549a9b48cf0758de22f8b51bed63f64059",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "d728da579887cef10e3c2c7af96467cd292a5a29459486f81e8ec43f6d7f9cc2"
+  },
+  {
+    "asset": "templates/03-instruments/flow_solar.png",
+    "sha256": "6767a2c63d06f4e48cd30fb336bcb694bf701d63c23c01bd6e5df98ce4ab9ce5",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: precision industrial instrument models in brushed titanium and navy enamel, warm metal highlights, premium technical product illustration. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 03-instruments.",
+    "original_sha256": "e963032b1c6ebd88621cc77f2299a3d812117ee1b0718c4eb926f58577dcd9d6"
+  },
+  {
+    "asset": "templates/04-daily-balance/flow_house.png",
+    "sha256": "b16cef6771b891fc338f7191ab454b6434b46a068d0553de580e11fee4d396b0",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a contemporary compact home with a pitched roof, windows and entrance. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: warm neutral house. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "59f73093594a835ae072ec96749fbaad75a4d29d5643f3888c9174b2f4c86aa7"
+  },
+  {
+    "asset": "templates/04-daily-balance/flow_solar.png",
+    "sha256": "b2fa166cdec2d7afb8dcb34ed5f4f21488b98a9a4afdbe8f21ad47d617165505",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
+    "original_sha256": "837b62e0d7d717ce43046622f4b70bb999366189b9116bf638ada0044fedd66c"
+  },
+  {
+    "asset": "templates/05-calm-home/flow_battery.png",
+    "sha256": "73a3ad8559b76e4c0439e6b10ff07f4682ff415b9775738957af00ef49594bd5",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed residential energy storage battery cabinet, white and charcoal metallic enclosure with small green status indicator, subtle isometric view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "448b6da7e67a9e5f527ac78e2203462b90a092ae2248e6b7a49f25bbeb34360d"
+  },
+  {
+    "asset": "templates/05-calm-home/flow_grid.png",
+    "sha256": "5f8f1ab6be5bade4c28b1d35fd8d791c4b229d9017000d8848c68efe715b5edc",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed silver electricity transmission pylon with fine insulators and crossbars, three-quarter view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3b4223ffd8a1836c9a747b16fb100e982c3602ecfbb8c1fa33feb4419acf3db9"
+  },
+  {
+    "asset": "templates/05-calm-home/flow_house.png",
+    "sha256": "b4cdc510c99bb29a6a18af6a3fe5664bd8408b3f501a003a334cf430531df1c9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed miniature modern family house with terracotta roof and white walls, subtle isometric view, realistic materials, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "f82c676a0fc66f2f507e54e8c9c547287881840d77d9e1e85e4e24dd6b859a25"
+  },
+  {
+    "asset": "templates/05-calm-home/flow_solar.png",
+    "sha256": "41aa32878cacbe02ef9983023062e8ff9efb994a3c8b8630662862692f5f3bf1",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed array of blue photovoltaic solar panels on silver mounting supports, subtle isometric view, realistic reflective cells, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_cloudy.png",
+    "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_night.png",
+    "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic luminous crescent moon with three small stars. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "773b7d93a047e450a2f8ae9e20e7979047922e33307b0b03cfcfcc5e4e0d2035"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_partly_cloudy.png",
+    "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: golden sun partially behind a soft realistic white cloud. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "6129e4f00d2d0746ac22a6615476009ff1a8e71e25522afd1151a73404128604"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_rain.png",
+    "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey rain cloud with several distinct blue falling raindrops. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "35c5f01d5dbfccdea720dfad2459aa9a50c67e409366face270c807f22239322"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_snow.png",
+    "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey cloud with several distinct detailed white and pale blue snowflakes. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5e4eb147cf101d469ad966fb8844dc52ebb2b4278109f4cc1387108425c629b0"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_sunny.png",
+    "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/06-energy-orbit/flow_battery.png",
+    "sha256": "73a3ad8559b76e4c0439e6b10ff07f4682ff415b9775738957af00ef49594bd5",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed residential energy storage battery cabinet, white and charcoal metallic enclosure with small green status indicator, subtle isometric view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "448b6da7e67a9e5f527ac78e2203462b90a092ae2248e6b7a49f25bbeb34360d"
+  },
+  {
+    "asset": "templates/06-energy-orbit/flow_grid.png",
+    "sha256": "5f8f1ab6be5bade4c28b1d35fd8d791c4b229d9017000d8848c68efe715b5edc",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed silver electricity transmission pylon with fine insulators and crossbars, three-quarter view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3b4223ffd8a1836c9a747b16fb100e982c3602ecfbb8c1fa33feb4419acf3db9"
+  },
+  {
+    "asset": "templates/06-energy-orbit/flow_house.png",
+    "sha256": "b4cdc510c99bb29a6a18af6a3fe5664bd8408b3f501a003a334cf430531df1c9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed miniature modern family house with terracotta roof and white walls, subtle isometric view, realistic materials, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "f82c676a0fc66f2f507e54e8c9c547287881840d77d9e1e85e4e24dd6b859a25"
+  },
+  {
+    "asset": "templates/06-energy-orbit/flow_solar.png",
+    "sha256": "41aa32878cacbe02ef9983023062e8ff9efb994a3c8b8630662862692f5f3bf1",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed array of blue photovoltaic solar panels on silver mounting supports, subtle isometric view, realistic reflective cells, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
+  },
+  {
+    "asset": "templates/07-energy-ledger/background-day.png",
+    "sha256": "08bac6b817d0dee8cfd2a4735946727cc1a6b30d4f99b667b9dcd1891003c279",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: photorealistic-natural. Landscape 16:10 panoramic green European residential cityscape, abundant trees, elegant houses and low buildings, streets, rooftop solar panels, peaceful daylight, realistic architectural photograph, no text.",
+    "original_sha256": "14990705b882178332f41dda30c04cf41f50222363b98f4e396c45314622a102"
+  },
+  {
+    "asset": "templates/07-energy-ledger/background-night.png",
+    "sha256": "51fa0a864eac8c151f2d75fe8aca27f7b72361ddf73fb151039e3d228b4aed51",
+    "generator": "built-in image_gen",
+    "prompt": "Change only the time of day of this reference city photograph to realistic nighttime. Preserve exactly all houses, trees, street layout, camera and composition. Deep blue night sky, warmly illuminated house windows, street lamps lighting streets, subtle reflections. Photorealistic night cityscape, no text.",
+    "original_sha256": "f833bacfb706b7934edb479ecfd4531367aa0f9159e340529272032c8d30e00a"
+  },
+  {
+    "asset": "templates/07-energy-ledger/flow_battery.png",
+    "sha256": "73a3ad8559b76e4c0439e6b10ff07f4682ff415b9775738957af00ef49594bd5",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed residential energy storage battery cabinet, white and charcoal metallic enclosure with small green status indicator, subtle isometric view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "448b6da7e67a9e5f527ac78e2203462b90a092ae2248e6b7a49f25bbeb34360d"
+  },
+  {
+    "asset": "templates/07-energy-ledger/flow_grid.png",
+    "sha256": "5f8f1ab6be5bade4c28b1d35fd8d791c4b229d9017000d8848c68efe715b5edc",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed silver electricity transmission pylon with fine insulators and crossbars, three-quarter view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3b4223ffd8a1836c9a747b16fb100e982c3602ecfbb8c1fa33feb4419acf3db9"
+  },
+  {
+    "asset": "templates/07-energy-ledger/flow_house.png",
+    "sha256": "b4cdc510c99bb29a6a18af6a3fe5664bd8408b3f501a003a334cf430531df1c9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed miniature modern family house with terracotta roof and white walls, subtle isometric view, realistic materials, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "f82c676a0fc66f2f507e54e8c9c547287881840d77d9e1e85e4e24dd6b859a25"
+  },
+  {
+    "asset": "templates/07-energy-ledger/flow_solar.png",
+    "sha256": "41aa32878cacbe02ef9983023062e8ff9efb994a3c8b8630662862692f5f3bf1",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single realistic detailed array of blue photovoltaic solar panels on silver mounting supports, subtle isometric view, realistic reflective cells, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
+    "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_cloudy.png",
+    "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_night.png",
+    "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic luminous crescent moon with three small stars. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "773b7d93a047e450a2f8ae9e20e7979047922e33307b0b03cfcfcc5e4e0d2035"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_partly_cloudy.png",
+    "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: golden sun partially behind a soft realistic white cloud. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "6129e4f00d2d0746ac22a6615476009ff1a8e71e25522afd1151a73404128604"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_rain.png",
+    "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey rain cloud with several distinct blue falling raindrops. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "35c5f01d5dbfccdea720dfad2459aa9a50c67e409366face270c807f22239322"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_snow.png",
+    "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey cloud with several distinct detailed white and pale blue snowflakes. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5e4eb147cf101d469ad966fb8844dc52ebb2b4278109f4cc1387108425c629b0"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_sunny.png",
+    "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/08-statistics/weather_cloudy.png",
+    "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/08-statistics/weather_night.png",
+    "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic luminous crescent moon with three small stars. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "773b7d93a047e450a2f8ae9e20e7979047922e33307b0b03cfcfcc5e4e0d2035"
+  },
+  {
+    "asset": "templates/08-statistics/weather_partly_cloudy.png",
+    "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: golden sun partially behind a soft realistic white cloud. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "6129e4f00d2d0746ac22a6615476009ff1a8e71e25522afd1151a73404128604"
+  },
+  {
+    "asset": "templates/08-statistics/weather_rain.png",
+    "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey rain cloud with several distinct blue falling raindrops. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "35c5f01d5dbfccdea720dfad2459aa9a50c67e409366face270c807f22239322"
+  },
+  {
+    "asset": "templates/08-statistics/weather_snow.png",
+    "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: realistic soft grey cloud with several distinct detailed white and pale blue snowflakes. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5e4eb147cf101d469ad966fb8844dc52ebb2b4278109f4cc1387108425c629b0"
+  },
+  {
+    "asset": "templates/08-statistics/weather_sunny.png",
+    "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
+    "generator": "built-in image_gen",
+    "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
+    "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  }
+]

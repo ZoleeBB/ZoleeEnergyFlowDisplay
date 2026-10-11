@@ -60,16 +60,14 @@ def package(build, output, tag, commit):
     files['flasher_args.json'] = encoded(portable_manifest)
     files['flash-sha256.json'] = encoded({name: digest(data) for name, data in files.items()})
     files['flash.py'] = (ROOT / 'tools/release/flash_usb.py').read_bytes()
-    files['TELEPITES.md'] = (ROOT / 'docs/usb-install.md').read_bytes()
+    files['TELEPITES.md'] = '# Telepítés\n\nLásd: [USB telepítés](docs/usb-install.md) és [SD-kártya](docs/sd-card.md).\n'.encode('utf-8')
+    files['README.md'] = (ROOT / 'README.md').read_bytes()
     files['config.sample.json'] = (ROOT / 'config.sample.json').read_bytes()
-    files['config.http.sample.json'] = (ROOT / 'examples/config.http.sample.json').read_bytes()
-    # Ready for direct SD copy, independently of the firmware flash operation.
-    files['SABLONOK.md'] = (ROOT / 'docs/templates.md').read_bytes()
-    # Keep relative links usable offline in the USB package as well.
-    for name in ('templates.md', 'template-authoring.md', 'template-icon-prompts.json','enhancements-20261011.md','statistics.md','architecture.md'):
-        files[name] = (ROOT / 'docs' / name).read_bytes()
-    for name in ('templates.png', 'template-icons.png', 'live-home-flow.gif','statistics-light.png','statistics-dark.png','diagnostics.png'):
-        files['previews/' + name] = (ROOT / 'docs/previews' / name).read_bytes()
+    files['assets/template-manifest.json'] = (ROOT / 'assets/template-manifest.json').read_bytes()
+    for folder in ('docs', 'examples'):
+        for path in sorted((ROOT / folder).rglob('*')):
+            if path.is_file():
+                files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()

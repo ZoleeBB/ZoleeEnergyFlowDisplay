@@ -1,0 +1,14 @@
+{
+  "PowerGrid": -3.8,
+  "PowerBat": -1.2,
+  "PowerPV": 7.1,
+  "SocBat": 82.0,
+  "PowerFull": 2.1,
+  "Temperature": null,
+  "WindSpeed": null,
+  "HasSunRadiation": null,
+  "HasPrecipitation": null,
+  "Status": 1,
+  "NightMode": 0,
+  "BatteryTemperature": 27
+}

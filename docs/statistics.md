@@ -1,95 +1,30 @@
-# Statisztikai számítások
+# Energiastatisztika
 
-A pillanatnyi MQTT minták 5 másodperc körüli időközzel érkeznek. A napi energiákat a firmware teljesítmény-idő integrálással számolja.
+A pillanatnyi kW értékekből a firmware időben integrált kWh mennyiségeket számol, két egymást követő érvényes minta között trapézszabállyal. A hálózat és akkumulátor előjelváltását külön szakaszokra bontja. Hosszú adatrésre nincs extrapoláció: a `max_integration_gap_seconds` alapértéke 30, tartománya 1–300 másodperc. A rövid, éjfélen átnyúló szakasz a két helyi nap között oszlik meg.
 
-## Integrálás
+| Mérés | Pozitív | Negatív |
+| --- | --- | --- |
+| `PowerGrid` | Vételezés | Visszatáplálás |
+| `PowerBat` | Akkumulátor leadása | Akkumulátor töltése |
 
-Két érvényes minta között trapézszabályt használunk.
+A napi diagramok 288 ötperces időablakot használnak. 35 helyi naptári nap marad meg; a heti nézet hétfő–vasárnap, a havi nézet az aktuális naptári hónap. A mai nap részleges. A hiányzó időszak nem nulla fogyasztás. A tegnapi összehasonlítás azonos, lezárt ötperces időhatárig történik; hiányzó előzmény nem jelenik meg, nulla referencia esetén a százalék helyett kötőjel látszik.
 
-Ha a két minta közötti idő nagyobb, mint a `statistics.max_integration_gap_seconds`, a kimaradt időszakra nem történik becslés. Alapérték: 30 másodperc.
+## Forrásarányok és mutatók
 
-Az éjfélt átlépő rövid mintaköz pontosan kettévágásra kerül a helyi 00:00 időpontnál, így az energia a megfelelő naphoz kerül.
+A forráselosztás becslés: a PV először a házat, majd az akkumulátort látja el, a többlet export. Az akku leadását a házhoz rendeli; az akkumulátorból történő exportot nem modellezi. A fennmaradó házfogyasztást a hálózat fedezi. A hálózatról történő akkutöltés nem házfogyasztás. Az akku korábbi töltésének eredete nem követett.
 
-## 5 perces grafikon
+A statisztikai mutatókban `helyi = PV→ház + akku→ház`:
 
-Egy nap 288 darab 5 perces slotból áll.
+- Önellátás: `helyi / fogyasztás × 100`, legfeljebb 100%.
+- Saját felhasználás: `(PV→ház + PV→akku) / termelés × 100`, legfeljebb 100%.
+- Vételi költség: `vételezés × vételi ár`; bevétel: `visszatáplálás × visszatáplálási ár`.
+- Nettó költség: vételi költség mínusz bevétel.
+- Megtakarítás: `helyi × vételi ár + bevétel`.
 
-A grafikonokhoz az adott slotban érkezett teljesítményminták átlaga tárolódik:
+Nulla nevezőhöz 0% tartozik. Az aktuális konfigurált árak a teljes megjelenített előzményre érvényesek; nincs tarifatörténet.
 
-- PowerPV
-- PowerFull
-- PowerGrid
-- PowerBat
+A beépített rendszernézet korábbi összegző képletei eltérnek: önellátás `clamp((fogyasztás−vételezés)/fogyasztás×100,0,100)`, megtakarítás `max(0,termelés−visszatáplálás)×vételi ár + visszatáplálás×exportár`. A CO₂-becslés `termelés×CO₂-tényező`, a faegyenérték ezt osztja az éves faelnyelési tényezővel. Ezek szemléltető becslések.
 
-Az X tengely mindig 00:00-24:00. A jövőbeli időpontok üresen maradnak.
+## Tárolás
 
-## Napi értékek
-
-- Mai termelés: PowerPV integrál
-- Mai fogyasztás: PowerFull integrál
-- Hálózati vételezés: PowerGrid pozitív része
-- Visszatáplálás: PowerGrid negatív részének abszolút értéke
-- Akkumulátor töltés: PowerBat negatív részének abszolút értéke
-- Akkumulátor kisütés: PowerBat pozitív része
-
-## Önellátás
-
-`(napi fogyasztás - napi hálózati vételezés) / napi fogyasztás * 100`
-
-Az eredmény 0 és 100% közé van korlátozva.
-
-## Megtakarított pénz
-
-Helyben felhasznált PV energia:
-
-`napi termelés - napi visszatáplálás`
-
-Megtakarítás:
-
-`helyi PV * electricity_purchase_price + visszatáplálás * feed_in_price`
-
-Alapértékek:
-
-- villamosenergia ár: 65 Ft/kWh
-- betáplálási ár: 5 Ft/kWh
-
-## CO2
-
-`napi PV termelés * co2_factor_kg_per_kwh`
-
-Alapérték: 0.381 kg CO2e/kWh.
-
-## Fa-egyenérték
-
-`megtakarított CO2 / tree_absorption_kg_per_year`
-
-Alapérték: 22 kg CO2/fa/év.
-
-## Tegnapi összehasonlítás
-
-A kártyák nem a teljes tegnapi naphoz, hanem mindig a tegnapi nap ugyanazon befejezett 5 perces határáig hasonlítanak.
-
-Példa: 14:37-kor a referencia 00:00-14:35.
-
-Ha nincs tegnapi adat, az összehasonlítás nem jelenik meg. Ha a tegnapi referenciaérték nulla, százalék helyett mínusz jel jelenik meg.
-
-## SD mentés
-
-A RAM-ban gyűjtött statisztika alapértelmezés szerint 60 percenként kerül SD-re.
-
-A mentés `.tmp` fájl, `fflush`/`fsync` és `.bak` biztonsági csere használatával történik. Induláskor a fő-, ideiglenes és biztonsági fájl közül a legnagyobb érvényes `revision` értékű állapot nyer; a régi v1 fájlok revision nélkül is olvashatók. A helyreállított fájl a következő mentés előtt főfájllá válik. A betöltés ellenőrzi a mintaszámokat, teljesítménytartományokat, a slot- és napi energiaösszegek egyezését, valamint a teljes JSON dokumentumot.
-
-Az SD I/O külön zárolást használ: a statisztikai állapot zárolása csak a RAM-másolat készítéséig tart. Az MQTT-feldolgozás mentés közben is folytatódhat. Napváltáskor az előző mintát megtartjuk, így a háttértask és az MQTT-esemény sorrendjétől függetlenül pontos az éjféli integrálás. SD-helyreállítás után a mai és tegnapi RAM-állapot egyaránt mentésre kerül.
-
-A kártya jelenlétét a firmware 5 másodpercenként SDMMC státuszparanccsal vizsgálja, írás nélkül; sikertelenség után 60 másodpercenként próbál újracsatlakozni.
-
-A rendszer csak a mai és a tegnapi statisztikai napot tartja meg.
-
-
-## Heti/havi statisztika és pénzügyek
-
-35 helyi naptári nap megőrzése, hétfőtől vasárnapig tartó hét és aktuális naptári hónap. A hiányzó napok külön jelöltek, nem nulla mérésként szerepelnek. A mai nap részleges. A v3 fájlok SOC-átlagot és időben integrált forrásenergiát is tartalmaznak; v1/v2 fájlok továbbra is olvashatók, forrásarányaik közelítettek, SOC-görbéjük hiányzó.
-
-Önellátás = (közvetlen PV a háznak + akkumulátorból a háznak) / fogyasztás. Helyben felhasználás = (PV a háznak + PV tárolás) / termelés. A forrásfelosztás becslés: PV először a háznak, majd tárolásra; az akkumulátor nem exportál. A hálózatról korábban töltött akkumulátor eredete ebből a mérésből nem állapítható meg.
-
-Vásárlási költség = import × vételi tarifa; bevétel = export × visszatáplálási tarifa. Becsült megtakarítás = helyi házellátás × vételi tarifa + bevétel; nettó költség = vásárlás − bevétel. A napi/havi értékek a jelenlegi konfigurált tarifákkal számolódnak; a tarifa időbeli változása nincs historizálva.
+A v3 napfájlok integrált forrásenergiát és SOC-átlagot is tárolnak. A v1/v2 állományok olvashatók; forrásarányaik közelítettek, SOC-görbéjük hiányzik. A mentés revíziós, `.tmp`/`.bak` helyreállítással, `fflush` és `fsync` használatával. SD-hibánál a RAM-beli gyűjtés tovább fut. Az opcionális időjárás nem befolyásolja az energiaszámítást.

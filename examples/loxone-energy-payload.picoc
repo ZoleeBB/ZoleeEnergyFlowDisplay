@@ -13,6 +13,10 @@
 // I10 Status             [1..4]
 // I11 NightMode          [0/1]
 // I12 BatteryTemperature [C]
+// I13 WeatherPresent     [0..15] jelenlétmaszk: I6=1, I7=2, I8=4, I9=8
+// A nem használt időjárásbemenet bitje 0; minden bekötve: 15.
+// Pico C nem jelzi a bekötöttséget: a maszkot a Configban kell beállítani.
+// Bekötetlen I13 (0): mind a négy időjárási mező null.
 //
 // Txt1 kimenet: 5 másodpercenként egy teljes JSON dokumentum.
 //
@@ -42,20 +46,39 @@ while (TRUE)
     float status = getinput(9);
     float nightMode = getinput(10);
     float batteryTemperature = getinput(11);
+    float weatherPresentInput = getinput(12);
+    int weatherPresent = 0;
+    if (weatherPresentInput >= 0 && weatherPresentInput <= 15)
+    {
+        weatherPresent = weatherPresentInput;
+        if (weatherPresentInput != weatherPresent) weatherPresent = 0;
+    }
+    char temperatureJson[64];
+    char windJson[64];
+    char sunJson[64];
+    char precipitationJson[64];
+    sprintf(temperatureJson, "null");
+    sprintf(windJson, "null");
+    sprintf(sunJson, "null");
+    sprintf(precipitationJson, "null");
+    if (weatherPresent & 1) sprintf(temperatureJson, "%f", temperature);
+    if (weatherPresent & 2) sprintf(windJson, "%f", windSpeed);
+    if (weatherPresent & 4) sprintf(sunJson, "%f", hasSunRadiation);
+    if (weatherPresent & 8) sprintf(precipitationJson, "%f", hasPrecipitation);
 
     // A firmware által elvárt 12 kötelező mezőből egyetlen JSON objektum készül.
     sprintf(
         json,
-        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%f,\"WindSpeed\":%f,\"HasSunRadiation\":%f,\"HasPrecipitation\":%f,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f}",
+        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%s,\"WindSpeed\":%s,\"HasSunRadiation\":%s,\"HasPrecipitation\":%s,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f}",
         powerGrid,
         powerBat,
         powerPV,
         socBat,
         powerFull,
-        temperature,
-        windSpeed,
-        hasSunRadiation,
-        hasPrecipitation,
+        temperatureJson,
+        windJson,
+        sunJson,
+        precipitationJson,
         status,
         nightMode,
         batteryTemperature

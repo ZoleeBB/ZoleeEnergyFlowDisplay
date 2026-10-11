@@ -11,7 +11,6 @@ extern const lv_image_dsc_t app_img_header_home_leaf;
 extern const lv_image_dsc_t app_img_leaf;
 extern const lv_image_dsc_t app_img_house;
 extern const lv_image_dsc_t app_img_grid;
-extern const lv_image_dsc_t app_img_grid_metric;
 extern const lv_image_dsc_t app_img_grid_off;
 extern const lv_image_dsc_t app_img_coins;
 extern const lv_image_dsc_t app_img_co2;

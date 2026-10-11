@@ -70,10 +70,17 @@ class ReleaseTests(unittest.TestCase):
         manifest = json.loads((unpack/'flasher_args.json').read_text())
         self.assertEqual(manifest['flash_files'],self.flash)
         self.assertEqual((unpack/'app.bin').read_bytes(),ota.read_bytes())
-        for name in ('templates.md','template-authoring.md','template-icon-prompts.json',
-                     'previews/templates.png','previews/template-icons.png','previews/live-home-flow.gif'):
+        for name in ('docs/templates.md','docs/template-authoring.md','assets/template-manifest.json',
+                     'docs/previews/templates.png','docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
+                     'examples/config.http.sample.json','examples/loxone-energy-http-post.picoc'):
             self.assertTrue((unpack/name).is_file(),name)
         self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),8)
+        # Documentation and example links must resolve in the offline installer.
+        import re
+        for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:
+            for target in re.findall(r'!?\[[^\]]*\]\(([^)]+)\)', guide.read_text(encoding='utf-8')):
+                if '://' not in target and not target.startswith('#'):
+                    self.assertTrue((guide.parent/target.split('#',1)[0]).exists(), (guide.name,target))
         cmd = command(unpack,'COM5',115200)
         self.assertIn('--no-stub',cmd)
         for address,name in self.flash.items():

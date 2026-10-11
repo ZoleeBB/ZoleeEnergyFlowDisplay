@@ -81,3 +81,5 @@ OTA-hoz a build könyvtárból a fő alkalmazás bináris kell:
 ## Előre fordított firmware
 
 A GitHub release mellékletei és az automatikus build leírása: [releases.md](releases.md). Az USB-csomag magyar telepítési útmutatója: [usb-install.md](usb-install.md).
+
+Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

@@ -1,56 +1,9 @@
-# microSD előkészítés
+# microSD
 
-A microSD tartalmazza a konfigurációt és a napi statisztikát.
+FAT32 fájlrendszer szükséges; exFAT nem támogatott. A gyökérben legyen `config.json`, a kiválasztott [konfigurációs minta](configuration.md) alapján.
 
-## Fájlrendszer
+A nyolc választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket tartalmazza. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
 
-A jelenlegi firmware-verzióhoz **FAT32** használata szükséges.
+A statisztikát a firmware maga hozza létre és 35 helyi naptári napig őrzi. Egy nap 288 ötperces időablakot tartalmaz. A `.tmp` és `.bak` fájlok helyreállítási állományok: működés közben ne töröld őket. Induláskor a legújabb érvényes revízió kerül betöltésre. [Adatformátum és számítás](statistics.md).
 
-Az ESP-IDF 5.5.4 beépített FatFs rétegével az exFAT nincs bekapcsolva ebben a projektben, ezért exFAT-ra formázott kártyát jelenleg ne használj.
-
-## Könyvtárstruktúra
-
-Első indítás előtt csak ez szükséges:
-
-```text
-/config.json
-```
-
-A firmware automatikusan létrehozza:
-
-```text
-/stats/
-```
-
-és a napi fájlokat:
-
-```text
-/stats/2026-10-04.json
-/stats/2026-10-03.json
-```
-
-A rendszer a mai és a tegnapi napi állományt tartja meg.
-
-## config.json
-
-1. Másold le a repository `config.sample.json` fájlját.
-2. Nevezd át `config.json`-ra.
-3. Töltsd ki legalább a Wi-Fi SSID-t és az MQTT broker címét.
-4. Másold a microSD gyökerébe.
-
-A valódi `config.json` szándékosan nincs Gitben.
-
-## Írásbiztonság
-
-A napi statisztika RAM-ban gyűlik, és alapértelmezés szerint óránként kerül SD-re.
-
-Mentéskor a firmware ideiglenes fájlt és biztonsági cserét használ. Egy váratlan áramkimaradás után induláskor megpróbálja visszaállítani az utolsó érvényes napi állományt.
-
-## Futás közbeni SD hiba
-
-Ha az SD-kártya futás közben hibássá vagy elérhetetlenné válik:
-
-- az MQTT fogadás folytatódik,
-- a dashboard működik tovább RAM-ból,
-- piros SD-kártya hiba jelenik meg,
-- a firmware 1 percenként megpróbálja helyreállítani a kapcsolatot.
+Induláskor az SD és a konfiguráció szükséges. Futás közben SD-hibánál a mérés és a RAM-beli statisztika tovább működik; a hiba a diagnosztikában látható. Újracsatlakoztatáskor a firmware ismét próbál menteni. Kártyacsere és kézi fájlmódosítás előtt kapcsold ki a készüléket.
