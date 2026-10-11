@@ -107,7 +107,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     if(!strcmp(source,"clock")){strftime(out,128,"%H:%M",&tmv);return;}
     if(!strcmp(source,"date")){strftime(out,128,hu()?"%Y.%m.%d.":"%Y-%m-%d",&tmv);return;}
     if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
-    if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
+    if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
     double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,1);
     const char *unit="kW";
@@ -219,7 +219,7 @@ static void template_build(bool night){
             uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
             if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
             else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
-            node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,"battery",tone(BLUE,night)));
+            node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH)?"grid":"battery",tone(BLUE,night)));
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))app_chart_set_reference_style(node->obj);
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))lbl(s_dash,chart_kind==APP_CHART_SOC?"%":"kW",x+w-32,y+1,APP_FONT_12,text);

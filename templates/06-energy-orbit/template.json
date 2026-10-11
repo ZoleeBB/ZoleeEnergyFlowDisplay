@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#EFF2FB",
     "elements": [
@@ -222,8 +222,8 @@
         "y": 308,
         "w": 204,
         "h": 26,
-        "text": "TÁROLÓ",
-        "text_en": "TÁROLÓ",
+        "text": "Töltöttség",
+        "text_en": "State of charge",
         "font": 16,
         "color": "#657A75",
         "align": "center"
@@ -751,8 +751,8 @@
         "y": 308,
         "w": 204,
         "h": 26,
-        "text": "TÁROLÓ",
-        "text_en": "TÁROLÓ",
+        "text": "Töltöttség",
+        "text_en": "State of charge",
         "font": 16,
         "color": "#A2B5BE",
         "align": "center"

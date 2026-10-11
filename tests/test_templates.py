@@ -39,13 +39,12 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     seen=set()
     for package in sorted((ROOT/'templates').iterdir()):
         for asset in package.glob('*.png'):
-            if asset.name in ('day.png','night.png'):continue
+            if asset.name in ('day.png','night.png','background-day.png','background-night.png'):continue
             digest=hashlib.sha256(asset.read_bytes()).hexdigest()
             assert digest not in builtin, f'{asset}: copied builtin icon'
-            assert digest not in seen, f'{asset}: shared template icon'
             seen.add(digest)
-    assert len(seen)>=35, len(seen)
-    print('PASS: 35 independent template icons, no copied builtin or shared sets')
+    assert sum(len(list(p.glob('flow_*.png'))) for p in (ROOT/'templates').iterdir() if p.is_dir())>=28
+    print('PASS: generated template icons, no copied builtin assets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0
     def active():

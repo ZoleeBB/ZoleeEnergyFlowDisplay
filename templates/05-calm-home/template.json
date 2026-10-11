@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#F3F0E7",
     "elements": [

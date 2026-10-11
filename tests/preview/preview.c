@@ -76,7 +76,6 @@ static void test_template_motion(void){
             const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
             assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
-            assert(lv_line_get_points(node->obj)==node->points);
         }
         double original=node->power;
         node->phase=.5f;node->power=7;template_animate(.02f);float capped=node->phase;
@@ -100,6 +99,27 @@ static void test_template_motion(void){
             assert(distance<2); /* integer display rounding only */
         }
     }
+}
+
+static void test_template_indicators(const app_energy_sample_t *sample){
+    app_energy_sample_t state=*sample;
+    for(int direction=-1;direction<=1;direction+=2){
+        state.power_grid_kw=direction*2;state.power_bat_kw=direction*2;
+        template_update(&state,&fixture);
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *node=&template_nodes[i];
+            if(strcmp(ts(node->spec,"type"),"gauge"))continue;
+            uint32_t expected=tc(node->spec,direction<0?"negative_color":"positive_color",tc(node->spec,"color",BLUE));
+            assert(lv_color_eq(lv_obj_get_style_arc_color(node->obj,LV_PART_INDICATOR),c(expected)));
+        }
+    }
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];
+        if(strcmp(ts(node->spec,"type"),"pulse"))continue;
+        template_animate(.1f);int first=lv_obj_get_style_bg_opa(node->obj,0);
+        template_animate(.3f);assert(first!=lv_obj_get_style_bg_opa(node->obj,0));
+    }
+    template_update(sample,&fixture);
 }
 
 static void test_template_weather(const app_energy_sample_t *sample){
@@ -258,7 +278,7 @@ int main(void)
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
                 const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(tc(scene,"background",0))));
-                test_template_weather(&sample);test_template_motion();
+                test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;

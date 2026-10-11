@@ -231,7 +231,7 @@ def orbit(dark):
         ('battery',[(1040,512),(900,600),(740,575),(650,386)],BLUE)]:
         s.flow(source,points,color,8,curve='bezier')
     s.box(502,284,276,174,background=s.bg,radius=80)
-    s.label('TÁROLÓ',538,308,204,16,s.muted,align='center')
+    s.label('Töltöttség',538,308,204,16,s.muted,en='State of charge',align='center')
     s.value('soc',528,342,225,48,BLUE,align='center')
     s.add('bar',549,412,182,8,source='soc',color=BLUE)
     for x,y,title,source,icon,color in [
@@ -284,10 +284,10 @@ def ledger(dark):
 def statistics(dark):
     s=Scene(dark,'#142737' if dark else '#F0F4FA')
     s.header('Energiastatisztika','Napi görbék · heti és havi összesítés')
-    s.add('weather', 824, 18, 54, 54)
+    s.add('weather', 824, 18, 54, 54, files={k:'weather_'+k+'.png' for k in ('sunny','partly_cloudy','cloudy','rain','snow','night')})
     s.value('temperature', 890, 20, 174, 20)
     s.value('wind', 890, 52, 174, 16)
-    for i,(label,source,color) in enumerate([('Termelés','pv',GREEN),('Fogyasztás','home',GREEN),
+    for i,(label,source,color) in enumerate([('Termelés','pv',GREEN),('Fogyasztás','home',ORANGE),
             ('Hálózat','grid',RED),('Akkumulátor','battery',BLUE),('Töltöttség','soc',BLUE)]):
         x=32+i*246
         s.label(label,x,99,230,16,s.muted)
