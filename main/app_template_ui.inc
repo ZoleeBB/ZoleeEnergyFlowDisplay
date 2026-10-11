@@ -114,6 +114,8 @@ static void template_apply(void){
 static void template_build(bool night){
     clear();template_node_count=0;template_chart_time=0;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
+    /* Az áttűnés alatt is a cél háttér látszik: sötét témában nincs fehér villanás. */
+    screen_style(s_screen,night);lv_obj_set_style_bg_color(s_screen,c(tc(scene,"background",night?BG_DARK:BG_LIGHT)),0);
     s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
     lv_obj_set_style_radius(s_dash,0,0);
     lv_obj_set_style_bg_color(s_dash,c(tc(scene,"background",BG_LIGHT)),0);

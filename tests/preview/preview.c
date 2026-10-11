@@ -256,6 +256,8 @@ int main(void)
             for(int night=0;night<2;night++){
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
+                const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
+                assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(tc(scene,"background",0))));
                 test_template_weather(&sample);test_template_motion();
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */

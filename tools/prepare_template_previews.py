@@ -41,7 +41,7 @@ def main(source):
     frames=[]
     for path in sorted(source.glob('live-home-flow-*.ppm')):
         with Image.open(path) as image:
-            frames.append(image.crop((0,112,1280,650)).resize((800,336),Image.Resampling.LANCZOS))
+            frames.append(image.crop((0,112,1280,650)).resize((640,269),Image.Resampling.LANCZOS).quantize(colors=96))
     if frames:frames[0].save(OUT/'live-home-flow.gif',save_all=True,append_images=frames[1:],duration=120,loop=0)
     for ident in ('06-energy-orbit','07-energy-ledger'):
         with Image.open(source/f'template-{ident}-light.ppm') as frame:frame.save(OUT/(ident+'.png'),optimize=True)
