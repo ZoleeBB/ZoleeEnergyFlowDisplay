@@ -133,6 +133,7 @@
         "color": "#FF1744",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 0,
@@ -162,6 +163,7 @@
         "color": "#00E676",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 40,
@@ -191,6 +193,7 @@
         "color": "#00B0FF",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 400,
@@ -723,6 +726,7 @@
         "color": "#E66B6B",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 0,
@@ -752,6 +756,7 @@
         "color": "#36AE7C",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 40,
@@ -781,6 +786,7 @@
         "color": "#559CDE",
         "radius": 7,
         "curve": "bezier",
+        "glow": 10,
         "points": [
           {
             "x": 400,

@@ -40,7 +40,7 @@ class Scene:
     def flow(self, source, points, color, thickness=5, curve='polyline'):
         x, y = min(p[0] for p in points), min(p[1] for p in points)
         w, h = max(p[0] for p in points)-x+1, max(p[1] for p in points)-y+1
-        self.add('flow', x, y, w, h, source=source, color=color, radius=thickness, curve=curve,
+        self.add('flow', x, y, w, h, source=source, color=color, radius=thickness, curve=curve, glow=10,
                  points=[dict(x=a-x, y=b-y) for a, b in points])
 
     def header(self, title, subtitle):

@@ -11,6 +11,8 @@ typedef struct {
 static app_template_view_t template_view,template_pending;
 static template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
+static bool template_enter_transition;
+static void template_opacity(void *obj,int32_t value){lv_obj_set_style_opa(obj,value,0);}
 static bool template_is_active(void){return template_view.document!=NULL;}
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
@@ -80,6 +82,7 @@ static void template_prepare(void){
 }
 static void template_apply(void){
     if(template_pending.generation==template_view.generation)return;
+    template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
     template_view=template_pending;memset(&template_pending,0,sizeof(template_pending));template_pending.generation=template_view.generation;
     for(unsigned i=0;i<template_view.asset_count;i++){
@@ -120,11 +123,25 @@ static void template_build(bool night){
             if(!strcmp(type,"image"))template_image(node->obj,ts(e,"file"),w,h);
             lv_obj_set_pos(node->obj,x,y);
         }else if(!strcmp(type,"flow")){
-            node->obj=lv_line_create(s_dash);template_path(node,e);
+            template_path(node,e);
+            if(tn(e,"glow",0)>0){
+                node->detail=lv_line_create(s_dash);lv_line_set_points(node->detail,node->points,node->point_count);
+                lv_obj_set_pos(node->detail,x,y);lv_obj_set_style_line_color(node->detail,c(text),0);
+                lv_obj_set_style_line_width(node->detail,tn(e,"radius",3)+tn(e,"glow",8),0);
+                lv_obj_set_style_line_opa(node->detail,24,0);lv_obj_set_style_line_rounded(node->detail,true,0);
+            }
+            node->obj=lv_line_create(s_dash);
             lv_line_set_points(node->obj,node->points,node->point_count);lv_obj_set_pos(node->obj,x,y);
             lv_obj_set_style_line_color(node->obj,c(text),0);lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
             lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,strcmp(ts(e,"curve"),"bezier")!=0,0);
-            for(int i=0;i<4;i++)node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
+            for(int i=0;i<4;i++){
+                node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
+                if(tn(e,"glow",0)>0){
+                    lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
+                    lv_obj_set_style_shadow_width(node->dots[i],tn(e,"glow",8),0);
+                    lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_40,0);
+                }
+            }
         }else if(!strcmp(type,"bar")){
             node->obj=lv_bar_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_bar_set_range(node->obj,0,tn(e,"max",100));
             lv_obj_set_style_bg_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?0x24312D:0xE2EAE5)),0);
@@ -149,6 +166,12 @@ static void template_build(bool night){
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     s_dash_created=true;s_view=VIEW_DASHBOARD;
+    if(template_enter_transition){
+        lv_anim_t anim;lv_anim_init(&anim);lv_anim_set_var(&anim,s_dash);
+        lv_anim_set_exec_cb(&anim,template_opacity);lv_anim_set_values(&anim,0,255);
+        lv_anim_set_duration(&anim,160);lv_anim_set_path_cb(&anim,lv_anim_path_ease_out);
+        lv_anim_start(&anim);template_enter_transition=false;
+    }
 }
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
@@ -188,6 +211,11 @@ static void template_animate(float dt){
     if(!template_view.document||!s_dash_created||s_view!=VIEW_DASHBOARD)return;
     for(unsigned n=0;n<template_node_count;n++){
         template_node_t *node=&template_nodes[n];if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        if(node->detail){
+            int glow=fabs(node->power)<.001?0:20+(int)(fmin(7,fabs(node->power))*6);
+            lv_obj_set_style_line_opa(node->detail,glow,0);
+            lv_obj_set_style_line_opa(node->obj,fabs(node->power)<.001?40:130+(int)(fmin(7,fabs(node->power))*15),0);
+        }
         node->phase=app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt);
         for(int d=0;d<4;d++){
             if(fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);

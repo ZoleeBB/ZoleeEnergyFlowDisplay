@@ -183,3 +183,5 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 ![Hét különálló ikonkészlet és saját időjárás](previews/template-icons.png)
 
 ![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)
+
+Az energiautak `glow: 0..24` mezője állítható fényudvart ad. A fény intenzitása és a pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a fény kialszik. A kézi sablonváltás 160 ms belépő áttűnést használ: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.

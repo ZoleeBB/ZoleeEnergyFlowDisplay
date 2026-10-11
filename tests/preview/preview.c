@@ -42,7 +42,7 @@ static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 static void save_frame(const char *name)
 {
     lv_obj_update_layout(lv_screen_active());
-    for(int i=0;i<4;i++){ticks+=16000;lv_tick_inc(16);lv_timer_handler();}
+    for(int i=0;i<16;i++){ticks+=16000;lv_tick_inc(16);lv_timer_handler();}
     lv_refr_now(display);
     char path[160];snprintf(path,sizeof(path),"%s.ppm",name);
     FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n1280 800\n255\n");

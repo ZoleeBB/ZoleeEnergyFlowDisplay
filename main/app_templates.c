@@ -143,7 +143,7 @@ static bool validate_scene(const cJSON *scene){
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(cJSON_HasObjectItem(e,"text_shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"text_shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
-        if(!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;
+        if(!number(e,"glow",0,24,true)||!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
