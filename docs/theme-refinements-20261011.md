@@ -24,4 +24,4 @@ A képek a beépített image_gen eszközzel készültek. A három háttérpár 1
 
 A teljes helyi C/Python/JavaScript regressziós csomag sikeres: adatkezelés, telepítés, ZIP, PNG, webes validálás és kiadási csomagolás. A tényleges LVGL-firmware felület szigorú figyelmeztetésekkel fordul; 16 nappali/éjszakai render, mozgási irány, nulla/7 kW korlát, időjárásváltás, irányfüggő műszerszínek és pulzálás ellenőrzött. Az eredeti rendszer témához nem változott kód vagy asset; 13 korábbi render pixelpontosan egyezik.
 
-A távoli feltöltést automatikus jóváhagyási ellenőrzés blokkolta; ezért ehhez a változatállapothoz új GitHub CI még nem indult. Fizikai ESP32-P4 átvételi próba szükséges.
+A távoli feltöltés az explicit fejlesztési jogosultság tisztázása után megtörtént. A végleges GitHub CI-eredmények és a firmware-csomagok státusza a PR #6 leírásában követhető. Fizikai ESP32-P4 átvételi próba szükséges.
