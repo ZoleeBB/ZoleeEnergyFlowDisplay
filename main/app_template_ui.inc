@@ -11,8 +11,8 @@ LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
-    /* Two cubic segments, 64 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[129];float segments[128],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    /* Two cubic segments, 96 samples each; drawing and animation share this path. */
+    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
@@ -79,8 +79,8 @@ static void template_path(template_node_t *node,const cJSON *e){
     cJSON_ArrayForEach(pt,cJSON_GetObjectItem(e,"points"))control[n++]=(lv_point_precise_t){tn(pt,"x",0),tn(pt,"y",0)};
     if(!strcmp(ts(e,"curve"),"bezier")){
         node->points[node->point_count++]=control[0];
-        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=64;i++){
-            float t=i/64.f,u=1.f-t;
+        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=96;i++){
+            float t=i/96.f,u=1.f-t;
             node->points[node->point_count++]=(lv_point_precise_t){
                 u*u*u*control[k].x+3*u*u*t*control[k+1].x+3*u*t*t*control[k+2].x+t*t*t*control[k+3].x,
                 u*u*u*control[k].y+3*u*u*t*control[k+1].y+3*u*t*t*control[k+2].y+t*t*t*control[k+3].y};
