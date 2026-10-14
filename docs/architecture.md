@@ -4,7 +4,7 @@ Az ESP32-P4 firmware közös állapotmodellt használ az MQTT- és HTTP-adatfoga
 
 A konfiguráció a FAT32 microSD gyökerében található. A Wi-Fi csatlakozás után az NTP időszinkron szükséges a helyi naptári statisztikához. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
 
-A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció időlépése 16 ms, a diagramok frissítése 5 másodperc. A képek gyorsítótára 6 MiB; a kijelző három teljes RGB565 képpufferrel és egy 50 soros LVGL rajzpufferrel működik. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
+A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció időlépése 16 ms, a diagramok frissítése 5 másodperc. A PNG-dekódolás gyorsítótára 10 MiB; a kijelző három teljes RGB565 képpufferrel és egy 50 soros LVGL rajzpufferrel működik. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
@@ -28,6 +28,8 @@ A PPA nélküli részleges rajzolási út CPU-val javítja a back buffer változ
 
 A címkék csak eltérő szövegnél kapnak új tartalmat. A gyakran frissülő színek és opacity értékek saját lokális stílusérték esetén is csak változáskor íródnak; az örökölt egyezés nem helyettesíti az explicit lokális beállítást. Ezzel csökken a 200 ms-os állapotfrissítés memóriaművelete és rajzolási terhelése. A 16 ms-os animáció időalapja és a 7 kW-os sebességkorlát megmarad.
 
-Az ESP-Hosted 1.4.7 SDIO streaming RX driverének buildbeli másolata a DMA után készülő CPU-csomagmásolatokat PSRAM-ban tárolja. A hozzájuk rendelt felszabadító callback heap_caps_free; a hardveres DMA-t kiszolgáló eredeti pufferek megmaradnak belső memóriában. A foglalási hiba csomageldobást vált ki, a hálózati payload másolatának hiánya is felszabadítással kezelhető. A patch forrásalak-ellenőrzése és a foglalási hibát injektáló teszt védi ezt az illesztést.
+Az ESP-Hosted 1.4.7 SDIO streaming RX driverének buildbeli másolata a DMA után készülő CPU-csomagmásolatokat PSRAM-ban tárolja. A hozzájuk rendelt felszabadító callback heap_caps_free; a hardveres streaming RX DMA egy fix 1 KiB-os, igazított belső ablakot használ. A teljes stream PSRAM-ban van, részolvasásonként CPU-másolattal töltjük; foglalási hibánál a FIFO kiürül és az adat eldobódik. A foglalási hiba csomageldobást vált ki, a hálózati payload másolatának hiánya is felszabadítással kezelhető. A patch forrásalak-ellenőrzése és a foglalási hibát injektáló teszt védi ezt az illesztést.
 
 A generikus UI/JSON/zlib heap foglalások PSRAM-ot részesítenek előnyben, 32 KiB védett belső/DMA tartalékkal. A 10 MiB LVGL képcache a legnagyobb jelenet kb. 8,2 MiB dekódolt képkészletét befogadja. A worker build-másolata a mutex elengedése után egy valódi tickre blokkol; a pending értesítések így nem tudják a pihenőfeladatot korlátlanul kiszorítani. A hálózati TX pufferhiánya visszaadott hibakód, a watchdog továbbra is aktív.
+
+A sablon-geometria külső BSS-ben, PSRAM-ban van; a skálázott képek legfeljebb 6 MiB-os, témaváltáskor felszabadított natív raster-cache-t használnak. A memória- és képfrissítési döntések, kutatási források és hardveres mérés részletei: [teljesítmény](performance.md).

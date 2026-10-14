@@ -728,6 +728,8 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     if(d.packet_age_seconds<0)cJSON_AddNullToObject(o,"packet_age_seconds");else cJSON_AddNumberToObject(o,"packet_age_seconds",d.packet_age_seconds);
     cJSON_AddStringToObject(o,"firmware",d.firmware);cJSON_AddNumberToObject(o,"uptime_seconds",d.uptime_seconds);
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
+    cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
+    cJSON_AddNumberToObject(o,"largest_dma_block_bytes",d.largest_dma_block_bytes);
     char *json=cJSON_PrintUnformatted(o);cJSON_Delete(o);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");
     esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
@@ -739,7 +741,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
         "<script>const names={wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
-        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)'};"
+        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;row.insertCell().textContent=v===null?'—':v;}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>");

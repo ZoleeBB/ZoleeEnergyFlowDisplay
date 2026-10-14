@@ -104,7 +104,7 @@ A kijelző képe 270°-kal forgatott, az érintőpanel natív koordinátái 800�
 
 Az `sdio_push_data_to_queue ... (pkt_rxbuff)` assert az ESP-Hosted 1.4.7 streaming fogadóútján sikertelen csomagpuffer-foglalást jelez. Ez belső DMA-képes memóriát igényel; a kijelzett összes szabad heap a PSRAM-ot is tartalmazza, ezért önmagában nem zárja ki ezt a hibát.
 
-A buildbeli driver-másolat a DMA után készülő, kizárólag CPU által használt csomagmásolatot PSRAM-ba teszi, hozzá illő felszabadító callbackkel. A közvetlen SDIO DMA-pufferek változatlanul belső memóriában maradnak. A csomaghosszt foglalás előtt ellenőrzi; csomagmásolat vagy hálózati payload foglalási hibájánál felszabadít és eldob ahelyett, hogy assert miatt újraindulna. Pufferhiánykor `RX packet copy unavailable` vagy `Network RX payload unavailable` naplósor jelenik meg. A TCP újraküldhet, UDP adat elveszhet; a hálózati terhelés alatti működést az eszközön is ellenőrizni kell.
+A buildbeli driver-másolat a DMA után készülő, kizárólag CPU által használt csomagmásolatot PSRAM-ba teszi, hozzá illő felszabadító callbackkel. A streaming RX közvetlen DMA-ja egy fix 1 KiB-os belső ablakot használ; a teljes stream PSRAM-ban van. A csomaghosszt foglalás előtt ellenőrzi; csomagmásolat vagy hálózati payload foglalási hibájánál felszabadít és eldob ahelyett, hogy assert miatt újraindulna. Pufferhiánykor `RX packet copy unavailable` vagy `Network RX payload unavailable` naplósor jelenik meg. A TCP újraküldhet, UDP adat elveszhet; a hálózati terhelés alatti működést az eszközön is ellenőrizni kell.
 
 A javítás az ESP-Hosted rögzített 1.4.7 forrásalakjára készül, és eltérő függőség esetén megállítja a buildet. Az SDK és a managed component eredetije nem változik.
 
@@ -123,3 +123,7 @@ Az általános malloc foglalások PSRAM-ot részesítenek előnyben (`SPIRAM_MAL
 A `Reserving pool of 64K ...`, majd `Could not reserve internal/DMA pool (error 0x101)` és `abort()` azt jelzi, hogy az ESP-IDF az app_main előtt nem tudja lefoglalni a konfigurált belső tartalékot. A PSRAM memóriaellenőrzése ettől még sikeres lehet; a hiba a belső memóriára vonatkozik. A korábbi 64 KiB-os növelés regresszió volt, a javított konfiguráció visszatér a hardveren már elinduló 32 KiB-os beállításhoz. A generikus foglalások PSRAM-előnyben részesítése, a 10 MiB cache és a worker blokkoló tickje megmarad.
 
 A build megtagadja a 32 KiB feletti belső tartalékot ezen a rögzített Waveshare P4 célon, és regressziós ellenőrzés védi a korlátot. A fordítás sikere önmagában nem jelent hardveres indulási próbát.
+
+## `sdio_rx_get_buffer ... (*buf)` témaváltás vagy webkérés közben
+
+A változó méretű streaming RX DMA-pufferhez nem maradt megfelelő összefüggő belső blokk. A javítás fix 1 KiB DMA-ablakot és PSRAM stream-tárolót használ. PSRAM-hiánynál `RX stream storage unavailable ... draining stream` üzenet jelzi az eldobást; a FIFO számláló frissül, a későbbi adatok fogadhatók. A diagnosztika `free_internal_kib` és `largest_dma_block_bytes` értéke segít megkülönböztetni a teljes memóriahiányt a DMA-fragmentációtól. Lásd a [kutatást és ellenőrzéseket](performance.md).

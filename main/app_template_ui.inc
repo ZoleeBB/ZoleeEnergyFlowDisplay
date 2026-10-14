@@ -1,6 +1,12 @@
 /* Az app_ui.c része: ugyanazok az adatok, formázók és LVGL-lock szabályok.
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "esp_attr.h"
+#define TEMPLATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define TEMPLATE_RAM
+#endif
 LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
@@ -10,7 +16,7 @@ typedef struct {
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
-static template_node_t template_nodes[96];static unsigned template_node_count;
+static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
@@ -18,10 +24,49 @@ static bool template_is_active(void){return template_view.document!=NULL;}
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
 static uint32_t tc(const cJSON *o,const char *key,uint32_t fallback){const char *s=ts(o,key);return s[0]=='#'?(uint32_t)strtoul(s+1,NULL,16):fallback;}
+#if LV_USE_SNAPSHOT
+#define TEMPLATE_RASTER_BUDGET (6U*1024U*1024U)
+typedef struct { unsigned asset;int w,h;lv_draw_buf_t *buffer;lv_image_dsc_t image; } template_raster_t;
+static TEMPLATE_RAM template_raster_t template_rasters[64];
+static unsigned template_raster_count;static size_t template_raster_bytes;
+static const lv_image_dsc_t *template_raster(unsigned asset,int w,int h){
+    for(unsigned i=0;i<template_raster_count;i++)if(template_rasters[i].asset==asset&&template_rasters[i].w==w&&template_rasters[i].h==h)return &template_rasters[i].image;
+    if(w<=0||h<=0||template_raster_count>=64||(size_t)w*h*4>TEMPLATE_RASTER_BUDGET-template_raster_bytes)return NULL;
+    /* Offscreen root: scale once with LVGL's own rasterizer, preserving alpha.
+     * Never visible, never modifies the active scene or its z-order. */
+    lv_obj_t *root=lv_obj_create(NULL);if(!root)return NULL;
+    lv_obj_remove_style_all(root);
+    lv_obj_t *canvas=lv_obj_create(root);
+    lv_obj_remove_style_all(canvas);lv_obj_set_size(canvas,w,h);lv_obj_set_pos(canvas,0,0);
+    lv_obj_t *scratch=lv_image_create(canvas);if(!scratch){lv_obj_delete(root);return NULL;}
+    lv_image_set_src(scratch,&template_images[asset]);lv_image_set_pivot(scratch,0,0);
+    lv_obj_set_pos(scratch,0,0);
+    lv_image_set_scale_x(scratch,w*256/template_view.assets[asset].width);
+    lv_image_set_scale_y(scratch,h*256/template_view.assets[asset].height);
+    lv_draw_buf_t *buffer=lv_snapshot_take(canvas,LV_COLOR_FORMAT_ARGB8888);
+    lv_obj_delete(root);
+    if(!buffer)return NULL;
+    if(buffer->header.w!=(unsigned)w||buffer->header.h!=(unsigned)h||buffer->data_size>TEMPLATE_RASTER_BUDGET-template_raster_bytes){lv_draw_buf_destroy(buffer);return NULL;}
+    template_raster_t *r=&template_rasters[template_raster_count++];
+    *r=(template_raster_t){.asset=asset,.w=w,.h=h,.buffer=buffer};lv_draw_buf_to_image(buffer,&r->image);
+    template_raster_bytes+=buffer->data_size;
+    lv_image_cache_drop(&template_images[asset]);
+    return &r->image;
+}
+#endif
 static void template_image(lv_obj_t *obj,const char *file,int w,int h){
     for(unsigned i=0;i<template_view.asset_count;i++)if(!strcmp(file,template_view.assets[i].name)){
-        lv_image_set_src(obj,&template_images[i]);lv_image_set_pivot(obj,0,0);
-        lv_image_set_scale_x(obj,w*256/template_view.assets[i].width);lv_image_set_scale_y(obj,h*256/template_view.assets[i].height);return;
+        const lv_image_dsc_t *image=&template_images[i];bool native=false;
+#if LV_USE_SNAPSHOT
+        if((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height){
+            const lv_image_dsc_t *r=template_raster(i,w,h);if(r){image=r;native=true;}
+        }
+#endif
+        /* set_src invalidates even an unchanged image in LVGL 9.5. */
+        if(lv_image_get_src(obj)==image)return;
+        lv_image_set_src(obj,image);lv_image_set_pivot(obj,0,0);
+        lv_image_set_scale_x(obj,native?256:w*256/template_view.assets[i].width);
+        lv_image_set_scale_y(obj,native?256:h*256/template_view.assets[i].height);return;
     }
 }
 static void template_path(template_node_t *node,const cJSON *e){
@@ -130,7 +175,13 @@ static void template_gesture(lv_event_t *event){
     if(s_diagnostics_requested)return;
     if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){app_templates_step(direction==LV_DIR_LEFT?1:-1);lv_indev_wait_release(input);}
 }
-static void template_release_cache(void){for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);}
+static void template_release_cache(void){
+#if LV_USE_SNAPSHOT
+    for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
+    memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
+#endif
+    for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);
+}
 static void template_prepare(void){
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;

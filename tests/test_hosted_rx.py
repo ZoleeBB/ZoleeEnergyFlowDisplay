@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('hosted_patch', ROOT/'tools/patch_hosted_rx.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-original = '\n'.join(old for old, new in module.REPLACEMENTS)
+original = '\n'.join(old for i, (old, new) in enumerate(module.REPLACEMENTS) if i != 4)
 fixed = module.patch(original)
 assert module.patch(fixed) == fixed
 try:

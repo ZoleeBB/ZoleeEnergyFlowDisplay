@@ -72,6 +72,9 @@ static void save_frame(const char *name)
     }
     fclose(f);
     printf("Rendered %s\n",name);
+#if LV_USE_SNAPSHOT
+    if(template_is_active()){assert(template_raster_bytes<=TEMPLATE_RASTER_BUDGET);printf("RASTER %s: %u variants, %zu bytes\n",name,template_raster_count,template_raster_bytes);}
+#endif
 }
 
 /* Exercise actual line objects and dot positions, including reverse/zero/cap. */
@@ -190,7 +193,16 @@ static void test_template_weather(const app_energy_sample_t *sample){
             template_update(&state,&fixture);assert(weather_kind(&state)==(weather_kind_t)k);
             bool matched=false;
             for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[k]),template_view.assets[a].name)){
-                assert(lv_image_get_src(node->obj)==&template_images[a]);matched=true;
+                const void *actual=lv_image_get_src(node->obj);bool right=actual==&template_images[a];
+#if LV_USE_SNAPSHOT
+                for(unsigned r=0;r<template_raster_count;r++)if(template_rasters[r].asset==a&&actual==&template_rasters[r].image){
+                    assert(template_rasters[r].image.header.w==(unsigned)tn(node->spec,"w",128));
+                    assert(template_rasters[r].image.header.h==(unsigned)tn(node->spec,"h",128));right=true;
+                }
+                unsigned before=template_raster_count;size_t bytes=template_raster_bytes;
+                template_update(&state,&fixture);assert(before==template_raster_count&&bytes==template_raster_bytes);
+#endif
+                assert(right);matched=true;
             }
             assert(matched);
         }
@@ -270,6 +282,7 @@ static void test_signed_and_soc_charts(void){
 
 int main(void)
 {
+    printf("Template geometry storage: %zu bytes\n",sizeof(template_nodes));
     setenv("TZ","UTC0",1);tzset();
     struct tm t={.tm_year=126,.tm_mon=9,.tm_mday=5,.tm_hour=14,.tm_min=37};epoch=mktime(&t);
     lv_init();display=lv_display_create(1280,800);
