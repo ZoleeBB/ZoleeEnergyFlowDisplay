@@ -85,7 +85,22 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert (sd/'selection.txt').read_text()=='test-layout'
     lib.app_templates_view_free(view)
     assert lib.app_templates_init()==0 and active()==(2,'test-layout')
-    assert lib.app_templates_install(os.fsencode(good),error)!=0 # no silent overwrite
+    # Ugyanaz az azonosító most szándékosan, biztonsági mentéssel frissül.
+    updated=copy.deepcopy(doc);updated['version']=2;updated['name']='Frissített nézet'
+    upgraded=archive('updated',updated)
+    report=C.c_void_p()
+    assert lib.app_templates_probe(os.fsencode(upgraded),C.byref(report),error)==0,error.value
+    lib.cJSON_Delete(report)
+    assert lib.app_templates_install(os.fsencode(upgraded),error)==0,error.value
+    assert active()==(2,'test-layout')
+    assert json.loads((sd/'test-layout/template.json').read_text())['version']==2
+    assert not (sd/'.replace').exists()
+    assert lib.app_templates_load_pending(view)
+    lib.app_templates_view_free(view)
+    # A hibás új csomag soha nem változtathatja meg a meglévőt.
+    broken=archive('broken',dict(updated,schema=99))
+    assert lib.app_templates_install(os.fsencode(broken),error)!=0
+    assert json.loads((sd/'test-layout/template.json').read_text())['version']==2
     for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true')]:
         bad=copy.deepcopy(doc);bad['id']='invalid'
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
@@ -145,4 +160,4 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     shutil.rmtree(sd/'test-layout')
     assert lib.app_templates_load_pending(view);lib.app_templates_view_free(view)
     assert active()[1]=='builtin'
-    print('PASS: install, persistence, delete, builtin protection, fallback, stored/deflate ZIP, rejected unsafe/corrupt packages')
+    print('PASS: install, transactional update, active reload, persistence, delete, builtin protection, fallback, stored/deflate ZIP, rejected unsafe/corrupt packages')
