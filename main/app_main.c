@@ -6,6 +6,7 @@
  * -> web/OTA -> MQTT -> normál futási mód.
  */
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 
 #include "esp_event.h"
@@ -32,6 +33,7 @@
 
 /* A konfiguráció fix helye a microSD gyökerében. */
 #define CONFIG_PATH APP_SD_MOUNT_POINT "/config.json"
+#define CONFIG_BACKUP_PATH APP_SD_MOUNT_POINT "/config.json.webbak"
 
 static const char *TAG = "app";
 static app_config_t s_config;
@@ -126,6 +128,11 @@ void app_main(void)
     ESP_LOGI(TAG, "SD mounted; loading configuration");
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
     char config_error[256];
+    /* A tápvesztés miatt félbemaradt webes konfigurációmentés helyreállítása. */
+    if(access(CONFIG_PATH,F_OK)!=0 && access(CONFIG_BACKUP_PATH,F_OK)==0){
+        if(rename(CONFIG_BACKUP_PATH,CONFIG_PATH)==0)
+            app_events_add(APP_EVENT_WARNING,"Konfiguráció helyreállítva a mentésből.");
+    }
     err = app_config_load_file(
         CONFIG_PATH,
         &s_config,
