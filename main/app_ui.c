@@ -104,6 +104,7 @@ static void template_gesture(lv_event_t *event);
 typedef enum {
     VIEW_NONE = 0,
     VIEW_DASHBOARD,
+    VIEW_THEME_LOADING,
     VIEW_DIAGNOSTICS,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
@@ -1792,6 +1793,7 @@ void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
     template_apply();
+    if(s_view==VIEW_THEME_LOADING && template_pending.generation==template_view.generation)return;
     if(s_diagnostics_requested){
         diagnostics_render(rt);return;
     }
@@ -1864,6 +1866,15 @@ static void runtime(void *arg){
         }
 
         app_diagnostics_capture(&s_diagnostics);
+        /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
+        if(template_loading_requested){
+            if(bsp_display_lock(-1)==ESP_OK){
+                template_loading_screen();
+                bsp_display_unlock();
+                template_loading_requested=false;
+                vTaskDelay(pdMS_TO_TICKS(85));
+            }
+        }
         template_prepare();
         if(bsp_display_lock(-1)==ESP_OK){
             render_runtime(rt,s,have,now);
