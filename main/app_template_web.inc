@@ -48,20 +48,30 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
     char id[33];if(!template_query_id(req,id))
         return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Érvénytelen sablonazonosító");
-    /* A speciális előnézet kis fájl: nem szolgálunk ki tetszőleges,
-     * akár több megabájtos képet közvetlenül SD-ről. */
-    const char *file=strstr(req->uri,"&mode=dark")?"preview-dark.png":"preview-light.png";
+    /* Elsőként külön thumbnailt, utána a gyári témák meglévő
+     * nappali/éjszakai háttérképét mutatjuk; a többit a böngésző
+     * a JSON elrendezés alapján rajzolja. Nincs tetszőleges fájlnév. */
+    bool dark=strstr(req->uri,"&mode=dark")!=NULL;
+    const char *candidates[3]={
+        dark?"preview-dark.png":"preview-light.png",
+        dark?"night.png":"day.png",
+        dark?"background-night.png":"background-day.png"
+    };
     char *manifest=app_templates_manifest_json(id);
     if(!manifest)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
     free(manifest);
     if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD nem elérhető");
-    char path[256];snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,file);
-    FILE *f=fopen(path,"rb");
-    if(!f){app_storage_unlock();return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Nincs külön előnézeti kép");}
-    bool valid=fseek(f,0,SEEK_END)==0;long size=valid?ftell(f):0;
-    if(!valid||size<=0||size>512*1024||fseek(f,0,SEEK_SET)!=0){
-        fclose(f);app_storage_unlock();
-        return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Nincs megfelelő előnézeti kép");
+    char path[256];FILE *f=NULL;long size=0;
+    for(unsigned i=0;i<3;i++){
+        snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,candidates[i]);
+        f=fopen(path,"rb");if(!f)continue;
+        if(fseek(f,0,SEEK_END)==0 && (size=ftell(f))>0 &&
+           size<=2*1024*1024 && fseek(f,0,SEEK_SET)==0)break;
+        fclose(f);f=NULL;
+    }
+    if(!f){
+        app_storage_unlock();
+        return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Nincs előnézeti kép");
     }
     httpd_resp_set_type(req,"image/png");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
