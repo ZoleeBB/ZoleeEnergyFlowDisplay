@@ -115,10 +115,45 @@ function drawPreview(canvas,scene,images){
 if(typeof document!=='undefined'){
  const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');
  let selected=null,verified=null,images=new Map(),generation=0,busy=false;
- async function refresh(){const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);const data=await r.json();list.replaceChildren();for(const t of data.templates){const article=document.createElement('article'),title=document.createElement('strong');title.textContent=t.name+(t.id===data.active?' ✓':'');article.append(title);const button=document.createElement('button');button.textContent='Aktiválás';button.onclick=()=>action('/api/templates/select',t.id);article.append(button);if(t.id!=='builtin'){let del=document.createElement('button');del.textContent='Törlés';del.onclick=()=>{if(confirm('Biztosan törlöd a sablont?'))action('/api/templates/delete',t.id);};article.append(del);}list.append(article);}}
+ async function loadThumb(t,holder){
+  if(t.id==='builtin'){holder.textContent='Alapnézet';return;}
+  const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=800;canvas.className='thumb-canvas';
+  holder.append(canvas);
+  try{
+   const r=await fetch('/api/templates/manifest?id='+encodeURIComponent(t.id),{cache:'no-store'});
+   if(!r.ok)throw Error('Nincs elérhető előnézet');
+   const manifest=await r.json();drawPreview(canvas,manifest.light,new Map());
+   /* A külön mellékelt, tömörített PNG előnyt élvez a böngésző által
+    * készített szerkezeti előnézettel szemben. */
+   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
+   img.onload=()=>{if(holder.isConnected){holder.append(img);canvas.hidden=true;}};
+   img.src='/api/templates/preview?id='+encodeURIComponent(t.id)+'&mode=light';
+  }catch(e){holder.textContent='Előnézet nem érhető el';}
+ }
+ async function refresh(){
+  const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);
+  const data=await r.json();list.replaceChildren();
+  for(const t of data.templates){
+   const article=document.createElement('article');article.className='theme-card';
+   const holder=document.createElement('div');holder.className='theme-thumb';
+   const info=document.createElement('div');info.className='theme-info';
+   const title=document.createElement('strong');title.textContent=t.name+(t.id===data.active?' ✓':'');
+   const caption=document.createElement('small');caption.textContent=t.id;
+   const actions=document.createElement('div');
+   const button=document.createElement('button');button.textContent='Aktiválás';button.onclick=()=>action('/api/templates/select',t.id);
+   actions.append(button);
+   if(t.id!=='builtin'){
+    const del=document.createElement('button');del.textContent='Törlés';
+    del.onclick=()=>{if(confirm('Biztosan törlöd a sablont?'))action('/api/templates/delete',t.id);};
+    actions.append(del);
+   }
+   info.append(title,caption,actions);article.append(holder,info);list.append(article);
+   await loadThumb(t,holder);
+  }
+ }
  function lock(value){busy=value;fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
  async function action(path,body){if(busy)return;lock(true);message.textContent='Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
- fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
+ fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
   try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);
    const next=new Map();try{for(const [name,data] of files)if(safeAsset(name))next.set(name,await createImageBitmap(new Blob([data],{type:'image/png'})));}catch(e){for(const image of next.values())image.close();throw e;}
    if(id!==generation){for(const image of next.values())image.close();return;}images=next;selected=file;
@@ -127,7 +162,7 @@ if(typeof document!=='undefined'){
    message.textContent='Helyi előnézet kész. Következő lépés: ellenőrzés az eszközön.';
   }catch(e){if(id===generation)message.textContent='Helyi ellenőrzés sikertelen: '+e.message;}finally{if(id===generation)lock(false);}};
  check.onclick=async()=>{if(!selected||busy)return;const file=selected;verified=null;lock(true);message.textContent='Az eszköz ellenőrzi a ZIP-et, telepítés nélkül…';
-  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();message.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){message.textContent=e.message;}finally{lock(false);}};
- install.onclick=async()=>{if(selected&&verified===selected){const file=selected;verified=null;await action('/api/templates/install',file);lock(false);}};
+  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();message.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';install.textContent=report.updating?'3. Meglévő téma frissítése':'3. Telepítés';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){message.textContent=e.message;}finally{lock(false);}};
+ install.onclick=async()=>{if(selected&&verified===selected){const file=selected;const updating=install.textContent.includes('frissítése');if(updating&&!confirm('A meglévő téma új csomaggal frissül. Folytatod?'))return;verified=null;await action('/api/templates/install',file);lock(false);}};
  refresh().catch(()=>message.textContent='A sablonlista nem olvasható');
 }
