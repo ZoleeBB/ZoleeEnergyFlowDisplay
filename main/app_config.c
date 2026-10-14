@@ -448,6 +448,10 @@ static bool parse_config(
             !read_u32(statistics, "max_integration_gap_seconds", &cfg->statistics.max_integration_gap_seconds, 1, 300, false, error, error_len)) {
             return false;
         }
+        /* A régi SD config.json még 60 percet írhat elő. A firmware
+         * ezt migráció nélkül, biztonságosan legfeljebb 15 percre korlátozza. */
+        if (cfg->statistics.save_interval_minutes > 15)
+            cfg->statistics.save_interval_minutes = 15;
     } else if (error && *error) {
         return false;
     }
