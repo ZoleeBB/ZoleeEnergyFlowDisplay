@@ -25,6 +25,8 @@ esp_err_t app_templates_delete(const char *id,char error[160]);
 /* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
 esp_err_t app_templates_probe(const char *zip_path,cJSON **report,char error[160]);
 esp_err_t app_templates_install(const char *zip_path,char error[160]);
+/* Visszaadja a telepített téma JSON-ját (malloc); a hívó szabadítja fel. */
+char *app_templates_manifest_json(const char *id);
 /* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */
 bool app_templates_load_pending(app_template_view_t *out);
 void app_templates_view_free(app_template_view_t *view);

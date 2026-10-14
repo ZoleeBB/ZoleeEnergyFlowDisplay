@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
@@ -35,11 +36,13 @@
 #include "app_events.h"
 #include "app_state.h"
 #include "app_storage.h"
+#include "app_stats.h"
 #include "app_wifi.h"
 
 static const char *TAG = "web";
 
 static app_ota_config_t s_auth_cfg;
+static app_config_t s_config;
 static httpd_handle_t s_server;
 static char s_expected_auth[256];
 static char s_project_title[APP_PROJECT_TITLE_MAX];
@@ -326,14 +329,18 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* Az oldal alapszerkezete és egyszerű, külső erőforrás nélküli stílusa. */
     httpd_resp_send_chunk(
         req,
-        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<!doctype html><html lang='hu'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<style>"
         "body{font-family:system-ui;margin:28px;max-width:900px;background:#f7f8fa;color:#17202a}"
         ".card{background:#fff;border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 2px 12px #0001}"
         "table{border-collapse:collapse;width:100%}"
         "td{padding:7px;border-bottom:1px solid #eee}"
-        "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer;margin-right:8px}"
+        "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
+        ".actions{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 22px}"
+        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;width:205px;min-height:44px;box-sizing:border-box;margin:0;text-align:center;font:inherit}"
+        ".actions .restart{background:#DE790E;color:white;font-weight:600}"
+        ".actions .restart:hover{background:#B85E06}"
         ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
         "</style></head><body>",
         HTTPD_RESP_USE_STRLEN);
@@ -347,6 +354,20 @@ static esp_err_t root_handler(httpd_req_t *req)
         sizeof(safe_title));
 
     sendf(req, "<h1>%s</h1>", safe_title);
+    /* A négy főművelet együtt, az oldal tetején, az eszközinformációk előtt. */
+    httpd_resp_send_chunk(req,s_hu?
+        "<nav class='actions' aria-label='Eszközműveletek'>"
+        "<a href='/settings'>Beállítások</a>"
+        "<a href='/templates'>Sablonkezelő</a>"
+        "<a href='/update'>Firmware frissítés</a>"
+        "<button class='restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button>"
+        "</nav>":
+        "<nav class='actions' aria-label='Device actions'>"
+        "<a href='/settings'>Settings</a>"
+        "<a href='/templates'>Templates</a>"
+        "<a href='/update'>Firmware update</a>"
+        "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
+        "</nav>",HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
     httpd_resp_send_chunk(
@@ -480,19 +501,37 @@ static esp_err_t root_handler(httpd_req_t *req)
         "</div>",
         HTTPD_RESP_USE_STRLEN);
 
-    /* OTA és újraindítási műveletek. */
-    httpd_resp_send_chunk(
-        req,
-        s_hu
-            ? "<div class='card'><a href='/templates'>Sablonkezelő</a> | <a href='/update'>Firmware frissítés</a>"
-              "<form method='post' action='/reboot' style='display:inline' "
-              "onsubmit=\"return confirm('Biztosan újraindítod az eszközt?')\">"
-              "<button type='submit'>Eszköz újraindítása</button></form></div>"
-            : "<div class='card'><a href='/templates'>Templates</a> | <a href='/update'>Firmware update</a>"
-              "<form method='post' action='/reboot' style='display:inline' "
-              "onsubmit=\"return confirm('Restart the device?')\">"
-              "<button type='submit'>Restart device</button></form></div>",
-        HTTPD_RESP_USE_STRLEN);
+    /* A műveletgombok már az oldal tetején, a Beállítások mellett szerepelnek. */
+
+    sendf(req,"<script>document.documentElement.lang='%s';</script>",s_hu?"hu":"en");
+    httpd_resp_send_chunk(req,
+        "<div id='reboot-mask' hidden style='position:fixed;inset:0;background:#000;color:#fff;"
+        "z-index:999;display:none;align-items:center;justify-content:center;text-align:center'>"
+        "<div><h1 id='reboot-title'></h1><p id='reboot-state'></p>"
+        "<p id='reboot-countdown' style='font-size:28px'></p></div></div>"
+        "<script>"
+        "async function restartDevice(){"
+        "const hu=document.documentElement.lang!=='en';"
+        "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
+        "const m=document.getElementById('reboot-mask');m.style.display='flex';"
+        "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
+        "const status=document.getElementById('reboot-state');"
+        "const counter=document.getElementById('reboot-countdown');"
+        "status.textContent=hu?'Statisztika mentése és az eszköz újraindítása…':'Saving statistics and restarting…';"
+        "try{const r=await fetch('/reboot',{method:'POST'});if(!r.ok)throw Error(await r.text());}"
+        "catch(e){status.textContent=(hu?'Újraindítási hiba: ':'Restart error: ')+e.message;return;}"
+        "let remaining=20,started=Date.now(),offline=false;"
+        "const tick=async()=>{remaining=Math.max(0,20-Math.floor((Date.now()-started)/1000));"
+        "counter.textContent=remaining>0?(hu?'Visszaszámlálás: ':'Countdown: ')+remaining+' s':'';"
+        "if(remaining>0){setTimeout(tick,1000);return;}"
+        "status.textContent=hu?'Kapcsolódás az újraindult eszközhöz…':'Reconnecting to device…';"
+        "const probe=async()=>{try{const c=new AbortController();"
+        "const t=setTimeout(()=>c.abort(),1800);"
+        "const r=await fetch('/api/settings?ping='+Date.now(),{cache:'no-store',signal:c.signal});"
+        "clearTimeout(t);if(r.ok){location.href='/';return;} }catch(e){}"
+        "setTimeout(probe,2000);};probe();};tick();"
+        "}"
+        "</script>",HTTPD_RESP_USE_STRLEN);
 
     /* A chunked HTTP választ nulla hosszú chunk zárja le. */
     if (httpd_resp_send_chunk(
@@ -508,44 +547,68 @@ static esp_err_t root_handler(httpd_req_t *req)
 /* A böngészős OTA feltöltőoldal kiszolgálása, a beállított nyelven. */
 static esp_err_t update_get(httpd_req_t *req)
 {
-    if (!authorize(req)) {
-        return ESP_OK;
-    }
-
+    if(!authorize(req))return ESP_OK;
     static const char page_hu[] =
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "</head><body><h1>Firmware frissítés</h1>"
-        "<input id='f' type='file' accept='.bin'>"
-        "<button onclick='go()'>Frissítés</button><p id='s'></p>"
-        "<script>async function go(){"
-        "let f=document.getElementById('f').files[0];if(!f)return;"
-        "let r=await fetch('/update',{method:'POST',"
-        "headers:{'Content-Type':'application/octet-stream'},body:f});"
-        "document.getElementById('s').textContent=await r.text();"
-        "}</script></body></html>";
-
+        "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
+        ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
+        "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body>"
+        "<a href='/'>← Eszköz</a><h1>Firmware frissítés</h1><div class='card'>"
+        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
+        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></div>"
+        "<script>"
+        "function reconnectAfterOta(){"
+        "const status=document.getElementById('s');let left=30;"
+        "status.textContent='Firmware telepítve, az eszköz újraindul. Újracsatlakozás '+left+' s múlva.';"
+        "const timer=setInterval(()=>{left--;"
+        "if(left>0){status.textContent='Újraindítás, kapcsolódás '+left+' s múlva.';return;}"
+        "clearInterval(timer);status.textContent='Kapcsolódás az újraindult eszközhöz…';"
+        "const retry=async()=>{let timerId;"
+        "try{const ac=new AbortController();timerId=setTimeout(()=>ac.abort(),2500);"
+        "const response=await fetch('/?ready='+Date.now(),{cache:'no-store',signal:ac.signal});"
+        "if(response.ok){location.replace('/?ota='+Date.now());return;}"
+        "}catch(e){}finally{clearTimeout(timerId);}"
+        "setTimeout(retry,2000);};retry();"
+        "},1000);"
+        "}"
+        "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
+        "if(!f){s.textContent=\"Előbb válassz ki egy firmware-fájlt.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Feltöltés indítása…\";"
+        "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
+        "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware feltöltése: \"+n+'%';if(n===100)s.textContent=\"Feltöltve. Firmware ellenőrzése az eszközön…\";}};"
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
+        "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "</head><body><h1>Firmware update</h1>"
-        "<input id='f' type='file' accept='.bin'>"
-        "<button onclick='go()'>Update</button><p id='s'></p>"
-        "<script>async function go(){"
-        "let f=document.getElementById('f').files[0];if(!f)return;"
-        "let r=await fetch('/update',{method:'POST',"
-        "headers:{'Content-Type':'application/octet-stream'},body:f});"
-        "document.getElementById('s').textContent=await r.text();"
-        "}</script></body></html>";
-
-    httpd_resp_set_type(
-        req,
-        "text/html; charset=utf-8");
-
-    return httpd_resp_send(
-        req,
-        s_hu ? page_hu : page_en,
-        HTTPD_RESP_USE_STRLEN);
+        "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
+        ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
+        "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body>"
+        "<a href='/'>← Device</a><h1>Firmware update</h1><div class='card'>"
+        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
+        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></div>"
+        "<script>"
+        "function reconnectAfterOta(){"
+        "const status=document.getElementById('s');let left=30;"
+        "status.textContent='Firmware installed; restarting. Reconnecting in '+left+' s.';"
+        "const timer=setInterval(()=>{left--;"
+        "if(left>0){status.textContent='Restarting; reconnecting in '+left+' s.';return;}"
+        "clearInterval(timer);status.textContent='Connecting to restarted device…';"
+        "const retry=async()=>{let timerId;"
+        "try{const ac=new AbortController();timerId=setTimeout(()=>ac.abort(),2500);"
+        "const response=await fetch('/?ready='+Date.now(),{cache:'no-store',signal:ac.signal});"
+        "if(response.ok){location.replace('/?ota='+Date.now());return;}"
+        "}catch(e){}finally{clearTimeout(timerId);}"
+        "setTimeout(retry,2000);};retry();"
+        "},1000);"
+        "}"
+        "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
+        "if(!f){s.textContent=\"Select a firmware file first.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Starting upload…\";"
+        "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
+        "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware upload: \"+n+'%';if(n===100)s.textContent=\"Uploaded. Verifying firmware on device…\";}};"
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
+        "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script></body></html>";
+    httpd_resp_set_type(req,"text/html; charset=utf-8");
+    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    return httpd_resp_send(req,s_hu?page_hu:page_en,HTTPD_RESP_USE_STRLEN);
 }
 
 /* Késleltetett reboot task, hogy a HTTP válasz még ki tudjon menni. */
@@ -563,6 +626,12 @@ static esp_err_t reboot_post(httpd_req_t *req)
         return ESP_OK;
     }
 
+    esp_err_t saved=app_stats_save_now();
+    if(saved!=ESP_OK){
+        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
+            "A statisztika mentése sikertelen. Az újraindítás elmaradt.");
+        return ESP_OK;
+    }
     if(xTaskCreate(reboot_task,"reboot",2048,NULL,8,NULL)!=pdPASS){
         httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
             s_hu?"Az újraindítás nem ütemezhető.":"Could not schedule restart.");
@@ -689,6 +758,13 @@ static esp_err_t ota_post(httpd_req_t *req)
     err = esp_ota_end(ota_handle);
 
     if (err == ESP_OK) {
+        esp_err_t saved=app_stats_save_now();
+        if(saved!=ESP_OK){
+            app_events_add(APP_EVENT_ERROR,"OTA előtt a statisztika mentése sikertelen.");
+            httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
+                "Az SD-statisztika mentése sikertelen; a firmware aktiválása elmaradt.");
+            return ESP_OK;
+        }
         err = esp_ota_set_boot_partition(target);
     }
 
@@ -728,6 +804,8 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     if(d.packet_age_seconds<0)cJSON_AddNullToObject(o,"packet_age_seconds");else cJSON_AddNumberToObject(o,"packet_age_seconds",d.packet_age_seconds);
     cJSON_AddStringToObject(o,"firmware",d.firmware);cJSON_AddNumberToObject(o,"uptime_seconds",d.uptime_seconds);
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
+    cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
+    cJSON_AddNumberToObject(o,"largest_dma_block_bytes",d.largest_dma_block_bytes);
     char *json=cJSON_PrintUnformatted(o);cJSON_Delete(o);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");
     esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
@@ -739,7 +817,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
         "<script>const names={wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
-        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)'};"
+        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;row.insertCell().textContent=v===null?'—':v;}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>");
@@ -747,6 +825,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
 
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
 #include "app_template_web.inc"
+#include "app_settings_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -757,6 +836,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
         return ESP_ERR_INVALID_STATE;
     }
 
+    s_config = *cfg;
     s_auth_cfg = cfg->ota;
     snprintf(
         s_project_title,
@@ -790,7 +870,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 20;
+    http_cfg.max_uri_handlers = 24;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -850,6 +930,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
+    if ((err = settings_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get}};

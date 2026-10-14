@@ -41,3 +41,5 @@ Ha a kapcsolat az „Uploading stub” / „Running stub” lépésnél megszaka
 A stub nélküli mód közvetlenül a chip ROM betöltőjét használja. Csak a 16 MiB alatti flash-címeket tudja írni; a telepítő ezt minden képfájlnál ellenőrzi. Normál módban a build stubbeállítása megmarad. A félbeszakadt telepítés újra elindítható ugyanazzal a teljes USB-csomaggal.
 
 Espressif források: [v3.2 feltöltési hiba és javítás](https://docs.espressif.com/projects/esp-faq/en/latest/development-environment/firmware-update.html), [esptool kiadások](https://github.com/espressif/esptool/releases).
+
+Sikeres feltöltés után fekete kijelzőnél lásd a [kijelzőindítás hibakeresését](errors.md). A PSRAM- és PPA-javítás a firmware része: az új teljes USB-csomagot kell használni, a `flash.py` cseréje önmagában nem elég. Soros naplóhoz zárd be a telepítőt, majd `py -m serial.tools.miniterm COM4 115200 --raw` és RESET; a COM4 helyére az induló eszköz aktuális portja kerül.

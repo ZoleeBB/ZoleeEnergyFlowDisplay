@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 9,
+  "version": 10,
   "light": {
     "background": "#F0F5F3",
     "elements": [
@@ -713,7 +713,7 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#FFAB00",
+        "color": "#FF1744",
         "align": "center"
       },
       {
@@ -1179,7 +1179,7 @@
         "h": 40,
         "source": "consumption_today",
         "font": 28,
-        "color": "#EA9C3B",
+        "color": "#E66B6B",
         "align": "center"
       },
       {

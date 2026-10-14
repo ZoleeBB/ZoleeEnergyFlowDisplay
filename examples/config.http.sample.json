@@ -31,7 +31,7 @@
     "night_brightness": 20
   },
   "statistics": {
-    "save_interval_minutes": 60,
+    "save_interval_minutes": 15,
     "max_integration_gap_seconds": 30
   },
   "energy": {

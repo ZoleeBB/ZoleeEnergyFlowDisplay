@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
+#include "sdkconfig.h"
+#if CONFIG_LWIP_SNTP_UPDATE_DELAY > (UINT32_MAX / 4U)
+#error "SNTP update delay exceeds lwIP sys_timeout maximum; use sdkconfig.defaults (10 days)"
+#endif
 
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
@@ -103,6 +108,8 @@ esp_err_t app_time_init(const app_config_t *cfg)
     }
 
     s_cfg = cfg->time;
+    ESP_LOGI(TAG, "Initializing SNTP: server=%s, automatic interval=%u ms",
+             s_cfg.ntp_server, (unsigned)CONFIG_LWIP_SNTP_UPDATE_DELAY);
     apply_timezone();
 
     esp_sntp_config_t sntp_cfg =
@@ -118,6 +125,7 @@ esp_err_t app_time_init(const app_config_t *cfg)
     esp_err_t err = esp_netif_sntp_init(&sntp_cfg);
     if (err == ESP_OK) {
         s_initialized = true;
+        ESP_LOGI(TAG, "SNTP initialized");
     }
 
     return err;
@@ -133,6 +141,7 @@ esp_err_t app_time_sync_once(void)
         return ESP_ERR_INVALID_STATE;
     }
 
+    ESP_LOGI(TAG, "SNTP synchronization started: server=%s, wait=10s", s_cfg.ntp_server);
     esp_err_t err = esp_netif_sntp_start();
 
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -147,6 +156,10 @@ esp_err_t app_time_sync_once(void)
 
     if (err == ESP_OK) {
         app_state_set_time_synced(true);
+        ESP_LOGI(TAG, "SNTP synchronization successful");
+    } else {
+        ESP_LOGW(TAG, "SNTP synchronization failed: server=%s, result=%s",
+                 s_cfg.ntp_server, esp_err_to_name(err));
     }
 
     return err;

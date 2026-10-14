@@ -8,6 +8,11 @@ CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_SPIRAM=y
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+# Generic UI/JSON/zlib allocations prefer PSRAM; protect internal DMA memory.
+# 32 KiB boots on this board; 64 KiB fails before app_main (ESP_ERR_NO_MEM).
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
 CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_CACHE_L2_CACHE_256KB=y
@@ -15,6 +20,7 @@ CONFIG_CACHE_L2_CACHE_LINE_128B=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
 CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
 CONFIG_ESP_TASK_WDT_EN=y
 CONFIG_ESP_TASK_WDT_INIT=y
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=60
@@ -25,13 +31,15 @@ CONFIG_BSP_LCD_COLOR_FORMAT_RGB565=y
 CONFIG_BSP_LCD_DPI_BUFFER_NUMS=3
 CONFIG_BSP_SD_MOUNT_POINT="/sdcard"
 # CONFIG_BSP_SD_FORMAT_ON_MOUNT_FAIL is not set
-CONFIG_LV_OS_FREERTOS=y
+# Az adapter saját FreeRTOS taskja és recursive mutexe sorosítja az LVGL-t.
+# A rajzolás ne használjon külön OSAL/task-notification alapú worker szálakat.
+CONFIG_LV_OS_NONE=y
 CONFIG_LV_USE_CLIB_MALLOC=y
 CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_DEF_REFR_PERIOD=15
 CONFIG_LV_OBJ_STYLE_CACHE=y
-CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1
 CONFIG_LV_USE_CHART=y
 CONFIG_LV_FONT_MONTSERRAT_12=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
@@ -49,10 +57,10 @@ CONFIG_FATFS_API_ENCODING_UTF_8=y
 CONFIG_FATFS_MAX_LFN=128
 CONFIG_FATFS_FS_LOCK=4
 
-# Az lwIP saját automatikus SNTP periódusa szándékosan hosszabb a konfigurációban
-# engedélyezett maximális 7 napnál. A tényleges újraszinkront az alkalmazás
-# resync_hours beállítása vezérli, így az alapértelmezett 6 óra valóban érvényesül.
-CONFIG_LWIP_SNTP_UPDATE_DELAY=1209600000
+# 10 nap: hosszabb az alkalmazás legfeljebb 7 napos kézi periódusánál,
+# de kisebb az lwIP sys_timeout UINT32_MAX/4 (~12,4 nap) korlátjánál.
+# A korábbi 14 nap SNTP induláskor/szinkronkor assertet és rebootot okozott.
+CONFIG_LWIP_SNTP_UPDATE_DELAY=864000000
 
 # A korábbi vektoros rajzolási konfiguráció kompatibilitásból megmarad.
 # A ThorVG adja az LVGL szoftveres SVG/vector renderelését.
@@ -63,17 +71,21 @@ CONFIG_LV_USE_THORVG=y
 CONFIG_LV_USE_THORVG_INTERNAL=y
 CONFIG_LV_USE_SVG=y
 
-# A vektoros rendereléshez az LVGL nagyobb draw-task stacket javasol.
-CONFIG_LV_DRAW_THREAD_STACK_SIZE=32768
+# A soros vektoros/PNG renderelés 32 KiB-os adapter stackjét az app_ui állítja.
 
 # A dekódolt képek újrafelhasználásához képcache-t tartunk fenn.
-CONFIG_LV_CACHE_DEF_SIZE=6291456
+CONFIG_LV_CACHE_DEF_SIZE=10485760
 
 
 # Az önállóan újraalkotott, átlátszó PNG assetek dekódere.
 CONFIG_LV_USE_LODEPNG=y
+CONFIG_LV_USE_SNAPSHOT=y
 
 
 
 # Signed chart: opaque -> transparent zero -> opaque.
 CONFIG_LV_GRADIENT_MAX_STOPS=3
+
+# Bounded transport backlog for 5-second energy samples and local web UI.
+CONFIG_ESP_HOSTED_SDIO_TX_Q_SIZE=8
+CONFIG_ESP_HOSTED_SDIO_RX_Q_SIZE=8

@@ -26,3 +26,13 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], chec
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_sdio_window.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_runtime_resources.py")], check=True)

@@ -17,7 +17,12 @@ set(ENABLE_CJSON_UTILS OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(cjson URL https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz URL_HASH SHA256=7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562)
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(zlib URL https://zlib.net/fossils/zlib-1.3.1.tar.gz URL_HASH SHA256=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23)
+# The zlib.net fossil endpoint can return a proxy/error page under CI.
+# Fetch the exact official zlib 1.3.1 commit instead of trusting a mutable URL.
+FetchContent_Declare(zlib
+    GIT_REPOSITORY https://github.com/madler/zlib.git
+    GIT_TAG 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf
+    GIT_SHALLOW FALSE)
 FetchContent_MakeAvailable(lvgl cjson zlib)
 set(APP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${APP_ROOT}/main/fonts/*.c")

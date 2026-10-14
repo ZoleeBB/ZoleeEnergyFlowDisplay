@@ -27,6 +27,25 @@ def next_tag(tags, releases):
     return validate_tag(f'v{major}.{minor}.{patch + 1}')
 
 
+def tag_for_merged_pr(repository, number, tags, releases):
+    """One-time major promotion for the approved #9 PR; no other merge changes policy.
+
+    The request is scoped to the actual project and exact PR identity.
+    A preexisting v1.0.0 (or newer stable tag) must never be overwritten.
+    """
+    if repository != 'ZoleeBB/ZoleeEnergyFlowDisplay' or number != 9:
+        return next_tag(tags, releases)
+    versions = [stable_version(t.get('name')) for t in tags]
+    for release in releases:
+        version = stable_version(release.get('tag_name'))
+        if version is None and not release.get('prerelease'):
+            version = stable_version(release.get('name'))
+        versions.append(version)
+    if any(v is not None and v >= (1, 0, 0) for v in versions):
+        raise ValueError('Cannot assign v1.0.0: stable v1.0.0 or newer already exists')
+    return validate_tag('v1.0.0')
+
+
 def listing(root, endpoint):
     result = []
     page = 1
@@ -108,7 +127,8 @@ def prepare(repository, number, commit):
                 and owned_tag(root, tag['name'], marker, commit)]
     if len(reserved) > 1:
         raise ValueError('Multiple versions reserved for the same merge')
-    return {'tag': reserved[0] if reserved else next_tag(tags, releases), 'needed': 'true'}
+    return {'tag': reserved[0] if reserved else tag_for_merged_pr(repository, number, tags, releases),
+            'needed': 'true'}
 
 
 def finish(directory, repository, number, commit, tag):

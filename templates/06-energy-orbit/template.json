@@ -2,9 +2,9 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 6,
+  "version": 9,
   "light": {
-    "background": "#EFF2FB",
+    "background": "#E8EEF7",
     "elements": [
       {
         "type": "label",
@@ -221,9 +221,9 @@
       },
       {
         "type": "label",
-        "x": 946,
+        "x": 1020,
         "y": 570,
-        "w": 204,
+        "w": 200,
         "h": 22,
         "text": "Töltöttség",
         "text_en": "State of charge",
@@ -233,9 +233,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 591,
-        "w": 204,
+        "w": 200,
         "h": 32,
         "source": "soc",
         "font": 20,
@@ -317,7 +317,7 @@
       },
       {
         "type": "image",
-        "x": 994,
+        "x": 1060,
         "y": 150,
         "w": 100,
         "h": 100,
@@ -325,9 +325,9 @@
       },
       {
         "type": "label",
-        "x": 956,
+        "x": 1020,
         "y": 254,
-        "w": 184,
+        "w": 200,
         "h": 26,
         "text": "Otthon",
         "text_en": "Otthon",
@@ -337,9 +337,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 285,
-        "w": 204,
+        "w": 200,
         "h": 40,
         "source": "home",
         "font": 28,
@@ -351,7 +351,7 @@
       },
       {
         "type": "image",
-        "x": 994,
+        "x": 1060,
         "y": 399,
         "w": 100,
         "h": 100,
@@ -359,9 +359,9 @@
       },
       {
         "type": "label",
-        "x": 956,
+        "x": 1020,
         "y": 503,
-        "w": 184,
+        "w": 200,
         "h": 26,
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
@@ -371,9 +371,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 534,
-        "w": 204,
+        "w": 200,
         "h": 40,
         "source": "battery",
         "font": 28,
@@ -522,7 +522,6 @@
         "shadow_opacity": 40
       }
     ],
-    "gradient": "#D9F0E6",
     "palette": {
       "pv": "#16965F",
       "home": "#C57212",
@@ -531,7 +530,7 @@
     }
   },
   "dark": {
-    "background": "#11142A",
+    "background": "#1B263C",
     "elements": [
       {
         "type": "label",
@@ -748,9 +747,9 @@
       },
       {
         "type": "label",
-        "x": 946,
+        "x": 1020,
         "y": 570,
-        "w": 204,
+        "w": 200,
         "h": 22,
         "text": "Töltöttség",
         "text_en": "State of charge",
@@ -760,9 +759,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 591,
-        "w": 204,
+        "w": 200,
         "h": 32,
         "source": "soc",
         "font": 20,
@@ -844,7 +843,7 @@
       },
       {
         "type": "image",
-        "x": 994,
+        "x": 1060,
         "y": 150,
         "w": 100,
         "h": 100,
@@ -852,9 +851,9 @@
       },
       {
         "type": "label",
-        "x": 956,
+        "x": 1020,
         "y": 254,
-        "w": 184,
+        "w": 200,
         "h": 26,
         "text": "Otthon",
         "text_en": "Otthon",
@@ -864,9 +863,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 285,
-        "w": 204,
+        "w": 200,
         "h": 40,
         "source": "home",
         "font": 28,
@@ -878,7 +877,7 @@
       },
       {
         "type": "image",
-        "x": 994,
+        "x": 1060,
         "y": 399,
         "w": 100,
         "h": 100,
@@ -886,9 +885,9 @@
       },
       {
         "type": "label",
-        "x": 956,
+        "x": 1020,
         "y": 503,
-        "w": 184,
+        "w": 200,
         "h": 26,
         "text": "Akkumulátor",
         "text_en": "Akkumulátor",
@@ -898,9 +897,9 @@
       },
       {
         "type": "value",
-        "x": 946,
+        "x": 1020,
         "y": 534,
-        "w": 204,
+        "w": 200,
         "h": 40,
         "source": "battery",
         "font": 28,
@@ -1049,7 +1048,6 @@
         "shadow_opacity": 100
       }
     ],
-    "gradient": "#22394A",
     "palette": {
       "pv": "#36AE7C",
       "home": "#EA9C3B",

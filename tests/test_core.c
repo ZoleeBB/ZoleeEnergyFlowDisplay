@@ -222,6 +222,7 @@ static void test_payload(void){
     char garbage[512];snprintf(garbage,sizeof(garbage),"%s junk",payload);assert(app_payload_parse(garbage,strlen(garbage),&result,error,sizeof(error))!=ESP_OK);tests++;
 }
 static void test_config(void){
+    app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
     char error[256];const char *path=APP_SD_MOUNT_POINT "/config.json";
     for(int interval=60;interval<=61;interval++){
         FILE *f=fopen(path,"wb");assert(f);
@@ -235,7 +236,8 @@ static void test_flow(void){
     near(app_flow_advance(.4f,0,true,10),.4f);
     near(app_flow_advance(.4f,15,true,.1f),app_flow_advance(.4f,7,true,.1f));
     float phase=.4f;phase=app_flow_advance(phase,7,true,.016f);phase=app_flow_advance(phase,7,false,.016f);near(phase,.4f);
-    phase=app_flow_advance(.001f,7,false,.016f);assert(phase>=0 && phase<1);tests++;
+    phase=app_flow_advance(.001f,7,false,.016f);assert(phase>=0 && phase<1);
+    assert(app_flow_advance(0,1,true,1)>.25f);tests++;
 }
 /* Fizikai példák, irányváltás ötperces ablakon belül, mentés és adathézag. */
 static void test_energy_split(void){

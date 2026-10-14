@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* A RAM eseménypufferben megtartott bejegyzések száma. */
-#define APP_EVENT_LOG_CAPACITY 12
+#define APP_EVENT_LOG_CAPACITY 20
 
 /* Egy esemény maximális szöveghossza a lezáró nulla nélkül. */
 #define APP_EVENT_TEXT_MAX 128

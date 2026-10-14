@@ -38,6 +38,7 @@ idf_component_register(
     SRCS
         "app_main.c"
         "app_diagnostics.c"
+        "app_display.c"
         "app_assets.c"
         "app_chart.c"
         "app_templates.c"
@@ -108,3 +109,10 @@ target_compile_options(
 )
 
 
+
+# BSP 2.0.3 hardcodes use_psram=false. Wrap its display registration, keeping
+# managed components intact and the existing rotation/triple-partial mode.
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=esp_lv_adapter_register_display"
+    "-Wl,-u,__wrap_esp_lv_adapter_register_display"
+)

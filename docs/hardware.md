@@ -37,3 +37,7 @@ Ha ez nem sikerül:
 A firmware kifejezetten ehhez a 10.1 colos panelhez készül. Más Waveshare ESP32-P4 panelre ne töltsd fel változtatás nélkül.
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+Az érintési koordináták a fekvő képhez igazodnak: a driver natív Y-tükrözés után X/Y tengelycserét végez. A vízszintes húzás témát vált; felfelé/lefelé húzás a diagnosztikát nyitja/zárja. A 270°-os képforgatást és ezeket az érintési flag-eket együtt kell kezelni.
+
+A 270°-os fekvő tájolás a kamera alul elhelyezkedő felszereléséhez igazodik. Az érintés natív Y-tükrözéssel és tengelycserével ugyanazt a tájolást követi.

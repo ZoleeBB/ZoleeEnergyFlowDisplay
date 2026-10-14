@@ -3,7 +3,7 @@
  *
  * A modul az érvényes MQTT mintákból trapézszabállyal számolja a napi
  * energiamennyiségeket, 5 perces átlagpontokat készít a grafikonokhoz,
- * óránként biztonságosan ment microSD-re, és a tegnapi azonos időszakot
+ * 15 percenként biztonságosan ment microSD-re, és a tegnapi azonos időszakot
  * használja összehasonlítási alapként.
  */
 #include "app_stats.h"
@@ -1038,6 +1038,14 @@ esp_err_t app_stats_save_now(void)
     xSemaphoreGive(s_save_mutex);
     free(copy);
     return error;
+}
+
+void app_stats_update_config(const app_statistics_config_t *cfg)
+{
+    if (!cfg || !s_mutex) return;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_cfg.statistics = *cfg;
+    xSemaphoreGive(s_mutex);
 }
 
 /* A karbantartás külön is hívható a napváltási sorrend regressziós tesztjeiben. */

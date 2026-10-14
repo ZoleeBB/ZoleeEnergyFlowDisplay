@@ -3,60 +3,60 @@ const ZIP_LIMIT=8388608;
 function crc32(bytes){let crc=0xffffffff;for(const byte of bytes){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}return (crc^0xffffffff)>>>0;}
 function safeAsset(name){return /^[a-z0-9_-]+\.png$/.test(name)&&name.length<=64;}
 async function unpackZip(buffer){
- if(buffer.byteLength<22||buffer.byteLength>ZIP_LIMIT)throw Error('ZIP méret / size');
+ if(buffer.byteLength<22||buffer.byteLength>ZIP_LIMIT)throw Error('Hibás ZIP-méret');
  const v=new DataView(buffer),bytes=new Uint8Array(buffer),u16=p=>v.getUint16(p,true),u32=p=>v.getUint32(p,true);
  let end=-1;for(let p=bytes.length-22;p>=Math.max(0,bytes.length-65557);p--)if(u32(p)===0x06054b50&&p+22+u16(p+20)===bytes.length){end=p;break;}
- if(end<0)throw Error('Hibás ZIP / Invalid ZIP');
+ if(end<0)throw Error('Hibás ZIP');
  const count=u16(end+10),offset=u32(end+16),cdSize=u32(end+12);
- if(u16(end+4)||u16(end+6)||u16(end+8)!==count||!count||count>34||offset+cdSize!==end)throw Error('Nem támogatott ZIP / Unsupported ZIP');
+ if(u16(end+4)||u16(end+6)||u16(end+8)!==count||!count||count>34||offset+cdSize!==end)throw Error('Nem támogatott ZIP');
  const files=new Map();let p=offset,total=0;
  for(let i=0;i<count;i++){
-  if(p+46>end||u32(p)!==0x02014b50)throw Error('ZIP directory');
+  if(p+46>end||u32(p)!==0x02014b50)throw Error('Hibás ZIP-könyvtár');
   const flags=u16(p+8),method=u16(p+10),crc=u32(p+16),compressed=u32(p+20),size=u32(p+24),n=u16(p+28),local=u32(p+42),mode=(u32(p+38)>>>16)&0xf000;
-  if((flags&~(0x800|8|6))||(method!==0&&method!==8)||u16(p+34)||(mode&&mode!==0x8000)||!n||n>64||!size||size>2097152||(total+=size)>ZIP_LIMIT||p+46+n>end)throw Error('ZIP korlát / limit');
+  if((flags&~(0x800|8|6))||(method!==0&&method!==8)||u16(p+34)||(mode&&mode!==0x8000)||!n||n>64||!size||size>2097152||(total+=size)>ZIP_LIMIT||p+46+n>end)throw Error('ZIP méretkorlát');
   const name=new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(p+46,p+46+n));
-  if((name!=='template.json'&&!safeAsset(name))||files.has(name))throw Error('ZIP útvonal vagy duplikáció / path or duplicate');
-  if(local+30>offset||u32(local)!==0x04034b50||u16(local+6)!==flags||u16(local+8)!==method||u16(local+26)!==n)throw Error('ZIP local header');
+  if((name!=='template.json'&&!safeAsset(name))||files.has(name))throw Error('Hibás ZIP útvonal vagy duplikáció');
+  if(local+30>offset||u32(local)!==0x04034b50||u16(local+6)!==flags||u16(local+8)!==method||u16(local+26)!==n)throw Error('Hibás ZIP-fejléc');
   const start=local+30+n+u16(local+28);
-  if(start+compressed>offset||new TextDecoder().decode(bytes.subarray(local+30,local+30+n))!==name)throw Error('ZIP offset');
+  if(start+compressed>offset||new TextDecoder().decode(bytes.subarray(local+30,local+30+n))!==name)throw Error('Hibás ZIP-eltolás');
   let data=bytes.slice(start,start+compressed);
   if(method===8){
-   let stream;try{stream=new DecompressionStream('deflate-raw');}catch(e){throw Error('A böngésző nem támogatja a ZIP előnézetet / ZIP preview unsupported');}
+   let stream;try{stream=new DecompressionStream('deflate-raw');}catch(e){throw Error('A böngésző nem támogatja a ZIP előnézetet');}
    const reader=new Blob([data]).stream().pipeThrough(stream).getReader(),chunks=[];let length=0;
-   try{while(true){const next=await reader.read();if(next.done)break;length+=next.value.length;if(length>size)throw Error('ZIP decompression size');chunks.push(next.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}
+   try{while(true){const next=await reader.read();if(next.done)break;length+=next.value.length;if(length>size)throw Error('Hibás kicsomagolt ZIP-méret');chunks.push(next.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}
    data=new Uint8Array(length);let cursor=0;for(const chunk of chunks){data.set(chunk,cursor);cursor+=chunk.length;}
   }
   if(data.length!==size||crc32(data)!==crc)throw Error('ZIP CRC / méret');
   files.set(name,data);p+=46+n+u16(p+30)+u16(p+32);
  }
- if(p!==end||!files.has('template.json'))throw Error('Hiányzó template.json / Missing manifest');
+ if(p!==end||!files.has('template.json'))throw Error('Hiányzó template.json');
  return files;
 }
 function pngInfo(bytes){
- const signature=[137,80,78,71,13,10,26,10];if(bytes.length<45||signature.some((x,i)=>bytes[i]!==x))throw Error('PNG signature');
+ const signature=[137,80,78,71,13,10,26,10];if(bytes.length<45||signature.some((x,i)=>bytes[i]!==x))throw Error('Hibás PNG-aláírás');
  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),w=v.getUint32(16),h=v.getUint32(20);
- if(!w||!h||w>1280||h>800||bytes[24]!==8||![2,6].includes(bytes[25])||bytes[26]||bytes[27]||bytes[28])throw Error('PNG formátum / format');
- let p=8,ended=false;while(p+12<=bytes.length){let size=v.getUint32(p);if(p+12+size>bytes.length||crc32(bytes.subarray(p+4,p+8+size))!==v.getUint32(p+8+size))throw Error('PNG CRC');
-  let type=new TextDecoder().decode(bytes.subarray(p+4,p+8));if(p===8&&(type!=='IHDR'||size!==13))throw Error('PNG IHDR');
+ if(!w||!h||w>1280||h>800||bytes[24]!==8||![2,6].includes(bytes[25])||bytes[26]||bytes[27]||bytes[28])throw Error('Hibás PNG formátum');
+ let p=8,ended=false;while(p+12<=bytes.length){let size=v.getUint32(p);if(p+12+size>bytes.length||crc32(bytes.subarray(p+4,p+8+size))!==v.getUint32(p+8+size))throw Error('Hibás PNG-ellenőrzőösszeg');
+  let type=new TextDecoder().decode(bytes.subarray(p+4,p+8));if(p===8&&(type!=='IHDR'||size!==13))throw Error('Hibás PNG-fejléc');
   if(type==='IEND'){ended=size===0&&p+12===bytes.length;break;}p+=size+12;}
- if(!ended)throw Error('PNG IEND');return {w,h,decoded:w*h*4};
+ if(!ended)throw Error('Hibás PNG-zárás');return {w,h,decoded:w*h*4};
 }
 function validateManifest(doc,files){
- if(!doc||doc.schema!==1||!Number.isInteger(doc.version)||doc.version<1||doc.version>65535||typeof doc.name!=='string'||new TextEncoder().encode(doc.name).length>80||!/^([a-z0-9_-]{1,32})$/.test(doc.id)||doc.id==='builtin')throw Error('Sablonazonosító / manifest');
+ if(!doc||doc.schema!==1||!Number.isInteger(doc.version)||doc.version<1||doc.version>65535||typeof doc.name!=='string'||new TextEncoder().encode(doc.name).length>80||!/^([a-z0-9_-]{1,32})$/.test(doc.id)||doc.id==='builtin')throw Error('Hibás sablonazonosító');
  const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','label','value','image','weather','bar','gauge','flow','chart'];
  let encoded=0,decoded=0,assets=0;
- for(const [name,data] of files)if(name!=='template.json'){if(++assets>32)throw Error('PNG count');const info=pngInfo(data);encoded+=data.length;decoded+=info.decoded;}
- if(encoded>4194304||decoded>12582912||files.get('template.json').length>65536)throw Error('Memóriakorlát / memory limit');
+ for(const [name,data] of files)if(name!=='template.json'){if(++assets>32)throw Error('Túl sok PNG-kép');const info=pngInfo(data);encoded+=data.length;decoded+=info.decoded;}
+ if(encoded>4194304||decoded>12582912||files.get('template.json').length>65536)throw Error('Memóriakorlát túllépve');
  for(const mode of ['light','dark']){
-  const scene=doc[mode];if(!scene||!color(scene.background)||!Array.isArray(scene.elements)||scene.elements.length>96)throw Error('Hiányzó vagy hibás világos/sötét nézet / scene');
+  const scene=doc[mode];if(!scene||!color(scene.background)||!Array.isArray(scene.elements)||scene.elements.length>96)throw Error('Hiányzó vagy hibás világos/sötét nézet');
   for(const e of scene.elements){
-   if(!types.includes(e.type)||!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)throw Error('Elemhatár / element bounds');
-   if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Adatforrás / source');
-   for(const key of ['color','background','positive_color','negative_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Szín / color');
-   if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG / missing image');
-   if(e.type==='weather'&&e.files)for(const key of ['sunny','partly_cloudy','cloudy','rain','snow','night'])if(!safeAsset(e.files[key])||!files.has(e.files[key]))throw Error('Weather assets');
-   if(e.type==='chart'&&!['production','consumption','grid','battery','soc','week','month'].includes(e.kind))throw Error('Chart kind');
-   if(e.type==='flow'&&(!Array.isArray(e.points)||e.points.length<2||e.points.length>8||e.points.some(p=>!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.y<0||p.x>=e.w||p.y>=e.h)))throw Error('Flow points');
+   if(!types.includes(e.type)||!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)throw Error('Hibás elemhatár');
+   if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Hibás adatforrás');
+   for(const key of ['color','background','positive_color','negative_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
+   if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG');
+   if(e.type==='weather'&&e.files)for(const key of ['sunny','partly_cloudy','cloudy','rain','snow','night'])if(!safeAsset(e.files[key])||!files.has(e.files[key]))throw Error('Hiányzó időjárás ikon');
+   if(e.type==='chart'&&!['production','consumption','grid','battery','soc','week','month'].includes(e.kind))throw Error('Hibás grafikon típus');
+   if(e.type==='flow'&&(!Array.isArray(e.points)||e.points.length<2||e.points.length>8||e.points.some(p=>!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.y<0||p.x>=e.w||p.y>=e.h)))throw Error('Hibás áramlási pontok');
   }
  }
  return {encoded,decoded};
@@ -66,7 +66,7 @@ function demoText(source){
  if(source==='clock')return '14:37';if(source==='date')return '2026.10.11.';if(source==='status')return 'Normál működés';
  if(source==='grid_direction')return 'Vételezés';if(source==='battery_direction')return 'Töltés';
  const value=demo[source]??1;const unit=source.includes('_pct')||source==='soc'?'%':source.includes('_today')?'kWh':source.includes('_day')||source.includes('_month')?'Ft':source==='wind'?'km/h':source.includes('temp')?'°C':'kW';
- return value.toLocaleString('hu-HU',{maximumFractionDigits:1})+' '+unit;
+ return value.toLocaleString('hu-HU',{maximumFractionDigits:source==='soc'?0:1})+' '+unit;
 }
 function previewChart(ctx,e,palette){
  const x=e.x+35,y=e.y+8,w=e.w-45,h=e.h-35,signed=['grid','battery'].includes(e.kind),period=['week','month'].includes(e.kind);
@@ -115,19 +115,54 @@ function drawPreview(canvas,scene,images){
 if(typeof document!=='undefined'){
  const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');
  let selected=null,verified=null,images=new Map(),generation=0,busy=false;
- async function refresh(){const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);const data=await r.json();list.replaceChildren();for(const t of data.templates){const article=document.createElement('article'),title=document.createElement('strong');title.textContent=t.name+(t.id===data.active?' ✓':'');article.append(title);const button=document.createElement('button');button.textContent='Aktiválás / Activate';button.onclick=()=>action('/api/templates/select',t.id);article.append(button);if(t.id!=='builtin'){let del=document.createElement('button');del.textContent='Törlés / Delete';del.onclick=()=>{if(confirm('Sablon törlése? / Delete template?'))action('/api/templates/delete',t.id);};article.append(del);}list.append(article);}}
+ async function loadThumb(t,holder){
+  if(t.id==='builtin'){holder.textContent='Alapnézet';return;}
+  const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=800;canvas.className='thumb-canvas';
+  holder.append(canvas);
+  try{
+   const r=await fetch('/api/templates/manifest?id='+encodeURIComponent(t.id),{cache:'no-store'});
+   if(!r.ok)throw Error('Nincs elérhető előnézet');
+   const manifest=await r.json();drawPreview(canvas,manifest.light,new Map());
+   /* A külön mellékelt, tömörített PNG előnyt élvez a böngésző által
+    * készített szerkezeti előnézettel szemben. */
+   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
+   img.onload=()=>{if(holder.isConnected){holder.append(img);canvas.hidden=true;}};
+   img.src='/api/templates/preview?id='+encodeURIComponent(t.id)+'&mode=light';
+  }catch(e){holder.textContent='Előnézet nem érhető el';}
+ }
+ async function refresh(){
+  const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);
+  const data=await r.json();list.replaceChildren();
+  for(const t of data.templates){
+   const article=document.createElement('article');article.className='theme-card';
+   const holder=document.createElement('div');holder.className='theme-thumb';
+   const info=document.createElement('div');info.className='theme-info';
+   const title=document.createElement('strong');title.textContent=t.name+(t.id===data.active?' ✓':'');
+   const caption=document.createElement('small');caption.textContent=t.id;
+   const actions=document.createElement('div');
+   const button=document.createElement('button');button.textContent='Aktiválás';button.onclick=()=>action('/api/templates/select',t.id);
+   actions.append(button);
+   if(t.id!=='builtin'){
+    const del=document.createElement('button');del.textContent='Törlés';
+    del.onclick=()=>{if(confirm('Biztosan törlöd a sablont?'))action('/api/templates/delete',t.id);};
+    actions.append(del);
+   }
+   info.append(title,caption,actions);article.append(holder,info);list.append(article);
+   await loadThumb(t,holder);
+  }
+ }
  function lock(value){busy=value;fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
- async function action(path,body){if(busy)return;lock(true);message.textContent='Feldolgozás / Processing…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
- fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
-  try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül / Preparing local preview…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);
+ async function action(path,body){if(busy)return;lock(true);message.textContent='Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
+ fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
+  try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);
    const next=new Map();try{for(const [name,data] of files)if(safeAsset(name))next.set(name,await createImageBitmap(new Blob([data],{type:'image/png'})));}catch(e){for(const image of next.values())image.close();throw e;}
    if(id!==generation){for(const image of next.values())image.close();return;}images=next;selected=file;
-   document.getElementById('metadata').textContent=manifest.name+' · v'+manifest.version+' · PNG: '+(memory.encoded/1048576).toFixed(2)+' MiB · dekódolt képmemória felső becslése / decoded image estimate: '+(memory.decoded/1048576).toFixed(2)+' MiB';
+   document.getElementById('metadata').textContent=manifest.name+' · v'+manifest.version+' · PNG: '+(memory.encoded/1048576).toFixed(2)+' MiB · becsült dekódolt képmemória: '+(memory.decoded/1048576).toFixed(2)+' MiB';
    drawPreview(document.getElementById('light'),manifest.light,images);drawPreview(document.getElementById('dark'),manifest.dark,images);document.getElementById('previews').hidden=false;
-   message.textContent='Helyi előnézet kész. Következő lépés: ellenőrzés az eszközön. / Local preview ready. Validate on device before installing.';
-  }catch(e){if(id===generation)message.textContent='Helyi ellenőrzés sikertelen / Local check failed: '+e.message;}finally{if(id===generation)lock(false);}};
- check.onclick=async()=>{if(!selected||busy)return;const file=selected;verified=null;lock(true);message.textContent='Az eszköz ellenőrzi a ZIP-et, telepítés nélkül… / Validating without installing…';
-  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();message.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){message.textContent=e.message;}finally{lock(false);}};
- install.onclick=async()=>{if(selected&&verified===selected){const file=selected;verified=null;await action('/api/templates/install',file);lock(false);}};
- refresh().catch(()=>message.textContent='A lista nem olvasható / Cannot load list');
+   message.textContent='Helyi előnézet kész. Következő lépés: ellenőrzés az eszközön.';
+  }catch(e){if(id===generation)message.textContent='Helyi ellenőrzés sikertelen: '+e.message;}finally{if(id===generation)lock(false);}};
+ check.onclick=async()=>{if(!selected||busy)return;const file=selected;verified=null;lock(true);message.textContent='Az eszköz ellenőrzi a ZIP-et, telepítés nélkül…';
+  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();message.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';install.textContent=report.updating?'3. Meglévő téma frissítése':'3. Telepítés';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){message.textContent=e.message;}finally{lock(false);}};
+ install.onclick=async()=>{if(selected&&verified===selected){const file=selected;const updating=install.textContent.includes('frissítése');if(updating&&!confirm('A meglévő téma új csomaggal frissül. Folytatod?'))return;verified=null;await action('/api/templates/install',file);lock(false);}};
+ refresh().catch(()=>message.textContent='A sablonlista nem olvasható');
 }

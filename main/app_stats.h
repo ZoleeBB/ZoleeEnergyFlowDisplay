@@ -103,3 +103,6 @@ void app_stats_tick(void);
 /* Azonnali kézi mentés, például diagnosztikai célra. */
 esp_err_t app_stats_save_now(void);
 
+/* Futás közben biztonságosan módosítható mentési és integrálási paraméterek. */
+void app_stats_update_config(const app_statistics_config_t *cfg);
+

@@ -11,20 +11,28 @@ static lv_display_t *display;
 static uint32_t pixels[1280*800];
 static int64_t ticks;
 static bool sd_ok=true;
+static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
 static lv_point_t touch_point;
 static bool touch_pressed;
+static int touch_swap_xy,touch_mirror_x,touch_mirror_y;
 static void touch_read(lv_indev_t *input,lv_indev_data_t *data){
-    (void)input;data->point=touch_point;data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
+    (void)input;data->point=touch_point;
+    /* Same order as esp_lcd_touch_get_data: native mirrors, then axis swap. */
+    if(touch_mirror_x)data->point.x=800-data->point.x;
+    if(touch_mirror_y)data->point.y=1280-data->point.y;
+    if(touch_swap_xy){int x=data->point.x;data->point.x=data->point.y;data->point.y=x;}
+    data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
 }
-static void touch_sample(int x,bool pressed){
-    touch_point=(lv_point_t){x,400};touch_pressed=pressed;ticks+=40000;lv_tick_inc(40);lv_timer_handler();
+static void touch_sample_xy(int x,int y,bool pressed){
+    touch_point=(lv_point_t){y,1280-x};touch_pressed=pressed;ticks+=40000;lv_tick_inc(40);lv_timer_handler();
 }
+static void touch_sample(int x,bool pressed){touch_sample_xy(x,400,pressed);}
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
-lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){(void)cfg;return display;}
+lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
@@ -32,7 +40,7 @@ void bsp_display_brightness_set(int value){(void)value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
-void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=true,.mqtt_connected=true};}
+void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=runtime_wifi_connected,.mqtt_connected=true};}
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
 void app_stats_get_period(bool month,app_stats_period_t *out){
@@ -49,6 +57,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 {(void)area;(void)map;lv_display_flush_ready(disp);}
+static void count_invalidations(lv_event_t *event){unsigned *count=lv_event_get_user_data(event);++*count;}
 
 static void save_frame(const char *name)
 {
@@ -63,8 +72,51 @@ static void save_frame(const char *name)
     }
     fclose(f);
     printf("Rendered %s\n",name);
+#if LV_USE_SNAPSHOT
+    if(template_is_active()){
+        assert(template_raster_bytes<=TEMPLATE_RASTER_BUDGET);
+        printf("RASTER %s: %u scaled icon variants, %zu bytes\n",
+               name,template_raster_count,template_raster_bytes);
+    }
+#endif
 }
 
+/* A vonal áttetsző, adatfüggően halványul; a mozgó pontok fehérek
+ * és a vonalakat a rendszer nem alkotja újra animáció közben. */
+static void test_flow_rendering(void){
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];
+        if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        assert(lv_obj_check_type(node->obj,&lv_obj_class));
+        assert(node->flow_path!=NULL);
+        assert(node->detail && lv_obj_check_type(node->detail,&lv_obj_class));
+        const bool thick=tn(node->spec,"radius",3)>=16;
+        assert(lv_obj_get_style_line_opa(node->obj,0)==(thick?178:200));
+        assert(lv_obj_get_style_line_opa(node->detail,0)==37);
+        const lv_obj_t *line=node->obj;
+        const lv_vector_path_t *path=node->flow_path;
+        const int opacity=lv_obj_get_style_line_opa(node->obj,0);
+        for(unsigned frame=0;frame<30;frame++)template_animate(.016f);
+        assert(node->obj==line && node->flow_path==path);
+        assert(lv_obj_get_style_line_opa(node->obj,0)==opacity);
+        for(int d=0;d<4;d++){
+            lv_obj_t *dot=node->dots[d];
+            assert(lv_obj_get_style_bg_color(dot,0).red==255);
+            assert(lv_obj_get_style_border_width(dot,0)==2);
+            assert(lv_obj_get_index(dot)>lv_obj_get_index(node->obj));
+        }
+        double power=node->power;
+        node->power=0;template_flow_tone(node,tc(node->spec,"color",BLUE),false);
+        const int inactive=thick?72:86;
+        assert(lv_obj_get_style_line_opa(node->obj,0)==inactive);
+        assert(lv_obj_get_style_line_opa(node->detail,0)==16);
+        assert(inactive<opacity/2); /* The active path remains much brighter. */
+        template_animate(.016f);
+        for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
+        node->power=power;
+        template_flow_tone(node,tc(node->spec,"color",BLUE),true);
+    }
+}
 /* Exercise actual line objects and dot positions, including reverse/zero/cap. */
 static void test_template_motion(void){
     for(unsigned i=0;i<template_node_count;i++){
@@ -72,7 +124,7 @@ static void test_template_motion(void){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(!strcmp(ts(node->spec,"curve"),"bezier")){
             unsigned controls=cJSON_GetArraySize(cJSON_GetObjectItem(node->spec,"points"));
-            assert(node->point_count==(controls==4?33:65));
+            assert(node->point_count==(controls==4?97:193));
             const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
             assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
@@ -90,7 +142,8 @@ static void test_template_motion(void){
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];if(strcmp(ts(node->spec,"type"),"flow")||fabs(node->power)<.001)continue;
         for(int d=0;d<4;d++){
-            float x=lv_obj_get_x(node->dots[d])+3-tn(node->spec,"x",0),y=lv_obj_get_y(node->dots[d])+3-tn(node->spec,"y",0),distance=10000;
+            float x=lv_obj_get_x(node->dots[d])+lv_obj_get_width(node->dots[d])/2-tn(node->spec,"x",0),
+                  y=lv_obj_get_y(node->dots[d])+lv_obj_get_height(node->dots[d])/2-tn(node->spec,"y",0),distance=10000;
             for(unsigned k=1;k<node->point_count;k++){
                 float ax=node->points[k-1].x,ay=node->points[k-1].y,dx=node->points[k].x-ax,dy=node->points[k].y-ay;
                 float sq=dx*dx+dy*dy,t=sq?((x-ax)*dx+(y-ay)*dy)/sq:0;t=fmaxf(0,fminf(1,t));
@@ -114,7 +167,7 @@ static void test_template_indicators(const app_energy_sample_t *sample){
                 if(!strcmp(type,"value"))assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(expected)));
                 if(!strcmp(type,"flow")){
                     assert(lv_color_eq(lv_obj_get_style_line_color(node->obj,0),c(expected)));
-                    for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_bg_color(node->dots[d],0),c(expected)));
+                    for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_border_color(node->dots[d],0),c(expected)));
                 }
             }
             if(*ts(node->spec,"outline_color")){
@@ -181,7 +234,16 @@ static void test_template_weather(const app_energy_sample_t *sample){
             template_update(&state,&fixture);assert(weather_kind(&state)==(weather_kind_t)k);
             bool matched=false;
             for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[k]),template_view.assets[a].name)){
-                assert(lv_image_get_src(node->obj)==&template_images[a]);matched=true;
+                const void *actual=lv_image_get_src(node->obj);bool right=actual==&template_images[a];
+#if LV_USE_SNAPSHOT
+                for(unsigned r=0;r<template_raster_count;r++)if(template_rasters[r].asset==a&&actual==&template_rasters[r].image){
+                    assert(template_rasters[r].image.header.w==(unsigned)tn(node->spec,"w",128));
+                    assert(template_rasters[r].image.header.h==(unsigned)tn(node->spec,"h",128));right=true;
+                }
+                unsigned before=template_raster_count;size_t bytes=template_raster_bytes;
+                template_update(&state,&fixture);assert(before==template_raster_count&&bytes==template_raster_bytes);
+#endif
+                assert(right);matched=true;
             }
             assert(matched);
         }
@@ -261,6 +323,7 @@ static void test_signed_and_soc_charts(void){
 
 int main(void)
 {
+    printf("Template geometry storage: %zu bytes\n",sizeof(template_nodes));
     setenv("TZ","UTC0",1);tzset();
     struct tm t={.tm_year=126,.tm_mon=9,.tm_mday=5,.tm_hour=14,.tm_min=37};epoch=mktime(&t);
     lv_init();display=lv_display_create(1280,800);
@@ -268,6 +331,33 @@ int main(void)
     lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(display,flush);
     assert(app_ui_init()==ESP_OK);
+    runtime_wifi_connected=false;
+    app_ui_show_boot(APP_BOOT_WIFI,NULL);
+    animation_tick(NULL);
+    assert(s_error_pulse==NULL); /* Initial connection is progress, not a fault. */
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    animation_tick(NULL);
+    assert(s_view==VIEW_WIFI_ERROR && s_error_pulse!=NULL);
+    assert(lv_obj_get_style_opa(s_error_pulse,0)==LV_OPA_COVER);
+    assert(lv_obj_get_style_outline_width(s_error_pulse,0)==0);
+    assert(lv_obj_get_style_shadow_width(s_error_pulse,0)==0);
+    assert(lv_obj_get_style_border_opa(s_error_pulse,0)>=175);
+    runtime_wifi_connected=true;
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    lv_obj_t *text_probe=lbl(s_screen,"Probe",10,10,APP_FONT_14,0xffffff);
+    opa_if_changed(text_probe,LV_OPA_COVER,0);
+    lv_obj_update_layout(s_screen);lv_refr_now(display);
+    unsigned invalidations=0;
+    lv_display_add_event_cb(display,count_invalidations,LV_EVENT_INVALIDATE_AREA,&invalidations);
+    label_text_if_changed(text_probe,"Probe");lv_obj_update_layout(s_screen);lv_refr_now(display);
+    assert(invalidations==0);
+    text_color_if_changed(text_probe,c(0xffffff),0);opa_if_changed(text_probe,LV_OPA_COVER,0);
+    lv_obj_update_layout(s_screen);lv_refr_now(display);assert(invalidations==0);
+    label_text_if_changed(text_probe,"Changed");lv_obj_update_layout(s_screen);lv_refr_now(display);
+    assert(invalidations>0);
+    lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);lv_obj_delete(text_probe);
+    puts("PASS: unchanged labels, colours and opacity do not invalidate the screen; changed text still refreshes");
+    puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
     app_config_t config={0};
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia");
     snprintf(config.project.language,sizeof(config.project.language),"hu");
@@ -341,8 +431,26 @@ int main(void)
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
                 const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
-                assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(tc(scene,"background",0))));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);
+                uint32_t expected_bg=tc(scene,"background",0);
+                if(!strcmp(template_view.id,"04-daily-balance"))expected_bg=night?0x1B2E38:0xE5F1ED;
+                if(!strcmp(template_view.id,"05-calm-home"))expected_bg=night?0x223432:0xE8F0E7;
+                if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
+                if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
+                assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();
+                if(!strcmp(list[i].id,"01-live-home")){
+                    bool consumption_found=false;
+                    for(unsigned node_id=0;node_id<template_node_count;node_id++){
+                        template_node_t *n=&template_nodes[node_id];
+                        if(strcmp(ts(n->spec,"type"),"value")||
+                           strcmp(ts(n->spec,"source"),"consumption_today")||
+                           cJSON_IsTrue(cJSON_GetObjectItem(n->spec,"shadow")))continue;
+                        consumption_found=true;
+                        uint32_t expected=night?0xE66B6B:0xFF1744;
+                        assert(lv_color_eq(lv_obj_get_style_text_color(n->obj,0),c(expected)));
+                    }
+                    assert(consumption_found);
+                }
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;
@@ -378,6 +486,14 @@ int main(void)
             if(strcmp(template_view.id,list[i%count].id))fprintf(stderr,"Swipe %u: got %s expected %s\n",i,template_view.id,list[i%count].id);
             assert(!strcmp(template_view.id,list[i%count].id));
         }
+        lv_obj_update_layout(s_screen);
+        touch_sample_xy(640,650,true);touch_sample_xy(640,450,true);touch_sample_xy(640,250,true);touch_sample_xy(640,250,false);
+        assert(s_diagnostics_requested);
+        render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
+        lv_obj_update_layout(s_screen);
+        touch_sample_xy(640,200,true);touch_sample_xy(640,400,true);touch_sample_xy(640,600,true);touch_sample_xy(640,600,false);
+        assert(!s_diagnostics_requested);
+        puts("PASS: raw portrait touch mapping separates horizontal theme swipes and vertical diagnostics gestures");
         lv_indev_delete(input);
         puts("PASS: 16 template renders, common error/recovery, NightMode and actual LVGL swipe across all 9 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
