@@ -1377,7 +1377,7 @@ static void animation_tick(lv_timer_t *timer)
     if(template_is_active()){
         if(template_heavy_animation()){
             heavy_flow_accumulator+=dt;
-            if(heavy_flow_accumulator>=1.f/30.f){
+            if(heavy_flow_accumulator>=.030f){
                 template_animate(heavy_flow_accumulator);
                 heavy_flow_accumulator=0;
             }
