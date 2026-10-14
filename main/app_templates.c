@@ -247,7 +247,21 @@ esp_err_t app_templates_init(void){
     if(!lock)lock=xSemaphoreCreateMutex();if(!lock)return ESP_ERR_NO_MEM;
     xSemaphoreTake(lock,portMAX_DELAY);
     if(STORAGE_TAKE()!=ESP_OK){xSemaphoreGive(lock);return ESP_FAIL;}
-    MKDIR(app_templates_root());char stage[256];path_join(stage,app_templates_root(),".install");remove_stage(stage);
+    MKDIR(app_templates_root());char stage[256],backup[256];
+    path_join(backup,app_templates_root(),".replace");
+    /* Áramszünet közbeni sabloncsere helyreállítása. Ha az új könyvtár
+     * már létezik, a régi mentés törölhető; különben a régi visszaáll. */
+    char backup_json[256];path_join(backup_json,backup,"template.json");size_t backup_len=0;
+    unsigned char *backup_data=read_file(backup_json,65536,&backup_len);
+    if(backup_data){
+        cJSON *old=cJSON_Parse((const char*)backup_data);free(backup_data);
+        const char *old_id=str(old,"id");char old_dir[256];path_join(old_dir,app_templates_root(),old_id);
+        struct stat st;
+        if(app_templates_safe_id(old_id)&&stat(old_dir,&st)!=0)rename(backup,old_dir);
+        cJSON_Delete(old);
+    }
+    remove_stage(backup);
+    path_join(stage,app_templates_root(),".install");remove_stage(stage);
     path_join(stage,app_templates_root(),".check");remove_stage(stage);
     scan();char path[256];path_join(path,app_templates_root(),"selection.txt");FILE *f=fopen(path,"rb");
     if(!f){path_join(path,app_templates_root(),"selection.bak");f=fopen(path,"rb");}
@@ -302,14 +316,33 @@ bool app_templates_load_pending(app_template_view_t *out){
 esp_err_t app_templates_install(const char *zip,char error[160]){
     if(!lock){error_set(error,"Sablonkezelő nem elérhető");return ESP_ERR_INVALID_STATE;}xSemaphoreTake(lock,portMAX_DELAY);
     if(STORAGE_TAKE()!=ESP_OK){xSemaphoreGive(lock);error_set(error,"SD unavailable");return ESP_FAIL;}
-    char stage[256],dest[256];path_join(stage,app_templates_root(),".install");remove_stage(stage);MKDIR(stage);
+    char stage[256],dest[256],backup[256];
+    path_join(stage,app_templates_root(),".install");remove_stage(stage);MKDIR(stage);
+    path_join(backup,app_templates_root(),".replace");
     cJSON *doc=NULL;esp_err_t result=ESP_FAIL;
-    if(count>=APP_TEMPLATE_MAX){error_set(error,"A sablonlista megtelt / Template limit reached");goto done;}
     if(!app_template_unzip(zip,stage,error)||!app_templates_validate(stage,&doc,error))goto done;
     path_join(dest,app_templates_root(),str(doc,"id"));struct stat st;
-    if(!stat(dest,&st)){error_set(error,"Ez az azonosító már létezik. Előbb töröld a régi sablont.");goto done;}
-    if(rename(stage,dest)){error_set(error,"SD mentési hiba / Install failed");goto done;}
+    bool exists=stat(dest,&st)==0;
+    if(!exists&&count>=APP_TEMPLATE_MAX){
+        error_set(error,"A sablonlista megtelt");goto done;
+    }
+    /* A validált ZIP csak most kerülhet a helyére. A régi téma teljes
+     * könyvtárát megőrizzük mindaddig, amíg az új rename nem sikerült. */
+    if(exists){
+        remove_stage(backup);
+        if(rename(dest,backup)){
+            error_set(error,"A régi sablon biztonsági mentése sikertelen");goto done;
+        }
+    }
+    if(rename(stage,dest)){
+        if(exists)rename(backup,dest);
+        error_set(error,"SD mentési hiba; a korábbi sablon visszaállítva");
+        goto done;
+    }
+    /* A UI régi képei memóriában élnek, a generation módosítás után
+     * az aktuális téma újra beolvasódik az SD-ről. */
     scan();generation++;result=ESP_OK;
+    if(exists)remove_stage(backup);
 done:cJSON_Delete(doc);remove_stage(stage);STORAGE_GIVE();xSemaphoreGive(lock);return result;
 }
 esp_err_t app_templates_delete(const char *id,char error[160]){
@@ -341,11 +374,13 @@ esp_err_t app_templates_probe(const char *zip,cJSON **report,char error[160]){
     }
     closedir(dir);result=cJSON_CreateObject();if(!result){status=ESP_ERR_NO_MEM;goto done;}
     bool exists=false;for(unsigned i=0;i<count;i++)if(!strcmp(catalogue[i].id,str(doc,"id")))exists=true;
-    cJSON_AddBoolToObject(result,"valid",true);cJSON_AddBoolToObject(result,"installable",!exists&&count<APP_TEMPLATE_MAX);
+    cJSON_AddBoolToObject(result,"valid",true);
+    cJSON_AddBoolToObject(result,"updating",exists);
+    cJSON_AddBoolToObject(result,"installable",exists||count<APP_TEMPLATE_MAX);
     cJSON_AddStringToObject(result,"id",str(doc,"id"));cJSON_AddStringToObject(result,"name",str(doc,"name"));
     cJSON_AddNumberToObject(result,"version",cJSON_GetObjectItem(doc,"version")->valueint);
     cJSON_AddNumberToObject(result,"encoded_bytes",encoded);cJSON_AddNumberToObject(result,"decoded_image_bytes",decoded);
-    cJSON_AddStringToObject(result,"message",exists?"Az azonosító már létezik / ID already installed":count>=APP_TEMPLATE_MAX?"Sablonlista megtelt / Catalogue full":"Érvényes, telepíthető / Valid, ready to install");
+    cJSON_AddStringToObject(result,"message",exists?"A meglévő téma frissíthető (felülírás biztonsági mentéssel)":count>=APP_TEMPLATE_MAX?"Sablonlista megtelt":"Érvényes, telepíthető sablon");
     *report=result;result=NULL;status=ESP_OK;
 done:
     cJSON_Delete(result);cJSON_Delete(doc);remove_stage(stage);STORAGE_GIVE();xSemaphoreGive(lock);return status;
