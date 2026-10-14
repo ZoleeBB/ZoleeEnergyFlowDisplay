@@ -87,38 +87,21 @@ static void template_path(template_node_t *node,const cJSON *e){
     }
 }
 /* Egyetlen vektoros stroke: nincs szegmensenként összeadódó áttetszőség. */
-static void template_flow_draw(lv_event_t *event){
-    lv_obj_t *obj=lv_event_get_target(event);
-    template_node_t *node=lv_event_get_user_data(event);
-    if(lv_event_get_code(event)==LV_EVENT_REFR_EXT_DRAW_SIZE){
-        lv_event_set_ext_draw_size(event,32);return;
-    }
-    if(lv_event_get_code(event)!=LV_EVENT_DRAW_MAIN)return;
-    lv_area_t area;lv_obj_get_coords(obj,&area);
-    lv_draw_vector_dsc_t *draw=lv_draw_vector_dsc_create(lv_event_get_layer(event));
-    lv_vector_path_t *path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
-    if(!draw||!path){if(draw)lv_draw_vector_dsc_delete(draw);if(path)lv_vector_path_delete(path);return;}
-    lv_fpoint_t a={area.x1+node->points[0].x,area.y1+node->points[0].y};lv_vector_path_move_to(path,&a);
-    if(!strcmp(ts(node->spec,"curve"),"bezier")){
-        const cJSON *pts=cJSON_GetObjectItem(node->spec,"points");
-        for(int i=1;i+2<cJSON_GetArraySize(pts);i+=3){
-            lv_fpoint_t controls[3];
-            for(int j=0;j<3;j++){const cJSON *p=cJSON_GetArrayItem(pts,i+j);controls[j]=(lv_fpoint_t){area.x1+tn(p,"x",0),area.y1+tn(p,"y",0)};}
-            lv_vector_path_cubic_to(path,&controls[0],&controls[1],&controls[2]);
-        }
-    }else for(unsigned i=1;i<node->point_count;i++){lv_fpoint_t b={area.x1+node->points[i].x,area.y1+node->points[i].y};lv_vector_path_line_to(path,&b);}
-    lv_draw_vector_dsc_set_fill_opa(draw,LV_OPA_TRANSP);
-    lv_draw_vector_dsc_set_stroke_color(draw,lv_obj_get_style_line_color(obj,0));
-    lv_draw_vector_dsc_set_stroke_width(draw,lv_obj_get_style_line_width(obj,0));
-    lv_draw_vector_dsc_set_stroke_opa(draw,lv_obj_get_style_line_opa(obj,0));
-    lv_draw_vector_dsc_set_stroke_cap(draw,LV_VECTOR_STROKE_CAP_ROUND);
-    lv_draw_vector_dsc_set_stroke_join(draw,LV_VECTOR_STROKE_JOIN_ROUND);
-    lv_draw_vector_dsc_add_path(draw,path);lv_draw_vector(draw);
-    lv_vector_path_delete(path);lv_draw_vector_dsc_delete(draw);
-}
+/*
+ * A Bezier vonalakat template_path() egyszer mintavételezi. A korábbi
+ * LV_VECTOR_PATH_QUALITY_HIGH minden újrarajzolásnál új vektorutat épített,
+ * amely különösen a 28 px-es Energiautak témában túl drága.
+ * Az LVGL vonal objektum megtartja a kiszámolt pontokat, így a mozgó
+ * pontok nem váltanak ki magas minőségű vektoros újrarajzolást.
+ */
 static lv_obj_t *template_flow_object(template_node_t *node,int x,int y,int w,int h){
-    lv_obj_t *obj=lv_obj_create(s_dash);lv_obj_remove_style_all(obj);lv_obj_set_pos(obj,x,y);lv_obj_set_size(obj,w,h);
-    lv_obj_add_event_cb(obj,template_flow_draw,LV_EVENT_ALL,node);return obj;
+    lv_obj_t *obj=lv_line_create(s_dash);
+    lv_obj_remove_style_all(obj);
+    lv_line_set_points(obj,node->points,node->point_count);
+    lv_obj_set_pos(obj,x,y);
+    lv_obj_set_size(obj,w,h);
+    lv_obj_add_flag(obj,LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    return obj;
 }
 static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==48?&app_font_numbers_48:size==28?APP_FONT_28:size==20?APP_FONT_20:size==16?APP_FONT_16:APP_FONT_12;}
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
@@ -155,7 +138,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
-    double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,1);
+    double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
     const char *unit="kW";
     if(strstr(source,"_pct"))unit="%";
     else if(strstr(source,"_day")||strstr(source,"_month"))unit=s_cfg.project.currency;

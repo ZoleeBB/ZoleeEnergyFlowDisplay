@@ -2,9 +2,9 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 5,
+  "version": 6,
   "light": {
-    "background": "#F3F6F8",
+    "background": "#E5F1ED",
     "elements": [
       {
         "type": "label",
@@ -355,7 +355,6 @@
         "shadow_opacity": 40
       }
     ],
-    "gradient": "#D9F0E6",
     "palette": {
       "pv": "#16965F",
       "home": "#C57212",
@@ -364,7 +363,7 @@
     }
   },
   "dark": {
-    "background": "#152128",
+    "background": "#1B2E38",
     "elements": [
       {
         "type": "label",
@@ -715,7 +714,6 @@
         "shadow_opacity": 100
       }
     ],
-    "gradient": "#22394A",
     "palette": {
       "pv": "#36AE7C",
       "home": "#EA9C3B",

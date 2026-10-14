@@ -2,9 +2,9 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 6,
+  "version": 7,
   "light": {
-    "background": "#EFF2FB",
+    "background": "#E8EEF7",
     "elements": [
       {
         "type": "label",
@@ -522,7 +522,6 @@
         "shadow_opacity": 40
       }
     ],
-    "gradient": "#D9F0E6",
     "palette": {
       "pv": "#16965F",
       "home": "#C57212",
@@ -531,7 +530,7 @@
     }
   },
   "dark": {
-    "background": "#11142A",
+    "background": "#1B263C",
     "elements": [
       {
         "type": "label",
@@ -1049,7 +1048,6 @@
         "shadow_opacity": 100
       }
     ],
-    "gradient": "#22394A",
     "palette": {
       "pv": "#36AE7C",
       "home": "#EA9C3B",
