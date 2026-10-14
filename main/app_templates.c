@@ -255,9 +255,12 @@ esp_err_t app_templates_init(void){
     unsigned char *backup_data=read_file(backup_json,65536,&backup_len);
     if(backup_data){
         cJSON *old=cJSON_Parse((const char*)backup_data);free(backup_data);
-        const char *old_id=str(old,"id");char old_dir[256];path_join(old_dir,app_templates_root(),old_id);
-        struct stat st;
-        if(app_templates_safe_id(old_id)&&stat(old_dir,&st)!=0)rename(backup,old_dir);
+        const char *old_id=str(old,"id");
+        if(app_templates_safe_id(old_id)){
+            char old_dir[256];path_join(old_dir,app_templates_root(),old_id);
+            struct stat st;
+            if(stat(old_dir,&st)!=0)rename(backup,old_dir);
+        }
         cJSON_Delete(old);
     }
     remove_stage(backup);
