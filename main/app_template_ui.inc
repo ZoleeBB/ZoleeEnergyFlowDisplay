@@ -183,12 +183,26 @@ static void template_apply(void){
 static void template_build(bool night){
     clear();template_node_count=0;template_chart_time=0;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
-    /* Az áttűnés alatt is a cél háttér látszik: sötét témában nincs fehér villanás. */
-    screen_style(s_screen,night);bg_color_if_changed(s_screen,c(tc(scene,"background",night?BG_DARK:BG_LIGHT)),0);
+    /*
+     * A régebbi SD-kártyán lévő három gyári téma még sávos RGB565
+     * színátmenetet tartalmazhat. A javítás OTA-val is működjön,
+     * ne követelje meg a sablon ZIP-ek ismételt telepítését.
+     * Egyéni telepített témákhoz nem nyúlunk.
+     */
+    uint32_t background=tc(scene,"background",night?BG_DARK:BG_LIGHT);
+    bool no_gradient=false;
+    if(!strcmp(template_view.id,"04-daily-balance")){
+        background=night?0x1B2E38:0xE5F1ED;no_gradient=true;
+    }else if(!strcmp(template_view.id,"05-calm-home")){
+        background=night?0x223432:0xE8F0E7;no_gradient=true;
+    }else if(!strcmp(template_view.id,"06-energy-orbit")){
+        background=night?0x1B263C:0xE8EEF7;no_gradient=true;
+    }
+    screen_style(s_screen,night);bg_color_if_changed(s_screen,c(background),0);
     s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
     lv_obj_set_style_radius(s_dash,0,0);
-    bg_color_if_changed(s_dash,c(tc(scene,"background",BG_LIGHT)),0);
-    if(*ts(scene,"gradient")){
+    bg_color_if_changed(s_dash,c(background),0);
+    if(!no_gradient&&*ts(scene,"gradient")){
         lv_obj_set_style_bg_grad_color(s_dash,c(tc(scene,"gradient",BG_LIGHT)),0);
         lv_obj_set_style_bg_grad_dir(s_dash,LV_GRAD_DIR_HOR,0);
     }
@@ -369,6 +383,15 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;
             text_color_if_changed(node->obj,c(value>50?RED:value>warn?ORANGE:tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
+        }
+        /*
+         * A régi 07-energy-ledger SD sablonok csak statikus színt adnak meg,
+         * ezért a PowerGrid iránytól függő színezést itt is garantáljuk.
+         * PowerGrid > 0: vételezés piros; PowerGrid < 0: export citromsárga.
+         */
+        if(!strcmp(template_view.id,"07-energy-ledger")&&!strcmp(type,"value")&&
+          (!strcmp(source,"grid")||!strcmp(source,"grid_direction"))){
+            text_color_if_changed(node->obj,c(s->power_grid_kw<0?0xFFEB38:0xE53935),0);
         }
     }
     if(redraw)template_chart_time=now;

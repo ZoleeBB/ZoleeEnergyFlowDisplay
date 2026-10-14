@@ -65,3 +65,5 @@ Mentéskor a firmware ideiglenes fájlba ír, a tartalmat ugyanazzal a konfigur�
 A feltöltőoldal százalékos előrehaladást és egyértelmű siker/hiba üzeneteket mutat. Az OTA firmware csak az utolsó statisztikai SD-mentés sikeres befejezése után aktiválódik. Kézi újraindítás előtt is azonnali mentés fut; ha ez sikertelen, az újraindítás elmarad és hibaüzenet jelenik meg.
 
 Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az eszköz újraindításakor törlődik, nem tartós hibahistória.
+
+A gyári Napi mérleg, Nyugodt otthon, Energiakör és Energiafőkönyv témák szín-/háttérjavításait az OTA után a kijelző a régebbi SD-sablonokon is alkalmazza. A teljesen új sablonfájlok telepítéséhez továbbra is a webes sablonkezelő vagy az SD-re másolás használható.
