@@ -24,7 +24,7 @@ static void touch_sample(int x,bool pressed){
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
-lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){(void)cfg;return display;}
+lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);return display;}
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}

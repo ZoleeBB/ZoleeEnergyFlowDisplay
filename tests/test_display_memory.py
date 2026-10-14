@@ -9,11 +9,21 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='zolee-display-') as directory:
     tmp = Path(directory)
+    (tmp/'esp_log.h').write_text('''
+#pragma once
+#include <stdio.h>
+#define ESP_LOGI(tag,...) do { (void)(tag); if (0) printf(__VA_ARGS__); } while (0)
+''')
     (tmp/'esp_lv_adapter_display.h').write_text('''
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
 typedef struct { int value; } lv_display_t;
+typedef struct { int code; } lv_event_t;
+enum { LV_EVENT_ALL, LV_EVENT_RENDER_START, LV_EVENT_FLUSH_START,
+       LV_EVENT_FLUSH_FINISH, LV_EVENT_REFR_READY };
+static inline int lv_event_get_code(lv_event_t *event) { return event->code; }
+void lv_display_add_event_cb(lv_display_t *display, void (*callback)(lv_event_t *), int filter, void *user_data);
 enum { ESP_LV_ADAPTER_PANEL_IF_MIPI_DSI = 1, ESP_LV_ADAPTER_PANEL_IF_OTHER = 2 };
 typedef struct {
     void *panel, *panel_io;
@@ -28,6 +38,13 @@ lv_display_t *esp_lv_adapter_register_display(const esp_lv_adapter_display_confi
 lv_display_t screen;
 esp_lv_adapter_display_config_t registered;
 int calls;
+void lv_display_add_event_cb(lv_display_t *display, void (*callback)(lv_event_t *), int filter, void *user_data) {
+    (void)display; (void)filter; (void)user_data;
+    /* Early instrumentation is safe even before app_ui has acquired its lock. */
+    for (int code = LV_EVENT_RENDER_START; code <= LV_EVENT_REFR_READY; ++code) {
+        lv_event_t event = {.code=code}; callback(&event); callback(&event);
+    }
+}
 lv_display_t *esp_lv_adapter_register_display(const esp_lv_adapter_display_config_t *config) {
     ++calls;
     if (!config) return NULL;

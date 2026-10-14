@@ -83,3 +83,5 @@ OTA-hoz a build könyvtárból a fő alkalmazás bináris kell:
 A GitHub release mellékletei és az automatikus build leírása: [releases.md](releases.md). Az USB-csomag magyar telepítési útmutatója: [usb-install.md](usb-install.md).
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+A kijelző LVGL konfigurációja `CONFIG_LV_OS_NONE=y`, `CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1`. Régi helyi `sdkconfig` esetén ezeket is állítsd át a menuconfigban, majd konfiguráld és fordítsd újra a projektet. A firmware fordítási őrrel elutasítja a FreeRTOS OSAL/ több draw unit konfigurációt, hogy a régi beállítás ne kerülhessen észrevétlenül az új csomagba. Az ESP-IDF és az adapter továbbra is FreeRTOS-t használ.

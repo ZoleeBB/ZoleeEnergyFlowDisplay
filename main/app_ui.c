@@ -21,6 +21,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#if LV_USE_OS != LV_OS_NONE || LV_DRAW_SW_DRAW_UNIT_CNT != 1
+#error "Use LV_OS_NONE and one software draw unit; the adapter serializes LVGL with its own mutex"
+#endif
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
@@ -1587,6 +1590,10 @@ static void initial_refresh_report(lv_event_t *event)
 /* Waveshare BSP kijelző és LVGL inicializálása fix 1280x800 fekvő tájolásban. */
 esp_err_t app_ui_init(void){
     bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=0,.mirror_x=0,.mirror_y=0}};
+    /* Synchronous PNG/vector drawing runs on this task, rather than 32 KB
+     * drawing threads. Keep its stack in PSRAM, preserving internal DMA RAM. */
+    cfg.lv_adapter_cfg.task_stack_size = 32768;
+    cfg.lv_adapter_cfg.stack_in_psram = true;
     lv_display_t *disp=bsp_display_start_with_config(&cfg);if(!disp)return ESP_FAIL;bsp_display_backlight_on();bsp_display_brightness_set(50);
     ESP_LOGI("app_ui", "Display started; waiting for LVGL lock");
     esp_err_t lock_err = bsp_display_lock(5000);

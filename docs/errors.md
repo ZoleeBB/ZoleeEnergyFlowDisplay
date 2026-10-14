@@ -64,3 +64,19 @@ Az adapter 0.6.4 a `profile.enable_ppa_accel=false` beállítás ellenére PPA-v
 Az új logban `MIPI rotation uses CPU fallback (PPA disabled)` jelzi a beállítást. Ezt követi a kijelző zárolása, a bootképernyő létrehozása, az SD csatolása és a konfiguráció betöltése. A `First LVGL refresh completed` az első LVGL rajzolási ciklus végét jelzi; önmagában nem bizonyítja a fizikai panel képét. A legelső LVGL zárolás 5 másodperces időkorlátot kapott, ezért a korai megakadás konkrét hibasorként jelenik meg.
 
 Az `on_frame_buf_complete unavailable` figyelmeztetés önmagában nem bizonyít callback-hibát: ezen a verzión az adapter `on_refresh_done` tartalék callbacket is regisztrál. SD- vagy konfigurációs hiba normál esetben hibaképernyőt ad, ezért az első rajzolás nélküli fekete képet először a kijelző útvonalán vizsgáljuk. Ha a jelenség megmarad, a RESET-től induló teljes soros log szükséges, az új indulási bejegyzésekkel együtt.
+
+### LVGL indul, de az első zárolás öt másodperc után lejár
+
+A `Display started; waiting for LVGL lock` után következő `Initial LVGL lock failed: ESP_ERR_TIMEOUT` azt jelzi, hogy az adapter LVGL-feladata még fogva tartja a mutexet. Ez a log önmagában nem dönti el, hogy a szoftveres rajzolás vagy a panelpufferek várakozása akadt el. A PPA tiltása mellett is előfordult, ezért nem kezeljük kizárólag PPA-hibaként.
+
+A firmware az LVGL két FreeRTOS-os rajzolószála helyett az adapter feladatán futó, soros renderelést használ (`OS_NONE`, egy draw unit); az adapter zárolása megmarad. Az LVGL feladat 32 KiB-os PSRAM stackjén fut a PNG/vector rajzolás. Hasonló ESP32-P4 / LVGL 9.5.0 [OSAL megakadásról az upstream hibajegy is beszámol](https://github.com/lvgl/lvgl/issues/10349), de az adott eszköz pontos elakadását a további eseménylog és a hardveres próba dönti el.
+
+Az induláskor egyszer megjelenő sorok:
+
+- `LVGL rendering is synchronous (OS_NONE, one draw unit)`: az új konfiguráció jelzése.
+- `First LVGL render started`: a rajzolási ciklus elkezdődött.
+- `First LCD flush started`: az első rajzpuffert átadjuk az adapternek.
+- `First LCD flush callback returned`: az adapter első flush hívása visszatért; ez nem bizonyítja a fizikai képet.
+- `First adapter refresh completed`: az első teljes LVGL frissítési ciklus véget ért.
+
+Ezeket a callbackeket az LVGL-feladat indítása előtt regisztráljuk, ezért zárolási timeout esetén is látszanak. Ha a renderelés kezdete megvan, de flush nincs, a rajzolási út állt meg. Ha flush indul, de nem tér vissza, az adapter/panel út várakozását kell vizsgálni. Mindig a RESET-től induló teljes logot őrizd meg. A COM-port a reset alatt rövid időre eltűnhet; az egyszeri `FileNotFoundError` és az utána sikeres megnyitás nem az LVGL zárolási hibája.
