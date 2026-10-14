@@ -97,4 +97,13 @@ A változatlan szövegek, színek és átlátszóságok nem indítanak ismételt
 
 ## Vízszintes húzás témaváltás helyett diagnosztikát nyit
 
-A kijelző képe 90°-kal forgatott, az érintőpanel natív koordinátái 800×1280-asak. A firmware az érintődriverben először tükrözi a natív X-et, majd felcseréli az X/Y tengelyeket (`mirror_x=1`, `swap_xy=1`, `mirror_y=0`). Így a vízszintes húzás lapoz, a függőleges húzás a diagnosztikát kezeli. A többujjas `LV_USE_GESTURE_RECOGNITION` modul kikapcsolásáról szóló figyelmeztetés nem tiltja a hagyományos egyujjas pointer-gesztusokat; a lapozás azokkal működik.
+A kijelző képe 270°-kal forgatott, az érintőpanel natív koordinátái 800×1280-asak. A firmware az érintődriverben először tükrözi a natív Y-t, majd felcseréli az X/Y tengelyeket (`mirror_x=0`, `swap_xy=1`, `mirror_y=1`). Így a vízszintes húzás lapoz, a függőleges húzás a diagnosztikát kezeli. A többujjas `LV_USE_GESTURE_RECOGNITION` modul kikapcsolásáról szóló figyelmeztetés nem tiltja a hagyományos egyujjas pointer-gesztusokat; a lapozás azokkal működik.
+
+
+## Újraindulás weboldal megnyitásakor: SDIO RX puffer
+
+Az `sdio_push_data_to_queue ... (pkt_rxbuff)` assert az ESP-Hosted 1.4.7 streaming fogadóútján sikertelen csomagpuffer-foglalást jelez. Ez belső DMA-képes memóriát igényel; a kijelzett összes szabad heap a PSRAM-ot is tartalmazza, ezért önmagában nem zárja ki ezt a hibát.
+
+A buildbeli driver-másolat a DMA után készülő, kizárólag CPU által használt csomagmásolatot PSRAM-ba teszi, hozzá illő felszabadító callbackkel. A közvetlen SDIO DMA-pufferek változatlanul belső memóriában maradnak. A csomaghosszt foglalás előtt ellenőrzi; csomagmásolat vagy hálózati payload foglalási hibájánál felszabadít és eldob ahelyett, hogy assert miatt újraindulna. Pufferhiánykor `RX packet copy unavailable` vagy `Network RX payload unavailable` naplósor jelenik meg. A TCP újraküldhet, UDP adat elveszhet; a hálózati terhelés alatti működést az eszközön is ellenőrizni kell.
+
+A javítás az ESP-Hosted rögzített 1.4.7 forrásalakjára készül, és eltérő függőség esetén megállítja a buildet. Az SDK és a managed component eredetije nem változik.
