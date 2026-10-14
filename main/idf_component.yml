@@ -11,6 +11,11 @@ dependencies:
   waveshare/esp32_p4_wifi6_touch_lcd_x:
     version: "2.0.3"
 
+  # A PSRAM pufferjavítással ellenőrzött adapterverzió.
+  espressif/esp_lvgl_adapter:
+    version: "0.6.4"
+    public: true
+
   # Felhasználói felület és grafikonok.
   lvgl/lvgl:
     version: "9.5.0"

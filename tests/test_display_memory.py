@@ -143,3 +143,11 @@ with tempfile.TemporaryDirectory(prefix='zolee-adapter-') as directory:
                         f'-DEXPECT_PSRAM_SUCCESS={expected}',str(src),'-o',str(tmp/name)],check=True)
         subprocess.run([str(tmp/name)],check=True)
 print('PASS: compiled triple-partial allocator reproduces failure and uses PSRAM after correction')
+
+# Adapter 0.6.x uses a two-argument allocator; 0.7.x adds the DMA flag.
+legacy = original.replace('false, false', 'false')
+legacy_fixed = module.patch(legacy)
+assert 'cfg->draw_buf_pixels * color_size, profile->use_psram)' in legacy_fixed
+assert 'other_size, false)' in legacy_fixed
+assert module.patch(legacy_fixed) == legacy_fixed
+print('PASS: adapter 0.6 two-argument and newer three-argument allocators both supported')

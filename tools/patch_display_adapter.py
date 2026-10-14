@@ -7,7 +7,7 @@ import re
 
 def patch(source):
     prefix = r'display_manager_alloc_draw_buffer\(\s*cfg->draw_buf_pixels\s*\*\s*color_size\s*,\s*'
-    suffix = r'\s*,\s*false\s*\)'
+    suffix = r'(?:\s*,\s*false)?\s*\)'
     old = prefix + 'false' + suffix
     fixed = prefix + r'profile->use_psram' + suffix
     if 'case ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL' not in source:
@@ -16,7 +16,7 @@ def patch(source):
     if len(matches) == 1:
         match = matches[0]
         call = source[match.start():match.end()]
-        call = re.sub(r',\s*false\s*,', ', profile->use_psram,', call, count=1)
+        call = re.sub(r',\s*false(?=\s*[,\)])', ', profile->use_psram', call, count=1)
         return source[:match.start()] + call + source[match.end():]
     if not matches and len(list(re.finditer(fixed, source))) == 1:
         return source  # Upstream already corrected this exact allocation.
