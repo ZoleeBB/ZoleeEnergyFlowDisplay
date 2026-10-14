@@ -115,4 +115,11 @@ Az `IDLE0` watchdog és `CPU 0: lvgl` ismétlődő naplósorok a renderelési fe
 
 Az Élő otthon világos jelenetének teljes hivatkozott PNG-készlete dekódolva kb. 8,2 MiB; a korábbi 6 MiB cache elégtelen volt. A firmware 10 MiB cache-t használ. A teljes hivatkozott képkészlet alapján ellenőrzött regresszió védi a keretet; az aktuális képek újrafelhasználhatók ismételt dekódolás helyett.
 
-Az általános malloc foglalások PSRAM-ot részesítenek előnyben (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`), a kötelező belső/DMA foglalásoknak 64 KiB belső tartalék marad. Az `sdmmc_read_sectors: not enough mem` és `transport_drv_sta_tx ... (copy_buff)` a belső memória hiányára utalnak. Az SDIO TX DMA-puffereit nem helyezzük PSRAM-ba; a STA/AP TX pufferfoglalás hibája hálózati hibakódot ad vissza assert helyett.
+Az általános malloc foglalások PSRAM-ot részesítenek előnyben (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`), a kötelező belső/DMA foglalásoknak 32 KiB belső tartalék marad. Az `sdmmc_read_sectors: not enough mem` és `transport_drv_sta_tx ... (copy_buff)` a belső memória hiányára utalnak. Az SDIO TX DMA-puffereit nem helyezzük PSRAM-ba; a STA/AP TX pufferfoglalás hibája hálózati hibakódot ad vissza assert helyett.
+
+
+## Újraindulás még az alkalmazás indítása előtt: DMA-tartalék
+
+A `Reserving pool of 64K ...`, majd `Could not reserve internal/DMA pool (error 0x101)` és `abort()` azt jelzi, hogy az ESP-IDF az app_main előtt nem tudja lefoglalni a konfigurált belső tartalékot. A PSRAM memóriaellenőrzése ettől még sikeres lehet; a hiba a belső memóriára vonatkozik. A korábbi 64 KiB-os növelés regresszió volt, a javított konfiguráció visszatér a hardveren már elinduló 32 KiB-os beállításhoz. A generikus foglalások PSRAM-előnyben részesítése, a 10 MiB cache és a worker blokkoló tickje megmarad.
+
+A build megtagadja a 32 KiB feletti belső tartalékot ezen a rögzített Waveshare P4 célon, és regressziós ellenőrzés védi a korlátot. A fordítás sikere önmagában nem jelent hardveres indulási próbát.

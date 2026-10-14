@@ -67,6 +67,10 @@ for descriptor in (ROOT/'templates').glob('*/template.json'):
         working_sets.append(total)
 assert 6*1024*1024<max(working_sets)<cache
 assert 'CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0' in config
-assert 'CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536' in config
+reserve=int(re.search(r'^CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=(\d+)$',config,re.M)[1])
+# Physical startup report: 64 KiB aborts before app_main; previous 32 KiB boots.
+# Bound the setting independently of the implementation's expected literal.
+assert 0 < reserve <= 32*1024, 'Reserve must fit the hardware-validated startup bound'
+assert 'CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL GREATER 32768' in (ROOT/'cmake/hosted_rx.cmake').read_text()
 assert '(10 * 1024 * 1024)' in (ROOT/'tests/preview/lv_conf.h').read_text()
 print(f'PASS: maximum template image working set {max(working_sets)} fits {cache}-byte cache; DMA reserve protected')

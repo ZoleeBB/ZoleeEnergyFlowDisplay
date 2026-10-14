@@ -1,3 +1,7 @@
+# Waveshare P4 v3.2: larger reserve aborts before app_main on this hardware.
+if(CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL GREATER 32768)
+    message(FATAL_ERROR "Internal/DMA reserve exceeds validated 32 KiB board limit; 64 KiB causes a boot loop")
+endif()
 # Only the build copy changes; upstream DMA buffers and managed sources stay intact.
 idf_component_get_property(hosted_dir espressif__esp_hosted COMPONENT_DIR)
 idf_component_get_property(hosted_lib espressif__esp_hosted COMPONENT_LIB)
