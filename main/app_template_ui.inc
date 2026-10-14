@@ -292,7 +292,9 @@ static void template_build(bool night){
                 lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
                 lv_obj_set_style_shadow_width(node->dots[i],glow>0?glow+5:8,0);
                 lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_70,0);
-                lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_HIDDEN);
+                /* A felül lévő pontok ne nyeljék el a témalapozó gesztust. */
+                lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+                lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
