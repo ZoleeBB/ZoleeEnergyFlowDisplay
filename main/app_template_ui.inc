@@ -11,7 +11,7 @@ LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
-    /* Two cubic segments, 32 samples each; drawing and animation share this path. */
+    /* Two cubic segments, 96 samples each; drawing and animation share this path. */
     lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
@@ -95,15 +95,65 @@ static void template_path(template_node_t *node,const cJSON *e){
  * Az LVGL vonal objektum megtartja a kiszámolt pontokat, így a mozgó
  * pontok nem váltanak ki magas minőségű vektoros újrarajzolást.
  */
-static lv_obj_t *template_flow_object(template_node_t *node,int x,int y,int w,int h){
-    lv_obj_t *obj=lv_line_create(s_dash);
+static lv_obj_t *template_flow_object(lv_obj_t *parent,template_node_t *node,
+                                      int x,int y,int w,int h,uint32_t color,int thickness,int opacity){
+    lv_obj_t *obj=lv_line_create(parent);
     lv_obj_remove_style_all(obj);
     lv_line_set_points(obj,node->points,node->point_count);
     lv_obj_set_pos(obj,x,y);
     lv_obj_set_size(obj,w,h);
     lv_obj_add_flag(obj,LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_style_line_color(obj,c(color),0);
+    lv_obj_set_style_line_width(obj,thickness,0);
+    lv_obj_set_style_line_opa(obj,opacity,0);
+    lv_obj_set_style_line_rounded(obj,true,0);
     return obj;
 }
+/*
+ * A statikus energiaútvonalakat egyszer, a sablon felépítésekor raszterizáljuk
+ * átlátszó ARGB képpé. A további 16 ms-os animáció csak a pontok pozícióját
+ * módosítja, soha nem a vonal vagy a háttér rajzparamétereit.
+ * A korlát védi a PSRAM-ot; hiba esetén változatlan LVGL-vonalra váltunk.
+ */
+#if LV_USE_SNAPSHOT
+#define TEMPLATE_FLOW_IMAGE_BUDGET (3U*1024U*1024U)
+typedef struct { lv_draw_buf_t *buffer; lv_image_dsc_t image; } template_flow_image_t;
+static TEMPLATE_RAM template_flow_image_t template_flow_images[8];
+static unsigned template_flow_image_count;
+static size_t template_flow_image_bytes;
+static lv_obj_t *template_flow_cached(template_node_t *node,int x,int y,int w,int h,
+                                      uint32_t color,int thickness,int glow){
+    if(template_flow_image_count>=8)return NULL;
+    int padding=(thickness+glow+1)/2+4;
+    int rw=w+2*padding,rh=h+2*padding;
+    if(rw<=0||rh<=0||(size_t)rw*rh*4>TEMPLATE_FLOW_IMAGE_BUDGET-template_flow_image_bytes)return NULL;
+    lv_obj_t *root=lv_obj_create(NULL);
+    if(!root)return NULL;
+    lv_obj_remove_style_all(root);
+    lv_obj_set_size(root,rw,rh);
+    lv_obj_t *canvas=lv_obj_create(root);
+    if(!canvas){lv_obj_delete(root);return NULL;}
+    lv_obj_remove_style_all(canvas);
+    lv_obj_set_pos(canvas,0,0);lv_obj_set_size(canvas,rw,rh);
+    if(glow>0)template_flow_object(canvas,node,padding,padding,w,h,color,thickness+glow,24);
+    template_flow_object(canvas,node,padding,padding,w,h,color,thickness,LV_OPA_COVER);
+    lv_draw_buf_t *buffer=lv_snapshot_take(canvas,LV_COLOR_FORMAT_ARGB8888);
+    lv_obj_delete(root);
+    if(!buffer)return NULL;
+    if(buffer->header.w!=(unsigned)rw||buffer->header.h!=(unsigned)rh||
+       buffer->data_size>TEMPLATE_FLOW_IMAGE_BUDGET-template_flow_image_bytes){
+        lv_draw_buf_destroy(buffer);return NULL;
+    }
+    template_flow_image_t *cache=&template_flow_images[template_flow_image_count++];
+    cache->buffer=buffer;
+    lv_draw_buf_to_image(buffer,&cache->image);
+    template_flow_image_bytes+=buffer->data_size;
+    lv_obj_t *obj=lv_image_create(s_dash);
+    lv_image_set_src(obj,&cache->image);
+    lv_obj_set_pos(obj,x-padding,y-padding);
+    return obj;
+}
+#endif
 static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==48?&app_font_numbers_48:size==28?APP_FONT_28:size==20?APP_FONT_20:size==16?APP_FONT_16:APP_FONT_12;}
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
@@ -165,6 +215,12 @@ static void template_gesture(lv_event_t *event){
 }
 static void template_release_cache(void){
 #if LV_USE_SNAPSHOT
+    for(unsigned i=0;i<template_flow_image_count;i++){
+        lv_image_cache_drop(&template_flow_images[i].image);
+        lv_draw_buf_destroy(template_flow_images[i].buffer);
+    }
+    memset(template_flow_images,0,sizeof(template_flow_images));
+    template_flow_image_count=0;template_flow_image_bytes=0;
     for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
 #endif
@@ -248,15 +304,16 @@ static void template_build(bool night){
             lv_obj_set_pos(node->obj,x,y);
         }else if(!strcmp(type,"flow")){
             template_path(node,e);
-            if(tn(e,"glow",0)>0){
-                node->detail=template_flow_object(node,x,y,w,h);
-                lv_obj_set_pos(node->detail,x,y);lv_obj_set_style_line_color(node->detail,c(text),0);
-                lv_obj_set_style_line_width(node->detail,tn(e,"radius",3)+tn(e,"glow",8),0);
-                lv_obj_set_style_line_opa(node->detail,24,0);lv_obj_set_style_line_rounded(node->detail,false,0);
+            const int width=tn(e,"radius",3),glow=tn(e,"glow",0);
+#if LV_USE_SNAPSHOT
+            node->obj=template_flow_cached(node,x,y,w,h,text,width,glow);
+#endif
+            if(!node->obj){
+                /* Tartalékút: a vonalak ekkor is csak egyszer épülnek fel. */
+                if(glow>0)
+                    node->detail=template_flow_object(s_dash,node,x,y,w,h,text,width+glow,24);
+                node->obj=template_flow_object(s_dash,node,x,y,w,h,text,width,LV_OPA_COVER);
             }
-            node->obj=template_flow_object(node,x,y,w,h);
-            lv_obj_set_style_line_color(node->obj,c(text),0);lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
-            lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,false,0);
             for(int i=0;i<4;i++){
                 node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
                 if(tn(e,"glow",0)>0){
@@ -402,7 +459,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             if(!strcmp(type,"value"))text_color_if_changed(node->obj,c(color),0);
             if(!strcmp(type,"flow")){
-                lv_obj_set_style_line_color(node->obj,c(color),0);if(node->detail)lv_obj_set_style_line_color(node->detail,c(color),0);
+                /* A raszterizált útvonal statikus; irányváltáskor csak a mozgó pontok színeződnek. */
                 for(int d=0;d<4;d++){bg_color_if_changed(node->dots[d],c(color),0);lv_obj_set_style_shadow_color(node->dots[d],c(color),0);}
             }
         }
@@ -433,15 +490,6 @@ static void template_animate(float dt){
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
-        if(node->detail){
-            int glow=fabs(node->power)<.001?0:20+(int)(fmin(7,fabs(node->power))*6);
-            /* A változatlan vastag vonalak teljes újrarajzolását kerüljük. */
-            if(lv_obj_get_style_line_opa(node->detail,0)!=glow)
-                lv_obj_set_style_line_opa(node->detail,glow,0);
-            int opacity=fabs(node->power)<.001?40:130+(int)(fmin(7,fabs(node->power))*15);
-            if(lv_obj_get_style_line_opa(node->obj,0)!=opacity)
-                lv_obj_set_style_line_opa(node->obj,opacity,0);
-        }
         node->phase=app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt);
         for(int d=0;d<4;d++){
             if(fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
