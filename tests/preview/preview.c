@@ -434,6 +434,19 @@ int main(void)
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
                 test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();
+                if(!strcmp(list[i].id,"01-live-home")){
+                    bool consumption_found=false;
+                    for(unsigned node_id=0;node_id<template_node_count;node_id++){
+                        template_node_t *n=&template_nodes[node_id];
+                        if(strcmp(ts(n->spec,"type"),"value")||
+                           strcmp(ts(n->spec,"source"),"consumption_today")||
+                           cJSON_IsTrue(cJSON_GetObjectItem(n->spec,"shadow")))continue;
+                        consumption_found=true;
+                        uint32_t expected=night?0xE66B6B:0xFF1744;
+                        assert(lv_color_eq(lv_obj_get_style_text_color(n->obj,0),c(expected)));
+                    }
+                    assert(consumption_found);
+                }
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;
