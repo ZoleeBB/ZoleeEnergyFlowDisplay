@@ -42,7 +42,7 @@ for(const [title,fields] of definitions){
  }
  section.append(h,grid);holder.append(section);
 }
-function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=value??'';if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}}
+function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}}
 function values(){const result=structuredClone(state);for(const [path,type] of fieldTypes){
  const input=byPath(path);let value;
  if(type==='bool')value=input.checked?1:0;

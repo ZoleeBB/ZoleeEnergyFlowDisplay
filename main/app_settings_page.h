@@ -49,7 +49,7 @@ static const char app_settings_page[] =
 " }\n"
 " section.append(h,grid);holder.append(section);\n"
 "}\n"
-"function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=value??'';if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}}\n"
+"function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}}\n"
 "function values(){const result=structuredClone(state);for(const [path,type] of fieldTypes){\n"
 " const input=byPath(path);let value;\n"
 " if(type==='bool')value=input.checked?1:0;\n"
@@ -69,4 +69,5 @@ static const char app_settings_page[] =
 " }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}\n"
 "});\n"
 "load();\n"
-"</script></body></html>\n";
+"</script></body></html>\n"
+"\n";
