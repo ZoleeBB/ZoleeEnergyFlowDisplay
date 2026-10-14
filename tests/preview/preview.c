@@ -118,7 +118,7 @@ static void test_template_motion(void){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(!strcmp(ts(node->spec,"curve"),"bezier")){
             unsigned controls=cJSON_GetArraySize(cJSON_GetObjectItem(node->spec,"points"));
-            assert(node->point_count==(controls==4?65:129));
+            assert(node->point_count==(controls==4?97:193));
             const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
             assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
