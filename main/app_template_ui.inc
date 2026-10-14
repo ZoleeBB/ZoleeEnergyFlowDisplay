@@ -173,8 +173,10 @@ static void template_flow_tone(template_node_t *node,uint32_t color,bool active)
     /* A vector stroke egyszer rajzol, ezért nincs alpha-halmozódás
      * a Bézier szakaszok illesztéseinél. */
     const bool thick=tn(node->spec,"radius",3)>=16;
-    const int main_opacity=thick?(active?178:35):(active?200:46);
-    const int glow_opacity=active?37:8;
+    /* Inaktív útvonal: a szín felismerhető marad (28–34% opacity),
+     * de az aktív, változatlan 70–78%-os stroke lényegesen erősebb. */
+    const int main_opacity=thick?(active?178:72):(active?200:86);
+    const int glow_opacity=active?37:16;
     if(node->obj){
         style_color_if_changed(node->obj,LV_STYLE_LINE_COLOR,c(color),0);
         style_number_if_changed(node->obj,LV_STYLE_LINE_OPA,main_opacity,0);
