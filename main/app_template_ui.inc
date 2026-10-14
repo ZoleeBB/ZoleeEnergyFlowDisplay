@@ -113,7 +113,11 @@ static lv_obj_t *template_flow_object(lv_obj_t *parent,template_node_t *node,
  * Az átlátszóság és a szín kizárólag az 5 s-os adatfrissítéskor változik.
  * A pontok saját objektumként animálódnak, külön a vonalaktól. */
 static void template_flow_tone(template_node_t *node,uint32_t color,bool active){
-    const int main_opacity=active?176:38,glow_opacity=active?45:9;
+    /* lv_line szakaszonként fest. Vastag útnál a rövid szakaszok
+     * átfedését kompenzáljuk, hogy ténylegesen átüssön a háttér. */
+    const bool thick=tn(node->spec,"radius",3)>=16;
+    const int main_opacity=thick?(active?58:9):(active?145:30);
+    const int glow_opacity=thick?(active?9:2):(active?25:5);
     if(node->obj){
         style_color_if_changed(node->obj,LV_STYLE_LINE_COLOR,c(color),0);
         style_number_if_changed(node->obj,LV_STYLE_LINE_OPA,main_opacity,0);
