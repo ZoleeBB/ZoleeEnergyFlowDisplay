@@ -22,6 +22,10 @@ static bool template_enter_transition;
 static bool template_loading_requested;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return template_view.document!=NULL;}
+static bool template_heavy_animation(void){
+    return !strcmp(template_view.id,"02-energy-paths")||
+           !strcmp(template_view.id,"06-energy-orbit");
+}
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
 static uint32_t tc(const cJSON *o,const char *key,uint32_t fallback){const char *s=ts(o,key);return s[0]=='#'?(uint32_t)strtoul(s+1,NULL,16):fallback;}
