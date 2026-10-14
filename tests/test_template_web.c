@@ -32,7 +32,7 @@ static void request(const char *uri,const unsigned char *bytes,size_t size){
 int main(int argc,char **argv){
  assert(argc==3);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t size=ftell(f);rewind(f);unsigned char *zip=malloc(size);assert(zip&&fread(zip,1,size,f)==size);fclose(f);
- request("/templates",NULL,0);assert(status==200&&strstr(response,"canvas")&&strstr(response,"Validate"));
+ request("/templates",NULL,0);assert(status==200&&strstr(response,"canvas")&&strstr(response,"Ellenőrzés az eszközön"));
  request("/api/templates/validate",zip,size);assert(status==200);cJSON *report=cJSON_Parse(response);assert(report&&cJSON_IsTrue(cJSON_GetObjectItem(report,"valid"))&&cJSON_IsTrue(cJSON_GetObjectItem(report,"installable")));cJSON_Delete(report);
  assert(app_templates_list(NULL,16,NULL)==1);
  request("/api/templates/install",zip,size);assert(status==200&&app_templates_list(NULL,16,NULL)==2);
