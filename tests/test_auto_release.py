@@ -7,7 +7,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 import test_release
-from auto_release import next_tag, prepare, finish, identity
+from auto_release import next_tag, tag_for_merged_pr, prepare, finish, identity
 
 
 class AutomaticReleaseTests(unittest.TestCase):
@@ -28,6 +28,17 @@ class AutomaticReleaseTests(unittest.TestCase):
                                   {'name':'v2.0.0-rc.1'}],[]),'v1.2.11')
         self.assertEqual(next_tag([{'name':'v1.9.99'},{'name':'v2.0.0'}],[]),'v2.0.1')
         self.assertEqual(next_tag([], [{'tag_name':'v1.0.8','name':'Draft','draft':True}]),'v1.0.9')
+
+    def test_major_release_only_for_project_pr9(self):
+        existing=[{'name':'v0.0.6'}]
+        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',9,existing,[]),'v1.0.0')
+        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',10,existing,[]),'v0.0.7')
+        self.assertEqual(tag_for_merged_pr('owner/repo',9,existing,[]),'v0.0.7')
+        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',10,[{'name':'v1.0.0'}],[]),'v1.0.1')
+        with self.assertRaises(ValueError):
+            tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',9,[{'name':'v1.0.0'}],[])
+        with self.assertRaises(ValueError):
+            tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',9,[],[{'tag_name':'v1.1.0','name':'new'}])
 
     def mock_api(self):
         self.releases=[];self.tags={};self.assets=[];self.events=[];self.merged=True
