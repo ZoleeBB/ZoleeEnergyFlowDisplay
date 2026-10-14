@@ -32,3 +32,5 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=True)
+
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_runtime_resources.py")], check=True)

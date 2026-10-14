@@ -107,3 +107,12 @@ Az `sdio_push_data_to_queue ... (pkt_rxbuff)` assert az ESP-Hosted 1.4.7 streami
 A buildbeli driver-másolat a DMA után készülő, kizárólag CPU által használt csomagmásolatot PSRAM-ba teszi, hozzá illő felszabadító callbackkel. A közvetlen SDIO DMA-pufferek változatlanul belső memóriában maradnak. A csomaghosszt foglalás előtt ellenőrzi; csomagmásolat vagy hálózati payload foglalási hibájánál felszabadít és eldob ahelyett, hogy assert miatt újraindulna. Pufferhiánykor `RX packet copy unavailable` vagy `Network RX payload unavailable` naplósor jelenik meg. A TCP újraküldhet, UDP adat elveszhet; a hálózati terhelés alatti működést az eszközön is ellenőrizni kell.
 
 A javítás az ESP-Hosted rögzített 1.4.7 forrásalakjára készül, és eltérő függőség esetén megállítja a buildet. Az SDK és a managed component eredetije nem változik.
+
+
+## LVGL watchdog és SD/hálózati memóriahiány témaváltáskor
+
+Az `IDLE0` watchdog és `CPU 0: lvgl` ismétlődő naplósorok a renderelési feladat CPU-éheztetését jelzik. A flush értesítése miatt az adapter `ulTaskNotifyTake` hívása várakozás nélkül visszatérhet. A buildbeli worker-másolat minden renderelési ciklus végén, a grafikus mutex elengedése után egy valódi FreeRTOS tickre blokkol. A watchdog engedélyezve marad, 60 másodperces időkorláttal.
+
+Az Élő otthon világos jelenetének teljes hivatkozott PNG-készlete dekódolva kb. 8,2 MiB; a korábbi 6 MiB cache elégtelen volt. A firmware 10 MiB cache-t használ. A teljes hivatkozott képkészlet alapján ellenőrzött regresszió védi a keretet; az aktuális képek újrafelhasználhatók ismételt dekódolás helyett.
+
+Az általános malloc foglalások PSRAM-ot részesítenek előnyben (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`), a kötelező belső/DMA foglalásoknak 64 KiB belső tartalék marad. Az `sdmmc_read_sectors: not enough mem` és `transport_drv_sta_tx ... (copy_buff)` a belső memória hiányára utalnak. Az SDIO TX DMA-puffereit nem helyezzük PSRAM-ba; a STA/AP TX pufferfoglalás hibája hálózati hibakódot ad vissza assert helyett. A frame pointer beállítás részletesebb visszahívási nyomot tesz lehetővé egy további crash esetén.
