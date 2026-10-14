@@ -386,8 +386,12 @@ static void template_animate(float dt){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(node->detail){
             int glow=fabs(node->power)<.001?0:20+(int)(fmin(7,fabs(node->power))*6);
-            lv_obj_set_style_line_opa(node->detail,glow,0);
-            lv_obj_set_style_line_opa(node->obj,fabs(node->power)<.001?40:130+(int)(fmin(7,fabs(node->power))*15),0);
+            /* A változatlan vastag vonalak teljes újrarajzolását kerüljük. */
+            if(lv_obj_get_style_line_opa(node->detail,0)!=glow)
+                lv_obj_set_style_line_opa(node->detail,glow,0);
+            int opacity=fabs(node->power)<.001?40:130+(int)(fmin(7,fabs(node->power))*15);
+            if(lv_obj_get_style_line_opa(node->obj,0)!=opacity)
+                lv_obj_set_style_line_opa(node->obj,opacity,0);
         }
         node->phase=app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt);
         for(int d=0;d<4;d++){
