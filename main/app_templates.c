@@ -356,6 +356,22 @@ esp_err_t app_templates_delete(const char *id,char error[160]){
     generation++;STORAGE_GIVE();xSemaphoreGive(lock);if(!ok)error_set(error,"Törlési hiba / Delete failed");return ok?ESP_OK:ESP_FAIL;
 }
 
+char *app_templates_manifest_json(const char *id){
+    if(!lock||!app_templates_safe_id(id))return NULL;
+    xSemaphoreTake(lock,portMAX_DELAY);
+    bool found=false;
+    for(unsigned i=1;i<count;i++)if(!strcmp(catalogue[i].id,id))found=true;
+    char *result=NULL;
+    if(found&&STORAGE_TAKE()==ESP_OK){
+        char dir[256],path[256];path_join(dir,app_templates_root(),id);
+        path_join(path,dir,"template.json");
+        size_t size=0;result=(char *)read_file(path,65536,&size);
+        STORAGE_GIVE();
+    }
+    xSemaphoreGive(lock);
+    return result;
+}
+
 esp_err_t app_templates_probe(const char *zip,cJSON **report,char error[160]){
     if(report)*report=NULL;
     if(!lock||!report)return ESP_ERR_INVALID_STATE;
