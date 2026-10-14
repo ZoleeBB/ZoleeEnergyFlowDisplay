@@ -97,6 +97,7 @@ static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
 static bool template_is_active(void);
 static void template_animate(float dt);
+static bool template_heavy_animation(void);
 static unsigned template_catalogue_count(void);
 static void template_gesture(lv_event_t *event);
 
@@ -1369,8 +1370,25 @@ static void animation_tick(lv_timer_t *timer)
     /* Lassú kirajzoláskor se lassítsuk mesterségesen a pontok időalapját. */
     if(dt>.25f)dt=.25f;
     if(dt<0.f)dt=0.f;
-    if(template_is_active())template_animate(dt);
-    else if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
+    /* A két legnehezebb, sok vastag energiautat tartalmazó témánál a
+     * pontok 30 fps-es frissítése félbevágja a részleges képernyő-újrafestéseket.
+     * A fázist a teljes eltelt dt alapján léptetjük, ezért a sebesség nem csökken. */
+    static float heavy_flow_accumulator;
+    if(template_is_active()){
+        if(template_heavy_animation()){
+            heavy_flow_accumulator+=dt;
+            if(heavy_flow_accumulator>=1.f/30.f){
+                template_animate(heavy_flow_accumulator);
+                heavy_flow_accumulator=0;
+            }
+        }else{
+            heavy_flow_accumulator=0;
+            template_animate(dt);
+        }
+    }else{
+        heavy_flow_accumulator=0;
+        if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
+    }
     if(s_error_pulse){
         float wave=(sinf(now/1000000.f*3.14159265f)+1.f)*.5f;
         /* Pulse only the coloured border; group opacity creates an offscreen
