@@ -92,6 +92,7 @@ static void test_flow_rendering(void){
         assert(node->detail && lv_obj_check_type(node->detail,&lv_obj_class));
         const bool thick=tn(node->spec,"radius",3)>=16;
         assert(lv_obj_get_style_line_opa(node->obj,0)==(thick?178:200));
+        assert(lv_obj_get_style_line_opa(node->detail,0)==37);
         const lv_obj_t *line=node->obj;
         const lv_vector_path_t *path=node->flow_path;
         const int opacity=lv_obj_get_style_line_opa(node->obj,0);
@@ -106,7 +107,10 @@ static void test_flow_rendering(void){
         }
         double power=node->power;
         node->power=0;template_flow_tone(node,tc(node->spec,"color",BLUE),false);
-        assert(lv_obj_get_style_line_opa(node->obj,0)==(thick?35:46));
+        const int inactive=thick?72:86;
+        assert(lv_obj_get_style_line_opa(node->obj,0)==inactive);
+        assert(lv_obj_get_style_line_opa(node->detail,0)==16);
+        assert(inactive<opacity/2); /* The active path remains much brighter. */
         template_animate(.016f);
         for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
         node->power=power;
