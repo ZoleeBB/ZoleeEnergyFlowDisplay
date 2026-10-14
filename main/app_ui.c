@@ -1365,7 +1365,9 @@ static void animation_tick(lv_timer_t *timer)
     int64_t now=esp_timer_get_time();
     float dt=s_animation_us?(now-s_animation_us)/1000000.f:0.f;
     s_animation_us=now;
-    if(dt>.25f)dt=.016f;
+    /* Lassú kirajzoláskor se lassítsuk mesterségesen a pontok időalapját. */
+    if(dt>.25f)dt=.25f;
+    if(dt<0.f)dt=0.f;
     if(template_is_active())template_animate(dt);
     else if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
     if(s_error_pulse){
