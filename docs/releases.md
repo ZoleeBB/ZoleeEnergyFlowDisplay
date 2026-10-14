@@ -27,7 +27,7 @@ A `.github/workflows/release.yml` a GitHub **Publish release** eseményére indu
    - `SHA256SUMS.txt`: az OTA, USB és build-info SHA256 ellenőrzőösszegei.
    - `build-info.json`: tag, commit, célhardver, ESP-IDF/esptool verzió és flash-fájlok ellenőrzőösszegei.
 
-Az OTA és az USB csomag alkalmazásképe bájtra azonos. A ZIP a build összes flash-bemenetét tartalmazza, az eredeti címekkel és hordozható fájlutakkal. A rögzített esptool verzió `5.1.0`; [USB útmutató](usb-install.md).
+Az OTA és az USB csomag alkalmazásképe bájtra azonos. A ZIP a build összes flash-bemenetét tartalmazza, az eredeti címekkel és hordozható fájlutakkal. A rögzített esptool verzió `5.5.0`; [USB útmutató](usb-install.md).
 
 A release-verziót a generált `version.txt` adja az ESP-IDF-nek; a csomagoló a binárisba írt verziót is ellenőrzi. Helyi, verziófájl nélküli fejlesztői build alapértéke `0.1.0`. A PR/main ellenőrzés ugyanazt a csomagolást `v0.0.0-ci` verzióval futtatja, és Actions artifactként teszi elérhetővé; ez nem publikál GitHub release-t.
 
