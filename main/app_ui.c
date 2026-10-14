@@ -1321,13 +1321,13 @@ static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
-    if(!s_started && s_view!=VIEW_FATAL && s_boot_stage>=APP_BOOT_WIFI){
+    if(!s_started && s_view!=VIEW_FATAL && s_boot_stage>APP_BOOT_WIFI){
         app_runtime_state_t state;
         app_state_get_runtime(&state);
         if(!state.wifi_connected)
             error_screen(VIEW_WIFI_ERROR,tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
                 tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);
-        else if(s_boot_stage>=APP_BOOT_MQTT && s_cfg.data_recept_mode==APP_DATA_MQTT && !state.mqtt_connected)
+        else if(s_boot_stage>APP_BOOT_MQTT && s_cfg.data_recept_mode==APP_DATA_MQTT && !state.mqtt_connected)
             error_screen(VIEW_MQTT_ERROR,tr("Nincs MQTT kapcsolat","No MQTT connection"),
                 tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),false);
     }
@@ -1339,7 +1339,9 @@ static void animation_tick(lv_timer_t *timer)
     else if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
     if(s_error_pulse){
         float wave=(sinf(now/1000000.f*3.14159265f)+1.f)*.5f;
-        lv_obj_set_style_opa(s_error_pulse,(lv_opa_t)(175+65*wave),0);
+        /* Pulse only the coloured border; group opacity creates an offscreen
+         * layer around the PNG and can leave a flashing rectangular edge. */
+        lv_obj_set_style_border_opa(s_error_pulse,(lv_opa_t)(175+65*wave),0);
     }
 }
 
@@ -1511,6 +1513,7 @@ static void error_screen(
          * A külső kör pulzál, maga az ikon azonban éles, részletes PNG marad.
          */
         s_error_pulse=lv_obj_create(s_screen);
+        lv_obj_remove_style_all(s_error_pulse);
         lv_obj_set_size(s_error_pulse,132,132);
         lv_obj_set_pos(s_error_pulse,574,154);
         lv_obj_set_style_radius(s_error_pulse,LV_RADIUS_CIRCLE,0);

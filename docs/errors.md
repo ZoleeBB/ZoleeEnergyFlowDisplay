@@ -80,3 +80,11 @@ Az induláskor egyszer megjelenő sorok:
 - `First adapter refresh completed`: az első teljes LVGL frissítési ciklus véget ért.
 
 Ezeket a callbackeket az LVGL-feladat indítása előtt regisztráljuk, ezért zárolási timeout esetén is látszanak. Ha a renderelés kezdete megvan, de flush nincs, a rajzolási út állt meg. Ha flush indul, de nem tér vissza, az adapter/panel út várakozását kell vizsgálni. Mindig a RESET-től induló teljes logot őrizd meg. A COM-port a reset alatt rövid időre eltűnhet; az egyszeri `FileNotFoundError` és az utána sikeres megnyitás nem az LVGL zárolási hibája.
+
+## Újraindulás az időszinkron indításakor: sys_timeout assert
+
+A `Timeout time too long, max is LWIP_UINT32_MAX/4 msecs` assert firmware-időzítési hiba. A korábbi automatikus SNTP-periódus 14 nap (1 209 600 000 ms) volt, ami meghaladja az lwIP 1 073 741 823 ms-os (~12,4 napos) felső korlátját. A javított érték 10 nap (864 000 000 ms), így hosszabb az alkalmazás legfeljebb 7 napos kézi újraszinkron-periódusánál, de belefér az lwIP korlátjába. Fordítási őr tiltja a túl nagy értéket, régi helyi sdkconfig esetén is.
+
+Ez az assert nem bizonyít NAS- vagy hálózati hibát. Az NTP-szerver lehet közvetlen IP-cím is. Az új napló jelzi az inicializálást, a szervert, a tíz másodperces várakozást és annak eredményét. Az indulás továbbra is megvárja a sikeres időszinkront, mert a napi statisztika valós helyi időt igényel; sikertelen válasznál a konfigurált retry szerint próbálkozik újra.
+
+A kezdeti Wi-Fi/MQTT kapcsolódás a bootképernyőn marad. A kapcsolatvesztés hibaképernyője az adott indulási kapcsolódási lépés után használható. A hibaikon háttérkörén csak a színes körvonal átlátszósága pulzál; a PNG-t tartalmazó teljes objektum átlátszósága változatlan, és nincs örökölt outline/shadow.

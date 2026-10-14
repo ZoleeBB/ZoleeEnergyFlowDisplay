@@ -52,10 +52,10 @@ CONFIG_FATFS_API_ENCODING_UTF_8=y
 CONFIG_FATFS_MAX_LFN=128
 CONFIG_FATFS_FS_LOCK=4
 
-# Az lwIP saját automatikus SNTP periódusa szándékosan hosszabb a konfigurációban
-# engedélyezett maximális 7 napnál. A tényleges újraszinkront az alkalmazás
-# resync_hours beállítása vezérli, így az alapértelmezett 6 óra valóban érvényesül.
-CONFIG_LWIP_SNTP_UPDATE_DELAY=1209600000
+# 10 nap: hosszabb az alkalmazás legfeljebb 7 napos kézi periódusánál,
+# de kisebb az lwIP sys_timeout UINT32_MAX/4 (~12,4 nap) korlátjánál.
+# A korábbi 14 nap SNTP induláskor/szinkronkor assertet és rebootot okozott.
+CONFIG_LWIP_SNTP_UPDATE_DELAY=864000000
 
 # A korábbi vektoros rajzolási konfiguráció kompatibilitásból megmarad.
 # A ThorVG adja az LVGL szoftveres SVG/vector renderelését.

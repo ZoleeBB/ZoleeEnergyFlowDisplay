@@ -11,6 +11,7 @@ static lv_display_t *display;
 static uint32_t pixels[1280*800];
 static int64_t ticks;
 static bool sd_ok=true;
+static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
 static lv_point_t touch_point;
@@ -32,7 +33,7 @@ void bsp_display_brightness_set(int value){(void)value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
-void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=true,.mqtt_connected=true};}
+void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=runtime_wifi_connected,.mqtt_connected=true};}
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
 void app_stats_get_period(bool month,app_stats_period_t *out){
@@ -268,6 +269,20 @@ int main(void)
     lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(display,flush);
     assert(app_ui_init()==ESP_OK);
+    runtime_wifi_connected=false;
+    app_ui_show_boot(APP_BOOT_WIFI,NULL);
+    animation_tick(NULL);
+    assert(s_error_pulse==NULL); /* Initial connection is progress, not a fault. */
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    animation_tick(NULL);
+    assert(s_view==VIEW_WIFI_ERROR && s_error_pulse!=NULL);
+    assert(lv_obj_get_style_opa(s_error_pulse,0)==LV_OPA_COVER);
+    assert(lv_obj_get_style_outline_width(s_error_pulse,0)==0);
+    assert(lv_obj_get_style_shadow_width(s_error_pulse,0)==0);
+    assert(lv_obj_get_style_border_opa(s_error_pulse,0)>=175);
+    runtime_wifi_connected=true;
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
     app_config_t config={0};
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia");
     snprintf(config.project.language,sizeof(config.project.language),"hu");

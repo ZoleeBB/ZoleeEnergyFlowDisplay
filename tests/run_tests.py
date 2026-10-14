@@ -29,3 +29,4 @@ subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)

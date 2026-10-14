@@ -85,3 +85,5 @@ A GitHub release mellékletei és az automatikus build leírása: [releases.md](
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
 
 A kijelző LVGL konfigurációja `CONFIG_LV_OS_NONE=y`, `CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1`. Régi helyi `sdkconfig` esetén ezeket is állítsd át a menuconfigban, majd konfiguráld és fordítsd újra a projektet. A firmware fordítási őrrel elutasítja a FreeRTOS OSAL/ több draw unit konfigurációt, hogy a régi beállítás ne kerülhessen észrevétlenül az új csomagba. Az ESP-IDF és az adapter továbbra is FreeRTOS-t használ.
+
+Az SNTP automatikus SDK periódusa `CONFIG_LWIP_SNTP_UPDATE_DELAY=864000000` (10 nap). Régi helyi `sdkconfig` 14 napos értékét módosítsd az új értékre; a túl nagy időzítőt a fordítás elutasítja, mert az eszközön lwIP assertet és újraindulást okoz.
