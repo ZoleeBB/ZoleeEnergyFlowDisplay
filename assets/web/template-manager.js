@@ -11,19 +11,19 @@ async function unpackZip(buffer){
  if(u16(end+4)||u16(end+6)||u16(end+8)!==count||!count||count>34||offset+cdSize!==end)throw Error('Nem támogatott ZIP');
  const files=new Map();let p=offset,total=0;
  for(let i=0;i<count;i++){
-  if(p+46>end||u32(p)!==0x02014b50)throw Error('ZIP directory');
+  if(p+46>end||u32(p)!==0x02014b50)throw Error('Hibás ZIP-könyvtár');
   const flags=u16(p+8),method=u16(p+10),crc=u32(p+16),compressed=u32(p+20),size=u32(p+24),n=u16(p+28),local=u32(p+42),mode=(u32(p+38)>>>16)&0xf000;
   if((flags&~(0x800|8|6))||(method!==0&&method!==8)||u16(p+34)||(mode&&mode!==0x8000)||!n||n>64||!size||size>2097152||(total+=size)>ZIP_LIMIT||p+46+n>end)throw Error('ZIP méretkorlát');
   const name=new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(p+46,p+46+n));
   if((name!=='template.json'&&!safeAsset(name))||files.has(name))throw Error('Hibás ZIP útvonal vagy duplikáció');
-  if(local+30>offset||u32(local)!==0x04034b50||u16(local+6)!==flags||u16(local+8)!==method||u16(local+26)!==n)throw Error('ZIP local header');
+  if(local+30>offset||u32(local)!==0x04034b50||u16(local+6)!==flags||u16(local+8)!==method||u16(local+26)!==n)throw Error('Hibás ZIP-fejléc');
   const start=local+30+n+u16(local+28);
-  if(start+compressed>offset||new TextDecoder().decode(bytes.subarray(local+30,local+30+n))!==name)throw Error('ZIP offset');
+  if(start+compressed>offset||new TextDecoder().decode(bytes.subarray(local+30,local+30+n))!==name)throw Error('Hibás ZIP-eltolás');
   let data=bytes.slice(start,start+compressed);
   if(method===8){
    let stream;try{stream=new DecompressionStream('deflate-raw');}catch(e){throw Error('A böngésző nem támogatja a ZIP előnézetet');}
    const reader=new Blob([data]).stream().pipeThrough(stream).getReader(),chunks=[];let length=0;
-   try{while(true){const next=await reader.read();if(next.done)break;length+=next.value.length;if(length>size)throw Error('ZIP decompression size');chunks.push(next.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}
+   try{while(true){const next=await reader.read();if(next.done)break;length+=next.value.length;if(length>size)throw Error('Hibás kicsomagolt ZIP-méret');chunks.push(next.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}
    data=new Uint8Array(length);let cursor=0;for(const chunk of chunks){data.set(chunk,cursor);cursor+=chunk.length;}
   }
   if(data.length!==size||crc32(data)!==crc)throw Error('ZIP CRC / méret');
@@ -33,19 +33,19 @@ async function unpackZip(buffer){
  return files;
 }
 function pngInfo(bytes){
- const signature=[137,80,78,71,13,10,26,10];if(bytes.length<45||signature.some((x,i)=>bytes[i]!==x))throw Error('PNG signature');
+ const signature=[137,80,78,71,13,10,26,10];if(bytes.length<45||signature.some((x,i)=>bytes[i]!==x))throw Error('Hibás PNG-aláírás');
  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),w=v.getUint32(16),h=v.getUint32(20);
  if(!w||!h||w>1280||h>800||bytes[24]!==8||![2,6].includes(bytes[25])||bytes[26]||bytes[27]||bytes[28])throw Error('Hibás PNG formátum');
- let p=8,ended=false;while(p+12<=bytes.length){let size=v.getUint32(p);if(p+12+size>bytes.length||crc32(bytes.subarray(p+4,p+8+size))!==v.getUint32(p+8+size))throw Error('PNG CRC');
-  let type=new TextDecoder().decode(bytes.subarray(p+4,p+8));if(p===8&&(type!=='IHDR'||size!==13))throw Error('PNG IHDR');
+ let p=8,ended=false;while(p+12<=bytes.length){let size=v.getUint32(p);if(p+12+size>bytes.length||crc32(bytes.subarray(p+4,p+8+size))!==v.getUint32(p+8+size))throw Error('Hibás PNG-ellenőrzőösszeg');
+  let type=new TextDecoder().decode(bytes.subarray(p+4,p+8));if(p===8&&(type!=='IHDR'||size!==13))throw Error('Hibás PNG-fejléc');
   if(type==='IEND'){ended=size===0&&p+12===bytes.length;break;}p+=size+12;}
- if(!ended)throw Error('PNG IEND');return {w,h,decoded:w*h*4};
+ if(!ended)throw Error('Hibás PNG-zárás');return {w,h,decoded:w*h*4};
 }
 function validateManifest(doc,files){
  if(!doc||doc.schema!==1||!Number.isInteger(doc.version)||doc.version<1||doc.version>65535||typeof doc.name!=='string'||new TextEncoder().encode(doc.name).length>80||!/^([a-z0-9_-]{1,32})$/.test(doc.id)||doc.id==='builtin')throw Error('Hibás sablonazonosító');
  const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','label','value','image','weather','bar','gauge','flow','chart'];
  let encoded=0,decoded=0,assets=0;
- for(const [name,data] of files)if(name!=='template.json'){if(++assets>32)throw Error('PNG count');const info=pngInfo(data);encoded+=data.length;decoded+=info.decoded;}
+ for(const [name,data] of files)if(name!=='template.json'){if(++assets>32)throw Error('Túl sok PNG-kép');const info=pngInfo(data);encoded+=data.length;decoded+=info.decoded;}
  if(encoded>4194304||decoded>12582912||files.get('template.json').length>65536)throw Error('Memóriakorlát túllépve');
  for(const mode of ['light','dark']){
   const scene=doc[mode];if(!scene||!color(scene.background)||!Array.isArray(scene.elements)||scene.elements.length>96)throw Error('Hiányzó vagy hibás világos/sötét nézet');

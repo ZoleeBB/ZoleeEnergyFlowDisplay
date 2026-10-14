@@ -13,7 +13,7 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy közvetlen HTTP POST f
 
 Az I1–I12 bemenetek sorrendje fix. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-Balra/jobbra húzás lapoz a rendszernézet és a nyolc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
+Balra/jobbra húzás lapoz a rendszernézet és a nyolc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` az SD-kártya beállításainak szerkesztése, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
 
 ![A nyolc sablon világos és sötét nézete](docs/previews/templates.png)
 

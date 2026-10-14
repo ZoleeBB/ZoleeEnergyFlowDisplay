@@ -51,3 +51,17 @@ Megjeleníti többek között:
 Az oldalon külön megerősítéssel újraindítható az eszköz.
 
 A közös diagnosztika a `/diagnostics` és `/api/diagnostics` útvonalon érhető el. A `POST /api/energy` adatfogadás hitelesítés nélkül működik; [HTTP útmutató](http-input.md).
+
+## SD-beállítások böngészőből
+
+A `/settings` oldalon a `config.json` minden dokumentált paramétere módosítható. A `GET /api/settings` az aktuális beállításokat adja vissza, a jelszavakat `null` értékkel helyettesíti (nem küldi ki). A `POST /api/settings` JSON tartalmú, `X-Zolee-Settings: 1` fejlécet igényel; a `null` jelszó megtartja a korábbit, a nem üres szöveg módosítja, az üres szöveg törli.
+
+Mentéskor a firmware ideiglenes fájlba ír, a tartalmat ugyanazzal a konfigurációs validátorral ellenőrzi, majd a régi fájlról biztonsági másolatot készít. Egy megszakadt fájlcsere esetén a korábbi `config.json.webbak` következő indításkor visszaállítható. A statisztikai mentési és integrációs paraméterek újraindítás nélkül érvényesülnek, minden más konfigurációváltozás automatikus újraindítást indít.
+
+**Fontos:** A Basic Auth titkosítás nélkül, HTTP-n működik, ezért a beállításkezelést csak megbízható helyi hálózaton használd. Az üres adminisztrátori felhasználónév/jelszó azt jelenti, hogy a felület nincs védve.
+
+## Biztonságos firmware-frissítés
+
+A feltöltőoldal százalékos előrehaladást és egyértelmű siker/hiba üzeneteket mutat. Az OTA firmware csak az utolsó statisztikai SD-mentés sikeres befejezése után aktiválódik. Kézi újraindítás előtt is azonnali mentés fut; ha ez sikertelen, az újraindítás elmarad és hibaüzenet jelenik meg.
+
+Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az eszköz újraindításakor törlődik, nem tartós hibahistória.
