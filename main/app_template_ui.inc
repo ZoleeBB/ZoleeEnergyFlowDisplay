@@ -333,6 +333,14 @@ static void template_build(bool night){
             }
         }
         uint32_t text=tc(e,"color",night?TEXT_DARK:TEXT_LIGHT);
+        /* A felhasználó SD-jén még a korábbi Élő otthon v9 (vagy régebbi)
+         * csomag lehet: OTA után is piros legyen a Fogyasztás ma értéke.
+         * Az árnyék külön (fekete) eleme változatlan marad. */
+        if(!strcmp(template_view.id,"01-live-home")&&
+           tn(template_view.document,"version",10)<10&&
+           !strcmp(type,"value")&&!strcmp(ts(e,"source"),"consumption_today")&&
+           !cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow")))
+            text=night?0xE66B6B:0xFF1744;
         if(!strcmp(type,"label")||!strcmp(type,"value")){
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"text_shadow"))){
                 int offset=tn(e,"shadow_offset",1);
