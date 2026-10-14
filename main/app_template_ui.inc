@@ -11,8 +11,8 @@ LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
-    /* Two cubic segments, 96 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    /* Two cubic segments, 64 samples each; drawing and animation share this path. */
+    lv_point_precise_t points[129];float segments[128],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
@@ -75,8 +75,8 @@ static void template_path(template_node_t *node,const cJSON *e){
     cJSON_ArrayForEach(pt,cJSON_GetObjectItem(e,"points"))control[n++]=(lv_point_precise_t){tn(pt,"x",0),tn(pt,"y",0)};
     if(!strcmp(ts(e,"curve"),"bezier")){
         node->points[node->point_count++]=control[0];
-        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=96;i++){
-            float t=i/96.f,u=1.f-t;
+        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=64;i++){
+            float t=i/64.f,u=1.f-t;
             node->points[node->point_count++]=(lv_point_precise_t){
                 u*u*u*control[k].x+3*u*u*t*control[k+1].x+3*u*t*t*control[k+2].x+t*t*t*control[k+3].x,
                 u*u*u*control[k].y+3*u*u*t*control[k+1].y+3*u*t*t*control[k+2].y+t*t*t*control[k+3].y};
@@ -109,51 +109,20 @@ static lv_obj_t *template_flow_object(lv_obj_t *parent,template_node_t *node,
     lv_obj_set_style_line_rounded(obj,true,0);
     return obj;
 }
-/*
- * A statikus energiaútvonalakat egyszer, a sablon felépítésekor raszterizáljuk
- * átlátszó ARGB képpé. A további 16 ms-os animáció csak a pontok pozícióját
- * módosítja, soha nem a vonal vagy a háttér rajzparamétereit.
- * A korlát védi a PSRAM-ot; hiba esetén változatlan LVGL-vonalra váltunk.
- */
-#if LV_USE_SNAPSHOT
-#define TEMPLATE_FLOW_IMAGE_BUDGET (3U*1024U*1024U)
-typedef struct { lv_draw_buf_t *buffer; lv_image_dsc_t image; } template_flow_image_t;
-static TEMPLATE_RAM template_flow_image_t template_flow_images[8];
-static unsigned template_flow_image_count;
-static size_t template_flow_image_bytes;
-static lv_obj_t *template_flow_cached(template_node_t *node,int x,int y,int w,int h,
-                                      uint32_t color,int thickness,int glow){
-    if(template_flow_image_count>=8)return NULL;
-    int padding=(thickness+glow+1)/2+4;
-    int rw=w+2*padding,rh=h+2*padding;
-    if(rw<=0||rh<=0||(size_t)rw*rh*4>TEMPLATE_FLOW_IMAGE_BUDGET-template_flow_image_bytes)return NULL;
-    lv_obj_t *root=lv_obj_create(NULL);
-    if(!root)return NULL;
-    lv_obj_remove_style_all(root);
-    lv_obj_set_size(root,rw,rh);
-    lv_obj_t *canvas=lv_obj_create(root);
-    if(!canvas){lv_obj_delete(root);return NULL;}
-    lv_obj_remove_style_all(canvas);
-    lv_obj_set_pos(canvas,0,0);lv_obj_set_size(canvas,rw,rh);
-    if(glow>0)template_flow_object(canvas,node,padding,padding,w,h,color,thickness+glow,24);
-    template_flow_object(canvas,node,padding,padding,w,h,color,thickness,LV_OPA_COVER);
-    lv_draw_buf_t *buffer=lv_snapshot_take(canvas,LV_COLOR_FORMAT_ARGB8888);
-    lv_obj_delete(root);
-    if(!buffer)return NULL;
-    if(buffer->header.w!=(unsigned)rw||buffer->header.h!=(unsigned)rh||
-       buffer->data_size>TEMPLATE_FLOW_IMAGE_BUDGET-template_flow_image_bytes){
-        lv_draw_buf_destroy(buffer);return NULL;
+/* Valódi LVGL-vonalak: gyors, előmintavételezett geometria.
+ * Az átlátszóság és a szín kizárólag az 5 s-os adatfrissítéskor változik.
+ * A pontok saját objektumként animálódnak, külön a vonalaktól. */
+static void template_flow_tone(template_node_t *node,uint32_t color,bool active){
+    const int main_opacity=active?176:38,glow_opacity=active?45:9;
+    if(node->obj){
+        style_color_if_changed(node->obj,LV_STYLE_LINE_COLOR,c(color),0);
+        style_number_if_changed(node->obj,LV_STYLE_LINE_OPA,main_opacity,0);
     }
-    template_flow_image_t *cache=&template_flow_images[template_flow_image_count++];
-    cache->buffer=buffer;
-    lv_draw_buf_to_image(buffer,&cache->image);
-    template_flow_image_bytes+=buffer->data_size;
-    lv_obj_t *obj=lv_image_create(s_dash);
-    lv_image_set_src(obj,&cache->image);
-    lv_obj_set_pos(obj,x-padding,y-padding);
-    return obj;
+    if(node->detail){
+        style_color_if_changed(node->detail,LV_STYLE_LINE_COLOR,c(color),0);
+        style_number_if_changed(node->detail,LV_STYLE_LINE_OPA,glow_opacity,0);
+    }
 }
-#endif
 static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==48?&app_font_numbers_48:size==28?APP_FONT_28:size==20?APP_FONT_20:size==16?APP_FONT_16:APP_FONT_12;}
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
@@ -215,12 +184,6 @@ static void template_gesture(lv_event_t *event){
 }
 static void template_release_cache(void){
 #if LV_USE_SNAPSHOT
-    for(unsigned i=0;i<template_flow_image_count;i++){
-        lv_image_cache_drop(&template_flow_images[i].image);
-        lv_draw_buf_destroy(template_flow_images[i].buffer);
-    }
-    memset(template_flow_images,0,sizeof(template_flow_images));
-    template_flow_image_count=0;template_flow_image_bytes=0;
     for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
 #endif
@@ -231,10 +194,21 @@ static void template_loading_screen(void){
     clear();
     bg_color_if_changed(s_screen,c(0x000000),0);
     lv_obj_set_style_bg_grad_dir(s_screen,LV_GRAD_DIR_NONE,0);
-    lv_obj_t *label=lbl(s_screen,tr("Téma betöltése…","Loading theme…"),
-                         0,365,APP_FONT_28,0xFFFFFF);
+    /* A betűkészlet nem tartalmaz minden Unicode jelet: három ASCII pont. */
+    lv_obj_t *label=lbl(s_screen,tr("Téma betöltése...","Loading theme..."),
+                         0,339,APP_FONT_28,0xFFFFFF);
     lv_obj_set_width(label,W);
     lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    /* A forgó kör a felirat alatt külön objektum, nem hiányzó betű. */
+    lv_obj_t *spinner=lv_spinner_create(s_screen);
+    lv_obj_set_size(spinner,52,52);
+    lv_obj_set_pos(spinner,(W-52)/2,421);
+    lv_spinner_set_anim_params(spinner,900,90);
+    lv_obj_set_style_arc_width(spinner,5,LV_PART_MAIN);
+    lv_obj_set_style_arc_width(spinner,5,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(spinner,c(0x303A40),LV_PART_MAIN);
+    lv_obj_set_style_arc_color(spinner,c(0x63E0A4),LV_PART_INDICATOR);
+    lv_obj_remove_flag(spinner,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     s_view=VIEW_THEME_LOADING;
 }
 static void template_prepare(void){
@@ -305,22 +279,20 @@ static void template_build(bool night){
         }else if(!strcmp(type,"flow")){
             template_path(node,e);
             const int width=tn(e,"radius",3),glow=tn(e,"glow",0);
-#if LV_USE_SNAPSHOT
-            node->obj=template_flow_cached(node,x,y,w,h,text,width,glow);
-#endif
-            if(!node->obj){
-                /* Tartalékút: a vonalak ekkor is csak egyszer épülnek fel. */
-                if(glow>0)
-                    node->detail=template_flow_object(s_dash,node,x,y,w,h,text,width+glow,24);
-                node->obj=template_flow_object(s_dash,node,x,y,w,h,text,width,LV_OPA_COVER);
-            }
+            if(glow>0)
+                node->detail=template_flow_object(s_dash,node,x,y,w,h,text,width+glow,9);
+            node->obj=template_flow_object(s_dash,node,x,y,w,h,text,width,38);
+            /* Kiemelt fehér mag, színes perem és fényudvar.
+             * A 28 px-es Energiautaknál is jól látszanak a pontok. */
+            int diameter=width>=16?14:11;
             for(int i=0;i<4;i++){
-                node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
-                if(tn(e,"glow",0)>0){
-                    lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
-                    lv_obj_set_style_shadow_width(node->dots[i],tn(e,"glow",8),0);
-                    lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_40,0);
-                }
+                node->dots[i]=shape(s_dash,x,y,diameter,diameter,0xFFFFFF,LV_RADIUS_CIRCLE);
+                lv_obj_set_style_border_width(node->dots[i],2,0);
+                border_color_if_changed(node->dots[i],c(text),0);
+                lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
+                lv_obj_set_style_shadow_width(node->dots[i],glow>0?glow+5:8,0);
+                lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_70,0);
+                lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_HIDDEN);
             }
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
@@ -368,6 +340,13 @@ static void template_build(bool night){
         }
         if(node->obj){lv_obj_remove_flag(node->obj,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(node->obj,LV_OBJ_FLAG_GESTURE_BUBBLE);}
     }
+    /* A pontok mindig a többi grafikus elem fölé kerülnek.
+     * Egy később létrehozott energiaút sem fedheti el őket. */
+    for(unsigned j=0;j<template_node_count;j++){
+        template_node_t *flow=&template_nodes[j];
+        if(strcmp(ts(flow->spec,"type"),"flow"))continue;
+        for(int d=0;d<4;d++)if(flow->dots[d])lv_obj_move_foreground(flow->dots[d]);
+    }
     unsigned n=template_view.catalogue_count;
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
@@ -406,6 +385,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
+        if(!strcmp(type,"flow")){
+            uint32_t flow_color=tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE));
+            template_flow_tone(node,flow_color,fabs(value)>=.001);
+        }
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
@@ -459,8 +442,11 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             if(!strcmp(type,"value"))text_color_if_changed(node->obj,c(color),0);
             if(!strcmp(type,"flow")){
-                /* A raszterizált útvonal statikus; irányváltáskor csak a mozgó pontok színeződnek. */
-                for(int d=0;d<4;d++){bg_color_if_changed(node->dots[d],c(color),0);lv_obj_set_style_shadow_color(node->dots[d],c(color),0);}
+                template_flow_tone(node,color,fabs(value)>=.001);
+                for(int d=0;d<4;d++){
+                    border_color_if_changed(node->dots[d],c(color),0);
+                    style_color_if_changed(node->dots[d],LV_STYLE_SHADOW_COLOR,c(color),0);
+                }
             }
         }
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
@@ -496,8 +482,8 @@ static void template_animate(float dt){
             float position=fmodf(node->phase+d*.25f,1.f)*node->length;unsigned k=0;
             while(k+2<node->point_count&&position>node->segments[k]){position-=node->segments[k];k++;}
             float ratio=node->segments[k]>0?position/node->segments[k]:0;
-            lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)(node->points[k].x+(node->points[k+1].x-node->points[k].x)*ratio)-3,
-                tn(node->spec,"y",0)+(int)(node->points[k].y+(node->points[k+1].y-node->points[k].y)*ratio)-3);
+            lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)(node->points[k].x+(node->points[k+1].x-node->points[k].x)*ratio)-lv_obj_get_width(node->dots[d])/2,
+                tn(node->spec,"y",0)+(int)(node->points[k].y+(node->points[k+1].y-node->points[k].y)*ratio)-lv_obj_get_height(node->dots[d])/2);
         }
     }
 }
