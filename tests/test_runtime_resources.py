@@ -71,6 +71,8 @@ reserve=int(re.search(r'^CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=(\d+)$',config,re
 # Physical startup report: 64 KiB aborts before app_main; previous 32 KiB boots.
 # Bound the setting independently of the implementation's expected literal.
 assert 0 < reserve <= 32*1024, 'Reserve must fit the hardware-validated startup bound'
-assert 'CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL GREATER 32768' in (ROOT/'cmake/hosted_rx.cmake').read_text()
+cmake_guard=(ROOT/'cmake/hosted_rx.cmake').read_text()
+assert 'SDKCONFIG_CMAKE' in cmake_guard and 'include("${hosted_sdkconfig_cmake}")' in cmake_guard
+assert 'CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL GREATER 32768' in cmake_guard
 assert '(10 * 1024 * 1024)' in (ROOT/'tests/preview/lv_conf.h').read_text()
 print(f'PASS: maximum template image working set {max(working_sets)} fits {cache}-byte cache; DMA reserve protected')

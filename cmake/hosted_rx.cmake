@@ -1,3 +1,5 @@
+idf_build_get_property(hosted_sdkconfig_cmake SDKCONFIG_CMAKE)
+include("${hosted_sdkconfig_cmake}")
 # Waveshare P4 v3.2: larger reserve aborts before app_main on this hardware.
 if(CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL GREATER 32768)
     message(FATAL_ERROR "Internal/DMA reserve exceeds validated 32 KiB board limit; 64 KiB causes a boot loop")
