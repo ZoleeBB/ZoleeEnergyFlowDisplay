@@ -298,12 +298,20 @@ static void template_build(bool night){
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     s_dash_created=true;s_view=VIEW_DASHBOARD;
-    if(template_enter_transition){
+    /*
+     * A sok nagy PNG-vel és négy animált energiaúttal rajzolt gyári
+     * témákra ne tegyünk teljes képernyős áttűnést: a 1280x800 képkocka
+     * alfa-kompozitálása és újrarajzolása a lapozást érezhetően lassítja.
+     */
+    bool heavy_transition=!strcmp(template_view.id,"02-energy-paths")||
+                          !strcmp(template_view.id,"06-energy-orbit");
+    if(template_enter_transition && !heavy_transition){
         lv_anim_t anim;lv_anim_init(&anim);lv_anim_set_var(&anim,s_dash);
         lv_anim_set_exec_cb(&anim,template_opacity);lv_anim_set_values(&anim,0,255);
         lv_anim_set_duration(&anim,160);lv_anim_set_path_cb(&anim,lv_anim_path_ease_out);
-        lv_anim_start(&anim);template_enter_transition=false;
+        lv_anim_start(&anim);
     }
+    template_enter_transition=false;
 }
 static void template_gauge_value(void *object,int32_t value){
     lv_arc_set_value(object,value);
