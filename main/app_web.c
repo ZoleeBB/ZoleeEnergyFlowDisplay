@@ -337,8 +337,10 @@ static esp_err_t root_handler(httpd_req_t *req)
         "table{border-collapse:collapse;width:100%}"
         "td{padding:7px;border-bottom:1px solid #eee}"
         "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
-        ".actions{display:flex;gap:10px;flex-wrap:wrap}.actions>a,.actions form{width:210px;margin:0}"
-        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;min-height:42px;box-sizing:border-box;margin:0}"
+        ".actions{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 22px}"
+        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;width:205px;min-height:44px;box-sizing:border-box;margin:0;text-align:center;font:inherit}"
+        ".actions .restart{background:#DE790E;color:white;font-weight:600}"
+        ".actions .restart:hover{background:#B85E06}"
         ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
         "</style></head><body>",
         HTTPD_RESP_USE_STRLEN);
@@ -352,9 +354,20 @@ static esp_err_t root_handler(httpd_req_t *req)
         sizeof(safe_title));
 
     sendf(req, "<h1>%s</h1>", safe_title);
+    /* A négy főművelet együtt, az oldal tetején, az eszközinformációk előtt. */
     httpd_resp_send_chunk(req,s_hu?
-        "<a href='/settings'>Beállítások</a>":
-        "<a href='/settings'>Settings</a>",HTTPD_RESP_USE_STRLEN);
+        "<nav class='actions' aria-label='Eszközműveletek'>"
+        "<a href='/settings'>Beállítások</a>"
+        "<a href='/templates'>Sablonkezelő</a>"
+        "<a href='/update'>Firmware frissítés</a>"
+        "<button class='restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button>"
+        "</nav>":
+        "<nav class='actions' aria-label='Device actions'>"
+        "<a href='/settings'>Settings</a>"
+        "<a href='/templates'>Templates</a>"
+        "<a href='/update'>Firmware update</a>"
+        "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
+        "</nav>",HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
     httpd_resp_send_chunk(
@@ -488,15 +501,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "</div>",
         HTTPD_RESP_USE_STRLEN);
 
-    /* OTA és újraindítási műveletek. */
-    httpd_resp_send_chunk(
-        req,
-        s_hu
-            ? "<div class='card actions'><a href='/templates'>Sablonkezelő</a><a href='/update'>Firmware frissítés</a>"
-              "<button type='button' onclick='restartDevice()'>Eszköz újraindítása</button></div>"
-            : "<div class='card actions'><a href='/templates'>Templates</a><a href='/update'>Firmware update</a>"
-              "<button type='button' onclick='restartDevice()'>Restart device</button></div>",
-        HTTPD_RESP_USE_STRLEN);
+    /* A műveletgombok már az oldal tetején, a Beállítások mellett szerepelnek. */
 
     sendf(req,"<script>document.documentElement.lang='%s';</script>",s_hu?"hu":"en");
     httpd_resp_send_chunk(req,
@@ -551,11 +556,26 @@ static esp_err_t update_get(httpd_req_t *req)
         "<a href='/'>← Eszköz</a><h1>Firmware frissítés</h1><div class='card'>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></div>"
-        "<script>function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
+        "<script>"
+        "function reconnectAfterOta(){"
+        "const status=document.getElementById('s');let left=30;"
+        "status.textContent='Firmware telepítve, az eszköz újraindul. Újracsatlakozás '+left+' s múlva.';"
+        "const timer=setInterval(()=>{left--;"
+        "if(left>0){status.textContent='Újraindítás, kapcsolódás '+left+' s múlva.';return;}"
+        "clearInterval(timer);status.textContent='Kapcsolódás az újraindult eszközhöz…';"
+        "const retry=async()=>{let timerId;"
+        "try{const ac=new AbortController();timerId=setTimeout(()=>ac.abort(),2500);"
+        "const response=await fetch('/?ready='+Date.now(),{cache:'no-store',signal:ac.signal});"
+        "if(response.ok){location.replace('/?ota='+Date.now());return;}"
+        "}catch(e){}finally{clearTimeout(timerId);}"
+        "setTimeout(retry,2000);};retry();"
+        "},1000);"
+        "}"
+        "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
         "if(!f){s.textContent=\"Előbb válassz ki egy firmware-fájlt.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Feltöltés indítása…\";"
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware feltöltése: \"+n+'%';if(n===100)s.textContent=\"Feltöltve. Firmware ellenőrzése az eszközön…\";}};"
-        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;s.textContent=x.responseText+\" A kapcsolat az újraindítás miatt rövidesen megszakad.\";}else{pick.hidden=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
         "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -565,11 +585,26 @@ static esp_err_t update_get(httpd_req_t *req)
         "<a href='/'>← Device</a><h1>Firmware update</h1><div class='card'>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></div>"
-        "<script>function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
+        "<script>"
+        "function reconnectAfterOta(){"
+        "const status=document.getElementById('s');let left=30;"
+        "status.textContent='Firmware installed; restarting. Reconnecting in '+left+' s.';"
+        "const timer=setInterval(()=>{left--;"
+        "if(left>0){status.textContent='Restarting; reconnecting in '+left+' s.';return;}"
+        "clearInterval(timer);status.textContent='Connecting to restarted device…';"
+        "const retry=async()=>{let timerId;"
+        "try{const ac=new AbortController();timerId=setTimeout(()=>ac.abort(),2500);"
+        "const response=await fetch('/?ready='+Date.now(),{cache:'no-store',signal:ac.signal});"
+        "if(response.ok){location.replace('/?ota='+Date.now());return;}"
+        "}catch(e){}finally{clearTimeout(timerId);}"
+        "setTimeout(retry,2000);};retry();"
+        "},1000);"
+        "}"
+        "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
         "if(!f){s.textContent=\"Select a firmware file first.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Starting upload…\";"
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware upload: \"+n+'%';if(n===100)s.textContent=\"Uploaded. Verifying firmware on device…\";}};"
-        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;s.textContent=x.responseText+\" The connection will drop briefly during restart.\";}else{pick.hidden=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
         "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script></body></html>";
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
