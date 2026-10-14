@@ -7,6 +7,7 @@ from pathlib import Path
 import struct
 import zipfile
 from version import validate_tag
+from flash_usb import ESPTOOL_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -59,6 +60,7 @@ def package(build, output, tag, commit):
     portable_manifest['flash_files'] = portable
     files['flasher_args.json'] = encoded(portable_manifest)
     files['flash-sha256.json'] = encoded({name: digest(data) for name, data in files.items()})
+    files['requirements-usb.txt'] = f'esptool=={ESPTOOL_VERSION}\n'.encode('ascii')
     files['flash.py'] = (ROOT / 'tools/release/flash_usb.py').read_bytes()
     files['TELEPITES.md'] = '# Telepítés\n\nLásd: [USB telepítés](docs/usb-install.md) és [SD-kártya](docs/sd-card.md).\n'.encode('utf-8')
     files['README.md'] = (ROOT / 'README.md').read_bytes()
@@ -72,7 +74,7 @@ def package(build, output, tag, commit):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()
     info = {'tag': tag, 'commit': commit, 'target': 'esp32p4', 'board': 'Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1',
-            'esp_idf': description['git_revision'], 'esptool': '5.1.0', 'application_sha256': digest(app),
+            'esp_idf': description['git_revision'], 'esptool': ESPTOOL_VERSION, 'application_sha256': digest(app),
             'flash_files': {address: {'file': name, 'sha256': digest(files[name])} for address, name in portable.items()}}
     files['build-info.json'] = encoded(info)
     output.mkdir(parents=True, exist_ok=True)

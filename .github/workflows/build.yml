@@ -110,7 +110,10 @@ jobs:
       - name: Check USB installer against real build outputs
         run: |
           python3 -m zipfile -e dist/*-usb.zip .usb-check
+          python3 -m pip install -r .usb-check/requirements-usb.txt
+          python3 -m esptool version
           python3 .usb-check/flash.py --port TEST --dry-run
+          python3 .usb-check/flash.py --port TEST --no-stub --manual-boot --dry-run
 
       - name: Upload firmware packages
         uses: actions/upload-artifact@v4

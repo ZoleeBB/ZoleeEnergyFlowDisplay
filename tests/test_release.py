@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'tools/release'))
 from version import validate_tag
 from package import package
-from flash_usb import command
+from flash_usb import command, ESPTOOL_VERSION, DEFAULT_BAUD
+import flash_usb
 from publish import publish
 
 
@@ -88,6 +89,40 @@ class ReleaseTests(unittest.TestCase):
         subprocess.run([sys.executable,str(unpack/'flash.py'),'--port','COM5','--dry-run'],check=True,stdout=subprocess.DEVNULL)
         (unpack/'ota_data_initial.bin').write_bytes(b'corrupt')
         with self.assertRaises(ValueError):command(unpack,'COM5',115200)
+
+    def test_usb_v32_modes_and_tool_version(self):
+        self.manifest['extra_esptool_args']['stub'] = True
+        (self.build/'flasher_args.json').write_text(json.dumps(self.manifest))
+        self.pack()
+        unpack = self.root/'usb'
+        with zipfile.ZipFile(next(self.out.glob('*-usb.zip'))) as z: z.extractall(unpack)
+        self.assertEqual((unpack/'requirements-usb.txt').read_text(), f'esptool=={ESPTOOL_VERSION}\n')
+        self.assertEqual(json.loads((unpack/'build-info.json').read_text())['esptool'], ESPTOOL_VERSION)
+        normal = command(unpack, 'COM3', DEFAULT_BAUD)
+        self.assertNotIn('--no-stub', normal)
+        self.assertEqual(normal[normal.index('--baud')+1], '115200')
+        fallback = command(unpack, 'COM3', DEFAULT_BAUD, no_stub=True, manual_boot=True)
+        self.assertIn('--no-stub', fallback)
+        self.assertEqual(fallback[fallback.index('--before')+1], 'no-reset')
+        self.assertEqual(fallback[fallback.index('--after')+1], 'no-reset')
+        for offset, name in self.flash.items():
+            self.assertEqual(normal[normal.index(offset)+1], fallback[fallback.index(offset)+1])
+        with patch.object(sys, 'argv', ['flash.py', '--port', 'COM3']), patch.object(flash_usb, 'command', return_value=normal), patch.object(flash_usb.importlib.metadata, 'version', return_value='5.1.0'), patch.object(flash_usb.subprocess, 'run') as run:
+            with self.assertRaises(SystemExit) as caught: flash_usb.main()
+            self.assertIn(ESPTOOL_VERSION, str(caught.exception))
+            run.assert_not_called()
+        with patch.object(sys, 'argv', ['flash.py', '--port', 'COM3']), patch.object(flash_usb, 'command', return_value=normal), patch.object(flash_usb.importlib.metadata, 'version', return_value=ESPTOOL_VERSION), patch.object(flash_usb.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            flash_usb.main()
+            run.assert_called_once_with(normal, check=False)
+        manifest = json.loads((unpack/'flasher_args.json').read_text())
+        manifest['flash_files']['0x1000000'] = 'app.bin'
+        (unpack/'flasher_args.json').write_text(json.dumps(manifest))
+        hashes = json.loads((unpack/'flash-sha256.json').read_text())
+        hashes['flasher_args.json'] = hashlib.sha256((unpack/'flasher_args.json').read_bytes()).hexdigest()
+        (unpack/'flash-sha256.json').write_text(json.dumps(hashes))
+        with self.assertRaisesRegex(ValueError, '16 MiB'): command(unpack, 'COM3', DEFAULT_BAUD, no_stub=True)
+        self.assertIn('0x1000000', command(unpack, 'COM3', DEFAULT_BAUD))
 
     def test_bad_build(self):
         (self.build/'ota_data_initial.bin').unlink()
