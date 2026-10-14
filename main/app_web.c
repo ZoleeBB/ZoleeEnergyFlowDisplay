@@ -329,7 +329,7 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* Az oldal alapszerkezete és egyszerű, külső erőforrás nélküli stílusa. */
     httpd_resp_send_chunk(
         req,
-        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<!doctype html><html lang='hu'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<style>"
         "body{font-family:system-ui;margin:28px;max-width:900px;background:#f7f8fa;color:#17202a}"
@@ -338,7 +338,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "td{padding:7px;border-bottom:1px solid #eee}"
         "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
         ".actions{display:flex;gap:10px;flex-wrap:wrap}.actions>a,.actions form{width:210px;margin:0}"
-        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;width:100%;min-height:42px;box-sizing:border-box;margin:0}"
+        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;min-height:42px;box-sizing:border-box;margin:0}"
         ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
         "</style></head><body>",
         HTTPD_RESP_USE_STRLEN);
@@ -493,14 +493,39 @@ static esp_err_t root_handler(httpd_req_t *req)
         req,
         s_hu
             ? "<div class='card actions'><a href='/templates'>Sablonkezelő</a><a href='/update'>Firmware frissítés</a>"
-              "<form method='post' action='/reboot' "
-              "onsubmit=\"return confirm('Biztosan újraindítod az eszközt?')\">"
-              "<button type='submit'>Eszköz újraindítása</button></form></div>"
+              "<button type='button' onclick='restartDevice()'>Eszköz újraindítása</button></div>"
             : "<div class='card actions'><a href='/templates'>Templates</a><a href='/update'>Firmware update</a>"
-              "<form method='post' action='/reboot' "
-              "onsubmit=\"return confirm('Restart the device?')\">"
-              "<button type='submit'>Restart device</button></form></div>",
+              "<button type='button' onclick='restartDevice()'>Restart device</button></div>",
         HTTPD_RESP_USE_STRLEN);
+
+    httpd_resp_send_chunk(req,
+        "<div id='reboot-mask' hidden style='position:fixed;inset:0;background:#000;color:#fff;"
+        "z-index:999;display:none;align-items:center;justify-content:center;text-align:center'>"
+        "<div><h1 id='reboot-title'></h1><p id='reboot-state'></p>"
+        "<p id='reboot-countdown' style='font-size:28px'></p></div></div>"
+        "<script>"
+        "async function restartDevice(){"
+        "const hu=document.documentElement.lang!=='en';"
+        "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
+        "const m=document.getElementById('reboot-mask');m.style.display='flex';"
+        "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
+        "const status=document.getElementById('reboot-state');"
+        "const counter=document.getElementById('reboot-countdown');"
+        "status.textContent=hu?'Statisztika mentése és az eszköz újraindítása…':'Saving statistics and restarting…';"
+        "try{const r=await fetch('/reboot',{method:'POST'});if(!r.ok)throw Error(await r.text());}"
+        "catch(e){status.textContent=(hu?'Újraindítási hiba: ':'Restart error: ')+e.message;return;}"
+        "let remaining=20,started=Date.now(),offline=false;"
+        "const tick=async()=>{remaining=Math.max(0,20-Math.floor((Date.now()-started)/1000));"
+        "counter.textContent=remaining>0?(hu?'Visszaszámlálás: ':'Countdown: ')+remaining+' s':'';"
+        "if(remaining>0){setTimeout(tick,1000);return;}"
+        "status.textContent=hu?'Kapcsolódás az újraindult eszközhöz…':'Reconnecting to device…';"
+        "const probe=async()=>{try{const c=new AbortController();"
+        "const t=setTimeout(()=>c.abort(),1800);"
+        "const r=await fetch('/api/settings?ping='+Date.now(),{cache:'no-store',signal:c.signal});"
+        "clearTimeout(t);if(r.ok){location.href='/';return;} }catch(e){}"
+        "setTimeout(probe,2000);};probe();};tick();"
+        "}"
+        "</script>",HTTPD_RESP_USE_STRLEN);
 
     /* A chunked HTTP választ nulla hosszú chunk zárja le. */
     if (httpd_resp_send_chunk(
