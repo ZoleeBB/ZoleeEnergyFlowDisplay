@@ -160,13 +160,37 @@ static uint32_t tone(uint32_t color,bool night){
     return color;
 }
 
+/* Csak saját, azonos selectorú stílusértéket hagyunk ki: az öröklésből
+ * származó egyezés nem helyettesíti a kívánt explicit lokális beállítást. */
+static void style_color_if_changed(lv_obj_t *obj, lv_style_prop_t prop,
+                                  lv_color_t color, lv_style_selector_t selector)
+{
+    lv_style_value_t old;
+    if (lv_obj_get_local_style_prop(obj,prop,&old,selector)==LV_STYLE_RES_FOUND && lv_color_eq(old.color,color)) return;
+    lv_style_value_t value={.color=color};lv_obj_set_local_style_prop(obj,prop,value,selector);
+}
+static void style_number_if_changed(lv_obj_t *obj, lv_style_prop_t prop,
+                                   int32_t number, lv_style_selector_t selector)
+{
+    lv_style_value_t old;
+    if (lv_obj_get_local_style_prop(obj,prop,&old,selector)==LV_STYLE_RES_FOUND && old.num==number) return;
+    lv_style_value_t value={.num=number};lv_obj_set_local_style_prop(obj,prop,value,selector);
+}
+#define text_color_if_changed(o,v,s) style_color_if_changed(o,LV_STYLE_TEXT_COLOR,v,s)
+#define bg_color_if_changed(o,v,s) style_color_if_changed(o,LV_STYLE_BG_COLOR,v,s)
+#define border_color_if_changed(o,v,s) style_color_if_changed(o,LV_STYLE_BORDER_COLOR,v,s)
+#define opa_if_changed(o,v,s) style_number_if_changed(o,LV_STYLE_OPA,v,s)
+#define bg_opa_if_changed(o,v,s) style_number_if_changed(o,LV_STYLE_BG_OPA,v,s)
+#define border_opa_if_changed(o,v,s) style_number_if_changed(o,LV_STYLE_BORDER_OPA,v,s)
+#define text_opa_if_changed(o,v,s) style_number_if_changed(o,LV_STYLE_TEXT_OPA,v,s)
+
 /* Teljes képernyős háttér alapstílusa. */
-static void screen_style(lv_obj_t *o,bool night){lv_obj_set_style_bg_color(o,c(night?BG_DARK:BG_LIGHT),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_pad_all(o,0,0);}
+static void screen_style(lv_obj_t *o,bool night){bg_color_if_changed(o,c(night?BG_DARK:BG_LIGHT),0);bg_opa_if_changed(o,LV_OPA_COVER,0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_pad_all(o,0,0);}
 /* Közös kártyastílus: háttér, keret, lekerekítés és nappali árnyék. */
 static void card_style(lv_obj_t *o,bool night){
-    lv_obj_set_style_bg_color(o,c(night?CARD_DARK:CARD_LIGHT),0);
-    lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
-    lv_obj_set_style_border_color(o,c(night?0x26302A:0xE4E9EB),0);
+    bg_color_if_changed(o,c(night?CARD_DARK:CARD_LIGHT),0);
+    bg_opa_if_changed(o,LV_OPA_COVER,0);
+    border_color_if_changed(o,c(night?0x26302A:0xE4E9EB),0);
     lv_obj_set_style_border_width(o,1,0);
     lv_obj_set_style_radius(o,18,0);
     lv_obj_set_style_pad_all(o,12,0);
@@ -175,8 +199,15 @@ static void card_style(lv_obj_t *o,bool night){
     lv_obj_set_style_shadow_ofs_y(o,night?0:4,0);
     lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE);
 }
+/* A változatlan szöveg ne foglaljon memóriát és ne érvénytelenítse a rajzterületet. */
+static void label_text_if_changed(lv_obj_t *label, const char *text)
+{
+    if (!text || strcmp(lv_label_get_text(label), text) != 0) {
+        lv_label_set_text(label, text);
+    }
+}
 /* Egységes LVGL címke létrehozása pozícióval, fonttal és színnel. */
-static lv_obj_t *lbl(lv_obj_t *p,const char *txt,int x,int y,const lv_font_t *font,uint32_t color){lv_obj_t *l=lv_label_create(p);lv_label_set_text(l,txt?txt:"");lv_obj_set_pos(l,x,y);if(font)lv_obj_set_style_text_font(l,font,0);lv_obj_set_style_text_color(l,c(color),0);return l;}
+static lv_obj_t *lbl(lv_obj_t *p,const char *txt,int x,int y,const lv_font_t *font,uint32_t color){lv_obj_t *l=lv_label_create(p);label_text_if_changed(l,txt?txt:"");lv_obj_set_pos(l,x,y);if(font)lv_obj_set_style_text_font(l,font,0);text_color_if_changed(l,c(color),0);return l;}
 /* Az érték nem lóghat át a szomszédos kártyába; a legnagyobb elférő fontot választjuk. */
 static void fit_text(lv_obj_t *label,const char *text,int width,const lv_font_t *preferred)
 {
@@ -189,10 +220,10 @@ static void fit_text(lv_obj_t *label,const char *text,int width,const lv_font_t 
         lv_text_get_size(&size,text,fonts[i],0,0,32767,LV_TEXT_FLAG_NONE);
         if(size.x<=width){chosen=fonts[i];break;}
     }
-    lv_obj_set_width(label,width);
-    lv_obj_set_style_text_font(label,chosen,0);
-    lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
-    lv_label_set_text(label,text);
+    if(lv_obj_get_style_width(label,0)!=width)lv_obj_set_width(label,width);
+    if(lv_obj_get_style_text_font(label,0)!=chosen)lv_obj_set_style_text_font(label,chosen,0);
+    if(lv_label_get_long_mode(label)!=LV_LABEL_LONG_MODE_DOTS)lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+    label_text_if_changed(label,text);
 }
 
 /* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
@@ -216,8 +247,8 @@ static lv_obj_t *shape(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,i
     lv_obj_t *obj=lv_obj_create(parent);
     lv_obj_set_pos(obj,x,y);
     lv_obj_set_size(obj,w,h);
-    lv_obj_set_style_bg_color(obj,c(color),0);
-    lv_obj_set_style_bg_opa(obj,LV_OPA_COVER,0);
+    bg_color_if_changed(obj,c(color),0);
+    bg_opa_if_changed(obj,LV_OPA_COVER,0);
     lv_obj_set_style_border_width(obj,0,0);
     lv_obj_set_style_radius(obj,radius,0);
     lv_obj_set_style_pad_all(obj,0,0);
@@ -238,7 +269,7 @@ static lv_obj_t *asset_image_box(
     lv_obj_t *box=lv_obj_create(parent);
     lv_obj_set_pos(box,x,y);
     lv_obj_set_size(box,box_size,box_size);
-    lv_obj_set_style_bg_opa(box,LV_OPA_TRANSP,0);
+    bg_opa_if_changed(box,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(box,0,0);
     lv_obj_set_style_pad_all(box,0,0);
     lv_obj_remove_flag(box,LV_OBJ_FLAG_SCROLLABLE);
@@ -253,7 +284,7 @@ static lv_obj_t *asset_image_box(
         (uint32_t)(
             (image_size*256U+source_width/2U)/
             source_width));
-    lv_obj_set_style_opa(
+    opa_if_changed(
         image,
         night?LV_OPA_80:LV_OPA_COVER,
         0);
@@ -292,7 +323,7 @@ static void weather_render(weather_kind_t kind,bool night)
         s_weather_icon,
         weather_asset(kind));
 
-    lv_obj_set_style_opa(
+    opa_if_changed(
         s_weather_icon,
         night?LV_OPA_80:LV_OPA_COVER,
         0);
@@ -337,8 +368,8 @@ static lv_obj_t *icon_bubble(
     lv_obj_set_size(bubble,size,size);
     lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(bubble,0,0);
-    lv_obj_set_style_bg_color(bubble,c(tone(accent,night)),0);
-    lv_obj_set_style_bg_opa(bubble,night?LV_OPA_10:LV_OPA_20,0);
+    bg_color_if_changed(bubble,c(tone(accent,night)),0);
+    bg_opa_if_changed(bubble,night?LV_OPA_10:LV_OPA_20,0);
     lv_obj_set_style_pad_all(bubble,0,0);
     lv_obj_remove_flag(bubble,LV_OBJ_FLAG_SCROLLABLE);
 
@@ -372,10 +403,10 @@ static lv_obj_t *energy_circle(
         center_y-size/2);
     lv_obj_set_size(outer,size,size);
     lv_obj_set_style_radius(outer,LV_RADIUS_CIRCLE,0);
-    lv_obj_set_style_bg_color(outer,c(night?0x202B30:0xF2FBFE),0);
-    lv_obj_set_style_bg_opa(outer,LV_OPA_COVER,0);
+    bg_color_if_changed(outer,c(night?0x202B30:0xF2FBFE),0);
+    bg_opa_if_changed(outer,LV_OPA_COVER,0);
     lv_obj_set_style_border_width(outer,4,0);
-    lv_obj_set_style_border_color(outer,c(tone(accent,night)),0);
+    border_color_if_changed(outer,c(tone(accent,night)),0);
     lv_obj_set_style_shadow_width(outer,12,0);
     lv_obj_set_style_shadow_opa(outer,LV_OPA_10,0);
     lv_obj_set_style_pad_all(outer,0,0);
@@ -438,7 +469,7 @@ static void flow_update(flow_t *f,double kw,bool forward,uint32_t color,bool nig
      */
     uint32_t shown=flow_color(kw,color,night);
     lv_obj_set_style_line_color(f->line,c(shown),0);f->phase=app_flow_advance(f->phase,kw,forward,dt);
-    for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);lv_obj_set_style_bg_color(f->dots[i],c(shown),0);lv_obj_set_style_bg_opa(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
+    for(int i=0;i<3;i++){float t=f->phase+i/3.0f;while(t>=1)t-=1;int x=(int)lroundf(f->x1+(f->x2-f->x1)*t),y=(int)lroundf(f->y1+(f->y2-f->y1)*t);lv_obj_set_pos(f->dots[i],x-4,y-4);bg_color_if_changed(f->dots[i],c(shown),0);bg_opa_if_changed(f->dots[i],LV_OPA_COVER,0);lv_obj_clear_flag(f->dots[i],LV_OBJ_FLAG_HIDDEN);}
 }
 /* Bal oldali, nagy napi mutatókártya az eredeti látványterv vizuális hierarchiájával. */
 static lv_obj_t *metric_card(
@@ -514,7 +545,7 @@ static lv_obj_t *summary_metric(
     lv_obj_set_pos(segment,x,0);
     lv_obj_set_size(segment,width,98);
     const int top=(98-(52+APP_FONT_14->line_height))/2;
-    lv_obj_set_style_bg_opa(segment,LV_OPA_TRANSP,0);
+    bg_opa_if_changed(segment,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(segment,0,0);
     lv_obj_set_style_pad_all(segment,0,0);
     lv_obj_remove_flag(segment,LV_OBJ_FLAG_SCROLLABLE);
@@ -781,11 +812,11 @@ static void build_dashboard(bool night)
     lv_obj_set_size(s_battery_bar,4,46);
     lv_bar_set_orientation(s_battery_bar,LV_BAR_ORIENTATION_VERTICAL);
     lv_bar_set_range(s_battery_bar,0,100);
-    lv_obj_set_style_bg_color(
+    bg_color_if_changed(
         s_battery_bar,
         c(night?0x29302C:0xE4E9E6),
         LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(
+    bg_opa_if_changed(
         s_battery_bar,
         LV_OPA_COVER,
         LV_PART_MAIN);
@@ -1055,7 +1086,7 @@ static void build_dashboard(bool night)
     lv_obj_set_pos(s_status_card,944,0);
     lv_obj_set_size(s_status_card,280,98);
     const int status_top=(98-(52+APP_FONT_12->line_height))/2;
-    lv_obj_set_style_bg_opa(s_status_card,LV_OPA_TRANSP,0);
+    bg_opa_if_changed(s_status_card,LV_OPA_TRANSP,0);
     lv_obj_set_style_border_width(s_status_card,0,0);
     lv_obj_set_style_radius(s_status_card,14,0);
     lv_obj_set_style_pad_all(s_status_card,0,0);
@@ -1074,7 +1105,7 @@ static void build_dashboard(bool night)
     lv_obj_set_size(s_status_bubble,54,54);
     lv_obj_set_style_radius(s_status_bubble,LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_border_width(s_status_bubble,0,0);
-    lv_obj_set_style_bg_opa(s_status_bubble,night?LV_OPA_10:LV_OPA_20,0);
+    bg_opa_if_changed(s_status_bubble,night?LV_OPA_10:LV_OPA_20,0);
     lv_obj_set_style_pad_all(s_status_bubble,0,0);
     lv_obj_remove_flag(s_status_bubble,LV_OBJ_FLAG_SCROLLABLE);
 
@@ -1141,7 +1172,7 @@ static void metric(
     fit_text(s_metric[index],value,index<4?190:162,index<4?APP_FONT_28:APP_FONT_20);
 
     if(!have_yesterday){
-        lv_label_set_text(s_cmp[index],"");
+        label_text_if_changed(s_cmp[index],"");
         if(s_cmp_note[index]){
             lv_obj_add_flag(
                 s_cmp_note[index],
@@ -1165,7 +1196,7 @@ static void metric(
 
     fit_text(s_cmp[index],comparison,index<4?190:162,APP_FONT_14);
 
-    lv_obj_set_style_text_color(
+    text_color_if_changed(
         s_cmp[index],
         c(tone(cmp_color(today,yesterday),s_last_night)),
         0);
@@ -1185,12 +1216,12 @@ static void charts(const app_stats_snapshot_t *st)
     }
     max_production=ceil(max_production);max_consumption=ceil(max_consumption);
     char text[20];
-    fmt_dec(text,sizeof(text),max_production,0);lv_label_set_text(s_chart1_y_top,text);
-    fmt_dec(text,sizeof(text),max_production/2.,1);lv_label_set_text(s_chart1_y_mid,text);
-    lv_label_set_text(s_chart1_y_bottom,"0");
-    fmt_dec(text,sizeof(text),max_consumption,0);lv_label_set_text(s_chart2_y_top,text);
-    fmt_dec(text,sizeof(text),max_consumption/2.,1);lv_label_set_text(s_chart2_y_mid,text);
-    lv_label_set_text(s_chart2_y_bottom,"0");
+    fmt_dec(text,sizeof(text),max_production,0);label_text_if_changed(s_chart1_y_top,text);
+    fmt_dec(text,sizeof(text),max_production/2.,1);label_text_if_changed(s_chart1_y_mid,text);
+    label_text_if_changed(s_chart1_y_bottom,"0");
+    fmt_dec(text,sizeof(text),max_consumption,0);label_text_if_changed(s_chart2_y_top,text);
+    fmt_dec(text,sizeof(text),max_consumption/2.,1);label_text_if_changed(s_chart2_y_mid,text);
+    label_text_if_changed(s_chart2_y_bottom,"0");
     app_chart_update(s_chart1,st,max_production,minutes);
     app_chart_update(s_chart2,st,max_consumption,minutes);
 }
@@ -1249,11 +1280,11 @@ static void update_flows(const app_energy_sample_t *s,float dt)
         s->night_mode,
         dt);
 
-    lv_obj_set_style_border_color(s_pv_node,
+    border_color_if_changed(s_pv_node,
         c(flow_color(s->power_pv_kw,GREEN,s->night_mode)),0);
-    lv_obj_set_style_border_color(s_battery_node,
+    border_color_if_changed(s_battery_node,
         c(flow_color(s->power_bat_kw,s->power_bat_kw<0?GREEN:ORANGE,s->night_mode)),0);
-    lv_obj_set_style_border_color(s_home_node,
+    border_color_if_changed(s_home_node,
         c(flow_color(s->power_full_kw,ORANGE,s->night_mode)),0);
 
     /*
@@ -1275,12 +1306,12 @@ static void update_flows(const app_energy_sample_t *s,float dt)
             s_grid_icon,
             &app_img_grid_off);
 
-        lv_obj_set_style_opa(
+        opa_if_changed(
             s_grid_icon,
             s->night_mode?LV_OPA_70:LV_OPA_COVER,
             0);
 
-        lv_obj_set_style_border_color(
+        border_color_if_changed(
             s_grid_node,
             c(flow_color(0,GREEN,s->night_mode)),
             0);
@@ -1304,12 +1335,12 @@ static void update_flows(const app_energy_sample_t *s,float dt)
             s_grid_icon,
             &app_img_grid);
 
-        lv_obj_set_style_opa(
+        opa_if_changed(
             s_grid_icon,
             s->night_mode?LV_OPA_80:LV_OPA_COVER,
             0);
 
-        lv_obj_set_style_border_color(
+        border_color_if_changed(
             s_grid_node,
             c(flow_color(s->power_grid_kw,grid_color,s->night_mode)),
             0);
@@ -1341,17 +1372,17 @@ static void animation_tick(lv_timer_t *timer)
         float wave=(sinf(now/1000000.f*3.14159265f)+1.f)*.5f;
         /* Pulse only the coloured border; group opacity creates an offscreen
          * layer around the PNG and can leave a flashing rectangular edge. */
-        lv_obj_set_style_border_opa(s_error_pulse,(lv_opa_t)(175+65*wave),0);
+        border_opa_if_changed(s_error_pulse,(lv_opa_t)(175+65*wave),0);
     }
 }
 
 /* Egy érvényes minta és statisztikai snapshot alapján minden dashboard-elem frissítése. */
 static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);char b[96],q[32];
-    strftime(q,sizeof(q),"%H:%M",&tmv);lv_label_set_text(s_clock,q);
+    strftime(q,sizeof(q),"%H:%M",&tmv);label_text_if_changed(s_clock,q);
     if(hu())snprintf(q,sizeof(q),"%04d.%02d.%02d.",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);
     else snprintf(q,sizeof(q),"%04d-%02d-%02d",tmv.tm_year+1900,tmv.tm_mon+1,tmv.tm_mday);
-    lv_label_set_text(s_date,q);
+    label_text_if_changed(s_date,q);
 
     weather_visibility(lv_obj_get_parent(s_weather_icon),weather_available(s));
     weather_visibility(lv_obj_get_parent(s_wind_icon),s->wind_speed_valid);
@@ -1368,25 +1399,25 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
         lv_obj_set_style_text_font(s_wind_speed,APP_FONT_WIND_BOLD_16,0);
     const uint32_t wind_color=s->wind_speed_kmh>50.0?RED:
         s->wind_speed_kmh>35.0?ORANGE:(s->night_mode?TEXT_DARK:TEXT_LIGHT);
-    lv_obj_set_style_text_color(s_wind_speed,c(tone(wind_color,s->night_mode)),0);
-    fmt_power(q,sizeof(q),s->power_pv_kw);lv_label_set_text(s_pv,q);
-    fmt_power(q,sizeof(q),s->power_full_kw);lv_label_set_text(s_home,q);
-    fmt_power(q,sizeof(q),s->power_bat_kw);lv_label_set_text(s_bat,q);
-    fmt_power(q,sizeof(q),s->power_grid_kw);lv_label_set_text(s_grid,q);
-    fmt_pct(q,sizeof(q),s->soc_bat_pct);lv_label_set_text(s_soc,q);
-    snprintf(q,sizeof(q),"%d °C",(int)lround(s->battery_temperature_c));lv_label_set_text(s_bt,q);
+    text_color_if_changed(s_wind_speed,c(tone(wind_color,s->night_mode)),0);
+    fmt_power(q,sizeof(q),s->power_pv_kw);label_text_if_changed(s_pv,q);
+    fmt_power(q,sizeof(q),s->power_full_kw);label_text_if_changed(s_home,q);
+    fmt_power(q,sizeof(q),s->power_bat_kw);label_text_if_changed(s_bat,q);
+    fmt_power(q,sizeof(q),s->power_grid_kw);label_text_if_changed(s_grid,q);
+    fmt_pct(q,sizeof(q),s->soc_bat_pct);label_text_if_changed(s_soc,q);
+    snprintf(q,sizeof(q),"%d °C",(int)lround(s->battery_temperature_c));label_text_if_changed(s_bt,q);
 
     uint32_t bt_color=s->battery_temperature_c>50?RED:(s->battery_temperature_c>40?ORANGE:(s->night_mode?MUTED_DARK:MUTED_LIGHT));
-    lv_obj_set_style_text_color(s_bt,c(tone(bt_color,s->night_mode)),0);
+    text_color_if_changed(s_bt,c(tone(bt_color,s->night_mode)),0);
 
     lv_bar_set_value(s_battery_bar,(int32_t)lround(s->soc_bat_pct),LV_ANIM_OFF);
     uint32_t soc_color=battery_color(s->soc_bat_pct);
-    lv_obj_set_style_bg_color(
+    bg_color_if_changed(
         s_battery_bar,
         c(tone(soc_color,s->night_mode)),
         LV_PART_INDICATOR);
 
-    lv_obj_set_style_opa(
+    opa_if_changed(
         s_bat_icon,
         s->night_mode?LV_OPA_80:LV_OPA_COVER,
         0);
@@ -1418,15 +1449,15 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     if(st->has_yesterday){
         fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh);
         fit_text(s_bat_charge_cmp,q,94,APP_FONT_12);
-        lv_obj_set_style_text_color(s_bat_charge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh),s->night_mode)),0);
+        text_color_if_changed(s_bat_charge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh),s->night_mode)),0);
         fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh);
         fit_text(s_bat_discharge_cmp,q,94,APP_FONT_12);
-        lv_obj_set_style_text_color(s_bat_discharge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh),s->night_mode)),0);
+        text_color_if_changed(s_bat_discharge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh),s->night_mode)),0);
     }else{
-        lv_label_set_text(s_bat_charge_cmp,"—");
-        lv_obj_set_style_text_color(s_bat_charge_cmp,c(tone(GRAY,s->night_mode)),0);
-        lv_label_set_text(s_bat_discharge_cmp,"—");
-        lv_obj_set_style_text_color(s_bat_discharge_cmp,c(tone(GRAY,s->night_mode)),0);
+        label_text_if_changed(s_bat_charge_cmp,"—");
+        text_color_if_changed(s_bat_charge_cmp,c(tone(GRAY,s->night_mode)),0);
+        label_text_if_changed(s_bat_discharge_cmp,"—");
+        text_color_if_changed(s_bat_discharge_cmp,c(tone(GRAY,s->night_mode)),0);
     }
 
     const char *stxt;
@@ -1464,7 +1495,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
 
     /* Az állapot PNG saját, a mockuphoz illeszkedő színezést tartalmaz. */
 
-    lv_obj_set_style_text_color(
+    text_color_if_changed(
         s_status,
         c(tone(status_color,s->night_mode)),
         0);
@@ -1479,12 +1510,12 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
         s_status_icon,
         status_asset);
 
-    lv_obj_set_style_opa(
+    opa_if_changed(
         s_status_icon,
         s->night_mode?LV_OPA_80:LV_OPA_COVER,
         0);
 
-    lv_obj_set_style_bg_color(
+    bg_color_if_changed(
         s_status_bubble,
         c(tone(status_color,s->night_mode)),
         0);
@@ -1518,15 +1549,15 @@ static void error_screen(
         lv_obj_set_pos(s_error_pulse,574,154);
         lv_obj_set_style_radius(s_error_pulse,LV_RADIUS_CIRCLE,0);
         lv_obj_set_style_border_width(s_error_pulse,1,0);
-        lv_obj_set_style_border_color(
+        border_color_if_changed(
             s_error_pulse,
             c(fatal?RED:ORANGE),
             0);
-        lv_obj_set_style_bg_color(
+        bg_color_if_changed(
             s_error_pulse,
             c(fatal?0x321716:0x332619),
             0);
-        lv_obj_set_style_bg_opa(
+        bg_opa_if_changed(
             s_error_pulse,
             LV_OPA_60,
             0);
@@ -1592,7 +1623,9 @@ static void initial_refresh_report(lv_event_t *event)
 
 /* Waveshare BSP kijelző és LVGL inicializálása fix 1280x800 fekvő tájolásban. */
 esp_err_t app_ui_init(void){
-    bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=0,.mirror_x=0,.mirror_y=0}};
+    /* Inverse of pixel rotation: logical x=raw y, logical y=800-raw x.
+     * The touch driver mirrors native X before swapping the axes. */
+    bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=1,.mirror_x=1,.mirror_y=0}};
     /* Synchronous PNG/vector drawing runs on this task, rather than 32 KB
      * drawing threads. Keep its stack in PSRAM, preserving internal DMA RAM. */
     cfg.lv_adapter_cfg.task_stack_size = 32768;
@@ -1734,7 +1767,7 @@ void app_ui_show_boot(
                 10,
                 0xC8D0D4,
                 LV_RADIUS_CIRCLE);
-            lv_obj_set_style_bg_opa(dot,LV_OPA_COVER,0);
+            bg_opa_if_changed(dot,LV_OPA_COVER,0);
         }
 
         lbl(

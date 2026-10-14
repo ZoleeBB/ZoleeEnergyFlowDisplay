@@ -13,7 +13,7 @@ static unsigned template_catalogue_count(void){return template_view.catalogue_co
 static template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
-static void template_opacity(void *obj,int32_t value){lv_obj_set_style_opa(obj,value,0);}
+static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return template_view.document!=NULL;}
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
@@ -150,10 +150,10 @@ static void template_build(bool night){
     clear();template_node_count=0;template_chart_time=0;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
     /* Az áttűnés alatt is a cél háttér látszik: sötét témában nincs fehér villanás. */
-    screen_style(s_screen,night);lv_obj_set_style_bg_color(s_screen,c(tc(scene,"background",night?BG_DARK:BG_LIGHT)),0);
+    screen_style(s_screen,night);bg_color_if_changed(s_screen,c(tc(scene,"background",night?BG_DARK:BG_LIGHT)),0);
     s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
     lv_obj_set_style_radius(s_dash,0,0);
-    lv_obj_set_style_bg_color(s_dash,c(tc(scene,"background",BG_LIGHT)),0);
+    bg_color_if_changed(s_dash,c(tc(scene,"background",BG_LIGHT)),0);
     if(*ts(scene,"gradient")){
         lv_obj_set_style_bg_grad_color(s_dash,c(tc(scene,"gradient",BG_LIGHT)),0);
         lv_obj_set_style_bg_grad_dir(s_dash,LV_GRAD_DIR_HOR,0);
@@ -170,7 +170,7 @@ static void template_build(bool night){
                 node->detail=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",
                     x+offset,y+offset,tf(tn(e,"font",20)),0x000000);
                 lv_obj_set_size(node->detail,w,h);lv_label_set_long_mode(node->detail,LV_LABEL_LONG_MODE_DOTS);
-                lv_obj_set_style_text_opa(node->detail,tn(e,"shadow_opacity",100),0);
+                text_opa_if_changed(node->detail,tn(e,"shadow_opacity",100),0);
                 if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->detail,LV_TEXT_ALIGN_CENTER,0);
             }
             node->obj=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",x,y,tf(tn(e,"font",20)),text);
@@ -205,21 +205,21 @@ static void template_build(bool night){
             lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",20),0);
         }else if(!strcmp(type,"bar")){
             node->obj=lv_bar_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_bar_set_range(node->obj,0,tn(e,"max",100));
-            lv_obj_set_style_bg_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?0x24312D:0xE2EAE5)),0);
+            bg_color_if_changed(node->obj,c(text),LV_PART_INDICATOR);bg_color_if_changed(node->obj,c(tc(e,"background",night?0x24312D:0xE2EAE5)),0);
             if(*ts(e,"outline_color")){
                 for(int part=0;part<2;part++){lv_style_selector_t selector=part?LV_PART_INDICATOR:LV_PART_MAIN;
-                    lv_obj_set_style_border_width(node->obj,1,selector);lv_obj_set_style_border_color(node->obj,c(tc(e,"outline_color",0)),selector);}
+                    lv_obj_set_style_border_width(node->obj,1,selector);border_color_if_changed(node->obj,c(tc(e,"outline_color",0)),selector);}
             }
         }else if(!strcmp(type,"gauge")){
             if(*ts(e,"outline_color")){
                 node->detail=lv_arc_create(s_dash);lv_obj_set_pos(node->detail,x-1,y-1);lv_obj_set_size(node->detail,w+2,h+2);lv_arc_set_range(node->detail,0,tn(e,"max",15)*10);
                 lv_arc_set_bg_angles(node->detail,135,405);
                 for(int part=0;part<2;part++){lv_style_selector_t selector=part?LV_PART_INDICATOR:LV_PART_MAIN;lv_obj_set_style_arc_color(node->detail,c(tc(e,"outline_color",0)),selector);lv_obj_set_style_arc_width(node->detail,part?16:14,selector);}
-                lv_obj_set_style_opa(node->detail,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_remove_flag(node->detail,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+                opa_if_changed(node->detail,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_remove_flag(node->detail,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
             }
             node->obj=lv_arc_create(s_dash);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);lv_arc_set_range(node->obj,0,tn(e,"max",15)*10);
             lv_arc_set_bg_angles(node->obj,135,405);lv_obj_set_style_arc_color(node->obj,c(text),LV_PART_INDICATOR);lv_obj_set_style_arc_width(node->obj,14,LV_PART_INDICATOR);
-            lv_obj_set_style_arc_color(node->obj,c(tc(e,"background",night?0x25394A:0xDFE8ED)),0);lv_obj_set_style_arc_width(node->obj,12,0);lv_obj_set_style_opa(node->obj,LV_OPA_TRANSP,LV_PART_KNOB);
+            lv_obj_set_style_arc_color(node->obj,c(tc(e,"background",night?0x25394A:0xDFE8ED)),0);lv_obj_set_style_arc_width(node->obj,12,0);opa_if_changed(node->obj,LV_OPA_TRANSP,LV_PART_KNOB);
         }else if(!strcmp(type,"chart")){
             bool consumption=!strcmp(ts(e,"kind"),"consumption");
             const char *kind=ts(e,"kind");
@@ -241,7 +241,7 @@ static void template_build(bool night){
             }else for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(s_dash,time,x+20+(w-46)*i/4,y+h-19,APP_FONT_12,text);}
         }else{
             node->obj=lv_obj_create(s_dash);lv_obj_remove_style_all(node->obj);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);
-            lv_obj_set_style_bg_color(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);lv_obj_set_style_bg_opa(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
+            bg_color_if_changed(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);bg_opa_if_changed(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
         }
         if(node->obj){lv_obj_remove_flag(node->obj,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(node->obj,LV_OBJ_FLAG_GESTURE_BUBBLE);}
     }
@@ -275,10 +275,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
-        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);lv_label_set_text(node->obj,text);if(node->detail)lv_label_set_text(node->detail,text);}
+        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
-            if(!strcmp(source,"soc"))lv_obj_set_style_bg_color(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
+            if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"gauge")){
             int target=(int)fmin(tn(e,"max",15)*10,fabs(value)*10);
@@ -321,20 +321,20 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 app_chart_update(node->obj,stats,maximum,minute);
             }
             maximum=ceil(maximum);
-            for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum-(maximum-minimum)*j/2,j==1?1:0);lv_label_set_text(node->axis[j],text);}
+            for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum-(maximum-minimum)*j/2,j==1?1:0);label_text_if_changed(node->axis[j],text);}
         }
         if(!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(*ts(e,"positive_color")||*ts(e,"negative_color"))){
             double direction=!strcmp(source,"grid_direction")?s->power_grid_kw:!strcmp(source,"battery_direction")?s->power_bat_kw:value;
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
-            if(!strcmp(type,"value"))lv_obj_set_style_text_color(node->obj,c(color),0);
+            if(!strcmp(type,"value"))text_color_if_changed(node->obj,c(color),0);
             if(!strcmp(type,"flow")){
                 lv_obj_set_style_line_color(node->obj,c(color),0);if(node->detail)lv_obj_set_style_line_color(node->detail,c(color),0);
-                for(int d=0;d<4;d++){lv_obj_set_style_bg_color(node->dots[d],c(color),0);lv_obj_set_style_shadow_color(node->dots[d],c(color),0);}
+                for(int d=0;d<4;d++){bg_color_if_changed(node->dots[d],c(color),0);lv_obj_set_style_shadow_color(node->dots[d],c(color),0);}
             }
         }
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;
-            lv_obj_set_style_text_color(node->obj,c(value>50?RED:value>warn?ORANGE:tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
+            text_color_if_changed(node->obj,c(value>50?RED:value>warn?ORANGE:tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
         }
     }
     if(redraw)template_chart_time=now;
@@ -346,7 +346,7 @@ static void template_animate(float dt){
         if(!strcmp(ts(node->spec,"type"),"pulse")){
             node->phase=fmodf(node->phase+dt*.7f,1.f);
             int alpha=145+(int)(110*(.5f+.5f*sinf(node->phase*6.2831853f)));
-            lv_obj_set_style_bg_opa(node->obj,alpha,0);
+            bg_opa_if_changed(node->obj,alpha,0);
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
@@ -387,15 +387,15 @@ static void diagnostics_render(app_runtime_state_t rt){
     }
     char text[160];
     snprintf(text,sizeof(text),"%s\n%s · %d dBm",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.ip,s_diagnostics.rssi);
-    lv_label_set_text(s_diagnostic_values[0],text);
+    label_text_if_changed(s_diagnostic_values[0],text);
     snprintf(text,sizeof(text),"%s\n%s",rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
-    lv_label_set_text(s_diagnostic_values[1],text);
+    label_text_if_changed(s_diagnostic_values[1],text);
     if(s_diagnostics.packet_age_seconds<0)snprintf(text,sizeof(text),"%s",tr("Még nem érkezett","No packet received"));
     else snprintf(text,sizeof(text),"%lld s\n%s",(long long)s_diagnostics.packet_age_seconds,
         app_state_data_timed_out(&rt,esp_timer_get_time(),app_config_data_timeout(&s_cfg))?tr("Lejárt adat","Stale data"):tr("Érvényes adat","Valid data"));
-    lv_label_set_text(s_diagnostic_values[2],text);
-    lv_label_set_text(s_diagnostic_values[3],rt.sd_ok?tr("Elérhető · mentés aktív","Available · saving active"):tr("Hiba · kijelzés RAM-ból","Fault · display continues from RAM"));
-    lv_label_set_text(s_diagnostic_values[4],s_diagnostics.firmware);
+    label_text_if_changed(s_diagnostic_values[2],text);
+    label_text_if_changed(s_diagnostic_values[3],rt.sd_ok?tr("Elérhető · mentés aktív","Available · saving active"):tr("Hiba · kijelzés RAM-ból","Fault · display continues from RAM"));
+    label_text_if_changed(s_diagnostic_values[4],s_diagnostics.firmware);
     snprintf(text,sizeof(text),"%lld min\n%u KiB",(long long)(s_diagnostics.uptime_seconds/60),s_diagnostics.free_heap_kib);
-    lv_label_set_text(s_diagnostic_values[5],text);
+    label_text_if_changed(s_diagnostic_values[5],text);
 }

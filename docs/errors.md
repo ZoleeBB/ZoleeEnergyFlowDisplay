@@ -88,3 +88,13 @@ A `Timeout time too long, max is LWIP_UINT32_MAX/4 msecs` assert firmware-időz�
 Ez az assert nem bizonyít NAS- vagy hálózati hibát. Az NTP-szerver lehet közvetlen IP-cím is. Az új napló jelzi az inicializálást, a szervert, a tíz másodperces várakozást és annak eredményét. Az indulás továbbra is megvárja a sikeres időszinkront, mert a napi statisztika valós helyi időt igényel; sikertelen válasznál a konfigurált retry szerint próbálkozik újra.
 
 A kezdeti Wi-Fi/MQTT kapcsolódás a bootképernyőn marad. A kapcsolatvesztés hibaképernyője az adott indulási kapcsolódási lépés után használható. A hibaikon háttérkörén csak a színes körvonal átlátszósága pulzál; a PNG-t tartalmazó teljes objektum átlátszósága változatlan, és nincs örökölt outline/shadow.
+
+## Villódzó vagy függőleges csíkokra széteső feliratok
+
+A feliratterületeken és a diagnosztikában is megjelenő képtorzulás nem csak animációs stílushiba lehet. A CPU forgatás és a DMA2D back-buffer javítás megoszthat egy cache-vonalat: az utólagos CPU write-back felülírhat DMA-val visszamásolt szomszédos képpontokat. A firmware CPU forgatás mellett CPU-val javítja a részleges puffert is, megőrzi a kész kép write-backjét és kihagyja az ezen az úton szükségtelen invalidálást. Ezt a `Partial framebuffer repair uses CPU; DMA cache-line mixing disabled` sor jelzi.
+
+A változatlan szövegek, színek és átlátszóságok nem indítanak ismételt újrarajzolást. A forgatás, az animáció sebességképlete és a részleges frissítési mód megmarad. A tényleges villódzás megszűnését és a folyamatosságot a fizikai panelen kell ellenőrizni.
+
+## Vízszintes húzás témaváltás helyett diagnosztikát nyit
+
+A kijelző képe 90°-kal forgatott, az érintőpanel natív koordinátái 800×1280-asak. A firmware az érintődriverben először tükrözi a natív X-et, majd felcseréli az X/Y tengelyeket (`mirror_x=1`, `swap_xy=1`, `mirror_y=0`). Így a vízszintes húzás lapoz, a függőleges húzás a diagnosztikát kezeli. A többujjas `LV_USE_GESTURE_RECOGNITION` modul kikapcsolásáról szóló figyelmeztetés nem tiltja a hagyományos egyujjas pointer-gesztusokat; a lapozás azokkal működik.

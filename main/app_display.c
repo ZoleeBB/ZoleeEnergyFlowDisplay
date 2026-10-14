@@ -40,6 +40,7 @@ lv_display_t *__wrap_esp_lv_adapter_register_display(const esp_lv_adapter_displa
     ESP_LOGI("app_display", "MIPI LVGL draw buffers use PSRAM (rows=%u)",
              (unsigned)psram_config.profile.buffer_height);
     ESP_LOGI("app_display", "MIPI rotation uses CPU fallback (PPA disabled)");
+    ESP_LOGI("app_display", "Partial framebuffer repair uses CPU; DMA cache-line mixing disabled");
     ESP_LOGI("app_display", "LVGL rendering is synchronous (OS_NONE, one draw unit)");
     lv_display_t *display = __real_esp_lv_adapter_register_display(&psram_config);
     if (display) {

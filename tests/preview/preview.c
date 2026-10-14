@@ -16,16 +16,23 @@ static app_stats_snapshot_t fixture;
 static time_t epoch;
 static lv_point_t touch_point;
 static bool touch_pressed;
+static int touch_swap_xy,touch_mirror_x,touch_mirror_y;
 static void touch_read(lv_indev_t *input,lv_indev_data_t *data){
-    (void)input;data->point=touch_point;data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
+    (void)input;data->point=touch_point;
+    /* Same order as esp_lcd_touch_get_data: native mirrors, then axis swap. */
+    if(touch_mirror_x)data->point.x=800-data->point.x;
+    if(touch_mirror_y)data->point.y=1280-data->point.y;
+    if(touch_swap_xy){int x=data->point.x;data->point.x=data->point.y;data->point.y=x;}
+    data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
 }
-static void touch_sample(int x,bool pressed){
-    touch_point=(lv_point_t){x,400};touch_pressed=pressed;ticks+=40000;lv_tick_inc(40);lv_timer_handler();
+static void touch_sample_xy(int x,int y,bool pressed){
+    touch_point=(lv_point_t){800-y,x};touch_pressed=pressed;ticks+=40000;lv_tick_inc(40);lv_timer_handler();
 }
+static void touch_sample(int x,bool pressed){touch_sample_xy(x,400,pressed);}
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
-lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);return display;}
+lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==1&&touch_mirror_y==0);return display;}
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
@@ -50,6 +57,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 {(void)area;(void)map;lv_display_flush_ready(disp);}
+static void count_invalidations(lv_event_t *event){unsigned *count=lv_event_get_user_data(event);++*count;}
 
 static void save_frame(const char *name)
 {
@@ -282,6 +290,19 @@ int main(void)
     assert(lv_obj_get_style_border_opa(s_error_pulse,0)>=175);
     runtime_wifi_connected=true;
     app_ui_show_boot(APP_BOOT_NTP,NULL);
+    lv_obj_t *text_probe=lbl(s_screen,"Probe",10,10,APP_FONT_14,0xffffff);
+    opa_if_changed(text_probe,LV_OPA_COVER,0);
+    lv_obj_update_layout(s_screen);lv_refr_now(display);
+    unsigned invalidations=0;
+    lv_display_add_event_cb(display,count_invalidations,LV_EVENT_INVALIDATE_AREA,&invalidations);
+    label_text_if_changed(text_probe,"Probe");lv_obj_update_layout(s_screen);lv_refr_now(display);
+    assert(invalidations==0);
+    text_color_if_changed(text_probe,c(0xffffff),0);opa_if_changed(text_probe,LV_OPA_COVER,0);
+    lv_obj_update_layout(s_screen);lv_refr_now(display);assert(invalidations==0);
+    label_text_if_changed(text_probe,"Changed");lv_obj_update_layout(s_screen);lv_refr_now(display);
+    assert(invalidations>0);
+    lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);lv_obj_delete(text_probe);
+    puts("PASS: unchanged labels, colours and opacity do not invalidate the screen; changed text still refreshes");
     puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
     app_config_t config={0};
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia");
@@ -393,6 +414,14 @@ int main(void)
             if(strcmp(template_view.id,list[i%count].id))fprintf(stderr,"Swipe %u: got %s expected %s\n",i,template_view.id,list[i%count].id);
             assert(!strcmp(template_view.id,list[i%count].id));
         }
+        lv_obj_update_layout(s_screen);
+        touch_sample_xy(640,650,true);touch_sample_xy(640,450,true);touch_sample_xy(640,250,true);touch_sample_xy(640,250,false);
+        assert(s_diagnostics_requested);
+        render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
+        lv_obj_update_layout(s_screen);
+        touch_sample_xy(640,200,true);touch_sample_xy(640,400,true);touch_sample_xy(640,600,true);touch_sample_xy(640,600,false);
+        assert(!s_diagnostics_requested);
+        puts("PASS: raw portrait touch mapping separates horizontal theme swipes and vertical diagnostics gestures");
         lv_indev_delete(input);
         puts("PASS: 16 template renders, common error/recovery, NightMode and actual LVGL swipe across all 9 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
