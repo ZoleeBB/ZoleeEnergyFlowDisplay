@@ -73,10 +73,43 @@ static void save_frame(const char *name)
     fclose(f);
     printf("Rendered %s\n",name);
 #if LV_USE_SNAPSHOT
-    if(template_is_active()){assert(template_raster_bytes<=TEMPLATE_RASTER_BUDGET);printf("RASTER %s: %u variants, %zu bytes\n",name,template_raster_count,template_raster_bytes);}
+    if(template_is_active()){
+        assert(template_raster_bytes<=TEMPLATE_RASTER_BUDGET);
+        assert(template_flow_image_bytes<=TEMPLATE_FLOW_IMAGE_BUDGET);
+        printf("RASTER %s: %u variants, %zu bytes; %u fixed flow images, %zu bytes\n",
+               name,template_raster_count,template_raster_bytes,
+               template_flow_image_count,template_flow_image_bytes);
+    }
 #endif
 }
 
+/* A görbéket csak témabetöltéskor raszterizáljuk, animáció nem készíthet új képet. */
+static void test_flow_cache(void){
+#if LV_USE_SNAPSHOT
+    unsigned cached=0;
+    const unsigned image_count=template_flow_image_count;
+    const size_t image_bytes=template_flow_image_bytes;
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *node=&template_nodes[i];
+        if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        if(lv_obj_check_type(node->obj,&lv_image_class)){
+            bool found=false;
+            for(unsigned j=0;j<image_count;j++)
+                if(lv_image_get_src(node->obj)==&template_flow_images[j].image){
+                    assert(template_flow_images[j].buffer);
+                    found=true;break;
+                }
+            assert(found);cached++;
+        }else{
+            assert(lv_obj_check_type(node->obj,&lv_line_class));
+        }
+    }
+    for(unsigned i=0;i<60;i++)template_animate(.016f);
+    assert(template_flow_image_count==image_count&&template_flow_image_bytes==image_bytes);
+    /* A téma mérete és az erőforráskeret dönti el a raszteres vagy statikus LVGL-vonal megvalósítást. */
+    printf("PASS: %u immutable energy flow images; animation allocates no new flow bitmaps\n",cached);
+#endif
+}
 /* Exercise actual line objects and dot positions, including reverse/zero/cap. */
 static void test_template_motion(void){
     for(unsigned i=0;i<template_node_count;i++){
@@ -84,7 +117,7 @@ static void test_template_motion(void){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(!strcmp(ts(node->spec,"curve"),"bezier")){
             unsigned controls=cJSON_GetArraySize(cJSON_GetObjectItem(node->spec,"points"));
-            assert(node->point_count==(controls==4?33:65));
+            assert(node->point_count==(controls==4?97:193));
             const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
             assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
@@ -125,7 +158,7 @@ static void test_template_indicators(const app_energy_sample_t *sample){
                 uint32_t expected=tc(node->spec,direction<0?"negative_color":"positive_color",tc(node->spec,"color",BLUE));
                 if(!strcmp(type,"value"))assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(expected)));
                 if(!strcmp(type,"flow")){
-                    assert(lv_color_eq(lv_obj_get_style_line_color(node->obj,0),c(expected)));
+                    /* A vonal statikus, az irányváltozáskor csak a pontok kapnak új színt. */
                     for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_bg_color(node->dots[d],0),c(expected)));
                 }
             }
@@ -390,8 +423,13 @@ int main(void)
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
                 const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
-                assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(tc(scene,"background",0))));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);
+                uint32_t expected_bg=tc(scene,"background",0);
+                if(!strcmp(template_view.id,"04-daily-balance"))expected_bg=night?0x1B2E38:0xE5F1ED;
+                if(!strcmp(template_view.id,"05-calm-home"))expected_bg=night?0x223432:0xE8F0E7;
+                if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
+                if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
+                assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_cache();
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;
