@@ -89,7 +89,8 @@ static void test_flow_rendering(void){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         assert(lv_obj_check_type(node->obj,&lv_line_class));
         assert(node->detail && lv_obj_check_type(node->detail,&lv_line_class));
-        assert(lv_obj_get_style_line_opa(node->obj,0)==176);
+        const bool thick=tn(node->spec,"radius",3)>=16;
+        assert(lv_obj_get_style_line_opa(node->obj,0)==(thick?58:145));
         const lv_obj_t *line=node->obj;
         const int opacity=lv_obj_get_style_line_opa(node->obj,0);
         for(unsigned frame=0;frame<30;frame++)template_animate(.016f);
@@ -103,7 +104,7 @@ static void test_flow_rendering(void){
         }
         double power=node->power;
         node->power=0;template_flow_tone(node,tc(node->spec,"color",BLUE),false);
-        assert(lv_obj_get_style_line_opa(node->obj,0)==38);
+        assert(lv_obj_get_style_line_opa(node->obj,0)==(thick?9:30));
         template_animate(.016f);
         for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
         node->power=power;
