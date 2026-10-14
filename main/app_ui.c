@@ -17,6 +17,7 @@
 #include "bsp/display.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
@@ -1573,19 +1574,35 @@ static void error_screen(
 
 }
 
+static void initial_refresh_report(lv_event_t *event)
+{
+    (void)event;
+    static bool reported;
+    if (!reported) {
+        reported = true;
+        ESP_LOGI("app_ui", "First LVGL refresh completed");
+    }
+}
+
 /* Waveshare BSP kijelző és LVGL inicializálása fix 1280x800 fekvő tájolásban. */
 esp_err_t app_ui_init(void){
     bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_90,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=0,.mirror_x=0,.mirror_y=0}};
     lv_display_t *disp=bsp_display_start_with_config(&cfg);if(!disp)return ESP_FAIL;bsp_display_backlight_on();bsp_display_brightness_set(50);
-    if (bsp_display_lock(-1) != ESP_OK) {
-        return ESP_FAIL;
+    ESP_LOGI("app_ui", "Display started; waiting for LVGL lock");
+    esp_err_t lock_err = bsp_display_lock(5000);
+    if (lock_err != ESP_OK) {
+        ESP_LOGE("app_ui", "Initial LVGL lock failed: %s; first refresh may be blocked", esp_err_to_name(lock_err));
+        return lock_err;
     }
     s_screen = lv_screen_active();
+    lv_display_add_event_cb(disp, initial_refresh_report, LV_EVENT_REFR_READY, NULL);
     lv_obj_add_event_cb(s_screen,template_gesture,LV_EVENT_GESTURE,NULL);
     screen_style(s_screen, false);
     if(!lv_timer_create(animation_tick,16,NULL)){bsp_display_unlock();return ESP_ERR_NO_MEM;}
     bsp_display_unlock();
+    ESP_LOGI("app_ui", "UI initialized; creating SD boot screen");
     app_ui_show_boot(APP_BOOT_SD, NULL);
+    ESP_LOGI("app_ui", "SD boot screen created");
     return ESP_OK;
 }
 /* A bootkor beolvasott konfiguráció átadása a UI modulnak. */

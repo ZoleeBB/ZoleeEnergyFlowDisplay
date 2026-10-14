@@ -55,13 +55,16 @@ int main(void) {
     esp_lv_adapter_display_config_t config = {
         .panel=(void *)1, .panel_io=(void *)2,
         .profile={.interface=ESP_LV_ADAPTER_PANEL_IF_MIPI_DSI, .rotation=90,
-                  .hor_res=800, .ver_res=1280, .buffer_height=50}, .tear_avoid_mode=4
+                  .hor_res=800, .ver_res=1280, .buffer_height=50,
+                  .enable_ppa_accel=true}, .tear_avoid_mode=4
     };
     esp_lv_adapter_display_config_t original = config;
     assert(__real_esp_lv_adapter_register_display(&config) == NULL);
     assert(bsp_start(&config) != NULL);
     assert(registered.profile.use_psram);
+    assert(!registered.profile.enable_ppa_accel);
     registered.profile.use_psram = false;
+    registered.profile.enable_ppa_accel = original.profile.enable_ppa_accel;
     assert(memcmp(&registered, &original, sizeof(original)) == 0);
     assert(memcmp(&config, &original, sizeof(original)) == 0);
     config.profile.interface=ESP_LV_ADAPTER_PANEL_IF_OTHER;

@@ -113,6 +113,7 @@ void app_main(void)
     }
 
     /* SD-kártya nélkül nincs konfiguráció, ezért ez blokkoló feltétel. */
+    ESP_LOGI(TAG, "Display UI ready; mounting SD card");
     app_ui_show_boot(APP_BOOT_SD, NULL);
     esp_err_t err = app_storage_boot_mount();
     if (err != ESP_OK) {
@@ -122,6 +123,7 @@ void app_main(void)
     }
 
     /* A konfigurációt kizárólag induláskor olvassuk be. */
+    ESP_LOGI(TAG, "SD mounted; loading configuration");
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
     char config_error[256];
     err = app_config_load_file(

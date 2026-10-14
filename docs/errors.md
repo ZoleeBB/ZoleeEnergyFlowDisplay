@@ -56,3 +56,11 @@ A `Display initialized` után következő `alloc partial draw buffer 80000 bytes
 A régi firmware a soros konzolon ismétlődően újraindulhat; ehhez a javításhoz az új firmware teljes USB-csomagját kell feltölteni. A telepítő Python-fájljának cseréje önmagában nem változtatja meg a már feltöltött alkalmazást.
 
 Az adapter triple-partial pufferfoglalása is a PSRAM-beállítást követi: a CMake egy kizárólag buildkönyvtárbeli másolatot javít és fordít. Az eredeti managed component változatlan marad; ismeretlen vagy kétértelmű forrásváltozatnál a build megáll.
+
+## Háttérvilágítás van, az LVGL indulása után fekete a képernyő
+
+Az adapter 0.6.4 a `profile.enable_ppa_accel=false` beállítás ellenére PPA-val forgathat. Az Espressif az ESP32-P4 + triple-partial + 90°/270° kombinációhoz [PPA megakadást dokumentál](https://docs.espressif.com/projects/esp-iot-solution/en/latest/display/tools/esp_lvgl_adapter.html#ppa-freeze-fix-esp32-p4). A firmware a profil tiltását a regisztrációnál és mindkét forgatási ágon érvényesíti, és a meglévő CPU forgatást használja. A build kizárólag másolatot módosít; az SDK és a managed component eredetije érintetlen.
+
+Az új logban `MIPI rotation uses CPU fallback (PPA disabled)` jelzi a beállítást. Ezt követi a kijelző zárolása, a bootképernyő létrehozása, az SD csatolása és a konfiguráció betöltése. A `First LVGL refresh completed` az első LVGL rajzolási ciklus végét jelzi; önmagában nem bizonyítja a fizikai panel képét. A legelső LVGL zárolás 5 másodperces időkorlátot kapott, ezért a korai megakadás konkrét hibasorként jelenik meg.
+
+Az `on_frame_buf_complete unavailable` figyelmeztetés önmagában nem bizonyít callback-hibát: ezen a verzión az adapter `on_refresh_done` tartalék callbacket is regisztrál. SD- vagy konfigurációs hiba normál esetben hibaképernyőt ad, ezért az első rajzolás nélküli fekete képet először a kijelző útvonalán vizsgáljuk. Ha a jelenség megmarad, a RESET-től induló teljes soros log szükséges, az új indulási bejegyzésekkel együtt.
