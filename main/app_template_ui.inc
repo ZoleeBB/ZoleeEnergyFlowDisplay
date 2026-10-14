@@ -267,6 +267,18 @@ static void template_build(bool night){
     const cJSON *e;cJSON_ArrayForEach(e,cJSON_GetObjectItem(scene,"elements")){
         template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;
         const char *type=ts(e,"type");int x=tn(e,"x",0),y=tn(e,"y",0),w=tn(e,"w",1),h=tn(e,"h",1);
+        /* A gyári Energiakör régi (SD-n lévő) v7-es sablonjában a jobb oldali
+         * ikonok az energiautakba lógtak. OTA után is működjön a korrekció;
+         * az új v8-as sablon már maga tartalmazza ezeket a koordinátákat. */
+        if(!strcmp(template_view.id,"06-energy-orbit")&&
+           tn(template_view.document,"version",8)<8){
+            const char *source=ts(e,"source"),*label=ts(e,"text"),*file=ts(e,"file");
+            if(!strcmp(type,"image")&&(!strcmp(file,"flow_house.png")||!strcmp(file,"flow_battery.png")))x=1120;
+            else if((!strcmp(type,"label")&&(!strcmp(label,"Otthon")||!strcmp(label,"Akkumulátor")||!strcmp(label,"Töltöttség")))||
+                    (!strcmp(type,"value")&&(!strcmp(source,"home")||!strcmp(source,"battery")||!strcmp(source,"soc")))){
+                x=1070;w=200;
+            }
+        }
         uint32_t text=tc(e,"color",night?TEXT_DARK:TEXT_LIGHT);
         if(!strcmp(type,"label")||!strcmp(type,"value")){
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"text_shadow"))){
