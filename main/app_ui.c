@@ -1370,23 +1370,24 @@ static void animation_tick(lv_timer_t *timer)
     /* Lassú kirajzoláskor se lassítsuk mesterségesen a pontok időalapját. */
     if(dt>.25f)dt=.25f;
     if(dt<0.f)dt=0.f;
-    /* A két legnehezebb, sok vastag energiautat tartalmazó témánál a
-     * pontok 30 fps-es frissítése félbevágja a részleges képernyő-újrafestéseket.
-     * A fázist a teljes eltelt dt alapján léptetjük, ezért a sebesség nem csökken. */
-    static float heavy_flow_accumulator;
+    /* Az összetett görbéken átlagosan 20 FPS; a teljes eltelt idővel
+     * léptetünk, nem lassul az energiaáramlás és nem vesznek el tört tickek. */
+    static float heavy_flow_interval,heavy_flow_motion;
     if(template_is_active()){
         if(template_heavy_animation()){
-            heavy_flow_accumulator+=dt;
-            if(heavy_flow_accumulator>=.030f){
-                template_animate(heavy_flow_accumulator);
-                heavy_flow_accumulator=0;
+            heavy_flow_interval+=dt;
+            heavy_flow_motion+=dt;
+            if(heavy_flow_interval>=.050f){
+                template_animate(heavy_flow_motion);
+                heavy_flow_motion=0;
+                heavy_flow_interval=fmodf(heavy_flow_interval,.050f);
             }
         }else{
-            heavy_flow_accumulator=0;
+            heavy_flow_interval=0;heavy_flow_motion=0;
             template_animate(dt);
         }
     }else{
-        heavy_flow_accumulator=0;
+        heavy_flow_interval=0;heavy_flow_motion=0;
         if(s_view==VIEW_DASHBOARD && s_dash_created)update_flows(&s_animation_sample,dt);
     }
     if(s_error_pulse){
