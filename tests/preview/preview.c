@@ -75,40 +75,40 @@ static void save_frame(const char *name)
 #if LV_USE_SNAPSHOT
     if(template_is_active()){
         assert(template_raster_bytes<=TEMPLATE_RASTER_BUDGET);
-        assert(template_flow_image_bytes<=TEMPLATE_FLOW_IMAGE_BUDGET);
-        printf("RASTER %s: %u variants, %zu bytes; %u fixed flow images, %zu bytes\n",
-               name,template_raster_count,template_raster_bytes,
-               template_flow_image_count,template_flow_image_bytes);
+        printf("RASTER %s: %u scaled icon variants, %zu bytes\n",
+               name,template_raster_count,template_raster_bytes);
     }
 #endif
 }
 
-/* A görbéket csak témabetöltéskor raszterizáljuk, animáció nem készíthet új képet. */
-static void test_flow_cache(void){
-#if LV_USE_SNAPSHOT
-    unsigned cached=0;
-    const unsigned image_count=template_flow_image_count;
-    const size_t image_bytes=template_flow_image_bytes;
+/* A vonal áttetsző, adatfüggően halványul; a mozgó pontok fehérek
+ * és a vonalakat a rendszer nem alkotja újra animáció közben. */
+static void test_flow_rendering(void){
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
-        if(lv_obj_check_type(node->obj,&lv_image_class)){
-            bool found=false;
-            for(unsigned j=0;j<image_count;j++)
-                if(lv_image_get_src(node->obj)==&template_flow_images[j].image){
-                    assert(template_flow_images[j].buffer);
-                    found=true;break;
-                }
-            assert(found);cached++;
-        }else{
-            assert(lv_obj_check_type(node->obj,&lv_line_class));
+        assert(lv_obj_check_type(node->obj,&lv_line_class));
+        assert(node->detail && lv_obj_check_type(node->detail,&lv_line_class));
+        assert(lv_obj_get_style_line_opa(node->obj,0)==176);
+        const lv_obj_t *line=node->obj;
+        const int opacity=lv_obj_get_style_line_opa(node->obj,0);
+        for(unsigned frame=0;frame<30;frame++)template_animate(.016f);
+        assert(node->obj==line);
+        assert(lv_obj_get_style_line_opa(node->obj,0)==opacity);
+        for(int d=0;d<4;d++){
+            lv_obj_t *dot=node->dots[d];
+            assert(lv_obj_get_style_bg_color(dot,0).red==255);
+            assert(lv_obj_get_style_border_width(dot,0)==2);
+            assert(lv_obj_get_index(dot)>lv_obj_get_index(node->obj));
         }
+        double power=node->power;
+        node->power=0;template_flow_tone(node,tc(node->spec,"color",BLUE),false);
+        assert(lv_obj_get_style_line_opa(node->obj,0)==38);
+        template_animate(.016f);
+        for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
+        node->power=power;
+        template_flow_tone(node,tc(node->spec,"color",BLUE),true);
     }
-    for(unsigned i=0;i<60;i++)template_animate(.016f);
-    assert(template_flow_image_count==image_count&&template_flow_image_bytes==image_bytes);
-    /* A téma mérete és az erőforráskeret dönti el a raszteres vagy statikus LVGL-vonal megvalósítást. */
-    printf("PASS: %u immutable energy flow images; animation allocates no new flow bitmaps\n",cached);
-#endif
 }
 /* Exercise actual line objects and dot positions, including reverse/zero/cap. */
 static void test_template_motion(void){
@@ -117,7 +117,7 @@ static void test_template_motion(void){
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
         if(!strcmp(ts(node->spec,"curve"),"bezier")){
             unsigned controls=cJSON_GetArraySize(cJSON_GetObjectItem(node->spec,"points"));
-            assert(node->point_count==(controls==4?97:193));
+            assert(node->point_count==(controls==4?65:129));
             const cJSON *last=cJSON_GetArrayItem(cJSON_GetObjectItem(node->spec,"points"),controls-1);
             assert(fabs(node->points[node->point_count-1].x-tn(last,"x",0))<.01);
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
@@ -135,7 +135,8 @@ static void test_template_motion(void){
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];if(strcmp(ts(node->spec,"type"),"flow")||fabs(node->power)<.001)continue;
         for(int d=0;d<4;d++){
-            float x=lv_obj_get_x(node->dots[d])+3-tn(node->spec,"x",0),y=lv_obj_get_y(node->dots[d])+3-tn(node->spec,"y",0),distance=10000;
+            float x=lv_obj_get_x(node->dots[d])+lv_obj_get_width(node->dots[d])/2-tn(node->spec,"x",0),
+                  y=lv_obj_get_y(node->dots[d])+lv_obj_get_height(node->dots[d])/2-tn(node->spec,"y",0),distance=10000;
             for(unsigned k=1;k<node->point_count;k++){
                 float ax=node->points[k-1].x,ay=node->points[k-1].y,dx=node->points[k].x-ax,dy=node->points[k].y-ay;
                 float sq=dx*dx+dy*dy,t=sq?((x-ax)*dx+(y-ay)*dy)/sq:0;t=fmaxf(0,fminf(1,t));
@@ -158,8 +159,8 @@ static void test_template_indicators(const app_energy_sample_t *sample){
                 uint32_t expected=tc(node->spec,direction<0?"negative_color":"positive_color",tc(node->spec,"color",BLUE));
                 if(!strcmp(type,"value"))assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(expected)));
                 if(!strcmp(type,"flow")){
-                    /* A vonal statikus, az irányváltozáskor csak a pontok kapnak új színt. */
-                    for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_bg_color(node->dots[d],0),c(expected)));
+                    assert(lv_color_eq(lv_obj_get_style_line_color(node->obj,0),c(expected)));
+                    for(int d=0;d<4;d++)assert(lv_color_eq(lv_obj_get_style_border_color(node->dots[d],0),c(expected)));
                 }
             }
             if(*ts(node->spec,"outline_color")){
@@ -429,7 +430,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_cache();
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();
                 if(!night&&!strcmp(list[i].id,"01-live-home")){
                     /* Warning recolouring must never turn temperature shadows red. */
                     app_energy_sample_t hot=sample;hot.battery_temperature_c=51;
