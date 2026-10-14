@@ -112,4 +112,7 @@ target_compile_options(
 
 # BSP 2.0.3 hardcodes use_psram=false. Wrap its display registration, keeping
 # managed components intact and the existing rotation/triple-partial mode.
-target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_lv_adapter_register_display")
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=esp_lv_adapter_register_display"
+    "-Wl,-u,__wrap_esp_lv_adapter_register_display"
+)

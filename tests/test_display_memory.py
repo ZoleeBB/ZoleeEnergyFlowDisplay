@@ -84,8 +84,14 @@ int main(void) {
         subprocess.run([cc,*flags,'-c',str(source),'-o',str(obj)],check=True)
     # Archive linking mirrors IDF; the wrapper must be pulled from the main archive.
     subprocess.run(['ar','rcs',str(tmp/'libmain.a'),str(objects[0])],check=True)
-    subprocess.run([cc,*flags,str(objects[3]),str(objects[2]),str(tmp/'libmain.a'),str(objects[1]),
-                    '-Wl,--wrap=esp_lv_adapter_register_display','-o',str(tmp/'test')],check=True)
+    subprocess.run(['ar','rcs',str(tmp/'libbsp.a'),str(objects[2])],check=True)
+    link = [cc,*flags,str(objects[3]),str(tmp/'libmain.a'),str(tmp/'libbsp.a'),str(objects[1]),
+            '-Wl,--wrap=esp_lv_adapter_register_display','-o',str(tmp/'test')]
+    # IDF scans main before the later BSP references. Without an anchor it drops
+    # the unreferenced wrapper; exercise this real archive ordering explicitly.
+    missing = subprocess.run(link, capture_output=True, text=True)
+    assert missing.returncode != 0 and '__wrap_esp_lv_adapter_register_display' in missing.stderr
+    subprocess.run([*link,'-Wl,-u,__wrap_esp_lv_adapter_register_display'],check=True)
     subprocess.run([str(tmp/'test')],check=True)
 print('PASS: actual BSP call wrapped, 80 KB internal allocation failure redirected to PSRAM; config and other interfaces preserved')
 
