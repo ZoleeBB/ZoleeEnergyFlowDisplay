@@ -12,13 +12,14 @@ LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 32 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[65];float segments[64],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
+static bool template_loading_requested;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return template_view.document!=NULL;}
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
@@ -74,8 +75,8 @@ static void template_path(template_node_t *node,const cJSON *e){
     cJSON_ArrayForEach(pt,cJSON_GetObjectItem(e,"points"))control[n++]=(lv_point_precise_t){tn(pt,"x",0),tn(pt,"y",0)};
     if(!strcmp(ts(e,"curve"),"bezier")){
         node->points[node->point_count++]=control[0];
-        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=32;i++){
-            float t=i/32.f,u=1.f-t;
+        for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=96;i++){
+            float t=i/96.f,u=1.f-t;
             node->points[node->point_count++]=(lv_point_precise_t){
                 u*u*u*control[k].x+3*u*u*t*control[k+1].x+3*u*t*t*control[k+2].x+t*t*t*control[k+3].x,
                 u*u*u*control[k].y+3*u*u*t*control[k+1].y+3*u*t*t*control[k+2].y+t*t*t*control[k+3].y};
@@ -156,7 +157,11 @@ static void template_gesture(lv_event_t *event){
         s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
     }
     if(s_diagnostics_requested)return;
-    if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){app_templates_step(direction==LV_DIR_LEFT?1:-1);lv_indev_wait_release(input);}
+    if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){
+        app_templates_step(direction==LV_DIR_LEFT?1:-1);
+        template_loading_requested=true;
+        lv_indev_wait_release(input);
+    }
 }
 static void template_release_cache(void){
 #if LV_USE_SNAPSHOT
@@ -164,6 +169,17 @@ static void template_release_cache(void){
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
 #endif
     for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);
+}
+/* A következő képkockára az SD és képfeldolgozás előtt fekete oldal kerül. */
+static void template_loading_screen(void){
+    clear();
+    bg_color_if_changed(s_screen,c(0x000000),0);
+    lv_obj_set_style_bg_grad_dir(s_screen,LV_GRAD_DIR_NONE,0);
+    lv_obj_t *label=lbl(s_screen,tr("Téma betöltése…","Loading theme…"),
+                         0,365,APP_FONT_28,0xFFFFFF);
+    lv_obj_set_width(label,W);
+    lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    s_view=VIEW_THEME_LOADING;
 }
 static void template_prepare(void){
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
@@ -197,6 +213,8 @@ static void template_build(bool night){
         background=night?0x223432:0xE8F0E7;no_gradient=true;
     }else if(!strcmp(template_view.id,"06-energy-orbit")){
         background=night?0x1B263C:0xE8EEF7;no_gradient=true;
+    }else if(!strcmp(template_view.id,"08-statistics")){
+        background=night?0x1B2B38:0xE8F2EE;no_gradient=true;
     }
     screen_style(s_screen,night);bg_color_if_changed(s_screen,c(background),0);
     s_dash=lv_obj_create(s_screen);lv_obj_set_size(s_dash,W,H);screen_style(s_dash,night);
@@ -234,11 +252,11 @@ static void template_build(bool night){
                 node->detail=template_flow_object(node,x,y,w,h);
                 lv_obj_set_pos(node->detail,x,y);lv_obj_set_style_line_color(node->detail,c(text),0);
                 lv_obj_set_style_line_width(node->detail,tn(e,"radius",3)+tn(e,"glow",8),0);
-                lv_obj_set_style_line_opa(node->detail,24,0);lv_obj_set_style_line_rounded(node->detail,true,0);
+                lv_obj_set_style_line_opa(node->detail,24,0);lv_obj_set_style_line_rounded(node->detail,false,0);
             }
             node->obj=template_flow_object(node,x,y,w,h);
             lv_obj_set_style_line_color(node->obj,c(text),0);lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
-            lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,true,0);
+            lv_obj_set_style_line_opa(node->obj,100,0);lv_obj_set_style_line_rounded(node->obj,false,0);
             for(int i=0;i<4;i++){
                 node->dots[i]=shape(s_dash,x,y,7,7,text,LV_RADIUS_CIRCLE);
                 if(tn(e,"glow",0)>0){
