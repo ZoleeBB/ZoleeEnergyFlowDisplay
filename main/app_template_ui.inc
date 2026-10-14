@@ -13,6 +13,7 @@ typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
     lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
@@ -91,37 +92,89 @@ static void template_path(template_node_t *node,const cJSON *e){
         node->segments[i-1]=sqrtf(dx*dx+dy*dy);node->length+=node->segments[i-1];
     }
 }
-/* Egyetlen vektoros stroke: nincs szegmensenként összeadódó áttetszőség. */
-/*
- * A Bezier vonalakat template_path() egyszer mintavételezi. A korábbi
- * LV_VECTOR_PATH_QUALITY_HIGH minden újrarajzolásnál új vektorutat épített,
- * amely különösen a 28 px-es Energiautak témában túl drága.
- * Az LVGL vonal objektum megtartja a kiszámolt pontokat, így a mozgó
- * pontok nem váltanak ki magas minőségű vektoros újrarajzolást.
- */
+/* A kirajzolt út egyetlen, összefüggő köbös Bézier-stroke; nincsenek
+ * egymást fedő, áttetsző rövid szakaszok. A görbe geometria a téma
+ * betöltésekor egyszer épül fel, és közös a fényudvarnak és a fővonalnak. */
+static void template_flow_draw(lv_event_t *event){
+    lv_event_code_t code=lv_event_get_code(event);
+    if(code==LV_EVENT_REFR_EXT_DRAW_SIZE){
+        lv_event_set_ext_draw_size(event,48);
+        return;
+    }
+    if(code!=LV_EVENT_DRAW_MAIN)return;
+    template_node_t *node=lv_event_get_user_data(event);
+    if(!node||!node->flow_path)return;
+    lv_obj_t *obj=lv_event_get_target(event);
+    if(lv_obj_get_style_line_opa(obj,0)==LV_OPA_TRANSP)return;
+    lv_draw_vector_dsc_t *dsc=lv_draw_vector_dsc_create(lv_event_get_layer(event));
+    if(!dsc)return;
+    lv_area_t area;lv_obj_get_coords(obj,&area);
+    lv_draw_vector_dsc_translate(dsc,(float)area.x1,(float)area.y1);
+    lv_draw_vector_dsc_set_fill_opa(dsc,LV_OPA_TRANSP);
+    lv_draw_vector_dsc_set_stroke_color(dsc,lv_obj_get_style_line_color(obj,0));
+    lv_draw_vector_dsc_set_stroke_width(dsc,lv_obj_get_style_line_width(obj,0));
+    lv_draw_vector_dsc_set_stroke_opa(dsc,lv_obj_get_style_line_opa(obj,0));
+    lv_draw_vector_dsc_set_stroke_cap(dsc,LV_VECTOR_STROKE_CAP_ROUND);
+    lv_draw_vector_dsc_set_stroke_join(dsc,LV_VECTOR_STROKE_JOIN_ROUND);
+    lv_draw_vector_dsc_add_path(dsc,node->flow_path);
+    lv_draw_vector(dsc);
+    lv_draw_vector_dsc_delete(dsc);
+}
+static void template_flow_path_create(template_node_t *node){
+    if(node->flow_path)return;
+    node->flow_path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_MEDIUM);
+    if(!node->flow_path)return;
+    const cJSON *pts=cJSON_GetObjectItem(node->spec,"points");
+    const cJSON *first=cJSON_GetArrayItem(pts,0);
+    lv_fpoint_t origin={(float)tn(first,"x",0),(float)tn(first,"y",0)};
+    lv_vector_path_move_to(node->flow_path,&origin);
+    if(!strcmp(ts(node->spec,"curve"),"bezier")){
+        unsigned count=cJSON_GetArraySize(pts);
+        for(unsigned i=1;i+2<count;i+=3){
+            lv_fpoint_t p[3];
+            for(int k=0;k<3;k++){
+                const cJSON *point=cJSON_GetArrayItem(pts,i+k);
+                p[k]=(lv_fpoint_t){(float)tn(point,"x",0),(float)tn(point,"y",0)};
+            }
+            lv_vector_path_cubic_to(node->flow_path,&p[0],&p[1],&p[2]);
+        }
+    }else{
+        for(unsigned i=1;i<node->point_count;i++){
+            lv_fpoint_t p={(float)node->points[i].x,(float)node->points[i].y};
+            lv_vector_path_line_to(node->flow_path,&p);
+        }
+    }
+}
+static void template_flow_release_paths(void){
+    for(unsigned i=0;i<template_node_count;i++){
+        if(template_nodes[i].flow_path){
+            lv_vector_path_delete(template_nodes[i].flow_path);
+            template_nodes[i].flow_path=NULL;
+        }
+    }
+}
 static lv_obj_t *template_flow_object(lv_obj_t *parent,template_node_t *node,
                                       int x,int y,int w,int h,uint32_t color,int thickness,int opacity){
-    lv_obj_t *obj=lv_line_create(parent);
+    template_flow_path_create(node);
+    lv_obj_t *obj=lv_obj_create(parent);
     lv_obj_remove_style_all(obj);
-    lv_line_set_points(obj,node->points,node->point_count);
-    lv_obj_set_pos(obj,x,y);
-    lv_obj_set_size(obj,w,h);
+    lv_obj_set_pos(obj,x,y);lv_obj_set_size(obj,w,h);
     lv_obj_add_flag(obj,LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_remove_flag(obj,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(obj,template_flow_draw,LV_EVENT_ALL,node);
     lv_obj_set_style_line_color(obj,c(color),0);
     lv_obj_set_style_line_width(obj,thickness,0);
     lv_obj_set_style_line_opa(obj,opacity,0);
-    lv_obj_set_style_line_rounded(obj,true,0);
     return obj;
 }
-/* Valódi LVGL-vonalak: gyors, előmintavételezett geometria.
- * Az átlátszóság és a szín kizárólag az 5 s-os adatfrissítéskor változik.
- * A pontok saját objektumként animálódnak, külön a vonalaktól. */
+/* A stroke átlátszósága kizárólag az 5 s-os adatfrissítéskor változik;
+ * a mozgó pontok külön grafikus objektumok. */
 static void template_flow_tone(template_node_t *node,uint32_t color,bool active){
-    /* lv_line szakaszonként fest. Vastag útnál a rövid szakaszok
-     * átfedését kompenzáljuk, hogy ténylegesen átüssön a háttér. */
+    /* A vector stroke egyszer rajzol, ezért nincs alpha-halmozódás
+     * a Bézier szakaszok illesztéseinél. */
     const bool thick=tn(node->spec,"radius",3)>=16;
-    const int main_opacity=thick?(active?58:9):(active?145:30);
-    const int glow_opacity=thick?(active?9:2):(active?25:5);
+    const int main_opacity=thick?(active?178:35):(active?200:46);
+    const int glow_opacity=active?37:8;
     if(node->obj){
         style_color_if_changed(node->obj,LV_STYLE_LINE_COLOR,c(color),0);
         style_number_if_changed(node->obj,LV_STYLE_LINE_OPA,main_opacity,0);
@@ -191,6 +244,7 @@ static void template_gesture(lv_event_t *event){
     }
 }
 static void template_release_cache(void){
+    template_flow_release_paths();
 #if LV_USE_SNAPSHOT
     for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
@@ -235,7 +289,7 @@ static void template_apply(void){
     }
 }
 static void template_build(bool night){
-    clear();template_node_count=0;template_chart_time=0;
+    clear();template_flow_release_paths();template_node_count=0;template_chart_time=0;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
     /*
      * A régebbi SD-kártyán lévő három gyári téma még sávos RGB565
