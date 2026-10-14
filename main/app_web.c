@@ -498,6 +498,7 @@ static esp_err_t root_handler(httpd_req_t *req)
               "<button type='button' onclick='restartDevice()'>Restart device</button></div>",
         HTTPD_RESP_USE_STRLEN);
 
+    sendf(req,"<script>document.documentElement.lang='%s';</script>",s_hu?"hu":"en");
     httpd_resp_send_chunk(req,
         "<div id='reboot-mask' hidden style='position:fixed;inset:0;background:#000;color:#fff;"
         "z-index:999;display:none;align-items:center;justify-content:center;text-align:center'>"
