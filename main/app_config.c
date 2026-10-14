@@ -78,7 +78,7 @@ void app_config_set_defaults(app_config_t *cfg)
     /* Kijelző és statisztika. */
     cfg->display.day_brightness = 80;
     cfg->display.night_brightness = 20;
-    cfg->statistics.save_interval_minutes = 60;
+    cfg->statistics.save_interval_minutes = 15;
     cfg->statistics.max_integration_gap_seconds = 30;
 
     /* Pénzügyi és környezeti számítások. */

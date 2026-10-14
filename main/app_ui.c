@@ -1404,7 +1404,7 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     fmt_power(q,sizeof(q),s->power_full_kw);label_text_if_changed(s_home,q);
     fmt_power(q,sizeof(q),s->power_bat_kw);label_text_if_changed(s_bat,q);
     fmt_power(q,sizeof(q),s->power_grid_kw);label_text_if_changed(s_grid,q);
-    fmt_pct(q,sizeof(q),s->soc_bat_pct);label_text_if_changed(s_soc,q);
+    snprintf(q,sizeof(q),"%d%%",(int)lround(s->soc_bat_pct));label_text_if_changed(s_soc,q);
     snprintf(q,sizeof(q),"%d °C",(int)lround(s->battery_temperature_c));label_text_if_changed(s_bt,q);
 
     uint32_t bt_color=s->battery_temperature_c>50?RED:(s->battery_temperature_c>40?ORANGE:(s->night_mode?MUTED_DARK:MUTED_LIGHT));
