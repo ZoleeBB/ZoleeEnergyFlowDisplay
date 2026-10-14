@@ -56,12 +56,13 @@ def main():
         installed = importlib.metadata.version('esptool')
     except importlib.metadata.PackageNotFoundError:
         installed = None
+    shell_python = ('& ' if sys.platform == 'win32' else '') + f'"{sys.executable}"'
     if installed != ESPTOOL_VERSION:
-        raise SystemExit(f'Telepítsd ugyanebbe a Python környezetbe: "{sys.executable}" -m pip install esptool=={ESPTOOL_VERSION}')
+        raise SystemExit(f'Telepítsd ugyanebbe a Python környezetbe: {shell_python} -m pip install esptool=={ESPTOOL_VERSION}')
     result = subprocess.run(cmd, check=False)
     if result.returncode:
         print('A feltöltés nem fejeződött be. USB/stub hibánál lépj kézi BOOT módba, majd próbáld: '
-              f'"{sys.executable}" "{Path(__file__).resolve()}" --port {args.port} --no-stub --manual-boot', file=sys.stderr)
+              f'{shell_python} "{Path(__file__).resolve()}" --port {args.port} --no-stub --manual-boot', file=sys.stderr)
         raise SystemExit(result.returncode)
 
 
