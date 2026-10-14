@@ -2,6 +2,7 @@
 """Exercise the actual linker wrapper against an internal-heap allocation failure."""
 from pathlib import Path
 import os
+import importlib.util
 import subprocess
 import tempfile
 
@@ -87,3 +88,58 @@ int main(void) {
                     '-Wl,--wrap=esp_lv_adapter_register_display','-o',str(tmp/'test')],check=True)
     subprocess.run([str(tmp/'test')],check=True)
 print('PASS: actual BSP call wrapped, 80 KB internal allocation failure redirected to PSRAM; config and other interfaces preserved')
+
+# Verify the second adapter-level allocation, not just the BSP profile override.
+spec = importlib.util.spec_from_file_location('patch_adapter', ROOT/'tools/patch_display_adapter.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+original = 'case ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL: {\n    void *buf = display_manager_alloc_draw_buffer(cfg->draw_buf_pixels * color_size, false, false);\n}\nvoid *other = display_manager_alloc_draw_buffer(other_size, false, false);\n'
+fixed = module.patch(original)
+assert 'cfg->draw_buf_pixels * color_size, profile->use_psram, false' in fixed
+assert 'other_size, false, false' in fixed
+assert module.patch(fixed) == fixed
+for invalid in ['', original.replace('false, false', 'true, true'), original + original]:
+    try: module.patch(invalid)
+    except ValueError: pass
+    else: raise AssertionError('Unsupported or ambiguous vendor source accepted')
+print('PASS: partial adapter allocation corrected; other allocators preserved; unknown source fails closed')
+
+# Compile the adapter-level path before and after patching: the original ignores
+# even use_psram=true, while the corrected triple-partial branch honours it.
+allocation_source = r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#define ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL 4
+static int buffer;
+static void *display_manager_alloc_draw_buffer(size_t size, bool psram, bool dma) {
+    (void)dma;
+    return psram || size <= 32768 ? &buffer : NULL;
+}
+static int prepare(bool use_psram) {
+    struct { size_t draw_buf_pixels; } runtime = { 40000 }, *cfg = &runtime;
+    struct { bool use_psram; } rendering = { use_psram }, *profile = &rendering;
+    (void)profile;
+    size_t color_size = 2;
+    switch (ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL) {
+    case ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL: {
+        void *buf = display_manager_alloc_draw_buffer(cfg->draw_buf_pixels * color_size, false, false);
+        return buf != NULL;
+    }
+    default: return 0;
+    }
+}
+int main(void) {
+    assert(prepare(false) == 0);
+    assert(prepare(true) == EXPECT_PSRAM_SUCCESS);
+    return 0;
+}
+'''
+with tempfile.TemporaryDirectory(prefix='zolee-adapter-') as directory:
+    tmp = Path(directory)
+    for name, text, expected in [('original', allocation_source, 0), ('fixed', module.patch(allocation_source), 1)]:
+        src=tmp/(name+'.c');src.write_text(text)
+        subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
+                        f'-DEXPECT_PSRAM_SUCCESS={expected}',str(src),'-o',str(tmp/name)],check=True)
+        subprocess.run([str(tmp/name)],check=True)
+print('PASS: compiled triple-partial allocator reproduces failure and uses PSRAM after correction')

@@ -20,3 +20,5 @@ endif()
 # A firmware projekt neve.
 project(zolee_energy_flow_display)
 
+
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/display_psram.cmake")

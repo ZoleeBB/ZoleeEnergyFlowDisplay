@@ -54,3 +54,5 @@ MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendsz
 A `Display initialized` után következő `alloc partial draw buffer 80000 bytes failed`, majd `bsp_display_start_with_config` assert a belső RAM-ból történő rajzpuffer-foglalás hibája. A 32 MB PSRAM ettől még működhet. A firmware a Waveshare BSP 2.0.3 MIPI regisztrációját PSRAM-pufferre állítja; induláskor `app_display: MIPI LVGL draw buffers use PSRAM` naplósor jelzi ezt. A panel három képpuffere, az 50 soros rajzpuffer és a fekvő tájolás megmarad. A managed component forrásfájljait nem módosítja.
 
 A régi firmware a soros konzolon ismétlődően újraindulhat; ehhez a javításhoz az új firmware teljes USB-csomagját kell feltölteni. A telepítő Python-fájljának cseréje önmagában nem változtatja meg a már feltöltött alkalmazást.
+
+Az adapter triple-partial pufferfoglalása is a PSRAM-beállítást követi: a CMake egy kizárólag buildkönyvtárbeli másolatot javít és fordít. Az eredeti managed component változatlan marad; ismeretlen vagy kétértelmű forrásváltozatnál a build megáll.
