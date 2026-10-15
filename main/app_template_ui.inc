@@ -12,7 +12,7 @@ LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;bool legacy_battery_corner;
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
@@ -78,7 +78,20 @@ static void template_image(lv_obj_t *obj,const char *file,int w,int h){
 static void template_path(template_node_t *node,const cJSON *e){
     lv_point_precise_t control[8];unsigned n=0;const cJSON *pt;
     cJSON_ArrayForEach(pt,cJSON_GetObjectItem(e,"points"))control[n++]=(lv_point_precise_t){tn(pt,"x",0),tn(pt,"y",0)};
-    if(!strcmp(ts(e,"curve"),"bezier")){
+    /* A már SD-re másolt Nap pálya v10 is jó geometriát kapjon
+     * firmware-frissítés után, sablon ZIP-csere nélkül. */
+    if(!strcmp(template_view.id,"09-solar-journey") &&
+       tn(template_view.document,"version",0)<11 &&
+       !strcmp(ts(e,"type"),"flow") &&
+       !strcmp(ts(e,"source"),"battery")){
+        node->legacy_battery_corner=true;
+        /* A régi flow origója x=1036. Abszolút: 1016 -> 1038 -> 1038. */
+        control[0]=(lv_point_precise_t){-20,1};
+        control[1]=(lv_point_precise_t){2,1};
+        control[2]=(lv_point_precise_t){2,88};
+        n=3;
+    }
+    if(!node->legacy_battery_corner && !strcmp(ts(e,"curve"),"bezier")){
         node->points[node->point_count++]=control[0];
         for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=96;i++){
             float t=i/96.f,u=1.f-t;
@@ -128,7 +141,7 @@ static void template_flow_path_create(template_node_t *node){
     const cJSON *first=cJSON_GetArrayItem(pts,0);
     lv_fpoint_t origin={(float)tn(first,"x",0),(float)tn(first,"y",0)};
     lv_vector_path_move_to(node->flow_path,&origin);
-    if(!strcmp(ts(node->spec,"curve"),"bezier")){
+    if(!node->legacy_battery_corner && !strcmp(ts(node->spec,"curve"),"bezier")){
         unsigned count=cJSON_GetArraySize(pts);
         for(unsigned i=1;i+2<count;i+=3){
             lv_fpoint_t p[3];
@@ -249,7 +262,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
         const app_energy_totals_t *yesterday=&st->comparison_yesterday_totals;
         if(!st->comparison_ready){snprintf(out,128,"—");return;}
         /* Két nap kizárólag azonos, ténylegesen megmért ötperces
-         * időablakaiból; a hiányos lefedettséget ≈ jelöli. */
+         * időablakaiból; a hiányos lefedettséget ~ jelöli. */
         double t=0,y=0;
         if(!strcmp(source,"production_yesterday_pct")){t=today->production_kwh;y=yesterday->production_kwh;}
         else if(!strcmp(source,"production_value_yesterday_pct")){
