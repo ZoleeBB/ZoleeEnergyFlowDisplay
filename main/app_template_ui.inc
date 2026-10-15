@@ -403,7 +403,7 @@ static void template_build(bool night){
             bool lower=cJSON_IsTrue(cJSON_GetObjectItem(e,"night_arc"));
             node->point_count=65;
             for(unsigned k=0;k<65;k++){
-                float angle=(float)M_PI*(lower?(1.f+k/64.f):(1.f-k/64.f));
+                float angle=(float)3.14159265358979323846*(lower?(1.f+k/64.f):(1.f-k/64.f));
                 node->points[k].x=cx+rx*cosf(angle);
                 node->points[k].y=cy-ry*sinf(angle);
             }
@@ -521,8 +521,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             /* Azimut 0=É, 90=K, 180=D, 270=Ny; magasság előjeles.
              * Kétdimenziós égboltkivetítés: napkelte K oldalon,
              * napnyugta Ny oldalon, a horizont alatt negatív magasság. */
-            float az=(float)(s->sun_azimuth_deg*(M_PI/180.));
-            float alt=(float)(s->sun_altitude_deg*(M_PI/180.));
+            float az=(float)(s->sun_azimuth_deg*(3.14159265358979323846/180.));
+            float alt=(float)(s->sun_altitude_deg*(3.14159265358979323846/180.));
             int radius_x=tn(e,"radius_x",350),radius_y=tn(e,"radius_y",275);
             int cx=tn(e,"center_x",520),cy=tn(e,"center_y",380);
             int px=cx-(int)lroundf(sinf(az)*cosf(alt)*radius_x)-tn(e,"w",40)/2;
