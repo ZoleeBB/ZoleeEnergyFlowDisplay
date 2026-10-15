@@ -36,3 +36,6 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=T
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_sdio_window.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_runtime_resources.py")], check=True)
+
+# Kritikus vizuális és animációs regressziók.
+subprocess.run([os.sys.executable, str(ROOT/'tests/test_visual_regressions.py')], check=True)
