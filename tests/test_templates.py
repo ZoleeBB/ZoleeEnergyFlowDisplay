@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
-    assert solar['version'] >= 10
+    assert solar['version'] >= 11
     assert len(solar['light']['elements']) <= 96
     for mode in ('dark','light'):
         elements=solar[mode]['elements']
@@ -64,11 +64,18 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
                    e['inactive_opacity']==184 and e['inactive_glow_opacity']==28 for e in flow_nodes)
         assert all(e['inactive_opacity']<e['active_opacity']-50 for e in flow_nodes)
         battery_flow=next(e for e in flow_nodes if e['source']=='battery')
-        assert battery_flow['curve']=='bezier' and battery_flow['reverse']
-        assert battery_flow['x']==1036 and battery_flow['y']==472
-        assert battery_flow['points'][0]=={'x':40,'y':1}
-        assert battery_flow['points'][-1]=={'x':2,'y':86}
-        assert battery_flow['y']+battery_flow['points'][-1]['y']<562
+        assert battery_flow['curve']=='polyline' and battery_flow['reverse']
+        assert battery_flow['x']==1016 and battery_flow['y']==472
+        assert battery_flow['points']==[{'x':0,'y':1},{'x':22,'y':1},{'x':22,'y':88}]
+        pv_icon=next(e for e in elements if e['type']=='image' and e.get('file')=='pv.png')
+        home_icon=next(e for e in elements if e['type']=='image' and e.get('file')=='home.png')
+        start_x=battery_flow['x']+battery_flow['points'][0]['x']
+        corner_x=battery_flow['x']+battery_flow['points'][1]['x']
+        assert start_x==pv_icon['x']+pv_icon['w']+4
+        assert start_x<corner_x<home_icon['x']
+        assert battery_flow['points'][0]['y']==battery_flow['points'][1]['y']
+        assert battery_flow['points'][1]['x']==battery_flow['points'][2]['x']
+        assert battery_flow['y']+battery_flow['points'][-1]['y']==560
         assert battery_flow['positive_color']!=battery_flow['negative_color']
         sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
         sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
