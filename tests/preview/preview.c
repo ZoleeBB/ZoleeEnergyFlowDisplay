@@ -121,6 +121,52 @@ static void test_flow_rendering(void){
         template_flow_tone(node,tc(node->spec,"color",BLUE),true);
     }
 }
+/* Nap pálya: napelem -> derékszög -> akku, és helyes irányok. */
+static void test_solar_battery_route(void){
+    if(strcmp(template_view.id,"09-solar-journey"))return;
+    template_node_t *battery=NULL;
+    for(unsigned i=0;i<template_node_count;i++)
+        if(!strcmp(ts(template_nodes[i].spec,"type"),"flow") &&
+           !strcmp(ts(template_nodes[i].spec,"source"),"battery"))battery=&template_nodes[i];
+    assert(battery && battery->point_count==3 && battery->flow_path);
+    assert(tn(battery->spec,"x",0)+battery->points[0].x==1016);
+    assert(tn(battery->spec,"y",0)+battery->points[0].y==473);
+    assert(tn(battery->spec,"x",0)+battery->points[1].x==1038);
+    assert(battery->points[0].y==battery->points[1].y);
+    assert(battery->points[1].x==battery->points[2].x);
+    assert(tn(battery->spec,"y",0)+battery->points[2].y==560);
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(battery->spec,"reverse")));
+    double original=battery->power;
+    battery->power=-3; /* Negatív PowerBat: töltés, PV -> akku. */
+    battery->phase=.5f;template_animate(.04f);assert(battery->phase>.5f);
+    battery->power=3; /* Pozitív PowerBat: kisütés, akku -> PV. */
+    battery->phase=.5f;template_animate(.04f);assert(battery->phase<.5f);
+    battery->power=original;
+}
+
+/* Régi, SD-n maradt v10-es sablon firmware-szintű helyreállítása. */
+static void test_legacy_solar_battery_route(void){
+    if(strcmp(template_view.id,"09-solar-journey"))return;
+    cJSON *old_doc=cJSON_Parse("{\"version\":10}");
+    cJSON *old_spec=cJSON_Parse("{\"type\":\"flow\",\"source\":\"battery\",\"curve\":\"bezier\",\"points\":[{\"x\":40,\"y\":1},{\"x\":27,\"y\":1},{\"x\":2,\"y\":29},{\"x\":2,\"y\":86}]}");
+    assert(old_doc && old_spec);
+    cJSON *saved=template_view.document;
+    template_view.document=old_doc;
+    template_node_t old_node={0};
+    old_node.spec=old_spec;
+    template_path(&old_node,old_spec);
+    assert(old_node.legacy_battery_corner && old_node.point_count==3);
+    assert(old_node.points[0].x==-20 && old_node.points[0].y==1);
+    assert(old_node.points[1].x==2 && old_node.points[1].y==1);
+    assert(old_node.points[2].x==2 && old_node.points[2].y==88);
+    template_flow_path_create(&old_node);
+    assert(old_node.flow_path);
+    lv_vector_path_delete(old_node.flow_path);
+    template_view.document=saved;
+    cJSON_Delete(old_doc);
+    cJSON_Delete(old_spec);
+}
+
 /* Exercise actual line objects and dot positions, including reverse/zero/cap. */
 static void test_template_motion(void){
     for(unsigned i=0;i<template_node_count;i++){
@@ -350,6 +396,10 @@ int main(void)
     fmt_cmp(cmp_test,sizeof(cmp_test),0,0);assert(!strcmp(cmp_test,"0%"));
     fmt_cmp(cmp_test,sizeof(cmp_test),3,0);assert(strstr(cmp_test,"új")!=NULL);
     fmt_cmp(cmp_test,sizeof(cmp_test),6,3);assert(strstr(cmp_test,"+100")!=NULL);
+    fmt_compared(cmp_test,sizeof(cmp_test),6,3,true);
+    assert(cmp_test[0]=='~' && strstr(cmp_test,"+100")!=NULL);
+    fmt_compared(cmp_test,sizeof(cmp_test),6,3,false);
+    assert(cmp_test[0]!='~');
     printf("Template geometry storage: %zu bytes\n",sizeof(template_nodes));
     setenv("TZ","UTC0",1);tzset();
     struct tm t={.tm_year=126,.tm_mon=9,.tm_mday=5,.tm_hour=14,.tm_min=37};epoch=mktime(&t);
@@ -464,7 +514,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){
