@@ -138,8 +138,9 @@ static void template_flow_path_create(template_node_t *node){
     node->flow_path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_MEDIUM);
     if(!node->flow_path)return;
     const cJSON *pts=cJSON_GetObjectItem(node->spec,"points");
-    const cJSON *first=cJSON_GetArrayItem(pts,0);
-    lv_fpoint_t origin={(float)tn(first,"x",0),(float)tn(first,"y",0)};
+    /* Ugyanaz a valódi kezdőpont a vektoros rajzban és a mozgó pontoknál,
+     * beleértve a régi SD-sablon helyreállított akkumulátorútját is. */
+    lv_fpoint_t origin={(float)node->points[0].x,(float)node->points[0].y};
     lv_vector_path_move_to(node->flow_path,&origin);
     if(!node->legacy_battery_corner && !strcmp(ts(node->spec,"curve"),"bezier")){
         unsigned count=cJSON_GetArraySize(pts);
