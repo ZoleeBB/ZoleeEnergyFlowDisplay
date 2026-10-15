@@ -39,15 +39,18 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert len(solar['light']['elements']) <= 96
     for mode in ('dark','light'):
         elements=solar[mode]['elements']
-        cards=[e for e in elements if e['type']=='box' and e['y']==662]
-        assert len(cards)==4 and all(e['h']==110 for e in cards)
+        cards=[e for e in elements if e['type']=='box' and e['y']>=650]
+        assert len(cards)==4
+        assert [e['x'] for e in cards]==sorted(e['x'] for e in cards)
+        assert len({(e['y'],e['w'],e['h']) for e in cards})==1
+        assert all(e['h']<=112 and e['y']+e['h']<=800 for e in cards)
         assert {e['source'] for e in elements if e['type']=='value'} >= {
             'solar_savings_day','solar_value_today','consumption_today','export_today',
             'savings_yesterday_pct','production_value_yesterday_pct',
             'consumption_yesterday_pct','export_yesterday_pct',
             'battery_summary','production_yesterday_pct'}
-        chips=[e for e in elements if e['type']=='box' and e['y'] in (81,249)]
-        assert len(chips)==3 and all(e['h']<=58 and e['opacity']<230 for e in chips)
+        chips=[e for e in elements if e['type']=='box' and e['x']<930 and e['y']<300]
+        assert len(chips)==3 and all(e['h']<=60 and e['opacity']<230 for e in chips)
         assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
