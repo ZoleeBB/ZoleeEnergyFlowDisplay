@@ -28,3 +28,11 @@ A beépített rendszernézet korábbi összegző képletei eltérnek: önellát�
 ## Tárolás
 
 A v3 napfájlok integrált forrásenergiát és SOC-átlagot is tárolnak. A v1/v2 állományok olvashatók; forrásarányaik közelítettek, SOC-görbéjük hiányzik. A mentés alapértelmezetten 15 percenként történik; OTA firmware-frissítés és kézi újraindítás előtt is azonnali mentés fut. A mentés revíziós, `.tmp`/`.bak` helyreállítással, `fflush` és `fsync` használatával. SD-hibánál a RAM-beli gyűjtés tovább fut. Az opcionális időjárás nem befolyásolja az energiaszámítást.
+
+## Órás napelemtermelés
+
+A Nap pálya témához fejlesztett `solar_hourly` diagram a meglévő ötperces
+slotokban integrált `pv_home_kwh`, `pv_stored_kwh` és `pv_export_kwh`
+értékeket óránként összegzi. Az oszlop alsó zöld része helyi felhasználás és
+tárolás; a sárga felső rész a hálózatba visszatáplálás. A hiányzó adatok nem
+becsült napenergia-termelési értékek.
