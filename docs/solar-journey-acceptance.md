@@ -16,4 +16,7 @@ A 1280×800-as felület nappali és éjszakai jelenete azonos geometriát haszn�
 - Az összehasonlítás mai és tegnapi **azonos lezárt ötperces idősávból** származó statisztikával történik; ha tegnapi alapadat vagy az osztás nevezője nulla, `—` látható.
 
 ## Kiadás előtti feltételek
-A C sablonvalidátor, a böngészős ZIP validátor, a firmware build és az LVGL preview CI-próbája legyen sikeres. Az SD-re kerülő PNG-ket és a teljes arculatot valódi 1280×800-as kijelzőn ellenőrizni kell. A jelenlegi `day.png` és `night.png` továbbra is a korábban generált tájképréteg, **nem állítható, hogy az új, külön generált háttérpár már elkészült**. A jóváhagyott referencia pixelhű vizuális validálása ezért még hátravan. A PR-t addig nem szabad automatikusan merge-elni.
+
+A **V6** nappali és éjszakai háttér, a mozgó napkorong és a teljes 25 darabos ikoncsomag az `09-solar-journey` témakönyvtárban szerepel. A két üzemmód közös geometriát használ, az ívek már a háttérbe vannak beépítve; a program csak a napkorongot mozgatja.
+
+A C sablonvalidátor, a böngészős ZIP-validátor, a firmware build, a Windows-szimulátor és az LVGL-előnézet CI-próbája legyen sikeres. A valós **1280×800-as** kijelzőn a napkorong pályáját és a kártyák olvashatóságát külön is ellenőrizni kell. A PR-t ennek igazolásáig nem szabad automatikusan egyesíteni.

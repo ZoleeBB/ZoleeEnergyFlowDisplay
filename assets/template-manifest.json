@@ -421,55 +421,103 @@
     "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
   },
   {
+    "asset": "templates/09-solar-journey/battery_temp.png",
+    "sha256": "d522480037c32131db45b611b5b66959ef02389fdf333fdd049b2732c0f7aae9"
+  },
+  {
     "asset": "templates/09-solar-journey/battery.png",
-    "sha256": "d360c4ca30cd37a9cc95e53cde03f3e4562df516e40bffa5b127513a15b05121"
+    "sha256": "a678e9df57b3c065794bb8abd2e02b1926940af20534bd95e1706ce6c1b28ca2"
+  },
+  {
+    "asset": "templates/09-solar-journey/coins.png",
+    "sha256": "0b2650862ce8c7573a5b621893ea9f5a545082190978c9b783f2a73c6370e984"
+  },
+  {
+    "asset": "templates/09-solar-journey/consumption_bars.png",
+    "sha256": "3e42a555b2edf50e44c4318885ddc470720fadd65d92fe326b1cf428d7a88c50"
+  },
+  {
+    "asset": "templates/09-solar-journey/consumption_icon.png",
+    "sha256": "2b5b55113eb69a602587da40ba30f52f093f6f6c15f85533b9b20078c41bd4cb"
   },
   {
     "asset": "templates/09-solar-journey/day.png",
-    "sha256": "831bef7317bdada1c8b26d99bd2379f4d31a9f222e67039811553102409e7f47"
+    "sha256": "23a43d71610860ccfd21a927a9646d74ec23789f5df9bd6f70ab0837c339cf8b"
   },
   {
     "asset": "templates/09-solar-journey/eco_leaf.png",
-    "sha256": "c7274f108a0f4b30703b51e1ebe17edaf4a66d7213f947d5df7551af83c3edfc"
+    "sha256": "1316452380d7422eb709dff85f34af2765393e53feecf8e35aaa08d992299fd9"
+  },
+  {
+    "asset": "templates/09-solar-journey/eco_tree.png",
+    "sha256": "fe099157cb4fe35a7e195c4a49645016485f7c0b9496d83c7ca7734c017701da"
+  },
+  {
+    "asset": "templates/09-solar-journey/export_bars.png",
+    "sha256": "523afb6a7c7d159a25dfb3302740955d959a1e77b4b2f5bb483fd3e7be1db138"
+  },
+  {
+    "asset": "templates/09-solar-journey/export_icon.png",
+    "sha256": "54a77482d5dc7cee70be23a9764512c62ad0ac0d08a9027ddb0162844e8f8ca4"
   },
   {
     "asset": "templates/09-solar-journey/grid.png",
-    "sha256": "ebd254bf3ac69ff4277c8cd2409da32ac9ad41b2b28278adc3edf7433d1db6d0"
+    "sha256": "dec2bcde21e4a9c7d49e7e201aaaa33d51777643d912cd7c8a5c47eed8b1ad1f"
   },
   {
     "asset": "templates/09-solar-journey/home.png",
-    "sha256": "aea3dead5b57ec12c13754a6a2c216b0fac928c6293b4bb53b84827a66bd6c05"
+    "sha256": "ac4107f43606e4caf40ad6d474c2658a94ce33139be6c477aba5ae6fcf5f37af"
+  },
+  {
+    "asset": "templates/09-solar-journey/lightning.png",
+    "sha256": "9f9d206d7dac2c1a525706550f550e943874bb059a1f04f3179140085c53fe38"
   },
   {
     "asset": "templates/09-solar-journey/night.png",
-    "sha256": "61c089e7faa3eb1eadd0f3406b398651b918dea89beed2bf271a012b4080351b"
+    "sha256": "0ca7e8c20497877645da5eb8bb43ba7969d08f22c077e860fa034ea396b91663"
+  },
+  {
+    "asset": "templates/09-solar-journey/production_bars.png",
+    "sha256": "a1b6964339ba211e0fda06767a864945bd4abd1efaa9356e08a1507b4a5a7594"
   },
   {
     "asset": "templates/09-solar-journey/pv.png",
-    "sha256": "0a9bfaaa700b18510ccb6a2cecbcc8d0db58a54b99cb9abcea8e8f6c003e8eff"
+    "sha256": "2be3d709b7805e679b7571f01811a712b5a5f2efe525054e4538bc8c18115ba6"
+  },
+  {
+    "asset": "templates/09-solar-journey/solar_day.png",
+    "sha256": "f7abf70a5b82296d8d88f337391f787245d9578452e213887a5e80be8530c2a7"
+  },
+  {
+    "asset": "templates/09-solar-journey/solar_night.png",
+    "sha256": "fbcecfed37a5be292cd3ce5c2128ac3d16e84762ca7005302f4d0aa925f10ca8"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_cloudy.png",
+    "sha256": "153792083207b33185ecd883354dd1784b0e1a3078fa1a04536447f2bdc374fb"
   },
   {
     "asset": "templates/09-solar-journey/weather_moon.png",
-    "sha256": "5b6869b4c67b476a3e985a8d136b03bcd2f2e17a21922b5657f424ae2f1b6759"
+    "sha256": "a900054074b0be04dfa85d7814eccef0511634917b4f77c829faade8ca55e0c0"
   },
   {
     "asset": "templates/09-solar-journey/weather_partly_cloudy.png",
-    "sha256": "8a77237e57f8315ac171ac1f640e670502bd6f877e1c6c5452ec5b727604a8c4"
+    "sha256": "52ab2ba2ed3b0bc1ac82a6420d31aa3fb3ab2eabec53b2c31bbf57c419634dbb"
   },
   {
     "asset": "templates/09-solar-journey/weather_rain.png",
-    "sha256": "7a0bffd64ebee96807d061dfcaf7e42724a2c0dc3a4656ee99c3b41137682650"
+    "sha256": "521486279f0a9f67960ed412c54b303e947748af2e013af86bf4862078f1ee27"
   },
   {
     "asset": "templates/09-solar-journey/weather_snow.png",
-    "sha256": "7e0c2f30497f10436dbe6c7187545fffb9e0919188e826d41212d439fc3d3c83"
+    "sha256": "5e6f040071e9b5a619fbf082f20f5d272b6b313dfbd0e577d106639042125ea5"
   },
   {
     "asset": "templates/09-solar-journey/weather_sunny.png",
-    "sha256": "1082aa06c989ad369320122bfc65f6f94b1774fd1de2ee6d77cf2273d0163348"
+    "sha256": "8d48e5837201b51356607c3f9d3e79f9f863e3ee1440de64f15aab2655e250bb"
   },
   {
     "asset": "templates/09-solar-journey/weather_wind.png",
-    "sha256": "5e5073480827d9732fce3651ca1360e14216d6f27da9280ce1189d9aa6c51bbc"
+    "sha256": "eb05e181e9cc19b7c5b3f7d69d3ea4244859f0eecda8365e78b3f78d666cb9bb"
   }
 ]

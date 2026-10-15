@@ -1,14 +1,19 @@
-# Nap pálya v2 grafikai import
+# Nap pálya V6 – grafikai csomag
 
-A teljes újragenerált, 13 PNG-t tartalmazó grafikai készlet jelenleg külön ZIP-ben elérhető. A GitHub repo szöveges API-ja a helyi bináris fájlokat nem tudja átemelni; az eredeti PNG-k nem helyettesíthetők a régi témákból kimásolt képekkel.
+A teljes **V6** képkészlet és a `template.json` már megtalálható a `feature/solar-journey-template` ágon a `templates/09-solar-journey/` könyvtárban.
 
-A helyi Git-checkoutban futtasd:
+- Összesen **25 PNG**: nappali és éjszakai, azonos pályageometriára igazított háttér; külön, átlátszó mozgó napkorongok; időjárás-, energiaáramlás- és összegzőkártya-ikonok.
+- A háttérre rajzolt fényes napív és a horizont alatti kék ív a képfájl része; **külön `solar_arc` elem nincs**. A napkorong egyedül mozgó képréteg, a háttér által meghatározott koordinátákon.
+- Az egyes PNG-k a sablon natív ZIP-feltöltőjén keresztül is telepíthetők, ha a `NapPalya-V6-web-feltoltes.zip` csomag elérhető.
+- A firmware és a helyi tesztek a repository **`assets/template-manifest.json`** fájlját használják: minden sablon PNG-fájljának SHA-256 ellenőrzőösszegét tartalmazza.
+- A V6 javítócsomagban szereplő **`docs/asset-manifest.json`** csak a 25 képet dokumentáló *külön ellenőrzőlista*. **Ezt nem kell feltölteni a repóba**, mert a központi manifest már tartalmazza az adatokat.
+
+## Ellenőrzés
+
 ```sh
-python tools/import_solar_journey.py NapPalya-komplett-sablon.zip
-python tests/run_tests.py
-git add templates/09-solar-journey assets/template-manifest.json
-git commit -m "assets(solar): add original day-night artwork and icon layers"
-git push origin feature/solar-journey-template
+python3 tests/test_templates.py
+python3 tools/prepare_web.py --check
+python3 tests/run_tests.py
 ```
 
-A szkript megőrzi a teljes v2 sablonleírót, frissíti a képfájlok SHA-256 jegyzékét, visszautasítja a váratlan ZIP bejegyzéseket, és **nem** commitol automatikusan. Az importálás után az ESP-IDF, Windows simulator és a valós 1280×800 kijelző ellenőrzése szükséges. Az integráció nem tekinthető befejezettnek a fájlok push-olása előtt.
+A firmware valódi 1280×800-as képernyőn történő vizuális ellenőrzése továbbra is szükséges; a PR egyesítése csak ezután javasolt.
