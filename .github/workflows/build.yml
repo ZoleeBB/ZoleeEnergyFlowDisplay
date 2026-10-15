@@ -90,6 +90,9 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
 
+      - name: Ensure embedded browser pages match current JavaScript
+        run: python3 tools/prepare_web.py --check
+
       - name: Set exact firmware version
         env:
           RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}

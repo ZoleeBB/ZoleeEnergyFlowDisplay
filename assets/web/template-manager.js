@@ -49,8 +49,10 @@ function validateManifest(doc,files){
  if(encoded>4194304||decoded>12582912||files.get('template.json').length>65536)throw Error('Memóriakorlát túllépve');
  for(const mode of ['light','dark']){
   const scene=doc[mode];if(!scene||!color(scene.background)||!Array.isArray(scene.elements)||scene.elements.length>96)throw Error('Hiányzó vagy hibás világos/sötét nézet');
-  for(const e of scene.elements){
-   if(!types.includes(e.type)||!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)throw Error('Hibás elemhatár');
+  for(const [index,e] of scene.elements.entries()){
+   if(!types.includes(e.type))throw Error('Nem támogatott elemtípus ('+mode+', #'+(index+1)+'): '+e.type+'. Firmware-frissítés szükséges.');
+   if(!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)
+    throw Error('Hibás elemhatár ('+mode+', #'+(index+1)+', '+e.type+'): '+e.x+','+e.y+' '+e.w+'×'+e.h);
    if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Hibás adatforrás');
    for(const key of ['color','background','positive_color','negative_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
    if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG');
