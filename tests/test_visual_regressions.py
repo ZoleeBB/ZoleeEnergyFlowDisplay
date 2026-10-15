@@ -31,6 +31,17 @@ assert "fmin(fabs(kw)/7.,1.)" in flow
 assert ".045f+.955f*load" in flow
 assert 'tn(node->spec,"inactive_opacity",thick?72:86)' in templates
 assert 'st->yesterday_comparison_partial' in templates
+assert 'st->comparison_today_totals' in templates
+assert 'st->comparison_yesterday_totals' in templates
+assert 'fmt_compared(out,128,t,y,st->yesterday_comparison_partial)' in templates
+assert 'comparison_today_totals' in ui
+assert 'st->comparison_ready' in ui
+assert 'if(!st->comparison_ready)' in templates
+assert 'fmt_compared(' in ui
+stats = (ROOT / 'main/app_stats.c').read_text(encoding='utf-8')
+assert 'app_stats_compare_slots(' in stats
+assert 'out->comparison_paired_slots=match.paired_slots' in stats
+assert 'match.paired_slots>=minimum' in stats
 assert 'lv_obj_set_size(node->detail,width,height)' in templates
 assert "if(fabs(kw)<0.0005 || seconds<=0)return phase;" in flow
 

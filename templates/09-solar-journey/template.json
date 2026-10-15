@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 9,
+  "version": 10,
   "light": {
     "background": "#E2EDF7",
     "palette": {
@@ -601,9 +601,9 @@
         ],
         "dot_size": 6,
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
       },
       {
         "type": "flow",
@@ -630,45 +630,47 @@
         "dot_size": 6,
         "reverse": true,
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
       },
       {
         "type": "flow",
-        "x": 1007,
-        "y": 540,
-        "w": 99,
-        "h": 23,
+        "x": 1036,
+        "y": 472,
+        "w": 43,
+        "h": 88,
         "source": "battery",
-        "color": "#2C97FF",
+        "color": "#48B9FF",
         "radius": 3,
         "glow": 1,
         "points": [
           {
-            "x": 98,
-            "y": 0
-          },
-          {
-            "x": 78,
-            "y": 0
-          },
-          {
             "x": 40,
-            "y": 22
+            "y": 1
           },
           {
-            "x": 0,
-            "y": 22
+            "x": 27,
+            "y": 1
+          },
+          {
+            "x": 2,
+            "y": 29
+          },
+          {
+            "x": 2,
+            "y": 86
           }
         ],
         "dot_size": 6,
         "reverse": true,
         "curve": "bezier",
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28,
+        "positive_color": "#78D9FF",
+        "negative_color": "#286DAF"
       },
       {
         "type": "value",
@@ -1130,6 +1132,19 @@
         "background": "#66A4C0",
         "opacity": 185,
         "radius": 1
+      },
+      {
+        "type": "value",
+        "x": 1093,
+        "y": 574,
+        "w": 51,
+        "h": 22,
+        "source": "battery",
+        "font": 12,
+        "color": "#2F97CF",
+        "positive_color": "#228CC4",
+        "negative_color": "#185995",
+        "align": "center"
       }
     ]
   },
@@ -1731,9 +1746,9 @@
         ],
         "dot_size": 6,
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
       },
       {
         "type": "flow",
@@ -1760,45 +1775,47 @@
         "dot_size": 6,
         "reverse": true,
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
       },
       {
         "type": "flow",
-        "x": 1007,
-        "y": 540,
-        "w": 99,
-        "h": 23,
+        "x": 1036,
+        "y": 472,
+        "w": 43,
+        "h": 88,
         "source": "battery",
-        "color": "#2C97FF",
+        "color": "#48B9FF",
         "radius": 3,
         "glow": 1,
         "points": [
           {
-            "x": 98,
-            "y": 0
-          },
-          {
-            "x": 78,
-            "y": 0
-          },
-          {
             "x": 40,
-            "y": 22
+            "y": 1
           },
           {
-            "x": 0,
-            "y": 22
+            "x": 27,
+            "y": 1
+          },
+          {
+            "x": 2,
+            "y": 29
+          },
+          {
+            "x": 2,
+            "y": 86
           }
         ],
         "dot_size": 6,
         "reverse": true,
         "curve": "bezier",
         "dot_count": 2,
-        "active_opacity": 240,
-        "inactive_opacity": 112,
-        "inactive_glow_opacity": 22
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28,
+        "positive_color": "#78D9FF",
+        "negative_color": "#286DAF"
       },
       {
         "type": "value",
@@ -2260,6 +2277,19 @@
         "background": "#4A82A8",
         "opacity": 185,
         "radius": 1
+      },
+      {
+        "type": "value",
+        "x": 1093,
+        "y": 574,
+        "w": 51,
+        "h": 22,
+        "source": "battery",
+        "font": 12,
+        "color": "#78D9FF",
+        "positive_color": "#78D9FF",
+        "negative_color": "#2D7BBF",
+        "align": "center"
       }
     ]
   }

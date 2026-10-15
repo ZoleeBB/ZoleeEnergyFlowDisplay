@@ -245,14 +245,11 @@ static void template_text(char out[128],const char *source,const app_energy_samp
         return;
     }
     if(strstr(source,"_yesterday_pct")){
-        const app_energy_totals_t *today=&st->completed_interval_totals;
-        const app_energy_totals_t *yesterday=&st->yesterday_completed_interval_totals;
-        if(!st->has_yesterday){snprintf(out,128,"—");return;}
-        /* Ugyanazt az idősáv-lefedettségi jelzést használjuk, mint a
-         * közös rendszerkártyák; hiányos napból nincs százalék. */
-        if(st->yesterday_comparison_partial){
-            snprintf(out,128,"%s",tr("Részleges","Partial"));return;
-        }
+        const app_energy_totals_t *today=&st->comparison_today_totals;
+        const app_energy_totals_t *yesterday=&st->comparison_yesterday_totals;
+        if(!st->comparison_ready){snprintf(out,128,"—");return;}
+        /* Két nap kizárólag azonos, ténylegesen megmért ötperces
+         * időablakaiból; a hiányos lefedettséget ≈ jelöli. */
         double t=0,y=0;
         if(!strcmp(source,"production_yesterday_pct")){t=today->production_kwh;y=yesterday->production_kwh;}
         else if(!strcmp(source,"production_value_yesterday_pct")){
@@ -264,7 +261,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
             t=(today->pv_home_kwh+today->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+today->grid_export_kwh*s_cfg.energy.feed_in_price;
             y=(yesterday->pv_home_kwh+yesterday->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+yesterday->grid_export_kwh*s_cfg.energy.feed_in_price;
         }
-        fmt_cmp(out,128,t,y);
+        fmt_compared(out,128,t,y,st->yesterday_comparison_partial);
         return;
     }
     if(!strcmp(source,"sun_direction")){
@@ -766,23 +763,25 @@ static void template_animate(float dt){
             if(!s_animation_sample.sun_position_valid)continue;
             float fraction=(float)fmin(pv/8.,1.);
             bool daylight=!s_animation_sample.night_mode&&s_animation_sample.sun_altitude_deg>0;
-            node->phase=fmodf(node->phase+dt*(daylight?.9f:1.f/9.f),1.f);
+            node->phase=fmodf(node->phase+dt*(daylight?.9f:1.f/4.2f),1.f);
             float wave=.5f+.5f*sinf(node->phase*6.2831853f);
             int glow=daylight?4+(int)(fraction*(18+17*wave)):0;
             /* Az éjszakai halvány kék napkorong NEM pulzál. */
             if(node->detail){
                 /* A hold képe nem pulzál: csak a mögötte lévő áttetsző
                  * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
-                const int grow=daylight?0:2+(int)lroundf(2.f*sinf(node->phase*6.2831853f));
+                /* Az apró méretváltozást finom alpha-/glow-átmenet
+                 * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
+                const int grow=daylight?0:(int)lroundf(2.f*wave);
                 const int pad=6+grow;
                 const int width=tn(node->spec,"w",40)+2*pad;
                 const int height=tn(node->spec,"h",40)+2*pad;
                 if(lv_obj_get_width(node->detail)!=width || lv_obj_get_height(node->detail)!=height)
                     lv_obj_set_size(node->detail,width,height);
                 lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)-pad,lv_obj_get_y(node->obj)-pad);
-                lv_obj_set_style_shadow_width(node->detail,daylight?glow:11,0);
-                lv_obj_set_style_shadow_opa(node->detail,daylight?(lv_opa_t)(55+145*fraction):LV_OPA_30,0);
-                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)(10+30*fraction):LV_OPA_10,0);
+                lv_obj_set_style_shadow_width(node->detail,daylight?glow:10+(int)lroundf(4.f*wave),0);
+                lv_obj_set_style_shadow_opa(node->detail,daylight?(lv_opa_t)(55+145*fraction):(lv_opa_t)(25+20*wave),0);
+                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)(10+30*fraction):(lv_opa_t)(10+10*wave),0);
             }
             continue;
         }

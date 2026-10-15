@@ -7,6 +7,7 @@
  * használja összehasonlítási alapként.
  */
 #include "app_stats.h"
+#include "app_stats_compare.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -824,61 +825,6 @@ static void sum_completed_slots(
     }
 }
 
-/* Igaz, ha a vizsgált lezárt időszakban legalább egy valódi mérési slot létezik. */
-static bool day_has_samples_until(
-    const day_data_t *day,
-    int completed_slots)
-{
-    if (!day->valid) {
-        return false;
-    }
-
-    if (completed_slots < 0) {
-        completed_slots = 0;
-    }
-    if (completed_slots > APP_STATS_SLOT_COUNT) {
-        completed_slots = APP_STATS_SLOT_COUNT;
-    }
-
-    for (int i = 0; i < completed_slots; i++) {
-        const app_stats_slot_t *slot=&day->slots[i];
-        /* A mentett régi slotoknak lehet 0 a sample_count értéke,
-         * miközben az integrált energia érvényes. Ezt sem dobhatjuk el. */
-        const app_energy_totals_t *en=&slot->energy;
-        bool has_energy=fabs(en->production_kwh)>1e-9 ||
-            fabs(en->consumption_kwh)>1e-9 ||
-            fabs(en->grid_import_kwh)>1e-9 ||
-            fabs(en->grid_export_kwh)>1e-9 ||
-            fabs(en->battery_charge_kwh)>1e-9 ||
-            fabs(en->battery_discharge_kwh)>1e-9;
-        if ((slot->valid && slot->sample_count>0) || has_energy)
-            return true;
-    }
-
-    return false;
-}
-
-/* Mentett kWh adat akkor is érvényes, ha a régebbi
- * statisztika-formátumban a sample_count nulla. */
-static int comparable_slots(const day_data_t *day,int completed_slots)
-{
-    if(!day->valid)return 0;
-    int count=0;
-    if(completed_slots>APP_STATS_SLOT_COUNT)completed_slots=APP_STATS_SLOT_COUNT;
-    for(int i=0;i<completed_slots;i++){
-        const app_stats_slot_t *slot=&day->slots[i];
-        const app_energy_totals_t *en=&slot->energy;
-        bool energy=fabs(en->production_kwh)>1e-9||
-                    fabs(en->consumption_kwh)>1e-9||
-                    fabs(en->grid_import_kwh)>1e-9||
-                    fabs(en->grid_export_kwh)>1e-9||
-                    fabs(en->battery_charge_kwh)>1e-9||
-                    fabs(en->battery_discharge_kwh)>1e-9;
-        if((slot->valid&&slot->sample_count>0)||energy)count++;
-    }
-    return count;
-}
-
 /* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
 esp_err_t app_stats_init(const app_config_t *cfg)
 {
@@ -1015,23 +961,25 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
         completed_slots,
         &out->completed_interval_totals);
 
-    out->has_yesterday =
-        day_has_samples_until(
-            &s_yesterday,
-            completed_slots);
-
-    if (out->has_yesterday) {
+    if(s_yesterday.valid){
+        /* A teljes 00:00..utolsó lezárt ötperces időszakot vizsgáljuk.
+         * Csak az azonos időpontban mindkét napon mért ablakokból
+         * képezünk összehasonlítást: hiányos adat nem lesz nulla kWh. */
+        app_stats_comparison_result_t match=app_stats_compare_slots(
+            s_today.slots,s_yesterday.slots,completed_slots);
+        out->comparison_today_totals=match.today;
+        out->comparison_yesterday_totals=match.yesterday;
+        out->comparison_paired_slots=match.paired_slots;
+        out->yesterday_comparison_partial=match.partial;
+        /* Késő esti egyetlen véletlen minta nem reprezentatív.
+         * Legalább egy órányi közös adat kell (az első órában egy slot). */
+        unsigned minimum=completed_slots<12?1u:12u;
+        out->has_yesterday=match.paired_slots>0;
+        out->comparison_ready=completed_slots>0&&match.paired_slots>=minimum;
         sum_completed_slots(
             &s_yesterday,
             completed_slots,
             &out->yesterday_completed_interval_totals);
-        /* Mindkét napon pontosan 0:00..aktuális lezárt ötperces
-         * idősáv; a hiányos nappal nem szabad teljes napot összevetni. */
-        int valid_today=comparable_slots(&s_today,completed_slots);
-        int valid_yesterday=comparable_slots(&s_yesterday,completed_slots);
-        out->yesterday_comparison_partial=completed_slots>0 &&
-            (valid_today*100<completed_slots*85 ||
-             valid_yesterday*100<completed_slots*85);
     }
 
     xSemaphoreGive(s_mutex);

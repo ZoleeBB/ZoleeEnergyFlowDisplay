@@ -17,6 +17,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
                '-l:libcjson.so.1', '-Wl,--wrap=fsync', '-Wl,--wrap=rename', '-o', str(temp/'test_core')]
     subprocess.run(command, cwd=ROOT, check=True)
     subprocess.run([str(temp/'test_core')], check=True, timeout=30)
+# Generated full/partial five-minute energy histories, built as real C code.
+with tempfile.TemporaryDirectory(prefix="zolee-compare-") as directory:
+    binary=str(Path(directory)/"test_stats_comparison")
+    subprocess.run([os.environ.get("CC","cc"),"-std=c11","-O2","-Wall","-Wextra",
+                    "-Werror","-Imain","tests/test_stats_comparison.c","-lm",
+                    "-o",binary],cwd=ROOT,check=True)
+    subprocess.run([binary],check=True,timeout=10)
 # Run the complete HTTP sample with stubbed Loxone I/O, including unchanged inputs.
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_http_picoc.py")], check=True)
 

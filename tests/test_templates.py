@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
-    assert solar['version'] >= 7
+    assert solar['version'] >= 10
     assert len(solar['light']['elements']) <= 96
     for mode in ('dark','light'):
         elements=solar[mode]['elements']
@@ -60,9 +60,16 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2
         flow_nodes=[e for e in elements if e['type']=='flow']
         assert len(flow_nodes)==3
-        assert all(e['radius']==3 and e['active_opacity']==240 and
-                   e['inactive_opacity']==112 and e['inactive_glow_opacity']==22 for e in flow_nodes)
-        assert all(e['inactive_opacity']*2<e['active_opacity'] for e in flow_nodes)
+        assert all(e['radius']==3 and e['active_opacity']==250 and
+                   e['inactive_opacity']==184 and e['inactive_glow_opacity']==28 for e in flow_nodes)
+        assert all(e['inactive_opacity']<e['active_opacity']-50 for e in flow_nodes)
+        battery_flow=next(e for e in flow_nodes if e['source']=='battery')
+        assert battery_flow['curve']=='bezier' and battery_flow['reverse']
+        assert battery_flow['x']==1036 and battery_flow['y']==472
+        assert battery_flow['points'][0]=={'x':40,'y':1}
+        assert battery_flow['points'][-1]=={'x':2,'y':86}
+        assert battery_flow['y']+battery_flow['points'][-1]['y']<562
+        assert battery_flow['positive_color']!=battery_flow['negative_color']
         sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
         sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
         assert sunrise['x']==26 and sunrise['x']+sunrise['w']<170
@@ -73,7 +80,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
                     e.get('background')==band['outline_color']]
         assert len(separators)==7
         assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
-        assert len(elements)==88
+        assert len(elements)==89
+        power=next(e for e in elements if e.get('type')=='value' and e.get('source')=='battery')
+        assert power['font']==12 and power['x']==1093 and power['w']==51
+        assert power['positive_color']!=power['negative_color']
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
     assert geometric(solar['light'])==geometric(solar['dark'])

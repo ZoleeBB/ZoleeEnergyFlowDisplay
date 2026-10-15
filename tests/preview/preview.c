@@ -113,7 +113,8 @@ static void test_flow_rendering(void){
         const int inactive=tn(node->spec,"inactive_opacity",thick?72:86);
         assert(lv_obj_get_style_line_opa(node->obj,0)==inactive);
         assert(lv_obj_get_style_line_opa(node->detail,0)==tn(node->spec,"inactive_glow_opacity",16));
-        assert(inactive<opacity/2); /* The active path remains much brighter. */
+        assert(inactive<opacity); /* The active path is stronger; inactive stays visible. */
+        assert(opacity-inactive>=50);
         template_animate(.016f);
         for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
         node->power=power;

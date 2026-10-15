@@ -356,6 +356,14 @@ static void fmt_cmp(char *out,size_t n,double t,double y){
     fmt_dec(q,sizeof(q),p,1);
     snprintf(out,n,"%s %s%s%%",p>=0?"↑":"↓",p>=0?"+":"",q);
 }
+/* A részleges adatokat számszerűen, de közelítőként jelöljük.
+ * A számláló és a nevező kizárólag ugyanazokból a mért 5 perces
+ * időablakokból származik, soha nem a hiányzó órák nulláiból. */
+static void fmt_compared(char *out,size_t n,double t,double y,bool partial){
+    char raw[32];fmt_cmp(raw,sizeof(raw),t,y);
+    if(partial && strcmp(raw,"—"))snprintf(out,n,"≈%s",raw);
+    else snprintf(out,n,"%s",raw);
+}
 /* Összehasonlítási értékhez zöld, narancs vagy szürke szín választása. */
 static uint32_t cmp_color(double t,double y){if(fabs(y)<1e-9)return GRAY;return t>=y?GREEN:ORANGE;}
 
@@ -1195,18 +1203,13 @@ static void metric(
             LV_OBJ_FLAG_HIDDEN);
     }
 
-    if(s_yesterday_partial_for_ui){
-        fit_text(s_cmp[index],tr("Részleges","Partial"),index<4?190:162,APP_FONT_14);
-        text_color_if_changed(s_cmp[index],c(tone(GRAY,s_last_night)),0);
-        return;
-    }
-
-    char comparison[32];
-    fmt_cmp(
+    char comparison[48];
+    fmt_compared(
         comparison,
         sizeof(comparison),
         today,
-        yesterday);
+        yesterday,
+        s_yesterday_partial_for_ui);
 
     fit_text(s_cmp[index],comparison,index<4?190:162,APP_FONT_14);
 
@@ -1458,11 +1461,11 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
 
     s_animation_sample=*s;
     update_flows(s,0.f);
-    /* A részleges tegnapi/mai lefedettségből számolt százalék
-     * félrevezető, ezért a hiányos napokat egyértelműen jelöljük. */
+    /* Minden összevetést azonos időpontban mért, lezárt slotokból számolunk.
+     * Hiányos adatsor esetén a kapott százalék közelítő jelölést kap. */
     s_yesterday_partial_for_ui=st->yesterday_comparison_partial;
-    fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->completed_interval_totals.production_kwh,st->yesterday_completed_interval_totals.production_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->completed_interval_totals.consumption_kwh,st->yesterday_completed_interval_totals.consumption_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->completed_interval_totals.grid_import_kwh,st->yesterday_completed_interval_totals.grid_import_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->completed_interval_totals.grid_export_kwh,st->yesterday_completed_interval_totals.grid_export_kwh,st->has_yesterday);
-    snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->completed_interval_totals),money(&st->yesterday_completed_interval_totals),st->has_yesterday);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->completed_interval_totals),co2(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_dec(b,sizeof(b),tree(&st->totals),2);{
+    fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->comparison_today_totals.production_kwh,st->comparison_yesterday_totals.production_kwh,st->comparison_ready);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->comparison_today_totals.consumption_kwh,st->comparison_yesterday_totals.consumption_kwh,st->comparison_ready);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->comparison_today_totals.grid_import_kwh,st->comparison_yesterday_totals.grid_import_kwh,st->comparison_ready);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->comparison_today_totals.grid_export_kwh,st->comparison_yesterday_totals.grid_export_kwh,st->comparison_ready);
+    snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->comparison_today_totals),money(&st->comparison_yesterday_totals),st->comparison_ready);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->comparison_today_totals),co2(&st->comparison_yesterday_totals),st->comparison_ready);fmt_dec(b,sizeof(b),tree(&st->totals),2);{
         char tree_value[32];
         snprintf(
             tree_value,
@@ -1473,23 +1476,23 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
         metric(
             6,
             tree_value,
-            tree(&st->completed_interval_totals),
-            tree(&st->yesterday_completed_interval_totals),
-            st->has_yesterday);
-    }fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->completed_interval_totals),self(&st->yesterday_completed_interval_totals),st->has_yesterday);
+            tree(&st->comparison_today_totals),
+            tree(&st->comparison_yesterday_totals),
+            st->comparison_ready);
+    }fmt_pct(b,sizeof(b),self(&st->totals));metric(7,b,self(&st->comparison_today_totals),self(&st->comparison_yesterday_totals),st->comparison_ready);
     fmt_kwh(q,sizeof(q),st->totals.battery_charge_kwh);
     fit_text(s_bat_charge,q,88,APP_FONT_20);
     fmt_kwh(q,sizeof(q),st->totals.battery_discharge_kwh);
     fit_text(s_bat_discharge,q,92,APP_FONT_20);
 
     /* A tegnapi összehasonlítást csak akkor mutatjuk, ha tényleges tegnapi adat létezik. */
-    if(st->has_yesterday){
-        fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh);
+    if(st->comparison_ready){
+        fmt_compared(q,sizeof(q),st->comparison_today_totals.battery_charge_kwh,st->comparison_yesterday_totals.battery_charge_kwh,st->yesterday_comparison_partial);
         fit_text(s_bat_charge_cmp,q,94,APP_FONT_12);
-        text_color_if_changed(s_bat_charge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_charge_kwh,st->yesterday_completed_interval_totals.battery_charge_kwh),s->night_mode)),0);
-        fmt_cmp(q,sizeof(q),st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh);
+        text_color_if_changed(s_bat_charge_cmp,c(tone(cmp_color(st->comparison_today_totals.battery_charge_kwh,st->comparison_yesterday_totals.battery_charge_kwh),s->night_mode)),0);
+        fmt_compared(q,sizeof(q),st->comparison_today_totals.battery_discharge_kwh,st->comparison_yesterday_totals.battery_discharge_kwh,st->yesterday_comparison_partial);
         fit_text(s_bat_discharge_cmp,q,94,APP_FONT_12);
-        text_color_if_changed(s_bat_discharge_cmp,c(tone(cmp_color(st->completed_interval_totals.battery_discharge_kwh,st->yesterday_completed_interval_totals.battery_discharge_kwh),s->night_mode)),0);
+        text_color_if_changed(s_bat_discharge_cmp,c(tone(cmp_color(st->comparison_today_totals.battery_discharge_kwh,st->comparison_yesterday_totals.battery_discharge_kwh),s->night_mode)),0);
     }else{
         label_text_if_changed(s_bat_charge_cmp,"—");
         text_color_if_changed(s_bat_charge_cmp,c(tone(GRAY,s->night_mode)),0);

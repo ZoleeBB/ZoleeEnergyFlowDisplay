@@ -125,7 +125,14 @@ static void test_completed_interval(void){
     feed(today,3,0,0);feed(today+10,3,0,0);clock_at(today+125);
     app_stats_get_snapshot(&snapshot);assert(snapshot.has_yesterday);
     near(snapshot.completed_interval_totals.production_kwh,15./3600);
-    near(snapshot.yesterday_completed_interval_totals.production_kwh,30./3600);tests++;
+    near(snapshot.yesterday_completed_interval_totals.production_kwh,30./3600);
+    /* Kevés, de egyező időablak: van tegnapi adat, ám százalékot
+     * legalább egy óra közös mérésből számítunk. */
+    assert(snapshot.comparison_paired_slots==1);
+    assert(!snapshot.comparison_ready);
+    near(snapshot.comparison_today_totals.production_kwh,15./3600);
+    near(snapshot.comparison_yesterday_totals.production_kwh,30./3600);
+    tests++;
 }
 static void test_sd_recovery(void){
     time_t t=instant("2026-10-04",23,59,58);reset(t);feed(t,7,0,0);
