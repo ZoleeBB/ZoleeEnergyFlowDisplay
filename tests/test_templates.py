@@ -60,6 +60,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     print('PASS: generated template icons, no copied builtin assets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0
+    lib.app_templates_step_available.argtypes=[C.c_int,C.c_bool]
+    # Nincs napelemes pozícióadat: az új téma átugrandó. A közös
+    # függvény működése üres és normál katalógus mellett is biztonságos.
+    lib.app_templates_step_available(1, False)
     def active():
         name=C.create_string_buffer(33);n=lib.app_templates_list(None,16,name)
         return n,name.value.decode()

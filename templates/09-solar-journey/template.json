@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#E3EFF6",
     "palette": {
@@ -76,6 +76,14 @@
         "color": "#FFFFFF"
       },
       {
+        "type": "image",
+        "file": "weather_wind.png",
+        "x": 1097,
+        "y": 57,
+        "w": 24,
+        "h": 24
+      },
+      {
         "type": "value",
         "source": "wind",
         "x": 1126,
@@ -123,7 +131,8 @@
         "radius_x": 348,
         "radius_y": 230,
         "color": "#FFD139",
-        "glow": 20
+        "glow": 20,
+        "file": "weather_sunny.png"
       },
       {
         "type": "label",
@@ -383,7 +392,8 @@
             "x": 66,
             "y": 0
           }
-        ]
+        ],
+        "glow": 3
       },
       {
         "type": "flow",
@@ -392,7 +402,7 @@
         "y": 486,
         "w": 68,
         "h": 1,
-        "color": "#F4B739",
+        "color": "#E86A59",
         "radius": 3,
         "points": [
           {
@@ -403,7 +413,10 @@
             "x": 67,
             "y": 0
           }
-        ]
+        ],
+        "glow": 3,
+        "positive_color": "#E86A59",
+        "negative_color": "#FFE04F"
       },
       {
         "type": "flow",
@@ -423,7 +436,8 @@
             "x": 0,
             "y": 59
           }
-        ]
+        ],
+        "glow": 3
       },
       {
         "type": "value",
@@ -688,6 +702,14 @@
         "color": "#FFFFFF"
       },
       {
+        "type": "image",
+        "file": "weather_wind.png",
+        "x": 1097,
+        "y": 57,
+        "w": 24,
+        "h": 24
+      },
+      {
         "type": "value",
         "source": "wind",
         "x": 1126,
@@ -735,7 +757,8 @@
         "radius_x": 348,
         "radius_y": 230,
         "color": "#FFD139",
-        "glow": 20
+        "glow": 20,
+        "file": "weather_sunny.png"
       },
       {
         "type": "label",
@@ -995,7 +1018,8 @@
             "x": 66,
             "y": 0
           }
-        ]
+        ],
+        "glow": 3
       },
       {
         "type": "flow",
@@ -1004,7 +1028,7 @@
         "y": 486,
         "w": 68,
         "h": 1,
-        "color": "#F4B739",
+        "color": "#E86A59",
         "radius": 3,
         "points": [
           {
@@ -1015,7 +1039,10 @@
             "x": 67,
             "y": 0
           }
-        ]
+        ],
+        "glow": 3,
+        "positive_color": "#E86A59",
+        "negative_color": "#FFE04F"
       },
       {
         "type": "flow",
@@ -1035,7 +1062,8 @@
             "x": 0,
             "y": 59
           }
-        ]
+        ],
+        "glow": 3
       },
       {
         "type": "value",

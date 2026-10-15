@@ -258,7 +258,7 @@ static void template_gesture(lv_event_t *event){
     }
     if(s_diagnostics_requested)return;
     if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){
-        app_templates_step(direction==LV_DIR_LEFT?1:-1);
+        app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
         template_loading_requested=true;
         lv_indev_wait_release(input);
     }

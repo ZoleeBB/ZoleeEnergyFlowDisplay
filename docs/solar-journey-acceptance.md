@@ -23,3 +23,11 @@ Ne legyen végleges merge, amíg a ZIP-ben lévő v2 grafika és JSON a forrásb
 ## 2026-10-15: bináris csomag feltöltve
 
 A Nap pálya grafikai csomag immár mind a 13 PNG-vel együtt szerepel a `feature/solar-journey-template` ágon. A firmware által engedélyezett betűméretek: 12, 16, 20, 28, 48, 96; a feltöltött v2 elutasítását 34 szabálytalan méret okozta. A v3 sablon mindkét jelenetet kizárólag engedélyezett betűméretekkel írja le. A teljes integráció még csak sikeres CI-futás után tekinthető ellenőrzöttnek.
+
+## 2026-10-15: fejlesztési javítócsomag
+
+- Nap pálya sablon v4: az összes 13 grafikai PNG használatban van; a napkorong különálló PNG; a szél piktogramja külön elem.
+- A három mini energiaút `glow` értéke rögzítve, ezért az LVGL fényudvar-objektum ténylegesen létrejön, az előnézeti tesztben is.
+- Hálózat importpiros, exportcitromsárga.
+- A lapozó a Nap pálya témát átugorja, ha `SunPosition` nem érvényes. Már korábban kiválasztott téma esetén a napívek és a napadatok továbbra is rejtettek maradnak.
+- Valódi kijelzőn mért FPS, heap-csúcs, renderidő még nem mérhető CI-ben; nem állítható, hogy a hardveres validáció megtörtént.

@@ -340,12 +340,22 @@ esp_err_t app_templates_select(const char *id){
     for(unsigned i=0;i<count;i++)if(!strcmp(id,catalogue[i].id)){snprintf(selected,33,"%s",id);generation++;save_selection=true;result=ESP_OK;break;}
     xSemaphoreGive(lock);return result;
 }
-void app_templates_step(int direction){
-    if(!lock||!xSemaphoreTake(lock,0))return;unsigned i=0;
+void app_templates_step_available(int direction,bool sun_available){
+    if(!lock||!xSemaphoreTake(lock,0))return;
+    unsigned i=0;
     for(unsigned n=0;n<count;n++)if(!strcmp(selected,catalogue[n].id))i=n;
-    if(count){i=direction>0?(i+1)%count:(i+count-1)%count;snprintf(selected,33,"%s",catalogue[i].id);generation++;save_selection=true;}
+    /* Ha a Loxone T1 nincs bekötve, Nap pálya nem választható lapozással.
+     * A már kiválasztott sablon nem vész el; csak a következő lépést szűrjük. */
+    for(unsigned attempt=0;attempt<count;attempt++){
+        i=direction>0?(i+1)%count:(i+count-1)%count;
+        if(sun_available||strcmp(catalogue[i].id,"09-solar-journey")){
+            snprintf(selected,33,"%s",catalogue[i].id);generation++;save_selection=true;
+            break;
+        }
+    }
     xSemaphoreGive(lock);
 }
+void app_templates_step(int direction){app_templates_step_available(direction,true);}
 void app_templates_view_free(app_template_view_t *v){if(!v)return;cJSON_Delete(v->document);for(unsigned i=0;i<v->asset_count;i++)free(v->assets[i].bytes);memset(v,0,sizeof(*v));}
 bool app_templates_load_pending(app_template_view_t *out){
     if(!lock||!xSemaphoreTake(lock,0))return false;
