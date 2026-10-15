@@ -75,7 +75,7 @@ class ReleaseTests(unittest.TestCase):
                      'docs/previews/templates.png','docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
                      'examples/config.http.sample.json','examples/loxone-energy-http-post.picoc'):
             self.assertTrue((unpack/name).is_file(),name)
-        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),8)
+        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),len(list((ROOT/'templates').glob('*/template.json'))))
         # Documentation and example links must resolve in the offline installer.
         import re
         for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:

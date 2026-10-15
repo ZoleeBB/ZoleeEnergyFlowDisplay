@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     error=C.create_string_buffer(160)
     for package in sorted((ROOT/'templates').iterdir()):
         assert lib.app_templates_validate(os.fsencode(package),None,error), (package.name,error.value)
-    print('PASS: all 8 packages, both themes, references, PNG CRC/decompression and bounds')
+    print('PASS: all installed packages, both themes, references, PNG CRC/decompression and bounds')
     builtin={hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/'main/assets/png').glob('*.png')}
     seen=set()
     for package in sorted((ROOT/'templates').iterdir()):
