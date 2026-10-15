@@ -44,6 +44,7 @@
     "max_integration_gap_seconds": 30
   },
   "energy": {
+    "battery_capacity_kwh": 0,
     "electricity_purchase_price": 65,
     "feed_in_price": 5,
     "co2_factor_kg_per_kwh": 0.381,
