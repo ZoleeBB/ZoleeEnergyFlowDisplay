@@ -18,7 +18,9 @@
 // Pico C nem jelzi a bekötöttséget: a maszkot a Configban kell beállítani.
 // Bekötetlen I13 (0): mind a négy időjárási mező null.
 //
-// T1 szöveges bemenet: azimut#magasság#napkeltePerc#napnyugtaPerc (opcionális).
+// 14. logikai bemenet: T1 (elso szoveges bemenet, nem I14).
+// T1 SunPosition: azimut#magassag#napkeltePerc#napnyugtaPerc (opcionalis).
+// Pelda: 327.445#-46.562#420#1077. Hiany eseten JSON null.
 // Txt1 kimenet: 5 másodpercenként egy teljes JSON dokumentum.
 //
 // FONTOS: a Loxone Pico C értelmező nem kezeli megbízhatóan az egymás mellé
@@ -54,21 +56,31 @@ while (TRUE)
         weatherPresent = weatherPresentInput;
         if (weatherPresentInput != weatherPresent) weatherPresent = 0;
     }
-    // A T1-ben csak numerikus karakterek és # elválasztók lehetnek.
-    // A hiányzó/érvénytelen bemenet null; idézőjel JSON-injekció nem kerülhet át.
+    // 14. logikai bemenet: T1 (elso SZOVEGES bemenet, nem I14).
+    // getinputtext(0) dinamikusan foglalt szoveget ad; hasznalat utan free().
+    // Ha nincs bekotve, vagy hibas, a JSON-ban SunPosition:null szerepel.
     char sunPositionJson[100];
-    sprintf(sunPositionJson,"null");
-    char *solar=getinputtext(0);
-    if(solar && solar[0]){
-        int length=0,hashes=0,valid=1;
-        while(solar[length] && length<70){
-            char ch=solar[length];
-            if(ch=='#')hashes++;
-            else if(!((ch>='0'&&ch<='9')||ch=='.'||ch=='-'||ch=='+'))valid=0;
-            length++;
+    sprintf(sunPositionJson, "null");
+    char *solar = getinputtext(0);
+    if (solar != 0)
+    {
+        int length = strlen(solar);
+        if (length > 0 && length < 70)
+        {
+            int hashes = 0;
+            int valid = 1;
+            int i;
+            for (i = 0; i < length; i++)
+            {
+                char ch = solar[i];
+                if (ch == '#') hashes++;
+                else if (!((ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '+'))
+                    valid = 0;
+            }
+            if (hashes == 3 && valid == 1)
+                sprintf(sunPositionJson, "\"%s\"", solar);
         }
-        if(length>0 && length<70 && hashes==3 && valid)
-            sprintf(sunPositionJson,"\"%s\"",solar);
+        free(solar);
     }
     char temperatureJson[64];
     char windJson[64];
