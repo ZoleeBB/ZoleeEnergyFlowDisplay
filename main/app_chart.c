@@ -167,7 +167,8 @@ static void draw_chart(lv_event_t *event)
             }
             lv_color_t color=lv_color_hex(data->colors[series]);
             lv_draw_vector_dsc_set_fill_color(draw,color);
-            lv_draw_vector_dsc_set_fill_opa(draw,fill?(data->night?LV_OPA_20:LV_OPA_40):LV_OPA_TRANSP);
+            /* A görbe saját színét jól felismerhető, de a vonalnál halványabb kitöltés követi. */
+            lv_draw_vector_dsc_set_fill_opa(draw,fill?(data->night?LV_OPA_60:LV_OPA_70):LV_OPA_TRANSP);
             lv_draw_vector_dsc_set_stroke_color(draw,color);
             lv_draw_vector_dsc_set_stroke_width(draw,1.6f);
             lv_draw_vector_dsc_set_stroke_opa(draw,fill?LV_OPA_TRANSP:LV_OPA_COVER);
