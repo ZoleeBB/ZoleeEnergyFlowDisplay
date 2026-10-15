@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 8,
+  "version": 9,
   "light": {
     "background": "#E2EDF7",
     "palette": {
@@ -352,7 +352,7 @@
       },
       {
         "type": "box",
-        "x": 118,
+        "x": 26,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -362,7 +362,7 @@
       },
       {
         "type": "label",
-        "x": 129,
+        "x": 37,
         "y": 240,
         "w": 90,
         "h": 20,
@@ -373,7 +373,7 @@
       },
       {
         "type": "value",
-        "x": 129,
+        "x": 37,
         "y": 261,
         "w": 90,
         "h": 24,
@@ -384,7 +384,7 @@
       },
       {
         "type": "box",
-        "x": 783,
+        "x": 821,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -394,7 +394,7 @@
       },
       {
         "type": "label",
-        "x": 789,
+        "x": 827,
         "y": 240,
         "w": 98,
         "h": 20,
@@ -405,7 +405,7 @@
       },
       {
         "type": "value",
-        "x": 796,
+        "x": 834,
         "y": 261,
         "w": 85,
         "h": 24,
@@ -587,7 +587,7 @@
         "h": 3,
         "source": "pv_home",
         "color": "#24C77C",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -600,7 +600,10 @@
           }
         ],
         "dot_size": 6,
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "flow",
@@ -610,7 +613,7 @@
         "h": 3,
         "source": "grid",
         "color": "#ED5964",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -626,7 +629,10 @@
         "negative_color": "#FFE23B",
         "dot_size": 6,
         "reverse": true,
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "flow",
@@ -636,7 +642,7 @@
         "h": 23,
         "source": "battery",
         "color": "#2C97FF",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -659,7 +665,10 @@
         "dot_size": 6,
         "reverse": true,
         "curve": "bezier",
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "value",
@@ -760,7 +769,7 @@
         "type": "value",
         "x": 1012,
         "y": 600,
-        "w": 140,
+        "w": 129,
         "h": 26,
         "font": 16,
         "source": "battery_summary",
@@ -1051,6 +1060,76 @@
         "source": "export_yesterday_pct",
         "color": "#1C7955",
         "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 574,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 582,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 590,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 598,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 606,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 614,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 622,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
       }
     ]
   },
@@ -1403,7 +1482,7 @@
       },
       {
         "type": "box",
-        "x": 118,
+        "x": 26,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -1413,7 +1492,7 @@
       },
       {
         "type": "label",
-        "x": 129,
+        "x": 37,
         "y": 240,
         "w": 90,
         "h": 20,
@@ -1424,7 +1503,7 @@
       },
       {
         "type": "value",
-        "x": 129,
+        "x": 37,
         "y": 261,
         "w": 90,
         "h": 24,
@@ -1435,7 +1514,7 @@
       },
       {
         "type": "box",
-        "x": 783,
+        "x": 821,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -1445,7 +1524,7 @@
       },
       {
         "type": "label",
-        "x": 789,
+        "x": 827,
         "y": 240,
         "w": 98,
         "h": 20,
@@ -1456,7 +1535,7 @@
       },
       {
         "type": "value",
-        "x": 796,
+        "x": 834,
         "y": 261,
         "w": 85,
         "h": 24,
@@ -1638,7 +1717,7 @@
         "h": 3,
         "source": "pv_home",
         "color": "#24C77C",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -1651,7 +1730,10 @@
           }
         ],
         "dot_size": 6,
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "flow",
@@ -1661,7 +1743,7 @@
         "h": 3,
         "source": "grid",
         "color": "#ED5964",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -1677,7 +1759,10 @@
         "negative_color": "#FFE23B",
         "dot_size": 6,
         "reverse": true,
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "flow",
@@ -1687,7 +1772,7 @@
         "h": 23,
         "source": "battery",
         "color": "#2C97FF",
-        "radius": 2,
+        "radius": 3,
         "glow": 1,
         "points": [
           {
@@ -1710,7 +1795,10 @@
         "dot_size": 6,
         "reverse": true,
         "curve": "bezier",
-        "dot_count": 2
+        "dot_count": 2,
+        "active_opacity": 240,
+        "inactive_opacity": 112,
+        "inactive_glow_opacity": 22
       },
       {
         "type": "value",
@@ -1811,7 +1899,7 @@
         "type": "value",
         "x": 1012,
         "y": 600,
-        "w": 140,
+        "w": 129,
         "h": 26,
         "font": 16,
         "source": "battery_summary",
@@ -2102,6 +2190,76 @@
         "source": "export_yesterday_pct",
         "color": "#62DCA4",
         "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 574,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 582,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 590,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 598,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 606,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 614,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 622,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
       }
     ]
   }

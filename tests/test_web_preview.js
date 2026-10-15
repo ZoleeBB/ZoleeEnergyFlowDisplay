@@ -32,6 +32,11 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   const flows=elements.filter(e=>e.type==='flow');
   assert(flows.filter(e=>e.reverse).length===2);
   assert(flows.every(e=>e.dot_size===6&&e.dot_count===2));
+  assert(flows.every(e=>e.active_opacity===240&&e.inactive_opacity===112));
+  const solarChips=elements.filter(e=>e.type==='box'&&e.y===236);
+  assert(solarChips.some(e=>e.x===26)&&solarChips.some(e=>e.x===821));
+  const battery=elements.find(e=>e.type==='box'&&e.x===951&&e.y===562);
+  assert.strictEqual(elements.filter(e=>e.type==='box'&&e.w===2&&e.h===4&&e.background===battery.outline_color).length,7);
   assert(elements.some(e=>e.type==='image'&&e.file===(mode==='light'?'day.png':'night.png')));
  }
  assert(solarMetrics.encoded>0 && solarMetrics.decoded>0);

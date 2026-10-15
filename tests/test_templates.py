@@ -58,6 +58,22 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert not any(e['type']=='solar_arc' for e in elements)
         assert all(e['dot_size']<=6 for e in elements if e['type']=='flow')
         assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2
+        flow_nodes=[e for e in elements if e['type']=='flow']
+        assert len(flow_nodes)==3
+        assert all(e['radius']==3 and e['active_opacity']==240 and
+                   e['inactive_opacity']==112 and e['inactive_glow_opacity']==22 for e in flow_nodes)
+        assert all(e['inactive_opacity']*2<e['active_opacity'] for e in flow_nodes)
+        sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
+        sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
+        assert sunrise['x']==26 and sunrise['x']+sunrise['w']<170
+        assert sunset['x']==821 and sunset['x']+sunset['w']<936
+        therm=next(e for e in elements if e['type']=='image' and e.get('file')=='battery_temp.png')
+        band=next(e for e in elements if e['type']=='box' and e['x']==951 and e['y']==562)
+        separators=[e for e in elements if e['type']=='box' and e.get('w')==2 and e.get('h')==4 and
+                    e.get('background')==band['outline_color']]
+        assert len(separators)==7
+        assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
+        assert len(elements)==88
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
     assert geometric(solar['light'])==geometric(solar['dark'])

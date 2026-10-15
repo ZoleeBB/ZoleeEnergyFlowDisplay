@@ -36,3 +36,9 @@ A napkorong továbbra is kizárólag a háttérfotóra illesztett pályapontok m
 Az Energiaáramlás panel három útvonalán két-két, 6 pixeles pont mozog, a hálózatimport az oszloptól a ház felé, az akkumulátorkisütés az akkutól a ház felé. Az akkumulátoros Bézier-ív a külön keretezett alsó akkusáv peremén végződik, nem fut alatta.
 
 A háttérképek és az ikonok fájljai **nem módosultak**. A telepítő és a böngészős validátor megenged legfeljebb 2,5 MiB-os egyedi PNG-t és 5 MiB összesített tömörített képadatot; a 8 MiB ZIP és 12 MiB dekódolt memóriahatár változatlan.
+
+## V9 – apró megjelenési javítások
+
+A Napkelte információs kártya 92 px-rel balra, a Napnyugta 38 px-rel jobbra került, mindkettő a napív mellett, azon kívül marad. Az Energiaáramlás panelen az inaktív vonalak 112/255, az aktívak 240/255 fedettségűek; a három útvonal 3 px vastagságú. Az akkumulátorsávot a hőmérő előtt 7 apró, a keret színével azonos szakaszból álló szaggatott vonal tagolja. A holdkorong képe változatlan: csak a mögöttes fényudvar 9 másodperces, néhány pixeles animációt kapott.
+
+Minden tegnapi összehasonlítás 0:00-tól az utolsó lezárt ötperces idősávig tart. A közös rendszerértékek és a Nap pálya öt százalékos mezője egyaránt 'Részleges' feliratot mutatnak, ha a statisztika részleges. A napelemes ikon PNG-fájlját a felhasználó töltötte fel; itt csak az ellenőrzőösszeget frissítettük.
