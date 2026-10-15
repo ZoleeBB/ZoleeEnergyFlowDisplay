@@ -492,12 +492,19 @@ int main(void)
         assert(s_view==VIEW_DASHBOARD);
         assert(!template_is_active());
         lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_display(input,display);lv_indev_set_read_cb(input,touch_read);
+        unsigned expected_index=0;
         for(unsigned i=1;i<=count;i++){
             lv_obj_update_layout(s_screen);
             touch_sample(1050,true);touch_sample(850,true);touch_sample(650,true);touch_sample(650,false);
             template_prepare();render_runtime(rt,sample,true,31000000);
-            if(strcmp(template_view.id,list[i%count].id))fprintf(stderr,"Swipe %u: got %s expected %s\n",i,template_view.id,list[i%count].id);
-            assert(!strcmp(template_view.id,list[i%count].id));
+            /* A T1 nélküli mintában a Nap pálya nem lapozható: a várható
+             * sorrend ugyanazt az opcionális szűrést kövesse, mint a UI. */
+            do { expected_index=(expected_index+1)%count; }
+            while(!sample.sun_position_valid &&
+                  !strcmp(list[expected_index].id,"09-solar-journey"));
+            if(strcmp(template_view.id,list[expected_index].id))
+                fprintf(stderr,"Swipe %u: got %s expected %s\n",i,template_view.id,list[expected_index].id);
+            assert(!strcmp(template_view.id,list[expected_index].id));
         }
         lv_obj_update_layout(s_screen);
         touch_sample_xy(640,650,true);touch_sample_xy(640,450,true);touch_sample_xy(640,250,true);touch_sample_xy(640,250,false);
