@@ -36,6 +36,11 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
     assert solar['version'] >= 11
+    # A tegnapi részleges összevetés tilde (~) jele minden UI-betűben jelen legyen.
+    # Az előző U+2248 (≈) szimbólum hiányzott, ezért üres négyzetet rajzolt LVGL.
+    for size in (12, 14, 16, 18, 20, 22, 28):
+        font = (ROOT/f'main/fonts/app_font_{size}.c').read_text(encoding='utf-8')
+        assert '/* U+007E */' in font, f'missing tilde glyph in {size}px font'
     assert len(solar['light']['elements']) <= 96
     for mode in ('dark','light'):
         elements=solar[mode]['elements']
