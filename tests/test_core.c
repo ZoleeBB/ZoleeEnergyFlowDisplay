@@ -177,6 +177,29 @@ static const char *payload="{\"PowerGrid\":1,\"PowerBat\":-2,\"PowerPV\":3,\"Soc
 static void test_payload(void){
     app_energy_sample_t result={0};char error[160];
     assert(app_payload_parse(payload,strlen(payload),&result,error,sizeof(error))==ESP_OK);
+    /* Visszafelé kompatibilitás és nappálya bemenet validálása. */
+    assert(!result.sun_position_valid);
+    cJSON *solar_root=cJSON_Parse(payload);
+    cJSON_AddStringToObject(solar_root,"SunPosition","327.445#-46.562#420#1077");
+    char *solar_payload=cJSON_PrintUnformatted(solar_root);
+    assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))==ESP_OK);
+    assert(result.sun_position_valid);
+    near(result.sun_azimuth_deg,327.445);near(result.sun_altitude_deg,-46.562);
+    assert(result.sunrise_minute==420 && result.sunset_minute==1077);
+    cJSON_free(solar_payload);
+    cJSON_ReplaceItemInObject(solar_root,"SunPosition",cJSON_CreateNull());
+    solar_payload=cJSON_PrintUnformatted(solar_root);
+    assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))==ESP_OK);
+    assert(!result.sun_position_valid);
+    cJSON_free(solar_payload);
+    const char *bad_sun[]={"361#0#420#1077","120#91#420#1077","120#0#1077#420","120#0#420#1077junk","120#0#420",NULL};
+    for(unsigned si=0;bad_sun[si];si++){
+        cJSON_ReplaceItemInObject(solar_root,"SunPosition",cJSON_CreateString(bad_sun[si]));
+        solar_payload=cJSON_PrintUnformatted(solar_root);
+        assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))!=ESP_OK);
+        cJSON_free(solar_payload);
+    }
+    cJSON_Delete(solar_root);
     near(result.power_bat_kw,-2);
     assert(result.temperature_valid && result.wind_speed_valid && result.sun_radiation_valid && result.precipitation_valid);
     const char *weather_fields[]={"Temperature","WindSpeed","HasSunRadiation","HasPrecipitation"};
