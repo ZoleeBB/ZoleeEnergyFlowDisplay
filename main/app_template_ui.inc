@@ -395,6 +395,11 @@ static void template_build(bool night){
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
+        }else if(!strcmp(type,"solar_disc")){
+            /* A napkorong külön, kis LVGL objektum: nincs teljes képes újrarajzolás. */
+            node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
+            lv_obj_set_style_shadow_color(node->obj,c(text),0);
+            lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",28),0);
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
@@ -490,6 +495,32 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
+        if(!strcmp(type,"solar_disc")){
+            /* Napkelte/napnyugta: felső félív. Éjszaka: alsó félív.
+             * Az azimut és a napmagasság a napkorong pillanatnyi
+             * pozícióját finomítja, a beérkezett mérési csomag szerint. */
+            if(!s->sun_position_valid)continue;
+            time_t timestamp=time(NULL);struct tm local;localtime_r(&timestamp,&local);
+            int minute=local.tm_hour*60+local.tm_min;
+            float angle=0;
+            if(minute>=s->sunrise_minute && minute<=s->sunset_minute){
+                float p=(float)(minute-s->sunrise_minute)/(float)(s->sunset_minute-s->sunrise_minute);
+                angle=(float)M_PI*(1.f-p);
+            }else{
+                int start=s->sunset_minute,minutes=minute<start?minute+1440:minute;
+                int until=s->sunrise_minute+1440;
+                float p=(float)(minutes-start)/(float)(until-start);
+                angle=(float)M_PI*(1.f+p);
+            }
+            int radius_x=tn(e,"radius_x",350),radius_y=tn(e,"radius_y",275);
+            int cx=tn(e,"center_x",520),cy=tn(e,"center_y",380);
+            int px=cx+(int)lroundf(cosf(angle)*radius_x)-tn(e,"w",40)/2;
+            int py=cy-(int)lroundf(sinf(angle)*radius_y)-tn(e,"h",40)/2;
+            lv_obj_set_pos(node->obj,px,py);
+            bool daylight=s->sun_altitude_deg>0 && !s->night_mode;
+            bg_opa_if_changed(node->obj,daylight?LV_OPA_COVER:LV_OPA_30,0);
+            continue;
+        }
         if(!strcmp(type,"flow")){
             uint32_t flow_color=tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             template_flow_tone(node,flow_color,fabs(value)>=.001);
@@ -587,6 +618,18 @@ static void template_animate(float dt){
     if(!template_view.document||!s_dash_created||s_view!=VIEW_DASHBOARD)return;
     for(unsigned n=0;n<template_node_count;n++){
         template_node_t *node=&template_nodes[n];
+        if(!strcmp(ts(node->spec,"type"),"solar_disc")){
+            double pv=fmax(0,s_animation_sample.power_pv_kw);
+            if(!s_animation_sample.sun_position_valid)continue;
+            float fraction=(float)fmin(pv/8.,1.);
+            bool daylight=!s_animation_sample.night_mode&&s_animation_sample.sun_altitude_deg>0;
+            node->phase=fmodf(node->phase+dt*.9f,1.f);
+            float wave=.5f+.5f*sinf(node->phase*6.2831853f);
+            int glow=daylight?4+(int)(fraction*(18+17*wave)):0;
+            lv_obj_set_style_shadow_width(node->obj,glow,0);
+            lv_obj_set_style_shadow_opa(node->obj,daylight?(lv_opa_t)(60+160*fraction):LV_OPA_10,0);
+            continue;
+        }
         if(!strcmp(ts(node->spec,"type"),"pulse")){
             node->phase=fmodf(node->phase+dt*.7f,1.f);
             int alpha=145+(int)(110*(.5f+.5f*sinf(node->phase*6.2831853f)));
