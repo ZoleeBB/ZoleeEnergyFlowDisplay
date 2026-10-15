@@ -190,6 +190,9 @@ static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
 #define V(key,value) if(!strcmp(source,key))return value
+    V("solar_savings_day",(st->totals.pv_home_kwh+st->totals.pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+st->totals.grid_export_kwh*s_cfg.energy.feed_in_price);
+    V("solar_value_today",st->totals.production_kwh*s_cfg.energy.electricity_purchase_price);
+    V("battery_summary",s_cfg.energy.battery_capacity_kwh);
     V("battery_capacity",s_cfg.energy.battery_capacity_kwh);
     V("battery_energy",s_cfg.energy.battery_capacity_kwh>0?s_cfg.energy.battery_capacity_kwh*s->soc_bat_pct/100.:0);
     V("sun_azimuth",s->sun_azimuth_deg);V("sun_altitude",s->sun_altitude_deg);
@@ -220,6 +223,41 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 }
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
+    if(!strcmp(source,"weather_label")){
+        static const char *const hu_weather[]={"Derült égbolt","Változóan felhős","Felhős","Eső","Havazás","Éjszaka"};
+        static const char *const en_weather[]={"Sunny","Partly cloudy","Cloudy","Rain","Snow","Night"};
+        int kind=(int)weather_kind(s);
+        if(!weather_available(s)||kind<0||kind>=6)snprintf(out,128,"%s",tr("Nincs időjárásadat","No weather data"));
+        else snprintf(out,128,"%s",hu()?hu_weather[kind]:en_weather[kind]);
+        return;
+    }
+    if(!strcmp(source,"battery_summary")){
+        double cap=s_cfg.energy.battery_capacity_kwh;
+        if(cap<=0){snprintf(out,128,"—");return;}
+        char energy[24],capacity[24];
+        fmt_dec(energy,sizeof(energy),cap*s->soc_bat_pct/100.,1);
+        fmt_dec(capacity,sizeof(capacity),cap,cap==floor(cap)?0:1);
+        snprintf(out,128,"%s / %s kWh",energy,capacity);
+        return;
+    }
+    if(strstr(source,"_yesterday_pct")){
+        const app_energy_totals_t *today=&st->completed_interval_totals;
+        const app_energy_totals_t *yesterday=&st->yesterday_completed_interval_totals;
+        if(!st->has_yesterday){snprintf(out,128,"—");return;}
+        double t=0,y=0;
+        if(!strcmp(source,"production_yesterday_pct")){t=today->production_kwh;y=yesterday->production_kwh;}
+        else if(!strcmp(source,"production_value_yesterday_pct")){
+            t=today->production_kwh*s_cfg.energy.electricity_purchase_price;
+            y=yesterday->production_kwh*s_cfg.energy.electricity_purchase_price;
+        }else if(!strcmp(source,"consumption_yesterday_pct")){t=today->consumption_kwh;y=yesterday->consumption_kwh;}
+        else if(!strcmp(source,"export_yesterday_pct")){t=today->grid_export_kwh;y=yesterday->grid_export_kwh;}
+        else if(!strcmp(source,"savings_yesterday_pct")){
+            t=(today->pv_home_kwh+today->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+today->grid_export_kwh*s_cfg.energy.feed_in_price;
+            y=(yesterday->pv_home_kwh+yesterday->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+yesterday->grid_export_kwh*s_cfg.energy.feed_in_price;
+        }
+        fmt_cmp(out,128,t,y);
+        return;
+    }
     if(!strcmp(source,"sun_direction")){
         static const char *const hu_dirs[]={"É","ÉK","K","DK","D","DNy","Ny","ÉNy"};
         static const char *const en_dirs[]={"N","NE","E","SE","S","SW","W","NW"};
@@ -240,7 +278,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
     const char *unit="kW";
     if(strstr(source,"_pct"))unit="%";
-    else if(strstr(source,"_day")||strstr(source,"_month"))unit=s_cfg.project.currency;
+    else if(strstr(source,"_day")||strstr(source,"_month")||!strcmp(source,"solar_value_today"))unit=s_cfg.project.currency;
     else if(strstr(source,"_today"))unit="kWh";
     else if(!strcmp(source,"soc"))unit="%";
     else if(!strcmp(source,"sun_altitude")||!strcmp(source,"sun_azimuth"))unit="°";
@@ -422,6 +460,12 @@ static void template_build(bool night){
             bool found=false;
             for(unsigned asset=0;disc[0] && asset<template_view.asset_count;asset++)
                 if(!strcmp(disc,template_view.assets[asset].name)){found=true;break;}
+            /* A fényudvar külön alakzat, ezért a PNG alfa-rétege mögött is
+             * látható. A kép soha nem kap négyszögű háttérkitöltést. */
+            node->detail=shape(s_dash,x-6,y-6,w+12,h+12,text,LV_RADIUS_CIRCLE);
+            bg_opa_if_changed(node->detail,LV_OPA_10,0);
+            lv_obj_set_style_shadow_color(node->detail,c(text),0);
+            lv_obj_set_style_shadow_width(node->detail,tn(e,"glow",20),0);
             if(found){
                 node->obj=lv_image_create(s_dash);
                 template_image(node->obj,disc,w,h);
@@ -430,7 +474,7 @@ static void template_build(bool night){
                 node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
             }
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
-            lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",24),0);
+            lv_obj_set_style_shadow_width(node->obj,0,0);
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
@@ -522,28 +566,50 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             !strcmp(source,"wind") ? s->wind_speed_valid :
             (!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
-            (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
+            (!strcmp(source,"weather_label")) ? weather_available(s) :
+            (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
         if(!strcmp(type,"solar_disc")){
-            /* Napkelte/napnyugta: felső félív. Éjszaka: alsó félív.
-             * Az azimut és a napmagasság a napkorong pillanatnyi
-             * pozícióját finomítja, a beérkezett mérési csomag szerint. */
+            /* Egyezik a solar_arc elemek paraméteres félkörével.
+             * Nappal: K -> D -> Ny; éjjel: Ny -> É -> K. */
             if(!s->sun_position_valid)continue;
-            /* Azimut 0=É, 90=K, 180=D, 270=Ny; magasság előjeles.
-             * Kétdimenziós égboltkivetítés: napkelte K oldalon,
-             * napnyugta Ny oldalon, a horizont alatt negatív magasság. */
-            float az=(float)(s->sun_azimuth_deg*(3.14159265358979323846/180.));
-            float alt=(float)(s->sun_altitude_deg*(3.14159265358979323846/180.));
-            int radius_x=tn(e,"radius_x",350),radius_y=tn(e,"radius_y",275);
-            int cx=tn(e,"center_x",520),cy=tn(e,"center_y",380);
-            int px=cx-(int)lroundf(sinf(az)*cosf(alt)*radius_x)-tn(e,"w",40)/2;
-            int py=cy-(int)lroundf(sinf(alt)*radius_y)-tn(e,"h",40)/2;
+            int rx=tn(e,"radius_x",377),ry=tn(e,"radius_y",244);
+            int cx=tn(e,"center_x",452),cy=tn(e,"center_y",356);
+            int sunrise=s->sunrise_minute,sunset=s->sunset_minute;
+            time_t clock_now=time(NULL);struct tm local_now;
+            localtime_r(&clock_now,&local_now);
+            int minute=local_now.tm_hour*60+local_now.tm_min;
+            bool daylight=s->sun_altitude_deg>0;
+            float travel;
+            if(sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
+                if(daylight){
+                    travel=(float)(minute-sunrise)/(float)(sunset-sunrise);
+                }else{
+                    int passed=minute>=sunset?minute-sunset:minute+1440-sunset;
+                    travel=(float)passed/(float)(sunrise+1440-sunset);
+                }
+            }else{
+                /* Azimut csak tartalék, ha a napkelte/napnyugta hiányzik. */
+                travel=(float)(s->sun_azimuth_deg/360.);
+            }
+            travel=fmaxf(0.f,fminf(1.f,travel));
+            float angle=travel*3.14159265358979323846f;
+            int px=cx+(int)lroundf((daylight?-1.f:1.f)*cosf(angle)*rx)-tn(e,"w",40)/2;
+            int py=cy+(int)lroundf((daylight?-1.f:1.f)*sinf(angle)*ry)-tn(e,"h",40)/2;
             lv_obj_set_pos(node->obj,px,py);
-            bool daylight=s->sun_altitude_deg>0 && !s->night_mode;
-            bg_opa_if_changed(node->obj,daylight?LV_OPA_COVER:LV_OPA_30,0);
+            if(node->detail)lv_obj_set_pos(node->detail,px-6,py-6);
+            if(!*ts(e,"file")){
+                uint32_t disc_color=daylight?0xFFD23B:0x78BFEF;
+                bg_color_if_changed(node->obj,c(disc_color),0);
+                lv_obj_set_style_shadow_color(node->obj,c(disc_color),0);
+            }
+            if(node->detail){
+                lv_obj_set_style_shadow_color(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+                bg_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+            }
             continue;
         }
         if(!strcmp(type,"flow")){
@@ -651,8 +717,12 @@ static void template_animate(float dt){
             node->phase=fmodf(node->phase+dt*.9f,1.f);
             float wave=.5f+.5f*sinf(node->phase*6.2831853f);
             int glow=daylight?4+(int)(fraction*(18+17*wave)):0;
-            lv_obj_set_style_shadow_width(node->obj,glow,0);
-            lv_obj_set_style_shadow_opa(node->obj,daylight?(lv_opa_t)(60+160*fraction):LV_OPA_10,0);
+            /* Az éjszakai halvány kék napkorong NEM pulzál. */
+            if(node->detail){
+                lv_obj_set_style_shadow_width(node->detail,daylight?glow:11,0);
+                lv_obj_set_style_shadow_opa(node->detail,daylight?(lv_opa_t)(55+145*fraction):LV_OPA_30,0);
+                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)(10+30*fraction):LV_OPA_10,0);
+            }
             continue;
         }
         if(!strcmp(ts(node->spec,"type"),"pulse")){

@@ -1,33 +1,19 @@
-# Nap pálya – követelmény-ellenőrzés (2026-10-15)
+# Nap pálya – véglegesített megjelenési és számítási szerződés
 
-## Ellenőrzött, kódoldalon megvalósított részek
-- Opciós `SunPosition` adat a Loxone MQTT/HTTP mintákban és a firmware-ben, T1 szöveges bemenettel.
-- Napkelte/napnyugta, napmagasság és irány, nappali és éjszakai ív, dinamikus napkorong.
-- Teljesítményfüggő napkorong-fényudvar 8 kW-nál telítődve.
-- Órás, 24 oszlopos termelésdiagram: helyi/tárolt zöld és export sárga.
-- Mini energiaáramlás, akkumulátor-hőmérséklet, opcionális kapacitás.
-- Átrendezhető témakatalógus, Rendszer téma rögzített első helyen.
-- Grafikonkitöltés színkövetése és 7 kW-ig teljesítményfüggő energiapötty-sebesség.
+A 1280×800-as felület nappali és éjszakai jelenete azonos geometriát használ. A képháttér és az összes adat-/grafikusréteg elkülönül. A napkelte (104×51), napnyugta (108×51), napmagasság (148×58) panelek a jóváhagyott látványtervnél is kisebb, áttetsző kártyák.
 
-## Nem kész / igazolást igényel
-- A GitHubban a `templates/09-solar-journey/template.json` még v1; a külső ZIP-ben v2 van. **Nem ekvivalens a kettő.**
-- A 13 újragenerált PNG a `NapPalya-komplett-sablon.zip` állományban elérhető, de nincs mindegyik a GitHub forrásába commitolva.
-- A GitHubban a témában még régi háttérképek és egyszerű energiaikon/helyettesítők szerepelnek.
-- A `SunPosition = null` esetén a napkomponensek eltűnnek, de az egész téma nem kerül automatikusan ki a lapozható listából – ez még külön implementálandó.
-- A napkorong tényleges képi megjelenése jelenleg LVGL-kör; a generált napgrafika nincs a képernyőre kötve.
-- A jóváhagyott látványtervvel pixel- és elrendezés-szintű egyezés, teljes CI, ESP32-P4 eszközös teljesítménypróba még nincs igazolva.
+## Megerősített követelmények (2026-10-15)
+- Nappali jelenet: ugyanaz az elrendezés, világos üvegszerű kártyák és olvasható sötét feliratok. Éjszaka: sötét üvegszerű kártyák, világos feliratok.
+- A napkorong az íven a napi napkelte/napnyugta időpontok alapján halad; éjszaka a **horizont alatti** kék szaggatott íven mozog halvány kék fényben, **pulzálás nélkül**.
+- Napközben a fényudvar napelem-teljesítményfüggő, 8 kW-nál telítődik.
+- Jobb felső fejléc: dátum, nagy óra, opcionális időjáráskép és állapot, hőmérséklet, szél. Nincs külön opak fejlécdoboz.
+- Jobbra a 24 órás valós termelésdiagram, alatta az animált napelem–háztartás–hálózat áramlás és egy alsó akkumulátorsáv.
+- Egyetlen Hálózat mező: vételezés piros, visszatáplálás citromsárga.
+- Akkumulátor: egész százalék, tényleges energia / maximum kWh, hőmérséklet és pillanatnyi teljesítmény. A kapacitást a webes `energy.battery_capacity_kwh` beállítás adja. Hiányzó kapacitás esetén a kWh-s összegzés rejtve marad.
+- Az alsó négy kártya rögzített mérettel és sorrendben: **Mai megtakarítás**, **Mai termelési érték**, **Mai fogyasztás**, **Mai visszatáplálás**. Jobb alsó sarkukban apró, azonos napszakhoz tartozó tegnapi százalékos összevetés.
+- `Mai termelési érték = production_kwh × electricity_purchase_price`.
+- `Mai megtakarítás = (pv_home_kwh + pv_stored_kwh) × electricity_purchase_price + grid_export_kwh × feed_in_price`. A hálózatból akkuba töltés nem szerepel a `pv_stored_kwh` részben.
+- Az összehasonlítás mai és tegnapi **azonos lezárt ötperces idősávból** származó statisztikával történik; ha tegnapi alapadat vagy az osztás nevezője nulla, `—` látható.
 
-## Kiadási feltétel
-Ne legyen végleges merge, amíg a ZIP-ben lévő v2 grafika és JSON a forrásba nem kerül, a webes telepítés és az SD-kártyás betöltés tesztelve nincs, és az új témát a kijelzőn vizuálisan nem hagytuk jóvá.
-
-## 2026-10-15: bináris csomag feltöltve
-
-A Nap pálya grafikai csomag immár mind a 13 PNG-vel együtt szerepel a `feature/solar-journey-template` ágon. A firmware által engedélyezett betűméretek: 12, 16, 20, 28, 48, 96; a feltöltött v2 elutasítását 34 szabálytalan méret okozta. A v3 sablon mindkét jelenetet kizárólag engedélyezett betűméretekkel írja le. A teljes integráció még csak sikeres CI-futás után tekinthető ellenőrzöttnek.
-
-## 2026-10-15: fejlesztési javítócsomag
-
-- Nap pálya sablon v4: az összes 13 grafikai PNG használatban van; a napkorong különálló PNG; a szél piktogramja külön elem.
-- A három mini energiaút `glow` értéke rögzítve, ezért az LVGL fényudvar-objektum ténylegesen létrejön, az előnézeti tesztben is.
-- Hálózat importpiros, exportcitromsárga.
-- A lapozó a Nap pálya témát átugorja, ha `SunPosition` nem érvényes. Már korábban kiválasztott téma esetén a napívek és a napadatok továbbra is rejtettek maradnak.
-- Valódi kijelzőn mért FPS, heap-csúcs, renderidő még nem mérhető CI-ben; nem állítható, hogy a hardveres validáció megtörtént.
+## Kiadás előtti feltételek
+A C sablonvalidátor, a böngészős ZIP validátor, a firmware build és az LVGL preview CI-próbája legyen sikeres. Az SD-re kerülő PNG-ket és a teljes arculatot valódi 1280×800-as kijelzőn ellenőrizni kell. A jelenlegi `day.png` és `night.png` továbbra is a korábban generált tájképréteg, **nem állítható, hogy az új, külön generált háttérpár már elkészült**. A jóváhagyott referencia pixelhű vizuális validálása ezért még hátravan. A PR-t addig nem szabad automatikusan merge-elni.

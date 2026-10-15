@@ -32,6 +32,26 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     lib.app_templates_load_pending.restype=C.c_bool
     lib.app_templates_view_free.argtypes=[C.c_void_p]
     error=C.create_string_buffer(160)
+    # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
+    # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
+    solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
+    assert solar['version'] >= 5
+    assert len(solar['light']['elements']) <= 96
+    for mode in ('dark','light'):
+        elements=solar[mode]['elements']
+        cards=[e for e in elements if e['type']=='box' and e['y']==662]
+        assert len(cards)==4 and all(e['h']==110 for e in cards)
+        assert {e['source'] for e in elements if e['type']=='value'} >= {
+            'solar_savings_day','solar_value_today','consumption_today','export_today',
+            'savings_yesterday_pct','production_value_yesterday_pct',
+            'consumption_yesterday_pct','export_yesterday_pct',
+            'battery_summary','production_yesterday_pct'}
+        chips=[e for e in elements if e['type']=='box' and e['y'] in (81,249)]
+        assert len(chips)==3 and all(e['h']<=58 and e['opacity']<230 for e in chips)
+        assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
+    # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
+    geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
+    assert geometric(solar['light'])==geometric(solar['dark'])
     for package in sorted((ROOT/'templates').iterdir()):
         assert lib.app_templates_validate(os.fsencode(package),None,error), (package.name,error.value)
     print('PASS: all installed packages, both themes, references, PNG CRC/decompression and bounds')
