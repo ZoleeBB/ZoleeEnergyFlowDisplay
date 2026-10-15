@@ -229,8 +229,23 @@ static void remove_stage(const char *path){
     while((e=readdir(d))){if(strcmp(e->d_name,"template.json")&&!app_templates_safe_asset(e->d_name))continue;path_join(child,path,e->d_name);remove(child);}
     closedir(d);RMDIR(path);
 }
+/* Megőrzött katalógussorrend, egy sorban egy sablonazonosítóval. */
+static void apply_saved_order(void){
+    char file[256];path_join(file,app_templates_root(),"order.txt");
+    FILE *fp=fopen(file,"rb");if(!fp)return;
+    char id[40];unsigned target=1;
+    while(target<count && fgets(id,sizeof(id),fp)){
+        size_t n=strcspn(id,"\r\n");id[n]=0;
+        for(unsigned j=target;j<count;j++)if(!strcmp(catalogue[j].id,id)){
+            app_template_info_t entry=catalogue[j];
+            memmove(&catalogue[target+1],&catalogue[target],(j-target)*sizeof(entry));
+            catalogue[target++]=entry;break;
+        }
+    }
+    fclose(fp);
+}
 static void scan(void){
-    count=1;snprintf(catalogue[0].id,33,"builtin");snprintf(catalogue[0].name,81,"Alapnézet / Built-in");
+    count=1;snprintf(catalogue[0].id,33,"builtin");snprintf(catalogue[0].name,81,"Rendszer");
     DIR *dir=opendir(app_templates_root());if(!dir)return;struct dirent *e;char path[256],error[160];
     while(count<APP_TEMPLATE_MAX&&(e=readdir(dir))){
         if(!app_templates_safe_id(e->d_name))continue;path_join(path,app_templates_root(),e->d_name);cJSON *doc=NULL;
@@ -242,6 +257,7 @@ static void scan(void){
     }
     closedir(dir);
     for(unsigned i=1;i<count;i++)for(unsigned j=i+1;j<count;j++)if(strcmp(catalogue[i].id,catalogue[j].id)>0){app_template_info_t t=catalogue[i];catalogue[i]=catalogue[j];catalogue[j]=t;}
+    apply_saved_order();
 }
 esp_err_t app_templates_init(void){
     if(!lock)lock=xSemaphoreCreateMutex();if(!lock)return ESP_ERR_NO_MEM;
@@ -275,6 +291,39 @@ esp_err_t app_templates_init(void){
 unsigned app_templates_list(app_template_info_t *out,unsigned capacity,char active[33]){
     if(!lock)return 0;xSemaphoreTake(lock,portMAX_DELAY);unsigned n=count<capacity?count:capacity;
     if(out)memcpy(out,catalogue,n*sizeof(*out));if(active)snprintf(active,33,"%s",selected);xSemaphoreGive(lock);return n;
+}
+esp_err_t app_templates_reorder(const cJSON *ids,char error[160]){
+    if(!lock || !cJSON_IsArray(ids))return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(lock,portMAX_DELAY);
+    if(cJSON_GetArraySize(ids)!=(int)count){xSemaphoreGive(lock);error_set(error,"A teljes sablonlistát meg kell adni");return ESP_ERR_INVALID_ARG;}
+    app_template_info_t ordered[APP_TEMPLATE_MAX];bool used[APP_TEMPLATE_MAX]={0};
+    for(unsigned i=0;i<count;i++){
+        const char *id=cJSON_GetStringValue(cJSON_GetArrayItem(ids,i));unsigned j=0;
+        if(!id || (i==0&&strcmp(id,"builtin")) || (i>0&&!strcmp(id,"builtin"))){
+            xSemaphoreGive(lock);error_set(error,"A Rendszer téma mindig az első");return ESP_ERR_INVALID_ARG;
+        }
+        while(j<count && (used[j]||strcmp(catalogue[j].id,id)))j++;
+        if(j==count){xSemaphoreGive(lock);error_set(error,"Ismeretlen vagy ismétlődő sablonazonosító");return ESP_ERR_INVALID_ARG;}
+        ordered[i]=catalogue[j];used[j]=true;
+    }
+    if(STORAGE_TAKE()!=ESP_OK){xSemaphoreGive(lock);error_set(error,"SD nem elérhető");return ESP_FAIL;}
+    char path[256],temp[256];path_join(path,app_templates_root(),"order.txt");
+    path_join(temp,app_templates_root(),"order.tmp");
+    FILE *fp=fopen(temp,"wb");bool ok=fp!=NULL;
+    if(fp){
+        for(unsigned i=1;i<count;i++)if(fprintf(fp,"%s\n",ordered[i].id)<0)ok=false;
+        if(fflush(fp)!=0)ok=false;
+#ifndef _WIN32
+        if(fsync(fileno(fp))!=0)ok=false;
+#endif
+        if(fclose(fp)!=0)ok=false;
+    }
+    if(ok&&rename(temp,path)!=0)ok=false;
+    if(!ok)remove(temp);
+    if(ok){memcpy(catalogue,ordered,count*sizeof(*ordered));generation++;}
+    STORAGE_GIVE();xSemaphoreGive(lock);
+    if(!ok)error_set(error,"A sorrend mentése sikertelen");
+    return ok?ESP_OK:ESP_FAIL;
 }
 esp_err_t app_templates_select(const char *id){
     if(!lock||!id)return ESP_ERR_INVALID_STATE;xSemaphoreTake(lock,portMAX_DELAY);esp_err_t result=ESP_ERR_NOT_FOUND;
