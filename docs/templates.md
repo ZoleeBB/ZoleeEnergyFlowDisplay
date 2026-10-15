@@ -94,7 +94,8 @@ közös lapjelzőnek/SD-hibajelzésnek szabadon hagyni.
 | `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek |
 | `gauge` | Köríves mérő: `source`, `max` (alapérték 15), `color`, `background` |
 | `flow` | `source`, `color`, `radius` (vonalvastagság), relatív `{x,y}` pontok: alapból 2–8 pontos `polyline`; `curve: "bezier"` esetén 4 vagy 7 vezérlőpont |
-| `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`; minimum 150×100 |
+| `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`, `solar_hourly`; minimum 150×100. `solar_hourly`: 24 órás, tényleges kWh-s, zöld/sárga (helyi/tárolt és export) oszlopok. |
+| `solar_disc` | Opcionális nappálya-korong (LVGL); `center_x`, `center_y`, `radius_x`, `radius_y`, `glow`; hiányzó `SunPosition` esetén elrejtendő |
 
 Színek: `#RRGGBB`. Átlátszóság: 0–255. Betűméretek: 12, 16, 20, 28;
 48 és 96 csak numerikus élő adathoz, órához/dátumhoz. Ezek számjegyeket és
@@ -108,7 +109,7 @@ Adatkapcsolatok:
   0,1 kW alatt W-ra vált. A flow előjeles adatot használ: a pontlista iránya a
   pozitív irány; hálózatnál vételezés, akkumulátornál kisütés. Negatív értéknél
   megfordulnak a pöttyök. Nulla körül eltűnnek; 7 kW-nál érik el a maximális sebességet.
-- `soc`, `battery_temp`, `temperature`, `wind`, `clock`, `date`, `status`,
+- `soc`, `battery_temp`, `battery_capacity`, `battery_energy`, `sun_azimuth`, `sun_altitude`, `sunrise`, `sunset`, `sun_direction`, `temperature`, `wind`, `clock`, `date`, `status`,
   `grid_direction`, `battery_direction`.
 - `production_today`, `consumption_today`, `import_today`, `export_today`,
   `charge_today`, `discharge_today`: a közös napi kWh-összesítések.
