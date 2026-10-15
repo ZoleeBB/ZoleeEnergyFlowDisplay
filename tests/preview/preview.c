@@ -218,10 +218,11 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
             const char *type=ts(n->spec,"type");
             bool sun_source=!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
                 !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction");
-            bool capacity_source=!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy");
+            bool capacity_source=!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||
+                !strcmp(source,"battery_summary");
             bool visible=(!strcmp(type,"solar_disc")||!strcmp(type,"solar_arc")||sun_source)?
                 state.sun_position_valid:
-                !strcmp(type,"weather")?weather_available(&state):
+                (!strcmp(type,"weather")||!strcmp(source,"weather_label"))?weather_available(&state):
                 !strcmp(source,"temperature")?state.temperature_valid:
                 !strcmp(source,"wind")?state.wind_speed_valid:
                 capacity_source?s_cfg.energy.battery_capacity_kwh>0:true;
