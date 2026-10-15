@@ -22,6 +22,7 @@ static float getinput(int index) {
     /* Invalid status must not be rounded or silently masked by the sender. */
     return index==9 && iteration>2 ? 2.5f : inputs[index];
 }
+static char *getinputtext(int index) { assert(index==0); return iteration==1 ? "132#38.5#420#1077" : ""; }
 static void setoutputtext(int index,const char *text) {
     assert(index==0); ++sent; puts(text);
 }
@@ -43,8 +44,8 @@ for sample_name in ['loxone-energy-http-post.picoc','loxone-energy-payload.picoc
         lines = subprocess.check_output([str(folder/'sample')], text=True, timeout=10).splitlines()
         data = [json.loads(line) for line in lines]
         reference = json.loads((ROOT/'examples/mqtt-payload.sample.json').read_text())
-        assert all(set(item)==set(reference) and len(item)==12 for item in data)
-        assert data[0]==data[1]
+        assert all(set(item)==set(reference) and len(item)==13 for item in data)
+        assert data[0]['SunPosition']=='132#38.5#420#1077' and data[1]['SunPosition'] is None
         if 'http' in sample_name:assert lines[0]!=lines[1], 'constant inputs must produce a text change'
         if 'http' in sample_name:assert lines[0].startswith('{"') and lines[1].startswith('{ "')
         assert data[0]['PowerGrid']<0 and data[0]['PowerBat']<0
