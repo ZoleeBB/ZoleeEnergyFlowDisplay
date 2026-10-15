@@ -7,6 +7,10 @@
 
 #define APP_TEMPLATE_MAX 16
 #define APP_TEMPLATE_ZIP_MAX (8U*1024U*1024U)
+/* 1280x800 fotóháttér: egy RGB PNG 2 MiB felett is lehet, a teljes
+ * dekódolt képmemória korlátja ettől függetlenül 12 MiB marad. */
+#define APP_TEMPLATE_PNG_MAX (5U*1024U*1024U/2U)
+#define APP_TEMPLATE_ENCODED_MAX (5U*1024U*1024U)
 #define APP_TEMPLATE_ROOT APP_SD_MOUNT_POINT "/templates"
 typedef struct { char id[33],name[81]; } app_template_info_t;
 typedef struct { char name[65]; uint8_t *bytes; size_t size; unsigned width,height; } app_template_asset_t;

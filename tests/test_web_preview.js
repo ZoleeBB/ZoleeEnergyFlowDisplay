@@ -27,9 +27,11 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert.strictEqual(discs[0].night_radius_y,186);
   assert.strictEqual(discs[0].day_path.length,21);
   assert.strictEqual(discs[0].night_path.length,21);
+  assert.deepStrictEqual(JSON.stringify(discs[0].day_path.at(-1)),JSON.stringify(discs[0].night_path[0]));
+  assert.strictEqual(discs[0].night_path[10].y,612);
   const flows=elements.filter(e=>e.type==='flow');
   assert(flows.filter(e=>e.reverse).length===2);
-  assert(flows.every(e=>e.dot_size===6));
+  assert(flows.every(e=>e.dot_size===6&&e.dot_count===2));
   assert(elements.some(e=>e.type==='image'&&e.file===(mode==='light'?'day.png':'night.png')));
  }
  assert(solarMetrics.encoded>0 && solarMetrics.decoded>0);

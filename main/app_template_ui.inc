@@ -778,9 +778,12 @@ static void template_animate(float dt){
         bool forward=node->power>=0;
         if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse")))forward=!forward;
         node->phase=app_flow_advance(node->phase,fabs(node->power),forward,dt);
+        int dot_count=tn(node->spec,"dot_count",4);
+        if(dot_count<1)dot_count=1;
+        if(dot_count>4)dot_count=4;
         for(int d=0;d<4;d++){
-            if(fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
-            float position=fmodf(node->phase+d*.25f,1.f)*node->length;unsigned k=0;
+            if(d>=dot_count||fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
+            float position=fmodf(node->phase+(float)d/dot_count,1.f)*node->length;unsigned k=0;
             while(k+2<node->point_count&&position>node->segments[k]){position-=node->segments[k];k++;}
             float ratio=node->segments[k]>0?position/node->segments[k]:0;
             lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)(node->points[k].x+(node->points[k+1].x-node->points[k].x)*ratio)-lv_obj_get_width(node->dots[d])/2,

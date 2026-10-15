@@ -84,8 +84,12 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
             assert {p.name for p in package.glob('*.png')} == refs, package.name
     manifest = json.loads((ROOT/'assets/template-manifest.json').read_text())
     assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')}
-    for item in manifest:
-        assert hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest() == item['sha256']
+    mismatched={
+        item['asset']:hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest()
+        for item in manifest
+        if hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest()!=item['sha256']
+    }
+    assert not mismatched, f'Outdated template-manifest.json SHA256 entries: {json.dumps(mismatched,ensure_ascii=False)}'
     print('PASS: generated template icons, no copied builtin assets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0

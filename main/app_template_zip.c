@@ -34,7 +34,7 @@ bool app_template_unzip(const char *archive,const char *directory,char error[160
         uint32_t compressed=u32(h+20),size=u32(h+24),offset=u32(h+42),crc=u32(h+16);
         unsigned unix_type=(u32(h+38)>>16)&0170000;
         if((flags&~(0x800|8|6)) || (method!=0&&method!=8) || u16(h+34) ||
-           (unix_type && unix_type!=0100000) || !n || n>64 || size>2*1024*1024 || !size ||
+           (unix_type && unix_type!=0100000) || !n || n>64 || size>APP_TEMPLATE_PNG_MAX || !size ||
            compressed>APP_TEMPLATE_ZIP_MAX || (total+=size)>APP_TEMPLATE_ZIP_MAX)goto done;
         if(fread(names[i],1,n,f)!=n)goto done;names[i][n]=0;
         if(strlen(names[i])!=n || (strcmp(names[i],"template.json") && !app_templates_safe_asset(names[i])))goto done;
