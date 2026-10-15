@@ -395,6 +395,23 @@ static void template_build(bool night){
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
+        }else if(!strcmp(type,"solar_arc")){
+            /* A napút pontosan LVGL-vonalakból áll, kis memóriaigénnyel.
+             * A felső és alsó ív külön sablonelem, ezért eltérő színt kaphat. */
+            int cx=tn(e,"center_x",w/2),cy=tn(e,"center_y",h/2);
+            int rx=tn(e,"radius_x",w/2),ry=tn(e,"radius_y",h/2);
+            bool lower=cJSON_IsTrue(cJSON_GetObjectItem(e,"night_arc"));
+            node->point_count=65;
+            for(unsigned k=0;k<65;k++){
+                float angle=(float)M_PI*(lower?(1.f+k/64.f):(1.f-k/64.f));
+                node->points[k].x=cx+rx*cosf(angle);
+                node->points[k].y=cy-ry*sinf(angle);
+            }
+            node->obj=lv_line_create(s_dash);lv_line_set_points(node->obj,node->points,node->point_count);
+            lv_obj_set_pos(node->obj,x,y);
+            lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
+            lv_obj_set_style_line_color(node->obj,c(text),0);
+            lv_obj_set_style_line_opa(node->obj,lower?LV_OPA_60:LV_OPA_COVER,0);
         }else if(!strcmp(type,"solar_disc")){
             /* A napkorong külön, kis LVGL objektum: nincs teljes képes újrarajzolás. */
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
@@ -485,7 +502,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
-        bool visible = !strcmp(type,"weather") ? weather_available(s) :
+        bool visible = !strcmp(type,"solar_disc") ? s->sun_position_valid :
+            !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
             !strcmp(source,"wind") ? s->wind_speed_valid :
             (!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
