@@ -27,6 +27,9 @@ Az adatfogadáshoz **nem kell felhasználónév, jelszó vagy API-kulcs**, akkor
 
 ## Program blokk bemenetek
 
+A bemenetek száma összesen **14**, de ez `I1`–`I13` és `T1`, nem `I1`–`I14`. A legfelső T1 szövegbemenet adja a `SunPosition` karakterláncot.
+
+
 | Bemenet | Mező | Egység/jelentés |
 |---|---|---|
 | I1 | PowerGrid | kW; pozitív vételezés, negatív visszatáplálás |
@@ -42,7 +45,7 @@ Az adatfogadáshoz **nem kell felhasználónév, jelszó vagy API-kulcs**, akkor
 | I11 | NightMode | 0/1 |
 | I12 | BatteryTemperature | °C |
 | I13 | WeatherPresent | 0–15, időjárási jelenlétmaszk |
-| **T1** | **SunPosition** | `azimut#magasság#napkeltePerc#napnyugtaPerc`, opcionális |
+| **14. bemenet: T1** | **SunPosition** | `azimut#magasság#napkeltePerc#napnyugtaPerc`, opcionális |
 
 
 A scriptbe egyetlen Program blokkon belül másold be a mintafájlt. A Txt1 a JSON-t, az Etxt a Pico C értelmező hibaüzenetét adja. Az I/O-indexek a kódban nullától indulnak, ezért I1 = `getinput(0)`.
