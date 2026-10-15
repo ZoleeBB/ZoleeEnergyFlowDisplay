@@ -13,7 +13,7 @@ esp_err_t httpd_resp_set_type(httpd_req_t *r,const char *t){(void)r;assert(!strc
 esp_err_t httpd_resp_set_hdr(httpd_req_t *r,const char *k,const char *v){(void)r;if(!strcmp(k,"Allow")){assert(!strcmp(v,"POST"));allow_post=true;}return ESP_OK;}
 esp_err_t httpd_resp_send(httpd_req_t *r,const char *b,int n){(void)r;(void)n;cJSON *json=cJSON_Parse(b);assert(json);cJSON_Delete(json);return ESP_OK;}
 size_t httpd_req_get_hdr_value_len(httpd_req_t *r,const char *k){(void)r;assert(!strcmp(k,"Content-Type"));return strlen(request_type);}
-esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *k,char *out,size_t n){(void)r;(void)k;snprintf(out,n,"%s",request_type);return ESP_OK;}
+esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *k,char *out,size_t n){(void)r;(void)k;snprintf(out,n,"%s",request_type ? request_type : "");return ESP_OK;}
 int httpd_req_recv(httpd_req_t *r,char *out,size_t n){
     (void)r;fake_us+=read_delay;if(recv_fault)return recv_fault;
     if(chunk_size && n>(size_t)chunk_size)n=(size_t)chunk_size;
