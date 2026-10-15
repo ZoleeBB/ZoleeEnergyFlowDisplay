@@ -1368,7 +1368,7 @@ static void animation_tick(lv_timer_t *timer)
     float dt=s_animation_us?(now-s_animation_us)/1000000.f:0.f;
     s_animation_us=now;
     /* Lassú kirajzoláskor se lassítsuk mesterségesen a pontok időalapját. */
-    if(dt>.25f)dt=.25f;
+    if(dt>2.f)dt=2.f; /* kimaradt képkockáknál is kövessük a valódi időt */
     if(dt<0.f)dt=0.f;
     /* Az összetett görbéken átlagosan 20 FPS; a teljes eltelt idővel
      * léptetünk, nem lassul az energiaáramlás és nem vesznek el tört tickek. */
