@@ -121,7 +121,7 @@ static bool duplicates(const cJSON *o){
 }
 static bool validate_scene(const cJSON *scene){
     static const char *const types[]={"box","pulse","label","value","image","bar","gauge","flow","chart","weather",NULL};
-    static const char *const sources[]={"pv","home","grid","battery","soc","battery_temp","temperature","wind","clock","date","status","grid_direction","battery_direction","production_today","consumption_today","import_today","export_today","charge_today","discharge_today","pv_home","pv_export","pv_stored","pv_home_today","pv_export_today","pv_stored_today","grid_home_today","battery_home_today","self_sufficiency_pct","self_consumption_pct","pv_home_pct","pv_load_pct","pv_export_pct","pv_stored_pct","grid_home_pct","battery_home_pct","purchase_day","revenue_day","savings_day","net_day","purchase_month","revenue_month","savings_month","net_month","grid_net_today","battery_net_today",NULL};
+    static const char *const sources[]={"pv","home","grid","battery","soc","battery_temp","temperature","wind","clock","date","status","grid_direction","battery_direction","production_today","consumption_today","import_today","export_today","charge_today","discharge_today","pv_home","pv_export","pv_stored","pv_home_today","pv_export_today","pv_stored_today","grid_home_today","battery_home_today","self_sufficiency_pct","self_consumption_pct","pv_home_pct","pv_load_pct","pv_export_pct","pv_stored_pct","grid_home_pct","battery_home_pct","purchase_day","revenue_day","savings_day","net_day","purchase_month","revenue_month","savings_month","net_month","grid_net_today","battery_net_today","battery_capacity","battery_energy","sun_azimuth","sun_altitude","sunrise","sunset","sun_direction",NULL};
     if(!cJSON_IsObject(scene)||!color(str(scene,"background")))return false;
     if(cJSON_HasObjectItem(scene,"gradient")&&!color(str(scene,"gradient")))return false;
     const cJSON *palette=cJSON_GetObjectItemCaseSensitive(scene,"palette");
@@ -167,7 +167,7 @@ static bool validate_scene(const cJSON *scene){
             if(!cJSON_IsObject(files)||cJSON_GetArraySize(files)!=6)return false;
             for(int i=0;keys[i];i++)if(!app_templates_safe_asset(str(files,keys[i])))return false;
         }
-        static const char *const kinds[]={"production","consumption","grid","battery","soc","week","month",NULL};
+        static const char *const kinds[]={"production","consumption","grid","battery","soc","week","month","solar_hourly",NULL};
         if(!strcmp(type,"chart")&&!one_of(str(e,"kind"),kinds))return false;
         if(!strcmp(type,"flow")){
             const cJSON *pts=cJSON_GetObjectItem(e,"points");int n=cJSON_GetArraySize(pts);
