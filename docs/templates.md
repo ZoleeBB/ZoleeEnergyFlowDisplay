@@ -213,3 +213,7 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 - **Ellenőrzés**: `python3 tests/run_tests.py` végén a
   `tests/test_visual_regressions.py` megakadályozza a javítások véletlen
   kikerülését. A kijelzőn nappali és éjszakai módban is vizuálisan tesztelendő.
+
+## Nap pálya: munkaközi integrációs sablon
+
+A `templates/09-solar-journey/` nappali/éjszakai témája a 24 órás napjárás, órás termelés, mini energiaáramlás és akkuadatok integrációs ellenőrzésére készült. **A háttér az Élő otthon átmenetileg átvett képpárja, nem a véglegesen elfogadott grafika.** Grafikai csere, kijelzőteszt és végleges optimalizálás szükséges.

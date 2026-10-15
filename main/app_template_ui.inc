@@ -243,6 +243,8 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     else if(strstr(source,"_day")||strstr(source,"_month"))unit=s_cfg.project.currency;
     else if(strstr(source,"_today"))unit="kWh";
     else if(!strcmp(source,"soc"))unit="%";
+    else if(!strcmp(source,"sun_altitude")||!strcmp(source,"sun_azimuth"))unit="°";
+    else if(!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy"))unit="kWh";
     else if(!strcmp(source,"temperature")||!strcmp(source,"battery_temp"))unit="°C";
     else if(!strcmp(source,"wind")){fmt_dec(value,sizeof(value),v,0);unit="km/h";}
     else{fmt_power(out,128,v);return;}

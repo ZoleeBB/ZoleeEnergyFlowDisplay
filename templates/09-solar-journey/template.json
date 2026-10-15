@@ -1,0 +1,1134 @@
+{
+  "schema": 1,
+  "id": "09-solar-journey",
+  "name": "Nap pálya",
+  "version": 1,
+  "light": {
+    "background": "#D9EAF2",
+    "palette": {
+      "pv": "#40CF80",
+      "grid": "#E86A59",
+      "home": "#FFBA26",
+      "battery": "#69AFFF"
+    },
+    "elements": [
+      {
+        "type": "image",
+        "file": "day.png",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Nap pálya · Zolee Energy Monitor",
+        "x": 25,
+        "y": 15,
+        "w": 540,
+        "h": 33,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "clock",
+        "x": 675,
+        "y": 20,
+        "w": 170,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "weather",
+        "x": 1062,
+        "y": 12,
+        "w": 60,
+        "h": 60
+      },
+      {
+        "type": "value",
+        "source": "temperature",
+        "x": 1133,
+        "y": 21,
+        "w": 130,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "solar_arc",
+        "x": 24,
+        "y": 90,
+        "w": 890,
+        "h": 562,
+        "center_x": 445,
+        "center_y": 260,
+        "radius_x": 350,
+        "radius_y": 235,
+        "radius": 4,
+        "color": "#FFCD39"
+      },
+      {
+        "type": "solar_arc",
+        "x": 24,
+        "y": 90,
+        "w": 890,
+        "h": 562,
+        "center_x": 445,
+        "center_y": 260,
+        "radius_x": 350,
+        "radius_y": 235,
+        "radius": 3,
+        "color": "#63ABFF",
+        "night_arc": true
+      },
+      {
+        "type": "solar_disc",
+        "x": 450,
+        "y": 135,
+        "w": 44,
+        "h": 44,
+        "center_x": 469,
+        "center_y": 350,
+        "radius_x": 350,
+        "radius_y": 235,
+        "color": "#FFCB35",
+        "glow": 20
+      },
+      {
+        "type": "label",
+        "text": "K",
+        "x": 85,
+        "y": 345,
+        "w": 25,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "D",
+        "x": 460,
+        "y": 103,
+        "w": 25,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Ny",
+        "x": 832,
+        "y": 345,
+        "w": 40,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "É",
+        "x": 460,
+        "y": 620,
+        "w": 30,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 258,
+        "w": 175,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napkelte",
+        "x": 37,
+        "y": 262,
+        "w": 158,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sunrise",
+        "x": 38,
+        "y": 293,
+        "w": 150,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 715,
+        "y": 258,
+        "w": 187,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napnyugta",
+        "x": 732,
+        "y": 262,
+        "w": 166,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sunset",
+        "x": 732,
+        "y": 293,
+        "w": 160,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 350,
+        "y": 103,
+        "w": 240,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napmagasság",
+        "x": 365,
+        "y": 107,
+        "w": 210,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sun_altitude",
+        "x": 364,
+        "y": 140,
+        "w": 125,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sun_direction",
+        "x": 505,
+        "y": 145,
+        "w": 70,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 930,
+        "y": 110,
+        "w": 339,
+        "h": 287,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Mai termelés",
+        "x": 947,
+        "y": 122,
+        "w": 300,
+        "h": 33,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "production_today",
+        "x": 948,
+        "y": 159,
+        "w": 293,
+        "h": 48,
+        "font": 48,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "chart",
+        "kind": "solar_hourly",
+        "x": 947,
+        "y": 225,
+        "w": 310,
+        "h": 145
+      },
+      {
+        "type": "label",
+        "text": "Zöld: helyi / tárolt   Sárga: export",
+        "x": 945,
+        "y": 373,
+        "w": 315,
+        "h": 33,
+        "font": 12,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 930,
+        "y": 405,
+        "w": 339,
+        "h": 255,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Energiaáramlás",
+        "x": 946,
+        "y": 417,
+        "w": 300,
+        "h": 33,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "PV",
+        "x": 950,
+        "y": 467,
+        "w": 60,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Ház",
+        "x": 1073,
+        "y": 467,
+        "w": 74,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Hálózat",
+        "x": 1171,
+        "y": 467,
+        "w": 90,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "flow",
+        "source": "pv_home",
+        "x": 991,
+        "y": 485,
+        "w": 75,
+        "h": 20,
+        "points": [
+          {
+            "x": 1,
+            "y": 10
+          },
+          {
+            "x": 72,
+            "y": 10
+          }
+        ],
+        "color": "#40CF80",
+        "radius": 3
+      },
+      {
+        "type": "flow",
+        "source": "grid",
+        "x": 1140,
+        "y": 485,
+        "w": 47,
+        "h": 20,
+        "points": [
+          {
+            "x": 1,
+            "y": 10
+          },
+          {
+            "x": 45,
+            "y": 10
+          }
+        ],
+        "color": "#E86A59",
+        "radius": 3
+      },
+      {
+        "type": "value",
+        "source": "pv",
+        "x": 946,
+        "y": 512,
+        "w": 100,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "home",
+        "x": 1055,
+        "y": 512,
+        "w": 107,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "grid",
+        "x": 1158,
+        "y": 512,
+        "w": 103,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Akku",
+        "x": 957,
+        "y": 569,
+        "w": 90,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery",
+        "x": 1018,
+        "y": 565,
+        "w": 124,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_temp",
+        "x": 1137,
+        "y": 598,
+        "w": 122,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 20,
+        "y": 681,
+        "w": 296,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Mai visszatáplálás",
+        "x": 35,
+        "y": 688,
+        "w": 275,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "export_today",
+        "x": 34,
+        "y": 718,
+        "w": 268,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 324,
+        "y": 681,
+        "w": 294,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Fogyasztás ma",
+        "x": 340,
+        "y": 688,
+        "w": 273,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "consumption_today",
+        "x": 339,
+        "y": 718,
+        "w": 271,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 626,
+        "y": 681,
+        "w": 292,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Akkuban tárolt",
+        "x": 640,
+        "y": 688,
+        "w": 271,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_energy",
+        "x": 642,
+        "y": 718,
+        "w": 270,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 928,
+        "y": 681,
+        "w": 341,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Max. akkukapacitás",
+        "x": 944,
+        "y": 688,
+        "w": 318,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_capacity",
+        "x": 944,
+        "y": 718,
+        "w": 310,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      }
+    ]
+  },
+  "dark": {
+    "background": "#0D2037",
+    "palette": {
+      "pv": "#40CF80",
+      "grid": "#E86A59",
+      "home": "#FFBA26",
+      "battery": "#69AFFF"
+    },
+    "elements": [
+      {
+        "type": "image",
+        "file": "night.png",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800
+      },
+      {
+        "type": "box",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Nap pálya · Zolee Energy Monitor",
+        "x": 25,
+        "y": 15,
+        "w": 540,
+        "h": 33,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "clock",
+        "x": 675,
+        "y": 20,
+        "w": 170,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "weather",
+        "x": 1062,
+        "y": 12,
+        "w": 60,
+        "h": 60
+      },
+      {
+        "type": "value",
+        "source": "temperature",
+        "x": 1133,
+        "y": 21,
+        "w": 130,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "solar_arc",
+        "x": 24,
+        "y": 90,
+        "w": 890,
+        "h": 562,
+        "center_x": 445,
+        "center_y": 260,
+        "radius_x": 350,
+        "radius_y": 235,
+        "radius": 4,
+        "color": "#FFCD39"
+      },
+      {
+        "type": "solar_arc",
+        "x": 24,
+        "y": 90,
+        "w": 890,
+        "h": 562,
+        "center_x": 445,
+        "center_y": 260,
+        "radius_x": 350,
+        "radius_y": 235,
+        "radius": 3,
+        "color": "#63ABFF",
+        "night_arc": true
+      },
+      {
+        "type": "solar_disc",
+        "x": 450,
+        "y": 135,
+        "w": 44,
+        "h": 44,
+        "center_x": 469,
+        "center_y": 350,
+        "radius_x": 350,
+        "radius_y": 235,
+        "color": "#81B0D4",
+        "glow": 20
+      },
+      {
+        "type": "label",
+        "text": "K",
+        "x": 85,
+        "y": 345,
+        "w": 25,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "D",
+        "x": 460,
+        "y": 103,
+        "w": 25,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Ny",
+        "x": 832,
+        "y": 345,
+        "w": 40,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "É",
+        "x": 460,
+        "y": 620,
+        "w": 30,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 258,
+        "w": 175,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napkelte",
+        "x": 37,
+        "y": 262,
+        "w": 158,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sunrise",
+        "x": 38,
+        "y": 293,
+        "w": 150,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 715,
+        "y": 258,
+        "w": 187,
+        "h": 90,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napnyugta",
+        "x": 732,
+        "y": 262,
+        "w": 166,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sunset",
+        "x": 732,
+        "y": 293,
+        "w": 160,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 350,
+        "y": 103,
+        "w": 240,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Napmagasság",
+        "x": 365,
+        "y": 107,
+        "w": 210,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sun_altitude",
+        "x": 364,
+        "y": 140,
+        "w": 125,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "sun_direction",
+        "x": 505,
+        "y": 145,
+        "w": 70,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 930,
+        "y": 110,
+        "w": 339,
+        "h": 287,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Mai termelés",
+        "x": 947,
+        "y": 122,
+        "w": 300,
+        "h": 33,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "production_today",
+        "x": 948,
+        "y": 159,
+        "w": 293,
+        "h": 48,
+        "font": 48,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "chart",
+        "kind": "solar_hourly",
+        "x": 947,
+        "y": 225,
+        "w": 310,
+        "h": 145
+      },
+      {
+        "type": "label",
+        "text": "Zöld: helyi / tárolt   Sárga: export",
+        "x": 945,
+        "y": 373,
+        "w": 315,
+        "h": 33,
+        "font": 12,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 930,
+        "y": 405,
+        "w": 339,
+        "h": 255,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Energiaáramlás",
+        "x": 946,
+        "y": 417,
+        "w": 300,
+        "h": 33,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "PV",
+        "x": 950,
+        "y": 467,
+        "w": 60,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Ház",
+        "x": 1073,
+        "y": 467,
+        "w": 74,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Hálózat",
+        "x": 1171,
+        "y": 467,
+        "w": 90,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "flow",
+        "source": "pv_home",
+        "x": 991,
+        "y": 485,
+        "w": 75,
+        "h": 20,
+        "points": [
+          {
+            "x": 1,
+            "y": 10
+          },
+          {
+            "x": 72,
+            "y": 10
+          }
+        ],
+        "color": "#40CF80",
+        "radius": 3
+      },
+      {
+        "type": "flow",
+        "source": "grid",
+        "x": 1140,
+        "y": 485,
+        "w": 47,
+        "h": 20,
+        "points": [
+          {
+            "x": 1,
+            "y": 10
+          },
+          {
+            "x": 45,
+            "y": 10
+          }
+        ],
+        "color": "#E86A59",
+        "radius": 3
+      },
+      {
+        "type": "value",
+        "source": "pv",
+        "x": 946,
+        "y": 512,
+        "w": 100,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "home",
+        "x": 1055,
+        "y": 512,
+        "w": 107,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "grid",
+        "x": 1158,
+        "y": 512,
+        "w": 103,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "label",
+        "text": "Akku",
+        "x": 957,
+        "y": 569,
+        "w": 90,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery",
+        "x": 1018,
+        "y": 565,
+        "w": 124,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_temp",
+        "x": 1137,
+        "y": 598,
+        "w": 122,
+        "h": 48,
+        "font": 20,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 20,
+        "y": 681,
+        "w": 296,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Mai visszatáplálás",
+        "x": 35,
+        "y": 688,
+        "w": 275,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "export_today",
+        "x": 34,
+        "y": 718,
+        "w": 268,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 324,
+        "y": 681,
+        "w": 294,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Fogyasztás ma",
+        "x": 340,
+        "y": 688,
+        "w": 273,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "consumption_today",
+        "x": 339,
+        "y": 718,
+        "w": 271,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 626,
+        "y": 681,
+        "w": 292,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Akkuban tárolt",
+        "x": 640,
+        "y": 688,
+        "w": 271,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_energy",
+        "x": 642,
+        "y": 718,
+        "w": 270,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "box",
+        "x": 928,
+        "y": 681,
+        "w": 341,
+        "h": 95,
+        "background": "#102B45",
+        "radius": 16,
+        "opacity": 224
+      },
+      {
+        "type": "label",
+        "text": "Max. akkukapacitás",
+        "x": 944,
+        "y": 688,
+        "w": 318,
+        "h": 33,
+        "font": 16,
+        "color": "#FFFFFF"
+      },
+      {
+        "type": "value",
+        "source": "battery_capacity",
+        "x": 944,
+        "y": 718,
+        "w": 310,
+        "h": 48,
+        "font": 28,
+        "color": "#FFFFFF"
+      }
+    ]
+  }
+}
