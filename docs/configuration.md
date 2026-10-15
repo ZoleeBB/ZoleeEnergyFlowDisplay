@@ -12,7 +12,7 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
 | `display` | Nappali/éjszakai fényerő, százalékban 1–100 |
 | `statistics` | Mentési időköz és maximális integrálási adatrés |
-| `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező |
+| `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
 
 HTTP módban MQTT broker nem szükséges. A kiválasztott mód adatkimaradási időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli.
