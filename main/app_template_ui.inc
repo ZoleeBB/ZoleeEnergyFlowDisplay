@@ -190,6 +190,10 @@ static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
 #define V(key,value) if(!strcmp(source,key))return value
+    V("battery_capacity",s_cfg.energy.battery_capacity_kwh);
+    V("battery_energy",s_cfg.energy.battery_capacity_kwh>0?s_cfg.energy.battery_capacity_kwh*s->soc_bat_pct/100.:0);
+    V("sun_azimuth",s->sun_azimuth_deg);V("sun_altitude",s->sun_altitude_deg);
+    V("sunrise",s->sunrise_minute);V("sunset",s->sunset_minute);
     V("pv",s->power_pv_kw);V("home",s->power_full_kw);V("grid",s->power_grid_kw);V("battery",s->power_bat_kw);
     V("soc",s->soc_bat_pct);V("battery_temp",s->battery_temperature_c);V("temperature",s->temperature_c);V("wind",s->wind_speed_kmh);
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
@@ -216,6 +220,18 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 }
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
+    if(!strcmp(source,"sun_direction")){
+        static const char *const hu_dirs[]={"É","ÉK","K","DK","D","DNy","Ny","ÉNy"};
+        static const char *const en_dirs[]={"N","NE","E","SE","S","SW","W","NW"};
+        int index=(int)floor((s->sun_azimuth_deg+22.5)/45.)%8;
+        snprintf(out,128,"%s",s->sun_position_valid?(hu()?hu_dirs[index]:en_dirs[index]):"-");return;
+    }
+    if(!strcmp(source,"sunrise")||!strcmp(source,"sunset")){
+        int m=!strcmp(source,"sunrise")?s->sunrise_minute:s->sunset_minute;
+        if(s->sun_position_valid)snprintf(out,128,"%02d:%02d",m/60,m%60);
+        else snprintf(out,128,"-");
+        return;
+    }
     if(!strcmp(source,"clock")){strftime(out,128,"%H:%M",&tmv);return;}
     if(!strcmp(source,"date")){strftime(out,128,hu()?"%Y.%m.%d.":"%Y-%m-%d",&tmv);return;}
     if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
@@ -403,11 +419,12 @@ static void template_build(bool night){
         }else if(!strcmp(type,"chart")){
             bool consumption=!strcmp(ts(e,"kind"),"consumption");
             const char *kind=ts(e,"kind");
-            app_chart_kind_t chart_kind=!strcmp(kind,"grid")?APP_CHART_GRID:!strcmp(kind,"battery")?APP_CHART_BATTERY:
+            app_chart_kind_t chart_kind=!strcmp(kind,"solar_hourly")?APP_CHART_SOLAR_HOURLY:!strcmp(kind,"grid")?APP_CHART_GRID:!strcmp(kind,"battery")?APP_CHART_BATTERY:
                 !strcmp(kind,"soc")?APP_CHART_SOC:!strcmp(kind,"week")?APP_CHART_WEEK:!strcmp(kind,"month")?APP_CHART_MONTH:
                 consumption?APP_CHART_CONSUMPTION:APP_CHART_PRODUCTION;
             uint32_t first=tc(palette,consumption?"grid":"pv",tone(consumption?RED:GREEN,night));
             uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
+            if(chart_kind==APP_CHART_SOLAR_HOURLY){first=0x23B779;second=0xFFCB35;}
             if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
             else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
             if(chart_kind==APP_CHART_BATTERY){first=tc(e,"negative_color",first);second=tc(e,"positive_color",first);}
@@ -465,7 +482,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
         bool visible = !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
-            !strcmp(source,"wind") ? s->wind_speed_valid : true;
+            !strcmp(source,"wind") ? s->wind_speed_valid :
+            (!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
+             !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
+            (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
@@ -504,6 +524,19 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             const char *kind=ts(e,"kind");double maximum=1,minimum=0;
             time_t t=time(NULL);struct tm tmv;localtime_r(&t,&tmv);int minute=tmv.tm_hour*60+tmv.tm_min;
             bool period=!strcmp(kind,"week")||!strcmp(kind,"month");
+            if(!strcmp(kind,"solar_hourly")){
+                app_chart_update(node->obj,stats,1,minute);
+                for(int hour=0;hour<24;hour++){
+                    double sum=0;
+                    for(int k=0;k<12;k++)sum+=stats->slots[hour*12+k].energy.pv_home_kwh+
+                        stats->slots[hour*12+k].energy.pv_stored_kwh+
+                        stats->slots[hour*12+k].energy.pv_export_kwh;
+                    maximum=fmax(maximum,sum);
+                }
+                maximum=ceil(maximum);
+                for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum*(2-j)/2.,j==1?1:0);label_text_if_changed(node->axis[j],text);}
+                continue;
+            }
             if(period){
                 const app_stats_period_t *p=!strcmp(kind,"month")?&s_month_period:&s_week_period;
                 app_chart_update_period(node->obj,p);
