@@ -70,3 +70,13 @@ Egy új null érték azonnal elrejti a korábbi kijelzést; az adat visszatéré
 Minta: [mqtt-payload.no-weather.sample.json](../examples/mqtt-payload.no-weather.sample.json).
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+## Opcionális nappályaadatok
+
+A `SunPosition` mező opcionális: hiányozhat vagy értéke `null` lehet.
+Ha nem null, akkor az első Loxone-szövegbemenetből érkező, négy részből álló
+`azimut#napmagasság#napkeltePerc#napnyugtaPerc` szöveget tartalmazza.
+Példa: `"SunPosition":"327.445#-46.562#420#1077"`.
+Az azimut [0,360), a napmagasság [-90,90] fokban, a percek [0,1439]
+tartományban értendők. A napkelte a napnyugta előtt kell legyen.
+Érvénytelen, nem null érték esetén a csomag elutasításra kerül.
