@@ -260,7 +260,11 @@ static void test_flow(void){
     near(app_flow_advance(.4f,15,true,.1f),app_flow_advance(.4f,7,true,.1f));
     float phase=.4f;phase=app_flow_advance(phase,7,true,.016f);phase=app_flow_advance(phase,7,false,.016f);near(phase,.4f);
     phase=app_flow_advance(.001f,7,false,.016f);assert(phase>=0 && phase<1);
-    assert(app_flow_advance(0,1,true,1)>.25f);tests++;
+    float slow=app_flow_advance(0,.1,true,1);
+    float medium=app_flow_advance(0,1,true,1);
+    float fast=app_flow_advance(0,7,true,.5f);
+    assert(slow>0 && slow<medium && medium<fast);
+    tests++;
 }
 /* Fizikai példák, irányváltás ötperces ablakon belül, mentés és adathézag. */
 static void test_energy_split(void){
