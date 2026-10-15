@@ -76,3 +76,14 @@ Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp
 A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+## Opcionális nappálya (T1 szöveges bemenet)
+
+Az első szöveges **T1** bemenetre a Loxone-ban összefűzött
+`azimut#napmagasság#napkeltePerc#napnyugtaPerc` szöveg kerül.
+Példa: `327.445#-46.562#420#1077`.
+A fokok 0–360/−90–+90 tartományúak; a napkelte/napnyugta a helyi éjféltől
+eltelt percek száma. A minta Pico C program `getinputtext(0)` hívással olvassa,
+és `SunPosition` néven továbbítja. Bekötetlen vagy üres szöveg esetén
+`"SunPosition":null` kerül a csomagba. Az I1–I13 analóg bemenetek változatlanok.
+A firmware csak teljes és tartományhelyes adatot fogad el.
