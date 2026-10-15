@@ -102,7 +102,10 @@ static void test_flow_rendering(void){
         for(int d=0;d<4;d++){
             lv_obj_t *dot=node->dots[d];
             assert(lv_obj_get_style_bg_color(dot,0).red==255);
-            assert(lv_obj_get_style_border_width(dot,0)==2);
+            int diameter=tn(node->spec,"dot_size",tn(node->spec,"radius",3)>=16?14:11);
+            if(diameter<3)diameter=3;
+            if(diameter>18)diameter=18;
+            assert(lv_obj_get_style_border_width(dot,0)==(diameter<=7?1:2));
             assert(lv_obj_get_index(dot)>lv_obj_get_index(node->obj));
         }
         double power=node->power;
