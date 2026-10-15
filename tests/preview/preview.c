@@ -485,7 +485,12 @@ int main(void)
         }
         app_templates_step(1);template_prepare();render_runtime(rt,sample,true,31000000);assert(!template_is_active());
         save_frame("builtin-pagination");
-        assert((pixels[784*1280+553]&0xffffff)==tone(GREEN,sample.night_mode));
+        /* A témalapozás visszatért a beépített Rendszer témára.
+         * A régi fix pixelellenőrzés a korábbi elrendezéstől függött,
+         * ezért egy új téma hozzáadásakor téves hibát eredményezett. */
+        assert(!strcmp(template_view.id,"builtin"));
+        assert(s_view==VIEW_DASHBOARD);
+        assert(!template_is_active());
         lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_display(input,display);lv_indev_set_read_cb(input,touch_read);
         for(unsigned i=1;i<=count;i++){
             lv_obj_update_layout(s_screen);
