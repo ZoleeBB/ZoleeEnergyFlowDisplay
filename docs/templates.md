@@ -200,3 +200,16 @@ A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python 
 A házhoz vezető út piros, hálózati vételezés narancs, export citromsárga. Akku töltése sötétebb, leadása világosabb kék. Az elem opcionális `positive_color`/`negative_color` mezője követi az előjelet. A `pulse` elem pulzáló csomópont; a mérősávok `outline_color` körvonala és az értékváltozási animáció a Műszerfal olvashatóságát segíti.
 
 Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapadék is érvényes. A hőmérséklet és szél külön-külön rejtőzik null értéknél, minden témában. A kapcsolódó statikus címkének is adj `source` mezőt. [Adatprotokoll](mqtt.md).
+
+## Kiemelt regressziós követelmények (2026-10-15)
+
+- **Rendszer** és **Napi mérleg**: a grafikon görbéje alatti kitöltés ugyanannak
+  az adatsornak a színét használja, mint a görbe, csak áttetszően. A kitöltés
+  nem lehet szürkés, és a három energiasor megkülönböztethetősége nem veszhet el.
+- **Minden energiaáramlásos téma**: a pontok sebessége az abszolút kW-értékkel
+  arányosan nő. A `main/app_flow_model.h` közös számítását kell használni;
+  7 kW-nál van a sebességmaximum, nulla teljesítménynél a pontok rejtettek.
+  Az előjel a mozgás irányát jelzi, nem a sebességet.
+- **Ellenőrzés**: `python3 tests/run_tests.py` végén a
+  `tests/test_visual_regressions.py` megakadályozza a javítások véletlen
+  kikerülését. A kijelzőn nappali és éjszakai módban is vizuálisan tesztelendő.
