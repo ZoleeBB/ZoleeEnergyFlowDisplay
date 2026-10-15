@@ -23,9 +23,12 @@ assert "app_chart_update(node->obj,stats" in templates
 
 # Minden animált energiaút ugyanazt a teljesítményfüggő modellt használja.
 assert "app_flow_advance(f->phase,kw,forward,dt)" in ui
-assert "app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt)" in templates
+assert "bool forward=node->power>=0;" in templates
+assert 'cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse"))' in templates
+assert "app_flow_advance(node->phase,fabs(node->power),forward,dt)" in templates
+assert 'int dot_count=tn(node->spec,"dot_count",4);' in templates
 assert "fmin(fabs(kw)/7.,1.)" in flow
 assert ".045f+.955f*load" in flow
 assert "if(fabs(kw)<0.0005 || seconds<=0)return phase;" in flow
 
-print("PASS: chart area colors and power-proportional flow paths")
+print("PASS: chart colors, reversible energy paths and power-proportional flow animation")
