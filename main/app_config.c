@@ -82,6 +82,7 @@ void app_config_set_defaults(app_config_t *cfg)
     cfg->statistics.max_integration_gap_seconds = 30;
 
     /* Pénzügyi és környezeti számítások. */
+    cfg->energy.battery_capacity_kwh = 0; /* ismeretlen, amíg a felhasználó nem adja meg */
     cfg->energy.electricity_purchase_price = 65;
     cfg->energy.feed_in_price = 5;
     cfg->energy.co2_factor_kg_per_kwh = 0.381;
@@ -459,7 +460,8 @@ static bool parse_config(
     /* Pénzügyi és környezeti tényezők. */
     cJSON *energy = get_object_section(root, "energy", false, error, error_len);
     if (energy) {
-        if (!read_double(energy, "electricity_purchase_price", &cfg->energy.electricity_purchase_price, 0, 100000, false, error, error_len) ||
+        if (!read_double(energy, "battery_capacity_kwh", &cfg->energy.battery_capacity_kwh, 0, 1000, false, error, error_len) ||
+            !read_double(energy, "electricity_purchase_price", &cfg->energy.electricity_purchase_price, 0, 100000, false, error, error_len) ||
             !read_double(energy, "feed_in_price", &cfg->energy.feed_in_price, 0, 100000, false, error, error_len) ||
             !read_double(energy, "co2_factor_kg_per_kwh", &cfg->energy.co2_factor_kg_per_kwh, 0, 100, false, error, error_len) ||
             !read_double(energy, "tree_absorption_kg_per_year", &cfg->energy.tree_absorption_kg_per_year, 0.001, 100000, false, error, error_len)) {
