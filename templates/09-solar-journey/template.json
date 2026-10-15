@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 10,
+  "version": 11,
   "light": {
     "background": "#E2EDF7",
     "palette": {
@@ -636,35 +636,31 @@
       },
       {
         "type": "flow",
-        "x": 1036,
+        "x": 1016,
         "y": 472,
-        "w": 43,
-        "h": 88,
+        "w": 25,
+        "h": 90,
         "source": "battery",
         "color": "#48B9FF",
         "radius": 3,
         "glow": 1,
         "points": [
           {
-            "x": 40,
+            "x": 0,
             "y": 1
           },
           {
-            "x": 27,
+            "x": 22,
             "y": 1
           },
           {
-            "x": 2,
-            "y": 29
-          },
-          {
-            "x": 2,
-            "y": 86
+            "x": 22,
+            "y": 88
           }
         ],
         "dot_size": 6,
         "reverse": true,
-        "curve": "bezier",
+        "curve": "polyline",
         "dot_count": 2,
         "active_opacity": 250,
         "inactive_opacity": 184,
@@ -1781,35 +1777,31 @@
       },
       {
         "type": "flow",
-        "x": 1036,
+        "x": 1016,
         "y": 472,
-        "w": 43,
-        "h": 88,
+        "w": 25,
+        "h": 90,
         "source": "battery",
         "color": "#48B9FF",
         "radius": 3,
         "glow": 1,
         "points": [
           {
-            "x": 40,
+            "x": 0,
             "y": 1
           },
           {
-            "x": 27,
+            "x": 22,
             "y": 1
           },
           {
-            "x": 2,
-            "y": 29
-          },
-          {
-            "x": 2,
-            "y": 86
+            "x": 22,
+            "y": 88
           }
         ],
         "dot_size": 6,
         "reverse": true,
-        "curve": "bezier",
+        "curve": "polyline",
         "dot_count": 2,
         "active_opacity": 250,
         "inactive_opacity": 184,
