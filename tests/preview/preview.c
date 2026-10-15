@@ -215,8 +215,16 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
         template_update(&state,&fixture);
         for(unsigned i=0;i<template_node_count;i++){
             template_node_t *n=&template_nodes[i];const char *source=ts(n->spec,"source");
-            bool visible=!strcmp(ts(n->spec,"type"),"weather")?weather_available(&state):
-                !strcmp(source,"temperature")?state.temperature_valid:!strcmp(source,"wind")?state.wind_speed_valid:true;
+            const char *type=ts(n->spec,"type");
+            bool sun_source=!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
+                !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction");
+            bool capacity_source=!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy");
+            bool visible=(!strcmp(type,"solar_disc")||!strcmp(type,"solar_arc")||sun_source)?
+                state.sun_position_valid:
+                !strcmp(type,"weather")?weather_available(&state):
+                !strcmp(source,"temperature")?state.temperature_valid:
+                !strcmp(source,"wind")?state.wind_speed_valid:
+                capacity_source?s_cfg.energy.battery_capacity_kwh>0:true;
             assert(lv_obj_has_flag(n->obj,LV_OBJ_FLAG_HIDDEN)==!visible);
             if(n->detail)assert(lv_obj_has_flag(n->detail,LV_OBJ_FLAG_HIDDEN)==!visible);
         }
