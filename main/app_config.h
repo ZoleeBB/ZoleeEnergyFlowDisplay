@@ -85,6 +85,7 @@ typedef struct {
 
 /* Pénzügyi és környezeti számítási konstansok. */
 typedef struct {
+    double battery_capacity_kwh; /* 0 = nincs megadva */
     double electricity_purchase_price;
     double feed_in_price;
     double co2_factor_kg_per_kwh;
