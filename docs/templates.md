@@ -235,3 +235,7 @@ sablon szerepel. A PNG-binárisok külön csomagból telepítendők, amíg a tel
 képcsomag verziókövetett feltöltése el nem készül. A `SunPosition:null` esetben
 a napkorong és a nappálya elrejtésre kerül. A kijelzőn végzendő végleges
 vizuális teljesítményteszt továbbra is kötelező.
+
+### Napkorong grafikai réteg
+
+A `solar_disc` elem opcionális `file` tulajdonsággal különálló, átlátszó PNG-t használhat (pl. `"file":"weather_sunny.png"`). Az LVGL mozgatja az objektumot, és a 0–8 kW termelésfüggő pulzáló fényudvart rajzolja mögé. Az ikon képfájljának hiányában a régebbi sablonok továbbra is kör alakú napkorongot kapnak. **Figyelem:** a teljes új PNG csomag még nincs a GitHub forrásban; telepítéshez a külön készített v2 ZIP szükséges.

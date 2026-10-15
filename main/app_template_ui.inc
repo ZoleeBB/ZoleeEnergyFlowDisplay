@@ -416,9 +416,21 @@ static void template_build(bool night){
             lv_obj_set_style_line_opa(node->obj,lower?LV_OPA_60:LV_OPA_COVER,0);
         }else if(!strcmp(type,"solar_disc")){
             /* A napkorong külön, kis LVGL objektum: nincs teljes képes újrarajzolás. */
-            node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
+            /* A grafikai csomag különálló napkorongját használjuk, ha van.
+             * Régi SD-sablon esetén megtartjuk a vektoros kört. */
+            const char *disc=ts(e,"file");
+            bool found=false;
+            for(unsigned asset=0;disc[0] && asset<template_view.asset_count;asset++)
+                if(!strcmp(disc,template_view.assets[asset].name)){found=true;break;}
+            if(found){
+                node->obj=lv_image_create(s_dash);
+                template_image(node->obj,disc,w,h);
+                lv_obj_set_pos(node->obj,x,y);
+            }else{
+                node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
+            }
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
-            lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",28),0);
+            lv_obj_set_style_shadow_width(node->obj,tn(e,"glow",24),0);
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
