@@ -115,6 +115,21 @@ static esp_err_t template_upload(httpd_req_t *req){
     }
     return httpd_resp_sendstr(req,"A sablon telepítése vagy frissítése sikeres");
 }
+static esp_err_t template_reorder_post(httpd_req_t *req){
+    if(!template_request_authorized(req,true))return ESP_OK;
+    if(req->content_len<2||req->content_len>2048)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Hibás sorrend");
+    char input[2049];size_t received=0;
+    while(received<(size_t)req->content_len){
+        int n=httpd_req_recv(req,input+received,req->content_len-received);
+        if(n<=0)return httpd_resp_send_err(req,HTTPD_408_REQ_TIMEOUT,"Kérés időtúllépés");
+        received+=(size_t)n;
+    }
+    input[received]=0;
+    cJSON *ids=cJSON_Parse(input);char error[160]="Érvénytelen sorrend";
+    esp_err_t result=app_templates_reorder(ids,error);cJSON_Delete(ids);
+    if(result!=ESP_OK)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,error);
+    return httpd_resp_sendstr(req,"Sorrend mentve");
+}
 static esp_err_t template_register(httpd_handle_t server){
     const httpd_uri_t routes[]={
         {.uri="/templates",.method=HTTP_GET,.handler=template_page},
@@ -122,6 +137,7 @@ static esp_err_t template_register(httpd_handle_t server){
         {.uri="/api/templates/manifest",.method=HTTP_GET,.handler=template_manifest_get},
         {.uri="/api/templates/preview",.method=HTTP_GET,.handler=template_preview_get},
         {.uri="/api/templates/select",.method=HTTP_POST,.handler=template_change},
+        {.uri="/api/templates/reorder",.method=HTTP_POST,.handler=template_reorder_post},
         {.uri="/api/templates/delete",.method=HTTP_POST,.handler=template_change},
         {.uri="/api/templates/validate",.method=HTTP_POST,.handler=template_upload},
         {.uri="/api/templates/install",.method=HTTP_POST,.handler=template_upload}};
