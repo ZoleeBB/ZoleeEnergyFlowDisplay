@@ -356,12 +356,12 @@ static void fmt_cmp(char *out,size_t n,double t,double y){
     fmt_dec(q,sizeof(q),p,1);
     snprintf(out,n,"%s %s%s%%",p>=0?"↑":"↓",p>=0?"+":"",q);
 }
-/* A részleges adatokat számszerűen, de közelítőként jelöljük.
+/* A részleges adatokat ASCII tilde (~) jelöli, amely minden szövegfontban elérhető.
  * A számláló és a nevező kizárólag ugyanazokból a mért 5 perces
  * időablakokból származik, soha nem a hiányzó órák nulláiból. */
 static void fmt_compared(char *out,size_t n,double t,double y,bool partial){
     char raw[32];fmt_cmp(raw,sizeof(raw),t,y);
-    if(partial && strcmp(raw,"—"))snprintf(out,n,"≈%s",raw);
+    if(partial && strcmp(raw,"—"))snprintf(out,n,"~%s",raw);
     else snprintf(out,n,"%s",raw);
 }
 /* Összehasonlítási értékhez zöld, narancs vagy szürke szín választása. */
