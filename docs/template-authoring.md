@@ -180,3 +180,13 @@ A `weather` objektum a közös jelenlétellenőrzést követi. A `temperature` �
 `wind` forrású objektumok (árnyékukkal együtt) null adatnál rejtettek. Ha
 statikus felirat vagy ikon tartozik hozzájuk, adj neki is `"source":"wind"`
 vagy `"source":"temperature"` mezőt, hogy ne maradjon magában a képernyőn.
+
+## Nap pálya kiterjesztések (fejlesztés alatt)
+
+A `solar_disc` LVGL-elem az opcionális `SunPosition` bemenetről vezérelt,
+24 órás felső/alsó ív mentén mozgó napkorong. Fényudvara a `PowerPV` alapján
+0–8 kW között erősödik. A `solar_hourly` chart 24 valódi, órás oszlopban
+mutatja a helyben felhasznált/tárolt (zöld) és visszatáplált (sárga) energiát.
+Az opcionális nap- és akkukapacitás-adatforrások az adat hiányában nem
+mutathatnak kitalált értéket. A végleges új sablon grafikai beépítése és
+hardveres ellenőrzése még folyamatban van.
