@@ -518,22 +518,15 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
              * Az azimut és a napmagasság a napkorong pillanatnyi
              * pozícióját finomítja, a beérkezett mérési csomag szerint. */
             if(!s->sun_position_valid)continue;
-            time_t timestamp=time(NULL);struct tm local;localtime_r(&timestamp,&local);
-            int minute=local.tm_hour*60+local.tm_min;
-            float angle=0;
-            if(minute>=s->sunrise_minute && minute<=s->sunset_minute){
-                float p=(float)(minute-s->sunrise_minute)/(float)(s->sunset_minute-s->sunrise_minute);
-                angle=(float)M_PI*(1.f-p);
-            }else{
-                int start=s->sunset_minute,minutes=minute<start?minute+1440:minute;
-                int until=s->sunrise_minute+1440;
-                float p=(float)(minutes-start)/(float)(until-start);
-                angle=(float)M_PI*(1.f+p);
-            }
+            /* Azimut 0=É, 90=K, 180=D, 270=Ny; magasság előjeles.
+             * Kétdimenziós égboltkivetítés: napkelte K oldalon,
+             * napnyugta Ny oldalon, a horizont alatt negatív magasság. */
+            float az=(float)(s->sun_azimuth_deg*(M_PI/180.));
+            float alt=(float)(s->sun_altitude_deg*(M_PI/180.));
             int radius_x=tn(e,"radius_x",350),radius_y=tn(e,"radius_y",275);
             int cx=tn(e,"center_x",520),cy=tn(e,"center_y",380);
-            int px=cx+(int)lroundf(cosf(angle)*radius_x)-tn(e,"w",40)/2;
-            int py=cy-(int)lroundf(sinf(angle)*radius_y)-tn(e,"h",40)/2;
+            int px=cx-(int)lroundf(sinf(az)*cosf(alt)*radius_x)-tn(e,"w",40)/2;
+            int py=cy-(int)lroundf(sinf(alt)*radius_y)-tn(e,"h",40)/2;
             lv_obj_set_pos(node->obj,px,py);
             bool daylight=s->sun_altitude_deg>0 && !s->night_mode;
             bg_opa_if_changed(node->obj,daylight?LV_OPA_COVER:LV_OPA_30,0);
