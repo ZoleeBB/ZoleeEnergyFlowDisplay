@@ -2,7 +2,12 @@
 
 A kijelzőhöz szükséges JSON állapotcsomagot a Loxone Config **Program** blokkjában futó Pico C script állítja elő.
 
-A kész minta: `examples/loxone-energy-payload.picoc`.
+A két teljes, különálló minta:
+
+- **MQTT:** [`examples/loxone-energy-payload.picoc`](../examples/loxone-energy-payload.picoc)
+- **HTTP POST:** [`examples/loxone-energy-http-post.picoc`](../examples/loxone-energy-http-post.picoc)
+
+Csak az egyiket kell a választott `DataReceptMode` szerint a Program blokkba másolni.
 
 ## Bekötés
 
@@ -20,8 +25,10 @@ A kész minta: `examples/loxone-energy-payload.picoc`.
 | I10 | Status | 1..4 |
 | I11 | NightMode | 0 vagy 1 |
 | I12 | BatteryTemperature | Akkumulátor hőmérséklete °C |
+| I13 | WeatherPresent | Időjárási jelenlétmaszk, 0–15 (nem külön JSON mező) |
+| **T1 (első szöveges bemenet)** | **SunPosition** | Opcionális `azimut#napmagasság#napkeltePerc#napnyugtaPerc`; üresen `null` |
 
-A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. A Txt1-et kell a már konfigurált MQTT publikálásra kötni.
+A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. MQTT módban a Txt1-et a publikálásra, HTTP módban a POST virtuális kimeneti parancshoz kösd. **Mindkét Pico C mintában ugyanaz az I1–I13 + T1 bemeneti kiosztás.**
 
 ## Status
 
