@@ -14,7 +14,8 @@ typedef struct {
 static inline bool app_stats_slot_measured(const app_stats_slot_t *slot)
 {
     const app_energy_totals_t *e=&slot->energy;
-    if(slot->chart_gap)return false;
+    /* A chart_gap hiányos idősávot jelöl, de benne már lehet valós
+     * mérés; az energiát megtartjuk, a százalékot közelítővé tesszük. */
     /* Earlier saved versions may have integrated energy but no sample count. */
     return (slot->valid && slot->sample_count>0) ||
         fabs(e->production_kwh)>1e-9 || fabs(e->consumption_kwh)>1e-9 ||
@@ -43,13 +44,15 @@ static inline app_stats_comparison_result_t app_stats_compare_slots(
     app_stats_comparison_result_t result={0};
     if(completed_slots<0)completed_slots=0;
     if(completed_slots>APP_STATS_SLOT_COUNT)completed_slots=APP_STATS_SLOT_COUNT;
+    bool had_gap=false;
     for(int i=0;i<completed_slots;i++){
         if(!app_stats_slot_measured(&today[i]) || !app_stats_slot_measured(&yesterday[i]))
             continue;
+        if(today[i].chart_gap || yesterday[i].chart_gap)had_gap=true;
         app_stats_comparison_add(&result.today,&today[i].energy);
         app_stats_comparison_add(&result.yesterday,&yesterday[i].energy);
         result.paired_slots++;
     }
-    result.partial=result.paired_slots<(unsigned)completed_slots;
+    result.partial=had_gap || result.paired_slots<(unsigned)completed_slots;
     return result;
 }

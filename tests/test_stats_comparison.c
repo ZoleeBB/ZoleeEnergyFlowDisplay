@@ -49,8 +49,15 @@ int main(void){
     close_to(r.yesterday.production_kwh,8.4);
     yesterday[150].chart_gap=true;
     r=app_stats_compare_slots(today,yesterday,228);
-    assert(r.paired_slots==83&&r.partial);
-    close_to(r.today.production_kwh,9.96);
+    assert(r.paired_slots==84&&r.partial);
+    close_to(r.today.production_kwh,10.08);
+    /* A chart_gap flag alone is not missing data: retain the measured
+     * energy and mark the comparison approximate even with full coverage. */
+    reset();fill(0,36,0.12,0.10);
+    yesterday[7].chart_gap=true;
+    r=app_stats_compare_slots(today,yesterday,36);
+    assert(r.paired_slots==36&&r.partial);
+    close_to(r.today.production_kwh,4.32);
     /* Legacy persisted slot: integration exists but valid/count were zero. */
     reset();today[0].energy.grid_import_kwh=0.1;
     yesterday[0].energy.grid_import_kwh=0.2;
