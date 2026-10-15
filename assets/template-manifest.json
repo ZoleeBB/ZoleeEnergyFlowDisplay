@@ -422,15 +422,15 @@
   },
   {
     "asset": "templates/09-solar-journey/battery_temp.png",
-    "sha256": "101334179021a7afc62a14561bf9cfcf8b5c664969428d95d076e7ea5fac4dc1"
+    "sha256": "f0c30208d73351e1945b81fe28a5aa49da11022d66c3b47dc514c40adbb8f168"
   },
   {
     "asset": "templates/09-solar-journey/battery.png",
-    "sha256": "23cd54df64e4f1af94497aa463fde1384c725d73be8aeaf7e68de393c86a4855"
+    "sha256": "32e76d72240190fecffe5c5b0f6b4294deba1bfc0e1b6ecd9a1323a59be8c2f7"
   },
   {
     "asset": "templates/09-solar-journey/coins.png",
-    "sha256": "99c72d717af8b3a7c1b2b43e429cbab0aaf7b31286170944eeab914dc111e8b1"
+    "sha256": "85d2c1ff293ebb94ae13194bec036ed82b08caaf6064ae3909e838273b94b9c0"
   },
   {
     "asset": "templates/09-solar-journey/consumption_bars.png",
@@ -438,11 +438,11 @@
   },
   {
     "asset": "templates/09-solar-journey/day.png",
-    "sha256": "21751d6723cd081a6d5694b4c3837c8364a4d2960b853e093f2fc048b3e843be"
+    "sha256": "89ff43e42344da792e6c4cecca6af0ffa6e68e961c014108287ab0b5f590072a"
   },
   {
     "asset": "templates/09-solar-journey/eco_leaf.png",
-    "sha256": "749c5b14edb8679f4eef2713657277471b1a34ecbfeb350b6f2ba161677c7289"
+    "sha256": "e29b58b82a2d9cf333bcebf0a360800873458087f2e3efc9927c97b1bed88e20"
   },
   {
     "asset": "templates/09-solar-journey/eco_tree.png",
@@ -454,11 +454,11 @@
   },
   {
     "asset": "templates/09-solar-journey/grid.png",
-    "sha256": "3b7fc851e55d6c792fdf23037bfca440ab102577c8d81a2c464f42bd8be9ca4b"
+    "sha256": "857c3de764db47c8df6edc4cbd9d9b5a0a830b4364fe0e453e7a5fbb2470be72"
   },
   {
     "asset": "templates/09-solar-journey/home.png",
-    "sha256": "7c11850bb256889ec2587d08be6272a5d5efddc709fc7d24885e2c63a172137c"
+    "sha256": "7519dcbfc20480a7703350568e67d6042d71708585ea4326b541f3333766e0e2"
   },
   {
     "asset": "templates/09-solar-journey/lightning.png",
@@ -466,7 +466,7 @@
   },
   {
     "asset": "templates/09-solar-journey/night.png",
-    "sha256": "af0a1cfd502df3fa2c3c6349f19c596e4bef1ca5870957857624bdb7172ddc75"
+    "sha256": "43aeb6beb8398e01bce687632015652f901034df43b08443e18a979987299a1d"
   },
   {
     "asset": "templates/09-solar-journey/production_bars.png",

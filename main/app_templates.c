@@ -202,10 +202,10 @@ bool app_templates_validate(const char *directory,cJSON **document,char error[16
         if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,"..")||!strcmp(entry->d_name,"template.json"))continue;
         if(!app_templates_safe_asset(entry->d_name)||++assets>32){valid=false;break;}
         path_join(path,directory,entry->d_name);unsigned w=0,h=0;
-        data=read_file(path,2*1024*1024,&n);
+        data=read_file(path,APP_TEMPLATE_PNG_MAX,&n);
         if(!data||!png_valid(data,n,&w,&h)){free(data);valid=false;break;}free(data);
         encoded+=n;decoded+=(size_t)w*h*4;
-        if(encoded>4*1024*1024||decoded>12*1024*1024){valid=false;break;}
+        if(encoded>APP_TEMPLATE_ENCODED_MAX||decoded>12*1024*1024){valid=false;break;}
     }
     closedir(dir);
     const char *themes[]={"light","dark"};
@@ -371,7 +371,7 @@ bool app_templates_load_pending(app_template_view_t *out){
         while(d&&(e=readdir(d))){if(!app_templates_safe_asset(e->d_name))continue;
             if(next->asset_count>=32){ok=false;break;}
             app_template_asset_t *a=&next->assets[next->asset_count++];snprintf(a->name,65,"%.64s",e->d_name);
-            path_join(path,directory,e->d_name);a->bytes=read_file(path,2*1024*1024,&a->size);
+            path_join(path,directory,e->d_name);a->bytes=read_file(path,APP_TEMPLATE_PNG_MAX,&a->size);
             if(!a->bytes||a->size<24){ok=false;break;}a->width=be32(a->bytes+16);a->height=be32(a->bytes+20);
         }if(d)closedir(d);
     }
@@ -456,7 +456,7 @@ esp_err_t app_templates_probe(const char *zip,cJSON **report,char error[160]){
     if(!dir)goto done;
     while((entry=readdir(dir))){
         if(!app_templates_safe_asset(entry->d_name))continue;
-        path_join(path,stage,entry->d_name);size_t size=0;unsigned char *png=read_file(path,2*1024*1024,&size);
+        path_join(path,stage,entry->d_name);size_t size=0;unsigned char *png=read_file(path,APP_TEMPLATE_PNG_MAX,&size);
         if(!png){closedir(dir);goto done;}
         encoded+=size;decoded+=(size_t)be32(png+16)*be32(png+20)*4;free(png);
     }

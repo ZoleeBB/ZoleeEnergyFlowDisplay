@@ -28,3 +28,11 @@ A helyesnek elfogadott 1586×992-es éjszakai/nappali fotók 1280×800-ra optima
 A napelemtől a házhoz, valamint a hálózat és a ház, illetve az akkumulátor és a ház között mozgó pontok kisebbek (6 px). A hálózatból történő vételezéskor hálózatból a ház felé, akkumulátorból leadáskor akkumulátorból a ház felé haladnak. Az alsó akkumulátorsáv látható keretet kapott.
 
 A tegnapi összehasonlításban azonos, az utolsó lezárt ötperces időszakig tartó 0:00 utáni slotokat használjuk. Ha a vizsgált időszak kevesebb mint 85%-ában áll rendelkezésre használható napi minta valamelyik oldalon, százalék helyett `Részleges` jelenik meg. A két háttér PNG-t és a 6 optimalizált új ikont a `NapPalya-V7-kesz-sablon.zip` csomagból kell a GitHubon lecserélni, mielőtt a fájlellenőrző CI teljesen zöldre vált.
+
+## V8 – pontosabb ív és kisebb áramláspontok
+
+A napkorong továbbra is kizárólag a háttérfotóra illesztett pályapontok mentén mozog, külön vonalat a program nem rajzol. A 21 pontos éjszakai ív középvonala a jóváhagyott referencián látható kék ívhez igazítva 612 px mélyre került (1280×800). A felső és alsó ív találkozópontjai egyeznek, napkeltekor és napnyugtakor nincs pozícióugrás.
+
+Az Energiaáramlás panel három útvonalán két-két, 6 pixeles pont mozog, a hálózatimport az oszloptól a ház felé, az akkumulátorkisütés az akkutól a ház felé. Az akkumulátoros Bézier-ív a külön keretezett alsó akkusáv peremén végződik, nem fut alatta.
+
+A háttérképek és az ikonok fájljai **nem módosultak**. A telepítő és a böngészős validátor megenged legfeljebb 2,5 MiB-os egyedi PNG-t és 5 MiB összesített tömörített képadatot; a 8 MiB ZIP és 12 MiB dekódolt memóriahatár változatlan.
