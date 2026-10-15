@@ -25,6 +25,7 @@
 // Pico C nem jelzi a bekötöttséget: a maszkot a Configban kell beállítani.
 // Bekötetlen I13 (0): mind a négy időjárási mező null.
 //
+// T1 szöveges bemenet: azimut#magasság#napkeltePerc#napnyugtaPerc (opcionális).
 // Txt1 kimenet: 5 másodpercenként egy teljes JSON dokumentum.
 //
 // FONTOS: a Loxone Pico C értelmező nem kezeli megbízhatóan az egymás mellé
@@ -65,6 +66,22 @@ while (TRUE)
         weatherPresent = weatherPresentInput;
         if (weatherPresentInput != weatherPresent) weatherPresent = 0;
     }
+    // A T1-ben csak numerikus karakterek és # elválasztók lehetnek.
+    // A hiányzó/érvénytelen bemenet null; idézőjel JSON-injekció nem kerülhet át.
+    char sunPositionJson[100];
+    sprintf(sunPositionJson,"null");
+    char *solar=getinputtext(0);
+    if(solar && solar[0]){
+        int length=0,hashes=0,valid=1;
+        while(solar[length] && length<70){
+            char ch=solar[length];
+            if(ch=='#')hashes++;
+            else if(!((ch>='0'&&ch<='9')||ch=='.'||ch=='-'||ch=='+'))valid=0;
+            length++;
+        }
+        if(length>0 && length<70 && hashes==3 && valid)
+            sprintf(sunPositionJson,"\"%s\"",solar);
+    }
     char temperatureJson[64];
     char windJson[64];
     char sunJson[64];
@@ -99,7 +116,8 @@ while (TRUE)
         precipitationJson,
         status,
         nightMode,
-        batteryTemperature
+        batteryTemperature,
+        sunPositionJson
     );
 
     // A teljes JSON a Program blokk első szöveges kimenetére kerül.
