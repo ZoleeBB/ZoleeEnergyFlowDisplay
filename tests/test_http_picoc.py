@@ -11,6 +11,8 @@ SAMPLE = ROOT / 'examples/loxone-energy-http-post.picoc'
 source = r'''
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 static int iteration, sent, slept;
 static float inputs[13] = {-3.8f,-1.2f,7.1f,82,2.1f,18.6f,12.3f,1,0,1,0,27,15};
 static int next_iteration(void) { return ++iteration <= 24; }
@@ -22,7 +24,7 @@ static float getinput(int index) {
     /* Invalid status must not be rounded or silently masked by the sender. */
     return index==9 && iteration>2 ? 2.5f : inputs[index];
 }
-static char *getinputtext(int index) { assert(index==0); return iteration==1 ? "132#38.5#420#1077" : ""; }
+static char *getinputtext(int index) { assert(index==0); const char *s=iteration==1 ? "132#38.5#420#1077" : ""; char *p=malloc(strlen(s)+1); assert(p); strcpy(p,s); return p; }
 static void setoutputtext(int index,const char *text) {
     assert(index==0); ++sent; puts(text);
 }
