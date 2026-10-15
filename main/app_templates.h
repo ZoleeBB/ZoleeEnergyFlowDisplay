@@ -20,6 +20,8 @@ typedef struct {
 esp_err_t app_templates_init(void);
 unsigned app_templates_list(app_template_info_t *out,unsigned capacity,char active[33]);
 esp_err_t app_templates_select(const char *id);
+/* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */
+esp_err_t app_templates_reorder(const cJSON *ids, char error[160]);
 void app_templates_step(int direction);
 esp_err_t app_templates_delete(const char *id,char error[160]);
 /* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
