@@ -422,31 +422,27 @@
   },
   {
     "asset": "templates/09-solar-journey/battery_temp.png",
-    "sha256": "d522480037c32131db45b611b5b66959ef02389fdf333fdd049b2732c0f7aae9"
+    "sha256": "101334179021a7afc62a14561bf9cfcf8b5c664969428d95d076e7ea5fac4dc1"
   },
   {
     "asset": "templates/09-solar-journey/battery.png",
-    "sha256": "a678e9df57b3c065794bb8abd2e02b1926940af20534bd95e1706ce6c1b28ca2"
+    "sha256": "23cd54df64e4f1af94497aa463fde1384c725d73be8aeaf7e68de393c86a4855"
   },
   {
     "asset": "templates/09-solar-journey/coins.png",
-    "sha256": "0b2650862ce8c7573a5b621893ea9f5a545082190978c9b783f2a73c6370e984"
+    "sha256": "99c72d717af8b3a7c1b2b43e429cbab0aaf7b31286170944eeab914dc111e8b1"
   },
   {
     "asset": "templates/09-solar-journey/consumption_bars.png",
     "sha256": "3e42a555b2edf50e44c4318885ddc470720fadd65d92fe326b1cf428d7a88c50"
   },
   {
-    "asset": "templates/09-solar-journey/consumption_icon.png",
-    "sha256": "2b5b55113eb69a602587da40ba30f52f093f6f6c15f85533b9b20078c41bd4cb"
-  },
-  {
     "asset": "templates/09-solar-journey/day.png",
-    "sha256": "23a43d71610860ccfd21a927a9646d74ec23789f5df9bd6f70ab0837c339cf8b"
+    "sha256": "21751d6723cd081a6d5694b4c3837c8364a4d2960b853e093f2fc048b3e843be"
   },
   {
     "asset": "templates/09-solar-journey/eco_leaf.png",
-    "sha256": "1316452380d7422eb709dff85f34af2765393e53feecf8e35aaa08d992299fd9"
+    "sha256": "749c5b14edb8679f4eef2713657277471b1a34ecbfeb350b6f2ba161677c7289"
   },
   {
     "asset": "templates/09-solar-journey/eco_tree.png",
@@ -457,16 +453,12 @@
     "sha256": "523afb6a7c7d159a25dfb3302740955d959a1e77b4b2f5bb483fd3e7be1db138"
   },
   {
-    "asset": "templates/09-solar-journey/export_icon.png",
-    "sha256": "54a77482d5dc7cee70be23a9764512c62ad0ac0d08a9027ddb0162844e8f8ca4"
-  },
-  {
     "asset": "templates/09-solar-journey/grid.png",
-    "sha256": "dec2bcde21e4a9c7d49e7e201aaaa33d51777643d912cd7c8a5c47eed8b1ad1f"
+    "sha256": "3b7fc851e55d6c792fdf23037bfca440ab102577c8d81a2c464f42bd8be9ca4b"
   },
   {
     "asset": "templates/09-solar-journey/home.png",
-    "sha256": "ac4107f43606e4caf40ad6d474c2658a94ce33139be6c477aba5ae6fcf5f37af"
+    "sha256": "7c11850bb256889ec2587d08be6272a5d5efddc709fc7d24885e2c63a172137c"
   },
   {
     "asset": "templates/09-solar-journey/lightning.png",
@@ -474,7 +466,7 @@
   },
   {
     "asset": "templates/09-solar-journey/night.png",
-    "sha256": "0ca7e8c20497877645da5eb8bb43ba7969d08f22c077e860fa034ea396b91663"
+    "sha256": "af0a1cfd502df3fa2c3c6349f19c596e4bef1ca5870957857624bdb7172ddc75"
   },
   {
     "asset": "templates/09-solar-journey/production_bars.png",

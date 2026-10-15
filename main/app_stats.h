@@ -81,6 +81,9 @@ typedef struct {
     app_energy_totals_t totals;
     app_energy_totals_t completed_interval_totals;
     bool has_yesterday;
+    /* A hiányos 0:00..azonos lezárt ötperces időszakokból
+     * számított százalékok félrevezetők. */
+    bool yesterday_comparison_partial;
     app_energy_totals_t yesterday_completed_interval_totals;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
 } app_stats_snapshot_t;

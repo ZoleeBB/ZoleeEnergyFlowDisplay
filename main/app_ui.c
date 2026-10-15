@@ -1168,6 +1168,8 @@ static double co2(const app_energy_totals_t *t){return t->production_kwh*s_cfg.e
 /* Megtakarított CO2 fa-egyenértékre történő átszámítása. */
 static double tree(const app_energy_totals_t *t){return co2(t)/s_cfg.energy.tree_absorption_kg_per_year;}
 /* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
+static bool s_yesterday_partial_for_ui;
+
 static void metric(
     int index,
     const char *value,
@@ -1191,6 +1193,12 @@ static void metric(
         lv_obj_clear_flag(
             s_cmp_note[index],
             LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if(s_yesterday_partial_for_ui){
+        fit_text(s_cmp[index],tr("Részleges","Partial"),index<4?190:162,APP_FONT_14);
+        text_color_if_changed(s_cmp[index],c(tone(GRAY,s_last_night)),0);
+        return;
     }
 
     char comparison[32];
@@ -1450,6 +1458,9 @@ static void update(const app_energy_sample_t *s,const app_stats_snapshot_t *st){
 
     s_animation_sample=*s;
     update_flows(s,0.f);
+    /* A részleges tegnapi/mai lefedettségből számolt százalék
+     * félrevezető, ezért a hiányos napokat egyértelműen jelöljük. */
+    s_yesterday_partial_for_ui=st->yesterday_comparison_partial;
     fmt_kwh(b,sizeof(b),st->totals.production_kwh);metric(0,b,st->completed_interval_totals.production_kwh,st->yesterday_completed_interval_totals.production_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.consumption_kwh);metric(1,b,st->completed_interval_totals.consumption_kwh,st->yesterday_completed_interval_totals.consumption_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_import_kwh);metric(2,b,st->completed_interval_totals.grid_import_kwh,st->yesterday_completed_interval_totals.grid_import_kwh,st->has_yesterday);fmt_kwh(b,sizeof(b),st->totals.grid_export_kwh);metric(3,b,st->completed_interval_totals.grid_export_kwh,st->yesterday_completed_interval_totals.grid_export_kwh,st->has_yesterday);
     snprintf(b,sizeof(b),"%.0f %s",money(&st->totals),s_cfg.project.currency);metric(4,b,money(&st->completed_interval_totals),money(&st->yesterday_completed_interval_totals),st->has_yesterday);char n[20];fmt_dec(n,sizeof(n),co2(&st->totals),1);snprintf(b,sizeof(b),"%s kg",n);metric(5,b,co2(&st->completed_interval_totals),co2(&st->yesterday_completed_interval_totals),st->has_yesterday);fmt_dec(b,sizeof(b),tree(&st->totals),2);{
         char tree_value[32];

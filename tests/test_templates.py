@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
-    assert solar['version'] >= 5
+    assert solar['version'] >= 7
     assert len(solar['light']['elements']) <= 96
     for mode in ('dark','light'):
         elements=solar[mode]['elements']
@@ -52,6 +52,12 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         chips=[e for e in elements if e['type']=='box' and e['x']<930 and e['y']<300]
         assert len(chips)==3 and all(e['h']<=60 and e['opacity']<230 for e in chips)
         assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
+        discs=[e for e in elements if e['type']=='solar_disc']
+        assert len(discs)==1
+        assert len(discs[0]['day_path'])==len(discs[0]['night_path'])==21
+        assert not any(e['type']=='solar_arc' for e in elements)
+        assert all(e['dot_size']<=6 for e in elements if e['type']=='flow')
+        assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
     assert geometric(solar['light'])==geometric(solar['dark'])

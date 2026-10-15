@@ -858,6 +858,27 @@ static bool day_has_samples_until(
     return false;
 }
 
+/* Mentett kWh adat akkor is érvényes, ha a régebbi
+ * statisztika-formátumban a sample_count nulla. */
+static int comparable_slots(const day_data_t *day,int completed_slots)
+{
+    if(!day->valid)return 0;
+    int count=0;
+    if(completed_slots>APP_STATS_SLOT_COUNT)completed_slots=APP_STATS_SLOT_COUNT;
+    for(int i=0;i<completed_slots;i++){
+        const app_stats_slot_t *slot=&day->slots[i];
+        const app_energy_totals_t *en=&slot->energy;
+        bool energy=fabs(en->production_kwh)>1e-9||
+                    fabs(en->consumption_kwh)>1e-9||
+                    fabs(en->grid_import_kwh)>1e-9||
+                    fabs(en->grid_export_kwh)>1e-9||
+                    fabs(en->battery_charge_kwh)>1e-9||
+                    fabs(en->battery_discharge_kwh)>1e-9;
+        if((slot->valid&&slot->sample_count>0)||energy)count++;
+    }
+    return count;
+}
+
 /* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
 esp_err_t app_stats_init(const app_config_t *cfg)
 {
@@ -1004,6 +1025,13 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
             &s_yesterday,
             completed_slots,
             &out->yesterday_completed_interval_totals);
+        /* Mindkét napon pontosan 0:00..aktuális lezárt ötperces
+         * idősáv; a hiányos nappal nem szabad teljes napot összevetni. */
+        int valid_today=comparable_slots(&s_today,completed_slots);
+        int valid_yesterday=comparable_slots(&s_yesterday,completed_slots);
+        out->yesterday_comparison_partial=completed_slots>0 &&
+            (valid_today*100<completed_slots*85 ||
+             valid_yesterday*100<completed_slots*85);
     }
 
     xSemaphoreGive(s_mutex);

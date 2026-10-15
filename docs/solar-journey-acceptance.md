@@ -20,3 +20,11 @@ A 1280×800-as felület nappali és éjszakai jelenete azonos geometriát haszn�
 A **V6** nappali és éjszakai háttér, a mozgó napkorong és a teljes 25 darabos ikoncsomag az `09-solar-journey` témakönyvtárban szerepel. A két üzemmód közös geometriát használ, az ívek már a háttérbe vannak beépítve; a program csak a napkorongot mozgatja.
 
 A C sablonvalidátor, a böngészős ZIP-validátor, a firmware build, a Windows-szimulátor és az LVGL-előnézet CI-próbája legyen sikeres. A valós **1280×800-as** kijelzőn a napkorong pályáját és a kártyák olvashatóságát külön is ellenőrizni kell. A PR-t ennek igazolásáig nem szabad automatikusan egyesíteni.
+
+## V7 – háttérből kalibrált mozgás és részleges tegnapi adatok
+
+A helyesnek elfogadott 1586×992-es éjszakai/nappali fotók 1280×800-ra optimalizált PNG-változatának felrajzolt fényíve 21–21 abszolút, háttérhez illesztett mérési pontot kapott. A nappályát **nem** rajzolja meg újra a firmware, csak az előre meghatározott pontokon, ívhossz szerint mozgatja a napkorongot. A napkelte és napnyugta panelek 18 pixellel jobbra és 14 pixellel lejjebb kerültek.
+
+A napelemtől a házhoz, valamint a hálózat és a ház, illetve az akkumulátor és a ház között mozgó pontok kisebbek (6 px). A hálózatból történő vételezéskor hálózatból a ház felé, akkumulátorból leadáskor akkumulátorból a ház felé haladnak. Az alsó akkumulátorsáv látható keretet kapott.
+
+A tegnapi összehasonlításban azonos, az utolsó lezárt ötperces időszakig tartó 0:00 utáni slotokat használjuk. Ha a vizsgált időszak kevesebb mint 85%-ában áll rendelkezésre használható napi minta valamelyik oldalon, százalék helyett `Részleges` jelenik meg. A két háttér PNG-t és a 6 optimalizált új ikont a `NapPalya-V7-kesz-sablon.zip` csomagból kell a GitHubon lecserélni, mielőtt a fájlellenőrző CI teljesen zöldre vált.

@@ -427,13 +427,15 @@ static void template_build(bool night){
             node->obj=template_flow_object(s_dash,node,x,y,w,h,text,width,38);
             /* Kiemelt fehér mag, színes perem és fényudvar.
              * A 28 px-es Energiautaknál is jól látszanak a pontok. */
-            int diameter=width>=16?14:11;
+            int diameter=tn(e,"dot_size",width>=16?14:11);
+            if(diameter<3)diameter=3;
+            if(diameter>18)diameter=18;
             for(int i=0;i<4;i++){
                 node->dots[i]=shape(s_dash,x,y,diameter,diameter,0xFFFFFF,LV_RADIUS_CIRCLE);
-                lv_obj_set_style_border_width(node->dots[i],2,0);
+                lv_obj_set_style_border_width(node->dots[i],diameter<=7?1:2,0);
                 border_color_if_changed(node->dots[i],c(text),0);
                 lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
-                lv_obj_set_style_shadow_width(node->dots[i],glow>0?glow+5:8,0);
+                lv_obj_set_style_shadow_width(node->dots[i],diameter<=7?3:(glow>0?glow+5:8),0);
                 lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_70,0);
                 /* A felül lévő pontok ne nyeljék el a témalapozó gesztust. */
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
@@ -523,6 +525,11 @@ static void template_build(bool night){
         }else{
             node->obj=lv_obj_create(s_dash);lv_obj_remove_style_all(node->obj);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);
             bg_color_if_changed(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);bg_opa_if_changed(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
+            if(*ts(e,"outline_color")){
+                lv_obj_set_style_border_width(node->obj,tn(e,"outline_width",1),0);
+                border_color_if_changed(node->obj,c(tc(e,"outline_color",BLUE)),0);
+                lv_obj_set_style_border_opa(node->obj,LV_OPA_60,0);
+            }
         }
         if(node->obj){lv_obj_remove_flag(node->obj,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(node->obj,LV_OBJ_FLAG_GESTURE_BUBBLE);}
     }
@@ -580,34 +587,61 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             /* Egyezik a solar_arc elemek paraméteres félkörével.
              * Nappal: K -> D -> Ny; éjjel: Ny -> É -> K. */
             if(!s->sun_position_valid)continue;
-            int rx=tn(e,"radius_x",377);
-            int cx=tn(e,"center_x",452),cy=tn(e,"center_y",356);
-            /* A sablon háttérbe sütött felső és alsó félíve eltérő
-             * magasságú. A mozgó napkorong ezért külön éjjeli sugárral
-             * halad; külön ív kirajzolása tilos. */
-            int ry=tn(e,"radius_y",244);
+
+            /* Fotóból kalibrált abszolút napív, külön fényes vonal nélkül. */
             int sunrise=s->sunrise_minute,sunset=s->sunset_minute;
             time_t clock_now=time(NULL);struct tm local_now;
             localtime_r(&clock_now,&local_now);
             int minute=local_now.tm_hour*60+local_now.tm_min;
             bool daylight=s->sun_altitude_deg>0;
-            if(!daylight)ry=tn(e,"night_radius_y",ry);
             float travel;
             if(sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
-                if(daylight){
-                    travel=(float)(minute-sunrise)/(float)(sunset-sunrise);
-                }else{
+                if(daylight)travel=(float)(minute-sunrise)/(float)(sunset-sunrise);
+                else{
                     int passed=minute>=sunset?minute-sunset:minute+1440-sunset;
                     travel=(float)passed/(float)(sunrise+1440-sunset);
                 }
-            }else{
-                /* Azimut csak tartalék, ha a napkelte/napnyugta hiányzik. */
-                travel=(float)(s->sun_azimuth_deg/360.);
-            }
+            }else travel=(float)(s->sun_azimuth_deg/360.);
             travel=fmaxf(0.f,fminf(1.f,travel));
-            float angle=travel*3.14159265358979323846f;
-            int px=cx+(int)lroundf((daylight?-1.f:1.f)*cosf(angle)*rx)-tn(e,"w",40)/2;
-            int py=cy+(int)lroundf((daylight?-1.f:1.f)*sinf(angle)*ry)-tn(e,"h",40)/2;
+            int px,py;
+            const cJSON *arc=cJSON_GetObjectItem(e,daylight?"day_path":"night_path");
+            if(cJSON_IsArray(arc)&&cJSON_GetArraySize(arc)>=2){
+                double length=0.;
+                const cJSON *prev=NULL,*pt=NULL;
+                cJSON_ArrayForEach(pt,arc){
+                    if(prev)length+=hypot((double)(tn(pt,"x",0)-tn(prev,"x",0)),
+                                           (double)(tn(pt,"y",0)-tn(prev,"y",0)));
+                    prev=pt;
+                }
+                double target=length*travel;
+                int cx=tn(cJSON_GetArrayItem(arc,0),"x",452);
+                int cy=tn(cJSON_GetArrayItem(arc,0),"y",383);
+                prev=NULL;
+                cJSON_ArrayForEach(pt,arc){
+                    if(prev){
+                        double dx=tn(pt,"x",0)-tn(prev,"x",0);
+                        double dy=tn(pt,"y",0)-tn(prev,"y",0);
+                        double dist=hypot(dx,dy);
+                        if(target<=dist){
+                            double ratio=dist>0?fmax(0.,fmin(1.,target/dist)):0.;
+                            cx=(int)lround(tn(prev,"x",0)+dx*ratio);
+                            cy=(int)lround(tn(prev,"y",0)+dy*ratio);
+                            break;
+                        }
+                        target-=dist;
+                        cx=tn(pt,"x",cx);cy=tn(pt,"y",cy);
+                    }
+                    prev=pt;
+                }
+                px=cx-tn(e,"w",40)/2;py=cy-tn(e,"h",40)/2;
+            }else{
+                /* A régi sablonok ellipszis módja megmarad. */
+                int rx=tn(e,"radius_x",377),cx=tn(e,"center_x",452),cy=tn(e,"center_y",356);
+                int ry=tn(e,daylight?"radius_y":"night_radius_y",244);
+                float angle=travel*3.14159265358979323846f;
+                px=cx+(int)lroundf((daylight?-1.f:1.f)*cosf(angle)*rx)-tn(e,"w",40)/2;
+                py=cy+(int)lroundf((daylight?-1.f:1.f)*sinf(angle)*ry)-tn(e,"h",40)/2;
+            }
             lv_obj_set_pos(node->obj,px,py);
             if(node->detail)lv_obj_set_pos(node->detail,px-6,py-6);
             if(!*ts(e,"file")){
@@ -741,7 +775,9 @@ static void template_animate(float dt){
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
-        node->phase=app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt);
+        bool forward=node->power>=0;
+        if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse")))forward=!forward;
+        node->phase=app_flow_advance(node->phase,fabs(node->power),forward,dt);
         for(int d=0;d<4;d++){
             if(fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
             float position=fmodf(node->phase+d*.25f,1.f)*node->length;unsigned k=0;
