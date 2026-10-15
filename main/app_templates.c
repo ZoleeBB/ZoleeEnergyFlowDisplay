@@ -232,7 +232,9 @@ static void remove_stage(const char *path){
 /* Megőrzött katalógussorrend, egy sorban egy sablonazonosítóval. */
 static void apply_saved_order(void){
     char file[256];path_join(file,app_templates_root(),"order.txt");
-    FILE *fp=fopen(file,"rb");if(!fp)return;
+    FILE *fp=fopen(file,"rb");
+    if(!fp){path_join(file,app_templates_root(),"order.bak");fp=fopen(file,"rb");}
+    if(!fp)return;
     char id[40];unsigned target=1;
     while(target<count && fgets(id,sizeof(id),fp)){
         size_t n=strcspn(id,"\r\n");id[n]=0;
