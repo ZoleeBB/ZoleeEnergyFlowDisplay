@@ -219,3 +219,19 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 A `templates/09-solar-journey/` nappali/éjszakai témája a 24 órás napjárás, órás termelés, mini energiaáramlás és akkuadatok integrációs ellenőrzésére készült. **A háttér az Élő otthon átmenetileg átvett képpárja, nem a véglegesen elfogadott grafika.** Grafikai csere, kijelzőteszt és végleges optimalizálás szükséges.
 
 A sablonok teljes elemszámát a csomagtesztek az aktuális fájlok alapján ellenőrzik. A `template-manifest.json` minden, a Nap pálya integrációs témához tartozó átmeneti háttérképet tartalmaz.
+
+## Nap pálya: újragenerált grafikai csomag telepítése
+
+A Nap pálya 2. verziójához a nappali és éjszakai teljes háttér, illetve 11 további
+önálló ikon PNG-ként készült. A `NapPalya-komplett-sablon.zip` csomag gyökérszintjén
+`template.json`, `day.png`, `night.png`, `pv.png`, `home.png`,
+`grid.png`, `battery.png`, `eco_leaf.png`, és az időjárás-ikonok találhatók.
+A teljes csomagot a webes sablonkezelőben egy ZIP-ként kell feltölteni; a firmware
+validálja, mielőtt az SD-kártyára telepíti. A csomag ugyanazzal az
+`09-solar-journey` azonosítóval, nagyobb verziószámmal frissíti a korábbi témát.
+
+**Fontos:** a GitHub-repóban még a régi, átmeneti képekkel készült integrációs
+sablon szerepel. A PNG-binárisok külön csomagból telepítendők, amíg a teljes
+képcsomag verziókövetett feltöltése el nem készül. A `SunPosition:null` esetben
+a napkorong és a nappálya elrejtésre kerül. A kijelzőn végzendő végleges
+vizuális teljesítményteszt továbbra is kötelező.

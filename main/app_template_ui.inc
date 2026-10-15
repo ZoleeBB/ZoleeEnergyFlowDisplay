@@ -504,7 +504,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
-        bool visible = !strcmp(type,"solar_disc") ? s->sun_position_valid :
+        bool visible = (!strcmp(type,"solar_disc") || !strcmp(type,"solar_arc")) ? s->sun_position_valid :
             !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
             !strcmp(source,"wind") ? s->wind_speed_valid :
