@@ -22,7 +22,7 @@ mappája ugyanezt tartalmazza; ezt az SD gyökerébe kell másolni, nem a firmwa
 Közvetlen kártyamásolás után indítsd újra az eszközt.
 
 A kijelzőn balra húzás a következő, jobbra húzás az előző elrendezésre lép.
-A lista körbeér; a beépített nézet az első. Nincs időzített vagy automatikus
+A lista körbeér; a Rendszer nézet az első, nem törölhető és nem mozgatható. A többi sablon sorrendje a webes sablonkezelőben a fel/le gombokkal módosítható; az SD-kártyán az `order.txt` őrzi a sorrendet. Nincs időzített vagy automatikus
 elrendezésváltás. A választás a `/templates/selection.txt` fájlba kerül,
 ideiglenes fájllal és biztonsági másolattal. Hiányzó/sérült kiválasztott csomagnál
 a beépített nézet jelenik meg. SD-íráshiba esetén az aktuális munkamenetben a
