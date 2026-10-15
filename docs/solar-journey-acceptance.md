@@ -19,3 +19,7 @@
 
 ## Kiadási feltétel
 Ne legyen végleges merge, amíg a ZIP-ben lévő v2 grafika és JSON a forrásba nem kerül, a webes telepítés és az SD-kártyás betöltés tesztelve nincs, és az új témát a kijelzőn vizuálisan nem hagytuk jóvá.
+
+## 2026-10-15: bináris csomag feltöltve
+
+A Nap pálya grafikai csomag immár mind a 13 PNG-vel együtt szerepel a `feature/solar-journey-template` ágon. A firmware által engedélyezett betűméretek: 12, 16, 20, 28, 48, 96; a feltöltött v2 elutasítását 34 szabálytalan méret okozta. A v3 sablon mindkét jelenetet kizárólag engedélyezett betűméretekkel írja le. A teljes integráció még csak sikeres CI-futás után tekinthető ellenőrzöttnek.
