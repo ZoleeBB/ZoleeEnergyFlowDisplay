@@ -419,5 +419,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/09-solar-journey/day.png",
+    "sha256": "9641df8bc70cafff3876d883e3c05d1666d5ffc9306656570343fd76bfe23d99"
+  },
+  {
+    "asset": "templates/09-solar-journey/night.png",
+    "sha256": "ea39da5a35eced203b39e50b885a9221722e80971045cd0ffb2c8d0a2102fb74"
   }
 ]

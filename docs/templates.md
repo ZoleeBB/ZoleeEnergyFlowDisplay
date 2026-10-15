@@ -217,3 +217,5 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 ## Nap pálya: munkaközi integrációs sablon
 
 A `templates/09-solar-journey/` nappali/éjszakai témája a 24 órás napjárás, órás termelés, mini energiaáramlás és akkuadatok integrációs ellenőrzésére készült. **A háttér az Élő otthon átmenetileg átvett képpárja, nem a véglegesen elfogadott grafika.** Grafikai csere, kijelzőteszt és végleges optimalizálás szükséges.
+
+A sablonok teljes elemszámát a csomagtesztek az aktuális fájlok alapján ellenőrzik. A `template-manifest.json` minden, a Nap pálya integrációs témához tartozó átmeneti háttérképet tartalmaz.

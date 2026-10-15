@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build eight editable JSON layouts and flat, independently installable ZIPs.
+"""Build editable JSON layouts and flat, independently installable ZIPs.
 
 House backgrounds are checked-in generated art. All data, lines, dots, charts and
 labels are real runtime widgets, never baked into screenshots.

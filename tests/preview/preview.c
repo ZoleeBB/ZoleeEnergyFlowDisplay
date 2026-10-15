@@ -421,7 +421,7 @@ int main(void)
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
         app_template_info_t list[APP_TEMPLATE_MAX];char active[33];
-        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==9);
+        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==10);
         sample.power_pv_kw=7;sample.power_bat_kw=-2.5;sample.power_grid_kw=-2.4;sample.power_full_kw=2.1;
         sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
         snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
