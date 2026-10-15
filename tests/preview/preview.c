@@ -130,10 +130,12 @@ static void test_template_motion(void){
             assert(fabs(node->points[node->point_count-1].y-tn(last,"y",0))<.01);
         }
         double original=node->power;
+        bool reversed=cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse"));
         node->phase=.5f;node->power=7;template_animate(.02f);float capped=node->phase;
-        assert(capped>.5f);
+        assert(reversed?capped<.5f:capped>.5f);
         node->phase=.5f;node->power=15;template_animate(.02f);assert(fabs(node->phase-capped)<.00001);
-        node->phase=.5f;node->power=-7;template_animate(.02f);assert(node->phase<.5f);
+        node->phase=.5f;node->power=-7;template_animate(.02f);
+        assert(reversed?node->phase>.5f:node->phase<.5f);
         node->phase=.5f;node->power=0;template_animate(.02f);
         for(int d=0;d<4;d++)assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
         node->power=original;
@@ -141,7 +143,14 @@ static void test_template_motion(void){
     template_animate(.02f);lv_obj_update_layout(s_screen);
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];if(strcmp(ts(node->spec,"type"),"flow")||fabs(node->power)<.001)continue;
+        int dot_count=tn(node->spec,"dot_count",4);
+        if(dot_count<1)dot_count=1;
+        if(dot_count>4)dot_count=4;
         for(int d=0;d<4;d++){
+            if(d>=dot_count){
+                assert(lv_obj_has_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN));
+                continue;
+            }
             float x=lv_obj_get_x(node->dots[d])+lv_obj_get_width(node->dots[d])/2-tn(node->spec,"x",0),
                   y=lv_obj_get_y(node->dots[d])+lv_obj_get_height(node->dots[d])/2-tn(node->spec,"y",0),distance=10000;
             for(unsigned k=1;k<node->point_count;k++){
