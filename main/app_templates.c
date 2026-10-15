@@ -318,7 +318,14 @@ esp_err_t app_templates_reorder(const cJSON *ids,char error[160]){
 #endif
         if(fclose(fp)!=0)ok=false;
     }
-    if(ok&&rename(temp,path)!=0)ok=false;
+    /* FAT fájlrendszeren a rename nem írhat felül létező célfájlt. */
+    char backup[256];path_join(backup,app_templates_root(),"order.bak");
+    if(ok){
+        remove(backup);
+        if(rename(path,backup)!=0 && errno!=ENOENT)ok=false;
+        if(ok && rename(temp,path)!=0){rename(backup,path);ok=false;}
+        if(ok)remove(backup);
+    }
     if(!ok)remove(temp);
     if(ok){memcpy(catalogue,ordered,count*sizeof(*ordered));generation++;}
     STORAGE_GIVE();xSemaphoreGive(lock);
