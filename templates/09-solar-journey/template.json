@@ -655,7 +655,8 @@
           }
         ],
         "dot_size": 6,
-        "reverse": true
+        "reverse": true,
+        "curve": "bezier"
       },
       {
         "type": "value",
@@ -1702,7 +1703,8 @@
           }
         ],
         "dot_size": 6,
-        "reverse": true
+        "reverse": true,
+        "curve": "bezier"
       },
       {
         "type": "value",
