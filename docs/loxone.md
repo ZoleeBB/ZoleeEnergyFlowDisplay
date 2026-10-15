@@ -11,6 +11,9 @@ Csak az egyiket kell a választott `DataReceptMode` szerint a Program blokkba m�
 
 ## Bekötés
 
+**Összesen 14 felhasznált bemenet van:** 13 analóg (`I1`–`I13`) és egy szöveges (`T1`). A Program blokkon **nincs I14**; a 14. érték a felső **T1** csatlakozón érkezik. A `getinputtext(0)` visszatérési értéke foglalt karakterlánc, amit a minta minden ciklusban felszabadít `free()` hívással.
+
+
 | Program bemenet | JSON mező | Jelentés |
 | --- | --- | --- |
 | I1 | PowerGrid | Hálózati teljesítmény kW; pozitív = vételezés, negatív = visszatáplálás |
@@ -26,7 +29,7 @@ Csak az egyiket kell a választott `DataReceptMode` szerint a Program blokkba m�
 | I11 | NightMode | 0 vagy 1 |
 | I12 | BatteryTemperature | Akkumulátor hőmérséklete °C |
 | I13 | WeatherPresent | Időjárási jelenlétmaszk, 0–15 (nem külön JSON mező) |
-| **T1 (első szöveges bemenet)** | **SunPosition** | Opcionális `azimut#napmagasság#napkeltePerc#napnyugtaPerc`; üresen `null` |
+| **14. – T1 (első szöveges bemenet)** | **SunPosition** | Opcionális `azimut#napmagasság#napkeltePerc#napnyugtaPerc`; üresen `null` |
 
 A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. MQTT módban a Txt1-et a publikálásra, HTTP módban a POST virtuális kimeneti parancshoz kösd. **Mindkét Pico C mintában ugyanaz az I1–I13 + T1 bemeneti kiosztás.**
 
