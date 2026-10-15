@@ -133,16 +133,28 @@ if(typeof document!=='undefined'){
  async function refresh(){
   const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);
   const data=await r.json();list.replaceChildren();
-  for(const t of data.templates){
+  for(const [index,t] of data.templates.entries()){
    const article=document.createElement('article');article.className='theme-card';
    const holder=document.createElement('div');holder.className='theme-thumb';
    const info=document.createElement('div');info.className='theme-info';
    const title=document.createElement('strong');title.textContent=t.name+(t.id===data.active?' ✓':'');
-   const caption=document.createElement('small');caption.textContent=t.id;
+   const caption=document.createElement('small');caption.textContent=t.id==='builtin'?'Mindig az első helyen':'Téma';
    const actions=document.createElement('div');
    const button=document.createElement('button');button.textContent='Aktiválás';button.onclick=()=>action('/api/templates/select',t.id);
    actions.append(button);
    if(t.id!=='builtin'){
+    for(const [symbol,offset,tip] of [['↑',-1,'Fel'],['↓',1,'Le']]){
+     const move=document.createElement('button');move.textContent=symbol;move.title='Mozgatás: '+tip;
+     move.setAttribute('aria-label',t.name+' '+tip);
+     move.disabled=index+offset<1||index+offset>=data.templates.length;
+     move.onclick=async()=>{
+      const ids=data.templates.map(item=>item.id),swap=index+offset;
+      [ids[index],ids[swap]]=[ids[swap],ids[index]];
+      await action('/api/templates/reorder',JSON.stringify(ids));
+     };
+     actions.append(move);
+    }
+
     const del=document.createElement('button');del.textContent='Törlés';
     del.onclick=()=>{if(confirm('Biztosan törlöd a sablont?'))action('/api/templates/delete',t.id);};
     actions.append(del);
