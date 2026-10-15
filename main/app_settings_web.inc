@@ -40,6 +40,7 @@ static cJSON *settings_json(const app_config_t *v)
     NUM(statistics,"save_interval_minutes",v->statistics.save_interval_minutes);
     NUM(statistics,"max_integration_gap_seconds",v->statistics.max_integration_gap_seconds);
     OBJ(energy);
+    NUM(energy,"battery_capacity_kwh",v->energy.battery_capacity_kwh);
     NUM(energy,"electricity_purchase_price",v->energy.electricity_purchase_price);
     NUM(energy,"feed_in_price",v->energy.feed_in_price);
     NUM(energy,"co2_factor_kg_per_kwh",v->energy.co2_factor_kg_per_kwh);
