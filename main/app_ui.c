@@ -343,8 +343,12 @@ static void fmt_kwh(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),
 static void fmt_pct(char *out,size_t n,double v){char q[20];fmt_dec(q,sizeof(q),v,1);snprintf(out,n,"%s%%",q);}
 /* Tegnapi összehasonlítás nyíl + százalék szövegének elkészítése. */
 static void fmt_cmp(char *out,size_t n,double t,double y){
+    if(!isfinite(t)||!isfinite(y)){snprintf(out,n,"—");return;}
     if(fabs(y)<1e-9){
-        snprintf(out,n,"—");
+        /* Van tegnapi statisztika, de az adott mutató értéke 0.
+         * Ez nem azonos a hiányzó adattal! */
+        if(fabs(t)<1e-9)snprintf(out,n,"0%%");
+        else snprintf(out,n,"%s",t>0?"↑ új":"↓ új");
         return;
     }
     double p=(t-y)/y*100;

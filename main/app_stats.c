@@ -841,10 +841,18 @@ static bool day_has_samples_until(
     }
 
     for (int i = 0; i < completed_slots; i++) {
-        if (day->slots[i].valid &&
-            day->slots[i].sample_count > 0) {
+        const app_stats_slot_t *slot=&day->slots[i];
+        /* A mentett régi slotoknak lehet 0 a sample_count értéke,
+         * miközben az integrált energia érvényes. Ezt sem dobhatjuk el. */
+        const app_energy_totals_t *en=&slot->energy;
+        bool has_energy=fabs(en->production_kwh)>1e-9 ||
+            fabs(en->consumption_kwh)>1e-9 ||
+            fabs(en->grid_import_kwh)>1e-9 ||
+            fabs(en->grid_export_kwh)>1e-9 ||
+            fabs(en->battery_charge_kwh)>1e-9 ||
+            fabs(en->battery_discharge_kwh)>1e-9;
+        if ((slot->valid && slot->sample_count>0) || has_energy)
             return true;
-        }
     }
 
     return false;

@@ -275,7 +275,11 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
-    double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
+    double v=template_value(source,s,st);
+    if(!strcmp(source,"solar_value_today")||!strcmp(source,"solar_savings_day")){
+        snprintf(out,128,"%.0f %s",v,s_cfg.project.currency);return;
+    }
+    char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
     const char *unit="kW";
     if(strstr(source,"_pct"))unit="%";
     else if(strstr(source,"_day")||strstr(source,"_month")||!strcmp(source,"solar_value_today"))unit=s_cfg.project.currency;
@@ -576,13 +580,18 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             /* Egyezik a solar_arc elemek paraméteres félkörével.
              * Nappal: K -> D -> Ny; éjjel: Ny -> É -> K. */
             if(!s->sun_position_valid)continue;
-            int rx=tn(e,"radius_x",377),ry=tn(e,"radius_y",244);
+            int rx=tn(e,"radius_x",377);
             int cx=tn(e,"center_x",452),cy=tn(e,"center_y",356);
+            /* A sablon háttérbe sütött felső és alsó félíve eltérő
+             * magasságú. A mozgó napkorong ezért külön éjjeli sugárral
+             * halad; külön ív kirajzolása tilos. */
+            int ry=tn(e,"radius_y",244);
             int sunrise=s->sunrise_minute,sunset=s->sunset_minute;
             time_t clock_now=time(NULL);struct tm local_now;
             localtime_r(&clock_now,&local_now);
             int minute=local_now.tm_hour*60+local_now.tm_min;
             bool daylight=s->sun_altitude_deg>0;
+            if(!daylight)ry=tn(e,"night_radius_y",ry);
             float travel;
             if(sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
                 if(daylight){

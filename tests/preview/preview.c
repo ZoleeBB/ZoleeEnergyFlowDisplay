@@ -332,6 +332,11 @@ static void test_signed_and_soc_charts(void){
 
 int main(void)
 {
+    /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
+    char cmp_test[32];
+    fmt_cmp(cmp_test,sizeof(cmp_test),0,0);assert(!strcmp(cmp_test,"0%"));
+    fmt_cmp(cmp_test,sizeof(cmp_test),3,0);assert(strstr(cmp_test,"új")!=NULL);
+    fmt_cmp(cmp_test,sizeof(cmp_test),6,3);assert(strstr(cmp_test,"+100")!=NULL);
     printf("Template geometry storage: %zu bytes\n",sizeof(template_nodes));
     setenv("TZ","UTC0",1);tzset();
     struct tm t={.tm_year=126,.tm_mon=9,.tm_mday=5,.tm_hour=14,.tm_min=37};epoch=mktime(&t);
