@@ -1,6 +1,6 @@
 # SD-kártyás sablonok
 
-Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható elrendezés a repository
+Az eredeti nézet a firmware része, mindig elérhető. A választható elrendezések a repository
 `templates/` könyvtárában van, mindegyik saját világos és sötét témával.
 
 | Csomag | Nézet |
@@ -13,6 +13,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható el
 | `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, töltöttség az akkumulátor alatt, pulzáló középpont |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
+| `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiacsillag; érvényes `SunPosition` szükséges |
 
 ## Használat
 
@@ -239,3 +240,7 @@ vizuális teljesítményteszt továbbra is kötelező.
 ### Napkorong grafikai réteg
 
 A `solar_disc` elem opcionális `file` tulajdonsággal különálló, átlátszó PNG-t használhat (pl. `"file":"weather_sunny.png"`). Az LVGL mozgatja az objektumot, és a 0–8 kW termelésfüggő pulzáló fényudvart rajzolja mögé. Az ikon képfájljának hiányában a régebbi sablonok továbbra is kör alakú napkorongot kapnak. **Figyelem:** a teljes új PNG csomag még nincs a GitHub forrásban; telepítéshez a külön készített v2 ZIP szükséges.
+
+## Automatikus ZIP-csomagolás
+
+A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti **összes** érvényes sablonhoz külön `<sablon-azonosító>.zip` fájlt tartalmaz. A `tools/prepare_templates.py` az első nyolc, kódból előállított témát frissíti, de a később hozzáadott (például `09-solar-journey`) témák eredeti `template.json` fájlját és PNG-it változtatás nélkül csomagolja. A build a `tests/test_template_packages.py` ellenőrzéssel hibát jelez, ha bármelyik téma hiányzik, eltérő nevű, vagy a ZIP tartalma eltér a forrásától.

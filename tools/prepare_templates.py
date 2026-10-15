@@ -358,6 +358,38 @@ def statistics(dark):
     return s
 
 
+def _referenced_pngs(document):
+    """Collect image layers for all widget types, including solar_disc."""
+    result = set()
+    for variant in ('light', 'dark'):
+        scene = document[variant]
+        for element in scene['elements']:
+            file = element.get('file')
+            if file and file.endswith('.png'):
+                result.add(file)
+            for file in element.get('files', {}).values():
+                if file.endswith('.png'):
+                    result.add(file)
+    return result
+
+
+def package_existing_template(folder, output):
+    """Package an already authored template without overwriting its JSON."""
+    document = json.loads((folder/'template.json').read_text(encoding='utf-8'))
+    if document.get('schema') != 1 or document.get('id') != folder.name:
+        raise ValueError(f'{folder.name}: invalid id or schema')
+    refs = _referenced_pngs(document)
+    present = {file.name for file in folder.glob('*.png')}
+    if refs != present:
+        raise ValueError(f'{folder.name}: missing PNGs {sorted(refs-present)}; unused PNGs {sorted(present-refs)}')
+    with zipfile.ZipFile(output/(folder.name+'.zip'), 'w', zipfile.ZIP_DEFLATED) as archive:
+        for file in sorted(folder.iterdir()):
+            if file.is_file():
+                archive.write(file, file.name)
+    print(folder.name, 'light/dark:',
+          len(document['light']['elements']), len(document['dark']['elements']))
+
+
 def main():
     for ident,name,builder in [('01-live-home','Élő otthon',house), ('02-energy-paths','Energiautak',paths),
                                ('03-instruments','Műszerfal',instruments), ('04-daily-balance','Napi mérleg',balance),
@@ -402,17 +434,20 @@ def main():
         doc=dict(schema=1,id=ident,name=name,version={'01-live-home':9,'02-energy-paths':7,'03-instruments':7,'04-daily-balance':5,'05-calm-home':6,'06-energy-orbit':6,'07-energy-ledger':7,'08-statistics':6}[ident],
                  light=scenes[0],dark=scenes[1])
         (folder/'template.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-        for theme in ('light','dark'):
-            for element in doc[theme]['elements']:
-                files=([element['file']] if element['type']=='image' else list(element.get('files',{}).values()))
-                for filename in files:
-                    if not (folder/filename).is_file():
-                        raise FileNotFoundError(f'{ident}: saját asset hiányzik: {filename}')
-        output=ROOT/'dist/templates';output.mkdir(parents=True,exist_ok=True)
-        with zipfile.ZipFile(output/(ident+'.zip'),'w',zipfile.ZIP_DEFLATED) as z:
-            for path in sorted(folder.iterdir()):
-                if path.is_file():z.write(path,path.name)
-        print(ident, 'light/dark:',len(doc['light']['elements']),len(doc['dark']['elements']))
+    # All checked-in templates, including hand-authored new themes, must be
+    # included in build artifacts. Only the legacy eight are generated above.
+    # Do not rewrite JSON from any additional custom folder.
+    output=ROOT/'dist/templates'
+    output.mkdir(parents=True,exist_ok=True)
+    folders=sorted(p for p in PACKAGES.iterdir()
+                   if p.is_dir() and (p/'template.json').is_file())
+    if not folders:
+        raise ValueError('No templates found to package')
+    for old_zip in output.glob('*.zip'):
+        old_zip.unlink()  # Never ship a ZIP from an earlier build.
+    for folder in folders:
+        package_existing_template(folder, output)
+    assert {p.stem for p in output.glob('*.zip')} == {p.name for p in folders}
 
 
 if __name__=='__main__':main()

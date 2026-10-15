@@ -73,6 +73,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
       - run: python3 tools/prepare_templates.py
+      - name: Verify every template is included in the artifact
+        run: python3 tests/test_template_packages.py
       - uses: actions/upload-artifact@v4
         with:
           name: template-packages-${{ inputs.source_sha || github.sha }}
