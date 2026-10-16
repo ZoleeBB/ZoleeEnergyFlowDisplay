@@ -72,10 +72,15 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(manifest['flash_files'],self.flash)
         self.assertEqual((unpack/'app.bin').read_bytes(),ota.read_bytes())
         for name in ('docs/templates.md','docs/template-authoring.md','assets/template-manifest.json',
-                     'docs/previews/templates.png','docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
+                     'docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
                      'examples/config.http.sample.json','examples/loxone-energy-http-post.picoc'):
             self.assertTrue((unpack/name).is_file(),name)
         self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),len(list((ROOT/'templates').glob('*/template.json'))))
+        for descriptor in (ROOT/'templates').glob('*/template.json'):
+            for mode in ('light','dark'):
+                relative = f'sd-card/templates/{descriptor.parent.name}/preview-{mode}.png'
+                self.assertEqual((unpack/relative).read_bytes(),
+                                 (descriptor.parent/f'preview-{mode}.png').read_bytes())
         # Documentation and example links must resolve in the offline installer.
         import re
         for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:
