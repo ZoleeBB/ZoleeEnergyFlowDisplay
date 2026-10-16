@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 9,
+  "version": 10,
   "light": {
     "background": "#E8E9FA",
     "elements": [
@@ -23,7 +23,7 @@
         "text": "Zolee",
         "text_en": "Zolee",
         "font": 28,
-        "color": "#19352F"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -34,7 +34,7 @@
         "text": "Energy Flow Monitor",
         "text_en": "Energy Flow Monitor",
         "font": 16,
-        "color": "#657A75"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -45,7 +45,7 @@
         "text": "Műszerfal",
         "text_en": "Műszerfal",
         "font": 28,
-        "color": "#19352F"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -56,7 +56,7 @@
         "text": "Pillanatnyi teljesítmény / kW",
         "text_en": "Pillanatnyi teljesítmény / kW",
         "font": 16,
-        "color": "#657A75"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -66,7 +66,7 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#19352F",
+        "color": "#FFFFFF",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -79,7 +79,7 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#657A75",
+        "color": "#FFFFFF",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -123,7 +123,7 @@
         "text": "TERMELÉS",
         "text_en": "TERMELÉS",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -149,7 +149,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -191,7 +191,7 @@
         "text": "FOGYASZTÁS",
         "text_en": "FOGYASZTÁS",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -217,7 +217,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -260,7 +260,7 @@
         "text": "HÁLÓZAT",
         "text_en": "HÁLÓZAT",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -286,7 +286,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -297,7 +297,7 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center",
         "text_shadow": true,
         "shadow_offset": 1,
@@ -343,7 +343,7 @@
         "text": "AKKUMULÁTOR",
         "text_en": "AKKUMULÁTOR",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -369,7 +369,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -380,7 +380,7 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "align": "center",
         "text_shadow": true,
         "shadow_offset": 1,
@@ -405,7 +405,7 @@
         "text": "Tároló töltöttsége",
         "text_en": "Tároló töltöttsége",
         "font": 20,
-        "color": "#19352F"
+        "color": "#000000"
       },
       {
         "type": "bar",
@@ -438,7 +438,7 @@
         "h": 28,
         "source": "status",
         "font": 16,
-        "color": "#657A75",
+        "color": "#000000",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
@@ -462,7 +462,7 @@
         "text": "Termelés ma",
         "text_en": "Termelés ma",
         "font": 16,
-        "color": "#657A75"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -496,7 +496,7 @@
         "text": "Fogyasztás ma",
         "text_en": "Fogyasztás ma",
         "font": 16,
-        "color": "#657A75"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -530,7 +530,7 @@
         "text": "Össz. töltés ma",
         "text_en": "Össz. töltés ma",
         "font": 16,
-        "color": "#657A75"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -564,7 +564,7 @@
         "text": "Össz. leadás ma",
         "text_en": "Össz. leadás ma",
         "font": 16,
-        "color": "#657A75"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -607,7 +607,7 @@
         "text": "Zolee",
         "text_en": "Zolee",
         "font": 28,
-        "color": "#EDF4F8"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -618,7 +618,7 @@
         "text": "Energy Flow Monitor",
         "text_en": "Energy Flow Monitor",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -629,7 +629,7 @@
         "text": "Műszerfal",
         "text_en": "Műszerfal",
         "font": 28,
-        "color": "#EDF4F8"
+        "color": "#FFFFFF"
       },
       {
         "type": "label",
@@ -640,7 +640,7 @@
         "text": "Pillanatnyi teljesítmény / kW",
         "text_en": "Pillanatnyi teljesítmény / kW",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -650,7 +650,7 @@
         "h": 60,
         "source": "clock",
         "font": 48,
-        "color": "#EDF4F8",
+        "color": "#FFFFFF",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
@@ -663,7 +663,7 @@
         "h": 28,
         "source": "date",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#FFFFFF",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
@@ -674,7 +674,7 @@
         "y": 136,
         "w": 292,
         "h": 395,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -707,7 +707,7 @@
         "text": "TERMELÉS",
         "text_en": "TERMELÉS",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -733,7 +733,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -742,7 +742,7 @@
         "y": 136,
         "w": 292,
         "h": 395,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -775,7 +775,7 @@
         "text": "FOGYASZTÁS",
         "text_en": "FOGYASZTÁS",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -801,7 +801,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -810,7 +810,7 @@
         "y": 136,
         "w": 292,
         "h": 395,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -844,7 +844,7 @@
         "text": "HÁLÓZAT",
         "text_en": "HÁLÓZAT",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -870,7 +870,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -881,7 +881,7 @@
         "h": 28,
         "source": "grid_direction",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center",
         "text_shadow": true,
         "shadow_offset": 1,
@@ -893,7 +893,7 @@
         "y": 136,
         "w": 292,
         "h": 395,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -927,7 +927,7 @@
         "text": "AKKUMULÁTOR",
         "text_en": "AKKUMULÁTOR",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -953,7 +953,7 @@
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center"
       },
       {
@@ -964,7 +964,7 @@
         "h": 28,
         "source": "battery_direction",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "align": "center",
         "text_shadow": true,
         "shadow_offset": 1,
@@ -976,7 +976,7 @@
         "y": 551,
         "w": 1216,
         "h": 78,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -989,7 +989,7 @@
         "text": "Tároló töltöttsége",
         "text_en": "Tároló töltöttsége",
         "font": 20,
-        "color": "#EDF4F8"
+        "color": "#000000"
       },
       {
         "type": "bar",
@@ -1022,7 +1022,7 @@
         "h": 28,
         "source": "status",
         "font": 16,
-        "color": "#A2B5BE",
+        "color": "#000000",
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
@@ -1033,7 +1033,7 @@
         "y": 650,
         "w": 292,
         "h": 106,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -1046,7 +1046,7 @@
         "text": "Termelés ma",
         "text_en": "Termelés ma",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -1067,7 +1067,7 @@
         "y": 650,
         "w": 292,
         "h": 106,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -1080,7 +1080,7 @@
         "text": "Fogyasztás ma",
         "text_en": "Fogyasztás ma",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -1101,7 +1101,7 @@
         "y": 650,
         "w": 292,
         "h": 106,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -1114,7 +1114,7 @@
         "text": "Össz. töltés ma",
         "text_en": "Össz. töltés ma",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#000000"
       },
       {
         "type": "value",
@@ -1135,7 +1135,7 @@
         "y": 650,
         "w": 292,
         "h": 106,
-        "background": "#1B2C3B",
+        "background": "#FFFFFF",
         "radius": 22,
         "opacity": 150
       },
@@ -1148,7 +1148,7 @@
         "text": "Össz. leadás ma",
         "text_en": "Össz. leadás ma",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#000000"
       },
       {
         "type": "value",

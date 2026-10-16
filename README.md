@@ -15,7 +15,17 @@ Az I1–I12 bemenetek sorrendje fix; I13 az időjárási jelenlétmaszk, T1 pedi
 
 A Nap pálya érvényes `SunPosition` esetén lapozható. A témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a kilenc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` az SD-kártya beállításainak szerkesztése, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
 
-![A kilenc sablon világos és sötét nézete](docs/previews/templates.png)
+| Téma | Nappal | Éjjel |
+| --- | --- | --- |
+| Élő otthon | ![Nappal](templates/01-live-home/preview-light.png) | ![Éjjel](templates/01-live-home/preview-dark.png) |
+| Energiautak | ![Nappal](templates/02-energy-paths/preview-light.png) | ![Éjjel](templates/02-energy-paths/preview-dark.png) |
+| Műszerfal | ![Nappal](templates/03-instruments/preview-light.png) | ![Éjjel](templates/03-instruments/preview-dark.png) |
+| Napi mérleg | ![Nappal](templates/04-daily-balance/preview-light.png) | ![Éjjel](templates/04-daily-balance/preview-dark.png) |
+| Nyugodt otthon | ![Nappal](templates/05-calm-home/preview-light.png) | ![Éjjel](templates/05-calm-home/preview-dark.png) |
+| Energiakör | ![Nappal](templates/06-energy-orbit/preview-light.png) | ![Éjjel](templates/06-energy-orbit/preview-dark.png) |
+| Energiafőkönyv | ![Nappal](templates/07-energy-ledger/preview-light.png) | ![Éjjel](templates/07-energy-ledger/preview-dark.png) |
+| Energiastatisztika | ![Nappal](templates/08-statistics/preview-light.png) | ![Éjjel](templates/08-statistics/preview-dark.png) |
+| Nap pálya | ![Nappal](templates/09-solar-journey/preview-light.png) | ![Éjjel](templates/09-solar-journey/preview-dark.png) |
 
 A webes sablonkezelő a csomagok `preview-light.png` / `preview-dark.png` képeit mutatja; régi csomagnál üres keret marad, amíg a témát ZIP-ből frissíted.
 

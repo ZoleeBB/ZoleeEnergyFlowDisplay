@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v14)
+# Nap pálya – aktuális működés (v15)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -13,8 +13,8 @@ napkelte és napnyugta alapján, ívhossz szerint követi a háttérhez kalibrá
 21–21 pontos nappali/éjszakai pályát. Az ívek a háttér részei, nem rajzoljuk újra őket.
 
 A nappali sugárzási réteg a korong középpontjából, 1 px-es pontból tágul.
-Halvány kitöltése, körvonala és tizenkét finom sugara növekedés közben teljesen
-elhalványul. A réteg a nap PNG-je alatt van. A ciklus sebessége a PV-teljesítménnyel
+Erősebb, 110/255 induló fedettségű kitöltése és körvonala növekedés közben teljesen
+elhalványul; külön sugárvonalak nincsenek. A réteg a nap PNG-je alatt van. A ciklus sebessége a PV-teljesítménnyel
 arányos: 8 kW-nál 1,2 ciklus/s, felette nem gyorsul; nulla termelésnél eltűnik.
 Éjjel a korong nem pulzál, csak a mögötte levő holdudvar lélegzik 4,2 másodperces periódussal.
 
@@ -25,9 +25,10 @@ majd 90 fokban lefelé forduló út vezet az akkumulátorhoz. Napelemes töltés
 az akkuhoz haladnak a pontok. Kisütéskor az akkutól felfelé, a csomópontban
 jobbra fordulva a házig jutnak. Hálózati töltéskor a háztól balra, majd a
 csomópontban lefelé fordulnak az akkuhoz. Vegyes töltéskor mindkét forrás
-ága animálódik. A látható vonalak geometriája ettől nem változik. A PowerBat pozitív
+ága animálódik. Az aktív akkumulátorvonal is az érintett ágakra fordul: kisütésnél és hálózati
+töltésnél a ház felé, napelemes töltésnél a PV felé, vegyes töltésnél mindkettőre. A PowerBat pozitív
 értéke kisütés, negatív értéke töltés. A világoskék érték kisütést, a sötétebb kék töltést jelöl.
-A vonalak állandó geometriájúak; csak a pontok mozognak. Inaktív fedettség 184/255,
+Az útvonal az adatfrissítéskor változhat, animáció közben csak a pontok mozognak. Inaktív fedettség 184/255,
 aktív 250/255; a pontok sebessége 7 kW-nál maximális.
 
 A hálózati teljesítmény importnál piros, exportnál citromsárga, áramlás nélkül
@@ -48,7 +49,7 @@ webes beállítás 0 értékénél a kWh-s összegzés rejtve marad. A SOC egés
 
 A felső órás termelésdiagram tényleges ötperces energiákból épül fel.
 Zöld: **Helyben elhasznált és tárolt**; sárga: **Hálózatba visszatáplált**.
-A jelmagyarázat színazonos pontokat használ, a rácsvonalak egységesen 1 px-esek.
+A jelmagyarázat színazonos pontokat használ, a függőleges rácsvonalak egységesen 1 px-esek, a vízszintes skálavonalak 2 px-esek.
 
 Az alsó, változatlan méretű négy kártya: **Mai megtakarítás**, **Mai termelési érték**,
 **Mai fogyasztás**, **Mai termelés**. Az utolsó a teljes napi PV-kWh-t mutatja.
@@ -69,5 +70,5 @@ a hálózati színeket, a kártyák szövegeit és a rács pixelszélességét.
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
 
-A firmware mellett a v14-es téma ZIP-jét is frissíteni kell. A többi sablon
+A firmware mellett a v15-ös téma ZIP-jét is frissíteni kell. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.

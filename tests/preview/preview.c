@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
+#include "src/draw/lv_draw_vector_private.h"
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
@@ -137,6 +138,21 @@ static void test_solar_battery_route(void){
     assert(tn(battery->spec,"y",0)+battery->points[2].y==560);
     assert(cJSON_IsTrue(cJSON_GetObjectItem(battery->spec,"reverse")));
     double original=battery->power;app_energy_sample_t original_sample=s_animation_sample;
+    const lv_vector_path_t *path=battery->flow_path;
+    const double cases[][3]={{0,3,2},{0,-3,2},{8,-3,2},{3,-3,2},{0,0,2}};
+    const unsigned branches[]={2,2,1,3,0};
+    for(unsigned i=0;i<5;i++){
+        app_energy_sample_t state=original_sample;
+        state.power_pv_kw=cases[i][0];state.power_bat_kw=cases[i][1];state.power_full_kw=cases[i][2];
+        state.power_grid_kw=state.power_full_kw-state.power_pv_kw-state.power_bat_kw;
+        template_update(&state,&fixture);
+        assert(battery->battery_branches==branches[i]&&battery->flow_path==path);
+        assert(lv_array_size(&path->points)==(branches[i]==3?5:3));
+        const lv_fpoint_t *start=lv_array_at(&path->points,0);
+        assert(start->x==(branches[i]==2?61:0));
+        if(branches[i]==3){const lv_fpoint_t *house=lv_array_at(&path->points,3);assert(house->x==61);}
+    }
+    template_update(&original_sample,&fixture);
     /* Kisütés: az alsó ágon felfelé, majd a házhoz jobbra. */
     battery->power=3;battery->phase=.1f;template_animate(.01f);lv_obj_update_layout(s_screen);
     assert(battery->phase<.1f);
@@ -168,6 +184,38 @@ static void test_solar_battery_route(void){
 }
 
 /* A valódi LVGL objektumokon ellenőrzött Nap pálya finomítások. */
+static void test_theme_readability(void){
+    const char *id=template_view.id;
+    if(!strcmp(id,"02-energy-paths")){
+        template_node_t *hub=NULL;
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *node=&template_nodes[i];
+            if(!strcmp(ts(node->spec,"file"),"flow_hub.png"))hub=node;
+            const char *type=ts(node->spec,"type");
+            if((!strcmp(type,"label")||!strcmp(type,"value"))&&tn(node->spec,"y",999)<110){
+                assert(node->detail);
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->detail,0),c(0xFFFFFF)));
+            }
+            assert(strcmp(type,"box")||tn(node->spec,"w",0)!=1280||tn(node->spec,"h",0)!=800);
+        }
+        assert(hub);
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *flow=&template_nodes[i];
+            if(strcmp(ts(flow->spec,"type"),"flow"))continue;
+            for(int d=0;d<4;d++)assert(lv_obj_get_index(hub->obj)>lv_obj_get_index(flow->dots[d]));
+        }
+    }
+    if(!strcmp(id,"03-instruments")){
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *node=&template_nodes[i];const char *type=ts(node->spec,"type");
+            if((!strcmp(type,"label")||!strcmp(type,"value"))&&tn(node->spec,"y",999)<110)
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(0xFFFFFF)));
+            else if(!strcmp(type,"label")||!strcmp(ts(node->spec,"source"),"status")||strstr(ts(node->spec,"source"),"direction"))
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(0x000000)));
+        }
+    }
+}
+
 static void test_solar_dashboard(const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
     template_node_t *disc=NULL,*bar=NULL,*grid=NULL,*production=NULL,*comparison=NULL;
@@ -221,7 +269,7 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
         int fill=lv_obj_get_style_bg_opa(disc->detail,0);
         assert(fill<last_fill);
         assert(abs(lv_obj_get_x(disc->detail)*2+width-(lv_obj_get_x(disc->obj)*2+tn(disc->spec,"w",40)))<=1);
-        if(step==0)assert(width==1&&fill>0);
+        if(step==0)assert(width==1&&fill==110);
         last_width=width;last_alpha=alpha;last_fill=fill;
     }
     assert(last_alpha==0&&lv_obj_get_style_shadow_opa(disc->detail,0)==0);
@@ -555,8 +603,14 @@ static void test_hourly_chart_grid(void){
         assert((pixels[y*1280+x-1]&0xffffff)==0xffffff);
         assert((pixels[y*1280+x+1]&0xffffff)==0xffffff);
     }
+    /* A középső skála vezetővonala vastagabb az óravonalaknál. */
+    int middle=(int)floorf((area.y1+area.y2)/2.f),x=area.x1+5;
+    assert((pixels[middle*1280+x]&0xffffff)!=0xffffff);
+    assert((pixels[(middle-1)*1280+x]&0xffffff)!=0xffffff ||
+           (pixels[(middle+1)*1280+x]&0xffffff)!=0xffffff);
+    assert((pixels[(middle+2)*1280+x]&0xffffff)==0xffffff);
     lv_obj_delete(parent);
-    puts("PASS: identical one-pixel hourly grid lines in rendered pixels");
+    puts("PASS: identical one-pixel hourly grid lines and stronger horizontal scale lines in rendered pixels");
 }
 
 int main(void)
@@ -704,7 +758,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_solar_dashboard(&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

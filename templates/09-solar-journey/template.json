@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 14,
+  "version": 15,
   "light": {
     "background": "#E2EDF7",
     "palette": {

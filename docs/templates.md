@@ -176,7 +176,17 @@ A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két 
 Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
 
 
-![A kilenc sablon nappali és éjszakai nézete](previews/templates.png)
+| Téma | Nappal | Éjjel |
+| --- | --- | --- |
+| Élő otthon | ![Nappal](../templates/01-live-home/preview-light.png) | ![Éjjel](../templates/01-live-home/preview-dark.png) |
+| Energiautak | ![Nappal](../templates/02-energy-paths/preview-light.png) | ![Éjjel](../templates/02-energy-paths/preview-dark.png) |
+| Műszerfal | ![Nappal](../templates/03-instruments/preview-light.png) | ![Éjjel](../templates/03-instruments/preview-dark.png) |
+| Napi mérleg | ![Nappal](../templates/04-daily-balance/preview-light.png) | ![Éjjel](../templates/04-daily-balance/preview-dark.png) |
+| Nyugodt otthon | ![Nappal](../templates/05-calm-home/preview-light.png) | ![Éjjel](../templates/05-calm-home/preview-dark.png) |
+| Energiakör | ![Nappal](../templates/06-energy-orbit/preview-light.png) | ![Éjjel](../templates/06-energy-orbit/preview-dark.png) |
+| Energiafőkönyv | ![Nappal](../templates/07-energy-ledger/preview-light.png) | ![Éjjel](../templates/07-energy-ledger/preview-dark.png) |
+| Energiastatisztika | ![Nappal](../templates/08-statistics/preview-light.png) | ![Éjjel](../templates/08-statistics/preview-dark.png) |
+| Nap pálya | ![Nappal](../templates/09-solar-journey/preview-light.png) | ![Éjjel](../templates/09-solar-journey/preview-dark.png) |
 
 ![Aktuális ikonok és időjárás](previews/template-icons.png)
 
@@ -219,7 +229,7 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 
 A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 21–21 pontos nappali és éjszakai útvonalat követi. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
 
-A v14-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
+A v15-ös akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
 30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
 Az 50%-os határ a sárga, a 70%-os még a sárga tartomány része.
 A nap alatti, középről növekvő, kitöltött sugárzási réteg és tizenkét sugár
@@ -262,3 +272,11 @@ A `tests/test_template_packages.py` ellenőrzi a ZIP-ek teljességét és bájts
 A Műszerfal és az Energiafőkönyv nappali és éjszakai nézetében nincs teljes
 képernyős színezőmaszk: csak a kártyák áttetsző háttere fedi a háttérképet.
 A webes aktiválás is megjeleníti az eszköz betöltőképernyőjét az SD-olvasás előtt.
+
+A szövegelemek `text_shadow: true` mellett opcionális `shadow_color` színt
+kaphatnak (alapértelmezés: fekete). A `foreground: true` kizárólag `image`
+elemnél engedélyezett: a képet az áramló pontok fölé emeli. Az Energiautak
+fejléce fehér árnyékot, inverterikonja ilyen előtér-réteget használ; nincs
+alap háttérmaszkja. A Műszerfal fejléce mindkét módban fehér, kártyafeliratai
+feketék, kártyái világos alapúak. Az Energiafőkönyv táblázat- és kártyacímei
+az oldalcím színét követik; a külső kártyák fedettsége 160/255.

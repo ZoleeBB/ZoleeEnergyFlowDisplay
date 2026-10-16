@@ -208,7 +208,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     broken=archive('broken',dict(updated,schema=99))
     assert lib.app_templates_install(os.fsencode(broken),error)!=0
     assert json.loads((sd/'test-layout/template.json').read_text())['version']==2
-    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true')]:
+    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true'),('shadow_color','invalid'),('foreground',True)]:
         bad=copy.deepcopy(doc);bad['id']='invalid'
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
         element[field]=value;bad['light']['elements']=[element]

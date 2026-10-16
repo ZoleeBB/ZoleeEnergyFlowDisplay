@@ -149,13 +149,14 @@ static bool validate_scene(const cJSON *scene){
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(cJSON_HasObjectItem(e,"reference_style")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"reference_style"))||strcmp(type,"chart")))return false;
         if(cJSON_HasObjectItem(e,"soc_four_bands")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"soc_four_bands"))||strcmp(type,"bar")||!source||strcmp(source,"soc")))return false;
+        if(cJSON_HasObjectItem(e,"foreground")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"foreground"))||strcmp(type,"image")))return false;
         if(cJSON_HasObjectItem(e,"text_shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"text_shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(!number(e,"glow",0,24,true)||!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
-        const char *keys[]={"color","background","muted","positive_color","negative_color","zero_color","outline_color",NULL};
+        const char *keys[]={"color","background","muted","positive_color","negative_color","zero_color","outline_color","shadow_color",NULL};
         for(int i=0;keys[i];i++)if(cJSON_HasObjectItem(e,keys[i])&&!color(str(e,keys[i])))return false;
         if(!number(e,"center_x",0,1279,true)||!number(e,"center_y",0,799,true)||!number(e,"radius_x",1,640,true)||!number(e,"radius_y",1,390,true))return false;
         if(!number(e,"animate_ms",0,1000,true))return false;

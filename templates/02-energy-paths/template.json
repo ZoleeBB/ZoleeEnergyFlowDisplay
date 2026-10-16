@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 8,
+  "version": 9,
   "light": {
     "background": "#F4F7F1",
     "elements": [
@@ -15,16 +15,6 @@
         "file": "background-day.png"
       },
       {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#F4F7F1",
-        "opacity": 174,
-        "radius": 0
-      },
-      {
         "type": "label",
         "x": 32,
         "y": 24,
@@ -33,7 +23,11 @@
         "text": "Zolee",
         "text_en": "Zolee",
         "font": 28,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -44,7 +38,11 @@
         "text": "Energy Flow Monitor",
         "text_en": "Energy Flow Monitor",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -55,7 +53,11 @@
         "text": "Energiautak",
         "text_en": "Energiautak",
         "font": 28,
-        "color": "#19352F"
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -66,7 +68,11 @@
         "text": "Honnan érkezik és merre halad az energia?",
         "text_en": "Honnan érkezik és merre halad az energia?",
         "font": 16,
-        "color": "#657A75"
+        "color": "#657A75",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "value",
@@ -79,7 +85,8 @@
         "color": "#19352F",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 40
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -92,7 +99,8 @@
         "color": "#657A75",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 40
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "box",
@@ -380,7 +388,8 @@
         "y": 329,
         "w": 90,
         "h": 90,
-        "file": "flow_hub.png"
+        "file": "flow_hub.png",
+        "foreground": true
       },
       {
         "type": "label",
@@ -434,7 +443,8 @@
         "color": "#19352F",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 40
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -447,7 +457,8 @@
         "color": "#19352F",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 40
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "box",
@@ -605,16 +616,6 @@
         "file": "background-night.png"
       },
       {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#13272A",
-        "opacity": 164,
-        "radius": 0
-      },
-      {
         "type": "label",
         "x": 32,
         "y": 24,
@@ -623,7 +624,11 @@
         "text": "Zolee",
         "text_en": "Zolee",
         "font": 28,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -634,7 +639,11 @@
         "text": "Energy Flow Monitor",
         "text_en": "Energy Flow Monitor",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -645,7 +654,11 @@
         "text": "Energiautak",
         "text_en": "Energiautak",
         "font": 28,
-        "color": "#EDF4F8"
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "label",
@@ -656,7 +669,11 @@
         "text": "Honnan érkezik és merre halad az energia?",
         "text_en": "Honnan érkezik és merre halad az energia?",
         "font": 16,
-        "color": "#A2B5BE"
+        "color": "#A2B5BE",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_opacity": 210,
+        "shadow_offset": 1
       },
       {
         "type": "value",
@@ -669,7 +686,8 @@
         "color": "#EDF4F8",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 100
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -682,7 +700,8 @@
         "color": "#A2B5BE",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 100
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "box",
@@ -970,7 +989,8 @@
         "y": 329,
         "w": 90,
         "h": 90,
-        "file": "flow_hub.png"
+        "file": "flow_hub.png",
+        "foreground": true
       },
       {
         "type": "label",
@@ -1024,7 +1044,8 @@
         "color": "#EDF4F8",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 100
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -1037,7 +1058,8 @@
         "color": "#EDF4F8",
         "text_shadow": true,
         "shadow_offset": 1,
-        "shadow_opacity": 100
+        "shadow_opacity": 210,
+        "shadow_color": "#FFFFFF"
       },
       {
         "type": "box",
