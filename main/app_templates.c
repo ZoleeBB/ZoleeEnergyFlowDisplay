@@ -149,7 +149,7 @@ static bool validate_scene(const cJSON *scene){
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(cJSON_HasObjectItem(e,"reference_style")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"reference_style"))||strcmp(type,"chart")))return false;
         if(cJSON_HasObjectItem(e,"soc_four_bands")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"soc_four_bands"))||strcmp(type,"bar")||!source||strcmp(source,"soc")))return false;
-        if(cJSON_HasObjectItem(e,"foreground")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"foreground"))||strcmp(type,"image")))return false;
+        if(cJSON_HasObjectItem(e,"foreground")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"foreground"))||(strcmp(type,"image")&&strcmp(type,"pulse"))))return false;
         if(cJSON_HasObjectItem(e,"text_shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"text_shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(!number(e,"glow",0,24,true)||!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;

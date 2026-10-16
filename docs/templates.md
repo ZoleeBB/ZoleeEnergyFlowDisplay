@@ -279,8 +279,8 @@ képernyős színezőmaszk: csak a kártyák áttetsző háttere fedi a háttér
 A webes aktiválás is megjeleníti az eszköz betöltőképernyőjét az SD-olvasás előtt.
 
 A szövegelemek `text_shadow: true` mellett opcionális `shadow_color` színt
-kaphatnak (alapértelmezés: fekete). A `foreground: true` kizárólag `image`
-elemnél engedélyezett: a képet az áramló pontok fölé emeli. Az Energiautak
+kaphatnak (alapértelmezés: fekete). A `foreground: true` az `image` és `pulse`
+elemeknél engedélyezett: az elemet az áramló pontok fölé emeli. Az Energiautak
 fejléce fehér árnyékot, inverterikonja ilyen előtér-réteget használ; nincs
 alap háttérmaszkja. A Műszerfal fejléce mindkét módban fehér, kártyafeliratai
 feketék, kártyái világos alapúak. Az Energiafőkönyv táblázat- és kártyacímei
@@ -293,5 +293,8 @@ A `/api/templates/preview?id=builtin&mode=light` és `mode=dark` végpontok
 ugyanazzal a hitelesítéssel működnek, mint a többi előnézet.
 
 Az Energiautak v11-ben a nappali fekete kártyacímek, ikonfeliratok és állapot
-sötét módban fehérek. Az Energiakör v11 átrendezése kizárólag a saját JSON-ját
-érinti: az energiaáramlás közös sebességképlete és a többi téma változatlan.
+sötét módban fehérek. Az Energiakör v12 két közös tengelyre illesztett,
+szimmetrikus keresztet használ; a középső `pulse` elem `foreground: true`
+beállítással a vonalak és a mozgó pontok fölött pulzál mindkét módban.
+Ehhez a v12-es ZIP mellett a `pulse` előtérjelölését támogató firmware is
+frissítendő. Az energiaáramlás közös sebességképlete változatlan.

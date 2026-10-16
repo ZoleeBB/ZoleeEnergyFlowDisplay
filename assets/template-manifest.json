@@ -356,12 +356,12 @@
   },
   {
     "asset": "templates/06-energy-orbit/preview-dark.png",
-    "sha256": "b16bf76803a6e7e08a26c9791f14f8dd4f1f73420f633bbc49a8336176a65517",
+    "sha256": "d6b3b3c4d4c254cd326e0ecf38532496f488cbd72e6775525fc105b2ced399d5",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/06-energy-orbit/preview-light.png",
-    "sha256": "fae8cf8ad90aa4c8a6cc0835f0867824826fdad4b04686985bf20a8bf887f521",
+    "sha256": "efd227ef9ff0199644bac7c817becf09141c1fb68a6980cf1fae027ebe4b1477",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

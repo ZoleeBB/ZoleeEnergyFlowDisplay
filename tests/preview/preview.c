@@ -212,8 +212,11 @@ static void test_theme_readability(void){
         active.power_pv_kw=4;active.power_grid_kw=1;active.power_bat_kw=1;active.power_full_kw=6;
         template_update(&active,&fixture);template_animate(.02f);
         unsigned flows=0,icons=0;
+        template_node_t *pulse=NULL;
+        lv_point_t ends[4]={{0}};
         for(unsigned i=0;i<template_node_count;i++){
             template_node_t *node=&template_nodes[i];
+            if(!strcmp(ts(node->spec,"type"),"pulse"))pulse=node;
             if(!strcmp(ts(node->spec,"type"),"flow")){
                 flows++;
                 assert(node->point_count==2&&node->length<240);
@@ -222,12 +225,27 @@ static void test_theme_readability(void){
                 assert(!lv_obj_has_flag(node->dots[1],LV_OBJ_FLAG_HIDDEN));
                 assert(lv_obj_has_flag(node->dots[2],LV_OBJ_FLAG_HIDDEN));
                 assert(lv_obj_has_flag(node->dots[3],LV_OBJ_FLAG_HIDDEN));
+                const char *source=ts(node->spec,"source");
+                int id=!strcmp(source,"pv")?0:!strcmp(source,"battery")?1:!strcmp(source,"grid")?2:3;
+                unsigned outer=id==3?1:0,inner=1-outer;
+                int x=tn(node->spec,"x",0),y=tn(node->spec,"y",0);
+                assert(x+node->points[inner].x==630&&y+node->points[inner].y==345);
+                ends[id]=(lv_point_t){x+node->points[outer].x-630,y+node->points[outer].y-345};
             }
             if(!strcmp(ts(node->spec,"type"),"image")){
                 icons++;assert(tn(node->spec,"w",0)==160&&tn(node->spec,"h",0)==160);
             }
         }
         assert(flows==4&&icons==4);
+        assert(ends[0].x==-ends[1].x&&ends[0].y==-ends[1].y);
+        assert(ends[2].x==-ends[3].x&&ends[2].y==-ends[3].y);
+        assert(pulse&&lv_obj_get_x(pulse->obj)+16==630&&lv_obj_get_y(pulse->obj)+16==345);
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *node=&template_nodes[i];
+            assert(lv_obj_get_index(pulse->obj)>=lv_obj_get_index(node->obj));
+            if(!strcmp(ts(node->spec,"type"),"flow"))
+                for(int d=0;d<4;d++)assert(lv_obj_get_index(pulse->obj)>lv_obj_get_index(node->dots[d]));
+        }
         template_update(&saved,&fixture);
     }
     if(!strcmp(id,"03-instruments")){

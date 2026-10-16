@@ -56,7 +56,7 @@ function validateManifest(doc,files){
     throw Error('Hibás elemhatár ('+mode+', #'+(index+1)+', '+e.type+'): '+e.x+','+e.y+' '+e.w+'×'+e.h);
    if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Hibás adatforrás');
    for(const key of ['color','background','positive_color','negative_color','zero_color','shadow_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
-   if(e.foreground!==undefined&&(typeof e.foreground!=='boolean'||e.type!=='image'))throw Error('Hibás ikonréteg');
+   if(e.foreground!==undefined&&(typeof e.foreground!=='boolean'||!['image','pulse'].includes(e.type)))throw Error('Hibás előtérréteg');
    if(e.soc_four_bands!==undefined&&(typeof e.soc_four_bands!=='boolean'||e.type!=='bar'||e.source!=='soc'))throw Error('Hibás SOC-színezés');
    if(['preview-light.png','preview-dark.png'].includes(e.file)||Object.values(e.files??{}).some(name=>['preview-light.png','preview-dark.png'].includes(name)))throw Error('Az előnézet nem lehet kijelzőikon');
    if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG');

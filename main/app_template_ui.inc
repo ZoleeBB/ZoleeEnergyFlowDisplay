@@ -575,10 +575,11 @@ static void template_build(bool night){
         if(strcmp(ts(flow->spec,"type"),"flow"))continue;
         for(int d=0;d<4;d++)if(flow->dots[d])lv_obj_move_foreground(flow->dots[d]);
     }
-    /* A témában kijelölt fedőikon az áramló pontok fölé kerülhet. */
+    /* A kijelölt fedőikon vagy pulzáló csomópont a pontok fölé kerülhet. */
     for(unsigned j=0;j<template_node_count;j++){
         template_node_t *node=&template_nodes[j];
-        if(!strcmp(ts(node->spec,"type"),"image")&&cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"foreground")))lv_obj_move_foreground(node->obj);
+        const char *type=ts(node->spec,"type");
+        if((!strcmp(type,"image")||!strcmp(type,"pulse"))&&cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"foreground")))lv_obj_move_foreground(node->obj);
     }
     unsigned n=template_view.catalogue_count;
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
