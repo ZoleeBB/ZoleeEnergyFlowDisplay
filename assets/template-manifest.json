@@ -120,7 +120,7 @@
   },
   {
     "asset": "templates/02-energy-paths/preview-dark.png",
-    "sha256": "6cd78393c10092a4fc78424f66ad1191632085f36d04ff08920c82eace81587c",
+    "sha256": "712e3b3dcbb78984d4f7d043deaef496931da4c38754f8598ba3b6939d1abc8d",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -356,12 +356,12 @@
   },
   {
     "asset": "templates/06-energy-orbit/preview-dark.png",
-    "sha256": "2f6876334fbce72c3a9d6014de88ca83d62b88a5127ef119633ec8235faa9a4f",
+    "sha256": "b16bf76803a6e7e08a26c9791f14f8dd4f1f73420f633bbc49a8336176a65517",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/06-energy-orbit/preview-light.png",
-    "sha256": "b8ec371bd4b0b970bc8b3db99e3c824f5b47398f529b268e5165ad6d433b3c63",
+    "sha256": "fae8cf8ad90aa4c8a6cc0835f0867824826fdad4b04686985bf20a8bf887f521",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -556,12 +556,12 @@
   },
   {
     "asset": "templates/09-solar-journey/preview-dark.png",
-    "sha256": "df334cf04b68dc1dade848f123e36a3a2b1d6e69a96d5fcaa1c1c94be6e59236",
+    "sha256": "c36219c992b15dca61dc40311f9f1a65e43795f9a3a80db6609404430549bcd6",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/09-solar-journey/preview-light.png",
-    "sha256": "f60243f1925ce829add8d5668511005a8b8905adf81f7a175bd08900e56f7281",
+    "sha256": "76469456ee310e002fd6145b8b3b313b0fdd1f16606e1d9232e3096dfa4ba645",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

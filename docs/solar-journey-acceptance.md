@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v16)
+# Nap pálya – aktuális működés (v17)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -14,8 +14,9 @@ napkelte és napnyugta alapján, ívhossz szerint követi a háttérhez kalibrá
 
 A nappali sugárzási réteg a korong középpontjából, 1 px-es pontból tágul.
 Erősebb, 110/255 induló fedettségű kitöltése és körvonala növekedés közben teljesen
-elhalványul; külön sugárvonalak nincsenek. A réteg a nap PNG-je alatt van. A ciklus sebessége a PV-teljesítménnyel
-arányos: 8 kW-nál 1,2 ciklus/s, felette nem gyorsul; nulla termelésnél eltűnik.
+elhalványul; külön sugárvonalak nincsenek. A réteg a nap PNG-je alatt van. A ciklus fixen 1,2 ciklus/s. A PV-teljesítmény csak a végső körátmérőt
+szabályozza: 0–8 kW között arányos, 8 kW-tól a korábbi maximum.
+A kitöltés minden végméretnél teljesen elhalványul; nulla termelésnél eltűnik.
 Éjjel a korong nem pulzál, csak a mögötte levő holdudvar lélegzik 4,2 másodperces periódussal.
 
 ## Energiaáramlás és akkumulátor
@@ -65,10 +66,10 @@ a magyarázat az ikon bal szélétől indul.
 ## Ellenőrzés és frissítés
 
 A valódi LVGL-teszt kilenc sablon 18 nézetét rendereli. Ellenőrzi a sugárzás
-induló pontját, kitöltését, rétegsorrendjét és sebességhatárát; kilenc SOC-határértéket,
+induló pontját, kitöltését, rétegsorrendjét és fix ütemét, termelésarányos végméretét; kilenc SOC-határértéket,
 a hálózati színeket, a kártyák szövegeit és a rács pixelszélességét.
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
 
-A firmware mellett a v16-ös téma ZIP-jét is frissíteni kell. A többi sablon
+A firmware mellett a v17-es téma ZIP-jét is frissíteni kell. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.

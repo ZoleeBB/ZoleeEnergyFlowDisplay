@@ -85,7 +85,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert battery_flow['positive_color']!=battery_flow['negative_color']
         sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
         sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
-        assert sunrise['x']==22 and sunrise['x']+sunrise['w']<170
+        assert sunrise['x']==7 and sunrise['x']+sunrise['w']<170
         assert sunset['x']==821 and sunset['x']+sunset['w']<936
         therm=next(e for e in elements if e['type']=='image' and e.get('file')=='battery_temp.png')
         band=next(e for e in elements if e['type']=='box' and e['x']==951 and e['y']==562)
@@ -100,6 +100,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         bar=next(e for e in elements if e['type']=='bar' and e['source']=='soc')
         assert (band['x'],band['y'],band['w'],band['h'])==(951,562,307,78)
         assert bar['y']>=626 and bar['y']+bar['h']<band['y']+band['h']
+        assert bar['outline_color'] and bar['background']
         assert bar['x']==1012 and bar['w']==129 and bar['h']==6 and bar['soc_four_bands']
         for source,label in (('pv','Napelem'),('home','Háztartás'),('grid','grid_direction')):
             value=next(e for e in elements if e['type']=='value' and e['source']==source)

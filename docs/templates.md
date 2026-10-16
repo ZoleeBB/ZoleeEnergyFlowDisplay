@@ -10,7 +10,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
 | `05-calm-home` | Nyugodt otthon: nagy óra, részletes időjárásikonok, három fő adat |
-| `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, töltöttség az akkumulátor alatt, pulzáló középpont |
+| `06-energy-orbit` | Energiakör: 160 px-es ikonok, alattuk az adatok, rövid egyenes összeköttetések, áganként két pont és visszafogott középponti fényudvar |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 | `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
@@ -230,11 +230,15 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 
 A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 21–21 pontos nappali és éjszakai útvonalat követi. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
 
-A v16-os akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
+A v17-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
 30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
 Az 50%-os határ a sárga, a 70%-os még a sárga tartomány része.
-A nap alatti, középről növekvő, kitöltött sugárzási réteg és tizenkét sugár
-folyamatosan elhalványul; sebessége 8 kW-nál maximális. Az éjszakai korong
+A nap alatti, középről növekvő, kitöltött kör fix 1,2 ciklus/s ütemben pulzál.
+Végső átmérője a PV-termeléssel arányos 0–8 kW között; 8 kW fölött a korábbi
+maximális méret marad. Minden méretnél teljesen elhalványul a ciklus végére,
+nulla termelésnél nem látszik. Külön sugárvonalak nincsenek.
+A SOC-sáv vékony körvonalat és kontrasztosabb üres hátteret kapott;
+a napkelte-kártya a felirataival együtt további 15 px-szel balra került. Az éjszakai korong
 képe állandó, csak a holdudvar kap 4,2 másodperces légző animációt.
 A részletes működés: [Nap pálya](solar-journey-acceptance.md).
 
@@ -287,3 +291,7 @@ A Rendszer nézet apró, 240×150 px-es nappali/éjszakai előnézete firmware-b
 SD-olvasás és nincs LVGL-képdekódolás. A generátor legfeljebb 32 KiB-ot enged.
 A `/api/templates/preview?id=builtin&mode=light` és `mode=dark` végpontok
 ugyanazzal a hitelesítéssel működnek, mint a többi előnézet.
+
+Az Energiautak v11-ben a nappali fekete kártyacímek, ikonfeliratok és állapot
+sötét módban fehérek. Az Energiakör v11 átrendezése kizárólag a saját JSON-ját
+érinti: az energiaáramlás közös sebességképlete és a többi téma változatlan.

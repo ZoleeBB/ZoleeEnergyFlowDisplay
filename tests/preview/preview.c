@@ -196,6 +196,8 @@ static void test_theme_readability(void){
                 assert(node->detail);
                 assert(lv_color_eq(lv_obj_get_style_text_color(node->detail,0),c(0xFFFFFF)));
             }
+            if((!strcmp(type,"label")||!strcmp(ts(node->spec,"source"),"status"))&&tn(node->spec,"y",0)>=110)
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->obj,0),c(s_last_night?0xFFFFFF:0x000000)));
             assert(strcmp(type,"box")||tn(node->spec,"w",0)!=1280||tn(node->spec,"h",0)!=800);
         }
         assert(hub);
@@ -204,6 +206,29 @@ static void test_theme_readability(void){
             if(strcmp(ts(flow->spec,"type"),"flow"))continue;
             for(int d=0;d<4;d++)assert(lv_obj_get_index(hub->obj)>lv_obj_get_index(flow->dots[d]));
         }
+    }
+    if(!strcmp(id,"06-energy-orbit")){
+        app_energy_sample_t saved=s_animation_sample,active=saved;
+        active.power_pv_kw=4;active.power_grid_kw=1;active.power_bat_kw=1;active.power_full_kw=6;
+        template_update(&active,&fixture);template_animate(.02f);
+        unsigned flows=0,icons=0;
+        for(unsigned i=0;i<template_node_count;i++){
+            template_node_t *node=&template_nodes[i];
+            if(!strcmp(ts(node->spec,"type"),"flow")){
+                flows++;
+                assert(node->point_count==2&&node->length<240);
+                assert(tn(node->spec,"dot_count",4)==2&&tn(node->spec,"glow",0)<=2);
+                assert(!lv_obj_has_flag(node->dots[0],LV_OBJ_FLAG_HIDDEN));
+                assert(!lv_obj_has_flag(node->dots[1],LV_OBJ_FLAG_HIDDEN));
+                assert(lv_obj_has_flag(node->dots[2],LV_OBJ_FLAG_HIDDEN));
+                assert(lv_obj_has_flag(node->dots[3],LV_OBJ_FLAG_HIDDEN));
+            }
+            if(!strcmp(ts(node->spec,"type"),"image")){
+                icons++;assert(tn(node->spec,"w",0)==160&&tn(node->spec,"h",0)==160);
+            }
+        }
+        assert(flows==4&&icons==4);
+        template_update(&saved,&fixture);
     }
     if(!strcmp(id,"03-instruments")){
         for(unsigned i=0;i<template_node_count;i++){
@@ -254,9 +279,14 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     const double levels[]={2,4,8,16};
     for(unsigned i=0;i<4;i++){
         s_animation_sample.power_pv_kw=levels[i];disc->phase=0;
-        template_animate(.1f);
-        float expected=i<2?.03f*(i+1):.12f;
+        template_animate(.1f);lv_obj_update_layout(s_screen);
+        float expected=.12f;
         assert(fabsf(disc->phase-expected)<.0001f);
+        disc->phase=.999f;template_animate(0);lv_obj_update_layout(s_screen);
+        int expected_width=1+(int)lroundf((tn(disc->spec,"w",40)+55)*fmin(levels[i]/8.,1.)*.999f);
+        assert(lv_obj_get_width(disc->detail)==expected_width);
+        assert(lv_obj_get_style_bg_opa(disc->detail,0)==0);
+        assert(lv_obj_get_style_border_opa(disc->detail,0)==0);
     }
     int last_width=0,last_alpha=256,last_fill=256;
     assert(lv_obj_get_index(disc->detail)<lv_obj_get_index(disc->obj));
@@ -274,7 +304,8 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     }
     assert(last_alpha==0&&lv_obj_get_style_shadow_opa(disc->detail,0)==0);
     s_animation_sample.power_pv_kw=0;disc->phase=.5f;template_animate(.1f);
-    assert(disc->phase==.5f&&lv_obj_get_style_border_opa(disc->detail,0)==0);
+    assert(fabsf(disc->phase-.62f)<.0001f&&lv_obj_get_style_border_opa(disc->detail,0)==0);
+    assert(lv_obj_get_style_bg_opa(disc->detail,0)==0);
     s_animation_sample.night_mode=true;s_animation_sample.sun_altitude_deg=-10;
     int disc_x=lv_obj_get_x(disc->obj),disc_y=lv_obj_get_y(disc->obj);
     template_animate(.1f);
@@ -311,7 +342,7 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     free(stats);
     s_cfg.energy.battery_capacity_kwh=saved_capacity;s_animation_sample=saved_animation;
     template_update(original,&fixture);
-    puts("PASS: solar ripple growth/fade, 8kW speed cap, zero/night, SOC colors, idle grid and daily production");
+    puts("PASS: solar ripple fixed speed, PV-scaled radius/fade, 8kW size cap, zero/night, SOC colors, idle grid and daily production");
 }
 
 /* Régi, SD-n maradt v10-es sablon firmware-szintű helyreállítása. */
@@ -813,7 +844,15 @@ int main(void)
                         if(!strcmp(ts(template_nodes[n].spec,"type"),"solar_disc"))template_nodes[n].phase=.6f;
                     template_animate(0);
                 }
+                app_energy_sample_t preview_saved=sample;
+                if(!strcmp(list[i].id,"06-energy-orbit")){
+                    /* Minden út aktív: ez volt a hardveren lassú kombináció. */
+                    sample.power_pv_kw=4;sample.power_grid_kw=1;sample.power_bat_kw=1;sample.power_full_kw=6;
+                    sample.soc_bat_pct=74;s_animation_sample=sample;
+                    template_update(&sample,&fixture);template_animate(.05f);
+                }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
+                sample=preview_saved;s_animation_sample=sample;
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);
                 }

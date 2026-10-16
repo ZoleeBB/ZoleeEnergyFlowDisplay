@@ -867,9 +867,9 @@ static void template_animate(float dt){
             if(!s_animation_sample.sun_position_valid)continue;
             float fraction=(float)fmin(pv/8.,1.);
             bool daylight=!s_animation_sample.night_mode&&s_animation_sample.sun_altitude_deg>0;
-            /* 8 kW-nál 1,2 sugárzási ciklus/s; felette már nem gyorsul.
-             * Nulla termelésnél a nappali gyűrű teljesen eltűnik. */
-            node->phase=fmodf(node->phase+dt*(daylight?1.2f*fraction:1.f/4.2f),1.f);
+            /* Fix 1,2 ciklus/s: a termelés csak a végső körméretet adja.
+             * 8 kW-tól a korábbi maximális méret; nullánál nincs fényudvar. */
+            node->phase=fmodf(node->phase+dt*(daylight?1.2f:1.f/4.2f),1.f);
             float wave=.5f+.5f*sinf(node->phase*6.2831853f);
             /* Az éjszakai halvány kék napkorong NEM pulzál. */
             if(node->detail){
@@ -879,8 +879,8 @@ static void template_animate(float dt){
                  * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
                 const int pad=6+(int)lroundf(2.f*wave);
                 const int disc_w=tn(node->spec,"w",40),disc_h=tn(node->spec,"h",40);
-                const int width=daylight?1+(int)lroundf((disc_w+55)*node->phase):disc_w+2*pad;
-                const int height=daylight?1+(int)lroundf((disc_h+55)*node->phase):disc_h+2*pad;
+                const int width=daylight?1+(int)lroundf((disc_w+55)*fraction*node->phase):disc_w+2*pad;
+                const int height=daylight?1+(int)lroundf((disc_h+55)*fraction*node->phase):disc_h+2*pad;
                 if(lv_obj_get_width(node->detail)!=width || lv_obj_get_height(node->detail)!=height)
                     lv_obj_set_size(node->detail,width,height);
                 lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)+(disc_w-width)/2,lv_obj_get_y(node->obj)+(disc_h-height)/2);
@@ -891,7 +891,7 @@ static void template_animate(float dt){
                 lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
                 lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
                 lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(25+20*wave),0);
-                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):(lv_opa_t)(10+10*wave),0);
+                bg_opa_if_changed(node->detail,daylight?(pv>0?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):0):(lv_opa_t)(10+10*wave),0);
             }
             continue;
         }

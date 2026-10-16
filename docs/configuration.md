@@ -28,3 +28,8 @@ Az `/settings` oldalon minden beállítás módosítható, az `/api/settings` v�
 A napi statisztika mentési időköze alapértelmezetten 15 perc, és legfeljebb 15 perc lehet. A korábban már SD-kártyán szereplő `save_interval_minutes: 60` beállítást a firmware automatikusan 15-re korlátozza. Az OTA firmware-frissítés és kézi újraindítás előtt ezen felül azonnali mentés történik.
 
 A webes űrlap a Wi-Fi, MQTT és OTA jelszavakat nem olvassa vissza: üresen hagyva megtartja, külön törlési jelölővel kiüríti, új jelszó megadásával lecseréli azokat.
+
+A háttérszinkron siker után a `time.resync_hours` teljes időközét várja ki;
+a `background_retry_minutes` csak sikertelen szinkron vagy hiányzó Wi-Fi esetén érvényes.
+Az órás időköz tickre váltása 64 bites számítást használ, így az 1000 Hz-es
+FreeRTOS mellett sem rövidül a 6 óra körülbelül 125 másodpercre.

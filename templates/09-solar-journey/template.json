@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 16,
+  "version": 17,
   "light": {
     "background": "#E2EDF7",
     "palette": {
@@ -352,7 +352,7 @@
       },
       {
         "type": "box",
-        "x": 22,
+        "x": 7,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -362,7 +362,7 @@
       },
       {
         "type": "label",
-        "x": 33,
+        "x": 18,
         "y": 240,
         "w": 90,
         "h": 20,
@@ -373,7 +373,7 @@
       },
       {
         "type": "value",
-        "x": 33,
+        "x": 18,
         "y": 261,
         "w": 90,
         "h": 24,
@@ -1187,8 +1187,9 @@
         "source": "soc",
         "max": 100,
         "color": "#28C87C",
-        "background": "#C5DCE8",
-        "soc_four_bands": true
+        "background": "#AFC7DB",
+        "soc_four_bands": true,
+        "outline_color": "#41627D"
       },
       {
         "type": "label",
@@ -1552,7 +1553,7 @@
       },
       {
         "type": "box",
-        "x": 22,
+        "x": 7,
         "y": 236,
         "w": 111,
         "h": 52,
@@ -1562,7 +1563,7 @@
       },
       {
         "type": "label",
-        "x": 33,
+        "x": 18,
         "y": 240,
         "w": 90,
         "h": 20,
@@ -1573,7 +1574,7 @@
       },
       {
         "type": "value",
-        "x": 33,
+        "x": 18,
         "y": 261,
         "w": 90,
         "h": 24,
@@ -2387,8 +2388,9 @@
         "source": "soc",
         "max": 100,
         "color": "#28C87C",
-        "background": "#243D50",
-        "soc_four_bands": true
+        "background": "#15283B",
+        "soc_four_bands": true,
+        "outline_color": "#93B5D0"
       },
       {
         "type": "label",

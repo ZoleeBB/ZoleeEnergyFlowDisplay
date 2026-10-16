@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 10,
+  "version": 11,
   "light": {
     "background": "#F4F7F1",
     "elements": [
@@ -854,7 +854,7 @@
         "text": "Napelemek",
         "text_en": "Napelemek",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center"
       },
       {
@@ -888,7 +888,7 @@
         "text": "Hálózat",
         "text_en": "Hálózat",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center"
       },
       {
@@ -922,7 +922,7 @@
         "text": "Otthon",
         "text_en": "Otthon",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center"
       },
       {
@@ -956,7 +956,7 @@
         "text": "Tároló",
         "text_en": "Tároló",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center"
       },
       {
@@ -1001,7 +1001,7 @@
         "text": "ENERGIA",
         "text_en": "ENERGIA",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center"
       },
       {
@@ -1012,7 +1012,7 @@
         "h": 28,
         "source": "status",
         "font": 16,
-        "color": "#000000",
+        "color": "#FFFFFF",
         "align": "center",
         "text_shadow": true,
         "shadow_offset": 1,
@@ -1080,7 +1080,7 @@
         "text": "Termelés ma",
         "text_en": "Termelés ma",
         "font": 16,
-        "color": "#000000"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -1114,7 +1114,7 @@
         "text": "Fogyasztás ma",
         "text_en": "Fogyasztás ma",
         "font": 16,
-        "color": "#000000"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -1148,7 +1148,7 @@
         "text": "Össz. töltés ma",
         "text_en": "Össz. töltés ma",
         "font": 16,
-        "color": "#000000"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
@@ -1182,7 +1182,7 @@
         "text": "Össz. leadás ma",
         "text_en": "Össz. leadás ma",
         "font": 16,
-        "color": "#000000"
+        "color": "#FFFFFF"
       },
       {
         "type": "value",
