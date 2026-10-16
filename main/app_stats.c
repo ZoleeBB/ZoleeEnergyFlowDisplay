@@ -7,6 +7,7 @@
  * használja összehasonlítási alapként.
  */
 #include "app_stats.h"
+#include "app_stats_compare.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -824,32 +825,6 @@ static void sum_completed_slots(
     }
 }
 
-/* Igaz, ha a vizsgált lezárt időszakban legalább egy valódi mérési slot létezik. */
-static bool day_has_samples_until(
-    const day_data_t *day,
-    int completed_slots)
-{
-    if (!day->valid) {
-        return false;
-    }
-
-    if (completed_slots < 0) {
-        completed_slots = 0;
-    }
-    if (completed_slots > APP_STATS_SLOT_COUNT) {
-        completed_slots = APP_STATS_SLOT_COUNT;
-    }
-
-    for (int i = 0; i < completed_slots; i++) {
-        if (day->slots[i].valid &&
-            day->slots[i].sample_count > 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 /* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
 esp_err_t app_stats_init(const app_config_t *cfg)
 {
@@ -986,12 +961,21 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
         completed_slots,
         &out->completed_interval_totals);
 
-    out->has_yesterday =
-        day_has_samples_until(
-            &s_yesterday,
-            completed_slots);
-
-    if (out->has_yesterday) {
+    if(s_yesterday.valid){
+        /* A teljes 00:00..utolsó lezárt ötperces időszakot vizsgáljuk.
+         * Csak az azonos időpontban mindkét napon mért ablakokból
+         * képezünk összehasonlítást: hiányos adat nem lesz nulla kWh. */
+        app_stats_comparison_result_t match=app_stats_compare_slots(
+            s_today.slots,s_yesterday.slots,completed_slots);
+        out->comparison_today_totals=match.today;
+        out->comparison_yesterday_totals=match.yesterday;
+        out->comparison_paired_slots=match.paired_slots;
+        out->yesterday_comparison_partial=match.partial;
+        /* Késő esti egyetlen véletlen minta nem reprezentatív.
+         * Legalább egy órányi közös adat kell (az első órában egy slot). */
+        unsigned minimum=completed_slots<12?1u:12u;
+        out->has_yesterday=match.paired_slots>0;
+        out->comparison_ready=completed_slots>0&&match.paired_slots>=minimum;
         sum_completed_slots(
             &s_yesterday,
             completed_slots,

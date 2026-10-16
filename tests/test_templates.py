@@ -5,6 +5,7 @@ import copy
 import ctypes as C
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -32,9 +33,104 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     lib.app_templates_load_pending.restype=C.c_bool
     lib.app_templates_view_free.argtypes=[C.c_void_p]
     error=C.create_string_buffer(160)
+    # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
+    # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
+    solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
+    assert solar['version'] >= 13
+    # A tegnapi részleges összevetés tilde (~) jele minden UI-betűben jelen legyen.
+    # Az előző U+2248 (≈) szimbólum hiányzott, ezért üres négyzetet rajzolt LVGL.
+    for size in (12, 14, 16, 18, 20, 22, 28):
+        font = (ROOT/f'main/fonts/app_font_{size}.c').read_text(encoding='utf-8')
+        assert '/* U+007E */' in font, f'missing tilde glyph in {size}px font'
+    assert len(solar['light']['elements']) <= 96
+    for mode in ('dark','light'):
+        elements=solar[mode]['elements']
+        cards=[e for e in elements if e['type']=='box' and e['y']>=650]
+        assert len(cards)==4
+        assert [e['x'] for e in cards]==sorted(e['x'] for e in cards)
+        assert len({(e['y'],e['w'],e['h']) for e in cards})==1
+        assert all(e['h']<=112 and e['y']+e['h']<=800 for e in cards)
+        assert {e['source'] for e in elements if e['type']=='value'} >= {
+            'solar_savings_day','solar_value_today','consumption_today','production_today',
+            'savings_yesterday_pct','production_value_yesterday_pct',
+            'consumption_yesterday_pct',
+            'battery_summary','production_yesterday_pct'}
+        chips=[e for e in elements if e['type']=='box' and e['x']<930 and e['y']<300]
+        assert len(chips)==3 and all(e['h']<=60 and e['opacity']<230 for e in chips)
+        assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
+        discs=[e for e in elements if e['type']=='solar_disc']
+        assert len(discs)==1
+        assert len(discs[0]['day_path'])==31 and len(discs[0]['night_path'])==21
+        # Preserve the approved morning/midday geometry and night path.
+        assert [(p['x'],p['y']) for p in discs[0]['day_path'][:16]]==[
+            (88,401),(92,388),(108,337),(129,296),(161,248),(201,206),
+            (250,166),(306,135),(371,109),(443,96),(476,95),(524,97),
+            (597,112),(669,144),(726,181),(766,220)]
+        tail=discs[0]['day_path'][16:]
+        assert all(b['y']-a['y']<=16 for a,b in zip(tail,tail[1:]))
+        assert not any(e['type']=='solar_arc' for e in elements)
+        assert all(e['dot_size']<=6 for e in elements if e['type']=='flow')
+        assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2
+        flow_nodes=[e for e in elements if e['type']=='flow']
+        assert len(flow_nodes)==3
+        assert all(e['radius']==3 and e['active_opacity']==250 and
+                   e['inactive_opacity']==184 and e['inactive_glow_opacity']==28 for e in flow_nodes)
+        assert all(e['inactive_opacity']<e['active_opacity']-50 for e in flow_nodes)
+        battery_flow=next(e for e in flow_nodes if e['source']=='battery')
+        assert battery_flow['curve']=='polyline' and battery_flow['reverse']
+        assert battery_flow['x']==1016 and battery_flow['y']==472
+        assert battery_flow['points']==[{'x':0,'y':1},{'x':22,'y':1},{'x':22,'y':88}]
+        pv_icon=next(e for e in elements if e['type']=='image' and e.get('file')=='pv.png')
+        home_icon=next(e for e in elements if e['type']=='image' and e.get('file')=='home.png')
+        start_x=battery_flow['x']+battery_flow['points'][0]['x']
+        corner_x=battery_flow['x']+battery_flow['points'][1]['x']
+        assert start_x==pv_icon['x']+pv_icon['w']+4
+        assert start_x<corner_x<home_icon['x']
+        assert battery_flow['points'][0]['y']==battery_flow['points'][1]['y']
+        assert battery_flow['points'][1]['x']==battery_flow['points'][2]['x']
+        assert battery_flow['y']+battery_flow['points'][-1]['y']==560
+        assert battery_flow['positive_color']!=battery_flow['negative_color']
+        sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
+        sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
+        assert sunrise['x']==7 and sunrise['x']+sunrise['w']<170
+        assert sunset['x']==821 and sunset['x']+sunset['w']<936
+        therm=next(e for e in elements if e['type']=='image' and e.get('file')=='battery_temp.png')
+        band=next(e for e in elements if e['type']=='box' and e['x']==951 and e['y']==562)
+        separators=[e for e in elements if e['type']=='box' and e.get('w')==2 and e.get('h')==4 and
+                    e.get('background')==band['outline_color']]
+        assert len(separators)==7
+        assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
+        assert len(elements)==94
+        power=next(e for e in elements if e.get('type')=='value' and e.get('source')=='battery')
+        assert power['font']==12 and power['x']==1093 and power['w']==51
+        assert power['positive_color']!=power['negative_color']
+        bar=next(e for e in elements if e['type']=='bar' and e['source']=='soc')
+        assert (band['x'],band['y'],band['w'],band['h'])==(951,562,307,78)
+        assert bar['y']>=626 and bar['y']+bar['h']<band['y']+band['h']
+        assert bar['outline_color'] and bar['background']
+        assert bar['x']==1012 and bar['w']==129 and bar['h']==6 and bar['soc_four_bands']
+        for source,label in (('pv','Napelem'),('home','Háztartás'),('grid','grid_direction')):
+            value=next(e for e in elements if e['type']=='value' and e['source']==source)
+            caption=next(e for e in elements if e.get('text')==label or e.get('source')==label)
+            assert value['x']*2+value['w']==caption['x']*2+caption['w']
+            assert caption['align']=='center'
+        assert not any(e.get('source') in ('export_today','export_yesterday_pct') for e in elements)
+        assert next(e for e in elements if e['type']=='image' and e['x']==978)['file']=='pv.png'
+        assert any(e.get('text')=='Háztartásban elhasznált energia' for e in elements)
+        assert any(e.get('text')=='Napelemekből nyert energia' for e in elements)
+        assert any(e.get('text')=='Helyben elhasznált és tárolt' for e in elements)
+        assert any(e.get('text')=='Hálózatba visszatáplált' for e in elements)
+        assert {e.get('background') for e in elements if e['type']=='box' and e['w']==e['h']==6}=={'#23B779','#FFCB35'}
+        for caption_x,source in [(33,'savings_yesterday_pct'),(348,'production_value_yesterday_pct'),(663,'consumption_yesterday_pct'),(978,'production_yesterday_pct')]:
+            compare=next(e for e in elements if e.get('source')==source and e['y']>700)
+            caption=next(e for e in elements if e['type']=='label' and e['x']==caption_x and e['y']>740)
+            assert caption['y']==compare['y'] and caption['x']+caption['w']<compare['x']
+    # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
+    geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
+    assert geometric(solar['light'])==geometric(solar['dark'])
     for package in sorted((ROOT/'templates').iterdir()):
         assert lib.app_templates_validate(os.fsencode(package),None,error), (package.name,error.value)
-    print('PASS: all 8 packages, both themes, references, PNG CRC/decompression and bounds')
+    print('PASS: all installed packages, both themes, references, PNG CRC/decompression and bounds')
     builtin={hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/'main/assets/png').glob('*.png')}
     seen=set()
     for package in sorted((ROOT/'templates').iterdir()):
@@ -51,15 +147,31 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         return set()
     for package in (ROOT/'templates').iterdir():
         if (package/'template.json').is_file():
-            refs = referenced(json.loads((package/'template.json').read_text()))
+            refs = referenced(json.loads((package/'template.json').read_text())) | {'preview-light.png','preview-dark.png'}
             assert {p.name for p in package.glob('*.png')} == refs, package.name
+    header=(ROOT/'main/app_builtin_previews.h').read_text()
+    builtin_bytes=0
+    for mode in ('light','dark'):
+        data=(ROOT/f'assets/previews/builtin-{mode}.png').read_bytes();builtin_bytes+=len(data)
+        assert int.from_bytes(data[16:20],'big')==240 and int.from_bytes(data[20:24],'big')==150
+        array=header.split(f'app_builtin_preview_{mode}[] = {{',1)[1].split('};',1)[0]
+        assert bytes(int(x,16) for x in re.findall(r'0x([0-9a-f]{2})',array))==data
+    assert builtin_bytes<=32*1024
     manifest = json.loads((ROOT/'assets/template-manifest.json').read_text())
-    assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')}
-    for item in manifest:
-        assert hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest() == item['sha256']
+    assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')} | {p.relative_to(ROOT).as_posix() for p in (ROOT/'assets/previews').glob('builtin-*.png')}
+    mismatched={
+        item['asset']:hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest()
+        for item in manifest
+        if hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest()!=item['sha256']
+    }
+    assert not mismatched, f'Outdated template-manifest.json SHA256 entries: {json.dumps(mismatched,ensure_ascii=False)}'
     print('PASS: generated template icons, no copied builtin assets')
     sd=tmp/'sd';sd.mkdir();os.environ['ZOLEE_TEMPLATE_ROOT']=str(sd)
     assert lib.app_templates_init()==0
+    lib.app_templates_step_available.argtypes=[C.c_int,C.c_bool]
+    # Nincs napelemes pozícióadat: az új téma átugrandó. A közös
+    # függvény működése üres és normál katalógus mellett is biztonságos.
+    lib.app_templates_step_available(1, False)
     def active():
         name=C.create_string_buffer(33);n=lib.app_templates_list(None,16,name)
         return n,name.value.decode()
@@ -72,6 +184,18 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     empty=dict(background='#FFFFFF',elements=[])
     doc=dict(schema=1,id='test-layout',name='Test',version=1,light=empty,dark=empty)
     good=archive('good',doc)
+    # Régi csomag elfogadott, de új előnézet csak teljes, érvényes képpár lehet.
+    preview_dir=tmp/'preview-validation';preview_dir.mkdir()
+    (preview_dir/'template.json').write_text(json.dumps(doc))
+    assert lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    preview_png=(ROOT/'main/assets/png/flow_house.png').read_bytes()
+    (preview_dir/'preview-light.png').write_bytes(preview_png)
+    assert not lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    (preview_dir/'preview-dark.png').write_bytes(preview_png)
+    assert lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    corrupted=bytearray(preview_png);corrupted[80]^=1
+    (preview_dir/'preview-dark.png').write_bytes(corrupted)
+    assert not lib.app_templates_validate(os.fsencode(preview_dir),None,error)
     report=C.c_void_p();before=active()
     assert lib.app_templates_probe(os.fsencode(good),C.byref(report),error)==0,error.value
     assert report.value and active()==before and not (sd/'test-layout').exists() and not (sd/'.check').exists()
@@ -101,7 +225,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     broken=archive('broken',dict(updated,schema=99))
     assert lib.app_templates_install(os.fsencode(broken),error)!=0
     assert json.loads((sd/'test-layout/template.json').read_text())['version']==2
-    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true')]:
+    for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true'),('shadow_color','invalid'),('foreground',True)]:
         bad=copy.deepcopy(doc);bad['id']='invalid'
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
         element[field]=value;bad['light']['elements']=[element]

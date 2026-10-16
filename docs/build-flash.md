@@ -56,14 +56,14 @@ idf.py -p COM5 flash monitor
 
 ## GitHub Actions firmware
 
-A `main` ág minden kódmódosításakor ESP-IDF 5.5.4 build fut.
+A `main` ág pushainál és az oda nyitott PR-eknél ESP-IDF 5.5.4 build fut.
 
 Sikeres build után artifactként elérhetők:
 
-- alkalmazás bináris
-- bootloader
-- partíciós tábla
-- flasher_args.json
+- `firmware-packages-…`: OTA bináris, teljes USB ZIP, build-info és SHA256SUMS; az USB ZIP tartalmazza a bootloadert, partíciós táblát és flasher_args.json-t is
+- `template-packages-…`: mind a kilenc sablon külön ZIP-je, mentett előnézetekkel
+- `ui-preview-…`: valódi LVGL-kijelzőképek
+- külön Windows-szimulátor artifact
 
 A normál fejlesztői telepítéshez továbbra is az `idf.py flash` használata javasolt, mert automatikusan a megfelelő címekre írja az összes szükséges binárist.
 

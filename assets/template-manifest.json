@@ -1,11 +1,31 @@
 [
   {
+    "asset": "assets/previews/builtin-dark.png",
+    "sha256": "e6b08960658085d884b0d2a120207c6915ed191477f9ebfbd5af8255caf23aa7",
+    "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
+  },
+  {
+    "asset": "assets/previews/builtin-light.png",
+    "sha256": "289fc9424fcdb4b6ab33668525b6b4b05e5a648da18765b877caefb83765d3fd",
+    "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
+  },
+  {
     "asset": "templates/01-live-home/day.png",
     "sha256": "9641df8bc70cafff3876d883e3c05d1666d5ffc9306656570343fd76bfe23d99"
   },
   {
     "asset": "templates/01-live-home/night.png",
     "sha256": "ea39da5a35eced203b39e50b885a9221722e80971045cd0ffb2c8d0a2102fb74"
+  },
+  {
+    "asset": "templates/01-live-home/preview-dark.png",
+    "sha256": "b07b5e373ee1f884c3761a9ded10012b030566b1d9327cec6270474ce0783415",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/01-live-home/preview-light.png",
+    "sha256": "112079ebe0046ef747aef26b143cfb0cf0962dd1c3686e7f3fee644b1f211a9e",
+    "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/01-live-home/weather_cloudy.png",
@@ -99,6 +119,16 @@
     "original_sha256": "73c220644954223611ce2743bf2e4063dbc1295f7a87384cbe3dd1ee8ce903ad"
   },
   {
+    "asset": "templates/02-energy-paths/preview-dark.png",
+    "sha256": "712e3b3dcbb78984d4f7d043deaef496931da4c38754f8598ba3b6939d1abc8d",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/02-energy-paths/preview-light.png",
+    "sha256": "41fad44cfa43514d33c95e4019e875d71ef5aa71f56d89d529ecf43fc80f8e6f",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
     "asset": "templates/02-energy-paths/weather_cloudy.png",
     "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
     "generator": "built-in image_gen",
@@ -183,6 +213,16 @@
     "original_sha256": "e963032b1c6ebd88621cc77f2299a3d812117ee1b0718c4eb926f58577dcd9d6"
   },
   {
+    "asset": "templates/03-instruments/preview-dark.png",
+    "sha256": "ad1a294aed97106c98f58d9b88b48f509feb139b8f9d46b8c1cd882a8ca41aae",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/03-instruments/preview-light.png",
+    "sha256": "01d227f0ee3c0c69e7036ca4b047265008f170ec5883549f31eedd2e4133d7a5",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
     "asset": "templates/04-daily-balance/flow_house.png",
     "sha256": "b16cef6771b891fc338f7191ab454b6434b46a068d0553de580e11fee4d396b0",
     "generator": "built-in image_gen",
@@ -195,6 +235,16 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: stylized-concept. Asset type: single energy monitor UI icon. Subject: a pair of photovoltaic panels tilted on a short support, clearly visible grid of solar cells. Style: editorial layered paper illustration with fine embossed details and restrained coral, sage and azure, refined tactile paper craft. Palette: green solar accent. One isolated richly detailed object centered, fully visible, occupies 80% of square canvas. Readable silhouette at 128px. Transparent background with actual alpha. No circular surround, no tile, no border, no labels, no text, no other icons. Exclusive icon style for 04-daily-balance.",
     "original_sha256": "837b62e0d7d717ce43046622f4b70bb999366189b9116bf638ada0044fedd66c"
+  },
+  {
+    "asset": "templates/04-daily-balance/preview-dark.png",
+    "sha256": "01e97c50be09d6e10afe395103b87eb8cea7c8636b94714ccd4123ff91da2e17",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/04-daily-balance/preview-light.png",
+    "sha256": "197fc819ced19e4792c13917e6c41f3a7d5c33733150d102d663ff5b546177e0",
+    "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/05-calm-home/flow_battery.png",
@@ -223,6 +273,16 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single realistic detailed array of blue photovoltaic solar panels on silver mounting supports, subtle isometric view, realistic reflective cells, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
     "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
+  },
+  {
+    "asset": "templates/05-calm-home/preview-dark.png",
+    "sha256": "cc88af3f81df02d75dbc19b55d9bb91c40b03061ade90285657a4127cf6a8626",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/05-calm-home/preview-light.png",
+    "sha256": "dcb4fb343ab068dcc2a7684595f2cb18c51c6cb8cc39c0814845ff829767fbb2",
+    "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/05-calm-home/weather_cloudy.png",
@@ -295,6 +355,16 @@
     "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
   },
   {
+    "asset": "templates/06-energy-orbit/preview-dark.png",
+    "sha256": "d6b3b3c4d4c254cd326e0ecf38532496f488cbd72e6775525fc105b2ced399d5",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/06-energy-orbit/preview-light.png",
+    "sha256": "efd227ef9ff0199644bac7c817becf09141c1fb68a6980cf1fae027ebe4b1477",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
     "asset": "templates/07-energy-ledger/background-day.png",
     "sha256": "08bac6b817d0dee8cfd2a4735946727cc1a6b30d4f99b667b9dcd1891003c279",
     "generator": "built-in image_gen",
@@ -335,6 +405,16 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single realistic detailed array of blue photovoltaic solar panels on silver mounting supports, subtle isometric view, realistic reflective cells, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
     "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
+  },
+  {
+    "asset": "templates/07-energy-ledger/preview-dark.png",
+    "sha256": "325cb10f84e4c678f041c44ef0311fe31525783a667bd586e5a51df3d7ec1a36",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/07-energy-ledger/preview-light.png",
+    "sha256": "f4bcbade3976b4cb513c1178b641d11a31cedffecb6ee9f1283969c74d5fe70d",
+    "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/07-energy-ledger/weather_cloudy.png",
@@ -379,6 +459,16 @@
     "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
   },
   {
+    "asset": "templates/08-statistics/preview-dark.png",
+    "sha256": "c1293715cdd94e75c633c0b1659d42408f79b78e0445e77015f335ca9393f151",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/08-statistics/preview-light.png",
+    "sha256": "50a263b2e8940e3893de8de43e3cc4df0ac8cfb4cef047fc6d38dec29802576f",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
     "asset": "templates/08-statistics/weather_cloudy.png",
     "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
     "generator": "built-in image_gen",
@@ -419,5 +509,108 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: warm golden sun with softly detailed luminous rays. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
+  },
+  {
+    "asset": "templates/09-solar-journey/battery.png",
+    "sha256": "32e76d72240190fecffe5c5b0f6b4294deba1bfc0e1b6ecd9a1323a59be8c2f7"
+  },
+  {
+    "asset": "templates/09-solar-journey/battery_temp.png",
+    "sha256": "f0c30208d73351e1945b81fe28a5aa49da11022d66c3b47dc514c40adbb8f168"
+  },
+  {
+    "asset": "templates/09-solar-journey/coins.png",
+    "sha256": "85d2c1ff293ebb94ae13194bec036ed82b08caaf6064ae3909e838273b94b9c0"
+  },
+  {
+    "asset": "templates/09-solar-journey/consumption_bars.png",
+    "sha256": "3e42a555b2edf50e44c4318885ddc470720fadd65d92fe326b1cf428d7a88c50"
+  },
+  {
+    "asset": "templates/09-solar-journey/day.png",
+    "sha256": "89ff43e42344da792e6c4cecca6af0ffa6e68e961c014108287ab0b5f590072a"
+  },
+  {
+    "asset": "templates/09-solar-journey/eco_leaf.png",
+    "sha256": "e29b58b82a2d9cf333bcebf0a360800873458087f2e3efc9927c97b1bed88e20"
+  },
+  {
+    "asset": "templates/09-solar-journey/eco_tree.png",
+    "sha256": "fe099157cb4fe35a7e195c4a49645016485f7c0b9496d83c7ca7734c017701da"
+  },
+  {
+    "asset": "templates/09-solar-journey/grid.png",
+    "sha256": "857c3de764db47c8df6edc4cbd9d9b5a0a830b4364fe0e453e7a5fbb2470be72"
+  },
+  {
+    "asset": "templates/09-solar-journey/home.png",
+    "sha256": "7519dcbfc20480a7703350568e67d6042d71708585ea4326b541f3333766e0e2"
+  },
+  {
+    "asset": "templates/09-solar-journey/lightning.png",
+    "sha256": "9f9d206d7dac2c1a525706550f550e943874bb059a1f04f3179140085c53fe38"
+  },
+  {
+    "asset": "templates/09-solar-journey/night.png",
+    "sha256": "43aeb6beb8398e01bce687632015652f901034df43b08443e18a979987299a1d"
+  },
+  {
+    "asset": "templates/09-solar-journey/preview-dark.png",
+    "sha256": "c455113882403d37f13334087bc517208fbabe1b6981aab313c126e5f92bef80",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/09-solar-journey/preview-light.png",
+    "sha256": "a32fe0b9e105a9d6c44ab7e1a6586628a06d05bbb5dd8b72ee07a8e98f2d7f47",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/09-solar-journey/production_bars.png",
+    "sha256": "a1b6964339ba211e0fda06767a864945bd4abd1efaa9356e08a1507b4a5a7594"
+  },
+  {
+    "asset": "templates/09-solar-journey/production_bars_green.png",
+    "sha256": "58aab9237a9febc14d0f5828e94c3d8c0e5bc2302e15810d54d27990111a3f36",
+    "generator": "User supplied artwork"
+  },
+  {
+    "asset": "templates/09-solar-journey/pv.png",
+    "sha256": "f905b4a3eed36eb15a3f78f2401562d900b26738766fd398a67644e5adfab438"
+  },
+  {
+    "asset": "templates/09-solar-journey/solar_day.png",
+    "sha256": "f7abf70a5b82296d8d88f337391f787245d9578452e213887a5e80be8530c2a7"
+  },
+  {
+    "asset": "templates/09-solar-journey/solar_night.png",
+    "sha256": "fbcecfed37a5be292cd3ce5c2128ac3d16e84762ca7005302f4d0aa925f10ca8"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_cloudy.png",
+    "sha256": "153792083207b33185ecd883354dd1784b0e1a3078fa1a04536447f2bdc374fb"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_moon.png",
+    "sha256": "a900054074b0be04dfa85d7814eccef0511634917b4f77c829faade8ca55e0c0"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_partly_cloudy.png",
+    "sha256": "52ab2ba2ed3b0bc1ac82a6420d31aa3fb3ab2eabec53b2c31bbf57c419634dbb"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_rain.png",
+    "sha256": "521486279f0a9f67960ed412c54b303e947748af2e013af86bf4862078f1ee27"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_snow.png",
+    "sha256": "5e6f040071e9b5a619fbf082f20f5d272b6b313dfbd0e577d106639042125ea5"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_sunny.png",
+    "sha256": "8d48e5837201b51356607c3f9d3e79f9f863e3ee1440de64f15aab2655e250bb"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_wind.png",
+    "sha256": "eb05e181e9cc19b7c5b3f7d69d3ea4244859f0eecda8365e78b3f78d666cb9bb"
   }
 ]

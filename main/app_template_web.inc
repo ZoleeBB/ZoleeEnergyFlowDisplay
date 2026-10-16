@@ -1,4 +1,5 @@
 #include "app_template_page.h"
+#include "app_builtin_previews.h"
 /* Az OTA szerver része: ugyanaz a hitelesítés, nincs külön vagy nyilvános admin végpont. */
 static bool template_request_authorized(httpd_req_t *req,bool write){
     if(!authorize(req))return false;
@@ -19,7 +20,7 @@ static esp_err_t template_list_get(httpd_req_t *req){
     app_template_info_t list[APP_TEMPLATE_MAX];char active[33]="builtin";unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);
     cJSON *root=cJSON_CreateObject();if(!root)return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(root,"active",active);cJSON *array=cJSON_AddArrayToObject(root,"templates");
-    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddItemToArray(array,item);}
+    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddNumberToObject(item,"version",list[i].version);cJSON_AddItemToArray(array,item);}
     char *json=cJSON_PrintUnformatted(root);cJSON_Delete(root);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }
@@ -32,7 +33,7 @@ static bool template_query_id(const httpd_req_t *req,char id[33]){
     size_t n=last?(size_t)(last-first):strlen(first);
     if(n==0||n>32)return false;
     memcpy(id,first,n);id[n]=0;
-    return app_templates_safe_id(id);
+    return !strcmp(id,"builtin")||app_templates_safe_id(id);
 }
 static esp_err_t template_manifest_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
@@ -48,25 +49,27 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
     char id[33];if(!template_query_id(req,id))
         return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Érvénytelen sablonazonosító");
-    /* Elsőként külön thumbnailt, utána a gyári témák meglévő
-     * nappali/éjszakai háttérképét mutatjuk; a többit a böngésző
-     * a JSON elrendezés alapján rajzolja. Nincs tetszőleges fájlnév. */
+    /* Kizárólag a mentett LVGL-előnézet: régi csomagnál 404 és üres keret.
+     * Nincs nagy háttérkép vagy pontatlan böngészős rajz tartalékként. */
     bool dark=strstr(req->uri,"&mode=dark")!=NULL;
-    const char *candidates[3]={
-        dark?"preview-dark.png":"preview-light.png",
-        dark?"night.png":"day.png",
-        dark?"background-night.png":"background-day.png"
-    };
-    char *manifest=app_templates_manifest_json(id);
-    if(!manifest)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
-    free(manifest);
+    if(!strcmp(id,"builtin")){
+        const unsigned char *png=dark?app_builtin_preview_dark:app_builtin_preview_light;
+        size_t size=dark?sizeof(app_builtin_preview_dark):sizeof(app_builtin_preview_light);
+        httpd_resp_set_type(req,"image/png");
+        httpd_resp_set_hdr(req,"Cache-Control","private, no-cache");
+        esp_err_t result=httpd_resp_send_chunk(req,(const char *)png,size);
+        return result==ESP_OK?httpd_resp_send_chunk(req,NULL,0):result;
+    }
+    const char *filename=dark?"preview-dark.png":"preview-light.png";
+    app_template_info_t list[APP_TEMPLATE_MAX];unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,NULL);
+    bool known=false;for(unsigned i=1;i<count;i++)if(!strcmp(list[i].id,id))known=true;
+    if(!known)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
     if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD nem elérhető");
     char path[256];FILE *f=NULL;long size=0;
-    for(unsigned i=0;i<3;i++){
-        snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,candidates[i]);
-        f=fopen(path,"rb");if(!f)continue;
-        if(fseek(f,0,SEEK_END)==0 && (size=ftell(f))>0 &&
-           size<=2*1024*1024 && fseek(f,0,SEEK_SET)==0)break;
+    snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,filename);
+    f=fopen(path,"rb");
+    if(f && (fseek(f,0,SEEK_END)!=0 || (size=ftell(f))<=0 ||
+             size>APP_TEMPLATE_PNG_MAX || fseek(f,0,SEEK_SET)!=0)){
         fclose(f);f=NULL;
     }
     if(!f){
@@ -74,7 +77,7 @@ static esp_err_t template_preview_get(httpd_req_t *req){
         return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Nincs előnézeti kép");
     }
     httpd_resp_set_type(req,"image/png");
-    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    httpd_resp_set_hdr(req,"Cache-Control","private, max-age=3600");
     char data[1024];esp_err_t result=ESP_OK;size_t n;
     while((n=fread(data,1,sizeof(data),f))>0){
         if(httpd_resp_send_chunk(req,data,n)!=ESP_OK){result=ESP_FAIL;break;}
@@ -115,6 +118,21 @@ static esp_err_t template_upload(httpd_req_t *req){
     }
     return httpd_resp_sendstr(req,"A sablon telepítése vagy frissítése sikeres");
 }
+static esp_err_t template_reorder_post(httpd_req_t *req){
+    if(!template_request_authorized(req,true))return ESP_OK;
+    if(req->content_len<2||req->content_len>2048)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Hibás sorrend");
+    char input[2049];size_t received=0;
+    while(received<(size_t)req->content_len){
+        int n=httpd_req_recv(req,input+received,req->content_len-received);
+        if(n<=0)return httpd_resp_send_err(req,HTTPD_408_REQ_TIMEOUT,"Kérés időtúllépés");
+        received+=(size_t)n;
+    }
+    input[received]=0;
+    cJSON *ids=cJSON_Parse(input);char error[160]="Érvénytelen sorrend";
+    esp_err_t result=app_templates_reorder(ids,error);cJSON_Delete(ids);
+    if(result!=ESP_OK)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,error);
+    return httpd_resp_sendstr(req,"Sorrend mentve");
+}
 static esp_err_t template_register(httpd_handle_t server){
     const httpd_uri_t routes[]={
         {.uri="/templates",.method=HTTP_GET,.handler=template_page},
@@ -122,6 +140,7 @@ static esp_err_t template_register(httpd_handle_t server){
         {.uri="/api/templates/manifest",.method=HTTP_GET,.handler=template_manifest_get},
         {.uri="/api/templates/preview",.method=HTTP_GET,.handler=template_preview_get},
         {.uri="/api/templates/select",.method=HTTP_POST,.handler=template_change},
+        {.uri="/api/templates/reorder",.method=HTTP_POST,.handler=template_reorder_post},
         {.uri="/api/templates/delete",.method=HTTP_POST,.handler=template_change},
         {.uri="/api/templates/validate",.method=HTTP_POST,.handler=template_upload},
         {.uri="/api/templates/install",.method=HTTP_POST,.handler=template_upload}};

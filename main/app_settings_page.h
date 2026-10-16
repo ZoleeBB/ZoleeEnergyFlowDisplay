@@ -22,7 +22,7 @@ static const char app_settings_page[] =
 "['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer']]],\n"
 "['Statisztika', [['statistics.save_interval_minutes','Mentési időköz (perc, maximum 15)','integer'],['statistics.max_integration_gap_seconds','Maximális mintaköz (másodperc)','integer']]],\n"
 "['Energia és költség',[\n"
-"['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],\n"
+"['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],\n"
 "['energy.co2_factor_kg_per_kwh','CO₂ tényező (kg/kWh)','number'],['energy.tree_absorption_kg_per_year','Fa elnyelés (kg/év)','number']]],\n"
 "['Webes hozzáférés', [['ota.username','Adminisztrátori felhasználónév'],['ota.password','Adminisztrátori jelszó','secret']]]];\n"
 "const form=document.getElementById('settings'),holder=document.getElementById('fields'),message=document.getElementById('message'),save=document.getElementById('save');\n"
@@ -69,5 +69,4 @@ static const char app_settings_page[] =
 " }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}\n"
 "});\n"
 "load();\n"
-"</script></body></html>\n"
-"\n";
+"</script></body></html>\n";

@@ -4,7 +4,7 @@
 
 ## Adatút
 
-A Program blokk I1–I12 bemeneteiből a Pico C program öt másodpercenként teljes JSON body-t készít. A Txt1 kimenetet a HTTP virtuális kimeneti parancshoz kell kötni. A Miniserver közvetlenül a kijelzőnek küldi a POST-kérést; MQTT broker és közvetítő nem szükséges.
+A Program blokk I1–I13 numerikus és opcionális T1 szöveges bemenetéből a Pico C program öt másodpercenként teljes JSON body-t készít. A Txt1 kimenetet a HTTP virtuális kimeneti parancshoz kell kötni. A Miniserver közvetlenül a kijelzőnek küldi a POST-kérést; MQTT broker és közvetítő nem szükséges.
 
 Minta: [loxone-energy-http-post.picoc](../examples/loxone-energy-http-post.picoc).
 
@@ -27,6 +27,9 @@ Az adatfogadáshoz **nem kell felhasználónév, jelszó vagy API-kulcs**, akkor
 
 ## Program blokk bemenetek
 
+A bemenetek száma összesen **14**, de ez `I1`–`I13` és `T1`, nem `I1`–`I14`. A legfelső T1 szövegbemenet adja a `SunPosition` karakterláncot.
+
+
 | Bemenet | Mező | Egység/jelentés |
 |---|---|---|
 | I1 | PowerGrid | kW; pozitív vételezés, negatív visszatáplálás |
@@ -41,6 +44,9 @@ Az adatfogadáshoz **nem kell felhasználónév, jelszó vagy API-kulcs**, akkor
 | I10 | Status | 1: normál; 2: felkészülés; 3: szigetüzem; 4: hiba |
 | I11 | NightMode | 0/1 |
 | I12 | BatteryTemperature | °C |
+| I13 | WeatherPresent | 0–15, időjárási jelenlétmaszk |
+| **14. bemenet: T1** | **SunPosition** | `azimut#magasság#napkeltePerc#napnyugtaPerc`, opcionális |
+
 
 A scriptbe egyetlen Program blokkon belül másold be a mintafájlt. A Txt1 a JSON-t, az Etxt a Pico C értelmező hibaüzenetét adja. Az I/O-indexek a kódban nullától indulnak, ezért I1 = `getinput(0)`.
 
@@ -120,3 +126,11 @@ Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp
 A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+## Opcionális napadatok HTTP módban
+
+A T1-re csatlakoztatott összefűzött szöveg formátuma az MQTT-módéval **azonos**.
+Például `327.445#-46.562#420#1077`. A Pico C minta ezt a JSON
+`SunPosition` mezőjébe illeszti, üres bemenetre `null`-t ír.
+A webes / HTTP adatfogadó és az MQTT ugyanazt az ellenőrző rutint használja.
+A teljes bemenetkiosztást a [Loxone útmutató](loxone.md) is tartalmazza.

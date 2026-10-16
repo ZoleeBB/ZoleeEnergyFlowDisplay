@@ -25,6 +25,9 @@
 // Pico C nem jelzi a bekötöttséget: a maszkot a Configban kell beállítani.
 // Bekötetlen I13 (0): mind a négy időjárási mező null.
 //
+// 14. logikai bemenet: T1 (elso szoveges bemenet, nem I14).
+// T1 SunPosition: azimut#magassag#napkeltePerc#napnyugtaPerc (opcionalis).
+// Pelda: 327.445#-46.562#420#1077. Hiany eseten JSON null.
 // Txt1 kimenet: 5 másodpercenként egy teljes JSON dokumentum.
 //
 // FONTOS: a Loxone Pico C értelmező nem kezeli megbízhatóan az egymás mellé
@@ -65,6 +68,32 @@ while (TRUE)
         weatherPresent = weatherPresentInput;
         if (weatherPresentInput != weatherPresent) weatherPresent = 0;
     }
+    // 14. logikai bemenet: T1 (elso SZOVEGES bemenet, nem I14).
+    // getinputtext(0) dinamikusan foglalt szoveget ad; hasznalat utan free().
+    // Ha nincs bekotve, vagy hibas, a JSON-ban SunPosition:null szerepel.
+    char sunPositionJson[100];
+    sprintf(sunPositionJson, "null");
+    char *solar = getinputtext(0);
+    if (solar != 0)
+    {
+        int length = strlen(solar);
+        if (length > 0 && length < 70)
+        {
+            int hashes = 0;
+            int valid = 1;
+            int i;
+            for (i = 0; i < length; i++)
+            {
+                char ch = solar[i];
+                if (ch == '#') hashes++;
+                else if (!((ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '+'))
+                    valid = 0;
+            }
+            if (hashes == 3 && valid == 1)
+                sprintf(sunPositionJson, "\"%s\"", solar);
+        }
+        free(solar);
+    }
     char temperatureJson[64];
     char windJson[64];
     char sunJson[64];
@@ -86,7 +115,7 @@ while (TRUE)
     // A firmware által elvárt 12 kötelező mezőből egyetlen JSON objektum készül.
     sprintf(
         json,
-        "{%s\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%s,\"WindSpeed\":%s,\"HasSunRadiation\":%s,\"HasPrecipitation\":%s,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f}",
+        "{%s\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%s,\"WindSpeed\":%s,\"HasSunRadiation\":%s,\"HasPrecipitation\":%s,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f,\"SunPosition\":%s}",
         jsonSpace,
         powerGrid,
         powerBat,
@@ -99,7 +128,8 @@ while (TRUE)
         precipitationJson,
         status,
         nightMode,
-        batteryTemperature
+        batteryTemperature,
+        sunPositionJson
     );
 
     // A teljes JSON a Program blokk első szöveges kimenetére kerül.

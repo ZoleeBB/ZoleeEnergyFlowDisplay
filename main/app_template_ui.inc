@@ -12,7 +12,7 @@ LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;
+    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase,charge_phase[2];int gauge_target;bool gauge_initialized;bool legacy_battery_corner;unsigned battery_branches;
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
@@ -78,7 +78,20 @@ static void template_image(lv_obj_t *obj,const char *file,int w,int h){
 static void template_path(template_node_t *node,const cJSON *e){
     lv_point_precise_t control[8];unsigned n=0;const cJSON *pt;
     cJSON_ArrayForEach(pt,cJSON_GetObjectItem(e,"points"))control[n++]=(lv_point_precise_t){tn(pt,"x",0),tn(pt,"y",0)};
-    if(!strcmp(ts(e,"curve"),"bezier")){
+    /* A már SD-re másolt Nap pálya v10 is jó geometriát kapjon
+     * firmware-frissítés után, sablon ZIP-csere nélkül. */
+    if(!strcmp(template_view.id,"09-solar-journey") &&
+       tn(template_view.document,"version",0)<11 &&
+       !strcmp(ts(e,"type"),"flow") &&
+       !strcmp(ts(e,"source"),"battery")){
+        node->legacy_battery_corner=true;
+        /* A régi flow origója x=1036. Abszolút: 1016 -> 1038 -> 1038. */
+        control[0]=(lv_point_precise_t){-20,1};
+        control[1]=(lv_point_precise_t){2,1};
+        control[2]=(lv_point_precise_t){2,88};
+        n=3;
+    }
+    if(!node->legacy_battery_corner && !strcmp(ts(e,"curve"),"bezier")){
         node->points[node->point_count++]=control[0];
         for(unsigned k=0;k+3<n;k+=3)for(unsigned i=1;i<=96;i++){
             float t=i/96.f,u=1.f-t;
@@ -95,6 +108,11 @@ static void template_path(template_node_t *node,const cJSON *e){
 /* A kirajzolt út egyetlen, összefüggő köbös Bézier-stroke; nincsenek
  * egymást fedő, áttetsző rövid szakaszok. A görbe geometria a téma
  * betöltésekor egyszer épül fel, és közös a fényudvarnak és a fővonalnak. */
+static uint32_t template_soc_color(const cJSON *spec,double soc){
+    if(cJSON_IsTrue(cJSON_GetObjectItem(spec,"soc_four_bands")))
+        return soc<30?RED:soc<50?ORANGE:soc<=70?YELLOW:GREEN;
+    return battery_color(soc);
+}
 static void template_flow_draw(lv_event_t *event){
     lv_event_code_t code=lv_event_get_code(event);
     if(code==LV_EVENT_REFR_EXT_DRAW_SIZE){
@@ -125,10 +143,11 @@ static void template_flow_path_create(template_node_t *node){
     node->flow_path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_MEDIUM);
     if(!node->flow_path)return;
     const cJSON *pts=cJSON_GetObjectItem(node->spec,"points");
-    const cJSON *first=cJSON_GetArrayItem(pts,0);
-    lv_fpoint_t origin={(float)tn(first,"x",0),(float)tn(first,"y",0)};
+    /* Ugyanaz a valódi kezdőpont a vektoros rajzban és a mozgó pontoknál,
+     * beleértve a régi SD-sablon helyreállított akkumulátorútját is. */
+    lv_fpoint_t origin={(float)node->points[0].x,(float)node->points[0].y};
     lv_vector_path_move_to(node->flow_path,&origin);
-    if(!strcmp(ts(node->spec,"curve"),"bezier")){
+    if(!node->legacy_battery_corner && !strcmp(ts(node->spec,"curve"),"bezier")){
         unsigned count=cJSON_GetArraySize(pts);
         for(unsigned i=1;i+2<count;i+=3){
             lv_fpoint_t p[3];
@@ -175,8 +194,12 @@ static void template_flow_tone(template_node_t *node,uint32_t color,bool active)
     const bool thick=tn(node->spec,"radius",3)>=16;
     /* Inaktív útvonal: a szín felismerhető marad (28–34% opacity),
      * de az aktív, változatlan 70–78%-os stroke lényegesen erősebb. */
-    const int main_opacity=thick?(active?178:72):(active?200:86);
-    const int glow_opacity=active?37:16;
+    /* Egyes sablonok világosabb inaktív útvonalat igényelnek, a többi
+     * megjelenítés változatlan alapértékeket használ. */
+    const int main_opacity=active?
+        tn(node->spec,"active_opacity",thick?178:200):
+        tn(node->spec,"inactive_opacity",thick?72:86);
+    const int glow_opacity=active?37:tn(node->spec,"inactive_glow_opacity",16);
     if(node->obj){
         style_color_if_changed(node->obj,LV_STYLE_LINE_COLOR,c(color),0);
         style_number_if_changed(node->obj,LV_STYLE_LINE_OPA,main_opacity,0);
@@ -190,6 +213,13 @@ static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
 #define V(key,value) if(!strcmp(source,key))return value
+    V("solar_savings_day",(st->totals.pv_home_kwh+st->totals.pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+st->totals.grid_export_kwh*s_cfg.energy.feed_in_price);
+    V("solar_value_today",st->totals.production_kwh*s_cfg.energy.electricity_purchase_price);
+    V("battery_summary",s_cfg.energy.battery_capacity_kwh);
+    V("battery_capacity",s_cfg.energy.battery_capacity_kwh);
+    V("battery_energy",s_cfg.energy.battery_capacity_kwh>0?s_cfg.energy.battery_capacity_kwh*s->soc_bat_pct/100.:0);
+    V("sun_azimuth",s->sun_azimuth_deg);V("sun_altitude",s->sun_altitude_deg);
+    V("sunrise",s->sunrise_minute);V("sunset",s->sunset_minute);
     V("pv",s->power_pv_kw);V("home",s->power_full_kw);V("grid",s->power_grid_kw);V("battery",s->power_bat_kw);
     V("soc",s->soc_bat_pct);V("battery_temp",s->battery_temperature_c);V("temperature",s->temperature_c);V("wind",s->wind_speed_kmh);
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
@@ -216,17 +246,72 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 }
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
+    if(!strcmp(source,"weather_label")){
+        static const char *const hu_weather[]={"Derült égbolt","Változóan felhős","Felhős","Eső","Havazás","Éjszaka"};
+        static const char *const en_weather[]={"Sunny","Partly cloudy","Cloudy","Rain","Snow","Night"};
+        int kind=(int)weather_kind(s);
+        if(!weather_available(s)||kind<0||kind>=6)snprintf(out,128,"%s",tr("Nincs időjárásadat","No weather data"));
+        else snprintf(out,128,"%s",hu()?hu_weather[kind]:en_weather[kind]);
+        return;
+    }
+    if(!strcmp(source,"battery_summary")){
+        double cap=s_cfg.energy.battery_capacity_kwh;
+        if(cap<=0){snprintf(out,128,"—");return;}
+        char energy[24],capacity[24];
+        fmt_dec(energy,sizeof(energy),cap*s->soc_bat_pct/100.,1);
+        fmt_dec(capacity,sizeof(capacity),cap,cap==floor(cap)?0:1);
+        snprintf(out,128,"%s / %s kWh",energy,capacity);
+        return;
+    }
+    if(strstr(source,"_yesterday_pct")){
+        const app_energy_totals_t *today=&st->comparison_today_totals;
+        const app_energy_totals_t *yesterday=&st->comparison_yesterday_totals;
+        if(!st->comparison_ready){snprintf(out,128,"—");return;}
+        /* Két nap kizárólag azonos, ténylegesen megmért ötperces
+         * időablakaiból; a hiányos lefedettséget ~ jelöli. */
+        double t=0,y=0;
+        if(!strcmp(source,"production_yesterday_pct")){t=today->production_kwh;y=yesterday->production_kwh;}
+        else if(!strcmp(source,"production_value_yesterday_pct")){
+            t=today->production_kwh*s_cfg.energy.electricity_purchase_price;
+            y=yesterday->production_kwh*s_cfg.energy.electricity_purchase_price;
+        }else if(!strcmp(source,"consumption_yesterday_pct")){t=today->consumption_kwh;y=yesterday->consumption_kwh;}
+        else if(!strcmp(source,"export_yesterday_pct")){t=today->grid_export_kwh;y=yesterday->grid_export_kwh;}
+        else if(!strcmp(source,"savings_yesterday_pct")){
+            t=(today->pv_home_kwh+today->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+today->grid_export_kwh*s_cfg.energy.feed_in_price;
+            y=(yesterday->pv_home_kwh+yesterday->pv_stored_kwh)*s_cfg.energy.electricity_purchase_price+yesterday->grid_export_kwh*s_cfg.energy.feed_in_price;
+        }
+        fmt_compared(out,128,t,y,st->yesterday_comparison_partial);
+        return;
+    }
+    if(!strcmp(source,"sun_direction")){
+        static const char *const hu_dirs[]={"É","ÉK","K","DK","D","DNy","Ny","ÉNy"};
+        static const char *const en_dirs[]={"N","NE","E","SE","S","SW","W","NW"};
+        int index=(int)floor((s->sun_azimuth_deg+22.5)/45.)%8;
+        snprintf(out,128,"%s",s->sun_position_valid?(hu()?hu_dirs[index]:en_dirs[index]):"-");return;
+    }
+    if(!strcmp(source,"sunrise")||!strcmp(source,"sunset")){
+        int m=!strcmp(source,"sunrise")?s->sunrise_minute:s->sunset_minute;
+        if(s->sun_position_valid)snprintf(out,128,"%02d:%02d",m/60,m%60);
+        else snprintf(out,128,"-");
+        return;
+    }
     if(!strcmp(source,"clock")){strftime(out,128,"%H:%M",&tmv);return;}
     if(!strcmp(source,"date")){strftime(out,128,hu()?"%Y.%m.%d.":"%Y-%m-%d",&tmv);return;}
     if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
-    double v=template_value(source,s,st);char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
+    double v=template_value(source,s,st);
+    if(!strcmp(source,"solar_value_today")||!strcmp(source,"solar_savings_day")){
+        snprintf(out,128,"%.0f %s",v,s_cfg.project.currency);return;
+    }
+    char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
     const char *unit="kW";
     if(strstr(source,"_pct"))unit="%";
-    else if(strstr(source,"_day")||strstr(source,"_month"))unit=s_cfg.project.currency;
+    else if(strstr(source,"_day")||strstr(source,"_month")||!strcmp(source,"solar_value_today"))unit=s_cfg.project.currency;
     else if(strstr(source,"_today"))unit="kWh";
     else if(!strcmp(source,"soc"))unit="%";
+    else if(!strcmp(source,"sun_altitude")||!strcmp(source,"sun_azimuth"))unit="°";
+    else if(!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy"))unit="kWh";
     else if(!strcmp(source,"temperature")||!strcmp(source,"battery_temp"))unit="°C";
     else if(!strcmp(source,"wind")){fmt_dec(value,sizeof(value),v,0);unit="km/h";}
     else{fmt_power(out,128,v);return;}
@@ -240,7 +325,7 @@ static void template_gesture(lv_event_t *event){
     }
     if(s_diagnostics_requested)return;
     if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){
-        app_templates_step(direction==LV_DIR_LEFT?1:-1);
+        app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
         template_loading_requested=true;
         lv_indev_wait_release(input);
     }
@@ -274,6 +359,16 @@ static void template_loading_screen(void){
     lv_obj_set_style_arc_color(spinner,c(0x63E0A4),LV_PART_INDICATOR);
     lv_obj_remove_flag(spinner,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     s_view=VIEW_THEME_LOADING;
+}
+/* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
+ * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
+static bool template_loading_frame(void){
+    if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
+    if(bsp_display_lock(-1)!=ESP_OK)return false;
+    template_loading_screen();bsp_display_unlock();
+    template_loading_requested=false;
+    vTaskDelay(pdMS_TO_TICKS(85));
+    return true;
 }
 static void template_prepare(void){
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
@@ -347,7 +442,7 @@ static void template_build(bool night){
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"text_shadow"))){
                 int offset=tn(e,"shadow_offset",1);
                 node->detail=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",
-                    x+offset,y+offset,tf(tn(e,"font",20)),0x000000);
+                    x+offset,y+offset,tf(tn(e,"font",20)),tc(e,"shadow_color",0x000000));
                 lv_obj_set_size(node->detail,w,h);lv_label_set_long_mode(node->detail,LV_LABEL_LONG_MODE_DOTS);
                 text_opa_if_changed(node->detail,tn(e,"shadow_opacity",100),0);
                 if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->detail,LV_TEXT_ALIGN_CENTER,0);
@@ -367,18 +462,60 @@ static void template_build(bool night){
             node->obj=template_flow_object(s_dash,node,x,y,w,h,text,width,38);
             /* Kiemelt fehér mag, színes perem és fényudvar.
              * A 28 px-es Energiautaknál is jól látszanak a pontok. */
-            int diameter=width>=16?14:11;
+            int diameter=tn(e,"dot_size",width>=16?14:11);
+            if(diameter<3)diameter=3;
+            if(diameter>18)diameter=18;
             for(int i=0;i<4;i++){
                 node->dots[i]=shape(s_dash,x,y,diameter,diameter,0xFFFFFF,LV_RADIUS_CIRCLE);
-                lv_obj_set_style_border_width(node->dots[i],2,0);
+                lv_obj_set_style_border_width(node->dots[i],diameter<=7?1:2,0);
                 border_color_if_changed(node->dots[i],c(text),0);
                 lv_obj_set_style_shadow_color(node->dots[i],c(text),0);
-                lv_obj_set_style_shadow_width(node->dots[i],glow>0?glow+5:8,0);
+                lv_obj_set_style_shadow_width(node->dots[i],diameter<=7?3:(glow>0?glow+5:8),0);
                 lv_obj_set_style_shadow_opa(node->dots[i],LV_OPA_70,0);
                 /* A felül lévő pontok ne nyeljék el a témalapozó gesztust. */
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
+        }else if(!strcmp(type,"solar_arc")){
+            /* A napút pontosan LVGL-vonalakból áll, kis memóriaigénnyel.
+             * A felső és alsó ív külön sablonelem, ezért eltérő színt kaphat. */
+            int cx=tn(e,"center_x",w/2),cy=tn(e,"center_y",h/2);
+            int rx=tn(e,"radius_x",w/2),ry=tn(e,"radius_y",h/2);
+            bool lower=cJSON_IsTrue(cJSON_GetObjectItem(e,"night_arc"));
+            node->point_count=65;
+            for(unsigned k=0;k<65;k++){
+                float angle=(float)3.14159265358979323846*(lower?(1.f+k/64.f):(1.f-k/64.f));
+                node->points[k].x=cx+rx*cosf(angle);
+                node->points[k].y=cy-ry*sinf(angle);
+            }
+            node->obj=lv_line_create(s_dash);lv_line_set_points(node->obj,node->points,node->point_count);
+            lv_obj_set_pos(node->obj,x,y);
+            lv_obj_set_style_line_width(node->obj,tn(e,"radius",3),0);
+            lv_obj_set_style_line_color(node->obj,c(text),0);
+            lv_obj_set_style_line_opa(node->obj,lower?LV_OPA_60:LV_OPA_COVER,0);
+        }else if(!strcmp(type,"solar_disc")){
+            /* A napkorong külön, kis LVGL objektum: nincs teljes képes újrarajzolás. */
+            /* A grafikai csomag különálló napkorongját használjuk, ha van.
+             * Régi SD-sablon esetén megtartjuk a vektoros kört. */
+            const char *disc=ts(e,"file");
+            bool found=false;
+            for(unsigned asset=0;disc[0] && asset<template_view.asset_count;asset++)
+                if(!strcmp(disc,template_view.assets[asset].name)){found=true;break;}
+            /* A fényudvar külön alakzat, ezért a PNG alfa-rétege mögött is
+             * látható. A kép soha nem kap négyszögű háttérkitöltést. */
+            node->detail=shape(s_dash,x-6,y-6,w+12,h+12,text,LV_RADIUS_CIRCLE);
+            bg_opa_if_changed(node->detail,LV_OPA_10,0);
+            lv_obj_set_style_shadow_color(node->detail,c(text),0);
+            lv_obj_set_style_shadow_width(node->detail,tn(e,"glow",20),0);
+            if(found){
+                node->obj=lv_image_create(s_dash);
+                template_image(node->obj,disc,w,h);
+                lv_obj_set_pos(node->obj,x,y);
+            }else{
+                node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
+            }
+            lv_obj_set_style_shadow_color(node->obj,c(text),0);
+            lv_obj_set_style_shadow_width(node->obj,0,0);
         }else if(!strcmp(type,"pulse")){
             node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
             lv_obj_set_style_shadow_color(node->obj,c(text),0);
@@ -403,11 +540,12 @@ static void template_build(bool night){
         }else if(!strcmp(type,"chart")){
             bool consumption=!strcmp(ts(e,"kind"),"consumption");
             const char *kind=ts(e,"kind");
-            app_chart_kind_t chart_kind=!strcmp(kind,"grid")?APP_CHART_GRID:!strcmp(kind,"battery")?APP_CHART_BATTERY:
+            app_chart_kind_t chart_kind=!strcmp(kind,"solar_hourly")?APP_CHART_SOLAR_HOURLY:!strcmp(kind,"grid")?APP_CHART_GRID:!strcmp(kind,"battery")?APP_CHART_BATTERY:
                 !strcmp(kind,"soc")?APP_CHART_SOC:!strcmp(kind,"week")?APP_CHART_WEEK:!strcmp(kind,"month")?APP_CHART_MONTH:
                 consumption?APP_CHART_CONSUMPTION:APP_CHART_PRODUCTION;
             uint32_t first=tc(palette,consumption?"grid":"pv",tone(consumption?RED:GREEN,night));
             uint32_t second=tc(palette,consumption?"pv":"home",tone(consumption?GREEN:ORANGE,night));
+            if(chart_kind==APP_CHART_SOLAR_HOURLY){first=0x23B779;second=0xFFCB35;}
             if(chart_kind==APP_CHART_GRID){first=tc(palette,"grid",RED);second=tc(palette,"home",ORANGE);}
             else if(chart_kind==APP_CHART_BATTERY||chart_kind==APP_CHART_SOC)first=tc(palette,"battery",BLUE);
             if(chart_kind==APP_CHART_BATTERY){first=tc(e,"negative_color",first);second=tc(e,"positive_color",first);}
@@ -422,6 +560,11 @@ static void template_build(bool night){
         }else{
             node->obj=lv_obj_create(s_dash);lv_obj_remove_style_all(node->obj);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);
             bg_color_if_changed(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);bg_opa_if_changed(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
+            if(*ts(e,"outline_color")){
+                lv_obj_set_style_border_width(node->obj,tn(e,"outline_width",1),0);
+                border_color_if_changed(node->obj,c(tc(e,"outline_color",BLUE)),0);
+                lv_obj_set_style_border_opa(node->obj,LV_OPA_60,0);
+            }
         }
         if(node->obj){lv_obj_remove_flag(node->obj,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(node->obj,LV_OBJ_FLAG_GESTURE_BUBBLE);}
     }
@@ -431,6 +574,12 @@ static void template_build(bool night){
         template_node_t *flow=&template_nodes[j];
         if(strcmp(ts(flow->spec,"type"),"flow"))continue;
         for(int d=0;d<4;d++)if(flow->dots[d])lv_obj_move_foreground(flow->dots[d]);
+    }
+    /* A kijelölt fedőikon vagy pulzáló csomópont a pontok fölé kerülhet. */
+    for(unsigned j=0;j<template_node_count;j++){
+        template_node_t *node=&template_nodes[j];
+        const char *type=ts(node->spec,"type");
+        if((!strcmp(type,"image")||!strcmp(type,"pulse"))&&cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"foreground")))lv_obj_move_foreground(node->obj);
     }
     unsigned n=template_view.catalogue_count;
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
@@ -458,26 +607,170 @@ static void template_gauge_value(void *object,int32_t value){
         if(template_nodes[i].detail)lv_arc_set_value(template_nodes[i].detail,value);break;
     }
 }
+/* A Nap pálya akkuágának aktív vonala ugyanazt az ágat követi, mint a pontok.
+ * A vektor és a két LVGL-objektum megmarad; csak útváltáskor épül újra a geometria. */
+static void template_solar_battery_route(template_node_t *node,const app_energy_sample_t *sample){
+    if(strcmp(template_view.id,"09-solar-journey")||strcmp(ts(node->spec,"type"),"flow")||strcmp(ts(node->spec,"source"),"battery")||node->point_count!=3||!node->flow_path)return;
+    template_node_t *pv=NULL;
+    for(unsigned i=0;i<template_node_count;i++)
+        if(!strcmp(ts(template_nodes[i].spec,"type"),"flow")&&!strcmp(ts(template_nodes[i].spec,"source"),"pv_home"))pv=&template_nodes[i];
+    if(!pv||pv->point_count<2)return;
+    float house_x=tn(pv->spec,"x",0)+pv->points[pv->point_count-1].x-tn(node->spec,"x",0);
+    app_energy_split_t split=app_energy_split(sample->power_pv_kw,sample->power_full_kw,sample->power_bat_kw);
+    double charge=fmax(0,-node->power),pv_charge=fmin(charge,split.pv_stored);
+    unsigned branches=node->power>=.001?2:((pv_charge>=.001?1:0)|((charge-pv_charge)>=.001?2:0));
+    if(branches==node->battery_branches)return;
+    node->battery_branches=branches;
+    lv_vector_path_clear(node->flow_path);
+    lv_fpoint_t corner={node->points[1].x,node->points[1].y},bottom={node->points[2].x,node->points[2].y};
+    lv_fpoint_t start={(branches==2)?house_x:node->points[0].x,node->points[0].y};
+    lv_vector_path_move_to(node->flow_path,&start);
+    lv_vector_path_line_to(node->flow_path,&corner);lv_vector_path_line_to(node->flow_path,&bottom);
+    if(branches==3){
+        start=(lv_fpoint_t){house_x,corner.y};
+        lv_vector_path_move_to(node->flow_path,&start);lv_vector_path_line_to(node->flow_path,&corner);
+    }
+    lv_obj_invalidate(node->obj);if(node->detail)lv_obj_invalidate(node->detail);
+}
+/* A frissítés és az animáció ugyanazt a fényudvar-állapotot alkalmazza. */
+static void template_solar_halo(template_node_t *node,const app_energy_sample_t *s,float dt){
+    double pv=fmax(0,s->power_pv_kw);
+    if(!s->sun_position_valid)return;
+    float fraction=(float)fmin(pv/8.,1.);
+    bool daylight=!s->night_mode&&s->sun_altitude_deg>0;
+    /* Fix 1,2 ciklus/s: a termelés csak a végső körméretet adja.
+     * 8 kW-tól a korábbi maximális méret; nullánál nincs fényudvar. */
+    node->phase=fmodf(node->phase+dt*(daylight?1.2f:1.f/4.2f),1.f);
+    float wave=.5f+.5f*sinf(node->phase*6.2831853f);
+    /* Az éjszakai halvány kék napkorong NEM pulzál. */
+    if(node->detail){
+        /* A hold képe nem pulzál: csak a mögötte lévő áttetsző
+         * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
+        /* Az apró méretváltozást finom alpha-/glow-átmenet
+         * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
+        const int pad=6+(int)lroundf(2.f*wave);
+        const int disc_w=tn(node->spec,"w",40),disc_h=tn(node->spec,"h",40);
+        const int width=daylight?1+(int)lroundf((disc_w+55)*fraction*node->phase):disc_w+2*pad;
+        const int height=daylight?1+(int)lroundf((disc_h+55)*fraction*node->phase):disc_h+2*pad;
+        if(lv_obj_get_style_width(node->detail,0)!=width || lv_obj_get_style_height(node->detail,0)!=height)
+            lv_obj_set_size(node->detail,width,height);
+        lv_obj_set_pos(node->detail,lv_obj_get_style_x(node->obj,0)+(disc_w-width)/2,lv_obj_get_style_y(node->obj,0)+(disc_h-height)/2);
+        /* A nap középpontjából induló kitöltött kör kifelé halad,
+         * és a teljes méret elérése előtt nullára halványul. */
+        lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)):0;
+        lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
+        lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
+        lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
+        lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(35+20*wave),0);
+        bg_opa_if_changed(node->detail,daylight?(pv>0?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):0):(lv_opa_t)(22+16*wave),0);
+    }
+}
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
+    /* A sablonok is az aktuális csomagot adják át az animációs timernek. */
+    s_animation_sample=*s;
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
-        bool visible = !strcmp(type,"weather") ? weather_available(s) :
+        bool visible = (!strcmp(type,"solar_disc") || !strcmp(type,"solar_arc")) ? s->sun_position_valid :
+            !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
-            !strcmp(source,"wind") ? s->wind_speed_valid : true;
+            !strcmp(source,"wind") ? s->wind_speed_valid :
+            (!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
+             !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
+            (!strcmp(source,"weather_label")) ? weather_available(s) :
+            (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
+        if(!strcmp(type,"solar_disc")){
+            /* Egyezik a solar_arc elemek paraméteres félkörével.
+             * Nappal: K -> D -> Ny; éjjel: Ny -> É -> K. */
+            if(!s->sun_position_valid)continue;
+
+            /* Fotóból kalibrált abszolút napív, külön fényes vonal nélkül. */
+            int sunrise=s->sunrise_minute,sunset=s->sunset_minute;
+            time_t clock_now=time(NULL);struct tm local_now;
+            localtime_r(&clock_now,&local_now);
+            int minute=local_now.tm_hour*60+local_now.tm_min;
+            bool daylight=s->sun_altitude_deg>0;
+            float travel;
+            if(sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
+                if(daylight)travel=(float)(minute-sunrise)/(float)(sunset-sunrise);
+                else{
+                    int passed=minute>=sunset?minute-sunset:minute+1440-sunset;
+                    travel=(float)passed/(float)(sunrise+1440-sunset);
+                }
+            }else travel=(float)(s->sun_azimuth_deg/360.);
+            travel=fmaxf(0.f,fminf(1.f,travel));
+            int px,py;
+            const cJSON *arc=cJSON_GetObjectItem(e,daylight?"day_path":"night_path");
+            if(cJSON_IsArray(arc)&&cJSON_GetArraySize(arc)>=2){
+                double length=0.;
+                const cJSON *prev=NULL,*pt=NULL;
+                cJSON_ArrayForEach(pt,arc){
+                    if(prev)length+=hypot((double)(tn(pt,"x",0)-tn(prev,"x",0)),
+                                           (double)(tn(pt,"y",0)-tn(prev,"y",0)));
+                    prev=pt;
+                }
+                double target=length*travel;
+                int cx=tn(cJSON_GetArrayItem(arc,0),"x",452);
+                int cy=tn(cJSON_GetArrayItem(arc,0),"y",383);
+                prev=NULL;
+                cJSON_ArrayForEach(pt,arc){
+                    if(prev){
+                        double dx=tn(pt,"x",0)-tn(prev,"x",0);
+                        double dy=tn(pt,"y",0)-tn(prev,"y",0);
+                        double dist=hypot(dx,dy);
+                        if(target<=dist){
+                            double ratio=dist>0?fmax(0.,fmin(1.,target/dist)):0.;
+                            cx=(int)lround(tn(prev,"x",0)+dx*ratio);
+                            cy=(int)lround(tn(prev,"y",0)+dy*ratio);
+                            break;
+                        }
+                        target-=dist;
+                        cx=tn(pt,"x",cx);cy=tn(pt,"y",cy);
+                    }
+                    prev=pt;
+                }
+                px=cx-tn(e,"w",40)/2;py=cy-tn(e,"h",40)/2;
+            }else{
+                /* A régi sablonok ellipszis módja megmarad. */
+                int rx=tn(e,"radius_x",377),cx=tn(e,"center_x",452),cy=tn(e,"center_y",356);
+                int ry=tn(e,daylight?"radius_y":"night_radius_y",244);
+                float angle=travel*3.14159265358979323846f;
+                px=cx+(int)lroundf((daylight?-1.f:1.f)*cosf(angle)*rx)-tn(e,"w",40)/2;
+                py=cy+(int)lroundf((daylight?-1.f:1.f)*sinf(angle)*ry)-tn(e,"h",40)/2;
+            }
+            lv_obj_set_pos(node->obj,px,py);
+            if(node->detail){
+                int pad=(lv_obj_get_width(node->detail)-tn(e,"w",40))/2;
+                lv_obj_set_pos(node->detail,px-pad,py-pad);
+            }
+            if(!*ts(e,"file")){
+                uint32_t disc_color=daylight?0xFFD23B:0x78BFEF;
+                bg_color_if_changed(node->obj,c(disc_color),0);
+                lv_obj_set_style_shadow_color(node->obj,c(disc_color),0);
+            }
+            if(node->detail){
+                lv_obj_set_style_shadow_color(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+                border_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+                bg_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+            }
+            /* Ne várjunk az első animációs tickre a módváltás után. */
+            template_solar_halo(node,s,0.f);
+            continue;
+        }
         if(!strcmp(type,"flow")){
+            template_solar_battery_route(node,s);
             uint32_t flow_color=tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             template_flow_tone(node,flow_color,fabs(value)>=.001);
         }
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
-            if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
+            if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"gauge")){
             int target=(int)fmin(tn(e,"max",15)*10,fabs(value)*10);
@@ -504,6 +797,19 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             const char *kind=ts(e,"kind");double maximum=1,minimum=0;
             time_t t=time(NULL);struct tm tmv;localtime_r(&t,&tmv);int minute=tmv.tm_hour*60+tmv.tm_min;
             bool period=!strcmp(kind,"week")||!strcmp(kind,"month");
+            if(!strcmp(kind,"solar_hourly")){
+                app_chart_update(node->obj,stats,1,minute);
+                for(int hour=0;hour<24;hour++){
+                    double sum=0;
+                    for(int k=0;k<12;k++)sum+=stats->slots[hour*12+k].energy.pv_home_kwh+
+                        stats->slots[hour*12+k].energy.pv_stored_kwh+
+                        stats->slots[hour*12+k].energy.pv_export_kwh;
+                    maximum=fmax(maximum,sum);
+                }
+                maximum=ceil(maximum);
+                for(int j=0;j<3;j++){char text[24];fmt_dec(text,sizeof(text),maximum*(2-j)/2.,j==1?1:0);label_text_if_changed(node->axis[j],text);}
+                continue;
+            }
             if(period){
                 const app_stats_period_t *p=!strcmp(kind,"month")?&s_month_period:&s_week_period;
                 app_chart_update_period(node->obj,p);
@@ -525,6 +831,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(*ts(e,"positive_color")||*ts(e,"negative_color"))){
             double direction=!strcmp(source,"grid_direction")?s->power_grid_kw:!strcmp(source,"battery_direction")?s->power_bat_kw:value;
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
+            /* Az alapértelmezett előjelszínek mellé opcionális nyugalmi szín. */
+            if(fabs(direction)<.001)color=tc(e,"zero_color",color);
             if(!strcmp(type,"value"))text_color_if_changed(node->obj,c(color),0);
             if(!strcmp(type,"flow")){
                 template_flow_tone(node,color,fabs(value)>=.001);
@@ -550,10 +858,52 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     }
     if(redraw)template_chart_time=now;
 }
+/* A Nap pálya T-csomópontján a pontok és az aktív vonalak együtt váltanak ágat.
+ * A pontok a töltés forrásától függően a PV vagy a ház ágát követik.
+ * Két töltőforrás esetén mindkét ág kap saját folyamatos pontsorozatot. */
+static bool template_solar_battery_animate(template_node_t *node,float dt){
+    if(strcmp(template_view.id,"09-solar-journey")||strcmp(ts(node->spec,"source"),"battery")||node->point_count!=3)return false;
+    template_node_t *pv=NULL;
+    for(unsigned i=0;i<template_node_count;i++)
+        if(!strcmp(ts(template_nodes[i].spec,"type"),"flow")&&!strcmp(ts(template_nodes[i].spec,"source"),"pv_home"))pv=&template_nodes[i];
+    if(!pv||pv->point_count<2)return false;
+    const float house_x=tn(pv->spec,"x",0)+pv->points[pv->point_count-1].x-tn(node->spec,"x",0);
+    if(fabsf(node->points[2].y-node->points[1].y)<1||fabsf(house_x-node->points[1].x)<1||fabsf(node->points[0].x-node->points[1].x)<1)return false;
+    app_energy_split_t split=app_energy_split(s_animation_sample.power_pv_kw,s_animation_sample.power_full_kw,s_animation_sample.power_bat_kw);
+    double charge=fmax(0,-node->power);
+    double pv_charge=fmin(charge,split.pv_stored),grid_charge=fmax(0,charge-pv_charge);
+    bool mixed=pv_charge>=.001&&grid_charge>=.001;
+    node->phase=app_flow_advance(node->phase,fabs(node->power),node->power<0,dt);
+    node->charge_phase[0]=app_flow_advance(node->charge_phase[0],pv_charge,true,dt);
+    node->charge_phase[1]=app_flow_advance(node->charge_phase[1],grid_charge,true,dt);
+    int count=tn(node->spec,"dot_count",2);if(count<1)count=1;if(count>4)count=4;
+    if(mixed&&count<2)count=2;
+    for(int d=0;d<4;d++){
+        if(d>=count||fabs(node->power)<.001){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}
+        lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
+        bool from_grid=node->power>0||(grid_charge>=.001&&(!mixed||d%2==1));
+        lv_point_precise_t start=from_grid?(lv_point_precise_t){house_x,node->points[1].y}:node->points[0];
+        float horizontal=fabsf(start.x-node->points[1].x),vertical=fabsf(node->points[2].y-node->points[1].y);
+        float phase=node->power>0?node->phase:node->charge_phase[from_grid?1:0];
+        unsigned group_count=mixed?(from_grid?count/2:(count+1)/2):count;
+        unsigned group_index=mixed?(unsigned)d/2:(unsigned)d;
+        float position=fmodf(phase+(float)group_index/group_count,1.f)*(horizontal+vertical);
+        float x,y;
+        if(position<horizontal){x=start.x+(node->points[1].x-start.x)*position/horizontal;y=start.y;}
+        else{x=node->points[1].x;y=node->points[1].y+(node->points[2].y-node->points[1].y)*(position-horizontal)/vertical;}
+        lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)x-lv_obj_get_width(node->dots[d])/2,
+                       tn(node->spec,"y",0)+(int)y-lv_obj_get_height(node->dots[d])/2);
+    }
+    return true;
+}
 static void template_animate(float dt){
     if(!template_view.document||!s_dash_created||s_view!=VIEW_DASHBOARD)return;
     for(unsigned n=0;n<template_node_count;n++){
         template_node_t *node=&template_nodes[n];
+        if(!strcmp(ts(node->spec,"type"),"solar_disc")){
+            template_solar_halo(node,&s_animation_sample,dt);
+            continue;
+        }
         if(!strcmp(ts(node->spec,"type"),"pulse")){
             node->phase=fmodf(node->phase+dt*.7f,1.f);
             int alpha=145+(int)(110*(.5f+.5f*sinf(node->phase*6.2831853f)));
@@ -561,10 +911,16 @@ static void template_animate(float dt){
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
-        node->phase=app_flow_advance(node->phase,fabs(node->power),node->power>=0,dt);
+        if(template_solar_battery_animate(node,dt))continue;
+        bool forward=node->power>=0;
+        if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse")))forward=!forward;
+        node->phase=app_flow_advance(node->phase,fabs(node->power),forward,dt);
+        int dot_count=tn(node->spec,"dot_count",4);
+        if(dot_count<1)dot_count=1;
+        if(dot_count>4)dot_count=4;
         for(int d=0;d<4;d++){
-            if(fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
-            float position=fmodf(node->phase+d*.25f,1.f)*node->length;unsigned k=0;
+            if(d>=dot_count||fabs(node->power)<.001||node->length<1){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
+            float position=fmodf(node->phase+(float)d/dot_count,1.f)*node->length;unsigned k=0;
             while(k+2<node->point_count&&position>node->segments[k]){position-=node->segments[k];k++;}
             float ratio=node->segments[k]>0?position/node->segments[k]:0;
             lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)(node->points[k].x+(node->points[k+1].x-node->points[k].x)*ratio)-lv_obj_get_width(node->dots[d])/2,
@@ -573,35 +929,58 @@ static void template_animate(float dt){
     }
 }
 
-/* Közös oldal: sem az elrendezés, sem az adatok nem függnek a sablontól. */
+/* A naplópuffer rövid mutexét az LVGL-lock előtt kérjük el. */
+static void diagnostics_capture(void){
+    app_diagnostics_capture(&s_diagnostics);
+    if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
+}
+/* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
 static void diagnostics_render(app_runtime_state_t rt){
     if(s_view!=VIEW_DIAGNOSTICS){
         clear();screen_style(s_screen,true);
         lbl(s_screen,tr("Eszközdiagnosztika","Device diagnostics"),32,28,APP_FONT_28,TEXT_DARK);
-        lbl(s_screen,tr("Lefelé húzás: vissza az előző témához","Swipe down to return to the selected theme"),32,73,APP_FONT_16,MUTED_DARK);
+        lv_obj_t *hint=lbl(s_screen,tr("Lefelé húzás: vissza az előző témához","Swipe down to return to the selected theme"),32,73,APP_FONT_16,MUTED_DARK);
+        lv_obj_set_width(hint,560);lv_label_set_long_mode(hint,LV_LABEL_LONG_MODE_DOTS);
         const char *titles[]={"Wi-Fi / IP",tr("Adatfogadás","Data input"),tr("Utolsó adatcsomag","Last data packet"),
             tr("SD-kártya","SD card"),"Firmware",tr("Üzemidő / memória","Uptime / memory")};
         for(int i=0;i<6;i++){
-            int x=32+(i%2)*622,y=131+(i/2)*199;
-            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,x,y);lv_obj_set_size(card,594,177);card_style(card,true);
+            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,32,126+i*106);lv_obj_set_size(card,576,96);card_style(card,true);lv_obj_set_style_pad_all(card,0,0);
             lv_obj_remove_flag(card,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(card,LV_OBJ_FLAG_GESTURE_BUBBLE);
-            lbl(card,titles[i],18,16,APP_FONT_20,MUTED_DARK);
-            s_diagnostic_values[i]=lbl(card,"",18,55,APP_FONT_20,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],552,105);
+            lbl(card,titles[i],16,8,APP_FONT_16,MUTED_DARK);
+            s_diagnostic_values[i]=lbl(card,"",16,32,APP_FONT_20,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],536,54);
             lv_obj_add_flag(s_diagnostic_values[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
+        }
+        lv_obj_t *log=lv_obj_create(s_screen);lv_obj_set_pos(log,640,24);lv_obj_set_size(log,608,752);card_style(log,true);lv_obj_set_style_pad_all(log,0,0);
+        lv_obj_remove_flag(log,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(log,LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lbl(log,tr("Rendszernapló · legutóbbi események","System log · latest events"),18,16,APP_FONT_20,TEXT_DARK);
+        for(int i=0;i<15;i++){
+            s_diagnostic_log[i]=lbl(log,"",18,60+i*44,APP_FONT_16,TEXT_DARK);
+            lv_obj_set_size(s_diagnostic_log[i],564,40);
+            lv_label_set_long_mode(s_diagnostic_log[i],LV_LABEL_LONG_MODE_DOTS);
+            lv_obj_add_flag(s_diagnostic_log[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
         s_view=VIEW_DIAGNOSTICS;
     }
-    char text[160];
-    snprintf(text,sizeof(text),"%s\n%s · %d dBm",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.ip,s_diagnostics.rssi);
+    char text[192];
+    snprintf(text,sizeof(text),"%s · %d dBm\n%s",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.rssi,s_diagnostics.ip);
     label_text_if_changed(s_diagnostic_values[0],text);
-    snprintf(text,sizeof(text),"%s\n%s",rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
+    snprintf(text,sizeof(text),"%s · %s",rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
     label_text_if_changed(s_diagnostic_values[1],text);
     if(s_diagnostics.packet_age_seconds<0)snprintf(text,sizeof(text),"%s",tr("Még nem érkezett","No packet received"));
-    else snprintf(text,sizeof(text),"%lld s\n%s",(long long)s_diagnostics.packet_age_seconds,
+    else snprintf(text,sizeof(text),"%lld s · %s",(long long)s_diagnostics.packet_age_seconds,
         app_state_data_timed_out(&rt,esp_timer_get_time(),app_config_data_timeout(&s_cfg))?tr("Lejárt adat","Stale data"):tr("Érvényes adat","Valid data"));
     label_text_if_changed(s_diagnostic_values[2],text);
     label_text_if_changed(s_diagnostic_values[3],rt.sd_ok?tr("Elérhető · mentés aktív","Available · saving active"):tr("Hiba · kijelzés RAM-ból","Fault · display continues from RAM"));
     label_text_if_changed(s_diagnostic_values[4],s_diagnostics.firmware);
-    snprintf(text,sizeof(text),"%lld min\n%u KiB",(long long)(s_diagnostics.uptime_seconds/60),s_diagnostics.free_heap_kib);
+    snprintf(text,sizeof(text),"%lld min · RAM %u KiB\n%s %u KiB · DMA %u KiB",(long long)(s_diagnostics.uptime_seconds/60),s_diagnostics.free_heap_kib,tr("Belső","Internal"),s_diagnostics.free_internal_kib,s_diagnostics.largest_dma_block_bytes/1024);
     label_text_if_changed(s_diagnostic_values[5],text);
+    for(unsigned i=0;i<15;i++){
+        if(i>=s_diagnostic_event_count){label_text_if_changed(s_diagnostic_log[i],i==0?tr("Még nincs esemény.","No events yet."):"");continue;}
+        const app_event_entry_t *entry=&s_diagnostic_events[s_diagnostic_event_count-1-i];
+        char stamp[16]="--:--:--";time_t epoch=(time_t)entry->epoch_s;struct tm tmv;
+        if(epoch>=1577836800 && localtime_r(&epoch,&tmv))strftime(stamp,sizeof(stamp),"%H:%M:%S",&tmv);
+        snprintf(text,sizeof(text),"%s  %s",stamp,hu()?entry->text:entry->text_en);
+        label_text_if_changed(s_diagnostic_log[i],text);
+        text_color_if_changed(s_diagnostic_log[i],c(entry->level==APP_EVENT_ERROR?RED:entry->level==APP_EVENT_WARNING?ORANGE:TEXT_DARK),0);
+    }
 }

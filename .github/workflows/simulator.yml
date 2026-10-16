@@ -20,6 +20,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-ui-simulator-debug
+          retention-days: 7
           path: |
             out/simulator/simulator/Debug/zolee_simulator.exe
             out/simulator/simulator/Debug/zolee_simulator.pdb

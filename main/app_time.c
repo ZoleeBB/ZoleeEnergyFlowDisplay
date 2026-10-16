@@ -165,6 +165,20 @@ esp_err_t app_time_sync_once(void)
     return err;
 }
 
+/* Az órás várakozásnál a pdMS_TO_TICKS 32 bites ms*Hz szorzata
+ * már 6 óránál túlcsordul (1000 Hz-en ~125 másodperc lesz belőle).
+ * Másodpercből, 64 biten számolunk, szükség esetén véges részekre bontva. */
+static void delay_seconds(uint32_t seconds)
+{
+    uint64_t remaining = (uint64_t)seconds * configTICK_RATE_HZ;
+    while (remaining) {
+        TickType_t ticks = remaining < portMAX_DELAY ?
+            (TickType_t)remaining : portMAX_DELAY - 1U;
+        vTaskDelay(ticks);
+        remaining -= ticks;
+    }
+}
+
 /*
  * Háttér-újraszinkron.
  * Siker után a normál, órákban megadott periódus következik.
@@ -175,15 +189,11 @@ static void time_sync_task(void *arg)
     (void)arg;
 
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(
-            s_cfg.resync_hours * 60U * 60U * 1000U));
+        delay_seconds(s_cfg.resync_hours * 60U * 60U);
 
         while (true) {
             if (!app_wifi_is_connected()) {
-                vTaskDelay(pdMS_TO_TICKS(
-                    s_cfg.background_retry_minutes *
-                    60U *
-                    1000U));
+                delay_seconds(s_cfg.background_retry_minutes * 60U);
                 continue;
             }
 
@@ -204,10 +214,7 @@ static void time_sync_task(void *arg)
                 APP_EVENT_WARNING,
                 "NTP újraszinkron sikertelen; belső óra tovább fut.");
 
-            vTaskDelay(pdMS_TO_TICKS(
-                s_cfg.background_retry_minutes *
-                60U *
-                1000U));
+            delay_seconds(s_cfg.background_retry_minutes * 60U);
         }
     }
 }

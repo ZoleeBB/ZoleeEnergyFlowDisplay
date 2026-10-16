@@ -127,3 +127,12 @@ A build megtagadja a 32 KiB feletti belső tartalékot ezen a rögzített Wavesh
 ## `sdio_rx_get_buffer ... (*buf)` témaváltás vagy webkérés közben
 
 A változó méretű streaming RX DMA-pufferhez nem maradt megfelelő összefüggő belső blokk. A javítás fix 1 KiB DMA-ablakot és PSRAM stream-tárolót használ. PSRAM-hiánynál `RX stream storage unavailable ... draining stream` üzenet jelzi az eldobást; a FIFO számláló frissül, a későbbi adatok fogadhatók. A diagnosztika `free_internal_kib` és `largest_dma_block_bytes` értéke segít megkülönböztetni a teljes memóriahiányt a DMA-fragmentációtól. Lásd a [kutatást és ellenőrzéseket](performance.md).
+
+## Túl gyakori sikeres NTP-szinkron
+
+Ha 6 órás beállítás mellett körülbelül 125 másodpercenként látszik sikeres
+szinkron, a korábbi firmware 32 bites ms×Hz konverziója túlcsordult.
+A várakozás most 64 biten számolódik; siker után a konfigurált órás periódus,
+hibánál vagy Wi-Fi-hiánynál a konfigurált perces újrapróbálás érvényes.
+A regresszió a valódi háttértaskot futtatja szimulált várakozással,
+6/168 órás periódussal, 100/1000 Hz-en és a helyreállási ágakon is.

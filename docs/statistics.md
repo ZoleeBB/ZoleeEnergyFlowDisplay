@@ -7,7 +7,7 @@ A pillanatnyi kW értékekből a firmware időben integrált kWh mennyiségeket 
 | `PowerGrid` | Vételezés | Visszatáplálás |
 | `PowerBat` | Akkumulátor leadása | Akkumulátor töltése |
 
-A napi diagramok 288 ötperces időablakot használnak. 35 helyi naptári nap marad meg; a heti nézet hétfő–vasárnap, a havi nézet az aktuális naptári hónap. A mai nap részleges. A hiányzó időszak nem nulla fogyasztás. A tegnapi összehasonlítás azonos, lezárt ötperces időhatárig történik; hiányzó előzmény nem jelenik meg, nulla referencia esetén a százalék helyett kötőjel látszik.
+A napi diagramok 288 ötperces időablakot használnak. 35 helyi naptári nap marad meg; a heti nézet hétfő–vasárnap, a havi nézet az aktuális naptári hónap. A mai nap részleges. A hiányzó időszak nem nulla fogyasztás. A tegnapi összehasonlítás azonos, lezárt ötperces időhatárig történik; a két nap azonos, valóban mért slotjai számítanak. Az első órában legalább egy, utána legalább 12 közös slot szükséges. Hiányzó összevetésnél `—`, hiányos lefedettségnél `~` jelű közelítő százalék jelenik meg. Nulla mai és tegnapi referencia `0%`, pozitív mai és nulla tegnapi referencia `↑ új`.
 
 ## Forrásarányok és mutatók
 
@@ -28,3 +28,11 @@ A beépített rendszernézet korábbi összegző képletei eltérnek: önellát�
 ## Tárolás
 
 A v3 napfájlok integrált forrásenergiát és SOC-átlagot is tárolnak. A v1/v2 állományok olvashatók; forrásarányaik közelítettek, SOC-görbéjük hiányzik. A mentés alapértelmezetten 15 percenként történik; OTA firmware-frissítés és kézi újraindítás előtt is azonnali mentés fut. A mentés revíziós, `.tmp`/`.bak` helyreállítással, `fflush` és `fsync` használatával. SD-hibánál a RAM-beli gyűjtés tovább fut. Az opcionális időjárás nem befolyásolja az energiaszámítást.
+
+## Órás napelemtermelés
+
+A Nap pálya témához fejlesztett `solar_hourly` diagram a meglévő ötperces
+slotokban integrált `pv_home_kwh`, `pv_stored_kwh` és `pv_export_kwh`
+értékeket óránként összegzi. Az oszlop alsó zöld része helyi felhasználás és
+tárolás; a sárga felső rész a hálózatba visszatáplálás. A hiányzó adatok nem
+becsült napenergia-termelési értékek.

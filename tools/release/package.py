@@ -70,9 +70,18 @@ def package(build, output, tag, commit):
         for path in sorted((ROOT / folder).rglob('*')):
             if path.is_file():
                 files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
+    for path in sorted((ROOT/'assets/previews').glob('builtin-*.png')):
+        files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()
+    # The repository keeps templates at its root; the portable installer keeps
+    # the same package files under sd-card/. Preserve offline preview links.
+    for name in ('README.md', 'docs/templates.md'):
+        text = files[name].decode('utf-8')
+        text = text.replace('](templates/', '](sd-card/templates/')
+        text = text.replace('](../templates/', '](../sd-card/templates/')
+        files[name] = text.encode('utf-8')
     info = {'tag': tag, 'commit': commit, 'target': 'esp32p4', 'board': 'Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1',
             'esp_idf': description['git_revision'], 'esptool': ESPTOOL_VERSION, 'application_sha256': digest(app),
             'flash_files': {address: {'file': name, 'sha256': digest(files[name])} for address, name in portable.items()}}

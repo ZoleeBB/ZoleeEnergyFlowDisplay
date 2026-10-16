@@ -125,7 +125,14 @@ static void test_completed_interval(void){
     feed(today,3,0,0);feed(today+10,3,0,0);clock_at(today+125);
     app_stats_get_snapshot(&snapshot);assert(snapshot.has_yesterday);
     near(snapshot.completed_interval_totals.production_kwh,15./3600);
-    near(snapshot.yesterday_completed_interval_totals.production_kwh,30./3600);tests++;
+    near(snapshot.yesterday_completed_interval_totals.production_kwh,30./3600);
+    /* Kevés, de egyező időablak: van tegnapi adat, ám százalékot
+     * legalább egy óra közös mérésből számítunk. */
+    assert(snapshot.comparison_paired_slots==1);
+    assert(!snapshot.comparison_ready);
+    near(snapshot.comparison_today_totals.production_kwh,15./3600);
+    near(snapshot.comparison_yesterday_totals.production_kwh,30./3600);
+    tests++;
 }
 static void test_sd_recovery(void){
     time_t t=instant("2026-10-04",23,59,58);reset(t);feed(t,7,0,0);
@@ -177,6 +184,29 @@ static const char *payload="{\"PowerGrid\":1,\"PowerBat\":-2,\"PowerPV\":3,\"Soc
 static void test_payload(void){
     app_energy_sample_t result={0};char error[160];
     assert(app_payload_parse(payload,strlen(payload),&result,error,sizeof(error))==ESP_OK);
+    /* Visszafelé kompatibilitás és nappálya bemenet validálása. */
+    assert(!result.sun_position_valid);
+    cJSON *solar_root=cJSON_Parse(payload);
+    cJSON_AddStringToObject(solar_root,"SunPosition","327.445#-46.562#420#1077");
+    char *solar_payload=cJSON_PrintUnformatted(solar_root);
+    assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))==ESP_OK);
+    assert(result.sun_position_valid);
+    near(result.sun_azimuth_deg,327.445);near(result.sun_altitude_deg,-46.562);
+    assert(result.sunrise_minute==420 && result.sunset_minute==1077);
+    cJSON_free(solar_payload);
+    cJSON_ReplaceItemInObject(solar_root,"SunPosition",cJSON_CreateNull());
+    solar_payload=cJSON_PrintUnformatted(solar_root);
+    assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))==ESP_OK);
+    assert(!result.sun_position_valid);
+    cJSON_free(solar_payload);
+    const char *bad_sun[]={"361#0#420#1077","120#91#420#1077","120#0#1077#420","120#0#420#1077junk","120#0#420",NULL};
+    for(unsigned si=0;bad_sun[si];si++){
+        cJSON_ReplaceItemInObject(solar_root,"SunPosition",cJSON_CreateString(bad_sun[si]));
+        solar_payload=cJSON_PrintUnformatted(solar_root);
+        assert(app_payload_parse(solar_payload,strlen(solar_payload),&result,error,sizeof(error))!=ESP_OK);
+        cJSON_free(solar_payload);
+    }
+    cJSON_Delete(solar_root);
     near(result.power_bat_kw,-2);
     assert(result.temperature_valid && result.wind_speed_valid && result.sun_radiation_valid && result.precipitation_valid);
     const char *weather_fields[]={"Temperature","WindSpeed","HasSunRadiation","HasPrecipitation"};
@@ -237,7 +267,11 @@ static void test_flow(void){
     near(app_flow_advance(.4f,15,true,.1f),app_flow_advance(.4f,7,true,.1f));
     float phase=.4f;phase=app_flow_advance(phase,7,true,.016f);phase=app_flow_advance(phase,7,false,.016f);near(phase,.4f);
     phase=app_flow_advance(.001f,7,false,.016f);assert(phase>=0 && phase<1);
-    assert(app_flow_advance(0,1,true,1)>.25f);tests++;
+    float slow=app_flow_advance(0,.1,true,1);
+    float medium=app_flow_advance(0,1,true,1);
+    float fast=app_flow_advance(0,7,true,.5f);
+    assert(slow>0 && slow<medium && medium<fast);
+    tests++;
 }
 /* Fizikai példák, irányváltás ötperces ablakon belül, mentés és adathézag. */
 static void test_energy_split(void){

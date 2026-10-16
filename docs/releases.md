@@ -42,3 +42,11 @@ Ha a repository azonnal **immutable** állapotba zárja a publikált release-t, 
 A tesztek a HTTP hibákat, konfigurációt, közös adatfeldolgozást, timeout/OTA állapotokat, a Pico C minta ciklusait, az USB-csomag teljességét és a release-feltöltés újrafuttatását is ellenőrzik. A fizikai USB/OTA telepítés és a Miniserver Gen 2 / 17.x integráció hardveres átvételi próba marad.
 
 Az USB ZIP a `docs/` teljes aktuális útmutatókészletét, az `examples/` mintáit és az assetjegyzéket is tartalmazza; a gyökérbeli `TELEPITES.md` a telepítési útmutatóra vezet. A fejlesztési munkanaplók és elvetett javaslatok nem kerülnek a csomagba.
+
+## Actions artifactok megőrzése
+
+A firmware-, sablon-, LVGL-előnézet- és Windows-szimulátor-feltöltések
+`retention-days: 7` beállítást használnak. A GitHub repó/szervezet felső korlátja
+rövidebb tényleges lejáratot is meghatározhat; ezt az Actions felületén ellenőrizd.
+A beállítás az új artifactokra vonatkozik, a korábbiak lejáratát nem módosítja.
+A release Assets alá publikált firmware-ek megőrzését ez nem érinti.

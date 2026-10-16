@@ -16,6 +16,12 @@ A PPA gyorsítás továbbra is tiltott. Az adapter 0.6.4 PPA hang workaroundja �
 
 ## Ellenőrzés és hardveres mérés
 
-A regressziós tesztek a tényleges RX patch kódblokkjait fordítják, majd 3072, 5632, 5633, 7 és 32768 bájtos burstöt, blokkvégi kitöltést, foglalási hibát, FIFO-ürítést és helyreállást vizsgálnak. A raster-cache előtti és utáni 16 teljes render összevetésében 11 kép képpontra azonos, az öt másikban a csatornánkénti eltérés maximum 1–2 színérték (alfa-kerekítés). A valódi LVGL preview mind a 16 témaváltozatot, időjárási variánsokat és ismételt lapozást ellenőrzi. Ezek nem mérnek fizikai panel-FPS-t vagy tartós Wi-Fi terhelést.
+A regressziós tesztek a tényleges RX patch kódblokkjait fordítják, majd 3072, 5632, 5633, 7 és 32768 bájtos burstöt, blokkvégi kitöltést, foglalási hibát, FIFO-ürítést és helyreállást vizsgálnak. A raster-cache előtti és utáni 16 teljes render összevetésében 11 kép képpontra azonos, az öt másikban a csatornánkénti eltérés maximum 1–2 színérték (alfa-kerekítés). A valódi LVGL preview mind a 18 témaváltozatot, időjárási variánsokat és ismételt lapozást ellenőrzi. Ezek nem mérnek fizikai panel-FPS-t vagy tartós Wi-Fi terhelést.
 
 A `/diagnostics` és `/api/diagnostics` az összes szabad memória mellett a szabad belső RAM-ot (`free_internal_kib`) és a legnagyobb szabad belső DMA-blokkot (`largest_dma_block_bytes`) is mutatja. Hardveren ezek értékeit érdemes összevetni indulás után és legalább 100 témaváltás, böngészős oldalfrissítések és adatküldés után. Az összes memória magas értéke önmagában nem bizonyítja a DMA-foglalások működését. Animációs FPS és késleltetés csak a készüléken végzett méréssel állítható.
+
+A csomagban tárolt `preview-light.png` és `preview-dark.png` csak a webes
+sablonkezelő képe. A runtime előtöltő kihagyja őket, nem foglalnak LVGL
+asset-/raster-cache-t. A web a 480×300-as képeket közvetlenül, lusta betöltéssel
+és verzióhoz kötött gyorsítótárazással mutatja; régi csomagnál nincs háttérletöltés
+vagy második, közelítő rajzoló.

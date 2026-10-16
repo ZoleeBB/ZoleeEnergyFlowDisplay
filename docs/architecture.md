@@ -8,7 +8,7 @@ A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 m
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
-A beépített nézet és nyolc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
+A beépített nézet és kilenc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
 Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).
 
@@ -33,3 +33,9 @@ Az ESP-Hosted 1.4.7 SDIO streaming RX driverének buildbeli másolata a DMA utá
 A generikus UI/JSON/zlib heap foglalások PSRAM-ot részesítenek előnyben, 32 KiB védett belső/DMA tartalékkal. A 10 MiB LVGL képcache a legnagyobb jelenet kb. 8,2 MiB dekódolt képkészletét befogadja. A worker build-másolata a mutex elengedése után egy valódi tickre blokkol; a pending értesítések így nem tudják a pihenőfeladatot korlátlanul kiszorítani. A hálózati TX pufferhiánya visszaadott hibakód, a watchdog továbbra is aktív.
 
 A sablon-geometria külső BSS-ben, PSRAM-ban van; a skálázott képek legfeljebb 6 MiB-os, témaváltáskor felszabadított natív raster-cache-t használnak. A memória- és képfrissítési döntések, kutatási források és hardveres mérés részletei: [teljesítmény](performance.md).
+
+A diagnosztika bal oldalán hat tömör adatmező, jobb oldalán a meglévő
+RAM-eseménynapló legfrissebb 15 bejegyzése látszik, legújabb felül. A
+figyelmeztetések narancssárgák, a hibák pirosak. A naplómásolat statikus
+memóriában él; a másolás az LVGL-lock előtt, csak nyitott diagnosztikánál
+történik. Ez nem ír új naplófájlt az SD-re.

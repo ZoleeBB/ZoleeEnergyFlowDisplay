@@ -2,9 +2,17 @@
 
 A kijelzőhöz szükséges JSON állapotcsomagot a Loxone Config **Program** blokkjában futó Pico C script állítja elő.
 
-A kész minta: `examples/loxone-energy-payload.picoc`.
+A két teljes, különálló minta:
+
+- **MQTT:** [`examples/loxone-energy-payload.picoc`](../examples/loxone-energy-payload.picoc)
+- **HTTP POST:** [`examples/loxone-energy-http-post.picoc`](../examples/loxone-energy-http-post.picoc)
+
+Csak az egyiket kell a választott `DataReceptMode` szerint a Program blokkba másolni.
 
 ## Bekötés
+
+**Összesen 14 felhasznált bemenet van:** 13 analóg (`I1`–`I13`) és egy szöveges (`T1`). A Program blokkon **nincs I14**; a 14. érték a felső **T1** csatlakozón érkezik. A `getinputtext(0)` visszatérési értéke foglalt karakterlánc, amit a minta minden ciklusban felszabadít `free()` hívással.
+
 
 | Program bemenet | JSON mező | Jelentés |
 | --- | --- | --- |
@@ -20,8 +28,10 @@ A kész minta: `examples/loxone-energy-payload.picoc`.
 | I10 | Status | 1..4 |
 | I11 | NightMode | 0 vagy 1 |
 | I12 | BatteryTemperature | Akkumulátor hőmérséklete °C |
+| I13 | WeatherPresent | Időjárási jelenlétmaszk, 0–15 (nem külön JSON mező) |
+| **14. – T1 (első szöveges bemenet)** | **SunPosition** | Opcionális `azimut#napmagasság#napkeltePerc#napnyugtaPerc`; üresen `null` |
 
-A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. A Txt1-et kell a már konfigurált MQTT publikálásra kötni.
+A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. MQTT módban a Txt1-et a publikálásra, HTTP módban a POST virtuális kimeneti parancshoz kösd. **Mindkét Pico C mintában ugyanaz az I1–I13 + T1 bemeneti kiosztás.**
 
 ## Status
 
@@ -76,3 +86,14 @@ Hivatalos API: [Loxone Custom Script Programming](https://www.loxone.com/dede/wp
 A megjelenítési szabályok: [MQTT adatprotokoll](mqtt.md#opcionális-időjárási-értékek).
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+## Opcionális nappálya (T1 szöveges bemenet)
+
+Az első szöveges **T1** bemenetre a Loxone-ban összefűzött
+`azimut#napmagasság#napkeltePerc#napnyugtaPerc` szöveg kerül.
+Példa: `327.445#-46.562#420#1077`.
+A fokok 0–360/−90–+90 tartományúak; a napkelte/napnyugta a helyi éjféltől
+eltelt percek száma. A minta Pico C program `getinputtext(0)` hívással olvassa,
+és `SunPosition` néven továbbítja. Bekötetlen vagy üres szöveg esetén
+`"SunPosition":null` kerül a csomagba. Az I1–I13 analóg bemenetek változatlanok.
+A firmware csak teljes és tartományhelyes adatot fogad el.

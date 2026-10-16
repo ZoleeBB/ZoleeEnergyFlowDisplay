@@ -1,7 +1,7 @@
 # SD-kártyás sablonok
 
-Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható elrendezés a repository
-`templates/` könyvtárában van, mindegyik saját világos és sötét témával.
+Az eredeti nézet a firmware része, mindig elérhető. A választható elrendezések a repository
+`templates/` könyvtárában vannak, mindegyik saját világos és sötét témával.
 
 | Csomag | Nézet |
 |---|---|
@@ -10,9 +10,10 @@ Az eredeti nézet a firmware része, mindig elérhető. A nyolc választható el
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
 | `05-calm-home` | Nyugodt otthon: nagy óra, részletes időjárásikonok, három fő adat |
-| `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, töltöttség az akkumulátor alatt, pulzáló középpont |
+| `06-energy-orbit` | Energiakör: 160 px-es ikonok, alattuk az adatok, rövid egyenes összeköttetések, áganként két pont és visszafogott középponti fényudvar |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
+| `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
 
 ## Használat
 
@@ -22,7 +23,7 @@ mappája ugyanezt tartalmazza; ezt az SD gyökerébe kell másolni, nem a firmwa
 Közvetlen kártyamásolás után indítsd újra az eszközt.
 
 A kijelzőn balra húzás a következő, jobbra húzás az előző elrendezésre lép.
-A lista körbeér; a beépített nézet az első. Nincs időzített vagy automatikus
+A lista körbeér; a Rendszer nézet az első, nem törölhető és nem mozgatható. A többi sablon sorrendje a webes sablonkezelőben a fel/le gombokkal módosítható; az SD-kártyán az `order.txt` őrzi a sorrendet. Nincs időzített vagy automatikus
 elrendezésváltás. A választás a `/templates/selection.txt` fájlba kerül,
 ideiglenes fájllal és biztonsági másolattal. Hiányzó/sérült kiválasztott csomagnál
 a beépített nézet jelenik meg. SD-íráshiba esetén az aktuális munkamenetben a
@@ -44,7 +45,7 @@ Nyisd meg: `http://zolee-energy-flow-display.local/templates`
 - Aktiválás: a kijelző következő frissítésekor betöltődik. A feltöltés önmagában
   nem változtatja meg a kiválasztott sablont.
 - Törlés: az aktív sablon törlése visszalép az alapnézetre. A beépített nézet nem
-  törölhető. Meglévő csomagazonosító nem írható felül; előbb töröld a régi csomagot.
+  törölhető. Meglévő azonosítónál biztonságos frissítés történik; a régi csomag csak sikeres ellenőrzés és fájlcsere után törlődik.
 
 A hitelesítés az OTA-felületével azonos (`ota.username`/`ota.password`);
 üres felhasználónév esetén az eddigi OTA-szabály szerint nincs bejelentkezés.
@@ -91,10 +92,11 @@ közös lapjelzőnek/SD-hibajelzésnek szabadon hagyni.
 | `value` | Élő adat: `source`, `font`, `color`, `align` |
 | `image` | Csomagon belüli PNG: `file`; a képet a `w`/`h` méretre skálázza |
 | `weather` | Közös időjáráslogika, opcionális saját `files` készlet: `sunny`, `partly_cloudy`, `cloudy`, `rain`, `snow`, `night` |
-| `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek |
+| `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek; `soc_four_bands: true` a Nap pálya négy tartományát használja |
 | `gauge` | Köríves mérő: `source`, `max` (alapérték 15), `color`, `background` |
 | `flow` | `source`, `color`, `radius` (vonalvastagság), relatív `{x,y}` pontok: alapból 2–8 pontos `polyline`; `curve: "bezier"` esetén 4 vagy 7 vezérlőpont |
-| `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`; minimum 150×100 |
+| `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`, `solar_hourly`; minimum 150×100. `solar_hourly`: 24 órás, tényleges kWh-s, zöld/sárga (helyi/tárolt és export) oszlopok. |
+| `solar_disc` | Opcionális nappálya-korong (LVGL); `center_x`, `center_y`, `radius_x`, `radius_y`, `glow`; hiányzó `SunPosition` esetén elrejtendő |
 
 Színek: `#RRGGBB`. Átlátszóság: 0–255. Betűméretek: 12, 16, 20, 28;
 48 és 96 csak numerikus élő adathoz, órához/dátumhoz. Ezek számjegyeket és
@@ -105,10 +107,10 @@ A szöveges címkék HU/EN karakterkészletet használnak. A `text_en` hiányáb
 Adatkapcsolatok:
 
 - `pv`, `home`, `grid`, `battery`: pillanatnyi kW, a kijelzés abszolút értékű,
-  0,1 kW alatt W-ra vált. A flow előjeles adatot használ: a pontlista iránya a
+  1 kW alatt W-ra vált. A flow előjeles adatot használ: a pontlista iránya a
   pozitív irány; hálózatnál vételezés, akkumulátornál kisütés. Negatív értéknél
   megfordulnak a pöttyök. Nulla körül eltűnnek; 7 kW-nál érik el a maximális sebességet.
-- `soc`, `battery_temp`, `temperature`, `wind`, `clock`, `date`, `status`,
+- `soc`, `battery_temp`, `battery_capacity`, `battery_energy`, `sun_azimuth`, `sun_altitude`, `sunrise`, `sunset`, `sun_direction`, `temperature`, `wind`, `clock`, `date`, `status`,
   `grid_direction`, `battery_direction`.
 - `production_today`, `consumption_today`, `import_today`, `export_today`,
   `charge_today`, `discharge_today`: a közös napi kWh-összesítések.
@@ -127,8 +129,8 @@ Azonosító: 1–32 kisbetű, szám, `-`, `_`; a `builtin` foglalt. A könyvtár
 egyeznie kell az azonosítóval. A PNG-fájlnév ugyanez a karakterkészlet, `.png`
 végződéssel, legfeljebb 64 karakter.
 
-ZIP maximum 8 MiB, kibontva maximum 8 MiB; képfájl maximum 2 MiB,
-összes kódolt kép maximum 4 MiB, számított RGBA képmemória összesen 12 MiB.
+ZIP maximum 8 MiB, kibontva maximum 8 MiB; képfájl maximum 2,5 MiB,
+összes kódolt kép maximum 5 MiB, számított futásidejű RGBA képmemória összesen 12 MiB (a két webes előnézet nélkül).
 PNG: maximum 1280×800, 8 bites RGB/RGBA, nem interlace. A PNG-k teljes CRC- és
 zlib-dekódolási ellenőrzést kapnak, nem csak a kiterjesztést vizsgáljuk.
 
@@ -141,13 +143,13 @@ az esztétikus elrendezést a szimulátorban kell ellenőrizni.
 A feltöltés nem az LVGL szálon fut. A UI előtöltése nem vár a webes feltöltés
 SD-zárára; a meglévő RAM-beli nézet addig tovább működik. Az új képek cseréje a
 grafikus zár alatt, a régi objektumok és képcache felszabadításával történik.
-Az LVGL képcache 6 MiB: a házhátteret nem kell minden animációs képkockán újradekódolni.
+Az LVGL képcache 10 MiB: a házhátteret nem kell minden animációs képkockán újradekódolni.
 
 ## Ellenőrzés és képi forrás
 
 `python tests/test_templates.py`: a tényleges C telepítő, séma, PNG-k,
 hibás ZIP-ek, megőrzés, törlés és visszaállás tesztjei.
-A `ui-preview` CI tizenhat valódi LVGL-sablonképet renderel, és ellenőrzi a közös
+A `ui-preview` CI tizennyolc valódi LVGL-sablonképet renderel, és ellenőrzi a közös
 hibaoldalból visszatérést. A Windows szimulátor ugyanazt a sablonrajzolót használja.
 A fizikai kijelzőn a húzás érzékenységét, a nagy házháttér animációs sebességét és
 az SD-kártya sebességét külön hardveres próba igazolja.
@@ -174,13 +176,24 @@ A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két 
 Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
 
 
-![A nyolc sablon nappali és éjszakai nézete](previews/templates.png)
+| Téma | Nappal | Éjjel |
+| --- | --- | --- |
+| Rendszer (beépített) | ![Nappal](../assets/previews/builtin-light.png) | ![Éjjel](../assets/previews/builtin-dark.png) |
+| Élő otthon | ![Nappal](../templates/01-live-home/preview-light.png) | ![Éjjel](../templates/01-live-home/preview-dark.png) |
+| Energiautak | ![Nappal](../templates/02-energy-paths/preview-light.png) | ![Éjjel](../templates/02-energy-paths/preview-dark.png) |
+| Műszerfal | ![Nappal](../templates/03-instruments/preview-light.png) | ![Éjjel](../templates/03-instruments/preview-dark.png) |
+| Napi mérleg | ![Nappal](../templates/04-daily-balance/preview-light.png) | ![Éjjel](../templates/04-daily-balance/preview-dark.png) |
+| Nyugodt otthon | ![Nappal](../templates/05-calm-home/preview-light.png) | ![Éjjel](../templates/05-calm-home/preview-dark.png) |
+| Energiakör | ![Nappal](../templates/06-energy-orbit/preview-light.png) | ![Éjjel](../templates/06-energy-orbit/preview-dark.png) |
+| Energiafőkönyv | ![Nappal](../templates/07-energy-ledger/preview-light.png) | ![Éjjel](../templates/07-energy-ledger/preview-dark.png) |
+| Energiastatisztika | ![Nappal](../templates/08-statistics/preview-light.png) | ![Éjjel](../templates/08-statistics/preview-dark.png) |
+| Nap pálya | ![Nappal](../templates/09-solar-journey/preview-light.png) | ![Éjjel](../templates/09-solar-journey/preview-dark.png) |
 
 ![Aktuális ikonok és időjárás](previews/template-icons.png)
 
 ![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)
 
-Az energiautak `glow: 0..24` mezője állítható fényudvart ad. A fény intenzitása és a pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a fény kialszik. A kézi sablonváltás 160 ms belépő áttűnést használ: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.
+Az energiautak `glow: 0..24` mezője állítható fényudvart ad; az aktív és inaktív út erőssége külön állítható. A pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a pontok rejtettek. A nagy grafikus témák áttűnés nélkül váltanak; az egyszerű nézeteknél rövid belépő áttűnés használható: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.
 
 ## 08 – Energiastatisztika
 
@@ -188,9 +201,9 @@ Világos és sötét, 1280×800-as nézet: csak számszerű pillanatnyi energia�
 
 ## Feltöltés előtti webes előnézet
 
-A `/templates` oldalon válaszd ki a ZIP-et: a böngésző helyben bontja ki, ellenőrzi a ZIP/PNG CRC-t, és demóadatokkal nappali/sötét előnézetet rajzol. Megjelenik a sablonverzió, a tömörített képek mérete és az összes dekódolt kép felső memória-becslése. Ez utóbbi nem a teljes firmware RAM-fogyasztása. Modern, `DecompressionStream('deflate-raw')` támogatású böngésző szükséges.
+A `/templates` oldalon válaszd ki a ZIP-et: a böngésző helyben bontja ki, ellenőrzi a ZIP/PNG CRC-t, és a csomagban mentett nappali/sötét előnézeteket mutatja. Megjelenik a sablonverzió, a tömörített képek mérete és az összes dekódolt kép felső memória-becslése. Ez utóbbi nem a teljes firmware RAM-fogyasztása. Modern, `DecompressionStream('deflate-raw')` támogatású böngésző szükséges.
 
-Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben küldi a ZIP-et. A C-validátor változatlan követelményekkel ellenőrzi, majd törli az ideiglenes fájlokat; nem telepít, nem aktivál és nem írja át a katalógust. A **Telepítés** csak pozitív eredmény után engedélyezett; a telepítő ismét ellenőriz. Már létező azonosító nem írható felül. Új ZIP kiválasztása érvényteleníti a korábbi jóváhagyott állapotot.
+Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben küldi a ZIP-et. A C-validátor változatlan követelményekkel ellenőrzi, majd törli az ideiglenes fájlokat; nem telepít, nem aktivál és nem írja át a katalógust. A **Telepítés** csak pozitív eredmény után engedélyezett; a telepítő ismét ellenőriz. Már létező azonosító esetén a Telepítés gomb frissítést ajánl fel, külön megerősítéssel. Új ZIP kiválasztása érvényteleníti a korábbi jóváhagyott állapotot.
 
 A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python tools/prepare_web.py`.
 
@@ -199,3 +212,93 @@ A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python 
 A házhoz vezető út piros, hálózati vételezés narancs, export citromsárga. Akku töltése sötétebb, leadása világosabb kék. Az elem opcionális `positive_color`/`negative_color` mezője követi az előjelet. A `pulse` elem pulzáló csomópont; a mérősávok `outline_color` körvonala és az értékváltozási animáció a Műszerfal olvashatóságát segíti.
 
 Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapadék is érvényes. A hőmérséklet és szél külön-külön rejtőzik null értéknél, minden témában. A kapcsolódó statikus címkének is adj `source` mezőt. [Adatprotokoll](mqtt.md).
+
+## Kiemelt regressziós követelmények (2026-10-15)
+
+- **Rendszer** és **Napi mérleg**: a grafikon görbéje alatti kitöltés ugyanannak
+  az adatsornak a színét használja, mint a görbe, csak áttetszően. A kitöltés
+  nem lehet szürkés, és a három energiasor megkülönböztethetősége nem veszhet el.
+- **Minden energiaáramlásos téma**: a pontok sebessége az abszolút kW-értékkel
+  arányosan nő. A `main/app_flow_model.h` közös számítását kell használni;
+  7 kW-nál van a sebességmaximum, nulla teljesítménynél a pontok rejtettek.
+  Az előjel a mozgás irányát jelzi, nem a sebességet.
+- **Ellenőrzés**: `python3 tests/run_tests.py` végén a
+  `tests/test_visual_regressions.py` megakadályozza a javítások véletlen
+  kikerülését. A kijelzőn nappali és éjszakai módban is vizuálisan tesztelendő.
+
+## 09 – Nap pálya
+
+A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 31 pontos nappali és 21 pontos éjszakai útvonalat követi. A v18-as csomagban csak a napnyugta előtti nappali szakasz kapott sűrűbb illesztést; a reggeli/déli és az éjszakai geometria változatlan. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
+
+A v17-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
+30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
+Az 50%-os határ a sárga, a 70%-os még a sárga tartomány része.
+A nap alatti, középről növekvő, kitöltött kör fix 1,2 ciklus/s ütemben pulzál.
+Végső átmérője a PV-termeléssel arányos 0–8 kW között; 8 kW fölött a korábbi
+maximális méret marad. Minden méretnél teljesen elhalványul a ciklus végére,
+nulla termelésnél nem látszik. Külön sugárvonalak nincsenek.
+A SOC-sáv vékony körvonalat és kontrasztosabb üres hátteret kapott;
+a napkelte-kártya a felirataival együtt további 15 px-szel balra került. Az éjszakai korong
+képe állandó, csak a holdudvar kap 4,2 másodperces légző animációt.
+A holdudvar kitöltése 22–38/255 fedettségű; nap→hold és hold→nap váltáskor
+a friss adatcsomag alapján már az első képkockán beáll. A firmware javítja
+a sablonanimáció korábban elavult mérési mintáját is. A v19-es ZIP geometriája
+változatlan, előnézete az erősebb holdudvart mutatja.
+A részletes működés: [Nap pálya](solar-journey-acceptance.md).
+
+## Mentett előnézeti képek
+
+Mind a kilenc csomag kötelező építési bemenete a `preview-light.png` és
+`preview-dark.png`. Ezek a valódi LVGL-kijelző 480×300 px-es képei demóadatokkal;
+a validátor legfeljebb 640×400 px-es RGB/RGBA előnézetet fogad el.
+A két képet együtt kell megadni. Az előnézet nem használható kijelzőelemként,
+és a kijelző nem tölti a grafikus assetek közé, így nem növeli az LVGL-képmemóriát.
+A 32 fájlos és 5 MiB-os csomagkorlátba viszont beleszámít.
+
+A régi SD-sablonok előnézet nélkül is működnek és frissíthetők. A webes
+sablonkezelő ilyenkor üres keretet mutat, és nem tölti le helyettük a nagy
+háttérképet. A csomagok egyenként frissíthetők. A web kizárólag a mentett
+előnézetet jeleníti meg; nincs eltérő böngészős rajzoló. A képek lusta betöltést,
+verziózott URL-t és egyórás privát gyorsítótárazást használnak.
+
+Új képek készítése az LVGL-render után:
+
+```sh
+python3 tools/prepare_template_previews.py .preview-images
+```
+
+A script a sablonkönyvtárakat, az áttekintő képet és az assetjegyzéket is frissíti.
+A csomag `version` értékét elrendezés- vagy előnézetváltoztatáskor emeld.
+
+## Automatikus ZIP-csomagolás
+
+A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti
+összes érvényes sablonhoz külön ZIP-et tartalmaz. A `tools/prepare_templates.py`
+a verziókezelt JSON-t és PNG-ket változtatás nélkül csomagolja, hiányzó vagy
+fölösleges képnél megáll. Nem írja újra a már finomhangolt elrendezéseket.
+A `tests/test_template_packages.py` ellenőrzi a ZIP-ek teljességét és bájtszintű azonosságát.
+
+A Műszerfal és az Energiafőkönyv nappali és éjszakai nézetében nincs teljes
+képernyős színezőmaszk: csak a kártyák áttetsző háttere fedi a háttérképet.
+A webes aktiválás is megjeleníti az eszköz betöltőképernyőjét az SD-olvasás előtt.
+
+A szövegelemek `text_shadow: true` mellett opcionális `shadow_color` színt
+kaphatnak (alapértelmezés: fekete). A `foreground: true` az `image` és `pulse`
+elemeknél engedélyezett: az elemet az áramló pontok fölé emeli. Az Energiautak
+fejléce fehér árnyékot, inverterikonja ilyen előtér-réteget használ; nincs
+alap háttérmaszkja. A Műszerfal fejléce mindkét módban fehér, kártyafeliratai
+feketék, kártyái világos alapúak. Az Energiafőkönyv táblázat- és kártyacímei
+az oldalcím színét követik; a külső kártyák fedettsége 160/255.
+
+A Rendszer nézet apró, 240×150 px-es nappali/éjszakai előnézete firmware-be
+ágyazott PNG. A két kép összesen körülbelül 21 KiB flashhelyet használ; nincs
+SD-olvasás és nincs LVGL-képdekódolás. A generátor legfeljebb 32 KiB-ot enged.
+A `/api/templates/preview?id=builtin&mode=light` és `mode=dark` végpontok
+ugyanazzal a hitelesítéssel működnek, mint a többi előnézet.
+
+Az Energiautak v11-ben a nappali fekete kártyacímek, ikonfeliratok és állapot
+sötét módban fehérek. Az Energiakör v12 két közös tengelyre illesztett,
+szimmetrikus keresztet használ; a középső `pulse` elem `foreground: true`
+beállítással a vonalak és a mozgó pontok fölött pulzál mindkét módban.
+Ehhez a v12-es ZIP mellett a `pulse` előtérjelölését támogató firmware is
+frissítendő. Az energiaáramlás közös sebességképlete változatlan.

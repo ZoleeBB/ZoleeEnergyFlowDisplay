@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#E5F1ED",
     "elements": [

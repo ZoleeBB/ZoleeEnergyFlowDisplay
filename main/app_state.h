@@ -31,6 +31,13 @@ typedef struct {
     bool night_mode;
     double battery_temperature_c;
 
+    /* Opcionális nappályaadatok a Loxone T1 bemenetéről. */
+    bool sun_position_valid;
+    double sun_azimuth_deg;
+    double sun_altitude_deg;
+    int sunrise_minute;
+    int sunset_minute;
+
     /* Monotonic idő a timeoutokhoz, epoch idő a statisztikához. */
     int64_t received_monotonic_us;
     int64_t received_epoch_s;

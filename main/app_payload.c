@@ -282,6 +282,29 @@ esp_err_t app_payload_parse(
     }
     sample.night_mode = integer_value == 1;
 
+    /* Opcionális T1: azimut#magasság#napkelte#napnyugta.
+     * Régi küldők és a JSON null továbbra is elfogadhatók. */
+    cJSON *solar = cJSON_GetObjectItemCaseSensitive(root, "SunPosition");
+    if (solar && !cJSON_IsNull(solar)) {
+        const char *value=cJSON_GetStringValue(solar);
+        double azimuth=0,altitude=0;
+        int sunrise=0,sunset=0,consumed=0;
+        if (!value || sscanf(value,"%lf#%lf#%d#%d%n",
+            &azimuth,&altitude,&sunrise,&sunset,&consumed)!=4 ||
+            value[consumed]!=0 || !isfinite(azimuth) || !isfinite(altitude) ||
+            azimuth<0 || azimuth>=360 || altitude< -90 || altitude>90 ||
+            sunrise<0 || sunrise>=1440 || sunset<0 || sunset>=1440 ||
+            sunrise>=sunset) {
+            fail(error,error_len,"Érvénytelen nappályaadat","SunPosition");
+            goto invalid;
+        }
+        sample.sun_azimuth_deg=azimuth;
+        sample.sun_altitude_deg=altitude;
+        sample.sunrise_minute=sunrise;
+        sample.sunset_minute=sunset;
+        sample.sun_position_valid=true;
+    }
+
     /* A -0,05..0 kW közötti PV/fogyasztás mérési zajt nullára normalizáljuk. */
     if (sample.power_pv_kw < 0) {
         sample.power_pv_kw = 0;

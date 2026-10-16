@@ -81,6 +81,15 @@ typedef struct {
     app_energy_totals_t totals;
     app_energy_totals_t completed_interval_totals;
     bool has_yesterday;
+    /* Szigorúbb, legalább egy órányi közös idősáv százalékhoz. */
+    bool comparison_ready;
+    /* A hiányos 0:00..azonos lezárt ötperces időszakokból
+     * számított százalékok félrevezetők. */
+    bool yesterday_comparison_partial;
+    /* Azonos lezárt ötperces ablakokban valóban mért energia mindkét napról. */
+    unsigned comparison_paired_slots;
+    app_energy_totals_t comparison_today_totals;
+    app_energy_totals_t comparison_yesterday_totals;
     app_energy_totals_t yesterday_completed_interval_totals;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
 } app_stats_snapshot_t;

@@ -79,14 +79,51 @@ static void draw_chart(lv_event_t *event)
     uint32_t grid = data->night ? 0x29322E : 0xE5EAEC;
     int divisions=(data->kind==APP_CHART_WEEK||data->kind==APP_CHART_MONTH)?(int)fmax(1,data->count):(data->reference_style||data->kind>=APP_CHART_GRID)?24:4;
     for(int i = 0; i <= divisions; i++) {
-        float x = area.x1 + (area.x2 - area.x1) * i / (float)divisions;
+        /* Az 1 px-es vonalak félpixel-középre kerülnek: minden óra
+         * azonos élességű, nem oszlik változó arányban két pixelre. */
+        float x = floorf(area.x1 + (area.x2 - area.x1) * i / (float)divisions) + .5f;
         line(draw, path, x, area.y1, x, area.y2, grid, 1.f);
     }
     for(int i = 0; i <= 2; i++) {
-        float y = area.y1 + (area.y2 - area.y1) * i / 2.f;
-        line(draw, path, area.x1, y, area.x2, y, grid, 1.f);
+        float y = floorf(area.y1 + (area.y2 - area.y1) * i / 2.f) + .5f;
+        /* Egyetlen pixelvonal, erősebb tónussal: nem keletkezik két
+         * antialiasolt szegély a középső skálabeosztásnál. */
+        uint32_t horizontal=data->kind==APP_CHART_SOLAR_HOURLY?(data->night?0x52675E:0xBAC7CA):grid;
+        line(draw, path, area.x1, y, area.x2, y, horizontal, 1.f);
     }
 
+    if(data->kind==APP_CHART_SOLAR_HOURLY){
+        /* Minden oszlop ténylegesen integrált egyórás kWh-adatot jelent.
+         * Zöld: helyben felhasznált / tárolt. Sárga: hálózatba exportált.
+         * Az adathiány nem alakul át becsült éjszakai nullává. */
+        float height=(float)(area.y2-area.y1);
+        float width=(float)(area.x2-area.x1)/24.f;
+        for(unsigned hour=0;hour<24;hour++){
+            if(!data->valid[hour])continue;
+            float local=fmaxf(0,data->values[0][hour]);
+            float exported=fmaxf(0,data->values[1][hour]);
+            float x=area.x1+hour*width+width*.15f;
+            float x2=x+width*.70f;
+            float y=area.y2;
+            float local_h=height*local/data->maximum;
+            float export_h=height*exported/data->maximum;
+            for(int part=0;part<2;part++){
+                float h=part?export_h:local_h;
+                if(h<=0)continue;
+                float top=y-h;
+                lv_fpoint_t p0={x,y},p1={x2,y},p2={x2,top},p3={x,top};
+                lv_vector_path_clear(path);lv_vector_path_move_to(path,&p0);
+                lv_vector_path_line_to(path,&p1);lv_vector_path_line_to(path,&p2);
+                lv_vector_path_line_to(path,&p3);lv_vector_path_close(path);
+                lv_draw_vector_dsc_set_fill_color(draw,lv_color_hex(data->colors[part]));
+                lv_draw_vector_dsc_set_fill_opa(draw,LV_OPA_COVER);
+                lv_draw_vector_dsc_set_stroke_opa(draw,LV_OPA_TRANSP);
+                lv_draw_vector_dsc_add_path(draw,path);
+                y=top;
+            }
+        }
+        goto finish;
+    }
     if(data->kind==APP_CHART_WEEK||data->kind==APP_CHART_MONTH){
         for(unsigned i=0;i<data->count;i++){
             float column=(area.x2-area.x1+1)/(float)data->count;
@@ -167,7 +204,8 @@ static void draw_chart(lv_event_t *event)
             }
             lv_color_t color=lv_color_hex(data->colors[series]);
             lv_draw_vector_dsc_set_fill_color(draw,color);
-            lv_draw_vector_dsc_set_fill_opa(draw,fill?(data->night?LV_OPA_20:LV_OPA_40):LV_OPA_TRANSP);
+            /* A görbe saját színét jól felismerhető, de a vonalnál halványabb kitöltés követi. */
+            lv_draw_vector_dsc_set_fill_opa(draw,fill?(data->night?LV_OPA_60:LV_OPA_70):LV_OPA_TRANSP);
             lv_draw_vector_dsc_set_stroke_color(draw,color);
             lv_draw_vector_dsc_set_stroke_width(draw,1.6f);
             lv_draw_vector_dsc_set_stroke_opa(draw,fill?LV_OPA_TRANSP:LV_OPA_COVER);
@@ -214,6 +252,24 @@ void app_chart_update(lv_obj_t *obj, const app_stats_snapshot_t *snapshot,
     data->maximum = data->kind==APP_CHART_SOC?100:fmax(1., maximum_kw);
     data->minimum=(data->kind==APP_CHART_GRID||data->kind==APP_CHART_BATTERY)?-data->maximum:0;
     data->minute = minute_of_day;
+    if(data->kind==APP_CHART_SOLAR_HOURLY){
+        data->maximum=1.f;data->minimum=0;
+        for(int hour=0;hour<24;hour++){
+            double local=0,exported=0;bool has_data=false;
+            for(int k=0;k<12;k++){
+                const app_stats_slot_t *slot=&snapshot->slots[hour*12+k];
+                if(!slot->valid||slot->chart_gap||hour*60+k*5>minute_of_day)continue;
+                local+=slot->energy.pv_home_kwh+slot->energy.pv_stored_kwh;
+                exported+=slot->energy.pv_export_kwh;
+                has_data=true;
+            }
+            data->valid[hour]=has_data;
+            data->values[0][hour]=(float)local;
+            data->values[1][hour]=(float)exported;
+            data->maximum=fmaxf(data->maximum,(float)(local+exported));
+        }
+        data->maximum=ceilf(data->maximum);lv_obj_invalidate(obj);return;
+    }
     for(int i = 0; i < APP_STATS_SLOT_COUNT; i++) {
         const app_stats_slot_t *slot=&snapshot->slots[i];
         data->valid[i] = slot->valid && !slot->chart_gap && i * 5 <= minute_of_day;

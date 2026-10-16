@@ -89,9 +89,9 @@ static void send_demo(void)
         "{\"PowerGrid\":%.3f,\"PowerBat\":%.3f,\"PowerPV\":%.3f,"
         "\"PowerFull\":%.3f,\"SocBat\":%.1f,\"Temperature\":%.1f,"
         "\"WindSpeed\":%u,\"HasSunRadiation\":%d,\"HasPrecipitation\":%d,"
-        "\"Status\":%d,\"NightMode\":%d,\"BatteryTemperature\":%d}",
+        "\"Status\":%d,\"NightMode\":%d,\"BatteryTemperature\":%d,\"SunPosition\":\"180#%d#420#1080\"}",
         load[i]-pv[i]-bat[i],bat[i],pv[i],load[i],65.0+i*2.3,
-        i==4?-6.0:18.2,12+i*3,i==0||i==6,i==3||i==4,status,night,i==8?52:i==6?43:32);
+        i==4?-6.0:18.2,12+i*3,i==0||i==6,i==3||i==4,status,night,i==8?52:i==6?43:32,night?-25:30);
     if(n<0 || (size_t)n>=sizeof(json) || app_ingest_process(APP_DATA_HTTP,json,(size_t)n,error,sizeof(error))!=ESP_OK){
         fprintf(stderr,"Demo packet rejected: %s\n",error);exit(2);
     }
@@ -120,7 +120,7 @@ static void render_step(unsigned elapsed)
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
         app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
-        template_prepare();render_runtime(rt,sample,have,ticks);
+        diagnostics_capture();template_prepare();render_runtime(rt,sample,have,ticks);
     }
     lv_timer_handler();
 }
@@ -142,6 +142,7 @@ static void init_demo(void)
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
     config.display.day_brightness=80;config.display.night_brightness=20;
     config.energy.electricity_purchase_price=65;config.energy.feed_in_price=5;
+    config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
     fixture.has_yesterday=true;
@@ -159,6 +160,8 @@ static void init_demo(void)
             .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=battery,.soc_pct=fminf(100,20+pv*10),.soc_valid=true,
             .split=app_energy_split(pv,load,battery),.chart_gap=(i==current/3)};
         app_energy_split_t split=fixture.slots[i].split;
+        fixture.slots[i].energy=(app_energy_totals_t){.production_kwh=pv/12,
+            .pv_home_kwh=split.pv_home/12,.pv_export_kwh=split.pv_export/12,.pv_stored_kwh=split.pv_stored/12};
         fixture.totals.pv_home_kwh+=split.pv_home/12;fixture.totals.pv_export_kwh+=split.pv_export/12;
         fixture.totals.pv_stored_kwh+=split.pv_stored/12;fixture.totals.grid_home_kwh+=split.grid_home/12;
         fixture.totals.battery_home_kwh+=split.battery_home/12;
@@ -172,10 +175,16 @@ static void init_demo(void)
     fixture.yesterday_completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals.production_kwh*=.85;
     fixture.yesterday_completed_interval_totals.consumption_kwh*=1.15;
+    fixture.comparison_ready=current>0;fixture.yesterday_comparison_partial=current>0;
+    fixture.comparison_paired_slots=(unsigned)current;
+    fixture.comparison_today_totals=fixture.completed_interval_totals;
+    fixture.comparison_yesterday_totals=fixture.yesterday_completed_interval_totals;
     send_demo();render_step(16);
 }
 static int self_test(void)
 {
+    app_energy_sample_t initial;app_state_get_sample(&initial);
+    if(!initial.sun_position_valid||config.energy.battery_capacity_kwh!=15)return 22;
     /* A határértékeken is a tényleges sáv indikátorszínét ellenőrizzük. */
     const double levels[]={0,19.9,20,50,50.1,100};
     const uint32_t colors[]={RED,RED,ORANGE,ORANGE,GREEN,GREEN};
@@ -300,7 +309,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
         if(wp=='N'){night_override=night_override==1?0:1;send_demo();}
         if(wp=='S'){sd_ok=!sd_ok;}
         if(wp=='W'){app_runtime_state_t rt;app_state_get_runtime(&rt);app_state_set_wifi_connected(!rt.wifi_connected);}
-        if(wp=='I'){s_diagnostics_requested=!s_diagnostics_requested;app_diagnostics_capture(&s_diagnostics);}
+        if(wp=='I'){s_diagnostics_requested=!s_diagnostics_requested;diagnostics_capture();}
         if(wp==VK_RIGHT||wp==VK_LEFT)app_templates_step(wp==VK_RIGHT?1:-1);
         if(wp=='D'){scene=(scene+1)%9;send_demo();}
         return 0;
@@ -338,6 +347,7 @@ static int paint_self_test(void)
 #endif
 int main(int argc,char **argv)
 {
+    app_events_init();app_events_add(APP_EVENT_INFO,"Desktop simulator started.");
     app_templates_init();
     if(argc>1&&!strcmp(argv[1],"--self-test"))app_templates_select("builtin");
     init_demo();int result=0;

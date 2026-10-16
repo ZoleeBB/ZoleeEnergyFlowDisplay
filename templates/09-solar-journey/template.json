@@ -1,0 +1,2488 @@
+{
+  "schema": 1,
+  "id": "09-solar-journey",
+  "name": "Nap pálya",
+  "version": 19,
+  "light": {
+    "background": "#E2EDF7",
+    "palette": {
+      "pv": "#28C87C",
+      "grid": "#EA695A",
+      "home": "#FFC035",
+      "battery": "#69AFFF"
+    },
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "day.png"
+      },
+      {
+        "type": "label",
+        "x": 30,
+        "y": 20,
+        "w": 445,
+        "h": 45,
+        "font": 28,
+        "text": "Zolee Energy Monitor",
+        "color": "#10223C",
+        "text_shadow": true,
+        "shadow_opacity": 40
+      },
+      {
+        "type": "label",
+        "x": 31,
+        "y": 65,
+        "w": 440,
+        "h": 28,
+        "font": 16,
+        "text": "Tiszta energia. Zöldebb holnap.",
+        "color": "#315A87"
+      },
+      {
+        "type": "value",
+        "x": 952,
+        "y": 15,
+        "w": 186,
+        "h": 26,
+        "font": 16,
+        "source": "date",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 950,
+        "y": 43,
+        "w": 165,
+        "h": 60,
+        "font": 48,
+        "source": "clock",
+        "color": "#10223C"
+      },
+      {
+        "type": "weather",
+        "x": 1103,
+        "y": 17,
+        "w": 66,
+        "h": 66,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_moon.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1183,
+        "y": 24,
+        "w": 90,
+        "h": 29,
+        "font": 20,
+        "source": "temperature",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 1179,
+        "y": 57,
+        "w": 96,
+        "h": 30,
+        "font": 12,
+        "source": "weather_label",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 1114,
+        "y": 92,
+        "w": 30,
+        "h": 30,
+        "file": "weather_wind.png"
+      },
+      {
+        "type": "value",
+        "x": 1150,
+        "y": 93,
+        "w": 125,
+        "h": 29,
+        "font": 16,
+        "source": "wind",
+        "color": "#10223C"
+      },
+      {
+        "type": "solar_disc",
+        "x": 415,
+        "y": 116,
+        "w": 42,
+        "h": 42,
+        "center_x": 474,
+        "center_y": 408,
+        "radius_x": 386,
+        "radius_y": 313,
+        "night_radius_y": 186,
+        "file": "solar_day.png",
+        "color": "#FFD16E",
+        "glow": 16,
+        "day_path": [
+          {
+            "x": 88,
+            "y": 401
+          },
+          {
+            "x": 92,
+            "y": 388
+          },
+          {
+            "x": 108,
+            "y": 337
+          },
+          {
+            "x": 129,
+            "y": 296
+          },
+          {
+            "x": 161,
+            "y": 248
+          },
+          {
+            "x": 201,
+            "y": 206
+          },
+          {
+            "x": 250,
+            "y": 166
+          },
+          {
+            "x": 306,
+            "y": 135
+          },
+          {
+            "x": 371,
+            "y": 109
+          },
+          {
+            "x": 443,
+            "y": 96
+          },
+          {
+            "x": 476,
+            "y": 95
+          },
+          {
+            "x": 524,
+            "y": 97
+          },
+          {
+            "x": 597,
+            "y": 112
+          },
+          {
+            "x": 669,
+            "y": 144
+          },
+          {
+            "x": 726,
+            "y": 181
+          },
+          {
+            "x": 766,
+            "y": 220
+          },
+          {
+            "x": 782,
+            "y": 247
+          },
+          {
+            "x": 791,
+            "y": 260
+          },
+          {
+            "x": 800,
+            "y": 275
+          },
+          {
+            "x": 806,
+            "y": 285
+          },
+          {
+            "x": 812,
+            "y": 295
+          },
+          {
+            "x": 817,
+            "y": 306
+          },
+          {
+            "x": 823,
+            "y": 320
+          },
+          {
+            "x": 829,
+            "y": 335
+          },
+          {
+            "x": 834,
+            "y": 350
+          },
+          {
+            "x": 839,
+            "y": 365
+          },
+          {
+            "x": 842,
+            "y": 380
+          },
+          {
+            "x": 843,
+            "y": 386
+          },
+          {
+            "x": 845,
+            "y": 400
+          },
+          {
+            "x": 846,
+            "y": 410
+          },
+          {
+            "x": 846,
+            "y": 416
+          }
+        ],
+        "night_path": [
+          {
+            "x": 846,
+            "y": 416
+          },
+          {
+            "x": 840,
+            "y": 452
+          },
+          {
+            "x": 823,
+            "y": 483
+          },
+          {
+            "x": 811,
+            "y": 502
+          },
+          {
+            "x": 790,
+            "y": 526
+          },
+          {
+            "x": 766,
+            "y": 543
+          },
+          {
+            "x": 726,
+            "y": 564
+          },
+          {
+            "x": 669,
+            "y": 586
+          },
+          {
+            "x": 597,
+            "y": 601
+          },
+          {
+            "x": 524,
+            "y": 610
+          },
+          {
+            "x": 476,
+            "y": 612
+          },
+          {
+            "x": 443,
+            "y": 610
+          },
+          {
+            "x": 371,
+            "y": 602
+          },
+          {
+            "x": 306,
+            "y": 585
+          },
+          {
+            "x": 250,
+            "y": 569
+          },
+          {
+            "x": 201,
+            "y": 545
+          },
+          {
+            "x": 161,
+            "y": 522
+          },
+          {
+            "x": 129,
+            "y": 498
+          },
+          {
+            "x": 108,
+            "y": 475
+          },
+          {
+            "x": 92,
+            "y": 447
+          },
+          {
+            "x": 88,
+            "y": 401
+          }
+        ]
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 382,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "K",
+        "color": "#10223C",
+        "align": "center",
+        "text_shadow": false
+      },
+      {
+        "type": "label",
+        "x": 420,
+        "y": 95,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "D",
+        "color": "#10223C",
+        "align": "center",
+        "text_shadow": false
+      },
+      {
+        "type": "label",
+        "x": 795,
+        "y": 382,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "Ny",
+        "color": "#10223C",
+        "align": "center",
+        "text_shadow": false
+      },
+      {
+        "type": "label",
+        "x": 422,
+        "y": 599,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "É",
+        "color": "#10223C",
+        "align": "center",
+        "text_shadow": false
+      },
+      {
+        "type": "box",
+        "x": 7,
+        "y": 236,
+        "w": 111,
+        "h": 52,
+        "background": "#EDF8FF",
+        "opacity": 206,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 18,
+        "y": 240,
+        "w": 90,
+        "h": 20,
+        "font": 12,
+        "text": "Napkelte",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 18,
+        "y": 261,
+        "w": 90,
+        "h": 24,
+        "font": 16,
+        "source": "sunrise",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 821,
+        "y": 236,
+        "w": 111,
+        "h": 52,
+        "background": "#EDF8FF",
+        "opacity": 206,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 827,
+        "y": 240,
+        "w": 98,
+        "h": 20,
+        "font": 12,
+        "text": "Napnyugta",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 834,
+        "y": 261,
+        "w": 85,
+        "h": 24,
+        "font": 16,
+        "source": "sunset",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 782,
+        "y": 102,
+        "w": 139,
+        "h": 59,
+        "background": "#EDF8FF",
+        "opacity": 206,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 789,
+        "y": 107,
+        "w": 125,
+        "h": 19,
+        "font": 12,
+        "text": "Napmagasság",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 787,
+        "y": 127,
+        "w": 72,
+        "h": 28,
+        "font": 20,
+        "source": "sun_altitude",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 861,
+        "y": 130,
+        "w": 50,
+        "h": 24,
+        "font": 16,
+        "source": "sun_direction",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 941,
+        "y": 144,
+        "w": 325,
+        "h": 239,
+        "background": "#F2F8FF",
+        "opacity": 230,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 951,
+        "y": 154,
+        "w": 27,
+        "h": 33,
+        "file": "lightning.png"
+      },
+      {
+        "type": "label",
+        "x": 986,
+        "y": 159,
+        "w": 185,
+        "h": 27,
+        "font": 20,
+        "text": "Mai termelés",
+        "color": "#10223C"
+      },
+      {
+        "type": "label",
+        "x": 1181,
+        "y": 162,
+        "w": 77,
+        "h": 21,
+        "font": 12,
+        "text": "Élő adatok",
+        "color": "#1D426B"
+      },
+      {
+        "type": "value",
+        "x": 949,
+        "y": 192,
+        "w": 218,
+        "h": 45,
+        "font": 28,
+        "source": "production_today",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 1164,
+        "y": 206,
+        "w": 94,
+        "h": 28,
+        "font": 16,
+        "source": "production_yesterday_pct",
+        "color": "#168452",
+        "align": "center"
+      },
+      {
+        "type": "chart",
+        "x": 950,
+        "y": 244,
+        "w": 303,
+        "h": 100,
+        "kind": "solar_hourly",
+        "color": "#10223C"
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 345,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Helyben elhasznált és tárolt",
+        "color": "#1D426B",
+        "text_en": "Used locally and stored"
+      },
+      {
+        "type": "box",
+        "x": 941,
+        "y": 394,
+        "w": 325,
+        "h": 256,
+        "background": "#F2F8FF",
+        "opacity": 230,
+        "radius": 16
+      },
+      {
+        "type": "label",
+        "x": 954,
+        "y": 403,
+        "w": 261,
+        "h": 28,
+        "font": 20,
+        "text": "Energiaáramlás",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 954,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "pv.png"
+      },
+      {
+        "type": "image",
+        "x": 1076,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "home.png"
+      },
+      {
+        "type": "image",
+        "x": 1193,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "grid.png"
+      },
+      {
+        "type": "flow",
+        "x": 1016,
+        "y": 472,
+        "w": 62,
+        "h": 3,
+        "source": "pv_home",
+        "color": "#24C77C",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 61,
+            "y": 1
+          }
+        ],
+        "dot_size": 6,
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
+      },
+      {
+        "type": "flow",
+        "x": 1136,
+        "y": 472,
+        "w": 58,
+        "h": 3,
+        "source": "grid",
+        "color": "#ED5964",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 57,
+            "y": 1
+          }
+        ],
+        "positive_color": "#ED5964",
+        "negative_color": "#FFE23B",
+        "dot_size": 6,
+        "reverse": true,
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
+      },
+      {
+        "type": "flow",
+        "x": 1016,
+        "y": 472,
+        "w": 25,
+        "h": 90,
+        "source": "battery",
+        "color": "#48B9FF",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 22,
+            "y": 1
+          },
+          {
+            "x": 22,
+            "y": 88
+          }
+        ],
+        "dot_size": 6,
+        "reverse": true,
+        "curve": "polyline",
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28,
+        "positive_color": "#78D9FF",
+        "negative_color": "#286DAF"
+      },
+      {
+        "type": "value",
+        "x": 951,
+        "y": 509,
+        "w": 81,
+        "h": 25,
+        "font": 20,
+        "source": "pv",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1062,
+        "y": 509,
+        "w": 87,
+        "h": 25,
+        "font": 20,
+        "source": "home",
+        "color": "#10223C",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1167,
+        "y": 509,
+        "w": 92,
+        "h": 25,
+        "font": 20,
+        "source": "grid",
+        "color": "#10223C",
+        "align": "center",
+        "positive_color": "#F15160",
+        "negative_color": "#FFD83E",
+        "zero_color": "#10223C"
+      },
+      {
+        "type": "label",
+        "x": 951,
+        "y": 534,
+        "w": 81,
+        "h": 19,
+        "font": 12,
+        "text": "Napelem",
+        "color": "#1D426B",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 1062,
+        "y": 534,
+        "w": 87,
+        "h": 19,
+        "font": 12,
+        "text": "Háztartás",
+        "color": "#1D426B",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1167,
+        "y": 533,
+        "w": 92,
+        "h": 21,
+        "font": 12,
+        "source": "grid_direction",
+        "color": "#1D426B",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 951,
+        "y": 562,
+        "w": 307,
+        "h": 78,
+        "background": "#E3F4FC",
+        "opacity": 221,
+        "radius": 12,
+        "outline_color": "#66A4C0",
+        "outline_width": 1
+      },
+      {
+        "type": "image",
+        "x": 956,
+        "y": 577,
+        "w": 51,
+        "h": 52,
+        "file": "battery.png"
+      },
+      {
+        "type": "value",
+        "x": 1012,
+        "y": 568,
+        "w": 80,
+        "h": 30,
+        "font": 20,
+        "source": "soc",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 1012,
+        "y": 600,
+        "w": 129,
+        "h": 26,
+        "font": 16,
+        "source": "battery_summary",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 1156,
+        "y": 580,
+        "w": 30,
+        "h": 40,
+        "file": "battery_temp.png"
+      },
+      {
+        "type": "value",
+        "x": 1185,
+        "y": 583,
+        "w": 71,
+        "h": 28,
+        "font": 16,
+        "source": "battery_temp",
+        "color": "#10223C"
+      },
+      {
+        "type": "label",
+        "x": 1182,
+        "y": 613,
+        "w": 75,
+        "h": 18,
+        "font": 12,
+        "text": "Akku hőfok",
+        "color": "#1D426B"
+      },
+      {
+        "type": "box",
+        "x": 18,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#F2F8FF",
+        "opacity": 236,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 33,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "eco_leaf.png"
+      },
+      {
+        "type": "label",
+        "x": 95,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai megtakarítás",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 95,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "solar_savings_day",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 265,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "eco_tree.png"
+      },
+      {
+        "type": "label",
+        "x": 33,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Becsült megtakarítás",
+        "color": "#1D426B"
+      },
+      {
+        "type": "value",
+        "x": 239,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "savings_yesterday_pct",
+        "color": "#1C7955",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 333,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#F2F8FF",
+        "opacity": 236,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 348,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "coins.png"
+      },
+      {
+        "type": "label",
+        "x": 410,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai termelési érték",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 410,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "solar_value_today",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 580,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "production_bars.png"
+      },
+      {
+        "type": "label",
+        "x": 348,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Becsült megtakarítás",
+        "color": "#1D426B"
+      },
+      {
+        "type": "value",
+        "x": 554,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "production_value_yesterday_pct",
+        "color": "#1C7955",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#F2F8FF",
+        "opacity": 236,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 663,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "home.png"
+      },
+      {
+        "type": "label",
+        "x": 725,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai fogyasztás",
+        "color": "#10223C"
+      },
+      {
+        "type": "value",
+        "x": 725,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "consumption_today",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 895,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "consumption_bars.png"
+      },
+      {
+        "type": "value",
+        "x": 869,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "consumption_yesterday_pct",
+        "color": "#1C7955",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 963,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#F2F8FF",
+        "opacity": 236,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 978,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "pv.png"
+      },
+      {
+        "type": "label",
+        "x": 1040,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai termelés",
+        "color": "#10223C",
+        "text_en": "Production today"
+      },
+      {
+        "type": "value",
+        "x": 1040,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "production_today",
+        "color": "#10223C"
+      },
+      {
+        "type": "image",
+        "x": 1210,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "production_bars_green.png"
+      },
+      {
+        "type": "label",
+        "x": 978,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Napelemekből nyert energia",
+        "color": "#1D426B",
+        "text_en": "Energy from solar panels"
+      },
+      {
+        "type": "value",
+        "x": 1184,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "production_yesterday_pct",
+        "color": "#1C7955",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 574,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 582,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 590,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 598,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 606,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 614,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 622,
+        "w": 2,
+        "h": 4,
+        "background": "#66A4C0",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "value",
+        "x": 1093,
+        "y": 574,
+        "w": 51,
+        "h": 22,
+        "source": "battery",
+        "font": 12,
+        "color": "#2F97CF",
+        "positive_color": "#228CC4",
+        "negative_color": "#185995",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 350,
+        "w": 6,
+        "h": 6,
+        "background": "#23B779",
+        "radius": 3
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 366,
+        "w": 6,
+        "h": 6,
+        "background": "#FFCB35",
+        "radius": 3
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 361,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Hálózatba visszatáplált",
+        "text_en": "Exported to the grid",
+        "color": "#1D426B"
+      },
+      {
+        "type": "bar",
+        "x": 1012,
+        "y": 627,
+        "w": 129,
+        "h": 6,
+        "source": "soc",
+        "max": 100,
+        "color": "#28C87C",
+        "background": "#AFC7DB",
+        "soc_four_bands": true,
+        "outline_color": "#41627D"
+      },
+      {
+        "type": "label",
+        "x": 663,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Háztartásban elhasznált energia",
+        "text_en": "Energy used in the household",
+        "color": "#1D426B"
+      }
+    ]
+  },
+  "dark": {
+    "background": "#061D36",
+    "palette": {
+      "pv": "#28C87C",
+      "grid": "#EA695A",
+      "home": "#FFC035",
+      "battery": "#69AFFF"
+    },
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "night.png"
+      },
+      {
+        "type": "label",
+        "x": 30,
+        "y": 20,
+        "w": 445,
+        "h": 45,
+        "font": 28,
+        "text": "Zolee Energy Monitor",
+        "color": "#F7FAFF",
+        "text_shadow": true,
+        "shadow_opacity": 100
+      },
+      {
+        "type": "label",
+        "x": 31,
+        "y": 65,
+        "w": 440,
+        "h": 28,
+        "font": 16,
+        "text": "Tiszta energia. Zöldebb holnap.",
+        "color": "#B2D4F1"
+      },
+      {
+        "type": "value",
+        "x": 952,
+        "y": 15,
+        "w": 186,
+        "h": 26,
+        "font": 16,
+        "source": "date",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 950,
+        "y": 43,
+        "w": 165,
+        "h": 60,
+        "font": 48,
+        "source": "clock",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "weather",
+        "x": 1103,
+        "y": 17,
+        "w": 66,
+        "h": 66,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_moon.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1183,
+        "y": 24,
+        "w": 90,
+        "h": 29,
+        "font": 20,
+        "source": "temperature",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 1179,
+        "y": 57,
+        "w": 96,
+        "h": 30,
+        "font": 12,
+        "source": "weather_label",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 1114,
+        "y": 92,
+        "w": 30,
+        "h": 30,
+        "file": "weather_wind.png"
+      },
+      {
+        "type": "value",
+        "x": 1150,
+        "y": 93,
+        "w": 125,
+        "h": 29,
+        "font": 16,
+        "source": "wind",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "solar_disc",
+        "x": 415,
+        "y": 116,
+        "w": 42,
+        "h": 42,
+        "center_x": 474,
+        "center_y": 408,
+        "radius_x": 386,
+        "radius_y": 313,
+        "night_radius_y": 186,
+        "file": "solar_night.png",
+        "color": "#71C8FF",
+        "glow": 16,
+        "day_path": [
+          {
+            "x": 88,
+            "y": 401
+          },
+          {
+            "x": 92,
+            "y": 388
+          },
+          {
+            "x": 108,
+            "y": 337
+          },
+          {
+            "x": 129,
+            "y": 296
+          },
+          {
+            "x": 161,
+            "y": 248
+          },
+          {
+            "x": 201,
+            "y": 206
+          },
+          {
+            "x": 250,
+            "y": 166
+          },
+          {
+            "x": 306,
+            "y": 135
+          },
+          {
+            "x": 371,
+            "y": 109
+          },
+          {
+            "x": 443,
+            "y": 96
+          },
+          {
+            "x": 476,
+            "y": 95
+          },
+          {
+            "x": 524,
+            "y": 97
+          },
+          {
+            "x": 597,
+            "y": 112
+          },
+          {
+            "x": 669,
+            "y": 144
+          },
+          {
+            "x": 726,
+            "y": 181
+          },
+          {
+            "x": 766,
+            "y": 220
+          },
+          {
+            "x": 782,
+            "y": 247
+          },
+          {
+            "x": 791,
+            "y": 260
+          },
+          {
+            "x": 800,
+            "y": 275
+          },
+          {
+            "x": 806,
+            "y": 285
+          },
+          {
+            "x": 812,
+            "y": 295
+          },
+          {
+            "x": 817,
+            "y": 306
+          },
+          {
+            "x": 823,
+            "y": 320
+          },
+          {
+            "x": 829,
+            "y": 335
+          },
+          {
+            "x": 834,
+            "y": 350
+          },
+          {
+            "x": 839,
+            "y": 365
+          },
+          {
+            "x": 842,
+            "y": 380
+          },
+          {
+            "x": 843,
+            "y": 386
+          },
+          {
+            "x": 845,
+            "y": 400
+          },
+          {
+            "x": 846,
+            "y": 410
+          },
+          {
+            "x": 846,
+            "y": 416
+          }
+        ],
+        "night_path": [
+          {
+            "x": 846,
+            "y": 416
+          },
+          {
+            "x": 840,
+            "y": 452
+          },
+          {
+            "x": 823,
+            "y": 483
+          },
+          {
+            "x": 811,
+            "y": 502
+          },
+          {
+            "x": 790,
+            "y": 526
+          },
+          {
+            "x": 766,
+            "y": 543
+          },
+          {
+            "x": 726,
+            "y": 564
+          },
+          {
+            "x": 669,
+            "y": 586
+          },
+          {
+            "x": 597,
+            "y": 601
+          },
+          {
+            "x": 524,
+            "y": 610
+          },
+          {
+            "x": 476,
+            "y": 612
+          },
+          {
+            "x": 443,
+            "y": 610
+          },
+          {
+            "x": 371,
+            "y": 602
+          },
+          {
+            "x": 306,
+            "y": 585
+          },
+          {
+            "x": 250,
+            "y": 569
+          },
+          {
+            "x": 201,
+            "y": 545
+          },
+          {
+            "x": 161,
+            "y": 522
+          },
+          {
+            "x": 129,
+            "y": 498
+          },
+          {
+            "x": 108,
+            "y": 475
+          },
+          {
+            "x": 92,
+            "y": 447
+          },
+          {
+            "x": 88,
+            "y": 401
+          }
+        ]
+      },
+      {
+        "type": "label",
+        "x": 54,
+        "y": 382,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "K",
+        "color": "#F7FAFF",
+        "align": "center",
+        "text_shadow": true
+      },
+      {
+        "type": "label",
+        "x": 420,
+        "y": 95,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "D",
+        "color": "#F7FAFF",
+        "align": "center",
+        "text_shadow": true
+      },
+      {
+        "type": "label",
+        "x": 795,
+        "y": 382,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "Ny",
+        "color": "#F7FAFF",
+        "align": "center",
+        "text_shadow": true
+      },
+      {
+        "type": "label",
+        "x": 422,
+        "y": 599,
+        "w": 53,
+        "h": 32,
+        "font": 16,
+        "text": "É",
+        "color": "#F7FAFF",
+        "align": "center",
+        "text_shadow": true
+      },
+      {
+        "type": "box",
+        "x": 7,
+        "y": 236,
+        "w": 111,
+        "h": 52,
+        "background": "#092643",
+        "opacity": 179,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 18,
+        "y": 240,
+        "w": 90,
+        "h": 20,
+        "font": 12,
+        "text": "Napkelte",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 18,
+        "y": 261,
+        "w": 90,
+        "h": 24,
+        "font": 16,
+        "source": "sunrise",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 821,
+        "y": 236,
+        "w": 111,
+        "h": 52,
+        "background": "#092643",
+        "opacity": 179,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 827,
+        "y": 240,
+        "w": 98,
+        "h": 20,
+        "font": 12,
+        "text": "Napnyugta",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 834,
+        "y": 261,
+        "w": 85,
+        "h": 24,
+        "font": 16,
+        "source": "sunset",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 782,
+        "y": 102,
+        "w": 139,
+        "h": 59,
+        "background": "#092643",
+        "opacity": 179,
+        "radius": 11
+      },
+      {
+        "type": "label",
+        "x": 789,
+        "y": 107,
+        "w": 125,
+        "h": 19,
+        "font": 12,
+        "text": "Napmagasság",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 787,
+        "y": 127,
+        "w": 72,
+        "h": 28,
+        "font": 20,
+        "source": "sun_altitude",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 861,
+        "y": 130,
+        "w": 50,
+        "h": 24,
+        "font": 16,
+        "source": "sun_direction",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 941,
+        "y": 144,
+        "w": 325,
+        "h": 239,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 951,
+        "y": 154,
+        "w": 27,
+        "h": 33,
+        "file": "lightning.png"
+      },
+      {
+        "type": "label",
+        "x": 986,
+        "y": 159,
+        "w": 185,
+        "h": 27,
+        "font": 20,
+        "text": "Mai termelés",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "label",
+        "x": 1181,
+        "y": 162,
+        "w": 77,
+        "h": 21,
+        "font": 12,
+        "text": "Élő adatok",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "value",
+        "x": 949,
+        "y": 192,
+        "w": 218,
+        "h": 45,
+        "font": 28,
+        "source": "production_today",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 1164,
+        "y": 206,
+        "w": 94,
+        "h": 28,
+        "font": 16,
+        "source": "production_yesterday_pct",
+        "color": "#4EE88A",
+        "align": "center"
+      },
+      {
+        "type": "chart",
+        "x": 950,
+        "y": 244,
+        "w": 303,
+        "h": 100,
+        "kind": "solar_hourly",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 345,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Helyben elhasznált és tárolt",
+        "color": "#C4D8EA",
+        "text_en": "Used locally and stored"
+      },
+      {
+        "type": "box",
+        "x": 941,
+        "y": 394,
+        "w": 325,
+        "h": 256,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "label",
+        "x": 954,
+        "y": 403,
+        "w": 261,
+        "h": 28,
+        "font": 20,
+        "text": "Energiaáramlás",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 954,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "pv.png"
+      },
+      {
+        "type": "image",
+        "x": 1076,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "home.png"
+      },
+      {
+        "type": "image",
+        "x": 1193,
+        "y": 448,
+        "w": 58,
+        "h": 58,
+        "file": "grid.png"
+      },
+      {
+        "type": "flow",
+        "x": 1016,
+        "y": 472,
+        "w": 62,
+        "h": 3,
+        "source": "pv_home",
+        "color": "#24C77C",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 61,
+            "y": 1
+          }
+        ],
+        "dot_size": 6,
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
+      },
+      {
+        "type": "flow",
+        "x": 1136,
+        "y": 472,
+        "w": 58,
+        "h": 3,
+        "source": "grid",
+        "color": "#ED5964",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 57,
+            "y": 1
+          }
+        ],
+        "positive_color": "#ED5964",
+        "negative_color": "#FFE23B",
+        "dot_size": 6,
+        "reverse": true,
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28
+      },
+      {
+        "type": "flow",
+        "x": 1016,
+        "y": 472,
+        "w": 25,
+        "h": 90,
+        "source": "battery",
+        "color": "#48B9FF",
+        "radius": 3,
+        "glow": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 1
+          },
+          {
+            "x": 22,
+            "y": 1
+          },
+          {
+            "x": 22,
+            "y": 88
+          }
+        ],
+        "dot_size": 6,
+        "reverse": true,
+        "curve": "polyline",
+        "dot_count": 2,
+        "active_opacity": 250,
+        "inactive_opacity": 184,
+        "inactive_glow_opacity": 28,
+        "positive_color": "#78D9FF",
+        "negative_color": "#286DAF"
+      },
+      {
+        "type": "value",
+        "x": 951,
+        "y": 509,
+        "w": 81,
+        "h": 25,
+        "font": 20,
+        "source": "pv",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1062,
+        "y": 509,
+        "w": 87,
+        "h": 25,
+        "font": 20,
+        "source": "home",
+        "color": "#F7FAFF",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1167,
+        "y": 509,
+        "w": 92,
+        "h": 25,
+        "font": 20,
+        "source": "grid",
+        "color": "#F7FAFF",
+        "align": "center",
+        "positive_color": "#F15160",
+        "negative_color": "#FFD83E",
+        "zero_color": "#F7FAFF"
+      },
+      {
+        "type": "label",
+        "x": 951,
+        "y": 534,
+        "w": 81,
+        "h": 19,
+        "font": 12,
+        "text": "Napelem",
+        "color": "#C4D8EA",
+        "align": "center"
+      },
+      {
+        "type": "label",
+        "x": 1062,
+        "y": 534,
+        "w": 87,
+        "h": 19,
+        "font": 12,
+        "text": "Háztartás",
+        "color": "#C4D8EA",
+        "align": "center"
+      },
+      {
+        "type": "value",
+        "x": 1167,
+        "y": 533,
+        "w": 92,
+        "h": 21,
+        "font": 12,
+        "source": "grid_direction",
+        "color": "#C4D8EA",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 951,
+        "y": 562,
+        "w": 307,
+        "h": 78,
+        "background": "#0A2741",
+        "opacity": 186,
+        "radius": 12,
+        "outline_color": "#4A82A8",
+        "outline_width": 1
+      },
+      {
+        "type": "image",
+        "x": 956,
+        "y": 577,
+        "w": 51,
+        "h": 52,
+        "file": "battery.png"
+      },
+      {
+        "type": "value",
+        "x": 1012,
+        "y": 568,
+        "w": 80,
+        "h": 30,
+        "font": 20,
+        "source": "soc",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 1012,
+        "y": 600,
+        "w": 129,
+        "h": 26,
+        "font": 16,
+        "source": "battery_summary",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 1156,
+        "y": 580,
+        "w": 30,
+        "h": 40,
+        "file": "battery_temp.png"
+      },
+      {
+        "type": "value",
+        "x": 1185,
+        "y": 583,
+        "w": 71,
+        "h": 28,
+        "font": 16,
+        "source": "battery_temp",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "label",
+        "x": 1182,
+        "y": 613,
+        "w": 75,
+        "h": 18,
+        "font": 12,
+        "text": "Akku hőfok",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "box",
+        "x": 18,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 33,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "eco_leaf.png"
+      },
+      {
+        "type": "label",
+        "x": 95,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai megtakarítás",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 95,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "solar_savings_day",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 265,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "eco_tree.png"
+      },
+      {
+        "type": "label",
+        "x": 33,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Becsült megtakarítás",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "value",
+        "x": 239,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "savings_yesterday_pct",
+        "color": "#62DCA4",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 333,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 348,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "coins.png"
+      },
+      {
+        "type": "label",
+        "x": 410,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai termelési érték",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 410,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "solar_value_today",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 580,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "production_bars.png"
+      },
+      {
+        "type": "label",
+        "x": 348,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Becsült megtakarítás",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "value",
+        "x": 554,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "production_value_yesterday_pct",
+        "color": "#62DCA4",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 648,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 663,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "home.png"
+      },
+      {
+        "type": "label",
+        "x": 725,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai fogyasztás",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "value",
+        "x": 725,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "consumption_today",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 895,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "consumption_bars.png"
+      },
+      {
+        "type": "value",
+        "x": 869,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "consumption_yesterday_pct",
+        "color": "#62DCA4",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 963,
+        "y": 667,
+        "w": 305,
+        "h": 111,
+        "background": "#061B36",
+        "opacity": 220,
+        "radius": 16
+      },
+      {
+        "type": "image",
+        "x": 978,
+        "y": 680,
+        "w": 57,
+        "h": 57,
+        "file": "pv.png"
+      },
+      {
+        "type": "label",
+        "x": 1040,
+        "y": 679,
+        "w": 211,
+        "h": 23,
+        "font": 16,
+        "text": "Mai termelés",
+        "color": "#F7FAFF",
+        "text_en": "Production today"
+      },
+      {
+        "type": "value",
+        "x": 1040,
+        "y": 708,
+        "w": 189,
+        "h": 38,
+        "font": 28,
+        "source": "production_today",
+        "color": "#F7FAFF"
+      },
+      {
+        "type": "image",
+        "x": 1210,
+        "y": 705,
+        "w": 47,
+        "h": 50,
+        "file": "production_bars_green.png"
+      },
+      {
+        "type": "label",
+        "x": 978,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Napelemekből nyert energia",
+        "color": "#C4D8EA",
+        "text_en": "Energy from solar panels"
+      },
+      {
+        "type": "value",
+        "x": 1184,
+        "y": 750,
+        "w": 81,
+        "h": 18,
+        "font": 12,
+        "source": "production_yesterday_pct",
+        "color": "#62DCA4",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 574,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 582,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 590,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 598,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 606,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 614,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "box",
+        "x": 1145,
+        "y": 622,
+        "w": 2,
+        "h": 4,
+        "background": "#4A82A8",
+        "opacity": 185,
+        "radius": 1
+      },
+      {
+        "type": "value",
+        "x": 1093,
+        "y": 574,
+        "w": 51,
+        "h": 22,
+        "source": "battery",
+        "font": 12,
+        "color": "#78D9FF",
+        "positive_color": "#78D9FF",
+        "negative_color": "#2D7BBF",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 350,
+        "w": 6,
+        "h": 6,
+        "background": "#23B779",
+        "radius": 3
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 366,
+        "w": 6,
+        "h": 6,
+        "background": "#FFCB35",
+        "radius": 3
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 361,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Hálózatba visszatáplált",
+        "text_en": "Exported to the grid",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "bar",
+        "x": 1012,
+        "y": 627,
+        "w": 129,
+        "h": 6,
+        "source": "soc",
+        "max": 100,
+        "color": "#28C87C",
+        "background": "#15283B",
+        "soc_four_bands": true,
+        "outline_color": "#93B5D0"
+      },
+      {
+        "type": "label",
+        "x": 663,
+        "y": 750,
+        "w": 198,
+        "h": 18,
+        "font": 12,
+        "text": "Háztartásban elhasznált energia",
+        "text_en": "Energy used in the household",
+        "color": "#C4D8EA"
+      }
+    ]
+  }
+}
