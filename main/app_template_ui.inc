@@ -663,7 +663,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 py=cy+(int)lroundf((daylight?-1.f:1.f)*sinf(angle)*ry)-tn(e,"h",40)/2;
             }
             lv_obj_set_pos(node->obj,px,py);
-            if(node->detail)lv_obj_set_pos(node->detail,px-6,py-6);
+            if(node->detail){
+                int pad=(lv_obj_get_width(node->detail)-tn(e,"w",40))/2;
+                lv_obj_set_pos(node->detail,px-pad,py-pad);
+            }
             if(!*ts(e,"file")){
                 uint32_t disc_color=daylight?0xFFD23B:0x78BFEF;
                 bg_color_if_changed(node->obj,c(disc_color),0);
@@ -671,6 +674,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             }
             if(node->detail){
                 lv_obj_set_style_shadow_color(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+                border_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
                 bg_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
             }
             continue;
@@ -743,6 +747,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(*ts(e,"positive_color")||*ts(e,"negative_color"))){
             double direction=!strcmp(source,"grid_direction")?s->power_grid_kw:!strcmp(source,"battery_direction")?s->power_bat_kw:value;
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
+            /* Az alapértelmezett előjelszínek mellé opcionális nyugalmi szín. */
+            if(fabs(direction)<.001)color=tc(e,"zero_color",color);
             if(!strcmp(type,"value"))text_color_if_changed(node->obj,c(color),0);
             if(!strcmp(type,"flow")){
                 template_flow_tone(node,color,fabs(value)>=.001);
@@ -777,25 +783,30 @@ static void template_animate(float dt){
             if(!s_animation_sample.sun_position_valid)continue;
             float fraction=(float)fmin(pv/8.,1.);
             bool daylight=!s_animation_sample.night_mode&&s_animation_sample.sun_altitude_deg>0;
-            node->phase=fmodf(node->phase+dt*(daylight?.9f:1.f/4.2f),1.f);
+            /* 8 kW-nál 1,2 sugárzási ciklus/s; felette már nem gyorsul.
+             * Nulla termelésnél a nappali gyűrű teljesen eltűnik. */
+            node->phase=fmodf(node->phase+dt*(daylight?1.2f*fraction:1.f/4.2f),1.f);
             float wave=.5f+.5f*sinf(node->phase*6.2831853f);
-            int glow=daylight?4+(int)(fraction*(18+17*wave)):0;
             /* Az éjszakai halvány kék napkorong NEM pulzál. */
             if(node->detail){
                 /* A hold képe nem pulzál: csak a mögötte lévő áttetsző
                  * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
                 /* Az apró méretváltozást finom alpha-/glow-átmenet
                  * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
-                const int grow=daylight?0:(int)lroundf(2.f*wave);
-                const int pad=6+grow;
+                const int pad=daylight?(int)lroundf(28.f*node->phase):6+(int)lroundf(2.f*wave);
                 const int width=tn(node->spec,"w",40)+2*pad;
                 const int height=tn(node->spec,"h",40)+2*pad;
                 if(lv_obj_get_width(node->detail)!=width || lv_obj_get_height(node->detail)!=height)
                     lv_obj_set_size(node->detail,width,height);
                 lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)-pad,lv_obj_get_y(node->obj)-pad);
-                lv_obj_set_style_shadow_width(node->detail,daylight?glow:10+(int)lroundf(4.f*wave),0);
-                lv_obj_set_style_shadow_opa(node->detail,daylight?(lv_opa_t)(55+145*fraction):(lv_opa_t)(25+20*wave),0);
-                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)(10+30*fraction):(lv_opa_t)(10+10*wave),0);
+                /* A nap körvonalából induló üres gyűrű kifelé halad,
+                 * és a teljes méret elérése előtt nullára halványul. */
+                lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)*(1.f-node->phase)):0;
+                lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
+                lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
+                lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
+                lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(25+20*wave),0);
+                bg_opa_if_changed(node->detail,daylight?LV_OPA_TRANSP:(lv_opa_t)(10+10*wave),0);
             }
             continue;
         }

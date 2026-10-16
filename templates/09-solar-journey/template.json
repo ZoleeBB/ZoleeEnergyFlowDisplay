@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 11,
+  "version": 12,
   "light": {
     "background": "#E2EDF7",
     "palette": {
@@ -521,19 +521,20 @@
         "x": 950,
         "y": 244,
         "w": 303,
-        "h": 112,
+        "h": 100,
         "kind": "solar_hourly",
         "color": "#10223C"
       },
       {
         "type": "label",
-        "x": 950,
-        "y": 358,
-        "w": 306,
-        "h": 19,
+        "x": 965,
+        "y": 345,
+        "w": 285,
+        "h": 16,
         "font": 12,
-        "text": "Zöld: helyi/tárolt   Sárga: export",
-        "color": "#1D426B"
+        "text": "Helyben elhasznált és tárolt",
+        "color": "#1D426B",
+        "text_en": "Used locally and stored"
       },
       {
         "type": "box",
@@ -701,37 +702,41 @@
         "color": "#10223C",
         "align": "center",
         "positive_color": "#F15160",
-        "negative_color": "#FFD83E"
+        "negative_color": "#FFD83E",
+        "zero_color": "#10223C"
       },
       {
         "type": "label",
-        "x": 957,
+        "x": 951,
         "y": 534,
-        "w": 80,
+        "w": 81,
         "h": 19,
         "font": 12,
         "text": "Napelem",
-        "color": "#1D426B"
+        "color": "#1D426B",
+        "align": "center"
       },
       {
         "type": "label",
-        "x": 1068,
+        "x": 1062,
         "y": 534,
-        "w": 82,
+        "w": 87,
         "h": 19,
         "font": 12,
         "text": "Háztartás",
-        "color": "#1D426B"
+        "color": "#1D426B",
+        "align": "center"
       },
       {
         "type": "value",
-        "x": 1172,
+        "x": 1167,
         "y": 533,
-        "w": 88,
+        "w": 92,
         "h": 21,
         "font": 12,
         "source": "grid_direction",
-        "color": "#1D426B"
+        "color": "#1D426B",
+        "align": "center"
       },
       {
         "type": "box",
@@ -852,7 +857,7 @@
         "x": 96,
         "y": 749,
         "w": 188,
-        "h": 21,
+        "h": 14,
         "font": 12,
         "text": "Becsült megtakarítás",
         "color": "#1D426B"
@@ -860,9 +865,9 @@
       {
         "type": "value",
         "x": 239,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "savings_yesterday_pct",
         "color": "#1C7955",
@@ -919,7 +924,7 @@
         "x": 411,
         "y": 749,
         "w": 188,
-        "h": 21,
+        "h": 14,
         "font": 12,
         "text": "Becsült megtakarítás",
         "color": "#1D426B"
@@ -927,9 +932,9 @@
       {
         "type": "value",
         "x": 554,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "production_value_yesterday_pct",
         "color": "#1C7955",
@@ -984,9 +989,9 @@
       {
         "type": "value",
         "x": 869,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "consumption_yesterday_pct",
         "color": "#1C7955",
@@ -1008,7 +1013,7 @@
         "y": 680,
         "w": 57,
         "h": 57,
-        "file": "grid.png"
+        "file": "pv.png"
       },
       {
         "type": "label",
@@ -1017,8 +1022,9 @@
         "w": 211,
         "h": 23,
         "font": 16,
-        "text": "Mai visszatáplálás",
-        "color": "#10223C"
+        "text": "Mai termelés",
+        "color": "#10223C",
+        "text_en": "Production today"
       },
       {
         "type": "value",
@@ -1027,7 +1033,7 @@
         "w": 189,
         "h": 38,
         "font": 28,
-        "source": "export_today",
+        "source": "production_today",
         "color": "#10223C"
       },
       {
@@ -1036,26 +1042,27 @@
         "y": 705,
         "w": 47,
         "h": 50,
-        "file": "export_bars.png"
+        "file": "production_bars.png"
       },
       {
         "type": "label",
         "x": 1041,
         "y": 749,
-        "w": 188,
-        "h": 21,
+        "w": 220,
+        "h": 14,
         "font": 12,
-        "text": "Hálózatba visszatáplálva",
-        "color": "#1D426B"
+        "text": "Napelemekből nyert energia",
+        "color": "#1D426B",
+        "text_en": "Energy from solar panels"
       },
       {
         "type": "value",
         "x": 1184,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
-        "source": "export_yesterday_pct",
+        "source": "production_yesterday_pct",
         "color": "#1C7955",
         "align": "center"
       },
@@ -1141,6 +1148,57 @@
         "positive_color": "#228CC4",
         "negative_color": "#185995",
         "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 350,
+        "w": 6,
+        "h": 6,
+        "background": "#23B779",
+        "radius": 3
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 366,
+        "w": 6,
+        "h": 6,
+        "background": "#FFCB35",
+        "radius": 3
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 361,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Hálózatba visszatáplált",
+        "text_en": "Exported to the grid",
+        "color": "#1D426B"
+      },
+      {
+        "type": "bar",
+        "x": 1012,
+        "y": 627,
+        "w": 129,
+        "h": 6,
+        "source": "soc",
+        "max": 100,
+        "color": "#28C87C",
+        "background": "#C5DCE8"
+      },
+      {
+        "type": "label",
+        "x": 726,
+        "y": 749,
+        "w": 223,
+        "h": 14,
+        "font": 12,
+        "text": "Háztartásban elhasznált energia",
+        "text_en": "Energy used in the household",
+        "color": "#1D426B"
       }
     ]
   },
@@ -1662,19 +1720,20 @@
         "x": 950,
         "y": 244,
         "w": 303,
-        "h": 112,
+        "h": 100,
         "kind": "solar_hourly",
         "color": "#F7FAFF"
       },
       {
         "type": "label",
-        "x": 950,
-        "y": 358,
-        "w": 306,
-        "h": 19,
+        "x": 965,
+        "y": 345,
+        "w": 285,
+        "h": 16,
         "font": 12,
-        "text": "Zöld: helyi/tárolt   Sárga: export",
-        "color": "#C4D8EA"
+        "text": "Helyben elhasznált és tárolt",
+        "color": "#C4D8EA",
+        "text_en": "Used locally and stored"
       },
       {
         "type": "box",
@@ -1842,37 +1901,41 @@
         "color": "#F7FAFF",
         "align": "center",
         "positive_color": "#F15160",
-        "negative_color": "#FFD83E"
+        "negative_color": "#FFD83E",
+        "zero_color": "#F7FAFF"
       },
       {
         "type": "label",
-        "x": 957,
+        "x": 951,
         "y": 534,
-        "w": 80,
+        "w": 81,
         "h": 19,
         "font": 12,
         "text": "Napelem",
-        "color": "#C4D8EA"
+        "color": "#C4D8EA",
+        "align": "center"
       },
       {
         "type": "label",
-        "x": 1068,
+        "x": 1062,
         "y": 534,
-        "w": 82,
+        "w": 87,
         "h": 19,
         "font": 12,
         "text": "Háztartás",
-        "color": "#C4D8EA"
+        "color": "#C4D8EA",
+        "align": "center"
       },
       {
         "type": "value",
-        "x": 1172,
+        "x": 1167,
         "y": 533,
-        "w": 88,
+        "w": 92,
         "h": 21,
         "font": 12,
         "source": "grid_direction",
-        "color": "#C4D8EA"
+        "color": "#C4D8EA",
+        "align": "center"
       },
       {
         "type": "box",
@@ -1993,7 +2056,7 @@
         "x": 96,
         "y": 749,
         "w": 188,
-        "h": 21,
+        "h": 14,
         "font": 12,
         "text": "Becsült megtakarítás",
         "color": "#C4D8EA"
@@ -2001,9 +2064,9 @@
       {
         "type": "value",
         "x": 239,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "savings_yesterday_pct",
         "color": "#62DCA4",
@@ -2060,7 +2123,7 @@
         "x": 411,
         "y": 749,
         "w": 188,
-        "h": 21,
+        "h": 14,
         "font": 12,
         "text": "Becsült megtakarítás",
         "color": "#C4D8EA"
@@ -2068,9 +2131,9 @@
       {
         "type": "value",
         "x": 554,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "production_value_yesterday_pct",
         "color": "#62DCA4",
@@ -2125,9 +2188,9 @@
       {
         "type": "value",
         "x": 869,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
         "source": "consumption_yesterday_pct",
         "color": "#62DCA4",
@@ -2149,7 +2212,7 @@
         "y": 680,
         "w": 57,
         "h": 57,
-        "file": "grid.png"
+        "file": "pv.png"
       },
       {
         "type": "label",
@@ -2158,8 +2221,9 @@
         "w": 211,
         "h": 23,
         "font": 16,
-        "text": "Mai visszatáplálás",
-        "color": "#F7FAFF"
+        "text": "Mai termelés",
+        "color": "#F7FAFF",
+        "text_en": "Production today"
       },
       {
         "type": "value",
@@ -2168,7 +2232,7 @@
         "w": 189,
         "h": 38,
         "font": 28,
-        "source": "export_today",
+        "source": "production_today",
         "color": "#F7FAFF"
       },
       {
@@ -2177,26 +2241,27 @@
         "y": 705,
         "w": 47,
         "h": 50,
-        "file": "export_bars.png"
+        "file": "production_bars.png"
       },
       {
         "type": "label",
         "x": 1041,
         "y": 749,
-        "w": 188,
-        "h": 21,
+        "w": 220,
+        "h": 14,
         "font": 12,
-        "text": "Hálózatba visszatáplálva",
-        "color": "#C4D8EA"
+        "text": "Napelemekből nyert energia",
+        "color": "#C4D8EA",
+        "text_en": "Energy from solar panels"
       },
       {
         "type": "value",
         "x": 1184,
-        "y": 757,
+        "y": 763,
         "w": 81,
-        "h": 19,
+        "h": 14,
         "font": 12,
-        "source": "export_yesterday_pct",
+        "source": "production_yesterday_pct",
         "color": "#62DCA4",
         "align": "center"
       },
@@ -2282,6 +2347,57 @@
         "positive_color": "#78D9FF",
         "negative_color": "#2D7BBF",
         "align": "center"
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 350,
+        "w": 6,
+        "h": 6,
+        "background": "#23B779",
+        "radius": 3
+      },
+      {
+        "type": "box",
+        "x": 953,
+        "y": 366,
+        "w": 6,
+        "h": 6,
+        "background": "#FFCB35",
+        "radius": 3
+      },
+      {
+        "type": "label",
+        "x": 965,
+        "y": 361,
+        "w": 285,
+        "h": 16,
+        "font": 12,
+        "text": "Hálózatba visszatáplált",
+        "text_en": "Exported to the grid",
+        "color": "#C4D8EA"
+      },
+      {
+        "type": "bar",
+        "x": 1012,
+        "y": 627,
+        "w": 129,
+        "h": 6,
+        "source": "soc",
+        "max": 100,
+        "color": "#28C87C",
+        "background": "#243D50"
+      },
+      {
+        "type": "label",
+        "x": 726,
+        "y": 749,
+        "w": 223,
+        "h": 14,
+        "font": 12,
+        "text": "Háztartásban elhasznált energia",
+        "text_en": "Energy used in the household",
+        "color": "#C4D8EA"
       }
     ]
   }

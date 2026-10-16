@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
-    assert solar['version'] >= 11
+    assert solar['version'] >= 12
     # A tegnapi részleges összevetés tilde (~) jele minden UI-betűben jelen legyen.
     # Az előző U+2248 (≈) szimbólum hiányzott, ezért üres négyzetet rajzolt LVGL.
     for size in (12, 14, 16, 18, 20, 22, 28):
@@ -50,9 +50,9 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert len({(e['y'],e['w'],e['h']) for e in cards})==1
         assert all(e['h']<=112 and e['y']+e['h']<=800 for e in cards)
         assert {e['source'] for e in elements if e['type']=='value'} >= {
-            'solar_savings_day','solar_value_today','consumption_today','export_today',
+            'solar_savings_day','solar_value_today','consumption_today','production_today',
             'savings_yesterday_pct','production_value_yesterday_pct',
-            'consumption_yesterday_pct','export_yesterday_pct',
+            'consumption_yesterday_pct',
             'battery_summary','production_yesterday_pct'}
         chips=[e for e in elements if e['type']=='box' and e['x']<930 and e['y']<300]
         assert len(chips)==3 and all(e['h']<=60 and e['opacity']<230 for e in chips)
@@ -92,10 +92,26 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
                     e.get('background')==band['outline_color']]
         assert len(separators)==7
         assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
-        assert len(elements)==89
+        assert len(elements)==94
         power=next(e for e in elements if e.get('type')=='value' and e.get('source')=='battery')
         assert power['font']==12 and power['x']==1093 and power['w']==51
         assert power['positive_color']!=power['negative_color']
+        bar=next(e for e in elements if e['type']=='bar' and e['source']=='soc')
+        assert (band['x'],band['y'],band['w'],band['h'])==(951,562,307,78)
+        assert bar['y']>=626 and bar['y']+bar['h']<band['y']+band['h']
+        assert bar['x']==1012 and bar['w']==129 and bar['h']==6
+        for source,label in (('pv','Napelem'),('home','Háztartás'),('grid','grid_direction')):
+            value=next(e for e in elements if e['type']=='value' and e['source']==source)
+            caption=next(e for e in elements if e.get('text')==label or e.get('source')==label)
+            assert value['x']*2+value['w']==caption['x']*2+caption['w']
+            assert caption['align']=='center'
+        assert not any(e.get('source') in ('export_today','export_yesterday_pct') for e in elements)
+        assert next(e for e in elements if e['type']=='image' and e['x']==978)['file']=='pv.png'
+        assert any(e.get('text')=='Háztartásban elhasznált energia' for e in elements)
+        assert any(e.get('text')=='Napelemekből nyert energia' for e in elements)
+        assert any(e.get('text')=='Helyben elhasznált és tárolt' for e in elements)
+        assert any(e.get('text')=='Hálózatba visszatáplált' for e in elements)
+        assert {e.get('background') for e in elements if e['type']=='box' and e['w']==e['h']==6}=={'#23B779','#FFCB35'}
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
     assert geometric(solar['light'])==geometric(solar['dark'])

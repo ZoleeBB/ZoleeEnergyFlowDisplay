@@ -53,7 +53,10 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   const batteryPower=elements.find(e=>e.type==='value'&&e.source==='battery');
   assert(batteryPower.font===12&&batteryPower.x===1093);
   assert(batteryPower.positive_color!==batteryPower.negative_color);
-  assert(elements.length===89);
+  assert(elements.length===94);
+  assert(elements.some(e=>e.type==='bar'&&e.source==='soc'));
+  assert(elements.find(e=>e.type==='value'&&e.source==='grid').zero_color===
+         elements.find(e=>e.type==='value'&&e.source==='pv').color);
   const solarChips=elements.filter(e=>e.type==='box'&&e.y===236);
   assert(solarChips.some(e=>e.x===26)&&solarChips.some(e=>e.x===821));
   const battery=elements.find(e=>e.type==='box'&&e.x===951&&e.y===562);

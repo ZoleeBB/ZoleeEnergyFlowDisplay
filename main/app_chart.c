@@ -79,11 +79,13 @@ static void draw_chart(lv_event_t *event)
     uint32_t grid = data->night ? 0x29322E : 0xE5EAEC;
     int divisions=(data->kind==APP_CHART_WEEK||data->kind==APP_CHART_MONTH)?(int)fmax(1,data->count):(data->reference_style||data->kind>=APP_CHART_GRID)?24:4;
     for(int i = 0; i <= divisions; i++) {
-        float x = area.x1 + (area.x2 - area.x1) * i / (float)divisions;
+        /* Az 1 px-es vonalak félpixel-középre kerülnek: minden óra
+         * azonos élességű, nem oszlik változó arányban két pixelre. */
+        float x = floorf(area.x1 + (area.x2 - area.x1) * i / (float)divisions) + .5f;
         line(draw, path, x, area.y1, x, area.y2, grid, 1.f);
     }
     for(int i = 0; i <= 2; i++) {
-        float y = area.y1 + (area.y2 - area.y1) * i / 2.f;
+        float y = floorf(area.y1 + (area.y2 - area.y1) * i / 2.f) + .5f;
         line(draw, path, area.x1, y, area.x2, y, grid, 1.f);
     }
 

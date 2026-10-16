@@ -101,6 +101,10 @@ akku → ház, negatív: töltés. Ennek megfelelően add meg a kezdő- és vég
 Nulla teljesítménynél a pontok eltűnnek; a sebesség 7 kW-nál éri el a maximumot.
 Az útvonal `positive_color` és `negative_color` megadásával előjel szerint színezhető; ezek nélkül a `color` marad érvényes.
 
+Az előjelszínezett elemek opcionális `zero_color` mezője a nyugalmi színt adja meg
+(`|érték| < 0,001`). Például a Nap pálya hálózati teljesítménye áramlás nélkül
+a napelemes teljesítmény színét használja. A mező elhagyása megtartja a korábbi színezést.
+
 ## 5. Saját időjáráskészlet
 
 ```json

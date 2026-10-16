@@ -54,7 +54,7 @@ function validateManifest(doc,files){
    if(!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)
     throw Error('Hibás elemhatár ('+mode+', #'+(index+1)+', '+e.type+'): '+e.x+','+e.y+' '+e.w+'×'+e.h);
    if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Hibás adatforrás');
-   for(const key of ['color','background','positive_color','negative_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
+   for(const key of ['color','background','positive_color','negative_color','zero_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
    if(e.type==='image'&&(!safeAsset(e.file)||!files.has(e.file)))throw Error('Hiányzó PNG');
    if(e.type==='weather'&&e.files)for(const key of ['sunny','partly_cloudy','cloudy','rain','snow','night'])if(!safeAsset(e.files[key])||!files.has(e.files[key]))throw Error('Hiányzó időjárás ikon');
    if(e.type==='chart'&&!['production','consumption','grid','battery','soc','week','month','solar_hourly'].includes(e.kind))throw Error('Hibás grafikon típus');

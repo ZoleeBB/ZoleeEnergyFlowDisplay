@@ -449,10 +449,6 @@
     "sha256": "fe099157cb4fe35a7e195c4a49645016485f7c0b9496d83c7ca7734c017701da"
   },
   {
-    "asset": "templates/09-solar-journey/export_bars.png",
-    "sha256": "523afb6a7c7d159a25dfb3302740955d959a1e77b4b2f5bb483fd3e7be1db138"
-  },
-  {
     "asset": "templates/09-solar-journey/grid.png",
     "sha256": "857c3de764db47c8df6edc4cbd9d9b5a0a830b4364fe0e453e7a5fbb2470be72"
   },

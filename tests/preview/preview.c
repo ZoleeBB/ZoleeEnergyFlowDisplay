@@ -144,6 +144,101 @@ static void test_solar_battery_route(void){
     battery->power=original;
 }
 
+/* A valódi LVGL objektumokon ellenőrzött Nap pálya finomítások. */
+static void test_solar_dashboard(const app_energy_sample_t *original){
+    if(strcmp(template_view.id,"09-solar-journey"))return;
+    template_node_t *disc=NULL,*bar=NULL,*grid=NULL,*production=NULL,*comparison=NULL;
+    app_energy_sample_t saved_animation=s_animation_sample;
+    double saved_capacity=s_cfg.energy.battery_capacity_kwh;
+    s_cfg.energy.battery_capacity_kwh=15;
+    for(unsigned i=0;i<template_node_count;i++){
+        template_node_t *n=&template_nodes[i];
+        const char *type=ts(n->spec,"type"),*source=ts(n->spec,"source");
+        if(!strcmp(type,"solar_disc"))disc=n;
+        if(!strcmp(type,"bar")&&!strcmp(source,"soc"))bar=n;
+        if(!strcmp(type,"value")&&!strcmp(source,"grid"))grid=n;
+        if(tn(n->spec,"y",0)>700&&!strcmp(source,"production_today"))production=n;
+        if(tn(n->spec,"y",0)>700&&!strcmp(source,"production_yesterday_pct"))comparison=n;
+        if(!strcmp(type,"label")&&(!strcmp(ts(n->spec,"text"),"Napelem")||
+                                  !strcmp(ts(n->spec,"text"),"Háztartás"))){
+            const char *power_source=!strcmp(ts(n->spec,"text"),"Napelem")?"pv":"home";
+            for(unsigned j=0;j<template_node_count;j++){
+                template_node_t *p=&template_nodes[j];
+                if(strcmp(ts(p->spec,"type"),"value")||strcmp(ts(p->spec,"source"),power_source))continue;
+                assert(tn(n->spec,"x",0)*2+tn(n->spec,"w",0)==tn(p->spec,"x",0)*2+tn(p->spec,"w",0));
+                assert(lv_obj_get_style_text_align(n->obj,0)==LV_TEXT_ALIGN_CENTER);
+            }
+        }
+        if(!strcmp(type,"label")&&tn(n->spec,"y",0)>=700){
+            const char *text=lv_label_get_text(n->obj);
+            lv_point_t size;
+            lv_text_get_size(&size,text,lv_obj_get_style_text_font(n->obj,0),0,0,1280,LV_TEXT_FLAG_NONE);
+            assert(size.x<=tn(n->spec,"w",0));
+        }
+    }
+    assert(disc&&bar&&grid&&production&&comparison);
+    app_energy_sample_t s=*original;
+    s.sun_position_valid=true;s.sun_altitude_deg=25;s.night_mode=false;
+    s_animation_sample=s;
+    const double levels[]={2,4,8,16};
+    for(unsigned i=0;i<4;i++){
+        s_animation_sample.power_pv_kw=levels[i];disc->phase=0;
+        template_animate(.1f);
+        float expected=i<2?.03f*(i+1):.12f;
+        assert(fabsf(disc->phase-expected)<.0001f);
+    }
+    int last_width=0,last_alpha=256;
+    for(int step=0;step<=4;step++){
+        disc->phase=step==4?.999f:step*.25f;template_animate(0);
+        lv_obj_update_layout(s_screen);
+        int width=lv_obj_get_width(disc->detail);
+        int alpha=lv_obj_get_style_border_opa(disc->detail,0);
+        assert(width>last_width&&alpha<last_alpha);
+        assert(lv_obj_get_style_bg_opa(disc->detail,0)==LV_OPA_TRANSP);
+        assert(lv_obj_get_x(disc->detail)+(width-tn(disc->spec,"w",40))/2==lv_obj_get_x(disc->obj));
+        last_width=width;last_alpha=alpha;
+    }
+    assert(last_alpha==0&&lv_obj_get_style_shadow_opa(disc->detail,0)==0);
+    s_animation_sample.power_pv_kw=0;disc->phase=.5f;template_animate(.1f);
+    assert(disc->phase==.5f&&lv_obj_get_style_border_opa(disc->detail,0)==0);
+    s_animation_sample.night_mode=true;s_animation_sample.sun_altitude_deg=-10;
+    int disc_x=lv_obj_get_x(disc->obj),disc_y=lv_obj_get_y(disc->obj);
+    template_animate(.1f);
+    assert(lv_obj_get_style_border_width(disc->detail,0)==0);
+    assert(lv_obj_get_x(disc->obj)==disc_x&&lv_obj_get_y(disc->obj)==disc_y);
+    const int socs[]={0,19,20,50,51,100};
+    for(unsigned i=0;i<6;i++){
+        s.soc_bat_pct=socs[i];template_update(&s,&fixture);
+        assert(lv_bar_get_value(bar->obj)==socs[i]);
+        assert(lv_color_eq(lv_obj_get_style_bg_color(bar->obj,LV_PART_INDICATOR),c(battery_color(socs[i]))));
+        assert(tn(bar->spec,"x",0)==1012&&tn(bar->spec,"y",0)==627);
+    }
+    const double powers[]={0,.0004,-.0004,1,-1};
+    for(unsigned i=0;i<5;i++){
+        s.power_grid_kw=powers[i];template_update(&s,&fixture);
+        uint32_t expected=tc(grid->spec,i<3?"zero_color":i==3?"positive_color":"negative_color",0);
+        assert(lv_color_eq(lv_obj_get_style_text_color(grid->obj,0),c(expected)));
+    }
+    app_stats_snapshot_t *stats=malloc(sizeof(*stats));assert(stats);*stats=fixture;
+    stats->totals.production_kwh=19;stats->totals.grid_export_kwh=2;
+    stats->comparison_ready=true;stats->yesterday_comparison_partial=false;
+    stats->comparison_today_totals.production_kwh=15;stats->comparison_yesterday_totals.production_kwh=10;
+    template_update(&s,stats);
+    char expected[128];template_text(expected,"production_today",&s,stats);
+    assert(!strcmp(lv_label_get_text(production->obj),expected));
+    assert(strstr(lv_label_get_text(comparison->obj),"+50")!=NULL);
+    s.night_mode=original->night_mode;s.sun_altitude_deg=s.night_mode?-25:25;
+    s.sunrise_minute=420;s.sunset_minute=1080;s.sun_azimuth_deg=220;
+    s.power_grid_kw=0;s.soc_bat_pct=25;
+    template_update(&s,stats);s_animation_sample=s;
+    disc->phase=.35f;template_animate(0);
+    save_frame(s.night_mode?"solar-details-dark":"solar-details-light");
+    free(stats);
+    s_cfg.energy.battery_capacity_kwh=saved_capacity;s_animation_sample=saved_animation;
+    template_update(original,&fixture);
+    puts("PASS: solar ripple growth/fade, 8kW speed cap, zero/night, SOC colors, idle grid and daily production");
+}
+
 /* Régi, SD-n maradt v10-es sablon firmware-szintű helyreállítása. */
 static void test_legacy_solar_battery_route(void){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -389,6 +484,28 @@ static void test_signed_and_soc_charts(void){
     puts("PASS: positive/negative fills, zero axis and SOC gaps in actual rendered pixels");
 }
 
+/* A kis órás diagram mind a 23 belső rácsvonala egyetlen pixel széles. */
+static void test_hourly_chart_grid(void){
+    lv_obj_t *parent=lv_obj_create(s_screen);lv_obj_remove_style_all(parent);
+    lv_obj_set_size(parent,1280,800);lv_obj_set_style_bg_color(parent,c(0xFFFFFF),0);lv_obj_set_style_bg_opa(parent,255,0);
+    lv_obj_t *chart=app_chart_create_kind(parent,APP_CHART_SOLAR_HOURLY,false,0x23B779,0xFFCB35,0);
+    lv_obj_set_pos(chart,100,100);lv_obj_set_size(chart,258,65);
+    save_frame("solar-grid-regression");
+    lv_area_t area;lv_obj_get_content_coords(chart,&area);
+    int y=area.y1+10;
+    uint32_t reference=0;
+    for(int hour=1;hour<24;hour++){
+        int x=(int)floorf(area.x1+(area.x2-area.x1)*hour/24.f);
+        uint32_t pixel=pixels[y*1280+x]&0xffffff;
+        if(hour==1)reference=pixel;
+        assert(pixel==reference&&pixel!=0xffffff);
+        assert((pixels[y*1280+x-1]&0xffffff)==0xffffff);
+        assert((pixels[y*1280+x+1]&0xffffff)==0xffffff);
+    }
+    lv_obj_delete(parent);
+    puts("PASS: identical one-pixel hourly grid lines in rendered pixels");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -440,17 +557,24 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"hu");
     snprintf(config.project.currency,sizeof(config.project.currency),"Ft");
     config.energy.electricity_purchase_price=65;config.energy.feed_in_price=5;
+    config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
     fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};
     fixture.has_yesterday=true;
+    fixture.comparison_ready=true;
+    fixture.comparison_today_totals=fixture.totals;
+    fixture.comparison_yesterday_totals=fixture.yesterday_completed_interval_totals;
     for(int i=0;i<176;i++){
         float daylight=fmaxf(0,sinf((i-72)*3.14159265f/144));
         fixture.slots[i]=(app_stats_slot_t){.valid=true,.sample_count=60,.soc_pct=20+daylight*80,.soc_valid=true,.pv_kw=daylight*7,
             .load_kw=1.5f+.7f*sinf(i*.13f),.grid_kw=1.4f*sinf(i*.05f),.battery_kw=2.f*cosf(i*.04f)};
         fixture.slots[i].split=app_energy_split(fixture.slots[i].pv_kw,fixture.slots[i].load_kw,fixture.slots[i].battery_kw);
+        const app_energy_split_t *split=&fixture.slots[i].split;
+        fixture.slots[i].energy=(app_energy_totals_t){.production_kwh=fixture.slots[i].pv_kw/12.,
+            .pv_home_kwh=split->pv_home/12.,.pv_export_kwh=split->pv_export/12.,.pv_stored_kwh=split->pv_stored/12.};
     }
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
@@ -492,6 +616,7 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
     test_signed_and_soc_charts();
+    test_hourly_chart_grid();
     app_diagnostics_capture(&s_diagnostics);s_diagnostics_requested=true;
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);save_frame("diagnostics-common");
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
@@ -514,7 +639,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_solar_dashboard(&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

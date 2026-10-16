@@ -62,6 +62,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ui-preview-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
           path: .preview-images/*.ppm
           include-hidden-files: true
           if-no-files-found: error
@@ -78,6 +79,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: template-packages-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
           path: dist/templates/*.zip
           if-no-files-found: error
 
@@ -124,5 +126,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: firmware-packages-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
           if-no-files-found: error
           path: dist/*

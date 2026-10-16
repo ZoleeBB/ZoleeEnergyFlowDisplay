@@ -148,7 +148,7 @@ static bool validate_scene(const cJSON *scene){
         if((!strcmp(type,"value")||!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&!source)return false;
         if(source&&(!strcmp(type,"bar")||!strcmp(type,"gauge")||!strcmp(type,"flow"))&&
            (!strcmp(source,"clock")||!strcmp(source,"date")||!strcmp(source,"status")||strstr(source,"direction")))return false;
-        const char *keys[]={"color","background","muted","positive_color","negative_color","outline_color",NULL};
+        const char *keys[]={"color","background","muted","positive_color","negative_color","zero_color","outline_color",NULL};
         for(int i=0;keys[i];i++)if(cJSON_HasObjectItem(e,keys[i])&&!color(str(e,keys[i])))return false;
         if(!number(e,"center_x",0,1279,true)||!number(e,"center_y",0,799,true)||!number(e,"radius_x",1,640,true)||!number(e,"radius_y",1,390,true))return false;
         if(!number(e,"animate_ms",0,1000,true))return false;
