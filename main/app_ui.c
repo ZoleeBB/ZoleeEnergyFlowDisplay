@@ -1904,14 +1904,7 @@ static void runtime(void *arg){
 
         app_diagnostics_capture(&s_diagnostics);
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
-        if(template_loading_requested){
-            if(bsp_display_lock(-1)==ESP_OK){
-                template_loading_screen();
-                bsp_display_unlock();
-                template_loading_requested=false;
-                vTaskDelay(pdMS_TO_TICKS(85));
-            }
-        }
+        if(!template_loading_frame()){vTaskDelay(pdMS_TO_TICKS(20));continue;}
         template_prepare();
         if(bsp_display_lock(-1)==ESP_OK){
             render_runtime(rt,s,have,now);

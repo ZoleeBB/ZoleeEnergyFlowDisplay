@@ -74,6 +74,8 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
       - run: python3 tools/prepare_templates.py
+      - name: Ensure packaging preserves authored templates
+        run: git diff --exit-code -- templates
       - name: Verify every template is included in the artifact
         run: python3 tests/test_template_packages.py
       - uses: actions/upload-artifact@v4

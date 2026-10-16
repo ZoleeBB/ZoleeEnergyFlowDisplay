@@ -10,12 +10,11 @@ A teljes mezőlista és a telepítés leírása: [templates.md](templates.md).
 Hozz létre például egy `templates/08-my-home` könyvtárat. Az azonosító legfeljebb
 32 kisbetűből, számból, kötőjelből és aláhúzásból állhat. A `builtin` foglalt.
 A könyvtár neve és a JSON `id` mezője egyezzen. A `name` megjelenített név;
-`version` pozitív egész, nem firmware-verzió. Meglévő webes csomagot előbb
-el kell távolítani, majd az új ZIP-et feltölteni; a telepítő nem írja felül.
+`version` pozitív egész, nem firmware-verzió. Azonos azonosítójú, magasabb verziójú ZIP-pel a meglévő csomag biztonságosan frissíthető, előzetes törlés nélkül.
 
 ## 2. Saját vizuális világ és ikonok
 
-Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A nyolc mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
+Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A kilenc mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
 sablonba. Részletes, kis méretben is felismerhető, keret nélküli képeket készíts;
 a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
@@ -25,7 +24,7 @@ a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 - Kisbetűs fájlnevek, alkönyvtár nélkül: például `solar.png`, `day.png`.
 - Az `image` elem a megadott `w`/`h` méretre skáláz; azonos oldalaránnyal
   dolgozz, különben torzul. Világos és sötét háttéren is ellenőrizd az éleket.
-- Csomagonként maximum 32 PNG, egyenként 2 MiB, összesen 4 MiB tömörített
+- Csomagonként maximum 32 PNG, egyenként 2,5 MiB, összesen 5 MiB tömörített
   és 12 MiB dekódolt (`szélesség × magasság × 4`) memória használható.
   PNG interlace/palettás formátum nem támogatott; a CRC és a tömörített
   képadat ellenőrzésen megy át.
@@ -35,8 +34,7 @@ Az Élő otthon eszközei a házkép részei. A többi nézet saját képkészle
 A generált készletek stílusai és pontos promptjai:
 [aktuális assetjegyzék](../assets/template-manifest.json). A forrásképekből
 az alfa megtartásával készültek a csomagok 128×128-as runtime képei.
-A `prepare_templates.py` saját ikon hiányában hibát jelez, és soha nem
-helyettesíti az alapnézet ikonjával.
+A `prepare_templates.py` hiányzó vagy fölösleges kép esetén hibát jelez; nem generál helyettesítő ikonokat.
 
 ## 3. Két téma és rétegsorrend
 
@@ -93,7 +91,7 @@ második érintőpont, végpont. Hét ponttal két összefűzött köbös szakas
 le: `P0,C1,C2,P1,C3,C4,P2`. Folytonos érintőhöz a `C2,P1,C3` legyen egy egyenesen.
 A `curve` elhagyása vagy `polyline` 2–8 pontos törött vonalat jelent.
 
-A rajzoló szakaszonként 32 lépéssel mintavételezi a görbét. A vonal és a
+A rajzoló szakaszonként 96 lépéssel mintavételezi a görbét. A vonal és a
 négy mozgó pont ugyanazt a mintavételezett pályát használja; a pöttyök
 úthossz szerint haladnak, így nem gyorsulnak fel az ív egyik részén.
 Pozitív `grid`: hálózat → ház, negatív: visszatáplálás. Pozitív `battery`:
@@ -120,7 +118,7 @@ a napelemes teljesítmény színét használja. A mező elhagyása megtartja a k
 
 Mind a hat kulcs és fájl kötelező, ha `files` szerepel. A kiválasztás a közös
 időjáráslogikát használja: csapadék elsőbbséget kap (−4 °C alatt hó), majd
-NightMode, napsugárzás, termelés alapján részben felhős, végül felhős.
+NightMode, majd napsugárzás vagy 5 kW feletti termelés alapján napos; egyébként 1 kW felett változóan felhős, végül felhős.
 A korábbi, `files` nélküli külső sablonok továbbra is működnek a firmware
 ikonjaival; új sablonhoz saját készletet adj meg.
 
@@ -134,16 +132,19 @@ python3 tests/run_tests.py
 ```
 
 Az első parancs minden `templates/` alatti csomagot a tényleges C-validátorral
-ellenőriz, és sérült/veszélyes ZIP-eket is tesztel. Új, kézzel írt csomag ZIP-je:
+ellenőriz, és sérült/veszélyes ZIP-eket is tesztel. Új csomaghoz előbb készíts `preview-light.png` és `preview-dark.png` képet a valódi LVGL-renderből (a repóban 480×300 px, legfeljebb 640×400 px). Ezek külön webes képek, nem `image` elemek; beleszámítanak a fájl- és tárolási korlátba, de kimaradnak a futásidejű dekódolt képmemóriából. Régi csomag a két kép nélkül is működik, csak az előnézeti keret üres.
+
+Új, kézzel írt csomag ZIP-je:
 
 ```sh
-python3 -m zipfile -c my-home.zip templates/08-my-home/template.json templates/08-my-home/solar.png
+python3 -m zipfile -c my-home.zip templates/08-my-home/template.json templates/08-my-home/solar.png templates/08-my-home/preview-light.png templates/08-my-home/preview-dark.png
 ```
 
 Ez a parancs a fájlneveket a ZIP gyökerébe teszi. Ne a teljes könyvtárat add
-át neki. A mellékelt nyolc sablon JSON-ját és ZIP-jeit a
-`python3 tools/prepare_templates.py` állítja elő. Új generált sablonhoz a
-builder függvényt és a `main()` katalógusát is bővítsd; kézzel szerkesztett, további csomagot ez a script nem ír át.
+át neki. A `python3 tools/prepare_templates.py` minden verziókezelt
+csomagot változtatás nélkül ZIP-be tesz, és hiányzó/fölösleges képnél megáll.
+Az elrendezés forrása közvetlenül a csomag `template.json` fájlja.
+
 
 A Windows-szimulátorban az SD-csomagokat a futtatható program melletti
 `templates/` könyvtárba másold, majd indítsd újra. Bal/jobb nyíllal lapozz,
@@ -159,7 +160,7 @@ A webes kezelés és a memóriakorlátok részletei: [templates.md](templates.md
 
 ## Ellenőrzött referencia
 
-A nyolc csomag 16 témáját, mind a kilenc nézeten át vezető érintési lapozást,
+A kilenc csomag 18 témáját, mind a tíz nézeten át vezető érintési lapozást,
 a közös hiba utáni visszatérést és mind a hat saját időjárásállapotot a headless
 LVGL-teszt ellenőrzi. Az energiautaknál külön vizsgálja a vonal/pont pályaazonosságát,
 a pozitív és negatív irányt, a nullát és a 7/15 kW sebességegyezést.

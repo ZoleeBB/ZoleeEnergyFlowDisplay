@@ -2,7 +2,7 @@
 
 Otthoni energiaáramlás-kijelző a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150) panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja.
 
-A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy közvetlen HTTP POST fogadja a teljes mérési JSON-t, javasoltan öt másodpercenként. FAT32 microSD tárolja a konfigurációt, nyolc meglévő, szabadon sorbarendezhető sablont és 35 nap statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
+A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy közvetlen HTTP POST fogadja a teljes mérési JSON-t, javasoltan öt másodpercenként. FAT32 microSD tárolja a konfigurációt, kilenc, szabadon sorbarendezhető sablont és 35 nap statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
 
 ## Első indítás
 
@@ -13,9 +13,11 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy közvetlen HTTP POST f
 
 Az I1–I12 bemenetek sorrendje fix; I13 az időjárási jelenlétmaszk, T1 pedig az opcionális, `#`-elválasztott nappályaadat. Mindkét Pico C változat (MQTT és HTTP) ezt a kiosztást használja. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-A témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a nyolc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` az SD-kártya beállításainak szerkesztése, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
+A Nap pálya érvényes `SunPosition` esetén lapozható. A témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a kilenc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` az SD-kártya beállításainak szerkesztése, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`.
 
-![A nyolc sablon világos és sötét nézete](docs/previews/templates.png)
+![A kilenc sablon világos és sötét nézete](docs/previews/templates.png)
+
+A webes sablonkezelő a csomagok `preview-light.png` / `preview-dark.png` képeit mutatja; régi csomagnál üres keret marad, amíg a témát ZIP-ből frissíted.
 
 További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [rendszernézet lapjelzővel](docs/previews/builtin-pagination.png), [közös diagnosztika](docs/previews/diagnostics.png).
 
@@ -27,7 +29,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [HTTP adatfogadás](docs/http-input.md)
 - [Loxone mintaprogramok](docs/loxone.md)
 - [SD-kártya](docs/sd-card.md)
-- [Nyolc választható téma](docs/templates.md)
+- [Kilenc választható téma](docs/templates.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Statisztika és számítások](docs/statistics.md)
 - [Webfelület és OTA](docs/ota.md)

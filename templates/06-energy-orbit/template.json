@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 9,
+  "version": 10,
   "light": {
     "background": "#E8EEF7",
     "elements": [

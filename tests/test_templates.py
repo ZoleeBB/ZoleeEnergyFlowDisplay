@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # A jóváhagyott Nap pálya: a két üzemmód azonos elrendezés, kisméretű
     # nap-adat panelek és négy (méretváltozás nélküli) alsó összegzőkártya.
     solar=json.loads((ROOT/'templates/09-solar-journey/template.json').read_text(encoding='utf-8'))
-    assert solar['version'] >= 12
+    assert solar['version'] >= 13
     # A tegnapi részleges összevetés tilde (~) jele minden UI-betűben jelen legyen.
     # Az előző U+2248 (≈) szimbólum hiányzott, ezért üres négyzetet rajzolt LVGL.
     for size in (12, 14, 16, 18, 20, 22, 28):
@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         bar=next(e for e in elements if e['type']=='bar' and e['source']=='soc')
         assert (band['x'],band['y'],band['w'],band['h'])==(951,562,307,78)
         assert bar['y']>=626 and bar['y']+bar['h']<band['y']+band['h']
-        assert bar['x']==1012 and bar['w']==129 and bar['h']==6
+        assert bar['x']==1012 and bar['w']==129 and bar['h']==6 and bar['soc_four_bands']
         for source,label in (('pv','Napelem'),('home','Háztartás'),('grid','grid_direction')):
             value=next(e for e in elements if e['type']=='value' and e['source']==source)
             caption=next(e for e in elements if e.get('text')==label or e.get('source')==label)
@@ -112,6 +112,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert any(e.get('text')=='Helyben elhasznált és tárolt' for e in elements)
         assert any(e.get('text')=='Hálózatba visszatáplált' for e in elements)
         assert {e.get('background') for e in elements if e['type']=='box' and e['w']==e['h']==6}=={'#23B779','#FFCB35'}
+        for caption_x,source in [(33,'savings_yesterday_pct'),(348,'production_value_yesterday_pct'),(663,'consumption_yesterday_pct'),(978,'production_yesterday_pct')]:
+            compare=next(e for e in elements if e.get('source')==source and e['y']>700)
+            caption=next(e for e in elements if e['type']=='label' and e['x']==caption_x and e['y']>740)
+            assert caption['y']==compare['y'] and caption['x']+caption['w']<compare['x']
     # A két rétegsor valóban fedésben legyen; csak tónus és asset térhet el.
     geometric=lambda scene:[(e['type'],e['x'],e['y'],e['w'],e['h']) for e in scene['elements']]
     assert geometric(solar['light'])==geometric(solar['dark'])
@@ -134,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         return set()
     for package in (ROOT/'templates').iterdir():
         if (package/'template.json').is_file():
-            refs = referenced(json.loads((package/'template.json').read_text()))
+            refs = referenced(json.loads((package/'template.json').read_text())) | {'preview-light.png','preview-dark.png'}
             assert {p.name for p in package.glob('*.png')} == refs, package.name
     manifest = json.loads((ROOT/'assets/template-manifest.json').read_text())
     assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')}
@@ -163,6 +167,18 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     empty=dict(background='#FFFFFF',elements=[])
     doc=dict(schema=1,id='test-layout',name='Test',version=1,light=empty,dark=empty)
     good=archive('good',doc)
+    # Régi csomag elfogadott, de új előnézet csak teljes, érvényes képpár lehet.
+    preview_dir=tmp/'preview-validation';preview_dir.mkdir()
+    (preview_dir/'template.json').write_text(json.dumps(doc))
+    assert lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    preview_png=(ROOT/'main/assets/png/flow_house.png').read_bytes()
+    (preview_dir/'preview-light.png').write_bytes(preview_png)
+    assert not lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    (preview_dir/'preview-dark.png').write_bytes(preview_png)
+    assert lib.app_templates_validate(os.fsencode(preview_dir),None,error)
+    corrupted=bytearray(preview_png);corrupted[80]^=1
+    (preview_dir/'preview-dark.png').write_bytes(corrupted)
+    assert not lib.app_templates_validate(os.fsencode(preview_dir),None,error)
     report=C.c_void_p();before=active()
     assert lib.app_templates_probe(os.fsencode(good),C.byref(report),error)==0,error.value
     assert report.value and active()==before and not (sd/'test-layout').exists() and not (sd/'.check').exists()

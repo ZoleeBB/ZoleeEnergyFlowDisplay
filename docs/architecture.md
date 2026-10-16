@@ -8,7 +8,7 @@ A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 m
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
-A beépített nézet és nyolc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
+A beépített nézet és kilenc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
 Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).
 

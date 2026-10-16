@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 7,
+  "version": 8,
   "light": {
     "background": "#F4F7F1",
     "elements": [

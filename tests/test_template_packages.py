@@ -24,6 +24,7 @@ def main():
     for name, folder in expected.items():
         with zipfile.ZipFile(actual[name]) as archive:
             contents = {info.filename for info in archive.infolist()}
+            assert {'preview-light.png','preview-dark.png'} <= contents, name
             files = {path.name for path in folder.iterdir() if path.is_file()}
             assert contents == files, (name, sorted(files-contents), sorted(contents-files))
             for filename in files:

@@ -1,6 +1,6 @@
 # Windows UI-szimulátor (Visual Studio 2026)
 
-A szimulátor ugyanazt az `app_ui.c`, `app_chart.c`, PNG-ikonokat és betűkészleteket használja, mint az ESP32 firmware. A teljes, 12 mezős JSON-csomag a valódi `app_ingest_process` → `app_payload_parse` → `app_state_set_sample` útvonalon érkezik. Nincs szükség eszközre, MQTT-brokerre, ESP-IDF-re vagy SD-kártyára.
+A szimulátor ugyanazt az `app_ui.c`, `app_chart.c`, PNG-ikonokat és betűkészleteket használja, mint az ESP32 firmware. A 12 kötelező mezőt és az opcionális SunPosition adatot tartalmazó JSON-csomag a valódi `app_ingest_process` → `app_payload_parse` → `app_state_set_sample` útvonalon érkezik. Nincs szükség eszközre, MQTT-brokerre, ESP-IDF-re vagy SD-kártyára.
 
 ## Indítás F5-tel
 
@@ -30,7 +30,7 @@ Az első adatcsomag induláskor, a továbbiak 5 másodpercenként érkeznek. Kil
 
 A kézi állapot-/témaváltás szünet közben is küld csomagot, ezért újraindítja a timeoutot. Folytatáskor legfeljebb 5 másodperc múlva érkezik a következő csomag. A konzolban látható az elküldött JSON. A demó jelölés az ablakban és a kijelző címében is szerepel.
 
-A nyolc SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
+A kilenc SD-s sablon konfiguráláskor a build `simulator/templates` mappájába másolódik.
 A futási munkakönyvtár legyen a build `simulator` mappája; ott a `templates`
 alkönyvtár tárolja a választást. A `ZOLEE_TEMPLATE_ROOT` környezeti változóval
 más tesztkönyvtár is megadható. A forráscsomagok így nem változnak meg.
@@ -38,7 +38,7 @@ A sablonok nem váltanak automatikusan. Az N billentyű továbbra is a demó
 adatcsomag `NightMode` mezőjét változtatja. A webes feltöltés firmware-funkció;
 a szimulátor nem indít HTTP-szervert.
 
-A grafikonok és a tegnapi összehasonlítás szintetikus előzményt kapnak; az új minták memóriában frissítik a demó statisztikát. Ez nem az SD-statisztika/tartós mentés tesztje. A szimulátor nem nyit hálózati végpontot. A hardveres fényerő, OTA, Wi-Fi és SD-kezelés itt adapterrel helyettesített. Az ESP-IDF fordítás alapértelmezése változatlan; a demó csak `ZOLEE_SIMULATOR=ON` mellett fordul, sem Debug, sem Release firmware-be nem kerül bele.
+A grafikonok és a tegnapi összehasonlítás szintetikus előzményt kapnak, az órás diagram integrált slotenergiával, a Nap pálya T1-demóadattal és 15 kWh-s akkukapacitással működik; az új minták memóriában frissítik a demó statisztikát. Ez nem az SD-statisztika/tartós mentés tesztje. A szimulátor nem nyit hálózati végpontot. A hardveres fényerő, OTA, Wi-Fi és SD-kezelés itt adapterrel helyettesített. Az ESP-IDF fordítás alapértelmezése változatlan; a demó csak `ZOLEE_SIMULATOR=ON` mellett fordul, sem Debug, sem Release firmware-be nem kerül bele.
 
 ## Parancssori ellenőrzés
 

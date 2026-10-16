@@ -119,6 +119,9 @@ static bool duplicates(const cJSON *o){
     if(cJSON_IsObject(o))for(const cJSON *a=o->child;a;a=a->next)for(const cJSON *b=a->next;b;b=b->next)if(!strcmp(a->string,b->string))return true;
     for(const cJSON *a=o->child;a;a=a->next)if(duplicates(a))return true;return false;
 }
+static bool preview_asset(const char *name){
+    return !strcmp(name,"preview-light.png")||!strcmp(name,"preview-dark.png");
+}
 static bool validate_scene(const cJSON *scene){
     static const char *const types[]={"box","pulse","solar_disc","solar_arc","label","value","image","bar","gauge","flow","chart","weather",NULL};
     static const char *const sources[]={"pv","home","grid","battery","soc","battery_temp","temperature","wind","clock","date","status","grid_direction","battery_direction","production_today","consumption_today","import_today","export_today","charge_today","discharge_today","pv_home","pv_export","pv_stored","pv_home_today","pv_export_today","pv_stored_today","grid_home_today","battery_home_today","self_sufficiency_pct","self_consumption_pct","pv_home_pct","pv_load_pct","pv_export_pct","pv_stored_pct","grid_home_pct","battery_home_pct","purchase_day","revenue_day","savings_day","net_day","purchase_month","revenue_month","savings_month","net_month","grid_net_today","battery_net_today","battery_capacity","battery_energy","sun_azimuth","sun_altitude","sunrise","sunset","sun_direction","weather_label","battery_summary","solar_savings_day","solar_value_today","production_yesterday_pct","savings_yesterday_pct","production_value_yesterday_pct","consumption_yesterday_pct","export_yesterday_pct",NULL};
@@ -134,6 +137,9 @@ static bool validate_scene(const cJSON *scene){
     const cJSON *e;
     cJSON_ArrayForEach(e,elements){
         const char *type=str(e,"type"),*source=str(e,"source");
+        const char *file=str(e,"file");if(file&&preview_asset(file))return false;
+        const cJSON *variant;cJSON_ArrayForEach(variant,cJSON_GetObjectItem(e,"files"))
+            if(cJSON_IsString(variant)&&preview_asset(cJSON_GetStringValue(variant)))return false;
         if(!cJSON_IsObject(e)||!one_of(type,types)||!number(e,"x",0,1279,false)||!number(e,"y",0,799,false)||
            !number(e,"w",1,1280,false)||!number(e,"h",1,800,false))return false;
         if(cJSON_GetObjectItem(e,"x")->valueint+cJSON_GetObjectItem(e,"w")->valueint>1280 ||
@@ -142,6 +148,7 @@ static bool validate_scene(const cJSON *scene){
         if(cJSON_HasObjectItem(e,"shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(cJSON_HasObjectItem(e,"reference_style")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"reference_style"))||strcmp(type,"chart")))return false;
+        if(cJSON_HasObjectItem(e,"soc_four_bands")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"soc_four_bands"))||strcmp(type,"bar")||!source||strcmp(source,"soc")))return false;
         if(cJSON_HasObjectItem(e,"text_shadow")&&(!cJSON_IsBool(cJSON_GetObjectItem(e,"text_shadow"))||
            (strcmp(type,"value")&&strcmp(type,"label"))))return false;
         if(!number(e,"glow",0,24,true)||!number(e,"shadow_offset",0,4,true)||!number(e,"shadow_opacity",0,255,true))return false;
@@ -197,17 +204,22 @@ bool app_templates_validate(const char *directory,cJSON **document,char error[16
         cJSON_Delete(root);return error_set(error,"Hibás sablonleírás / Invalid template schema");
     }
     DIR *dir=opendir(directory);if(!dir){cJSON_Delete(root);return false;}
-    struct dirent *entry;size_t encoded=0,decoded=0;unsigned assets=0;
+    struct dirent *entry;size_t encoded=0,decoded=0;unsigned assets=0,previews=0;
     while((entry=readdir(dir))){
         if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,"..")||!strcmp(entry->d_name,"template.json"))continue;
         if(!app_templates_safe_asset(entry->d_name)||++assets>32){valid=false;break;}
         path_join(path,directory,entry->d_name);unsigned w=0,h=0;
         data=read_file(path,APP_TEMPLATE_PNG_MAX,&n);
         if(!data||!png_valid(data,n,&w,&h)){free(data);valid=false;break;}free(data);
-        encoded+=n;decoded+=(size_t)w*h*4;
+        encoded+=n;
+        if(preview_asset(entry->d_name)){
+            previews++;if(w>640||h>400)valid=false;
+        }else decoded+=(size_t)w*h*4;
         if(encoded>APP_TEMPLATE_ENCODED_MAX||decoded>12*1024*1024){valid=false;break;}
     }
     closedir(dir);
+    /* Régi SD-csomag: egyik sincs. Új előnézetek: a két üzemmód együtt érkezik. */
+    if(previews==1)valid=false;
     const char *themes[]={"light","dark"};
     for(int t=0;valid&&t<2;t++){
         const cJSON *e; cJSON_ArrayForEach(e,cJSON_GetObjectItem(cJSON_GetObjectItem(root,themes[t]),"elements")){
@@ -254,7 +266,8 @@ static void scan(void){
         if(!app_templates_safe_id(e->d_name))continue;path_join(path,app_templates_root(),e->d_name);cJSON *doc=NULL;
         if(!app_templates_validate(path,&doc,error))continue;
         if(!strcmp(str(doc,"id"),e->d_name)){
-            snprintf(catalogue[count].id,33,"%.32s",e->d_name);snprintf(catalogue[count].name,81,"%s",str(doc,"name"));count++;
+            snprintf(catalogue[count].id,33,"%.32s",e->d_name);snprintf(catalogue[count].name,81,"%s",str(doc,"name"));
+            catalogue[count].version=cJSON_GetObjectItem(doc,"version")->valueint;count++;
         }
         cJSON_Delete(doc);
     }
@@ -357,6 +370,11 @@ void app_templates_step_available(int direction,bool sun_available){
 }
 void app_templates_step(int direction){app_templates_step_available(direction,true);}
 void app_templates_view_free(app_template_view_t *v){if(!v)return;cJSON_Delete(v->document);for(unsigned i=0;i<v->asset_count;i++)free(v->assets[i].bytes);memset(v,0,sizeof(*v));}
+bool app_templates_has_pending(unsigned applied_generation){
+    if(!lock||!xSemaphoreTake(lock,0))return false;
+    bool pending=applied_generation!=generation;
+    xSemaphoreGive(lock);return pending;
+}
 bool app_templates_load_pending(app_template_view_t *out){
     if(!lock||!xSemaphoreTake(lock,0))return false;
     if(out->generation==generation){xSemaphoreGive(lock);return false;}
@@ -368,7 +386,7 @@ bool app_templates_load_pending(app_template_view_t *out){
     bool ok=!strcmp(selected,"builtin");
     if(!ok&&app_templates_validate(directory,&next->document,error)){
         DIR *d=opendir(directory);struct dirent *e;ok=d!=NULL;
-        while(d&&(e=readdir(d))){if(!app_templates_safe_asset(e->d_name))continue;
+        while(d&&(e=readdir(d))){if(!app_templates_safe_asset(e->d_name)||preview_asset(e->d_name))continue;
             if(next->asset_count>=32){ok=false;break;}
             app_template_asset_t *a=&next->assets[next->asset_count++];snprintf(a->name,65,"%.64s",e->d_name);
             path_join(path,directory,e->d_name);a->bytes=read_file(path,APP_TEMPLATE_PNG_MAX,&a->size);
@@ -458,7 +476,7 @@ esp_err_t app_templates_probe(const char *zip,cJSON **report,char error[160]){
         if(!app_templates_safe_asset(entry->d_name))continue;
         path_join(path,stage,entry->d_name);size_t size=0;unsigned char *png=read_file(path,APP_TEMPLATE_PNG_MAX,&size);
         if(!png){closedir(dir);goto done;}
-        encoded+=size;decoded+=(size_t)be32(png+16)*be32(png+20)*4;free(png);
+        encoded+=size;if(!preview_asset(entry->d_name))decoded+=(size_t)be32(png+16)*be32(png+20)*4;free(png);
     }
     closedir(dir);result=cJSON_CreateObject();if(!result){status=ESP_ERR_NO_MEM;goto done;}
     bool exists=false;for(unsigned i=0;i<count;i++)if(!strcmp(catalogue[i].id,str(doc,"id")))exists=true;

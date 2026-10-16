@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "08-statistics",
   "name": "Energiastatisztika",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#F0F4FA",
     "elements": [

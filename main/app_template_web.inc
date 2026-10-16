@@ -19,7 +19,7 @@ static esp_err_t template_list_get(httpd_req_t *req){
     app_template_info_t list[APP_TEMPLATE_MAX];char active[33]="builtin";unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);
     cJSON *root=cJSON_CreateObject();if(!root)return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(root,"active",active);cJSON *array=cJSON_AddArrayToObject(root,"templates");
-    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddItemToArray(array,item);}
+    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddNumberToObject(item,"version",list[i].version);cJSON_AddItemToArray(array,item);}
     char *json=cJSON_PrintUnformatted(root);cJSON_Delete(root);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }
@@ -48,25 +48,19 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
     char id[33];if(!template_query_id(req,id))
         return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Érvénytelen sablonazonosító");
-    /* Elsőként külön thumbnailt, utána a gyári témák meglévő
-     * nappali/éjszakai háttérképét mutatjuk; a többit a böngésző
-     * a JSON elrendezés alapján rajzolja. Nincs tetszőleges fájlnév. */
+    /* Kizárólag a mentett LVGL-előnézet: régi csomagnál 404 és üres keret.
+     * Nincs nagy háttérkép vagy pontatlan böngészős rajz tartalékként. */
     bool dark=strstr(req->uri,"&mode=dark")!=NULL;
-    const char *candidates[3]={
-        dark?"preview-dark.png":"preview-light.png",
-        dark?"night.png":"day.png",
-        dark?"background-night.png":"background-day.png"
-    };
-    char *manifest=app_templates_manifest_json(id);
-    if(!manifest)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
-    free(manifest);
+    const char *filename=dark?"preview-dark.png":"preview-light.png";
+    app_template_info_t list[APP_TEMPLATE_MAX];unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,NULL);
+    bool known=false;for(unsigned i=1;i<count;i++)if(!strcmp(list[i].id,id))known=true;
+    if(!known)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
     if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD nem elérhető");
     char path[256];FILE *f=NULL;long size=0;
-    for(unsigned i=0;i<3;i++){
-        snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,candidates[i]);
-        f=fopen(path,"rb");if(!f)continue;
-        if(fseek(f,0,SEEK_END)==0 && (size=ftell(f))>0 &&
-           size<=2*1024*1024 && fseek(f,0,SEEK_SET)==0)break;
+    snprintf(path,sizeof(path),"%s/%s/%s",app_templates_root(),id,filename);
+    f=fopen(path,"rb");
+    if(f && (fseek(f,0,SEEK_END)!=0 || (size=ftell(f))<=0 ||
+             size>APP_TEMPLATE_PNG_MAX || fseek(f,0,SEEK_SET)!=0)){
         fclose(f);f=NULL;
     }
     if(!f){
@@ -74,7 +68,7 @@ static esp_err_t template_preview_get(httpd_req_t *req){
         return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Nincs előnézeti kép");
     }
     httpd_resp_set_type(req,"image/png");
-    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    httpd_resp_set_hdr(req,"Cache-Control","private, max-age=3600");
     char data[1024];esp_err_t result=ESP_OK;size_t n;
     while((n=fread(data,1,sizeof(data),f))>0){
         if(httpd_resp_send_chunk(req,data,n)!=ESP_OK){result=ESP_FAIL;break;}

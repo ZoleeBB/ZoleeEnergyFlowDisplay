@@ -1,7 +1,7 @@
 /* Runs the exact browser ZIP reader with real stored/deflate archives. */
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const sandbox={DecompressionStream,Blob,TextDecoder,TextEncoder,Uint8Array,DataView,Map,console};
-vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/template-manager.js','utf8')+'\nglobalThis.api={unpackZip,validateManifest,pngInfo};',sandbox);
+vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/template-manager.js','utf8')+'\nglobalThis.api={unpackZip,validateManifest,pngInfo,drawStoredPreview,previewName};',sandbox);
 async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpackZip(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));}
 (async()=>{
  for(const path of process.argv.slice(2,4)){
@@ -64,6 +64,53 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert(elements.some(e=>e.type==='image'&&e.file===(mode==='light'?'day.png':'night.png')));
  }
  assert(solarMetrics.encoded>0 && solarMetrics.decoded>0);
+ assert(solarFiles.has('preview-light.png')&&solarFiles.has('preview-dark.png'));
+ const legacy=await read(process.argv[2]);const doc=JSON.parse(new TextDecoder().decode(legacy.get('template.json')));
+ const oldMetric=sandbox.api.validateManifest(doc,legacy);
+ legacy.set('preview-light.png',legacy.get('image.png'));
+ assert.throws(()=>sandbox.api.validateManifest(doc,legacy));
+ legacy.set('preview-dark.png',legacy.get('image.png'));
+ assert.strictEqual(sandbox.api.validateManifest(doc,legacy).decoded,oldMetric.decoded);
+ let clears=0,draws=0;const bitmap={};
+ const canvas={width:480,height:300,getContext:()=>({clearRect:()=>++clears,drawImage:image=>{assert.strictEqual(image,bitmap);++draws;}})};
+ sandbox.api.drawStoredPreview(canvas);assert.strictEqual(draws,0); // legacy: empty frame
+ sandbox.api.drawStoredPreview(canvas,bitmap);assert.strictEqual(draws,1);assert.strictEqual(clears,2);
+ // A valódi oldal kódja: nincs manifest/háttér letöltés, a régi keret üres,
+ // ZIP-ből kizárólag a két kicsi előnézet dekódolódhat.
+ class Element{
+  constructor(tag='div'){this.tag=tag;this.children=[];this.style={};this.isConnected=true;this.draws=0;this.clears=0;}
+  append(...nodes){for(const n of nodes){n.parent=this;this.children.push(n);}}
+  replaceChildren(...nodes){this.children=[];this.append(...nodes);}
+  setAttribute(){}
+  remove(){if(this.parent)this.parent.children=this.parent.children.filter(n=>n!==this);}
+  getContext(){return {clearRect:()=>++this.clears,drawImage:()=>++this.draws};}
+ }
+ const elements=new Map(),requests=[],thumbs=[];let decodedImages=0,closedImages=0;
+ const document={getElementById:id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},createElement:tag=>new Element(tag)};
+ class ImageStub extends Element{
+  set src(url){this.url=url;thumbs.push(this);assert(this.parent,'lazy image must be attached before loading');
+   queueMicrotask(()=>url.includes('id=legacy')?this.onerror():this.onload());}
+ }
+ const page={...sandbox,document,Image:ImageStub,confirm:()=>true,
+  fetch:async url=>{requests.push(url);assert.strictEqual(url,'/api/templates');return {ok:true,json:async()=>({active:'builtin',templates:[
+   {id:'builtin',name:'Rendszer',version:0},{id:'09-solar-journey',name:'Nap pálya',version:13},{id:'legacy',name:'Régi',version:1}]})};},
+  createImageBitmap:async blob=>{const b=new Uint8Array(await blob.arrayBuffer());const size=sandbox.api.pngInfo(b);assert(size.w<=640&&size.h<=400);
+   ++decodedImages;return {close:()=>++closedImages};}
+ };
+ vm.createContext(page);vm.runInContext(fs.readFileSync('assets/web/template-manager.js','utf8'),page);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.strictEqual(elements.get('list').children.length,3);
+ assert.deepStrictEqual(requests,['/api/templates']);assert.strictEqual(thumbs.length,2);
+ assert(thumbs[0].url.includes('&v=13')&&thumbs[0].loading==='lazy');
+ assert.strictEqual(thumbs[1].parent.children.length,0);
+ const choose=async path=>{const b=fs.readFileSync(path);elements.get('zip').files=[{arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}];await elements.get('zip').onchange();};
+ await choose(process.argv[4]);assert.strictEqual(decodedImages,2);
+ assert.strictEqual(elements.get('light').draws,1);assert.strictEqual(elements.get('dark').draws,1);
+ await choose(process.argv[2]);assert.strictEqual(decodedImages,2);assert.strictEqual(closedImages,2);
+ assert.strictEqual(elements.get('light').draws,1);assert.strictEqual(elements.get('light').clears,2);
+ assert.strictEqual(elements.get('check').disabled,false); // legacy packages remain installable
+ console.log('PASS: saved previews, lazy versioned thumbnails, empty legacy frames and only two image decodes');
+
  for(const path of process.argv.slice(5)){await assert.rejects(()=>read(path));}
  console.log('PASS: browser real solar journey ZIP, stored/deflate, PNG metadata, CRC, path/duplicate/truncated rejection');
 })().catch(e=>{console.error(e);process.exit(1);});

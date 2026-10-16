@@ -136,12 +136,35 @@ static void test_solar_battery_route(void){
     assert(battery->points[1].x==battery->points[2].x);
     assert(tn(battery->spec,"y",0)+battery->points[2].y==560);
     assert(cJSON_IsTrue(cJSON_GetObjectItem(battery->spec,"reverse")));
-    double original=battery->power;
-    battery->power=-3; /* Negatív PowerBat: töltés, PV -> akku. */
-    battery->phase=.5f;template_animate(.04f);assert(battery->phase>.5f);
-    battery->power=3; /* Pozitív PowerBat: kisütés, akku -> PV. */
-    battery->phase=.5f;template_animate(.04f);assert(battery->phase<.5f);
-    battery->power=original;
+    double original=battery->power;app_energy_sample_t original_sample=s_animation_sample;
+    /* Kisütés: az alsó ágon felfelé, majd a házhoz jobbra. */
+    battery->power=3;battery->phase=.1f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(battery->phase<.1f);
+    int x=lv_obj_get_x(battery->dots[0])+3,y=lv_obj_get_y(battery->dots[0])+3;
+    assert(x>1038&&x<1077&&y==473);
+    battery->phase=.8f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(battery->dots[0])+3==1038);
+    assert(lv_obj_get_y(battery->dots[0])+3>473);
+    /* Hálózati töltés: a háztól balra, majd lefelé az akkuhoz. */
+    s_animation_sample.power_pv_kw=0;s_animation_sample.power_full_kw=2;
+    s_animation_sample.power_bat_kw=-3;s_animation_sample.power_grid_kw=5;
+    battery->power=-3;battery->charge_phase[1]=.1f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(battery->charge_phase[1]>.1f);
+    assert(lv_obj_get_x(battery->dots[0])+3>1038&&lv_obj_get_y(battery->dots[0])+3==473);
+    battery->charge_phase[1]=.9f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(battery->dots[0])+3==1038&&lv_obj_get_y(battery->dots[0])+3>540);
+    /* PV-töltés a bal oldali ágról; vegyes töltés mindkét ágról. */
+    s_animation_sample.power_pv_kw=8;
+    battery->charge_phase[0]=.1f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(battery->dots[0])+3<1038&&lv_obj_get_y(battery->dots[0])+3==473);
+    s_animation_sample.power_pv_kw=3;
+    battery->charge_phase[0]=battery->charge_phase[1]=.1f;template_animate(.01f);lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(battery->dots[0])+3<1038);
+    assert(lv_obj_get_x(battery->dots[1])+3>1038);
+    battery->power=0;template_animate(.01f);lv_obj_update_layout(s_screen);
+    for(int d=0;d<4;d++)assert(lv_obj_has_flag(battery->dots[d],LV_OBJ_FLAG_HIDDEN));
+    battery->power=original;s_animation_sample=original_sample;
+    puts("PASS: battery dots turn to house on discharge, descend from house on grid charge, split mixed charging");
 }
 
 /* A valódi LVGL objektumokon ellenőrzött Nap pálya finomítások. */
@@ -187,16 +210,19 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
         float expected=i<2?.03f*(i+1):.12f;
         assert(fabsf(disc->phase-expected)<.0001f);
     }
-    int last_width=0,last_alpha=256;
+    int last_width=0,last_alpha=256,last_fill=256;
+    assert(lv_obj_get_index(disc->detail)<lv_obj_get_index(disc->obj));
     for(int step=0;step<=4;step++){
         disc->phase=step==4?.999f:step*.25f;template_animate(0);
         lv_obj_update_layout(s_screen);
         int width=lv_obj_get_width(disc->detail);
         int alpha=lv_obj_get_style_border_opa(disc->detail,0);
         assert(width>last_width&&alpha<last_alpha);
-        assert(lv_obj_get_style_bg_opa(disc->detail,0)==LV_OPA_TRANSP);
-        assert(lv_obj_get_x(disc->detail)+(width-tn(disc->spec,"w",40))/2==lv_obj_get_x(disc->obj));
-        last_width=width;last_alpha=alpha;
+        int fill=lv_obj_get_style_bg_opa(disc->detail,0);
+        assert(fill<last_fill);
+        assert(abs(lv_obj_get_x(disc->detail)*2+width-(lv_obj_get_x(disc->obj)*2+tn(disc->spec,"w",40)))<=1);
+        if(step==0)assert(width==1&&fill>0);
+        last_width=width;last_alpha=alpha;last_fill=fill;
     }
     assert(last_alpha==0&&lv_obj_get_style_shadow_opa(disc->detail,0)==0);
     s_animation_sample.power_pv_kw=0;disc->phase=.5f;template_animate(.1f);
@@ -206,11 +232,12 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     template_animate(.1f);
     assert(lv_obj_get_style_border_width(disc->detail,0)==0);
     assert(lv_obj_get_x(disc->obj)==disc_x&&lv_obj_get_y(disc->obj)==disc_y);
-    const int socs[]={0,19,20,50,51,100};
-    for(unsigned i=0;i<6;i++){
+    const int socs[]={0,29,30,47,49,50,70,71,100};
+    const uint32_t soc_colors[]={RED,RED,ORANGE,ORANGE,ORANGE,YELLOW,YELLOW,GREEN,GREEN};
+    for(unsigned i=0;i<sizeof(socs)/sizeof(socs[0]);i++){
         s.soc_bat_pct=socs[i];template_update(&s,&fixture);
         assert(lv_bar_get_value(bar->obj)==socs[i]);
-        assert(lv_color_eq(lv_obj_get_style_bg_color(bar->obj,LV_PART_INDICATOR),c(battery_color(socs[i]))));
+        assert(lv_color_eq(lv_obj_get_style_bg_color(bar->obj,LV_PART_INDICATOR),c(soc_colors[i])));
         assert(tn(bar->spec,"x",0)==1012&&tn(bar->spec,"y",0)==627);
     }
     const double powers[]={0,.0004,-.0004,1,-1};
@@ -302,6 +329,17 @@ static void test_template_motion(void){
                 float ax=node->points[k-1].x,ay=node->points[k-1].y,dx=node->points[k].x-ax,dy=node->points[k].y-ay;
                 float sq=dx*dx+dy*dy,t=sq?((x-ax)*dx+(y-ay)*dy)/sq:0;t=fmaxf(0,fminf(1,t));
                 distance=fminf(distance,hypotf(x-ax-t*dx,y-ay-t*dy));
+            }
+            /* A Nap pálya akku pontjai a már kirajzolt PV–ház vonalon is járnak. */
+            if(!strcmp(template_view.id,"09-solar-journey")&&!strcmp(ts(node->spec,"source"),"battery")){
+                for(unsigned j=0;j<template_node_count;j++){
+                    template_node_t *pv=&template_nodes[j];
+                    if(strcmp(ts(pv->spec,"type"),"flow")||strcmp(ts(pv->spec,"source"),"pv_home"))continue;
+                    float left=tn(pv->spec,"x",0)+pv->points[0].x-tn(node->spec,"x",0);
+                    float right=tn(pv->spec,"x",0)+pv->points[pv->point_count-1].x-tn(node->spec,"x",0);
+                    float line_y=tn(pv->spec,"y",0)+pv->points[0].y-tn(node->spec,"y",0);
+                    distance=fminf(distance,hypotf(x-fmaxf(left,fminf(right,x)),y-line_y));
+                }
             }
             assert(distance<2); /* integer display rounding only */
         }
@@ -643,11 +681,23 @@ int main(void)
         sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
         snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
         for(unsigned i=1;i<count;i++){
-            assert(app_templates_select(list[i].id)==ESP_OK);template_prepare();
+            assert(app_templates_select(list[i].id)==ESP_OK);
+            assert(app_templates_has_pending(template_pending.generation));
+            assert(template_loading_frame());assert(s_view==VIEW_THEME_LOADING);
+            save_frame("theme-loading");
+            template_prepare();
+            assert(!app_templates_has_pending(template_pending.generation));
             for(int night=0;night<2;night++){
                 sample.night_mode=night;rt.wifi_connected=true;
                 render_runtime(rt,sample,true,31000000);assert(template_is_active());assert(s_view==VIEW_DASHBOARD);
+                for(unsigned asset=0;asset<template_view.asset_count;asset++)
+                    assert(strncmp(template_view.assets[asset].name,"preview-",8));
                 const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
+                if(!strcmp(template_view.id,"03-instruments")||!strcmp(template_view.id,"07-energy-ledger")){
+                    const cJSON *layer;
+                    cJSON_ArrayForEach(layer,cJSON_GetObjectItem(scene,"elements"))
+                        assert(strcmp(ts(layer,"type"),"box")||tn(layer,"w",0)!=1280||tn(layer,"h",0)!=800);
+                }
                 uint32_t expected_bg=tc(scene,"background",0);
                 if(!strcmp(template_view.id,"04-daily-balance"))expected_bg=night?0x1B2E38:0xE5F1ED;
                 if(!strcmp(template_view.id,"05-calm-home"))expected_bg=night?0x223432:0xE8F0E7;
@@ -682,6 +732,18 @@ int main(void)
                         }
                     }
                     assert(temperature_shadow);template_update(&sample,&fixture);
+                }
+                if(!strcmp(list[i].id,"09-solar-journey")){
+                    sample.sun_position_valid=true;sample.sun_altitude_deg=night?-25:25;
+                    sample.sunrise_minute=420;sample.sunset_minute=1080;sample.sun_azimuth_deg=220;
+                    sample.has_sun_radiation=false;sample.power_pv_kw=night?0:3.5;
+                    sample.power_bat_kw=night?1.5:-.5;
+                    sample.power_grid_kw=sample.power_full_kw-sample.power_pv_kw-sample.power_bat_kw;
+                    sample.battery_temperature_c=32;sample.temperature_c=18.2;
+                    s_animation_sample=sample;template_update(&sample,&fixture);
+                    for(unsigned n=0;n<template_node_count;n++)
+                        if(!strcmp(ts(template_nodes[n].spec,"type"),"solar_disc"))template_nodes[n].phase=.6f;
+                    template_animate(0);
                 }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
@@ -724,7 +786,7 @@ int main(void)
         assert(!s_diagnostics_requested);
         puts("PASS: raw portrait touch mapping separates horizontal theme swipes and vertical diagnostics gestures");
         lv_indev_delete(input);
-        puts("PASS: 16 template renders, common error/recovery, NightMode and actual LVGL swipe across all 9 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
+        puts("PASS: 18 template renders, common error/recovery, NightMode and actual LVGL swipe across all 10 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
     clear();template_release_cache();app_templates_view_free(&template_view);
     lv_display_delete(display);lv_deinit();return 0;

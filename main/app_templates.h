@@ -12,7 +12,7 @@
 #define APP_TEMPLATE_PNG_MAX (5U*1024U*1024U/2U)
 #define APP_TEMPLATE_ENCODED_MAX (5U*1024U*1024U)
 #define APP_TEMPLATE_ROOT APP_SD_MOUNT_POINT "/templates"
-typedef struct { char id[33],name[81]; } app_template_info_t;
+typedef struct { char id[33],name[81]; unsigned version; } app_template_info_t;
 typedef struct { char name[65]; uint8_t *bytes; size_t size; unsigned width,height; } app_template_asset_t;
 /* A UI tulajdona; a webszál soha nem módosítja ezt a pillanatképet. */
 typedef struct {
@@ -36,6 +36,8 @@ esp_err_t app_templates_install(const char *zip_path,char error[160]);
 /* Visszaadja a telepített téma JSON-ját (malloc); a hívó szabadítja fel. */
 char *app_templates_manifest_json(const char *id);
 /* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */
+/* Lock-only query: no SD I/O, safe before showing the loading frame. */
+bool app_templates_has_pending(unsigned applied_generation);
 bool app_templates_load_pending(app_template_view_t *out);
 void app_templates_view_free(app_template_view_t *view);
 bool app_templates_validate(const char *directory,cJSON **document,char error[160]);

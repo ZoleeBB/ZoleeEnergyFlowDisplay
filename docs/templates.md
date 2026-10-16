@@ -1,7 +1,7 @@
 # SD-kártyás sablonok
 
 Az eredeti nézet a firmware része, mindig elérhető. A választható elrendezések a repository
-`templates/` könyvtárában van, mindegyik saját világos és sötét témával.
+`templates/` könyvtárában vannak, mindegyik saját világos és sötét témával.
 
 | Csomag | Nézet |
 |---|---|
@@ -13,7 +13,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `06-energy-orbit` | Energiakör: négy szereplő íves összeköttetésekkel, töltöttség az akkumulátor alatt, pulzáló középpont |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
-| `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiacsillag; érvényes `SunPosition` szükséges |
+| `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
 
 ## Használat
 
@@ -45,7 +45,7 @@ Nyisd meg: `http://zolee-energy-flow-display.local/templates`
 - Aktiválás: a kijelző következő frissítésekor betöltődik. A feltöltés önmagában
   nem változtatja meg a kiválasztott sablont.
 - Törlés: az aktív sablon törlése visszalép az alapnézetre. A beépített nézet nem
-  törölhető. Meglévő csomagazonosító nem írható felül; előbb töröld a régi csomagot.
+  törölhető. Meglévő azonosítónál biztonságos frissítés történik; a régi csomag csak sikeres ellenőrzés és fájlcsere után törlődik.
 
 A hitelesítés az OTA-felületével azonos (`ota.username`/`ota.password`);
 üres felhasználónév esetén az eddigi OTA-szabály szerint nincs bejelentkezés.
@@ -92,7 +92,7 @@ közös lapjelzőnek/SD-hibajelzésnek szabadon hagyni.
 | `value` | Élő adat: `source`, `font`, `color`, `align` |
 | `image` | Csomagon belüli PNG: `file`; a képet a `w`/`h` méretre skálázza |
 | `weather` | Közös időjáráslogika, opcionális saját `files` készlet: `sunny`, `partly_cloudy`, `cloudy`, `rain`, `snow`, `night` |
-| `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek |
+| `bar` | `source`, `max` (alapérték 100), `color`, `background`; `soc` esetén a közös töltöttségszínek; `soc_four_bands: true` a Nap pálya négy tartományát használja |
 | `gauge` | Köríves mérő: `source`, `max` (alapérték 15), `color`, `background` |
 | `flow` | `source`, `color`, `radius` (vonalvastagság), relatív `{x,y}` pontok: alapból 2–8 pontos `polyline`; `curve: "bezier"` esetén 4 vagy 7 vezérlőpont |
 | `chart` | `kind`: `production`, `consumption`, `grid`, `battery`, `soc`, `week`, `month`, `solar_hourly`; minimum 150×100. `solar_hourly`: 24 órás, tényleges kWh-s, zöld/sárga (helyi/tárolt és export) oszlopok. |
@@ -107,7 +107,7 @@ A szöveges címkék HU/EN karakterkészletet használnak. A `text_en` hiányáb
 Adatkapcsolatok:
 
 - `pv`, `home`, `grid`, `battery`: pillanatnyi kW, a kijelzés abszolút értékű,
-  0,1 kW alatt W-ra vált. A flow előjeles adatot használ: a pontlista iránya a
+  1 kW alatt W-ra vált. A flow előjeles adatot használ: a pontlista iránya a
   pozitív irány; hálózatnál vételezés, akkumulátornál kisütés. Negatív értéknél
   megfordulnak a pöttyök. Nulla körül eltűnnek; 7 kW-nál érik el a maximális sebességet.
 - `soc`, `battery_temp`, `battery_capacity`, `battery_energy`, `sun_azimuth`, `sun_altitude`, `sunrise`, `sunset`, `sun_direction`, `temperature`, `wind`, `clock`, `date`, `status`,
@@ -129,8 +129,8 @@ Azonosító: 1–32 kisbetű, szám, `-`, `_`; a `builtin` foglalt. A könyvtár
 egyeznie kell az azonosítóval. A PNG-fájlnév ugyanez a karakterkészlet, `.png`
 végződéssel, legfeljebb 64 karakter.
 
-ZIP maximum 8 MiB, kibontva maximum 8 MiB; képfájl maximum 2 MiB,
-összes kódolt kép maximum 4 MiB, számított RGBA képmemória összesen 12 MiB.
+ZIP maximum 8 MiB, kibontva maximum 8 MiB; képfájl maximum 2,5 MiB,
+összes kódolt kép maximum 5 MiB, számított futásidejű RGBA képmemória összesen 12 MiB (a két webes előnézet nélkül).
 PNG: maximum 1280×800, 8 bites RGB/RGBA, nem interlace. A PNG-k teljes CRC- és
 zlib-dekódolási ellenőrzést kapnak, nem csak a kiterjesztést vizsgáljuk.
 
@@ -143,13 +143,13 @@ az esztétikus elrendezést a szimulátorban kell ellenőrizni.
 A feltöltés nem az LVGL szálon fut. A UI előtöltése nem vár a webes feltöltés
 SD-zárára; a meglévő RAM-beli nézet addig tovább működik. Az új képek cseréje a
 grafikus zár alatt, a régi objektumok és képcache felszabadításával történik.
-Az LVGL képcache 6 MiB: a házhátteret nem kell minden animációs képkockán újradekódolni.
+Az LVGL képcache 10 MiB: a házhátteret nem kell minden animációs képkockán újradekódolni.
 
 ## Ellenőrzés és képi forrás
 
 `python tests/test_templates.py`: a tényleges C telepítő, séma, PNG-k,
 hibás ZIP-ek, megőrzés, törlés és visszaállás tesztjei.
-A `ui-preview` CI tizenhat valódi LVGL-sablonképet renderel, és ellenőrzi a közös
+A `ui-preview` CI tizennyolc valódi LVGL-sablonképet renderel, és ellenőrzi a közös
 hibaoldalból visszatérést. A Windows szimulátor ugyanazt a sablonrajzolót használja.
 A fizikai kijelzőn a húzás érzékenységét, a nagy házháttér animációs sebességét és
 az SD-kártya sebességét külön hardveres próba igazolja.
@@ -176,13 +176,13 @@ A [gyakorlati útmutató](template-authoring.md) a saját ikonoktól és a két 
 Az alábbi képek a firmware rajzolójából származnak, nem statikus látványtervek.
 
 
-![A nyolc sablon nappali és éjszakai nézete](previews/templates.png)
+![A kilenc sablon nappali és éjszakai nézete](previews/templates.png)
 
 ![Aktuális ikonok és időjárás](previews/template-icons.png)
 
 ![Élő otthon: pontok a görbe energiautakon](previews/live-home-flow.gif)
 
-Az energiautak `glow: 0..24` mezője állítható fényudvart ad. A fény intenzitása és a pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a fény kialszik. A kézi sablonváltás 160 ms belépő áttűnést használ: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.
+Az energiautak `glow: 0..24` mezője állítható fényudvart ad; az aktív és inaktív út erőssége külön állítható. A pontok sebessége a teljesítménnyel nő, 7 kW felett korlátozott; nulla teljesítménynél a pontok rejtettek. A nagy grafikus témák áttűnés nélkül váltanak; az egyszerű nézeteknél rövid belépő áttűnés használható: a következő sablon SD-betöltése az LVGL-záron kívül történik. Nincs automatikus váltás és nincs két teljes képernyős képpuffer foglalás.
 
 ## 08 – Energiastatisztika
 
@@ -190,9 +190,9 @@ Világos és sötét, 1280×800-as nézet: csak számszerű pillanatnyi energia�
 
 ## Feltöltés előtti webes előnézet
 
-A `/templates` oldalon válaszd ki a ZIP-et: a böngésző helyben bontja ki, ellenőrzi a ZIP/PNG CRC-t, és demóadatokkal nappali/sötét előnézetet rajzol. Megjelenik a sablonverzió, a tömörített képek mérete és az összes dekódolt kép felső memória-becslése. Ez utóbbi nem a teljes firmware RAM-fogyasztása. Modern, `DecompressionStream('deflate-raw')` támogatású böngésző szükséges.
+A `/templates` oldalon válaszd ki a ZIP-et: a böngésző helyben bontja ki, ellenőrzi a ZIP/PNG CRC-t, és a csomagban mentett nappali/sötét előnézeteket mutatja. Megjelenik a sablonverzió, a tömörített képek mérete és az összes dekódolt kép felső memória-becslése. Ez utóbbi nem a teljes firmware RAM-fogyasztása. Modern, `DecompressionStream('deflate-raw')` támogatású böngésző szükséges.
 
-Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben küldi a ZIP-et. A C-validátor változatlan követelményekkel ellenőrzi, majd törli az ideiglenes fájlokat; nem telepít, nem aktivál és nem írja át a katalógust. A **Telepítés** csak pozitív eredmény után engedélyezett; a telepítő ismét ellenőriz. Már létező azonosító nem írható felül. Új ZIP kiválasztása érvényteleníti a korábbi jóváhagyott állapotot.
+Az **Ellenőrzés az eszközön** gomb `/api/templates/validate` kérésben küldi a ZIP-et. A C-validátor változatlan követelményekkel ellenőrzi, majd törli az ideiglenes fájlokat; nem telepít, nem aktivál és nem írja át a katalógust. A **Telepítés** csak pozitív eredmény után engedélyezett; a telepítő ismét ellenőriz. Már létező azonosító esetén a Telepítés gomb frissítést ajánl fel, külön megerősítéssel. Új ZIP kiválasztása érvényteleníti a korábbi jóváhagyott állapotot.
 
 A szerkeszthető HTML/JS: `assets/web/`. Beágyazás újragenerálása: `python tools/prepare_web.py`.
 
@@ -215,32 +215,50 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
   `tests/test_visual_regressions.py` megakadályozza a javítások véletlen
   kikerülését. A kijelzőn nappali és éjszakai módban is vizuálisan tesztelendő.
 
-## Nap pálya: munkaközi integrációs sablon
+## 09 – Nap pálya
 
-A `templates/09-solar-journey/` nappali/éjszakai témája a 24 órás napjárás, órás termelés, mini energiaáramlás és akkuadatok integrációs ellenőrzésére készült. **A háttér az Élő otthon átmenetileg átvett képpárja, nem a véglegesen elfogadott grafika.** Grafikai csere, kijelzőteszt és végleges optimalizálás szükséges.
+A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 21–21 pontos nappali és éjszakai útvonalat követi. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
 
-A sablonok teljes elemszámát a csomagtesztek az aktuális fájlok alapján ellenőrzik. A `template-manifest.json` minden, a Nap pálya integrációs témához tartozó átmeneti háttérképet tartalmaz.
+A v14-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
+30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
+Az 50%-os határ a sárga, a 70%-os még a sárga tartomány része.
+A nap alatti, középről növekvő, kitöltött sugárzási réteg és tizenkét sugár
+folyamatosan elhalványul; sebessége 8 kW-nál maximális. Az éjszakai korong
+képe állandó, csak a holdudvar kap 4,2 másodperces légző animációt.
+A részletes működés: [Nap pálya](solar-journey-acceptance.md).
 
-## Nap pálya: újragenerált grafikai csomag telepítése
+## Mentett előnézeti képek
 
-A Nap pálya 2. verziójához a nappali és éjszakai teljes háttér, illetve 11 további
-önálló ikon PNG-ként készült. A `NapPalya-komplett-sablon.zip` csomag gyökérszintjén
-`template.json`, `day.png`, `night.png`, `pv.png`, `home.png`,
-`grid.png`, `battery.png`, `eco_leaf.png`, és az időjárás-ikonok találhatók.
-A teljes csomagot a webes sablonkezelőben egy ZIP-ként kell feltölteni; a firmware
-validálja, mielőtt az SD-kártyára telepíti. A csomag ugyanazzal az
-`09-solar-journey` azonosítóval, nagyobb verziószámmal frissíti a korábbi témát.
+Mind a kilenc csomag kötelező építési bemenete a `preview-light.png` és
+`preview-dark.png`. Ezek a valódi LVGL-kijelző 480×300 px-es képei demóadatokkal;
+a validátor legfeljebb 640×400 px-es RGB/RGBA előnézetet fogad el.
+A két képet együtt kell megadni. Az előnézet nem használható kijelzőelemként,
+és a kijelző nem tölti a grafikus assetek közé, így nem növeli az LVGL-képmemóriát.
+A 32 fájlos és 5 MiB-os csomagkorlátba viszont beleszámít.
 
-**Fontos:** a GitHub-repóban még a régi, átmeneti képekkel készült integrációs
-sablon szerepel. A PNG-binárisok külön csomagból telepítendők, amíg a teljes
-képcsomag verziókövetett feltöltése el nem készül. A `SunPosition:null` esetben
-a napkorong és a nappálya elrejtésre kerül. A kijelzőn végzendő végleges
-vizuális teljesítményteszt továbbra is kötelező.
+A régi SD-sablonok előnézet nélkül is működnek és frissíthetők. A webes
+sablonkezelő ilyenkor üres keretet mutat, és nem tölti le helyettük a nagy
+háttérképet. A csomagok egyenként frissíthetők. A web kizárólag a mentett
+előnézetet jeleníti meg; nincs eltérő böngészős rajzoló. A képek lusta betöltést,
+verziózott URL-t és egyórás privát gyorsítótárazást használnak.
 
-### Napkorong grafikai réteg
+Új képek készítése az LVGL-render után:
 
-A `solar_disc` elem opcionális `file` tulajdonsággal különálló, átlátszó PNG-t használhat (pl. `"file":"weather_sunny.png"`). Az LVGL mozgatja az objektumot, és a 0–8 kW termelésfüggő pulzáló fényudvart rajzolja mögé. Az ikon képfájljának hiányában a régebbi sablonok továbbra is kör alakú napkorongot kapnak. **Figyelem:** a teljes új PNG csomag még nincs a GitHub forrásban; telepítéshez a külön készített v2 ZIP szükséges.
+```sh
+python3 tools/prepare_template_previews.py .preview-images
+```
+
+A script a sablonkönyvtárakat, az áttekintő képet és az assetjegyzéket is frissíti.
+A csomag `version` értékét elrendezés- vagy előnézetváltoztatáskor emeld.
 
 ## Automatikus ZIP-csomagolás
 
-A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti **összes** érvényes sablonhoz külön `<sablon-azonosító>.zip` fájlt tartalmaz. A `tools/prepare_templates.py` az első nyolc, kódból előállított témát frissíti, de a később hozzáadott (például `09-solar-journey`) témák eredeti `template.json` fájlját és PNG-it változtatás nélkül csomagolja. A build a `tests/test_template_packages.py` ellenőrzéssel hibát jelez, ha bármelyik téma hiányzik, eltérő nevű, vagy a ZIP tartalma eltér a forrásától.
+A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti
+összes érvényes sablonhoz külön ZIP-et tartalmaz. A `tools/prepare_templates.py`
+a verziókezelt JSON-t és PNG-ket változtatás nélkül csomagolja, hiányzó vagy
+fölösleges képnél megáll. Nem írja újra a már finomhangolt elrendezéseket.
+A `tests/test_template_packages.py` ellenőrzi a ZIP-ek teljességét és bájtszintű azonosságát.
+
+A Műszerfal és az Energiafőkönyv nappali és éjszakai nézetében nincs teljes
+képernyős színezőmaszk: csak a kártyák áttetsző háttere fedi a háttérképet.
+A webes aktiválás is megjeleníti az eszköz betöltőképernyőjét az SD-olvasás előtt.

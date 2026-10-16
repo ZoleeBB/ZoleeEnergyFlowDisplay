@@ -7,6 +7,7 @@ mockups. Usage: prepare_template_previews.py .preview-images
 from pathlib import Path
 import sys
 import json
+import hashlib
 from PIL import Image,ImageDraw,ImageFont
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -25,6 +26,15 @@ def main(source):
         for col,theme in enumerate(('light','dark')):
             with Image.open(source/f'template-{package.name}-{theme}.ppm') as frame:
                 sheet.paste(frame.resize((400,250),Image.Resampling.LANCZOS),(col*400,row*280+30))
+                # Kis, teljes kijelzőkép: a web nem dekódolja a nagy fotóhátteret.
+                target=package/f'preview-{theme}.png'
+                temporary=package/f'.preview-{theme}.tmp'
+                try:
+                    frame.convert('RGB').resize((480,300),Image.Resampling.LANCZOS).save(
+                        temporary,format='PNG',optimize=True)
+                    temporary.replace(target)
+                finally:
+                    temporary.unlink(missing_ok=True)
             draw.text((col*400+10,row*280+5),name+(' · nappal' if col==0 else ' · éjjel'),font=font,fill='#19352F')
         if row>=7:continue
         idraw.text((12,row*150+55),name,font=font,fill='#19352F')
@@ -44,6 +54,17 @@ def main(source):
             frames.append(image.crop((0,112,1280,650)).resize((640,269),Image.Resampling.LANCZOS).quantize(colors=96))
     if frames:frames[0].save(OUT/'live-home-flow.gif',save_all=True,append_images=frames[1:],duration=120,loop=0)
     with Image.open(source/'diagnostics-common.ppm') as frame:frame.save(OUT/'diagnostics.png',optimize=True)
+    manifest_path=ROOT/'assets/template-manifest.json'
+    manifest=[item for item in json.loads(manifest_path.read_text())
+              if Path(item['asset']).name not in ('preview-light.png','preview-dark.png')]
+    for package in packages:
+        for mode in ('light','dark'):
+            path=package/f'preview-{mode}.png'
+            manifest.append({'asset':path.relative_to(ROOT).as_posix(),
+                             'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+                             'generator':'LVGL simulator screenshot, 480x300'})
+    manifest.sort(key=lambda item:item['asset'])
+    manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     print('Exported actual LVGL template previews, own icon sets and curved flow animation')
 
 

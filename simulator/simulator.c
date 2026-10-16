@@ -89,9 +89,9 @@ static void send_demo(void)
         "{\"PowerGrid\":%.3f,\"PowerBat\":%.3f,\"PowerPV\":%.3f,"
         "\"PowerFull\":%.3f,\"SocBat\":%.1f,\"Temperature\":%.1f,"
         "\"WindSpeed\":%u,\"HasSunRadiation\":%d,\"HasPrecipitation\":%d,"
-        "\"Status\":%d,\"NightMode\":%d,\"BatteryTemperature\":%d}",
+        "\"Status\":%d,\"NightMode\":%d,\"BatteryTemperature\":%d,\"SunPosition\":\"180#%d#420#1080\"}",
         load[i]-pv[i]-bat[i],bat[i],pv[i],load[i],65.0+i*2.3,
-        i==4?-6.0:18.2,12+i*3,i==0||i==6,i==3||i==4,status,night,i==8?52:i==6?43:32);
+        i==4?-6.0:18.2,12+i*3,i==0||i==6,i==3||i==4,status,night,i==8?52:i==6?43:32,night?-25:30);
     if(n<0 || (size_t)n>=sizeof(json) || app_ingest_process(APP_DATA_HTTP,json,(size_t)n,error,sizeof(error))!=ESP_OK){
         fprintf(stderr,"Demo packet rejected: %s\n",error);exit(2);
     }
@@ -142,6 +142,7 @@ static void init_demo(void)
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
     config.display.day_brightness=80;config.display.night_brightness=20;
     config.energy.electricity_purchase_price=65;config.energy.feed_in_price=5;
+    config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
     fixture.has_yesterday=true;
@@ -159,6 +160,8 @@ static void init_demo(void)
             .pv_kw=pv,.load_kw=load,.grid_kw=grid,.battery_kw=battery,.soc_pct=fminf(100,20+pv*10),.soc_valid=true,
             .split=app_energy_split(pv,load,battery),.chart_gap=(i==current/3)};
         app_energy_split_t split=fixture.slots[i].split;
+        fixture.slots[i].energy=(app_energy_totals_t){.production_kwh=pv/12,
+            .pv_home_kwh=split.pv_home/12,.pv_export_kwh=split.pv_export/12,.pv_stored_kwh=split.pv_stored/12};
         fixture.totals.pv_home_kwh+=split.pv_home/12;fixture.totals.pv_export_kwh+=split.pv_export/12;
         fixture.totals.pv_stored_kwh+=split.pv_stored/12;fixture.totals.grid_home_kwh+=split.grid_home/12;
         fixture.totals.battery_home_kwh+=split.battery_home/12;
@@ -172,10 +175,16 @@ static void init_demo(void)
     fixture.yesterday_completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals.production_kwh*=.85;
     fixture.yesterday_completed_interval_totals.consumption_kwh*=1.15;
+    fixture.comparison_ready=current>0;fixture.yesterday_comparison_partial=current>0;
+    fixture.comparison_paired_slots=(unsigned)current;
+    fixture.comparison_today_totals=fixture.completed_interval_totals;
+    fixture.comparison_yesterday_totals=fixture.yesterday_completed_interval_totals;
     send_demo();render_step(16);
 }
 static int self_test(void)
 {
+    app_energy_sample_t initial;app_state_get_sample(&initial);
+    if(!initial.sun_position_valid||config.energy.battery_capacity_kwh!=15)return 22;
     /* A határértékeken is a tényleges sáv indikátorszínét ellenőrizzük. */
     const double levels[]={0,19.9,20,50,50.1,100};
     const uint32_t colors[]={RED,RED,ORANGE,ORANGE,GREEN,GREEN};

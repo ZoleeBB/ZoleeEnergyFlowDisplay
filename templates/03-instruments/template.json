@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 7,
+  "version": 9,
   "light": {
     "background": "#E8E9FA",
     "elements": [
@@ -13,16 +13,6 @@
         "w": 1280,
         "h": 800,
         "file": "background-day.png"
-      },
-      {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#E8E9FA",
-        "opacity": 174,
-        "radius": 0
       },
       {
         "type": "label",
@@ -607,16 +597,6 @@
         "w": 1280,
         "h": 800,
         "file": "background-night.png"
-      },
-      {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#151E36",
-        "opacity": 164,
-        "radius": 0
       },
       {
         "type": "label",

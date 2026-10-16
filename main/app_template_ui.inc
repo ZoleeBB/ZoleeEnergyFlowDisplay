@@ -12,7 +12,7 @@ LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
     const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
-    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase;int gauge_target;bool gauge_initialized;bool legacy_battery_corner;
+    lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase,charge_phase[2];int gauge_target;bool gauge_initialized;bool legacy_battery_corner;
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
@@ -108,6 +108,39 @@ static void template_path(template_node_t *node,const cJSON *e){
 /* A kirajzolt út egyetlen, összefüggő köbös Bézier-stroke; nincsenek
  * egymást fedő, áttetsző rövid szakaszok. A görbe geometria a téma
  * betöltésekor egyszer épül fel, és közös a fényudvarnak és a fővonalnak. */
+/* A terjedő napudvaron tizenkét rövid sugár; a külön réteg a nap alatt marad. */
+static void template_solar_rays_draw(lv_event_t *event){
+    if(lv_event_get_code(event)!=LV_EVENT_DRAW_MAIN||s_animation_sample.night_mode||
+       s_animation_sample.sun_altitude_deg<=0||s_animation_sample.power_pv_kw<=0)return;
+    template_node_t *node=lv_event_get_user_data(event);
+    lv_opa_t alpha=lv_obj_get_style_border_opa(node->detail,0);
+    if(!alpha)return;
+    lv_area_t area;lv_obj_get_coords(node->detail,&area);
+    float radius=(area.x2-area.x1+1)*.5f;
+    if(radius<3)return;
+    float cx=area.x1+radius,cy=area.y1+(area.y2-area.y1+1)*.5f;
+    lv_draw_vector_dsc_t *draw=lv_draw_vector_dsc_create(lv_event_get_layer(event));
+    lv_vector_path_t *path=lv_vector_path_create(LV_VECTOR_PATH_QUALITY_MEDIUM);
+    if(!draw||!path){if(draw)lv_draw_vector_dsc_delete(draw);if(path)lv_vector_path_delete(path);return;}
+    for(int ray=0;ray<12;ray++){
+        float angle=ray*6.2831853f/12.f;
+        lv_fpoint_t a={cx+cosf(angle)*radius*.70f,cy+sinf(angle)*radius*.70f};
+        lv_fpoint_t b={cx+cosf(angle)*radius*.94f,cy+sinf(angle)*radius*.94f};
+        lv_vector_path_move_to(path,&a);lv_vector_path_line_to(path,&b);
+    }
+    lv_draw_vector_dsc_set_fill_opa(draw,LV_OPA_TRANSP);
+    lv_draw_vector_dsc_set_stroke_color(draw,lv_obj_get_style_border_color(node->detail,0));
+    lv_draw_vector_dsc_set_stroke_opa(draw,alpha);
+    lv_draw_vector_dsc_set_stroke_width(draw,1.5f);
+    lv_draw_vector_dsc_set_stroke_cap(draw,LV_VECTOR_STROKE_CAP_ROUND);
+    lv_draw_vector_dsc_add_path(draw,path);lv_draw_vector(draw);
+    lv_vector_path_delete(path);lv_draw_vector_dsc_delete(draw);
+}
+static uint32_t template_soc_color(const cJSON *spec,double soc){
+    if(cJSON_IsTrue(cJSON_GetObjectItem(spec,"soc_four_bands")))
+        return soc<30?RED:soc<50?ORANGE:soc<=70?YELLOW:GREEN;
+    return battery_color(soc);
+}
 static void template_flow_draw(lv_event_t *event){
     lv_event_code_t code=lv_event_get_code(event);
     if(code==LV_EVENT_REFR_EXT_DRAW_SIZE){
@@ -355,6 +388,16 @@ static void template_loading_screen(void){
     lv_obj_remove_flag(spinner,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     s_view=VIEW_THEME_LOADING;
 }
+/* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
+ * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
+static bool template_loading_frame(void){
+    if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
+    if(bsp_display_lock(-1)!=ESP_OK)return false;
+    template_loading_screen();bsp_display_unlock();
+    template_loading_requested=false;
+    vTaskDelay(pdMS_TO_TICKS(85));
+    return true;
+}
 static void template_prepare(void){
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
@@ -489,6 +532,7 @@ static void template_build(bool night){
             /* A fényudvar külön alakzat, ezért a PNG alfa-rétege mögött is
              * látható. A kép soha nem kap négyszögű háttérkitöltést. */
             node->detail=shape(s_dash,x-6,y-6,w+12,h+12,text,LV_RADIUS_CIRCLE);
+            lv_obj_add_event_cb(node->detail,template_solar_rays_draw,LV_EVENT_DRAW_MAIN,node);
             bg_opa_if_changed(node->detail,LV_OPA_10,0);
             lv_obj_set_style_shadow_color(node->detail,c(text),0);
             lv_obj_set_style_shadow_width(node->detail,tn(e,"glow",20),0);
@@ -686,7 +730,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
-            if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(battery_color(value),s->night_mode)),LV_PART_INDICATOR);
+            if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"gauge")){
             int target=(int)fmin(tn(e,"max",15)*10,fabs(value)*10);
@@ -774,6 +818,44 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     }
     if(redraw)template_chart_time=now;
 }
+/* A Nap pálya T-csomópontjának látható vonalai változatlanok.
+ * A pontok a töltés forrásától függően a PV vagy a ház ágát követik.
+ * Két töltőforrás esetén mindkét ág kap saját folyamatos pontsorozatot. */
+static bool template_solar_battery_animate(template_node_t *node,float dt){
+    if(strcmp(template_view.id,"09-solar-journey")||strcmp(ts(node->spec,"source"),"battery")||node->point_count!=3)return false;
+    template_node_t *pv=NULL;
+    for(unsigned i=0;i<template_node_count;i++)
+        if(!strcmp(ts(template_nodes[i].spec,"type"),"flow")&&!strcmp(ts(template_nodes[i].spec,"source"),"pv_home"))pv=&template_nodes[i];
+    if(!pv||pv->point_count<2)return false;
+    const float house_x=tn(pv->spec,"x",0)+pv->points[pv->point_count-1].x-tn(node->spec,"x",0);
+    if(fabsf(node->points[2].y-node->points[1].y)<1||fabsf(house_x-node->points[1].x)<1||fabsf(node->points[0].x-node->points[1].x)<1)return false;
+    app_energy_split_t split=app_energy_split(s_animation_sample.power_pv_kw,s_animation_sample.power_full_kw,s_animation_sample.power_bat_kw);
+    double charge=fmax(0,-node->power);
+    double pv_charge=fmin(charge,split.pv_stored),grid_charge=fmax(0,charge-pv_charge);
+    bool mixed=pv_charge>=.001&&grid_charge>=.001;
+    node->phase=app_flow_advance(node->phase,fabs(node->power),node->power<0,dt);
+    node->charge_phase[0]=app_flow_advance(node->charge_phase[0],pv_charge,true,dt);
+    node->charge_phase[1]=app_flow_advance(node->charge_phase[1],grid_charge,true,dt);
+    int count=tn(node->spec,"dot_count",2);if(count<1)count=1;if(count>4)count=4;
+    if(mixed&&count<2)count=2;
+    for(int d=0;d<4;d++){
+        if(d>=count||fabs(node->power)<.001){lv_obj_add_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);continue;}
+        lv_obj_remove_flag(node->dots[d],LV_OBJ_FLAG_HIDDEN);
+        bool from_grid=node->power>0||(grid_charge>=.001&&(!mixed||d%2==1));
+        lv_point_precise_t start=from_grid?(lv_point_precise_t){house_x,node->points[1].y}:node->points[0];
+        float horizontal=fabsf(start.x-node->points[1].x),vertical=fabsf(node->points[2].y-node->points[1].y);
+        float phase=node->power>0?node->phase:node->charge_phase[from_grid?1:0];
+        unsigned group_count=mixed?(from_grid?count/2:(count+1)/2):count;
+        unsigned group_index=mixed?(unsigned)d/2:(unsigned)d;
+        float position=fmodf(phase+(float)group_index/group_count,1.f)*(horizontal+vertical);
+        float x,y;
+        if(position<horizontal){x=start.x+(node->points[1].x-start.x)*position/horizontal;y=start.y;}
+        else{x=node->points[1].x;y=node->points[1].y+(node->points[2].y-node->points[1].y)*(position-horizontal)/vertical;}
+        lv_obj_set_pos(node->dots[d],tn(node->spec,"x",0)+(int)x-lv_obj_get_width(node->dots[d])/2,
+                       tn(node->spec,"y",0)+(int)y-lv_obj_get_height(node->dots[d])/2);
+    }
+    return true;
+}
 static void template_animate(float dt){
     if(!template_view.document||!s_dash_created||s_view!=VIEW_DASHBOARD)return;
     for(unsigned n=0;n<template_node_count;n++){
@@ -793,20 +875,21 @@ static void template_animate(float dt){
                  * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
                 /* Az apró méretváltozást finom alpha-/glow-átmenet
                  * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
-                const int pad=daylight?(int)lroundf(28.f*node->phase):6+(int)lroundf(2.f*wave);
-                const int width=tn(node->spec,"w",40)+2*pad;
-                const int height=tn(node->spec,"h",40)+2*pad;
+                const int pad=6+(int)lroundf(2.f*wave);
+                const int disc_w=tn(node->spec,"w",40),disc_h=tn(node->spec,"h",40);
+                const int width=daylight?1+(int)lroundf((disc_w+55)*node->phase):disc_w+2*pad;
+                const int height=daylight?1+(int)lroundf((disc_h+55)*node->phase):disc_h+2*pad;
                 if(lv_obj_get_width(node->detail)!=width || lv_obj_get_height(node->detail)!=height)
                     lv_obj_set_size(node->detail,width,height);
-                lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)-pad,lv_obj_get_y(node->obj)-pad);
-                /* A nap körvonalából induló üres gyűrű kifelé halad,
+                lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)+(disc_w-width)/2,lv_obj_get_y(node->obj)+(disc_h-height)/2);
+                /* A nap középpontjából induló halvány, kitöltött gyűrű kifelé halad,
                  * és a teljes méret elérése előtt nullára halványul. */
-                lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)*(1.f-node->phase)):0;
+                lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)):0;
                 lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
                 lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
                 lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
                 lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(25+20*wave),0);
-                bg_opa_if_changed(node->detail,daylight?LV_OPA_TRANSP:(lv_opa_t)(10+10*wave),0);
+                bg_opa_if_changed(node->detail,daylight?(lv_opa_t)(ring_alpha/4):(lv_opa_t)(10+10*wave),0);
             }
             continue;
         }
@@ -817,6 +900,7 @@ static void template_animate(float dt){
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        if(template_solar_battery_animate(node,dt))continue;
         bool forward=node->power>=0;
         if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse")))forward=!forward;
         node->phase=app_flow_advance(node->phase,fabs(node->power),forward,dt);

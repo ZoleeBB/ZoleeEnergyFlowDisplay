@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 8,
+  "version": 10,
   "light": {
     "background": "#F6F2EA",
     "elements": [
@@ -13,16 +13,6 @@
         "w": 1280,
         "h": 800,
         "file": "background-day.png"
-      },
-      {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#F6F2EA",
-        "opacity": 174,
-        "radius": 0
       },
       {
         "type": "label",
@@ -718,16 +708,6 @@
         "w": 1280,
         "h": 800,
         "file": "background-night.png"
-      },
-      {
-        "type": "box",
-        "x": 0,
-        "y": 0,
-        "w": 1280,
-        "h": 800,
-        "background": "#18292B",
-        "opacity": 164,
-        "radius": 0
       },
       {
         "type": "label",
