@@ -17,6 +17,7 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. A témák weben átren
 
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
+| Rendszer (beépített) | ![Nappal](assets/previews/builtin-light.png) | ![Éjjel](assets/previews/builtin-dark.png) |
 | Élő otthon | ![Nappal](templates/01-live-home/preview-light.png) | ![Éjjel](templates/01-live-home/preview-dark.png) |
 | Energiautak | ![Nappal](templates/02-energy-paths/preview-light.png) | ![Éjjel](templates/02-energy-paths/preview-dark.png) |
 | Műszerfal | ![Nappal](templates/03-instruments/preview-light.png) | ![Éjjel](templates/03-instruments/preview-dark.png) |

@@ -58,7 +58,7 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert(elements.find(e=>e.type==='value'&&e.source==='grid').zero_color===
          elements.find(e=>e.type==='value'&&e.source==='pv').color);
   const solarChips=elements.filter(e=>e.type==='box'&&e.y===236);
-  assert(solarChips.some(e=>e.x===26)&&solarChips.some(e=>e.x===821));
+  assert(solarChips.some(e=>e.x===22)&&solarChips.some(e=>e.x===821));
   const battery=elements.find(e=>e.type==='box'&&e.x===951&&e.y===562);
   assert.strictEqual(elements.filter(e=>e.type==='box'&&e.w===2&&e.h===4&&e.background===battery.outline_color).length,7);
   assert(elements.some(e=>e.type==='image'&&e.file===(mode==='light'?'day.png':'night.png')));
@@ -100,9 +100,10 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
  vm.createContext(page);vm.runInContext(fs.readFileSync('assets/web/template-manager.js','utf8'),page);
  await new Promise(resolve=>setImmediate(resolve));
  assert.strictEqual(elements.get('list').children.length,3);
- assert.deepStrictEqual(requests,['/api/templates']);assert.strictEqual(thumbs.length,2);
- assert(thumbs[0].url.includes('&v=13')&&thumbs[0].loading==='lazy');
- assert.strictEqual(thumbs[1].parent.children.length,0);
+ assert.deepStrictEqual(requests,['/api/templates']);assert.strictEqual(thumbs.length,3);
+ assert(thumbs[0].url.includes('id=builtin')&&thumbs[0].loading==='lazy');
+ assert(thumbs[1].url.includes('&v=13')&&thumbs[1].loading==='lazy');
+ assert.strictEqual(thumbs[2].parent.children.length,0);
  const choose=async path=>{const b=fs.readFileSync(path);elements.get('zip').files=[{arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}];await elements.get('zip').onchange();};
  await choose(process.argv[4]);assert.strictEqual(decodedImages,2);
  assert.strictEqual(elements.get('light').draws,1);assert.strictEqual(elements.get('dark').draws,1);

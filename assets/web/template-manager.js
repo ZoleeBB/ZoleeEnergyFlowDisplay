@@ -77,7 +77,6 @@ if(typeof document!=='undefined'){
  const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');
  let selected=null,verified=null,images=new Map(),generation=0,busy=false;
  function loadThumb(t,holder){
-  if(t.id==='builtin'){holder.textContent='Alapnézet';return;}
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
   img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);
   img.onload=()=>{img.style.opacity=1;};

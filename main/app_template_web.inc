@@ -1,4 +1,5 @@
 #include "app_template_page.h"
+#include "app_builtin_previews.h"
 /* Az OTA szerver része: ugyanaz a hitelesítés, nincs külön vagy nyilvános admin végpont. */
 static bool template_request_authorized(httpd_req_t *req,bool write){
     if(!authorize(req))return false;
@@ -32,7 +33,7 @@ static bool template_query_id(const httpd_req_t *req,char id[33]){
     size_t n=last?(size_t)(last-first):strlen(first);
     if(n==0||n>32)return false;
     memcpy(id,first,n);id[n]=0;
-    return app_templates_safe_id(id);
+    return !strcmp(id,"builtin")||app_templates_safe_id(id);
 }
 static esp_err_t template_manifest_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
@@ -51,6 +52,14 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     /* Kizárólag a mentett LVGL-előnézet: régi csomagnál 404 és üres keret.
      * Nincs nagy háttérkép vagy pontatlan böngészős rajz tartalékként. */
     bool dark=strstr(req->uri,"&mode=dark")!=NULL;
+    if(!strcmp(id,"builtin")){
+        const unsigned char *png=dark?app_builtin_preview_dark:app_builtin_preview_light;
+        size_t size=dark?sizeof(app_builtin_preview_dark):sizeof(app_builtin_preview_light);
+        httpd_resp_set_type(req,"image/png");
+        httpd_resp_set_hdr(req,"Cache-Control","private, no-cache");
+        esp_err_t result=httpd_resp_send_chunk(req,(const char *)png,size);
+        return result==ESP_OK?httpd_resp_send_chunk(req,NULL,0):result;
+    }
     const char *filename=dark?"preview-dark.png":"preview-light.png";
     app_template_info_t list[APP_TEMPLATE_MAX];unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,NULL);
     bool known=false;for(unsigned i=1;i<count;i++)if(!strcmp(list[i].id,id))known=true;

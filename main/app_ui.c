@@ -7,6 +7,7 @@
  */
 #include "app_ui.h"
 #include "app_assets.h"
+#include "app_events.h"
 #include "app_chart.h"
 #include "app_flow_model.h"
 #include <math.h>
@@ -91,7 +92,10 @@ static app_stats_snapshot_t s_stats_snapshot;
 static app_stats_period_t s_week_period,s_month_period;
 static app_diagnostics_t s_diagnostics;
 static bool s_diagnostics_requested;
-static lv_obj_t *s_diagnostic_values[6];
+static lv_obj_t *s_diagnostic_values[6],*s_diagnostic_log[15];
+/* A meglévő RAM-napló másolata; nem a runtime task vermén tároljuk. */
+static app_event_entry_t s_diagnostic_events[15];
+static size_t s_diagnostic_event_count;
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
 static void animation_tick(lv_timer_t *timer);
@@ -1902,7 +1906,7 @@ static void runtime(void *arg){
             }
         }
 
-        app_diagnostics_capture(&s_diagnostics);
+        diagnostics_capture();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
         if(!template_loading_frame()){vTaskDelay(pdMS_TO_TICKS(20));continue;}
         template_prepare();

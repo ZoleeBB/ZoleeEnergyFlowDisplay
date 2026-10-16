@@ -178,6 +178,7 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
+| Rendszer (beépített) | ![Nappal](../assets/previews/builtin-light.png) | ![Éjjel](../assets/previews/builtin-dark.png) |
 | Élő otthon | ![Nappal](../templates/01-live-home/preview-light.png) | ![Éjjel](../templates/01-live-home/preview-dark.png) |
 | Energiautak | ![Nappal](../templates/02-energy-paths/preview-light.png) | ![Éjjel](../templates/02-energy-paths/preview-dark.png) |
 | Műszerfal | ![Nappal](../templates/03-instruments/preview-light.png) | ![Éjjel](../templates/03-instruments/preview-dark.png) |
@@ -229,7 +230,7 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 
 A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 21–21 pontos nappali és éjszakai útvonalat követi. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
 
-A v15-ös akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
+A v16-os akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
 30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
 Az 50%-os határ a sárga, a 70%-os még a sárga tartomány része.
 A nap alatti, középről növekvő, kitöltött sugárzási réteg és tizenkét sugár
@@ -280,3 +281,9 @@ fejléce fehér árnyékot, inverterikonja ilyen előtér-réteget használ; nin
 alap háttérmaszkja. A Műszerfal fejléce mindkét módban fehér, kártyafeliratai
 feketék, kártyái világos alapúak. Az Energiafőkönyv táblázat- és kártyacímei
 az oldalcím színét követik; a külső kártyák fedettsége 160/255.
+
+A Rendszer nézet apró, 240×150 px-es nappali/éjszakai előnézete firmware-be
+ágyazott PNG. A két kép összesen körülbelül 21 KiB flashhelyet használ; nincs
+SD-olvasás és nincs LVGL-képdekódolás. A generátor legfeljebb 32 KiB-ot enged.
+A `/api/templates/preview?id=builtin&mode=light` és `mode=dark` végpontok
+ugyanazzal a hitelesítéssel működnek, mint a többi előnézet.

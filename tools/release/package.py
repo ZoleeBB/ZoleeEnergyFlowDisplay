@@ -70,6 +70,8 @@ def package(build, output, tag, commit):
         for path in sorted((ROOT / folder).rglob('*')):
             if path.is_file():
                 files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
+    for path in sorted((ROOT/'assets/previews').glob('builtin-*.png')):
+        files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()

@@ -86,9 +86,10 @@ static void draw_chart(lv_event_t *event)
     }
     for(int i = 0; i <= 2; i++) {
         float y = floorf(area.y1 + (area.y2 - area.y1) * i / 2.f) + .5f;
-        /* Az órás diagram skáláját erősebb vízszintes vezetővonal jelöli.
-         * A függőleges óravonalak egységes 1 px-esek maradnak. */
-        line(draw, path, area.x1, y, area.x2, y, grid, data->kind==APP_CHART_SOLAR_HOURLY?2.f:1.f);
+        /* Egyetlen pixelvonal, erősebb tónussal: nem keletkezik két
+         * antialiasolt szegély a középső skálabeosztásnál. */
+        uint32_t horizontal=data->kind==APP_CHART_SOLAR_HOURLY?(data->night?0x52675E:0xBAC7CA):grid;
+        line(draw, path, area.x1, y, area.x2, y, horizontal, 1.f);
     }
 
     if(data->kind==APP_CHART_SOLAR_HOURLY){

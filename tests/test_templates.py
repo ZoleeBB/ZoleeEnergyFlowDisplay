@@ -5,6 +5,7 @@ import copy
 import ctypes as C
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -84,7 +85,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert battery_flow['positive_color']!=battery_flow['negative_color']
         sunrise=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']<200)
         sunset=next(e for e in elements if e['type']=='box' and e['y']==236 and e['x']>800)
-        assert sunrise['x']==26 and sunrise['x']+sunrise['w']<170
+        assert sunrise['x']==22 and sunrise['x']+sunrise['w']<170
         assert sunset['x']==821 and sunset['x']+sunset['w']<936
         therm=next(e for e in elements if e['type']=='image' and e.get('file')=='battery_temp.png')
         band=next(e for e in elements if e['type']=='box' and e['x']==951 and e['y']==562)
@@ -140,8 +141,16 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         if (package/'template.json').is_file():
             refs = referenced(json.loads((package/'template.json').read_text())) | {'preview-light.png','preview-dark.png'}
             assert {p.name for p in package.glob('*.png')} == refs, package.name
+    header=(ROOT/'main/app_builtin_previews.h').read_text()
+    builtin_bytes=0
+    for mode in ('light','dark'):
+        data=(ROOT/f'assets/previews/builtin-{mode}.png').read_bytes();builtin_bytes+=len(data)
+        assert int.from_bytes(data[16:20],'big')==240 and int.from_bytes(data[20:24],'big')==150
+        array=header.split(f'app_builtin_preview_{mode}[] = {{',1)[1].split('};',1)[0]
+        assert bytes(int(x,16) for x in re.findall(r'0x([0-9a-f]{2})',array))==data
+    assert builtin_bytes<=32*1024
     manifest = json.loads((ROOT/'assets/template-manifest.json').read_text())
-    assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')}
+    assert {item['asset'] for item in manifest} == {p.relative_to(ROOT).as_posix() for p in (ROOT/'templates').glob('*/*.png')} | {p.relative_to(ROOT).as_posix() for p in (ROOT/'assets/previews').glob('builtin-*.png')}
     mismatched={
         item['asset']:hashlib.sha256((ROOT/item['asset']).read_bytes()).hexdigest()
         for item in manifest

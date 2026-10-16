@@ -87,7 +87,6 @@ static const char template_manager_page[] =
 " const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');\n"
 " let selected=null,verified=null,images=new Map(),generation=0,busy=false;\n"
 " function loadThumb(t,holder){\n"
-"  if(t.id==='builtin'){holder.textContent='Alapnézet';return;}\n"
 "  const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';\n"
 "  img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);\n"
 "  img.onload=()=>{img.style.opacity=1;};\n"

@@ -6,14 +6,14 @@
 #include "esp_http_server.h"
 #include "app_templates.h"
 #include "app_storage.h"
-static int status,interrupted;static bool authorized=true,header=true;
+static int status,interrupted;static bool authorized=true,header=true,storage_available=true;
 static const unsigned char *request_bytes;static size_t request_offset;
 static char *response;
 static size_t chunk_bytes;static char cache_control[64];
 static httpd_uri_t routes[10];static unsigned route_count;
 static bool authorize(httpd_req_t *req){(void)req;if(!authorized)status=401;return authorized;}
 bool app_storage_is_ok(void){return true;}
-esp_err_t app_storage_lock(void){return ESP_OK;}
+esp_err_t app_storage_lock(void){return storage_available?ESP_OK:ESP_FAIL;}
 void app_storage_unlock(void){}
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *r){(void)server;routes[route_count++]=*r;return ESP_OK;}
 esp_err_t httpd_resp_set_status(httpd_req_t *r,const char *s){(void)r;status=atoi(s);return ESP_OK;}
@@ -34,6 +34,11 @@ static void request(const char *uri,const unsigned char *bytes,size_t size){
 int main(int argc,char **argv){
  assert(argc==3);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t size=ftell(f);rewind(f);unsigned char *zip=malloc(size);assert(zip&&fread(zip,1,size,f)==size);fclose(f);
+ storage_available=false;
+ request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_light));
+ request("/api/templates/preview?id=builtin&mode=dark",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_dark));
+ authorized=false;request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==401);authorized=true;
+ storage_available=true;
  request("/templates",NULL,0);assert(status==200&&strstr(response,"canvas")&&strstr(response,"Ellenőrzés az eszközön"));
  request("/api/templates/validate",zip,size);assert(status==200);cJSON *report=cJSON_Parse(response);assert(report&&cJSON_IsTrue(cJSON_GetObjectItem(report,"valid"))&&cJSON_IsTrue(cJSON_GetObjectItem(report,"installable")));cJSON_Delete(report);
  assert(app_templates_list(NULL,16,NULL)==1);

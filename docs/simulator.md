@@ -54,6 +54,6 @@ A `zolee_simulator.exe --self-test` ablak nélkül ellenőrzi a demó csomagokat
 
 Az ablak pufferelt GDI-rajzolást használ: a háttér és a kijelző képe memóriában áll össze, majd egyetlen másolással jelenik meg. Az animációk közben nincs teljes ablakos fekete háttértörlés. A Windows CI ezt a megjelenítési utat is ellenőrzi ismételt rajzolással és méretváltással.
 
-Az **I** billentyű a közös diagnosztikai nézetet nyitja/zárja. A statisztikai téma demó SOC- és forrásenergia-adatokat, valamint hiányzó napot jelölő heti/havi oszlopdiagramokat is mutat.
+Az **I** billentyű a közös diagnosztikai nézetet nyitja/zárja: balra tömör adatok, jobbra a legfrissebb 15 RAM-naplóesemény. A statisztikai téma demó SOC- és forrásenergia-adatokat, valamint hiányzó napot jelölő heti/havi oszlopdiagramokat is mutat.
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).

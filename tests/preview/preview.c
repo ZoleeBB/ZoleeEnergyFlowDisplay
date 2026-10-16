@@ -603,11 +603,11 @@ static void test_hourly_chart_grid(void){
         assert((pixels[y*1280+x-1]&0xffffff)==0xffffff);
         assert((pixels[y*1280+x+1]&0xffffff)==0xffffff);
     }
-    /* A középső skála vezetővonala vastagabb az óravonalaknál. */
+    /* A középső skálavonal egyetlen, kontrasztos pixelsor. */
     int middle=(int)floorf((area.y1+area.y2)/2.f),x=area.x1+5;
     assert((pixels[middle*1280+x]&0xffffff)!=0xffffff);
-    assert((pixels[(middle-1)*1280+x]&0xffffff)!=0xffffff ||
-           (pixels[(middle+1)*1280+x]&0xffffff)!=0xffffff);
+    assert((pixels[(middle-1)*1280+x]&0xffffff)==0xffffff);
+    assert((pixels[(middle+1)*1280+x]&0xffffff)==0xffffff);
     assert((pixels[(middle+2)*1280+x]&0xffffff)==0xffffff);
     lv_obj_delete(parent);
     puts("PASS: identical one-pixel hourly grid lines and stronger horizontal scale lines in rendered pixels");
@@ -724,8 +724,22 @@ int main(void)
     render_runtime(rt,sample,true,61000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-en");
     test_signed_and_soc_charts();
     test_hourly_chart_grid();
-    app_diagnostics_capture(&s_diagnostics);s_diagnostics_requested=true;
-    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);save_frame("diagnostics-common");
+    snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
+    app_events_init();
+    for(int i=0;i<20;i++)app_events_add(i%3,"Teszt esemény %02d",i);
+    s_diagnostics_requested=true;diagnostics_capture();
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
+    assert(s_diagnostic_event_count==15);
+    assert(strstr(lv_label_get_text(s_diagnostic_log[0]),"19"));
+    assert(strstr(lv_label_get_text(s_diagnostic_log[14]),"05"));
+    lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_log[0]))==640);
+    for(int i=0;i<6;i++){
+        lv_area_t row,parent;lv_obj_get_coords(s_diagnostic_values[i],&row);
+        lv_obj_get_coords(lv_obj_get_parent(s_diagnostic_values[i]),&parent);
+        assert(row.y2<parent.y2&&row.x2<parent.x2);
+    }
+    save_frame("diagnostics-common");
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
@@ -843,5 +857,16 @@ int main(void)
         puts("PASS: 18 template renders, common error/recovery, NightMode and actual LVGL swipe across all 10 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
     clear();template_release_cache();app_templates_view_free(&template_view);
+    /* A firmware-be kerülő apró előnézetek ugyanebből a rajzolóból készülnek. */
+    app_energy_sample_t builtin_sample=sample;
+    builtin_sample.status=1;builtin_sample.soc_bat_pct=74;builtin_sample.battery_temperature_c=32;
+    snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
+    for(int night=0;night<2;night++){
+        builtin_sample.night_mode=night;builtin_sample.power_pv_kw=night?0:7;
+        builtin_sample.has_sun_radiation=!night;
+        build_dashboard(night);s_last_night=night;update(&builtin_sample,&fixture);
+        save_frame(night?"builtin-dark":"builtin-light");
+    }
+    clear();
     lv_display_delete(display);lv_deinit();return 0;
 }

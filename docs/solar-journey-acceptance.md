@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v15)
+# Nap pálya – aktuális működés (v16)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -49,7 +49,7 @@ webes beállítás 0 értékénél a kWh-s összegzés rejtve marad. A SOC egés
 
 A felső órás termelésdiagram tényleges ötperces energiákból épül fel.
 Zöld: **Helyben elhasznált és tárolt**; sárga: **Hálózatba visszatáplált**.
-A jelmagyarázat színazonos pontokat használ, a függőleges rácsvonalak egységesen 1 px-esek, a vízszintes skálavonalak 2 px-esek.
+A jelmagyarázat színazonos pontokat használ, a függőleges rácsvonalak egységesen 1 px-esek, a vízszintes skálavonalak is egyetlen pixelsorból állnak, erősebb tónussal.
 
 Az alsó, változatlan méretű négy kártya: **Mai megtakarítás**, **Mai termelési érték**,
 **Mai fogyasztás**, **Mai termelés**. Az utolsó a teljes napi PV-kWh-t mutatja.
@@ -70,5 +70,5 @@ a hálózati színeket, a kártyák szövegeit és a rács pixelszélességét.
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
 
-A firmware mellett a v15-ös téma ZIP-jét is frissíteni kell. A többi sablon
+A firmware mellett a v16-ös téma ZIP-jét is frissíteni kell. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.
