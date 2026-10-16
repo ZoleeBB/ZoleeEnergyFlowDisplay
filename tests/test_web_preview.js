@@ -34,8 +34,22 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert(flows.every(e=>e.dot_size===6&&e.dot_count===2));
   assert(flows.every(e=>e.active_opacity===250&&e.inactive_opacity===184&&e.inactive_glow_opacity===28));
   const bf=flows.find(e=>e.source==='battery');
-  assert(bf.curve==='bezier'&&bf.reverse&&bf.x===1036&&bf.y===472);
-  assert(bf.points[0].x===40&&bf.points.at(-1).y===86);
+  // Az energiaút geometriáját a PV-, a ház- és az akkusáv
+  // kapcsolódási pontjai alapján ellenőrizzük, nem régi koordinátán.
+  assert(bf&&bf.reverse);
+  assert(['polyline','bezier'].includes(bf.curve));
+  assert(Array.isArray(bf.points)&&bf.points.length>=3);
+  const pv=elements.find(e=>e.type==='image'&&e.file==='pv.png');
+  const home=elements.find(e=>e.type==='image'&&e.file==='home.png'&&e.y<600);
+  const batteryBand=elements.find(e=>e.type==='box'&&e.x===951&&e.y===562);
+  assert(pv&&home&&batteryBand);
+  const start={x:bf.x+bf.points[0].x,y:bf.y+bf.points[0].y};
+  const end={x:bf.x+bf.points.at(-1).x,y:bf.y+bf.points.at(-1).y};
+  assert(start.x>=pv.x+pv.w&&start.x<home.x);
+  assert(start.y>=pv.y&&start.y<=pv.y+pv.h);
+  assert(end.x>=batteryBand.x&&end.x<=batteryBand.x+batteryBand.w);
+  assert(end.y<=batteryBand.y&&batteryBand.y-end.y<=8);
+  assert(bf.points.every(p=>p.x>=0&&p.y>=0&&p.x<=bf.w&&p.y<=bf.h));
   const batteryPower=elements.find(e=>e.type==='value'&&e.source==='battery');
   assert(batteryPower.font===12&&batteryPower.x===1093);
   assert(batteryPower.positive_color!==batteryPower.negative_color);
