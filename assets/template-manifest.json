@@ -556,12 +556,12 @@
   },
   {
     "asset": "templates/09-solar-journey/preview-dark.png",
-    "sha256": "c36219c992b15dca61dc40311f9f1a65e43795f9a3a80db6609404430549bcd6",
+    "sha256": "9e5320f2941eac48eb06b8871f1a8b13520f8d81ecf33a053641d2786d04ec46",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/09-solar-journey/preview-light.png",
-    "sha256": "76469456ee310e002fd6145b8b3b313b0fdd1f16606e1d9232e3096dfa4ba645",
+    "sha256": "89638b0a6dd2287ea93bdcb38c09f54f71fb6f017a492fedea1f06dad961064d",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

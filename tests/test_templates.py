@@ -60,7 +60,14 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
         discs=[e for e in elements if e['type']=='solar_disc']
         assert len(discs)==1
-        assert len(discs[0]['day_path'])==len(discs[0]['night_path'])==21
+        assert len(discs[0]['day_path'])==31 and len(discs[0]['night_path'])==21
+        # Preserve the approved morning/midday geometry and night path.
+        assert [(p['x'],p['y']) for p in discs[0]['day_path'][:16]]==[
+            (88,401),(92,388),(108,337),(129,296),(161,248),(201,206),
+            (250,166),(306,135),(371,109),(443,96),(476,95),(524,97),
+            (597,112),(669,144),(726,181),(766,220)]
+        tail=discs[0]['day_path'][16:]
+        assert all(b['y']-a['y']<=16 for a,b in zip(tail,tail[1:]))
         assert not any(e['type']=='solar_arc' for e in elements)
         assert all(e['dot_size']<=6 for e in elements if e['type']=='flow')
         assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2

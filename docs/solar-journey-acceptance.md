@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v17)
+# Nap pálya – aktuális működés (v18)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -10,7 +10,9 @@ Az opcionális `SunPosition` formátuma: `azimut#napmagasság#napkeltePerc#napny
 A [Loxone T1 bekötése](loxone.md) és a [JSON-protokoll](mqtt.md) közös az MQTT/HTTP módokban.
 Adat nélkül a témalapozás átugorja a Nap pályát. A napkorong a helyi idő,
 napkelte és napnyugta alapján, ívhossz szerint követi a háttérhez kalibrált
-21–21 pontos nappali/éjszakai pályát. Az ívek a háttér részei, nem rajzoljuk újra őket.
+31 pontos nappali és 21 pontos éjszakai pályát. A nappali ív napnyugta előtti
+szakasza sűrűbb, a háttér fényes vonalához illesztett pontokat használ; az első
+16 pont és az éjszakai út változatlan. Az ívek a háttér részei, nem rajzoljuk újra őket.
 
 A nappali sugárzási réteg a korong középpontjából, 1 px-es pontból tágul.
 Erősebb, 110/255 induló fedettségű kitöltése és körvonala növekedés közben teljesen
@@ -68,8 +70,12 @@ a magyarázat az ikon bal szélétől indul.
 A valódi LVGL-teszt kilenc sablon 18 nézetét rendereli. Ellenőrzi a sugárzás
 induló pontját, kitöltését, rétegsorrendjét és fix ütemét, termelésarányos végméretét; kilenc SOC-határértéket,
 a hálózati színeket, a kártyák szövegeit és a rács pixelszélességét.
+Napnyugta előtt az utolsó teljes órát percenként végiglépteti: a napkorong
+közepe legfeljebb 2 px-re térhet el a fotóról mért fényes ívtől. A nappali
+végpont és az éjszakai kezdőpont egyezését is ellenőrzi mindkét témamódban.
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
 
-A firmware mellett a v17-es téma ZIP-jét is frissíteni kell. A többi sablon
+A napnyugta-illesztéshez csak a v18-as téma ZIP-jét kell frissíteni;
+önmagában ez a javítás nem igényel új firmware-t. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.

@@ -228,7 +228,7 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 
 ## 09 – Nap pálya
 
-A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 21–21 pontos nappali és éjszakai útvonalat követi. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
+A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 31 pontos nappali és 21 pontos éjszakai útvonalat követi. A v18-as csomagban csak a napnyugta előtti nappali szakasz kapott sűrűbb illesztést; a reggeli/déli és az éjszakai geometria változatlan. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
 
 A v17-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
 30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.

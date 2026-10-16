@@ -345,6 +345,52 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     puts("PASS: solar ripple fixed speed, PV-scaled radius/fade, 8kW size cap, zero/night, SOC colors, idle grid and daily production");
 }
 
+/* A fotó jobb oldali fényes íve, a teljes napnyugta előtti órában.
+ * Nem csak a JSON pontjait ellenőrizzük: a valódi UI órából számolt
+ * korongközéppontja legfeljebb 2 px-re lehet a mért fotóvonaltól. */
+static void test_solar_sunset(const app_energy_sample_t *original){
+    if(strcmp(template_view.id,"09-solar-journey"))return;
+    template_node_t *disc=NULL;
+    for(unsigned i=0;i<template_node_count;i++)
+        if(!strcmp(ts(template_nodes[i].spec,"type"),"solar_disc"))disc=&template_nodes[i];
+    assert(disc);
+    static const lv_point_t ridge[]={
+        {806,285},{812,295},{817,306},{823,320},{829,335},{834,350},
+        {839,365},{842,380},{843,386},{845,400},{846,410},{846,416}};
+    time_t saved_epoch=epoch;
+    app_energy_sample_t saved_animation=s_animation_sample,s=*original;
+    s.sun_position_valid=true;s.sunrise_minute=420;s.sunset_minute=1073;
+    s.sun_altitude_deg=1;s.power_pv_kw=.02;
+    struct tm local;localtime_r(&saved_epoch,&local);
+    unsigned checked=0;
+    for(int before=60;before>=0;before--){
+        int minute=s.sunset_minute-before;
+        local.tm_hour=minute/60;local.tm_min=minute%60;local.tm_sec=0;
+        epoch=mktime(&local);template_update(&s,&fixture);
+        s_animation_sample=s;template_animate(0);lv_obj_update_layout(s_screen);
+        int cx=lv_obj_get_x(disc->obj)+tn(disc->spec,"w",42)/2;
+        int cy=lv_obj_get_y(disc->obj)+tn(disc->spec,"h",42)/2;
+        if(cy>=ridge[0].y){
+            unsigned k=0;
+            while(k+2<sizeof(ridge)/sizeof(ridge[0])&&cy>ridge[k+1].y)k++;
+            double ratio=(double)(cy-ridge[k].y)/(ridge[k+1].y-ridge[k].y);
+            double expected=ridge[k].x+ratio*(ridge[k+1].x-ridge[k].x);
+            assert(fabs(cx-expected)<=2.);checked++;
+        }
+        if(before==30||before==5||before==0){
+            char name[80];snprintf(name,sizeof(name),"solar-sunset-%s-minus-%02d",s.night_mode?"dark":"light",before);
+            save_frame(name);
+        }
+        if(before==0)assert(cx==846&&cy==416);
+    }
+    assert(checked>=55);
+    /* A nappali végpont az éjszakai kezdőponttal azonos: nincs ugrás. */
+    s.sun_altitude_deg=-1;template_update(&s,&fixture);lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(disc->obj)+21==846&&lv_obj_get_y(disc->obj)+21==416);
+    epoch=saved_epoch;s_animation_sample=saved_animation;template_update(original,&fixture);
+    puts("PASS: sunset last-hour clock sweep follows measured photo ridge within 2px; continuous night transition");
+}
+
 /* Régi, SD-n maradt v10-es sablon firmware-szintű helyreállítása. */
 static void test_legacy_solar_battery_route(void){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -803,7 +849,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);test_solar_sunset(&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

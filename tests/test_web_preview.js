@@ -25,7 +25,7 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert.strictEqual(discs[0].radius_x,386);
   assert.strictEqual(discs[0].radius_y,313);
   assert.strictEqual(discs[0].night_radius_y,186);
-  assert.strictEqual(discs[0].day_path.length,21);
+  assert.strictEqual(discs[0].day_path.length,31);
   assert.strictEqual(discs[0].night_path.length,21);
   assert.deepStrictEqual(JSON.stringify(discs[0].day_path.at(-1)),JSON.stringify(discs[0].night_path[0]));
   assert.strictEqual(discs[0].night_path[10].y,612);
