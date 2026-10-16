@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v18)
+# Nap pálya – aktuális működés (v19)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -20,6 +20,9 @@ elhalványul; külön sugárvonalak nincsenek. A réteg a nap PNG-je alatt van. 
 szabályozza: 0–8 kW között arányos, 8 kW-tól a korábbi maximum.
 A kitöltés minden végméretnél teljesen elhalványul; nulla termelésnél eltűnik.
 Éjjel a korong nem pulzál, csak a mögötte levő holdudvar lélegzik 4,2 másodperces periódussal.
+A holdudvar kitöltése 22–38/255, fényudvara 35–55/255 fedettségű. A sablon
+minden adatfrissítése átadja az aktuális mintát az animációnak; nap/hold váltáskor
+a fényudvar már az első képkockán a megfelelő méretet, színt és kitöltést kapja.
 
 ## Energiaáramlás és akkumulátor
 
@@ -76,6 +79,7 @@ végpont és az éjszakai kezdőpont egyezését is ellenőrzi mindkét témamó
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
 
-A napnyugta-illesztéshez csak a v18-as téma ZIP-jét kell frissíteni;
-önmagában ez a javítás nem igényel új firmware-t. A többi sablon
+A napnyugta-illesztést a v18-as ZIP tartalmazza. A v19 geometriailag azonos,
+friss előnézetet ad az erősebb holdudvarról. A holdudvar és a váltási hiba
+javításához firmware-frissítés szükséges; ez a korábbi sablonnal is működik. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.

@@ -240,6 +240,10 @@ nulla termelésnél nem látszik. Külön sugárvonalak nincsenek.
 A SOC-sáv vékony körvonalat és kontrasztosabb üres hátteret kapott;
 a napkelte-kártya a felirataival együtt további 15 px-szel balra került. Az éjszakai korong
 képe állandó, csak a holdudvar kap 4,2 másodperces légző animációt.
+A holdudvar kitöltése 22–38/255 fedettségű; nap→hold és hold→nap váltáskor
+a friss adatcsomag alapján már az első képkockán beáll. A firmware javítja
+a sablonanimáció korábban elavult mérési mintáját is. A v19-es ZIP geometriája
+változatlan, előnézete az erősebb holdudvart mutatja.
 A részletes működés: [Nap pálya](solar-journey-acceptance.md).
 
 ## Mentett előnézeti képek

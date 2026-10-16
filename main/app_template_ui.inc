@@ -632,7 +632,42 @@ static void template_solar_battery_route(template_node_t *node,const app_energy_
     }
     lv_obj_invalidate(node->obj);if(node->detail)lv_obj_invalidate(node->detail);
 }
+/* A frissítés és az animáció ugyanazt a fényudvar-állapotot alkalmazza. */
+static void template_solar_halo(template_node_t *node,const app_energy_sample_t *s,float dt){
+    double pv=fmax(0,s->power_pv_kw);
+    if(!s->sun_position_valid)return;
+    float fraction=(float)fmin(pv/8.,1.);
+    bool daylight=!s->night_mode&&s->sun_altitude_deg>0;
+    /* Fix 1,2 ciklus/s: a termelés csak a végső körméretet adja.
+     * 8 kW-tól a korábbi maximális méret; nullánál nincs fényudvar. */
+    node->phase=fmodf(node->phase+dt*(daylight?1.2f:1.f/4.2f),1.f);
+    float wave=.5f+.5f*sinf(node->phase*6.2831853f);
+    /* Az éjszakai halvány kék napkorong NEM pulzál. */
+    if(node->detail){
+        /* A hold képe nem pulzál: csak a mögötte lévő áttetsző
+         * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
+        /* Az apró méretváltozást finom alpha-/glow-átmenet
+         * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
+        const int pad=6+(int)lroundf(2.f*wave);
+        const int disc_w=tn(node->spec,"w",40),disc_h=tn(node->spec,"h",40);
+        const int width=daylight?1+(int)lroundf((disc_w+55)*fraction*node->phase):disc_w+2*pad;
+        const int height=daylight?1+(int)lroundf((disc_h+55)*fraction*node->phase):disc_h+2*pad;
+        if(lv_obj_get_style_width(node->detail,0)!=width || lv_obj_get_style_height(node->detail,0)!=height)
+            lv_obj_set_size(node->detail,width,height);
+        lv_obj_set_pos(node->detail,lv_obj_get_style_x(node->obj,0)+(disc_w-width)/2,lv_obj_get_style_y(node->obj,0)+(disc_h-height)/2);
+        /* A nap középpontjából induló kitöltött kör kifelé halad,
+         * és a teljes méret elérése előtt nullára halványul. */
+        lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)):0;
+        lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
+        lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
+        lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
+        lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(35+20*wave),0);
+        bg_opa_if_changed(node->detail,daylight?(pv>0?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):0):(lv_opa_t)(22+16*wave),0);
+    }
+}
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
+    /* A sablonok is az aktuális csomagot adják át az animációs timernek. */
+    s_animation_sample=*s;
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
@@ -723,6 +758,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 border_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
                 bg_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
             }
+            /* Ne várjunk az első animációs tickre a módváltás után. */
+            template_solar_halo(node,s,0.f);
             continue;
         }
         if(!strcmp(type,"flow")){
@@ -864,36 +901,7 @@ static void template_animate(float dt){
     for(unsigned n=0;n<template_node_count;n++){
         template_node_t *node=&template_nodes[n];
         if(!strcmp(ts(node->spec,"type"),"solar_disc")){
-            double pv=fmax(0,s_animation_sample.power_pv_kw);
-            if(!s_animation_sample.sun_position_valid)continue;
-            float fraction=(float)fmin(pv/8.,1.);
-            bool daylight=!s_animation_sample.night_mode&&s_animation_sample.sun_altitude_deg>0;
-            /* Fix 1,2 ciklus/s: a termelés csak a végső körméretet adja.
-             * 8 kW-tól a korábbi maximális méret; nullánál nincs fényudvar. */
-            node->phase=fmodf(node->phase+dt*(daylight?1.2f:1.f/4.2f),1.f);
-            float wave=.5f+.5f*sinf(node->phase*6.2831853f);
-            /* Az éjszakai halvány kék napkorong NEM pulzál. */
-            if(node->detail){
-                /* A hold képe nem pulzál: csak a mögötte lévő áttetsző
-                 * fénygyűrű lélegzik lassan, +/- 2 px kiterjedéssel. */
-                /* Az apró méretváltozást finom alpha-/glow-átmenet
-                 * egészíti ki: nem ugrál 1 px-es lépésekben a fény. */
-                const int pad=6+(int)lroundf(2.f*wave);
-                const int disc_w=tn(node->spec,"w",40),disc_h=tn(node->spec,"h",40);
-                const int width=daylight?1+(int)lroundf((disc_w+55)*fraction*node->phase):disc_w+2*pad;
-                const int height=daylight?1+(int)lroundf((disc_h+55)*fraction*node->phase):disc_h+2*pad;
-                if(lv_obj_get_width(node->detail)!=width || lv_obj_get_height(node->detail)!=height)
-                    lv_obj_set_size(node->detail,width,height);
-                lv_obj_set_pos(node->detail,lv_obj_get_x(node->obj)+(disc_w-width)/2,lv_obj_get_y(node->obj)+(disc_h-height)/2);
-                /* A nap középpontjából induló kitöltött kör kifelé halad,
-                 * és a teljes méret elérése előtt nullára halványul. */
-                lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)):0;
-                lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
-                lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
-                lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
-                lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(25+20*wave),0);
-                bg_opa_if_changed(node->detail,daylight?(pv>0?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):0):(lv_opa_t)(10+10*wave),0);
-            }
+            template_solar_halo(node,&s_animation_sample,dt);
             continue;
         }
         if(!strcmp(ts(node->spec,"type"),"pulse")){

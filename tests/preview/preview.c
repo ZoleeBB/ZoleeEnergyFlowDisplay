@@ -409,6 +409,75 @@ static void test_solar_sunset(const app_energy_sample_t *original){
     puts("PASS: sunset last-hour clock sweep follows measured photo ridge within 2px; continuous night transition");
 }
 
+/* A runtime frissítsen animációs mintát, képet és fényudvart lapozás nélkül. */
+static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_sample_t *original){
+    if(strcmp(template_view.id,"09-solar-journey"))return;
+    time_t saved_epoch=epoch;
+    app_energy_sample_t s=*original;
+    /* Indulás közvetlenül a sablonon: nincs korábbi Rendszer-mérés. */
+    memset(&s_animation_sample,0,sizeof(s_animation_sample));
+    s_dash_created=false;
+    const bool modes[]={true,false,true,false};
+    for(unsigned mode=0;mode<sizeof(modes)/sizeof(modes[0]);mode++){
+        bool night=modes[mode];
+        struct tm local;localtime_r(&saved_epoch,&local);local.tm_hour=night?20:12;epoch=mktime(&local);
+        s.night_mode=night;s.sun_position_valid=true;s.sun_altitude_deg=night?-10:25;
+        s.sunrise_minute=420;s.sunset_minute=1080;s.power_pv_kw=night?0:4;
+        render_runtime(rt,s,true,31000000);lv_obj_update_layout(s_screen);
+        assert(s_view==VIEW_DASHBOARD&&template_is_active());
+        assert(s_animation_sample.night_mode==night&&s_animation_sample.sun_position_valid);
+        assert(s_animation_sample.power_pv_kw==s.power_pv_kw);
+        template_node_t *disc=NULL;
+        for(unsigned i=0;i<template_node_count;i++)
+            if(!strcmp(ts(template_nodes[i].spec,"type"),"solar_disc"))disc=&template_nodes[i];
+        assert(disc&&disc->detail);
+        const char *file=night?"solar_night.png":"solar_day.png";
+        assert(!strcmp(ts(disc->spec,"file"),file));
+        bool image_matches=false;
+        for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(template_view.assets[a].name,file)){
+            const void *src=lv_image_get_src(disc->obj);
+            if(src==&template_images[a])image_matches=true;
+#if LV_USE_SNAPSHOT
+            for(unsigned r=0;r<template_raster_count;r++)
+                if(template_rasters[r].asset==a&&src==&template_rasters[r].image)image_matches=true;
+#endif
+        }
+        assert(image_matches);
+        assert(lv_obj_get_index(disc->detail)<lv_obj_get_index(disc->obj));
+        assert(!lv_obj_has_flag(disc->detail,LV_OBJ_FLAG_HIDDEN));
+        /* Már az első frame-en legyen megfelelő kitöltés és kiterjedés. */
+        assert(lv_obj_get_width(disc->detail)==(night?56:1));
+        assert(lv_obj_get_style_bg_opa(disc->detail,0)==(night?30:110));
+        assert(lv_color_eq(lv_obj_get_style_bg_color(disc->detail,0),c(night?0x78BFEF:0xFFD23B)));
+        assert(abs(lv_obj_get_x(disc->detail)*2+lv_obj_get_width(disc->detail)-
+                   (lv_obj_get_x(disc->obj)*2+lv_obj_get_width(disc->obj)))<=1);
+        int image_x=lv_obj_get_x(disc->obj),image_y=lv_obj_get_y(disc->obj);
+        float phase=disc->phase;
+        template_animate(.25f);lv_obj_update_layout(s_screen);
+        assert(fabsf(disc->phase-fmodf(phase+.25f*(night?1.f/4.2f:1.2f),1.f))<.0001f);
+        assert(lv_obj_get_x(disc->obj)==image_x&&lv_obj_get_y(disc->obj)==image_y);
+        if(night){
+            for(int step=0;step<24;step++){
+                template_animate(.2f);lv_obj_update_layout(s_screen);
+                int fill=lv_obj_get_style_bg_opa(disc->detail,0);
+                assert(fill>=22&&fill<=38);
+                assert(lv_obj_get_width(disc->detail)>=54&&lv_obj_get_width(disc->detail)<=58);
+                assert(lv_obj_get_style_border_width(disc->detail,0)==0);
+            }
+            s.sun_position_valid=false;render_runtime(rt,s,true,31000000);
+            assert(lv_obj_has_flag(disc->detail,LV_OBJ_FLAG_HIDDEN));
+            s.sun_position_valid=true;render_runtime(rt,s,true,31000000);
+            assert(!lv_obj_has_flag(disc->detail,LV_OBJ_FLAG_HIDDEN));
+            assert(lv_obj_get_style_bg_opa(disc->detail,0)>=22);
+        }else{
+            s.power_pv_kw=0;render_runtime(rt,s,true,31000000);
+            assert(lv_obj_get_style_bg_opa(disc->detail,0)==0);
+        }
+    }
+    epoch=saved_epoch;render_runtime(rt,*original,true,31000000);
+    puts("PASS: direct-template startup and day/moon/day transitions refresh image, live sample and halo on first frame; invalid/valid recovery without paging");
+}
+
 /* Régi, SD-n maradt v10-es sablon firmware-szintű helyreállítása. */
 static void test_legacy_solar_battery_route(void){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -867,7 +936,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);test_solar_sunset(&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){
