@@ -69,6 +69,13 @@ Egy új null érték azonnal elrejti a korábbi kijelzést; az adat visszatéré
 újra megjeleníti. Az energiaadatok feldolgozása és a timeout működése folytatódik.
 Minta: [mqtt-payload.no-weather.sample.json](../examples/mqtt-payload.no-weather.sample.json).
 
+Az ikonválasztás sorrendje minden témában azonos: csapadék esetén −4 °C alatt
+hó, egyébként eső; csapadék nélkül éjszakai módban éjszaka ikon. Nappal
+`HasSunRadiation = 1` **vagy `PowerPV > 5` kW** esetén napos ikon látszik.
+Egyébként 1 kW felett változóan felhős, legfeljebb 1 kW-nál felhős az állapot.
+Pontosan 5 kW önmagában még nem vált napos ikonra. A szükséges időjárási
+mezők érvényességi feltétele változatlan.
+
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
 
 ## Opcionális nappályaadatok

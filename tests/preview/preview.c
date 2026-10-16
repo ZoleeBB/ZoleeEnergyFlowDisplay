@@ -388,15 +388,30 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
 }
 static void test_template_weather(const app_energy_sample_t *sample){
     static const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night"};
+    static const struct {double pv,temp;bool sun,precip,night;weather_kind_t expected;} cases[]={
+        {0,20,true,false,false,WEATHER_SUNNY},
+        {2,20,false,false,false,WEATHER_PARTLY_CLOUDY},
+        {0,20,false,false,false,WEATHER_CLOUDY},
+        {0,20,false,true,false,WEATHER_RAIN},
+        {0,-6,false,true,false,WEATHER_SNOW},
+        {0,20,false,false,true,WEATHER_NIGHT},
+        {1,20,false,false,false,WEATHER_CLOUDY},
+        {1.001,20,false,false,false,WEATHER_PARTLY_CLOUDY},
+        {5,20,false,false,false,WEATHER_PARTLY_CLOUDY},
+        {5.001,20,false,false,false,WEATHER_SUNNY},
+        {6,20,false,true,false,WEATHER_RAIN},
+        {6,-6,false,true,false,WEATHER_SNOW},
+        {6,20,false,false,true,WEATHER_NIGHT}
+    };
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *files=cJSON_GetObjectItem(node->spec,"files");
         if(strcmp(ts(node->spec,"type"),"weather")||!files)continue;
-        for(int k=0;k<6;k++){
-            app_energy_sample_t state=*sample;state.night_mode=k==5;state.has_precipitation=k==3||k==4;
-            state.has_sun_radiation=k==0;state.power_pv_kw=k==1?2:0;state.temperature_c=k==4?-6:20;
-            template_update(&state,&fixture);assert(weather_kind(&state)==(weather_kind_t)k);
+        for(unsigned k=0;k<sizeof(cases)/sizeof(cases[0]);k++){
+            app_energy_sample_t state=*sample;state.night_mode=cases[k].night;state.has_precipitation=cases[k].precip;
+            state.has_sun_radiation=cases[k].sun;state.power_pv_kw=cases[k].pv;state.temperature_c=cases[k].temp;
+            template_update(&state,&fixture);assert(weather_kind(&state)==cases[k].expected);
             bool matched=false;
-            for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[k]),template_view.assets[a].name)){
+            for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[cases[k].expected]),template_view.assets[a].name)){
                 const void *actual=lv_image_get_src(node->obj);bool right=actual==&template_images[a];
 #if LV_USE_SNAPSHOT
                 for(unsigned r=0;r<template_raster_count;r++)if(template_rasters[r].asset==a&&actual==&template_rasters[r].image){

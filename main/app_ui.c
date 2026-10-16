@@ -1255,7 +1255,7 @@ static weather_kind_t weather_kind(const app_energy_sample_t *s){
     /* A csapadék minden más időjárási állapotnál magasabb prioritású. */
     if(s->has_precipitation)return s->temperature_c<-4?WEATHER_SNOW:WEATHER_RAIN;
     if(s->night_mode)return WEATHER_NIGHT;
-    if(s->has_sun_radiation)return WEATHER_SUNNY;
+    if(s->has_sun_radiation||s->power_pv_kw>5)return WEATHER_SUNNY;
     if(s->power_pv_kw>1)return WEATHER_PARTLY_CLOUDY;
     return WEATHER_CLOUDY;
 }
