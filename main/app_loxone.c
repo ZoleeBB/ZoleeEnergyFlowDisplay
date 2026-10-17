@@ -253,8 +253,9 @@ static bool token_command(const lx_config_t *cfg,char *token,const char *operati
     if(ok&&strcmp(operation,"refreshjwt")==0){const char *t=string(v,"token");ok=*t&&strlen(t)<1024;if(ok)snprintf(token,1024,"%s",t);}
     cJSON_Delete(v);return ok;
 }
-static bool download_catalog(void)
+static bool download_catalog(int *response_code)
 {
+    *response_code=0;
     phase("Loxone adatlista letöltése");
     /* LoxAPP3.json esetén enc támogatott, fenc (titkosított válasz) nem. */
     if(!send_encrypted("data/LoxAPP3.json"))return failed("Az adatlista kérése nem küldhető el.",0);
@@ -270,6 +271,7 @@ static bool download_catalog(void)
             const cJSON *code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
             if(!code)code=cJSON_GetObjectItemCaseSensitive(ll,"code");
             int result=cJSON_IsNumber(code)?code->valueint:cJSON_IsString(code)?atoi(code->valuestring):0;
+            *response_code=result;
             if(ll)failed(result==403?"Az adatlista hozzáférése tiltott. Ellenőrizd a felhasználói jogosultságot.":"A Miniserver adatlista helyett parancsválaszt küldött.",result);
             else if(m.length>LX_STRUCTURE_MAX)failed("Az adatlista meghaladja az 512 KiB méretkorlátot.",0);
             else if(!root)failed("A válasz nem érvényes JSON, hiányos, vagy nincs elég memória.",0);
@@ -285,6 +287,89 @@ static bool download_catalog(void)
     if(s_rx_failure==LX_RX_BAD_HEADER)return failed("Érvénytelen Loxone üzenetfejléc érkezett.",0);
     if(s_rx_failure==LX_RX_QUEUE_FULL)return failed("A fogadott üzenetek sora megtelt.",0);
     return failed(s_dead?"A kapcsolat megszakadt az adatlista fogadása közben.":"12 másodpercen belül nem érkezett adatlista.",0);
+}
+/* A HTTP fájlútvonal egyes Miniszervereken elérhető akkor is, ha a WS 404-et ad.
+ * Csak 404-re váltunk át: a jogosultsági hibákat nem kerüljük meg. */
+static char *http_body(const lx_config_t *cfg,const char *path,size_t limit,size_t *length)
+{
+    size_t url_size=strlen(path)+strlen(cfg->host)+32;
+    char *url=malloc(url_size);if(!url){failed("Nincs elég memória a HTTP kéréshez.",0);return NULL;}
+    snprintf(url,url_size,"%s://%s:%u/%s",cfg->tls?"https":"http",cfg->host,(unsigned)cfg->port,path);
+    esp_http_client_config_t options={.url=url,.timeout_ms=LX_TIMEOUT_MS,
+        .cert_pem=cfg->tls?cfg->ca_pem:NULL,.disable_auto_redirect=true};
+    esp_http_client_handle_t http=esp_http_client_init(&options);
+    if(!http){free(url);failed("A HTTP kliens nem indítható.",0);return NULL;}
+    int error=esp_http_client_open(http,0);bool ok=error==ESP_OK;
+    if(!ok)failed("A HTTP kapcsolat nem épült fel.",error);
+    if(ok){
+        int64_t size=esp_http_client_fetch_headers(http);int code=esp_http_client_get_status_code(http);
+        ok=size>=0&&code==200;
+        if(!ok)failed("A HTTP lekérés sikertelen (átirányítás nem követhető).",size<0?(int)size:code);
+        else if((uint64_t)size>limit){ok=false;failed("A HTTP válasz meghaladja a megengedett méretet.",0);}
+    }
+    size_t used=0,capacity=limit<4096?limit:4096;
+    char *body=ok?malloc(capacity+1):NULL;
+    if(ok&&!body){ok=false;failed("Nincs elég memória a HTTP válaszhoz.",0);}
+    while(ok){
+        if(used==capacity){
+            if(capacity==limit){
+                char extra;int count=esp_http_client_read(http,&extra,1);
+                if(count!=0){ok=false;failed("A HTTP válasz túl nagy vagy hiányos.",0);}break;
+            }
+            size_t next=capacity>limit/2?limit:capacity*2;
+            char *larger=realloc(body,next+1);
+            if(!larger){ok=false;failed("Nincs elég memória a HTTP válasz bővítéséhez.",0);break;}
+            body=larger;capacity=next;
+        }
+        int count=esp_http_client_read(http,body+used,capacity-used);
+        if(count<0){ok=false;failed("A HTTP válasz olvasása megszakadt.",count);break;}
+        if(count==0)break;
+        used+=count;
+    }
+    if(ok&&!esp_http_client_is_complete_data_received(http)){ok=false;failed("Hiányos HTTP válasz érkezett.",0);}
+    esp_http_client_close(http);esp_http_client_cleanup(http);free(url);
+    if(!ok){free(body);return NULL;}
+    body[used]=0;*length=used;return body;
+}
+static bool download_catalog_with_fallback(const lx_config_t *cfg,const char *token)
+{
+    int code=0;if(download_catalog(&code))return true;
+    if(code!=404||s_dead)return false;
+    phase("Loxone adatlista / HTTP tokenhitelesítés");
+    size_t length=0;char *body=http_body(cfg,"jdev/sys/getkey",8192,&length);
+    if(!body)return false;
+    cJSON *root=cJSON_ParseWithLength(body,length);free(body);
+    const cJSON *ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
+    const cJSON *status_code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
+    if(!status_code)status_code=cJSON_GetObjectItemCaseSensitive(ll,"code");
+    int result=cJSON_IsNumber(status_code)?status_code->valueint:cJSON_IsString(status_code)?atoi(status_code->valuestring):0;
+    cJSON *key=result==200?cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(ll,"value"),true):NULL;cJSON_Delete(root);
+    if(!key)return failed("A HTTP hitelesítési kulcs nem érkezett meg.",result);
+    if(cJSON_IsString(key)){
+        cJSON *object=cJSON_CreateObject();
+        if(object){cJSON_AddStringToObject(object,"key",key->valuestring);cJSON_AddStringToObject(object,"hashAlg","SHA1");}
+        cJSON_Delete(key);key=object;
+    }
+    char hash[65];bool ok=key&&hash_hmac(key,token,hash);cJSON_Delete(key);
+    if(!ok)return failed("A HTTP tokenhitelesítés nem készíthető elő.",0);
+    char *user=urlencode(cfg->username);if(!user)return failed("Nincs elég memória a felhasználónévhez.",0);
+    char path[512];snprintf(path,sizeof(path),"data/LoxAPP3.json?autht=%s&user=%s",hash,user);free(user);
+    phase("Loxone adatlista / HTTP letöltés");
+    body=http_body(cfg,path,LX_STRUCTURE_MAX,&length);mbedtls_platform_zeroize(path,sizeof(path));
+    if(!body)return false;
+    cJSON *catalog=lx_catalog_parse(body,length);
+    if(!catalog){
+        root=cJSON_ParseWithLength(body,length);ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
+        status_code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
+        if(!status_code)status_code=cJSON_GetObjectItemCaseSensitive(ll,"code");
+        result=cJSON_IsNumber(status_code)?status_code->valueint:cJSON_IsString(status_code)?atoi(status_code->valuestring):0;
+        cJSON_Delete(root);free(body);
+        return failed(result?"A Miniserver a HTTP adatlista kérését elutasította.":"A HTTP adatlista nem dolgozható fel (JSON, állapot- vagy memóriakorlát).",result);
+    }
+    free(body);
+    if(s_dead){cJSON_Delete(catalog);return failed("A WebSocket kapcsolat megszakadt a HTTP letöltés közben.",0);}
+    xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;xSemaphoreGive(s_lock);
+    return true;
 }
 static void close_connection(void)
 {
@@ -376,7 +461,7 @@ static void worker(void *arg)
         status("Loxone bejelentkezés...");
         if(token[0]&&!token_command(active,token,"authwithtoken"))token[0]=0;
         if(!token[0]&&!acquire_token(active,token,sizeof(token))) {report_failure("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
-        if(!download_catalog()) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
+        if(!download_catalog_with_fallback(active,token)) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
         if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
         cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);

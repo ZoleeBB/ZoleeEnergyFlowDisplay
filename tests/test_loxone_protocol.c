@@ -18,15 +18,32 @@ static int64_t clock_us;
 int64_t esp_timer_get_time(void){return clock_us+=1000;}
 void esp_fill_random(void *data,size_t n){FILE *f=fopen("/dev/urandom","rb");assert(f&&fread(data,1,n,f)==n);fclose(f);}
 esp_err_t esp_efuse_mac_get_default(uint8_t *mac){for(int i=0;i<6;i++)mac[i]=i;return ESP_OK;}
-static char *http_body;
+static char *mock_http_body;
 static size_t http_position;
+static const char *http_active_body,*http_catalog_body;
+static int http_fallback_mode,http_catalog_status=200,http_calls;
+static bool http_chunked,http_advertised_oversize;
+static int http_active_status;
+static char http_catalog_url[768];
 static int http_status=200,http_open_error;
-esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg){assert(strstr(cfg->url,"/jdev/sys/getPublicKey"));http_position=0;return (void*)1;}
+esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg){
+    http_calls++;http_active_status=http_status;http_active_body=mock_http_body;
+    assert(cfg->disable_auto_redirect);
+    if(strstr(cfg->url,"/jdev/sys/getPublicKey"))assert(!http_fallback_mode);
+    else {
+        assert(http_fallback_mode);assert(!strstr(cfg->url,"jwt-refreshed-token"));assert(!strstr(cfg->url,"secret"));
+        if(strstr(cfg->url,"/jdev/sys/getkey"))http_active_body=http_fallback_mode==2?
+            "{\"LL\":{\"Code\":200,\"value\":\"0102030405060708090a0b0c0d0e0f10\"}}":
+            "{\"LL\":{\"Code\":200,\"value\":{\"key\":\"0102030405060708090a0b0c0d0e0f10\",\"hashAlg\":\"SHA256\"}}}";
+        else {assert(strstr(cfg->url,"/data/LoxAPP3.json?autht="));snprintf(http_catalog_url,sizeof(http_catalog_url),"%s",cfg->url);http_active_body=http_catalog_body;http_active_status=http_catalog_status;}
+    }
+    http_position=0;return (void*)1;
+}
 esp_err_t esp_http_client_open(esp_http_client_handle_t h,int n){(void)h;(void)n;return http_open_error;}
-int64_t esp_http_client_fetch_headers(esp_http_client_handle_t h){(void)h;return http_body?strlen(http_body):0;}
-int esp_http_client_get_status_code(esp_http_client_handle_t h){(void)h;return http_status;}
-int esp_http_client_read(esp_http_client_handle_t h,char *out,int max){(void)h;size_t remaining=strlen(http_body)-http_position;if(remaining>(size_t)max)remaining=max;if(remaining>7)remaining=7;memcpy(out,http_body+http_position,remaining);http_position+=remaining;return remaining;}
-bool esp_http_client_is_complete_data_received(esp_http_client_handle_t h){(void)h;return http_body&&http_position==strlen(http_body);}
+int64_t esp_http_client_fetch_headers(esp_http_client_handle_t h){(void)h;return http_advertised_oversize&&strstr(http_catalog_url,"autht=")&&http_active_body==http_catalog_body?LX_STRUCTURE_MAX+1:http_chunked?0:http_active_body?(int64_t)strlen(http_active_body):0;}
+int esp_http_client_get_status_code(esp_http_client_handle_t h){(void)h;return http_active_status;}
+int esp_http_client_read(esp_http_client_handle_t h,char *out,int max){(void)h;size_t remaining=strlen(http_active_body)-http_position;if(remaining>(size_t)max)remaining=max;if(remaining>7)remaining=7;memcpy(out,http_active_body+http_position,remaining);http_position+=remaining;return remaining;}
+bool esp_http_client_is_complete_data_received(esp_http_client_handle_t h){(void)h;return http_active_body&&http_position==strlen(http_active_body);}
 esp_err_t esp_http_client_close(esp_http_client_handle_t h){(void)h;return ESP_OK;}
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP_OK;}
 static mbedtls_pk_context server_key;
@@ -105,25 +122,45 @@ int main(int argc,char **argv)
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
-    assert(download_catalog());assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
+    int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";
-    assert(!download_catalog());assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));
+    assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));
     catalog_reply="{\"LL\":{\"code\":\"401\",\"value\":\"denied\"}}";
-    assert(!download_catalog());assert(strstr(s_failure,"401"));
-    catalog_reply="{\"wrong\":{}}";assert(!download_catalog());assert(strstr(s_failure,"controls"));
-    catalog_reply="broken JSON";assert(!download_catalog());assert(strstr(s_failure,"JSON"));
-    catalog_mode=1;assert(!download_catalog());assert(strstr(s_failure,"513 KiB"));s_dead=false;s_rx_failure=LX_RX_OK;
-    catalog_mode=2;assert(!download_catalog());assert(strstr(s_failure,"megszakadt"));s_dead=false;
-    catalog_mode=3;assert(!download_catalog());assert(strstr(s_failure,"12 másodpercen"));catalog_mode=0;
+    assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"401"));
+    catalog_reply="{\"wrong\":{}}";assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"controls"));
+    catalog_reply="broken JSON";assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"JSON"));
+    catalog_mode=1;assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"513 KiB"));s_dead=false;s_rx_failure=LX_RX_OK;
+    catalog_mode=2;assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"megszakadt"));s_dead=false;
+    catalog_mode=3;assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"12 másodpercen"));catalog_mode=0;
+    cJSON_Delete(s_catalog);s_catalog=NULL;
+    /* Valós hibamenet: WS fájlkérés 404, külön HTTP challenge és HMAC-tokenes GET. */
+    catalog_reply="{\"LL\":{\"Code\":404,\"value\":\"unknown command\"}}";
+    http_fallback_mode=1;strcpy(cfg.host,"192.168.2.20");strcpy(cfg.username,"display ]!.+");
+    char *large_catalog=malloc(6001);assert(large_catalog);
+    strcpy(large_catalog,"{\"controls\":{\"pv\":{\"name\":\"PV\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}");size_t prefix=strlen(large_catalog);memset(large_catalog+prefix,' ',6000-prefix);large_catalog[6000]=0;
+    http_catalog_body=large_catalog;http_chunked=true;int calls=http_calls;
+    assert(download_catalog_with_fallback(&cfg,token));assert(http_calls==calls+2);assert(cJSON_GetArraySize(s_catalog)==1);
+    assert(strstr(http_catalog_url,"autht=0466b02bd6a35aa5adc80e557e067e0007ec706d3fec903ca02f13b12b74f0cb&user=display%20%5D%21.%2B"));
+    http_fallback_mode=2;assert(download_catalog_with_fallback(&cfg,token));assert(strstr(http_catalog_url,"autht=cd6bf8485a7b0dd4a53208c835e26e93b6618392&"));
+    http_catalog_status=403;assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"403"));
+    http_catalog_status=301;assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"301"));
+    http_catalog_status=200;http_advertised_oversize=true;assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"méret"));http_advertised_oversize=false;
+    char *too_large=malloc(LX_STRUCTURE_MAX+2);assert(too_large);memset(too_large,' ',LX_STRUCTURE_MAX+1);too_large[LX_STRUCTURE_MAX+1]=0;
+    http_catalog_body=too_large;assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"túl nagy"));free(too_large);http_catalog_body=large_catalog;
+    http_open_error=ESP_FAIL;assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"HTTP kapcsolat"));http_open_error=0;
+    http_catalog_body="{\"LL\":{\"Code\":401}}";assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"401"));
+    http_catalog_body="invalid";assert(!download_catalog_with_fallback(&cfg,token));assert(strstr(s_failure,"JSON"));
+    catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";calls=http_calls;assert(!download_catalog_with_fallback(&cfg,token));assert(http_calls==calls);
+    free(large_catalog);http_fallback_mode=0;http_chunked=false;strcpy(cfg.username,"display");
     cJSON_Delete(s_catalog);s_catalog=NULL;
     assert(!reply("denied",false));assert(strstr(s_failure,"401"));
     /* A teljes HTTP-előlépés darabolt válasszal, valamint konkrét hibák. */
     cJSON *key_json=cJSON_CreateObject(),*ll=cJSON_CreateObject();cJSON_AddStringToObject(ll,"value",s_public_key);cJSON_AddItemToObject(key_json,"LL",ll);
-    http_body=cJSON_PrintUnformatted(key_json);cJSON_Delete(key_json);free(s_public_key);s_public_key=NULL;
+    mock_http_body=cJSON_PrintUnformatted(key_json);cJSON_Delete(key_json);free(s_public_key);s_public_key=NULL;
     strcpy(cfg.host,"192.168.2.20");assert(fetch_public_key(&cfg)&&strstr(s_public_key,"BEGIN PUBLIC KEY"));free(s_public_key);s_public_key=NULL;
     http_status=301;assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"301"));report_failure("fallback");assert(strstr(s_status,"301"));
     http_status=200;http_open_error=ESP_FAIL;assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"HTTP kapcsolat"));http_open_error=0;
-    free(http_body);http_body=strdup("{}");assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"nem tartalmaz"));free(http_body);http_body=NULL;
+    free(mock_http_body);mock_http_body=strdup("{}");assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"nem tartalmaz"));free(mock_http_body);mock_http_body=NULL;
     /* Bináris érték két WS-fragmentumban, a driver tovább darabolja 7 bájtra. */
     unsigned char header[8]={3,2,0,0,24,0,0,0},value[24]={0};double power=7.2;memcpy(value+16,&power,8);
     frame(header,8,2,true);frame(value,11,2,false);assert(uxQueueMessagesWaiting(s_messages)==0);frame(value+11,13,0,true);
@@ -132,5 +169,5 @@ int main(int argc,char **argv)
     /* Túlméretes fejléc, majd a sor feltorlódása kontrolláltan megszakítja a kapcsolatot. */
     unsigned char huge[8]={3,2,0,0,0,0,0,1};frame(huge,8,2,true);assert(s_dead);s_dead=false;
     for(int i=0;i<9;i++)frame(keep,8,2,true);assert(s_dead);
-    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, estimated/exact headers, encrypted catalog download and explicit rejection/format/size/disconnect/timeout diagnostics, HTTP preflight, driver/WS fragmentation, heartbeat and bounded overflow");
+    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, estimated/exact headers, encrypted catalog download and explicit rejection/format/size/disconnect/timeout diagnostics, HTTP token-HMAC catalog fallback (SHA256/SHA1, chunking, redirects, bounds and no fallback on forbidden), HTTP preflight, driver/WS fragmentation, heartbeat and bounded overflow");
 }

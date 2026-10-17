@@ -45,6 +45,13 @@ kell megadni, és a hostnak egyeznie kell a tanúsítvánnyal; nincs automatikus
 ellenőrzés-kikapcsolás. A webes beállító ugyanazt az opcionális Basic Auth védelmet
 használja, mint a meglévő eszközweb; helyi HTTP, nem HTTPS.
 
+Az adatlista először WebSocketen érkezik. Ha a fájlkérés 404-es választ ad,
+a kliens ugyanarról a Miniserverről HTTP(S)-en kéri le a `data/LoxAPP3.json`
+fájlt. Ehhez friss HTTP hitelesítési kulcsból HMAC-et készít a meglévő JWT-vel;
+a jelszó és a nyers token nem kerül a kérésbe. A HTTP(S) a kiválasztott WS/WSS
+módot és a CA-ellenőrzést követi. Átirányítást nem követ, 401/403 esetén nem
+próbál más jogosultságot. A fájl méretkorlátja ezen az úton is 512 KiB.
+
 A kliens 15 másodpercenként Loxone keepalive parancsot küld; 45 másodpercnyi
 bejövő üzenethiányt vagy azonnali socket/Wi-Fi hibát kapcsolatvesztésnek vesz.
 A hibaképernyőről automatikusan tér vissza a témákra, amikor újra beérkezett az
