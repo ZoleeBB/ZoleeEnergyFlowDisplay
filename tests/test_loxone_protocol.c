@@ -12,10 +12,23 @@ QueueHandle_t xQueueCreate(unsigned count,size_t item){queue_t *q=calloc(1,sizeo
 int xQueueSend(QueueHandle_t handle,const void *item,TickType_t ticks){(void)ticks;queue_t *q=handle;if(q->count==q->capacity)return 0;memcpy(q->data+q->tail*q->item,item,q->item);q->tail=(q->tail+1)%q->capacity;q->count++;return 1;}
 int xQueueReceive(QueueHandle_t handle,void *item,TickType_t ticks){queue_t *q=handle;if(!q->count){(void)ticks;return 0;}memcpy(item,q->data+q->head*q->item,q->item);q->head=(q->head+1)%q->capacity;q->count--;return 1;}
 unsigned uxQueueMessagesWaiting(QueueHandle_t handle){return ((queue_t*)handle)->count;}
+int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout){(void)mutex;(void)timeout;return 1;}
+int xSemaphoreGive(SemaphoreHandle_t mutex){(void)mutex;return 1;}
 static int64_t clock_us;
 int64_t esp_timer_get_time(void){return clock_us+=1000;}
 void esp_fill_random(void *data,size_t n){FILE *f=fopen("/dev/urandom","rb");assert(f&&fread(data,1,n,f)==n);fclose(f);}
 esp_err_t esp_efuse_mac_get_default(uint8_t *mac){for(int i=0;i<6;i++)mac[i]=i;return ESP_OK;}
+static char *http_body;
+static size_t http_position;
+static int http_status=200,http_open_error;
+esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg){assert(strstr(cfg->url,"/jdev/sys/getPublicKey"));http_position=0;return (void*)1;}
+esp_err_t esp_http_client_open(esp_http_client_handle_t h,int n){(void)h;(void)n;return http_open_error;}
+int64_t esp_http_client_fetch_headers(esp_http_client_handle_t h){(void)h;return http_body?strlen(http_body):0;}
+int esp_http_client_get_status_code(esp_http_client_handle_t h){(void)h;return http_status;}
+int esp_http_client_read(esp_http_client_handle_t h,char *out,int max){(void)h;size_t remaining=strlen(http_body)-http_position;if(remaining>(size_t)max)remaining=max;if(remaining>7)remaining=7;memcpy(out,http_body+http_position,remaining);http_position+=remaining;return remaining;}
+bool esp_http_client_is_complete_data_received(esp_http_client_handle_t h){(void)h;return http_body&&http_position==strlen(http_body);}
+esp_err_t esp_http_client_close(esp_http_client_handle_t h){(void)h;return ESP_OK;}
+esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP_OK;}
 static mbedtls_pk_context server_key;
 static char last_command[4096],previous_salt[17];
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
@@ -28,7 +41,8 @@ static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 static void server_response(const char *json)
 {
     unsigned char header[8]={3,0,0,0};size_t n=strlen(json);for(int i=0;i<4;i++)header[4+i]=n>>(8*i);
-    frame(header,8,2,true);frame((unsigned char*)json,n,1,true);
+    unsigned char estimated[8];memcpy(estimated,header,8);estimated[2]=0x80;
+    frame(estimated,8,2,true);frame(header,8,2,true);frame((unsigned char*)json,n,1,true);
 }
 static void decode_url(const char *s,char *out)
 {while(*s){if(*s=='%'){unsigned x;assert(sscanf(s+1,"%2x",&x)==1);*out++=x;s+=3;}else *out++=*s++;}*out=0;}
@@ -81,7 +95,14 @@ int main(int argc,char **argv)
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
-    assert(!reply("denied",false));
+    assert(!reply("denied",false));assert(strstr(s_failure,"401"));
+    /* A teljes HTTP-előlépés darabolt válasszal, valamint konkrét hibák. */
+    cJSON *key_json=cJSON_CreateObject(),*ll=cJSON_CreateObject();cJSON_AddStringToObject(ll,"value",s_public_key);cJSON_AddItemToObject(key_json,"LL",ll);
+    http_body=cJSON_PrintUnformatted(key_json);cJSON_Delete(key_json);free(s_public_key);s_public_key=NULL;
+    strcpy(cfg.host,"192.168.2.20");assert(fetch_public_key(&cfg)&&strstr(s_public_key,"BEGIN PUBLIC KEY"));free(s_public_key);s_public_key=NULL;
+    http_status=301;assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"301"));report_failure("fallback");assert(strstr(s_status,"301"));
+    http_status=200;http_open_error=ESP_FAIL;assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"HTTP kapcsolat"));http_open_error=0;
+    free(http_body);http_body=strdup("{}");assert(!fetch_public_key(&cfg));assert(strstr(s_failure,"nem tartalmaz"));free(http_body);http_body=NULL;
     /* Bináris érték két WS-fragmentumban, a driver tovább darabolja 7 bájtra. */
     unsigned char header[8]={3,2,0,0,24,0,0,0},value[24]={0};double power=7.2;memcpy(value+16,&power,8);
     frame(header,8,2,true);frame(value,11,2,false);assert(uxQueueMessagesWaiting(s_messages)==0);frame(value+11,13,0,true);
@@ -90,5 +111,5 @@ int main(int argc,char **argv)
     /* Túlméretes fejléc, majd a sor feltorlódása kontrolláltan megszakítja a kapcsolatot. */
     unsigned char huge[8]={3,2,0,0,0,0,0,1};frame(huge,8,2,true);assert(s_dead);s_dead=false;
     for(int i=0;i<9;i++)frame(keep,8,2,true);assert(s_dead);
-    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, driver/WS fragmentation, heartbeat and bounded overflow");
+    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, estimated/exact headers, HTTP preflight and error diagnostics, driver/WS fragmentation, heartbeat and bounded overflow");
 }

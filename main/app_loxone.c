@@ -38,6 +38,8 @@ static lx_config_t s_saved;
 static cJSON *s_catalog;
 static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
 static bool s_busy,s_password;
+/* A hiba csak lépésnevet és kódot tartalmazhat, parancsot/tokent soha. */
+static char s_stage[80],s_failure[192];
 static esp_websocket_client_handle_t s_ws;
 /* A fogadópuffert kizárólag a websocket feladat éri el, destroy után a worker szabadítja. */
 static unsigned char *s_rx;
@@ -56,6 +58,18 @@ static void status(const char *message)
 {
     xSemaphoreTake(s_lock,portMAX_DELAY);snprintf(s_status,sizeof(s_status),"%s",message);xSemaphoreGive(s_lock);
 }
+static void phase(const char *label)
+{
+    snprintf(s_stage,sizeof(s_stage),"%s",label);s_failure[0]=0;status(label);
+}
+static bool failed(const char *reason,int code)
+{
+    if(code)snprintf(s_failure,sizeof(s_failure),"%.70s: %.85s (%d)",s_stage,reason,code);
+    else snprintf(s_failure,sizeof(s_failure),"%.70s: %.110s",s_stage,reason);
+    return false;
+}
+static void report_failure(const char *fallback)
+{status(s_failure[0]?s_failure:fallback);}
 static const char *string(const cJSON *o,const char *k)
 {const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,k);return cJSON_IsString(v)?v->valuestring:"";}
 static void hex(const unsigned char *in,size_t n,char *out)
@@ -102,6 +116,9 @@ static void receive_event(void *arg,esp_event_base_t base,int32_t event,void *da
     /* A Loxone fejléc önálló WS-üzenet, az utána következő payload külön üzenet. */
     if(s_message_type<0) {
         if(s_rx_len!=8||s_rx[0]!=3){s_dead=true;return;}
+        /* A 0x80-as estimated fejléc után még PONTOS fejléc jön, nem payload.
+         * A becslésből nem foglalunk memóriát és nem következtetünk üzenettípusra. */
+        if(s_rx[2]&0x80){s_rx_len=0;return;}
         unsigned declared=(unsigned)s_rx[4]|(unsigned)s_rx[5]<<8|(unsigned)s_rx[6]<<16|(unsigned)s_rx[7]<<24;
         if(declared>LX_MAX_RX){s_dead=true;return;}
         int type=s_rx[1];
@@ -137,7 +154,7 @@ static bool send_encrypted(const char *command)
 }
 static cJSON *reply(const char *command,bool encrypt)
 {
-    if(!(encrypt?send_encrypted(command):send_plain(command)))return NULL;
+    if(!(encrypt?send_encrypted(command):send_plain(command))){failed("A kérés nem küldhető el.",0);return NULL;}
     int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&esp_timer_get_time()<deadline) {
         message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
@@ -147,14 +164,19 @@ static cJSON *reply(const char *command,bool encrypt)
         cJSON *code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
         if(!code)code=cJSON_GetObjectItemCaseSensitive(ll,"code");
         bool ok=(cJSON_IsNumber(code)&&code->valueint==200)||(cJSON_IsString(code)&&strcmp(code->valuestring,"200")==0);
+        if(!ok) {
+            int response_code=cJSON_IsNumber(code)?code->valueint:cJSON_IsString(code)?atoi(code->valuestring):0;
+            failed(response_code?"A Miniserver elutasította a kérést.":"Érvénytelen Miniserver-válasz.",response_code);
+        }
         cJSON *value=ok?cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(ll,"value"),true):NULL;
         cJSON_Delete(root);return value;
-    }return NULL;
+    }failed(s_dead?"A kapcsolat megszakadt.":"12 másodpercen belül nem érkezett válasz.",0);return NULL;
 }
 static int rng(void *ctx,unsigned char *out,size_t len){(void)ctx;esp_fill_random(out,len);return 0;}
 static bool key_exchange(void)
 {
-    if(!s_public_key)return false;
+    phase("Loxone titkosítási kulcscsere");
+    if(!s_public_key)return failed("Hiányzó nyilvános kulcs.",0);
     /* Loxone egyes verziói SPKI kulcsot CERTIFICATE fejléccel küldenek. */
     const char *body=strstr(s_public_key,"-----BEGIN CERTIFICATE-----");
     char *pem=NULL;
@@ -162,13 +184,15 @@ static bool key_exchange(void)
         body+=27;const char *end=strstr(body,"-----END CERTIFICATE-----");
         if(end){size_t n=end-body;pem=malloc(n+64);if(pem)snprintf(pem,n+64,"-----BEGIN PUBLIC KEY-----\n%.*s\n-----END PUBLIC KEY-----\n",(int)n,body);}
     }else pem=strdup(s_public_key);
-    if(!pem)return false;
+    if(!pem)return failed("A nyilvános kulcs formátuma nem értelmezhető.",0);
     mbedtls_pk_context pk;mbedtls_pk_init(&pk);
-    bool ok=mbedtls_pk_parse_public_key(&pk,(unsigned char*)pem,strlen(pem)+1)==0;free(pem);
+    int pk_result=mbedtls_pk_parse_public_key(&pk,(unsigned char*)pem,strlen(pem)+1);
+    bool ok=pk_result==0;free(pem);
+    if(!ok)failed("A nyilvános kulcs feldolgozása sikertelen.",pk_result);
     unsigned char encrypted[512],base[704];char key[65],iv[33],plain[100];size_t n=0,b64=0;
     esp_fill_random(s_aes_key,sizeof(s_aes_key));esp_fill_random(s_iv,sizeof(s_iv));hex(s_aes_key,32,key);hex(s_iv,16,iv);
     snprintf(plain,sizeof(plain),"%s:%s",key,iv);
-    if(ok)ok=mbedtls_pk_encrypt(&pk,(unsigned char*)plain,strlen(plain),encrypted,&n,sizeof(encrypted),rng,NULL)==0;
+    if(ok){int result=mbedtls_pk_encrypt(&pk,(unsigned char*)plain,strlen(plain),encrypted,&n,sizeof(encrypted),rng,NULL);ok=result==0;if(!ok)failed("Az RSA kulcscsere előkészítése sikertelen.",result);}
     mbedtls_pk_free(&pk);mbedtls_platform_zeroize(plain,sizeof(plain));mbedtls_platform_zeroize(key,sizeof(key));
     if(ok)ok=mbedtls_base64_encode(base,sizeof(base)-1,&b64,encrypted,n)==0;
     if(!ok)return false;
@@ -189,6 +213,7 @@ static bool hash_hmac(const cJSON *key,const char *input,char out[65])
 }
 static bool acquire_token(const lx_config_t *cfg,char *token,size_t token_size)
 {
+    phase("Loxone felhasználói hitelesítési kulcs");
     char *user=urlencode(cfg->username);if(!user)return false;
     char command[1536];snprintf(command,sizeof(command),"jdev/sys/getkey2/%s",user);
     cJSON *key=reply(command,false);if(!key){free(user);return false;}
@@ -207,6 +232,7 @@ static bool acquire_token(const lx_config_t *cfg,char *token,size_t token_size)
         unsigned char mac[6];if(esp_efuse_mac_get_default(mac)!=ESP_OK){free(user);return false;}
         snprintf(command,sizeof(command),"jdev/sys/getjwt/%s/%s/4/7f30a221-5e2d-4100-918a%02x%02x%02x%02x%02x%02x/ZoleeEnergyDisplay",hmac,user,
             mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+        phase("Loxone felhasználói bejelentkezés");
         cJSON *v=reply(command,true);const char *t=string(v,"token");
         ok=*t&&strlen(t)<token_size;if(ok)snprintf(token,token_size,"%s",t);cJSON_Delete(v);
     }free(user);return ok;
@@ -225,6 +251,7 @@ static bool token_command(const lx_config_t *cfg,char *token,const char *operati
 }
 static bool download_catalog(void)
 {
+    phase("Loxone adatlista letöltése");
     if(!send_plain("data/LoxAPP3.json"))return false;
     int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&esp_timer_get_time()<deadline) {
@@ -245,34 +272,45 @@ static void close_connection(void)
 /* A nyilvános kulcsot még a rövid WS hitelesítési határidő ELŐTT kérjük le. */
 static bool fetch_public_key(const lx_config_t *cfg)
 {
+    phase("Miniserver elérése / nyilvános kulcs");
     char url[192];snprintf(url,sizeof(url),"%s://%s:%u/jdev/sys/getPublicKey",cfg->tls?"https":"http",cfg->host,(unsigned)cfg->port);
     esp_http_client_config_t options={.url=url,.timeout_ms=LX_TIMEOUT_MS,
         .cert_pem=cfg->tls?cfg->ca_pem:NULL,.disable_auto_redirect=true};
-    esp_http_client_handle_t http=esp_http_client_init(&options);if(!http)return false;
-    char *body=calloc(1,8193);bool ok=body&&esp_http_client_open(http,0)==ESP_OK;size_t used=0;
-    if(ok){(void)esp_http_client_fetch_headers(http);ok=esp_http_client_get_status_code(http)==200;}
+    esp_http_client_handle_t http=esp_http_client_init(&options);if(!http)return failed("A HTTP kliens nem indítható (memóriahiba).",0);
+    char *body=calloc(1,8193);int http_result=body?esp_http_client_open(http,0):ESP_ERR_NO_MEM;
+    bool ok=http_result==ESP_OK;size_t used=0;
+    if(!ok)failed("Nem épült fel a HTTP kapcsolat. Ellenőrizd az IP-címet és a portot.",http_result);
+    if(ok){
+        int64_t headers=esp_http_client_fetch_headers(http);int http_status=esp_http_client_get_status_code(http);
+        ok=headers>=0&&http_status==200;
+        if(!ok)failed("A HTTP kérés sikertelen. Ellenőrizd a portot és a WS/WSS módot.",headers<0?(int)headers:http_status);
+    }
     while(ok&&used<8192) {
         int n=esp_http_client_read(http,body+used,8192-used);
-        if(n<0){ok=false;break;}if(n==0)break;used+=n;
+        if(n<0){failed("A HTTP válasz olvasása megszakadt.",n);ok=false;break;}if(n==0)break;used+=n;
     }
-    if(used==8192||!esp_http_client_is_complete_data_received(http))ok=false;
+    if(ok&&(used==8192||!esp_http_client_is_complete_data_received(http))){failed("Hiányos vagy túl nagy nyilvánoskulcs-válasz.",0);ok=false;}
     esp_http_client_close(http);esp_http_client_cleanup(http);
     cJSON *root=ok?cJSON_Parse(body):NULL;free(body);
     const char *key=string(cJSON_GetObjectItemCaseSensitive(root,"LL"),"value");
-    s_public_key=*key?strdup(key):NULL;cJSON_Delete(root);return s_public_key!=NULL;
+    s_public_key=*key?strdup(key):NULL;cJSON_Delete(root);
+    if(!s_public_key&&ok)failed("A HTTP válasz nem tartalmaz Loxone nyilvános kulcsot.",0);
+    return s_public_key!=NULL;
 }
 static bool connect_server(const lx_config_t *cfg)
 {
     if(!fetch_public_key(cfg))return false;
+    phase("Loxone WebSocket kapcsolat felépítése");
     char uri[192];snprintf(uri,sizeof(uri),"%s://%s:%u/ws/rfc6455",cfg->tls?"wss":"ws",cfg->host,(unsigned)cfg->port);
     esp_websocket_client_config_t ws={.uri=uri,.subprotocol="remotecontrol",.disable_auto_reconnect=true,
         .buffer_size=2048,.task_stack=6144,.network_timeout_ms=LX_TIMEOUT_MS,
         .cert_pem=cfg->tls?cfg->ca_pem:NULL};
-    s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return false;
-    if(esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,receive_event,NULL)!=ESP_OK||esp_websocket_client_start(s_ws)!=ESP_OK)return false;
+    s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return failed("A WebSocket kliens nem indítható (memóriahiba).",0);
+    if(esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,receive_event,NULL)!=ESP_OK||esp_websocket_client_start(s_ws)!=ESP_OK)return failed("A WebSocket feladat nem indítható.",0);
     int64_t until=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&!esp_websocket_client_is_connected(s_ws)&&esp_timer_get_time()<until)vTaskDelay(pdMS_TO_TICKS(50));
-    return !s_dead&&esp_websocket_client_is_connected(s_ws)&&key_exchange();
+    if(s_dead||!esp_websocket_client_is_connected(s_ws))return failed("A WebSocket nem kapcsolódott 12 másodpercen belül.",0);
+    return key_exchange();
 }
 static void invalidate(bool configured)
 {
@@ -309,11 +347,11 @@ static void worker(void *arg)
             vTaskDelay(pdMS_TO_TICKS(500));continue;
         }
         s_session_config=active;
-        if(!connect_server(active)) {status("A Miniserver nem érhető el, vagy a biztonságos kapcsolat nem épült fel.");goto retry;}
+        if(!connect_server(active)) {report_failure("A Miniserver nem érhető el, vagy a biztonságos kapcsolat nem épült fel.");goto retry;}
         status("Loxone bejelentkezés...");
         if(token[0]&&!token_command(active,token,"authwithtoken"))token[0]=0;
-        if(!token[0]&&!acquire_token(active,token,sizeof(token))) {status("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
-        if(!download_catalog()) {status("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
+        if(!token[0]&&!acquire_token(active,token,sizeof(token))) {report_failure("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
+        if(!download_catalog()) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
         if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
         cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
