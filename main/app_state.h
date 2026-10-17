@@ -8,7 +8,8 @@
  * Egy teljesen validált MQTT mérési minta.
  * A teljesítmények kW-ban, a hőmérsékletek Celsius-fokban szerepelnek.
  */
-typedef struct {
+typedef struct
+{
     double power_grid_kw;
     double power_bat_kw;
     double power_pv_kw;
@@ -44,7 +45,8 @@ typedef struct {
 } app_energy_sample_t;
 
 /* Az alrendszerek közös futási állapota. */
-typedef struct {
+typedef struct
+{
     app_data_mode_t data_recept_mode;
     bool loxone_configured;
     bool loxone_connected;
@@ -80,19 +82,31 @@ void app_state_set_sample(const app_energy_sample_t *sample);
 void app_state_get_runtime(app_runtime_state_t *out);
 bool app_state_get_sample(app_energy_sample_t *out);
 
-
 void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
 static inline bool app_state_data_ready(const app_runtime_state_t *s)
-{ return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected : s->data_recept_mode == APP_DATA_HTTP ? s->http_ready : s->mqtt_connected; }
-static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
-{ return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected_monotonic_us : s->data_recept_mode == APP_DATA_HTTP ? s->http_ready_monotonic_us : s->mqtt_connected_monotonic_us; }
-static inline bool app_state_ota_ready(const app_runtime_state_t *s)
-{ return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced && (s->data_recept_mode==APP_DATA_LOXONE?s->http_ready:app_state_data_ready(s)); }
-static inline bool app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t seconds)
 {
-    int64_t since = s->has_valid_sample ? s->last_valid_packet_monotonic_us : app_state_data_ready_since(s);
+    return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected
+         : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready
+                                                  : s->mqtt_connected;
+}
+static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
+{
+    return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected_monotonic_us
+         : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready_monotonic_us
+                                                  : s->mqtt_connected_monotonic_us;
+}
+static inline bool app_state_ota_ready(const app_runtime_state_t *s)
+{
+    return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced &&
+           (s->data_recept_mode == APP_DATA_LOXONE ? s->http_ready : app_state_data_ready(s));
+}
+static inline bool
+app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t seconds)
+{
+    int64_t since =
+        s->has_valid_sample ? s->last_valid_packet_monotonic_us : app_state_data_ready_since(s);
     return app_state_data_ready(s) && now - since >= (int64_t)seconds * 1000000LL;
 }

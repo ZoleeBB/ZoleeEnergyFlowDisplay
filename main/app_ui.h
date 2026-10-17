@@ -5,7 +5,8 @@
 #include "app_config.h"
 
 /* A bootképernyő egymás utáni, felhasználónak látható lépései. */
-typedef enum {
+typedef enum
+{
     APP_BOOT_SD = 0,
     APP_BOOT_CONFIG,
     APP_BOOT_WIFI,
@@ -21,15 +22,10 @@ esp_err_t app_ui_init(uint16_t rotation_degrees);
 void app_ui_set_config(const app_config_t *cfg);
 
 /* Egy bootfázis és opcionális részletes üzenet megjelenítése. */
-void app_ui_show_boot(
-    app_boot_stage_t stage,
-    const char *detail);
+void app_ui_show_boot(app_boot_stage_t stage, const char *detail);
 
 /* Blokkoló/végzetes indulási hiba megjelenítése. */
-void app_ui_show_fatal(
-    const char *title,
-    const char *detail);
+void app_ui_show_fatal(const char *title, const char *detail);
 
 /* Normál runtime UI task elindítása. */
 esp_err_t app_ui_start_runtime(void);
-

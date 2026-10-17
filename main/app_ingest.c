@@ -29,13 +29,10 @@ esp_err_t app_ingest_init(app_data_mode_t mode)
 
 /* Hibás vagy idegen forrású csomag nem módosíthatja az energiamintát. */
 esp_err_t app_ingest_process(
-    app_data_mode_t source,
-    const char *data,
-    size_t length,
-    char *error,
-    size_t error_length)
+    app_data_mode_t source, const char *data, size_t length, char *error, size_t error_length)
 {
-    if (!s_mutex || source != s_mode) {
+    if (!s_mutex || source != s_mode)
+    {
         if (error && error_length)
             snprintf(error, error_length, "Data receiver unavailable");
         return ESP_ERR_INVALID_STATE;
@@ -44,10 +41,10 @@ esp_err_t app_ingest_process(
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
     app_energy_sample_t sample;
-    esp_err_t result = app_payload_parse(
-        data, length, &sample, error, error_length);
+    esp_err_t result = app_payload_parse(data, length, &sample, error, error_length);
 
-    if (result == ESP_OK) {
+    if (result == ESP_OK)
+    {
         app_stats_process_sample(&sample);
         app_state_set_sample(&sample);
     }

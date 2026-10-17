@@ -32,33 +32,21 @@ static bool s_background_started;
  * Fix UTC eltolás POSIX TZ formára alakítása.
  * A POSIX előjel fordított: UTC+1 helyi időhöz "UTC-1" tartozik.
  */
-static void build_fixed_timezone(
-    int offset_minutes,
-    char *out,
-    size_t out_len)
+static void build_fixed_timezone(int offset_minutes, char *out, size_t out_len)
 {
     int sign = offset_minutes >= 0 ? -1 : 1;
-    int absolute =
-        offset_minutes >= 0 ? offset_minutes : -offset_minutes;
+    int absolute = offset_minutes >= 0 ? offset_minutes : -offset_minutes;
 
     int hours = absolute / 60;
     int minutes = absolute % 60;
 
-    if (minutes == 0) {
-        snprintf(
-            out,
-            out_len,
-            "UTC%c%d",
-            sign < 0 ? '-' : '+',
-            hours);
-    } else {
-        snprintf(
-            out,
-            out_len,
-            "UTC%c%d:%02d",
-            sign < 0 ? '-' : '+',
-            hours,
-            minutes);
+    if (minutes == 0)
+    {
+        snprintf(out, out_len, "UTC%c%d", sign < 0 ? '-' : '+', hours);
+    }
+    else
+    {
+        snprintf(out, out_len, "UTC%c%d:%02d", sign < 0 ? '-' : '+', hours, minutes);
     }
 }
 
@@ -67,22 +55,21 @@ static void apply_timezone(void)
 {
     char tz[96];
 
-    if (!s_cfg.auto_dst) {
-        build_fixed_timezone(
-            s_cfg.utc_offset_minutes,
-            tz,
-            sizeof(tz));
-    } else if (strcmp(s_cfg.timezone, "Europe/Budapest") == 0) {
+    if (!s_cfg.auto_dst)
+    {
+        build_fixed_timezone(s_cfg.utc_offset_minutes, tz, sizeof(tz));
+    }
+    else if (strcmp(s_cfg.timezone, "Europe/Budapest") == 0)
+    {
         /*
          * Budapest: CET/CEST.
          * DST kezdete március utolsó vasárnap 02:00,
          * vége október utolsó vasárnap 03:00.
          */
-        snprintf(
-            tz,
-            sizeof(tz),
-            "CET-1CEST,M3.5.0/2,M10.5.0/3");
-    } else {
+        snprintf(tz, sizeof(tz), "CET-1CEST,M3.5.0/2,M10.5.0/3");
+    }
+    else
+    {
         /*
          * Egyéb értéknél a konfiguráció tartalmát POSIX TZ sztringként
          * adjuk át. A jelenlegi projekt alapértelmezése Europe/Budapest.
@@ -99,21 +86,24 @@ static void apply_timezone(void)
 /* SNTP kliens egyszeri inicializálása. */
 esp_err_t app_time_init(const app_config_t *cfg)
 {
-    if (!cfg) {
+    if (!cfg)
+    {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (s_initialized) {
+    if (s_initialized)
+    {
         return ESP_ERR_INVALID_STATE;
     }
 
     s_cfg = cfg->time;
-    ESP_LOGI(TAG, "Initializing SNTP: server=%s, automatic interval=%u ms",
-             s_cfg.ntp_server, (unsigned)CONFIG_LWIP_SNTP_UPDATE_DELAY);
+    ESP_LOGI(TAG,
+             "Initializing SNTP: server=%s, automatic interval=%u ms",
+             s_cfg.ntp_server,
+             (unsigned)CONFIG_LWIP_SNTP_UPDATE_DELAY);
     apply_timezone();
 
-    esp_sntp_config_t sntp_cfg =
-        ESP_NETIF_SNTP_DEFAULT_CONFIG(s_cfg.ntp_server);
+    esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG(s_cfg.ntp_server);
 
     /*
      * Nem indítjuk el automatikusan az SNTP szolgáltatást az init során.
@@ -123,7 +113,8 @@ esp_err_t app_time_init(const app_config_t *cfg)
     sntp_cfg.start = false;
 
     esp_err_t err = esp_netif_sntp_init(&sntp_cfg);
-    if (err == ESP_OK) {
+    if (err == ESP_OK)
+    {
         s_initialized = true;
         ESP_LOGI(TAG, "SNTP initialized");
     }
@@ -137,29 +128,33 @@ esp_err_t app_time_init(const app_config_t *cfg)
  */
 esp_err_t app_time_sync_once(void)
 {
-    if (!s_initialized || !app_wifi_is_connected()) {
+    if (!s_initialized || !app_wifi_is_connected())
+    {
         return ESP_ERR_INVALID_STATE;
     }
 
     ESP_LOGI(TAG, "SNTP synchronization started: server=%s, wait=10s", s_cfg.ntp_server);
     esp_err_t err = esp_netif_sntp_start();
 
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(
-            TAG,
-            "SNTP start failed: %s",
-            esp_err_to_name(err));
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
+    {
+        ESP_LOGW(TAG, "SNTP start failed: %s", esp_err_to_name(err));
     }
 
     /* Egyetlen próbálkozás legfeljebb 10 másodpercig vár válaszra. */
     err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000));
 
-    if (err == ESP_OK) {
+    if (err == ESP_OK)
+    {
         app_state_set_time_synced(true);
         ESP_LOGI(TAG, "SNTP synchronization successful");
-    } else {
-        ESP_LOGW(TAG, "SNTP synchronization failed: server=%s, result=%s",
-                 s_cfg.ntp_server, esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGW(TAG,
+                 "SNTP synchronization failed: server=%s, result=%s",
+                 s_cfg.ntp_server,
+                 esp_err_to_name(err));
     }
 
     return err;
@@ -171,9 +166,9 @@ esp_err_t app_time_sync_once(void)
 static void delay_seconds(uint32_t seconds)
 {
     uint64_t remaining = (uint64_t)seconds * configTICK_RATE_HZ;
-    while (remaining) {
-        TickType_t ticks = remaining < portMAX_DELAY ?
-            (TickType_t)remaining : portMAX_DELAY - 1U;
+    while (remaining)
+    {
+        TickType_t ticks = remaining < portMAX_DELAY ? (TickType_t)remaining : portMAX_DELAY - 1U;
         vTaskDelay(ticks);
         remaining -= ticks;
     }
@@ -188,21 +183,23 @@ static void time_sync_task(void *arg)
 {
     (void)arg;
 
-    while (true) {
+    while (true)
+    {
         delay_seconds(s_cfg.resync_hours * 60U * 60U);
 
-        while (true) {
-            if (!app_wifi_is_connected()) {
+        while (true)
+        {
+            if (!app_wifi_is_connected())
+            {
                 delay_seconds(s_cfg.background_retry_minutes * 60U);
                 continue;
             }
 
             esp_err_t err = app_time_sync_once();
 
-            if (err == ESP_OK) {
-                app_events_add(
-                    APP_EVENT_INFO,
-                    "NTP időszinkron sikeres.");
+            if (err == ESP_OK)
+            {
+                app_events_add(APP_EVENT_INFO, "NTP időszinkron sikeres.");
                 break;
             }
 
@@ -210,9 +207,7 @@ static void time_sync_task(void *arg)
              * Futás közben az NTP hiba nem állítja le a dashboardot:
              * az RTC/belső óra tovább fut a következő sikeres szinkronig.
              */
-            app_events_add(
-                APP_EVENT_WARNING,
-                "NTP újraszinkron sikertelen; belső óra tovább fut.");
+            app_events_add(APP_EVENT_WARNING, "NTP újraszinkron sikertelen; belső óra tovább fut.");
 
             delay_seconds(s_cfg.background_retry_minutes * 60U);
         }
@@ -222,8 +217,10 @@ static void time_sync_task(void *arg)
 /* A háttérszinkron task egyszeri elindítása. */
 esp_err_t app_time_start_background_task(void)
 {
-    if(s_background_started)return ESP_OK;
-    if(xTaskCreate(time_sync_task,"time_sync_task",4096,NULL,4,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
-    s_background_started=true;
+    if (s_background_started)
+        return ESP_OK;
+    if (xTaskCreate(time_sync_task, "time_sync_task", 4096, NULL, 4, NULL) != pdPASS)
+        return ESP_ERR_NO_MEM;
+    s_background_started = true;
     return ESP_OK;
 }

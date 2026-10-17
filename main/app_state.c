@@ -19,7 +19,8 @@ static app_energy_sample_t s_sample;
 /* Közös állapot inicializálása. */
 void app_state_init(void)
 {
-    if (!s_mutex) {
+    if (!s_mutex)
+    {
         s_mutex = xSemaphoreCreateMutex();
     }
 
@@ -79,7 +80,8 @@ void app_state_set_mqtt_connected(bool value)
     lock();
     s_runtime.mqtt_connected = value;
 
-    if (value) {
+    if (value)
+    {
         s_runtime.mqtt_connected_monotonic_us = esp_timer_get_time();
     }
 
@@ -92,7 +94,8 @@ void app_state_set_mqtt_connected(bool value)
  */
 void app_state_set_sample(const app_energy_sample_t *sample)
 {
-    if (!sample) {
+    if (!sample)
+    {
         return;
     }
 
@@ -100,10 +103,8 @@ void app_state_set_sample(const app_energy_sample_t *sample)
 
     s_sample = *sample;
     s_runtime.has_valid_sample = true;
-    s_runtime.last_valid_packet_monotonic_us =
-        sample->received_monotonic_us;
-    s_runtime.last_valid_packet_epoch_s =
-        sample->received_epoch_s;
+    s_runtime.last_valid_packet_monotonic_us = sample->received_monotonic_us;
+    s_runtime.last_valid_packet_epoch_s = sample->received_epoch_s;
 
     unlock();
 }
@@ -111,7 +112,8 @@ void app_state_set_sample(const app_energy_sample_t *sample)
 /* A runtime állapot atomi másolatának lekérése. */
 void app_state_get_runtime(app_runtime_state_t *out)
 {
-    if (!out) {
+    if (!out)
+    {
         return;
     }
 
@@ -126,7 +128,8 @@ bool app_state_get_sample(app_energy_sample_t *out)
     lock();
 
     bool valid = s_runtime.has_valid_sample;
-    if (out && valid) {
+    if (out && valid)
+    {
         *out = s_sample;
     }
 
@@ -134,13 +137,17 @@ bool app_state_get_sample(app_energy_sample_t *out)
     return valid;
 }
 
-
 void app_state_set_data_mode(app_data_mode_t mode)
-{ lock(); s_runtime.data_recept_mode = mode; unlock(); }
+{
+    lock();
+    s_runtime.data_recept_mode = mode;
+    unlock();
+}
 void app_state_set_http_ready(bool ready)
 {
     lock();
-    if (ready && !s_runtime.http_ready) s_runtime.http_ready_monotonic_us = esp_timer_get_time();
+    if (ready && !s_runtime.http_ready)
+        s_runtime.http_ready_monotonic_us = esp_timer_get_time();
     s_runtime.http_ready = ready;
     unlock();
 }

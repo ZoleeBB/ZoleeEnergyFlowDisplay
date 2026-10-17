@@ -29,6 +29,5 @@ esp_err_t app_storage_lock(void);
 bool app_storage_try_lock(void);
 void app_storage_unlock(void);
 
-
 /* Gyorsítótárazott FAT-kapacitás; a lekérés nem végez SD-műveletet. */
-bool app_storage_space(uint64_t *total,uint64_t *free_bytes);
+bool app_storage_space(uint64_t *total, uint64_t *free_bytes);

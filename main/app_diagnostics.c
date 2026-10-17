@@ -32,27 +32,29 @@ static bool s_cpu_valid;
 /* A magonkénti értékeket legfeljebb két másodpercenként frissítjük. */
 static void cpu_capture(app_diagnostics_t *out, int64_t now)
 {
-    if (!atomic_flag_test_and_set(&s_cpu_busy)) {
-        if (!s_cpu_time || now - s_cpu_time >= 2000000LL) {
+    if (!atomic_flag_test_and_set(&s_cpu_busy))
+    {
+        if (!s_cpu_time || now - s_cpu_time >= 2000000LL)
+        {
             unsigned load[2] = {0};
             uint64_t idle[2];
 
-            for (int core = 0; core < 2; core++) {
+            for (int core = 0; core < 2; core++)
+            {
                 TaskStatus_t info;
-                vTaskGetInfo(
-                    xTaskGetIdleTaskHandleForCore(core),
-                    &info, pdFALSE, eInvalid);
+                vTaskGetInfo(xTaskGetIdleTaskHandleForCore(core), &info, pdFALSE, eInvalid);
 
                 idle[core] = info.ulRunTimeCounter;
-                if (s_cpu_time) {
-                    uint64_t elapsed = now - s_cpu_time,
-                             delta = idle[core] - s_idle[core];
+                if (s_cpu_time)
+                {
+                    uint64_t elapsed = now - s_cpu_time, delta = idle[core] - s_idle[core];
                     load[core] = app_diagnostics_cpu_percent(delta, elapsed);
                 }
             }
 
             portENTER_CRITICAL(&s_cpu_lock);
-            for (int core = 0; core < 2; core++) {
+            for (int core = 0; core < 2; core++)
+            {
                 s_idle[core] = idle[core];
                 s_cpu[core] = load[core];
             }
@@ -78,34 +80,30 @@ void app_diagnostics_capture(app_diagnostics_t *out)
 
     int64_t now = esp_timer_get_time();
     out->uptime_seconds = now / 1000000;
-    out->packet_age_seconds = out->runtime.has_valid_sample ?
-        (now - out->runtime.last_valid_packet_monotonic_us) / 1000000 : -1;
+    out->packet_age_seconds = out->runtime.has_valid_sample
+                                ? (now - out->runtime.last_valid_packet_monotonic_us) / 1000000
+                                : -1;
     snprintf(out->ip, sizeof(out->ip), "-");
 
 #ifdef APP_TEMPLATE_DESKTOP
     snprintf(out->firmware, sizeof(out->firmware), "Desktop simulator");
 #else
-    snprintf(
-        out->firmware, sizeof(out->firmware),
-        "%.32s", esp_app_get_description()->version);
+    snprintf(out->firmware, sizeof(out->firmware), "%.32s", esp_app_get_description()->version);
 
     cpu_capture(out, now);
 
-    out->sd_space_valid = app_storage_space(
-        &out->sd_total_bytes, &out->sd_free_bytes);
+    out->sd_space_valid = app_storage_space(&out->sd_total_bytes, &out->sd_free_bytes);
     out->total_internal_kib =
         heap_caps_get_total_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024;
-    out->total_psram_kib =
-        heap_caps_get_total_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) / 1024;
-    out->free_psram_kib =
-        heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) / 1024;
+    out->total_psram_kib = heap_caps_get_total_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) / 1024;
+    out->free_psram_kib = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) / 1024;
     out->free_heap_kib = esp_get_free_heap_size() / 1024;
-    out->free_internal_kib =
-        heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024;
+    out->free_internal_kib = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024;
     out->largest_dma_block_bytes =
         heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
 
-    if (out->runtime.wifi_connected) {
+    if (out->runtime.wifi_connected)
+    {
         (void)app_wifi_get_ip(out->ip, sizeof(out->ip));
         (void)app_wifi_get_rssi(&out->rssi);
     }

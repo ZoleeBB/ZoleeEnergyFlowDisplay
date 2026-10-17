@@ -12,18 +12,21 @@
 #define LX_CATALOG_MAX 512
 #define LX_STRUCTURE_MAX (512U * 1024U)
 /* A mezők sorrendje stabil: az SD-s párosítás kulcsa a mező neve. */
-typedef struct {
+typedef struct
+{
     const char *name;
     bool required;
     bool digital;
 } lx_field_t;
 extern const lx_field_t lx_fields[LX_FIELD_COUNT];
-typedef struct {
+typedef struct
+{
     char uuid[LX_UUID_LEN];
     double scale;
     double offset;
 } lx_mapping_t;
-typedef struct {
+typedef struct
+{
     char host[128];
     uint16_t port;
     bool tls;
@@ -32,7 +35,8 @@ typedef struct {
     char password[LX_PASSWORD_MAX];
     lx_mapping_t map[LX_FIELD_COUNT];
 } lx_config_t;
-typedef struct {
+typedef struct
+{
     double value[LX_FIELD_COUNT];
     bool seen[LX_FIELD_COUNT];
 } lx_values_t;
@@ -43,11 +47,11 @@ cJSON *lx_config_json(const lx_config_t *cfg);
 bool lx_uuid_valid(const char *uuid);
 void lx_uuid_string(const uint8_t *raw, char out[LX_UUID_LEN]);
 /* Teljes Loxone alkalmazásüzenet; a WS-fragmentációt a transzport állítja össze. */
-bool lx_values_update(lx_values_t *values, const lx_config_t *cfg, int type,
-                      const uint8_t *data, size_t length);
+bool lx_values_update(
+    lx_values_t *values, const lx_config_t *cfg, int type, const uint8_t *data, size_t length);
 cJSON *lx_values_payload(const lx_values_t *values, const lx_config_t *cfg);
 /* Korlátos, lapos katalógus. UUID, név, helyiség, kategória, típus, állapot. */
 cJSON *lx_catalog_parse(const char *json, size_t length);
 
 /* Előzetes megújítás: fél hátralévő élettartam, legfeljebb egy óra. */
-int64_t lx_token_refresh_delay_us(int64_t valid_until,int64_t now_epoch);
+int64_t lx_token_refresh_delay_us(int64_t valid_until, int64_t now_epoch);

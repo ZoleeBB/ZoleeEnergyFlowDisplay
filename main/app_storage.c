@@ -38,8 +38,7 @@ bool app_storage_space(uint64_t *total, uint64_t *free_bytes)
 static void update_space(void)
 {
     uint64_t total = 0, available = 0;
-    if (app_storage_is_ok() &&
-        esp_vfs_fat_info(APP_SD_MOUNT_POINT, &total, &available) != ESP_OK)
+    if (app_storage_is_ok() && esp_vfs_fat_info(APP_SD_MOUNT_POINT, &total, &available) != ESP_OK)
         total = available = 0;
 
     portENTER_CRITICAL(&s_space_lock);
@@ -77,11 +76,9 @@ esp_err_t app_storage_boot_mount(void)
     esp_err_t error = bsp_sdcard_mount();
     atomic_store(&s_ok, error == ESP_OK);
     app_state_set_sd_ok(error == ESP_OK);
-    app_events_add(
-        error == ESP_OK ? APP_EVENT_INFO : APP_EVENT_ERROR,
-        error == ESP_OK ?
-            "SD-kártya csatlakoztatva." :
-            "SD-kártya csatlakoztatási hiba.");
+    app_events_add(error == ESP_OK ? APP_EVENT_INFO : APP_EVENT_ERROR,
+                   error == ESP_OK ? "SD-kártya csatlakoztatva."
+                                   : "SD-kártya csatlakoztatási hiba.");
     return error;
 }
 
@@ -108,28 +105,35 @@ static void recovery_task(void *arg)
     (void)arg;
     int64_t next_recovery = 0, next_space = 0;
 
-    while (true) {
-        if (app_storage_lock() == ESP_OK) {
+    while (true)
+    {
+        if (app_storage_lock() == ESP_OK)
+        {
             int64_t now = esp_timer_get_time();
-            if (app_storage_is_ok()) {
-                if (!bsp_sdcard || sdmmc_get_status(bsp_sdcard) != ESP_OK) {
+            if (app_storage_is_ok())
+            {
+                if (!bsp_sdcard || sdmmc_get_status(bsp_sdcard) != ESP_OK)
+                {
                     app_storage_mark_fault("SD_STATUS");
                     next_recovery = now + 60000000LL;
                 }
-            } else if (now >= next_recovery) {
+            }
+            else if (now >= next_recovery)
+            {
                 (void)bsp_sdcard_unmount();
                 esp_err_t error = bsp_sdcard_mount();
                 next_recovery = now + 60000000LL;
 
-                if (error == ESP_OK &&
-                    bsp_sdcard && sdmmc_get_status(bsp_sdcard) == ESP_OK) {
+                if (error == ESP_OK && bsp_sdcard && sdmmc_get_status(bsp_sdcard) == ESP_OK)
+                {
                     atomic_store(&s_ok, true);
                     app_state_set_sd_ok(true);
                     app_events_add(APP_EVENT_INFO, "SD-kártya kapcsolat helyreállt.");
                 }
             }
 
-            if (now >= next_space) {
+            if (now >= next_space)
+            {
                 update_space();
                 next_space = now + 60000000LL;
             }

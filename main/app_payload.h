@@ -10,8 +10,4 @@
  * Hiba esetén az error puffer emberileg olvasható magyar leírást kap.
  */
 esp_err_t app_payload_parse(
-    const char *json,
-    size_t len,
-    app_energy_sample_t *out,
-    char *error,
-    size_t error_len);
+    const char *json, size_t len, app_energy_sample_t *out, char *error, size_t error_len);
