@@ -23,6 +23,7 @@
 #include "app_config.h"
 #include "app_events.h"
 #include "app_mqtt.h"
+#include "app_loxone.h"
 #include "app_ingest.h"
 #include "app_ota.h"
 #include "app_state.h"
@@ -288,6 +289,8 @@ void app_main(void)
      * a működő adatfogadó nélkül nem léphetünk tovább.
      */
     if (s_config.data_recept_mode == APP_DATA_HTTP) app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    if (s_config.data_recept_mode == APP_DATA_LOXONE && app_loxone_start() != ESP_OK)
+        fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
     err = app_web_start(&s_config);
     if (err != ESP_OK) {
         app_events_add(
@@ -295,7 +298,7 @@ void app_main(void)
             "Web/OTA felület nem indult el: %s",
             esp_err_to_name(err));
         ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
-        if (s_config.data_recept_mode == APP_DATA_HTTP)
+        if (s_config.data_recept_mode != APP_DATA_MQTT)
             fatal_forever(cfg_tr("HTTP inicializálási hiba", "HTTP initialization error"), esp_err_to_name(err));
     }
 

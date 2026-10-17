@@ -315,9 +315,10 @@ static bool parse_config(
 {
     char mode[8] = "mqtt";
     if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
-    if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
+    if (strcasecmp(mode, "loxone") == 0) cfg->data_recept_mode = APP_DATA_LOXONE;
+    else if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
     else if (strcasecmp(mode, "mqtt") != 0) {
-        set_error(error, error_len, "A DataReceptMode csak 'mqtt' vagy 'http' lehet.");
+        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http' vagy 'loxone' lehet.");
         return false;
     }
     /* Csak az aktív adatfogadási mód beállításait ellenőrizzük. */

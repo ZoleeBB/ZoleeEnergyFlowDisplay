@@ -57,7 +57,7 @@ typedef struct {
     uint32_t background_retry_minutes;
 } app_time_config_t;
 
-typedef enum { APP_DATA_MQTT = 0, APP_DATA_HTTP = 1 } app_data_mode_t;
+typedef enum { APP_DATA_MQTT = 0, APP_DATA_HTTP = 1, APP_DATA_LOXONE = 2 } app_data_mode_t;
 typedef struct { uint32_t data_timeout_seconds; } app_http_config_t;
 
 /* MQTT broker és adat-timeout beállítások. */
@@ -126,5 +126,5 @@ esp_err_t app_config_load_file(
 
 static inline uint32_t app_config_data_timeout(const app_config_t *cfg)
 {
-    return cfg->data_recept_mode == APP_DATA_HTTP ? cfg->http.data_timeout_seconds : cfg->mqtt.data_timeout_seconds;
+    return cfg->data_recept_mode == APP_DATA_LOXONE ? 45 : cfg->data_recept_mode == APP_DATA_HTTP ? cfg->http.data_timeout_seconds : cfg->mqtt.data_timeout_seconds;
 }

@@ -12,7 +12,7 @@ on:
         type: string
         required: true
   push:
-    branches: [ main ]
+    branches: [ main, feature/loxone-direct ]
   pull_request:
     branches: [ main ]
 
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
-      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
-      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
       - uses: actions/checkout@v4
         with:
           repository: lvgl/lvgl

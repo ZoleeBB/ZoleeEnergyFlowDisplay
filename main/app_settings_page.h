@@ -40,7 +40,7 @@ static const char app_settings_page[] =
 "  else if(type==='integer'||type==='number'){input.type='number';input.step=type==='integer'?'1':'any';}\n"
 "  else if(type==='secret'){input.type='password';input.autocomplete='new-password';input.placeholder='Változatlan jelszó';}\n"
 "  else if(input.tagName==='INPUT')input.type='text';\n"
-"  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){\n"
+"  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){\n"
 "   const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);\n"
 "  }\n"
 "  label.append(input);\n"
@@ -68,5 +68,6 @@ static const char app_settings_page[] =
 " if(!result.restart){fill();save.disabled=false;}\n"
 " }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}\n"
 "});\n"
-"load();\n"
+"async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.textContent='Loxone beállítások';document.body.prepend(a);}}catch{}}\n"
+"loxoneLink();load();\n"
 "</script></body></html>\n";

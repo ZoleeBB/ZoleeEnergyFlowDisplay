@@ -11,3 +11,11 @@ A beágyazott betűkészletek mind használatban vannak. A Noto Sans és DejaVu 
 A webes sablonkezelő HTML/JS forrása és a belőle generált `main/app_template_page.h` együtt szükséges. Módosítás után az erre szolgáló generátort futtasd.
 
 ![Sablonok és időjárási ikonok](previews/template-icons.png)
+
+## Loxone kapcsolat képernyő
+
+A `main/app_loxone_logo.h` PNG-adatfolyama a Loxone saját
+[LxCommunicator.NET](https://github.com/Loxone/LxCommunicator.NET/blob/master/Logo.png)
+MIT-licencű példatárának változatlan `Logo.png` képe. A márkajelzés kizárólag
+az adatkapcsolat megjelölésére szolgál. A Loxone név és logó a jogosult tulajdona.
+A példatár licencét a `main/licenses/Loxone-LxCommunicator-MIT.txt` őrzi.

@@ -1040,5 +1040,19 @@ int main(void)
         save_frame(night?"builtin-dark":"builtin-light");
     }
     clear();
+    memset(&template_pending,0,sizeof(template_pending));memset(&template_view,0,sizeof(template_view));
+    config.data_recept_mode=APP_DATA_LOXONE;config.mqtt.data_timeout_seconds=180;app_ui_set_config(&config);
+    rt=(app_runtime_state_t){.data_recept_mode=APP_DATA_LOXONE,.wifi_connected=true};
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_SETUP);save_frame("loxone-setup-hu");
+    rt.loxone_configured=true;
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_WAIT);save_frame("loxone-connecting-hu");
+    rt.loxone_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    rt.loxone_connected=false;rt.has_valid_sample=false;
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_ERROR);save_frame("loxone-disconnected-hu");
+    rt.loxone_connected=true;rt.has_valid_sample=true;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    puts("PASS: Loxone setup, initial connection, lost connection and automatic dashboard recovery");
+    clear();
     lv_display_delete(display);lv_deinit();return 0;
 }

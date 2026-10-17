@@ -35,3 +35,7 @@ A háttérszinkron siker után a `time.resync_hours` teljes időközét várja k
 a `background_retry_minutes` csak sikertelen szinkron vagy hiányzó Wi-Fi esetén érvényes.
 Az órás időköz tickre váltása 64 bites számítást használ, így az 1000 Hz-es
 FreeRTOS mellett sem rövidül a 6 óra körülbelül 125 másodpercre.
+
+## Közvetlen Loxone mód
+
+`DataReceptMode: "loxone"` esetén a külön [Loxone beállító](loxone-direct.md) kezeli a Miniserver adatait és a párosításokat. Ezek az SD `loxone.json` fájljába kerülnek; nem kell Loxone szekciót létrehozni az alapkonfigurációban. [Példakonfiguráció](../examples/config.loxone.sample.json).

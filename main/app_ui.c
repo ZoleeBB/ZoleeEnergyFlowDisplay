@@ -114,6 +114,9 @@ typedef enum {
     VIEW_DIAGNOSTICS,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
+    VIEW_LOXONE_SETUP,
+    VIEW_LOXONE_WAIT,
+    VIEW_LOXONE_ERROR,
     VIEW_WAIT_DATA,
     VIEW_DATA_TIMEOUT,
     VIEW_FATAL
@@ -1740,7 +1743,7 @@ void app_ui_show_boot(
         "Konfiguráció",
         "Wi-Fi kapcsolat",
         "Időszinkron",
-        s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP adatfogadó":"MQTT kapcsolat",
+        s_cfg.data_recept_mode==APP_DATA_LOXONE?"Loxone kapcsolat":s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP adatfogadó":"MQTT kapcsolat",
         "Várakozás az első adatcsomagra"
     };
 
@@ -1749,7 +1752,7 @@ void app_ui_show_boot(
         "Configuration",
         "Wi-Fi connection",
         "Time synchronization",
-        s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP receiver":"MQTT connection",
+        s_cfg.data_recept_mode==APP_DATA_LOXONE?"Loxone connection":s_cfg.data_recept_mode==APP_DATA_HTTP?"HTTP receiver":"MQTT connection",
         "Waiting for first data packet"
     };
 
@@ -1843,8 +1846,46 @@ void app_ui_show_fatal(const char *title,const char *detail){if(bsp_display_lock
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
 #include "app_template_ui.inc"
+#include "app_loxone_logo.h"
+/* Saját Loxone képernyők: a témákhoz nem foglalunk új képcache-t. */
+static void loxone_screen(runtime_view_t view)
+{
+    if(s_view==view)return;
+    clear();
+    screen_style(s_screen,true);
+    lv_obj_set_style_bg_color(s_screen,c(0x000000),0);
+    lv_obj_t *logo=lv_image_create(s_screen);
+    lv_image_set_src(logo,&loxone_logo);
+    lv_obj_set_pos(logo,(W-167)/2,140);
+    const char *title=view==VIEW_LOXONE_SETUP?
+        tr("Loxone beállítás szükséges","Loxone setup required"):
+        view==VIEW_LOXONE_WAIT?tr("Kapcsolódás a Miniserverhez","Connecting to Miniserver"):
+        tr("Megszakadt a Loxone adatkapcsolat","Loxone connection lost");
+    lv_obj_t *label=lbl(s_screen,title,40,350,APP_FONT_28,0xFFFFFF);
+    lv_obj_set_width(label,W-80);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    label=lbl(s_screen,view==VIEW_LOXONE_SETUP?
+        tr("Végezd el a paraméterezést a webfelületen.","Complete setup in the web interface."):
+        tr("Újracsatlakozás a háttérben. A részletek a webfelületen láthatók.","Reconnecting in the background. See the web interface for details."),
+        40,410,APP_FONT_18,0xB9C6BE);
+    lv_obj_set_width(label,W-80);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    /* A diagnosztika már szálbiztosan tartalmazza az aktuális IP-címet. */
+    app_diagnostics_t diagnostic;app_diagnostics_capture(&diagnostic);
+    const char *s_loxone_ip=diagnostic.ip;
+    char address[128];snprintf(address,sizeof(address),"http://%s/loxone",s_loxone_ip[0]&&strcmp(s_loxone_ip,"-")!=0?s_loxone_ip:"zolee-energy-flow-display.local");
+    label=lbl(s_screen,address,40,466,APP_FONT_18,0x80C64A);
+    lv_obj_set_width(label,W-80);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    s_view=view;
+}
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    static bool had_loxone_connection;
+    if(s_cfg.data_recept_mode==APP_DATA_LOXONE&&rt.loxone_connected&&have)had_loxone_connection=true;
+    if(s_cfg.data_recept_mode==APP_DATA_LOXONE &&
+       (!rt.loxone_configured||!rt.loxone_connected||!have||app_state_data_timed_out(&rt,now,app_config_data_timeout(&s_cfg)))) {
+        loxone_screen(!rt.loxone_configured?VIEW_LOXONE_SETUP:
+            had_loxone_connection?VIEW_LOXONE_ERROR:VIEW_LOXONE_WAIT);
+        return;
+    }
     template_apply();
     if(s_view==VIEW_THEME_LOADING && template_pending.generation==template_view.generation)return;
     if(s_diagnostics_requested){
@@ -1860,7 +1901,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
             tr("Nincs Wi-Fi kapcsolat","No Wi-Fi connection"),
             tr("Kapcsolat helyreállítására várunk...","Waiting for connection to recover..."),
             false);
-    }else if(!http&&!rt.mqtt_connected){
+    }else if(s_cfg.data_recept_mode==APP_DATA_MQTT&&!rt.mqtt_connected){
         error_screen(
             VIEW_MQTT_ERROR,
             tr("Nincs MQTT kapcsolat","No MQTT connection"),

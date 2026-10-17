@@ -144,3 +144,20 @@ void app_state_set_http_ready(bool ready)
     s_runtime.http_ready = ready;
     unlock();
 }
+
+/* A korábbi mérés nem használható egy új Loxone munkamenetben. */
+void app_state_clear_sample(void)
+{
+    lock();
+    s_runtime.has_valid_sample = false;
+    unlock();
+}
+void app_state_set_loxone(bool configured, bool connected)
+{
+    lock();
+    if (connected && !s_runtime.loxone_connected)
+        s_runtime.loxone_connected_monotonic_us = esp_timer_get_time();
+    s_runtime.loxone_configured = configured;
+    s_runtime.loxone_connected = connected;
+    unlock();
+}

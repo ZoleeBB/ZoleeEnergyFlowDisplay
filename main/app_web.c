@@ -12,6 +12,7 @@
  */
 #include "app_web.h"
 #include "app_http.h"
+#include "app_loxone.h"
 #include "app_templates.h"
 #include "app_diagnostics.h"
 
@@ -368,6 +369,8 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<a href='/update'>Firmware update</a>"
         "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
         "</nav>",HTTPD_RESP_USE_STRLEN);
+    if(s_config.data_recept_mode==APP_DATA_LOXONE)
+        httpd_resp_send_chunk(req,"<p><a href='/loxone'>Loxone beállítások</a></p>",HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
     httpd_resp_send_chunk(
@@ -399,7 +402,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr>",
         runtime.wifi_connected ? rssi : 0);
 
-    const char *mode = runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    const char *mode = runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
     sendf(req, "<tr><td>%s</td><td>%s</td></tr>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
     sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", mode,
         s_hu ? "adatfogadó" : "receiver",
@@ -797,7 +800,7 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
     cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
     cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
-    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
     cJSON_AddBoolToObject(o,"data_ready",app_state_data_ready(&d.runtime));
     cJSON_AddBoolToObject(o,"mqtt_connected",d.runtime.mqtt_connected);
     cJSON_AddBoolToObject(o,"sd_ok",d.runtime.sd_ok);cJSON_AddBoolToObject(o,"time_synced",d.runtime.time_synced);
@@ -826,6 +829,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
 #include "app_template_web.inc"
 #include "app_settings_web.inc"
+#include "app_loxone_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -870,7 +874,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 24;
+    http_cfg.max_uri_handlers = 32;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -931,11 +935,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
     if ((err = settings_register(s_server)) != ESP_OK) goto failed;
+    if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get}};
     for(unsigned i=0;i<2;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
-    app_state_set_http_ready(cfg->data_recept_mode == APP_DATA_HTTP);
+    app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(
         APP_EVENT_INFO,

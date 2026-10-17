@@ -1,0 +1,401 @@
+/* Korlátos, egy kapcsolatos Loxone kliens. A UI és HTTP feladat nem vár hálózatra. */
+#include "app_loxone.h"
+#include "app_loxone_model.h"
+#include "app_loxone_store.h"
+#include "app_ingest.h"
+#include "app_state.h"
+#include "app_stats.h"
+#include "app_wifi.h"
+#include "esp_websocket_client.h"
+#include "esp_random.h"
+#include "esp_http_client.h"
+#include "esp_mac.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "mbedtls/aes.h"
+#include "mbedtls/base64.h"
+#include "mbedtls/md.h"
+#include "mbedtls/pk.h"
+#include "mbedtls/platform_util.h"
+#include <math.h>
+#include <stdatomic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define LX_TIMEOUT_MS 12000
+#define LX_QUEUE_DEPTH 8
+#define LX_KEEPALIVE_US 15000000LL
+#define LX_MAX_RX (LX_STRUCTURE_MAX + 1024U)
+typedef struct { int type; size_t length; unsigned char *data; } message_t;
+typedef struct { lx_config_t config; bool save; } request_t;
+static SemaphoreHandle_t s_lock;
+static QueueHandle_t s_messages,s_requests;
+static lx_config_t s_saved;
+static cJSON *s_catalog;
+static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
+static bool s_busy,s_password;
+static esp_websocket_client_handle_t s_ws;
+/* A fogadópuffert kizárólag a websocket feladat éri el, destroy után a worker szabadítja. */
+static unsigned char *s_rx;
+static size_t s_rx_len,s_rx_cap;
+static bool s_rx_bad;
+static int s_message_type=-1;
+static atomic_bool s_dead;
+static unsigned char s_aes_key[32],s_iv[16];
+static char s_salt[17];
+static char *s_public_key;
+static lx_values_t s_values;
+static const lx_config_t *s_session_config;
+static int64_t s_last_response;
+
+static void status(const char *message)
+{
+    xSemaphoreTake(s_lock,portMAX_DELAY);snprintf(s_status,sizeof(s_status),"%s",message);xSemaphoreGive(s_lock);
+}
+static const char *string(const cJSON *o,const char *k)
+{const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,k);return cJSON_IsString(v)?v->valuestring:"";}
+static void hex(const unsigned char *in,size_t n,char *out)
+{static const char h[]="0123456789abcdef";for(size_t i=0;i<n;i++){out[2*i]=h[in[i]>>4];out[2*i+1]=h[in[i]&15];}out[2*n]=0;}
+static bool unhex(const char *in,unsigned char *out,size_t max,size_t *n)
+{
+    size_t len=strlen(in);if(!len||len%2||len/2>max)return false;
+    for(size_t i=0;i<len;i++)if(!strchr("0123456789abcdefABCDEF",in[i]))return false;
+    for(size_t i=0;i<len/2;i++){unsigned v;if(sscanf(in+2*i,"%2x",&v)!=1)return false;out[i]=v;}
+    *n=len/2;return true;
+}
+static char *urlencode(const char *in)
+{
+    size_t n=strlen(in);char *out=malloc(n*3+1);if(!out)return NULL;
+    char *p=out;for(size_t i=0;i<n;i++) {
+        unsigned char c=in[i];
+        if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||strchr("-_.~",c))*p++=c;
+        else {snprintf(p,4,"%%%02X",c);p+=3;}
+    }*p=0;return out;
+}
+static void free_message(message_t *m){free(m->data);m->data=NULL;}
+static void receive_event(void *arg,esp_event_base_t base,int32_t event,void *data)
+{
+    (void)arg;(void)base;
+    if(event==WEBSOCKET_EVENT_DISCONNECTED||event==WEBSOCKET_EVENT_ERROR){s_dead=true;return;}
+    if(event!=WEBSOCKET_EVENT_DATA||s_dead)return;
+    esp_websocket_event_data_t *e=data;
+    if(e->op_code==8){s_dead=true;return;}
+    if(e->op_code!=0&&e->op_code!=1&&e->op_code!=2)return;
+    if(e->data_len<0||e->payload_offset<0||e->payload_len<0){s_dead=true;return;}
+    if(e->payload_offset==0&&e->op_code!=0) {s_rx_len=0;s_rx_bad=false;}
+    if((size_t)e->data_len>LX_MAX_RX-s_rx_len){s_rx_bad=true;s_dead=true;return;}
+    size_t need=s_rx_len+e->data_len+1;
+    if(need>s_rx_cap) {
+        size_t cap=s_rx_cap?s_rx_cap:4096;
+        while(cap<need){if(cap>(LX_MAX_RX+1)/2){cap=LX_MAX_RX+1;break;}cap*=2;}
+        unsigned char *next=realloc(s_rx,cap);
+        if(!next){s_rx_bad=true;s_dead=true;return;}
+        s_rx=next;s_rx_cap=cap;
+    }
+    memcpy(s_rx+s_rx_len,e->data_ptr,e->data_len);s_rx_len+=e->data_len;s_rx[s_rx_len]=0;
+    if(e->payload_offset+e->data_len!=e->payload_len||!e->fin)return;
+    if(s_rx_bad)return;
+    /* A Loxone fejléc önálló WS-üzenet, az utána következő payload külön üzenet. */
+    if(s_message_type<0) {
+        if(s_rx_len!=8||s_rx[0]!=3){s_dead=true;return;}
+        unsigned declared=(unsigned)s_rx[4]|(unsigned)s_rx[5]<<8|(unsigned)s_rx[6]<<16|(unsigned)s_rx[7]<<24;
+        if(declared>LX_MAX_RX){s_dead=true;return;}
+        int type=s_rx[1];
+        if(type==6) {
+            message_t m={.type=6};if(xQueueSend(s_messages,&m,0)!=pdTRUE)s_dead=true;
+        }else if(type==5) {s_dead=true;return;}
+        else s_message_type=type;
+        s_rx_len=0;return;
+    }
+    message_t m={.type=s_message_type,.length=s_rx_len,.data=s_rx};s_message_type=-1;
+    s_rx=NULL;s_rx_len=0;s_rx_cap=0;
+    if(xQueueSend(s_messages,&m,0)!=pdTRUE){free_message(&m);s_dead=true;}
+}
+static bool send_plain(const char *command)
+{return !s_dead&&esp_websocket_client_send_text(s_ws,command,strlen(command),pdMS_TO_TICKS(LX_TIMEOUT_MS))>=0;}
+static bool send_encrypted(const char *command)
+{
+    unsigned char salt[8],iv[16];char sh[17];esp_fill_random(salt,sizeof(salt));hex(salt,sizeof(salt),sh);
+    size_t n=strlen(command)+strlen(sh)+strlen(s_salt)+16,padded=(n+15)&~(size_t)15;
+    unsigned char *input=calloc(1,padded+1),*cipher=malloc(padded),*base=malloc(padded*2+8);
+    if(!input||!cipher||!base){free(input);free(cipher);free(base);return false;}
+    int actual=s_salt[0]?snprintf((char*)input,padded+1,"nextSalt/%s/%s/%s",s_salt,sh,command):
+        snprintf((char*)input,padded+1,"salt/%s/%s",sh,command);
+    bool ok=actual>0&&(size_t)actual<=padded;size_t b64=0;mbedtls_aes_context aes;mbedtls_aes_init(&aes);
+    memcpy(iv,s_iv,sizeof(iv));
+    if(ok)ok=mbedtls_aes_setkey_enc(&aes,s_aes_key,256)==0&&
+        mbedtls_aes_crypt_cbc(&aes,MBEDTLS_AES_ENCRYPT,padded,iv,input,cipher)==0&&
+        mbedtls_base64_encode(base,padded*2+8,&b64,cipher,padded)==0;
+    char *escaped=NULL,*wrapped=NULL;
+    if(ok){base[b64]=0;escaped=urlencode((char*)base);if(escaped){wrapped=malloc(strlen(escaped)+16);if(wrapped)sprintf(wrapped,"jdev/sys/enc/%s",escaped);}ok=wrapped&&send_plain(wrapped);}
+    if(ok)snprintf(s_salt,sizeof(s_salt),"%s",sh);
+    mbedtls_aes_free(&aes);mbedtls_platform_zeroize(input,padded);free(input);free(cipher);free(base);free(escaped);free(wrapped);return ok;
+}
+static cJSON *reply(const char *command,bool encrypt)
+{
+    if(!(encrypt?send_encrypted(command):send_plain(command)))return NULL;
+    int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
+    while(!s_dead&&esp_timer_get_time()<deadline) {
+        message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
+        if(m.type!=0){if(s_session_config&&!lx_values_update(&s_values,s_session_config,m.type,m.data,m.length))s_dead=true;free_message(&m);continue;}
+        cJSON *root=cJSON_ParseWithLength((char*)m.data,m.length);free_message(&m);
+        cJSON *ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
+        cJSON *code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
+        if(!code)code=cJSON_GetObjectItemCaseSensitive(ll,"code");
+        bool ok=(cJSON_IsNumber(code)&&code->valueint==200)||(cJSON_IsString(code)&&strcmp(code->valuestring,"200")==0);
+        cJSON *value=ok?cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(ll,"value"),true):NULL;
+        cJSON_Delete(root);return value;
+    }return NULL;
+}
+static int rng(void *ctx,unsigned char *out,size_t len){(void)ctx;esp_fill_random(out,len);return 0;}
+static bool key_exchange(void)
+{
+    if(!s_public_key)return false;
+    /* Loxone egyes verziói SPKI kulcsot CERTIFICATE fejléccel küldenek. */
+    const char *body=strstr(s_public_key,"-----BEGIN CERTIFICATE-----");
+    char *pem=NULL;
+    if(body) {
+        body+=27;const char *end=strstr(body,"-----END CERTIFICATE-----");
+        if(end){size_t n=end-body;pem=malloc(n+64);if(pem)snprintf(pem,n+64,"-----BEGIN PUBLIC KEY-----\n%.*s\n-----END PUBLIC KEY-----\n",(int)n,body);}
+    }else pem=strdup(s_public_key);
+    if(!pem)return false;
+    mbedtls_pk_context pk;mbedtls_pk_init(&pk);
+    bool ok=mbedtls_pk_parse_public_key(&pk,(unsigned char*)pem,strlen(pem)+1)==0;free(pem);
+    unsigned char encrypted[512],base[704];char key[65],iv[33],plain[100];size_t n=0,b64=0;
+    esp_fill_random(s_aes_key,sizeof(s_aes_key));esp_fill_random(s_iv,sizeof(s_iv));hex(s_aes_key,32,key);hex(s_iv,16,iv);
+    snprintf(plain,sizeof(plain),"%s:%s",key,iv);
+    if(ok)ok=mbedtls_pk_encrypt(&pk,(unsigned char*)plain,strlen(plain),encrypted,&n,sizeof(encrypted),rng,NULL)==0;
+    mbedtls_pk_free(&pk);mbedtls_platform_zeroize(plain,sizeof(plain));mbedtls_platform_zeroize(key,sizeof(key));
+    if(ok)ok=mbedtls_base64_encode(base,sizeof(base)-1,&b64,encrypted,n)==0;
+    if(!ok)return false;
+    base[b64]=0;char *encoded=urlencode((char*)base);if(!encoded)return false;
+    char command[2200];snprintf(command,sizeof(command),"jdev/sys/keyexchange/%s",encoded);free(encoded);
+    cJSON *value=reply(command,false);ok=value!=NULL;cJSON_Delete(value);return ok;
+}
+static bool hash_hmac(const cJSON *key,const char *input,char out[65])
+{
+    const char *algorithm=string(key,"hashAlg");
+    mbedtls_md_type_t type=strcmp(algorithm,"SHA256")==0?MBEDTLS_MD_SHA256:strcmp(algorithm,"SHA1")==0?MBEDTLS_MD_SHA1:MBEDTLS_MD_NONE;
+    const mbedtls_md_info_t *md=mbedtls_md_info_from_type(type);if(!md)return false;
+    unsigned char k[64],digest[32];size_t n;
+    if(!unhex(string(key,"key"),k,sizeof(k),&n))return false;
+    bool ok=mbedtls_md_hmac(md,k,n,(unsigned char*)input,strlen(input),digest)==0;
+    if(ok)hex(digest,mbedtls_md_get_size(md),out);
+    mbedtls_platform_zeroize(k,sizeof(k));return ok;
+}
+static bool acquire_token(const lx_config_t *cfg,char *token,size_t token_size)
+{
+    char *user=urlencode(cfg->username);if(!user)return false;
+    char command[1536];snprintf(command,sizeof(command),"jdev/sys/getkey2/%s",user);
+    cJSON *key=reply(command,false);if(!key){free(user);return false;}
+    const char *algorithm=string(key,"hashAlg");
+    const mbedtls_md_info_t *md=mbedtls_md_info_from_type(strcmp(algorithm,"SHA256")==0?MBEDTLS_MD_SHA256:strcmp(algorithm,"SHA1")==0?MBEDTLS_MD_SHA1:MBEDTLS_MD_NONE);
+    char salted[512],password_hash[65],input[256],hmac[65];unsigned char digest[32];
+    int n=snprintf(salted,sizeof(salted),"%s:%s",cfg->password,string(key,"salt"));
+    bool ok=md&&n>0&&n<(int)sizeof(salted)&&mbedtls_md(md,(unsigned char*)salted,n,digest)==0;
+    if(ok) {
+        hex(digest,mbedtls_md_get_size(md),password_hash);
+        for(char *p=password_hash;*p;p++)if(*p>='a'&&*p<='f')*p-=32;
+        snprintf(input,sizeof(input),"%s:%s",cfg->username,password_hash);ok=hash_hmac(key,input,hmac);
+    }
+    cJSON_Delete(key);mbedtls_platform_zeroize(salted,sizeof(salted));mbedtls_platform_zeroize(password_hash,sizeof(password_hash));mbedtls_platform_zeroize(input,sizeof(input));
+    if(ok) {
+        unsigned char mac[6];if(esp_efuse_mac_get_default(mac)!=ESP_OK){free(user);return false;}
+        snprintf(command,sizeof(command),"jdev/sys/getjwt/%s/%s/4/7f30a221-5e2d-4100-918a%02x%02x%02x%02x%02x%02x/ZoleeEnergyDisplay",hmac,user,
+            mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+        cJSON *v=reply(command,true);const char *t=string(v,"token");
+        ok=*t&&strlen(t)<token_size;if(ok)snprintf(token,token_size,"%s",t);cJSON_Delete(v);
+    }free(user);return ok;
+}
+static bool token_command(const lx_config_t *cfg,char *token,const char *operation)
+{
+    cJSON *key=reply("jdev/sys/getkey",false);char hmac[65];
+    /* getkey régebbi firmware esetén egyszerű hex string, SHA1 alapú. */
+    if(cJSON_IsString(key)) {cJSON *o=cJSON_CreateObject();cJSON_AddStringToObject(o,"key",key->valuestring);cJSON_AddStringToObject(o,"hashAlg","SHA1");cJSON_Delete(key);key=o;}
+    bool ok=key&&hash_hmac(key,token,hmac);cJSON_Delete(key);if(!ok)return false;
+    char *user=urlencode(cfg->username);if(!user)return false;
+    char cmd[768];snprintf(cmd,sizeof(cmd),"%s%s/%s/%s",strcmp(operation,"authwithtoken")==0?"":"jdev/sys/",operation,hmac,user);free(user);
+    cJSON *v=reply(cmd,true);ok=v!=NULL;
+    if(ok&&strcmp(operation,"refreshjwt")==0){const char *t=string(v,"token");ok=*t&&strlen(t)<1024;if(ok)snprintf(token,1024,"%s",t);}
+    cJSON_Delete(v);return ok;
+}
+static bool download_catalog(void)
+{
+    if(!send_plain("data/LoxAPP3.json"))return false;
+    int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
+    while(!s_dead&&esp_timer_get_time()<deadline) {
+        message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
+        cJSON *catalog=m.type==0?lx_catalog_parse((char*)m.data,m.length):NULL;free_message(&m);
+        if(!catalog)continue;
+        xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;xSemaphoreGive(s_lock);return true;
+    }return false;
+}
+static void close_connection(void)
+{
+    if(s_ws){esp_websocket_client_stop(s_ws);esp_websocket_client_destroy(s_ws);s_ws=NULL;}
+    free(s_public_key);s_public_key=NULL;s_salt[0]=0;
+    free(s_rx);s_rx=NULL;s_rx_len=s_rx_cap=0;s_message_type=-1;
+    message_t m;while(xQueueReceive(s_messages,&m,0)==pdTRUE)free_message(&m);
+    mbedtls_platform_zeroize(s_aes_key,sizeof(s_aes_key));mbedtls_platform_zeroize(s_iv,sizeof(s_iv));
+}
+/* A nyilvános kulcsot még a rövid WS hitelesítési határidő ELŐTT kérjük le. */
+static bool fetch_public_key(const lx_config_t *cfg)
+{
+    char url[192];snprintf(url,sizeof(url),"%s://%s:%u/jdev/sys/getPublicKey",cfg->tls?"https":"http",cfg->host,(unsigned)cfg->port);
+    esp_http_client_config_t options={.url=url,.timeout_ms=LX_TIMEOUT_MS,
+        .cert_pem=cfg->tls?cfg->ca_pem:NULL,.disable_auto_redirect=true};
+    esp_http_client_handle_t http=esp_http_client_init(&options);if(!http)return false;
+    char *body=calloc(1,8193);bool ok=body&&esp_http_client_open(http,0)==ESP_OK;size_t used=0;
+    if(ok){(void)esp_http_client_fetch_headers(http);ok=esp_http_client_get_status_code(http)==200;}
+    while(ok&&used<8192) {
+        int n=esp_http_client_read(http,body+used,8192-used);
+        if(n<0){ok=false;break;}if(n==0)break;used+=n;
+    }
+    if(used==8192||!esp_http_client_is_complete_data_received(http))ok=false;
+    esp_http_client_close(http);esp_http_client_cleanup(http);
+    cJSON *root=ok?cJSON_Parse(body):NULL;free(body);
+    const char *key=string(cJSON_GetObjectItemCaseSensitive(root,"LL"),"value");
+    s_public_key=*key?strdup(key):NULL;cJSON_Delete(root);return s_public_key!=NULL;
+}
+static bool connect_server(const lx_config_t *cfg)
+{
+    if(!fetch_public_key(cfg))return false;
+    char uri[192];snprintf(uri,sizeof(uri),"%s://%s:%u/ws/rfc6455",cfg->tls?"wss":"ws",cfg->host,(unsigned)cfg->port);
+    esp_websocket_client_config_t ws={.uri=uri,.subprotocol="remotecontrol",.disable_auto_reconnect=true,
+        .buffer_size=2048,.task_stack=6144,.network_timeout_ms=LX_TIMEOUT_MS,
+        .cert_pem=cfg->tls?cfg->ca_pem:NULL};
+    s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return false;
+    if(esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,receive_event,NULL)!=ESP_OK||esp_websocket_client_start(s_ws)!=ESP_OK)return false;
+    int64_t until=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
+    while(!s_dead&&!esp_websocket_client_is_connected(s_ws)&&esp_timer_get_time()<until)vTaskDelay(pdMS_TO_TICKS(50));
+    return !s_dead&&esp_websocket_client_is_connected(s_ws)&&key_exchange();
+}
+static void invalidate(bool configured)
+{
+    app_state_set_loxone(configured,false);app_state_clear_sample();app_stats_break_continuity();
+    memset(&s_values,0,sizeof(s_values));
+}
+static bool configured(const lx_config_t *cfg)
+{
+    if(!cfg->host[0]||!cfg->username[0]||!cfg->password[0])return false;
+    for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&!cfg->map[i].uuid[0])return false;
+    return true;
+}
+static void worker(void *arg)
+{
+    (void)arg;
+    lx_config_t *active=calloc(1,sizeof(*active));request_t *request=NULL;
+    if(!active){status("Nincs elegendő memória a Loxone klienshez.");vTaskDelete(NULL);return;}
+    char token[1024]={0};bool testing=false;unsigned failures=0;
+    for(;;) {
+        if(xQueueReceive(s_requests,&request,0)==pdTRUE) {
+            *active=request->config;testing=!request->save;
+            if(request->save) {
+                if(app_loxone_store_save(active)==ESP_OK) {
+                    xSemaphoreTake(s_lock,portMAX_DELAY);s_saved=*active;s_password=true;xSemaphoreGive(s_lock);
+                    status("Beállítások elmentve. Kapcsolódás...");
+                }else {status("Az SD-mentés sikertelen. A korábbi beállítások maradtak érvényben.");*active=s_saved;}
+            }
+            mbedtls_platform_zeroize(request,sizeof(*request));free(request);request=NULL;
+            mbedtls_platform_zeroize(token,sizeof(token));failures=0;
+        }else if(!testing)*active=s_saved;
+        bool ready=configured(active);invalidate(ready);
+        if((!ready&&!testing)||!app_wifi_is_connected()) {
+            xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+            vTaskDelay(pdMS_TO_TICKS(500));continue;
+        }
+        s_session_config=active;
+        if(!connect_server(active)) {status("A Miniserver nem érhető el, vagy a biztonságos kapcsolat nem épült fel.");goto retry;}
+        status("Loxone bejelentkezés...");
+        if(token[0]&&!token_command(active,token,"authwithtoken"))token[0]=0;
+        if(!token[0]&&!acquire_token(active,token,sizeof(token))) {status("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
+        if(!download_catalog()) {status("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
+        if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
+        cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
+        if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
+        xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+        app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
+        s_last_response=esp_timer_get_time();int64_t heartbeat=s_last_response,last_sample=0,refresh=s_last_response;
+        failures=0;
+        while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0) {
+            message_t m;int64_t now=esp_timer_get_time();
+            if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))==pdTRUE) {
+                s_last_response=now;
+                if(!lx_values_update(&s_values,active,m.type,m.data,m.length))s_dead=true;
+                free_message(&m);
+            }
+            if(now-heartbeat>=LX_KEEPALIVE_US){if(!send_plain("keepalive"))break;heartbeat=now;}
+            if(now-s_last_response>=LX_KEEPALIVE_US*3)break;
+            if(now-refresh>=3600000000LL) {
+                /* A válaszban kapott új JWT lesz a következő kapcsolódás hitelesítője. */
+                if(!token_command(active,token,"refreshjwt"))break;
+                refresh=now;
+            }
+            if(now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
+                cJSON *payload=lx_values_payload(&s_values,active);
+                char *json=payload?cJSON_PrintUnformatted(payload):NULL;cJSON_Delete(payload);
+                if(json) {char error[192];
+                    if(app_ingest_process(APP_DATA_LOXONE,json,strlen(json),error,sizeof(error))==ESP_OK)
+                        status("Loxone adatkapcsolat működik.");
+                    else {app_state_clear_sample();app_stats_break_continuity();status("A párosított érték érvénytelen. Ellenőrizd a mértékegységet és az átalakítást.");}
+                    free(json);
+                }
+                last_sample=now;
+            }
+        }
+        status("Megszakadt a Loxone adatkapcsolat. Újracsatlakozás...");
+retry:
+        xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+        invalidate(configured(&s_saved));close_connection();
+        if(testing){testing=false;token[0]=0;}
+        if(uxQueueMessagesWaiting(s_requests))continue;
+        /* 2, 4, 8, 16, majd legfeljebb 30 s. Új beállítás azonnal megszakítja. */
+        if(failures<5)failures++;
+        unsigned delay=1U<<failures;if(delay>30)delay=30;
+        for(unsigned i=0;i<delay*10&&!uxQueueMessagesWaiting(s_requests);i++)vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+esp_err_t app_loxone_start(void)
+{
+    s_lock=xSemaphoreCreateMutex();s_messages=xQueueCreate(LX_QUEUE_DEPTH,sizeof(message_t));s_requests=xQueueCreate(1,sizeof(request_t*));
+    if(!s_lock||!s_messages||!s_requests)return ESP_ERR_NO_MEM;
+    lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
+    if(xTaskCreate(worker,"loxone",12288,NULL,3,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    return ESP_OK;
+}
+cJSON *app_loxone_web_state(void)
+{
+    if(!s_lock)return NULL;
+    xSemaphoreTake(s_lock,portMAX_DELAY);
+    cJSON *root=lx_config_json(&s_saved);
+    if(root) {
+        cJSON_AddBoolToObject(root,"has_password",s_password);cJSON_AddBoolToObject(root,"busy",s_busy);
+        cJSON_AddStringToObject(root,"status",s_status);
+        cJSON *catalog=s_catalog?cJSON_Duplicate(s_catalog,true):cJSON_CreateArray();
+        if(catalog)cJSON_AddItemToObject(root,"catalog",catalog);
+    }
+    xSemaphoreGive(s_lock);return root;
+}
+esp_err_t app_loxone_request(const cJSON *body,bool save)
+{
+    if(!s_lock)return ESP_ERR_INVALID_STATE;
+    request_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
+    bool ok=lx_config_parse(body,&r->config,save);
+    xSemaphoreTake(s_lock,portMAX_DELAY);
+    const cJSON *password=cJSON_GetObjectItemCaseSensitive(body,"password");
+    if(cJSON_IsString(password)&&password->valuestring[0]&&strlen(password->valuestring)<LX_PASSWORD_MAX)
+        snprintf(r->config.password,sizeof(r->config.password),"%s",password->valuestring);
+    else if(cJSON_IsNull(password)&&strcmp(r->config.host,s_saved.host)==0&&r->config.port==s_saved.port&&r->config.tls==s_saved.tls&&strcmp(r->config.username,s_saved.username)==0)snprintf(r->config.password,sizeof(r->config.password),"%s",s_saved.password);
+    else ok=false;
+    r->save=save;
+    if(!ok||!r->config.password[0]||s_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
+    s_busy=true;snprintf(s_status,sizeof(s_status),"%s",save?"Beállítások mentése...":"Kapcsolat tesztelése...");
+    if(xQueueSend(s_requests,&r,0)!=pdTRUE){s_busy=false;ok=false;}
+    xSemaphoreGive(s_lock);
+    if(!ok){mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_FAIL;}
+    return ESP_OK;
+}
