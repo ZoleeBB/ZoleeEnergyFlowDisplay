@@ -16,9 +16,18 @@ kínálja fel. Javasolt külön kategória és felhasználó, virtuális állapo
 
 A kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status,
 NightMode és BatteryTemperature. Az időjárási négy mező kihagyható (null),
-a SunPosition opcionális szöveg: `azimut#magasság#napkelte_perc#napnyugta_perc`.
-Virtuális analóg állapotnál `value`, digitálisnál `active`, szövegesnél `text`.
-A lista név/helyiség/kategória alapján szűrhető; a mentett kulcs az állapot UUID-ja.
+a nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (fok,
+0 ≤ érték < 360), `SunAltitude` (fok, −90…90), `Sunrise` és `Sunset`
+(egész perc éjféltől, 0…1439, napkelte < napnyugta). Például 07:00 = 420.
+Mind a négy párosítást meg kell adni, vagy mind elhagyható; a nappálya az összes
+kezdőérték beérkezése után jelenik meg. Szorzó és eltolás itt is használható.
+A régi Loxone `SunPosition` szöveges párosítás helyett ezeket újra párosítani kell;
+a többi mentett párosítás megmarad. Az MQTT/HTTP bemenet `SunPosition` szöveges
+formátuma változatlan.
+Virtuális analóg állapotnál `value`, digitálisnál `active`.
+A lista két legördülővel, helyiség és funkció (Loxone-kategória) szerint szűrhető,
+a két feltétel egyszerre érvényes. A lista neve elöl áll: `Név (Helyiség / Funkció) · állapot`.
+A korábbi párosítás szűrés közben is megmarad; a mentett kulcs az állapot UUID-ja.
 Számok átalakítása: `érték * scale + offset`. W → kW: 0.001; előjelváltás: −1;
 digitális invertálás: scale=−1, offset=1. A Status a kijelző 1–4 kódját követi.
 A hálózati és akku-előjeleket a meglévő [adatprotokoll](mqtt.md) szerint kell beállítani.

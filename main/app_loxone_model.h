@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include "cJSON.h"
 
-#define LX_FIELD_COUNT 13
+#define LX_FIELD_COUNT 16
+#define LX_SUN_FIRST 12
+#define LX_SUN_COUNT 4
 #define LX_UUID_LEN 37
 #define LX_PASSWORD_MAX 128
 #define LX_CATALOG_MAX 512
@@ -14,7 +16,6 @@ typedef struct {
     const char *name;
     bool required;
     bool digital;
-    bool text;
 } lx_field_t;
 extern const lx_field_t lx_fields[LX_FIELD_COUNT];
 typedef struct {
@@ -34,7 +35,6 @@ typedef struct {
 typedef struct {
     double value[LX_FIELD_COUNT];
     bool seen[LX_FIELD_COUNT];
-    char sun_position[128];
 } lx_values_t;
 void lx_config_defaults(lx_config_t *cfg);
 /* Csak konfigurációs adatok; a jelszó kezelése külön, eszközkulccsal történik. */

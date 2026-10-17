@@ -28,9 +28,11 @@ int main(void)
 {
     lx_config_t cfg,out;lx_config_defaults(&cfg);strcpy(cfg.host,"192.168.2.10");strcpy(cfg.username,"kijelzo");strcpy(cfg.password,"Secret-Test-Password");
     strcpy(cfg.map[0].uuid,"11223344-5566-7788-99aabbccddeeff00");
+    for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++){strcpy(cfg.map[i].uuid,"11223344-5566-7788-99aabbccddeeff00");cfg.map[i].scale=0.5;cfg.map[i].offset=i;}
     assert(app_loxone_store_save(&cfg)==ESP_OK);assert(have_key);
     cJSON *first=read_file();char *serialized=cJSON_PrintUnformatted(first);assert(!strstr(serialized,cfg.password));free(serialized);
     assert(app_loxone_store_load(&out)==ESP_OK&&strcmp(out.password,cfg.password)==0);
+    for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++){assert(strcmp(out.map[i].uuid,cfg.map[i].uuid)==0);assert(out.map[i].scale==0.5&&out.map[i].offset==i);}
     assert(app_loxone_store_save(&cfg)==ESP_OK);cJSON *second=read_file();
     assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(first,"secret"),"nonce")->valuestring,
                   cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(second,"secret"),"nonce")->valuestring)!=0);

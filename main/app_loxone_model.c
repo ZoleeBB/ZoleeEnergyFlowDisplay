@@ -7,13 +7,14 @@
 #include <string.h>
 
 const lx_field_t lx_fields[LX_FIELD_COUNT] = {
-    {"PowerGrid",true,false,false}, {"PowerBat",true,false,false},
-    {"PowerPV",true,false,false}, {"PowerFull",true,false,false},
-    {"SocBat",true,false,false}, {"Status",true,false,false},
-    {"NightMode",true,true,false}, {"BatteryTemperature",true,false,false},
-    {"Temperature",false,false,false}, {"WindSpeed",false,false,false},
-    {"HasSunRadiation",false,true,false}, {"HasPrecipitation",false,true,false},
-    {"SunPosition",false,false,true}
+    {"PowerGrid",true,false}, {"PowerBat",true,false},
+    {"PowerPV",true,false}, {"PowerFull",true,false},
+    {"SocBat",true,false}, {"Status",true,false},
+    {"NightMode",true,true}, {"BatteryTemperature",true,false},
+    {"Temperature",false,false}, {"WindSpeed",false,false},
+    {"HasSunRadiation",false,true}, {"HasPrecipitation",false,true},
+    {"SunAzimuth",false,false}, {"SunAltitude",false,false},
+    {"Sunrise",false,false}, {"Sunset",false,false}
 };
 static const char *str(const cJSON *o,const char *key)
 {
@@ -68,6 +69,8 @@ bool lx_config_parse(const cJSON *root,lx_config_t *cfg,bool require_mappings)
         if(!cJSON_IsNumber(scale)||!cJSON_IsNumber(offset)||!isfinite(scale->valuedouble)||!isfinite(offset->valuedouble)||fabs(scale->valuedouble)>1000000||fabs(offset->valuedouble)>1000000)return false;
         cfg->map[i].scale=scale->valuedouble;cfg->map[i].offset=offset->valuedouble;
     }
+    int solar=0;for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++)if(cfg->map[i].uuid[0])solar++;
+    if(require_mappings&&solar&&solar!=LX_SUN_COUNT)return false;
     return true;
 }
 cJSON *lx_config_json(const lx_config_t *cfg)
@@ -111,15 +114,12 @@ bool lx_values_update(lx_values_t *v,const lx_config_t *cfg,int type,const uint8
         char uuid[LX_UUID_LEN];lx_uuid_string(data+p,uuid);
         size_t n=type==2?0:le32(data+p+32);
         for(int i=0;i<LX_FIELD_COUNT;i++)if(strcmp(uuid,cfg->map[i].uuid)==0) {
-            if(type==2&&!lx_fields[i].text) {
+            if(type==2) {
                 uint64_t bits=0;for(int j=0;j<8;j++)bits|=(uint64_t)data[p+16+j]<<(8*j);
                 double raw;memcpy(&raw,&bits,8);
                 double value=raw*cfg->map[i].scale+cfg->map[i].offset;
                 if(!isfinite(value))return false;
                 v->value[i]=value;v->seen[i]=true;
-            }else if(type==3&&lx_fields[i].text) {
-                if(n>=sizeof(v->sun_position)||memchr(data+p+36,0,n))return false;
-                memcpy(v->sun_position,data+p+36,n);v->sun_position[n]=0;v->seen[i]=true;
             }
         }
         p+=type==2?24:36+((n+3)&~(size_t)3);
@@ -130,12 +130,17 @@ cJSON *lx_values_payload(const lx_values_t *v,const lx_config_t *cfg)
 {
     for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&!v->seen[i])return NULL;
     cJSON *root=cJSON_CreateObject();if(!root)return NULL;
-    for(int i=0;i<LX_FIELD_COUNT;i++) {
+    for(int i=0;i<LX_SUN_FIRST;i++) {
         const lx_field_t *f=&lx_fields[i];
-        if(f->text) {if(v->seen[i])cJSON_AddStringToObject(root,f->name,v->sun_position);}
-        else if(!cfg->map[i].uuid[0]||!v->seen[i])cJSON_AddNullToObject(root,f->name);
+        if(!cfg->map[i].uuid[0]||!v->seen[i])cJSON_AddNullToObject(root,f->name);
         else cJSON_AddNumberToObject(root,f->name,v->value[i]);
     }
+    bool solar=true;for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++)if(!cfg->map[i].uuid[0]||!v->seen[i])solar=false;
+    /* Csak a belső közös adatfeldolgozónak állítjuk össze a régi formátumot.
+     * A Loxone párosítás és adatfolyam négy önálló numerikus állapotot használ. */
+    if(solar){char text[128];snprintf(text,sizeof(text),"%.17g#%.17g#%.17g#%.17g",
+        v->value[LX_SUN_FIRST],v->value[LX_SUN_FIRST+1],v->value[LX_SUN_FIRST+2],v->value[LX_SUN_FIRST+3]);
+        cJSON_AddStringToObject(root,"SunPosition",text);}
     return root;
 }
 static bool catalog_controls(cJSON *out,const cJSON *controls,const cJSON *rooms,const cJSON *cats,int depth)
