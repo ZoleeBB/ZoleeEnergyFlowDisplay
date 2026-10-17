@@ -19,4 +19,4 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 BinPackArguments: false
 BinPackParameters: false
-AlignAfterOperator: Align
+AlignOperands: AlignAfterOperator
