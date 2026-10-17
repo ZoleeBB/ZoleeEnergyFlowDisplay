@@ -10,12 +10,13 @@ class Element {
  addEventListener(name,callback){this['on'+name]=callback;}
  get options(){return this.children;}
 }
-for(const id of ['host','port','username','password','ca_pem','filter','tls','test','save','status','mappings']){const e=new Element();e.id=id;}
+for(const id of ['host','port','username','password','ca_pem','filter','tls','test','save','status','save-status','mappings']){const e=new Element();e.id=id;}
 const keys=['PowerGrid','PowerBat','PowerPV','PowerFull','SocBat','Status','NightMode','BatteryTemperature','Temperature','WindSpeed','HasSunRadiation','HasPrecipitation','SunPosition'];
-const id='11223344-5566-7788-99aabbccddeeff00';const sent=[];
+const id='11223344-5566-7788-99aabbccddeeff00';const sent=[];let rejectPost=false;
 const state={host:'',port:80,tls:false,ca_pem:'',username:'',has_password:false,busy:false,status:'Paraméterezés szükséges.',catalog:[],mappings:Object.fromEntries(keys.map(k=>[k,{uuid:'',scale:1,offset:0}]))};
-const sandbox={console,structuredClone,setInterval:()=>0,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},fetch:async(url,options={})=>{
+const sandbox={console,structuredClone,AbortController,setTimeout,clearTimeout,setInterval:()=>0,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},fetch:async(url,options={})=>{
  if(options.method==='POST'){
+  if(rejectPost)return {ok:false,text:async()=>'A felhasználó vagy jelszó érvénytelen.'};
   sent.push({url,body:JSON.parse(options.body),headers:options.headers});
   state.catalog=[{uuid:id,name:'<img src=x onerror=alert(1)> PV',room:'Gépészet',category:'Energia',state:'value',type:'InfoOnlyAnalog'}];
   state.status=url.endsWith('save')?'Beállítások elmentve.':'Sikeres kapcsolat.';
@@ -27,6 +28,11 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
 (async()=>{
  await sandbox.api.refresh();assert.equal(nodes.get('port').value,'80');assert.equal(nodes.get('Status_uuid').options.length,1);
  nodes.get('host').value='192.168.2.10';nodes.get('username').value='display';nodes.get('password').value='test-password';
+ nodes.get('tls').checked=true;nodes.get('tls').onchange();assert.equal(nodes.get('port').value,'443');
+ await sandbox.api.submit('test');assert.equal(sent.length,0);assert(nodes.get('status').textContent.includes('CA-tanúsítvány'));
+ await sandbox.api.refresh();assert(nodes.get('status').textContent.includes('CA-tanúsítvány'));assert(!nodes.get('test').disabled);
+ assert.equal(nodes.get('save-status').textContent,nodes.get('status').textContent);
+ nodes.get('tls').checked=false;nodes.get('tls').onchange();assert.equal(nodes.get('port').value,'80');
  await sandbox.api.submit('test');assert.equal(sent[0].url,'/api/loxone/test');assert.equal(sent[0].headers['X-Zolee-Loxone'],'1');
  assert.equal(nodes.get('password').value,'test-password');assert.equal(nodes.get('PowerPV_uuid').options.length,2);
  assert(nodes.get('PowerPV_uuid').options[1].textContent.includes('<img'));
@@ -35,7 +41,10 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
  assert.equal(nodes.get('PowerPV_uuid').value,id);assert.equal(nodes.get('PowerPV_uuid').options.length,2);
  await sandbox.api.submit('save');assert.equal(sent[1].url,'/api/loxone/save');assert.equal(sent[1].body.mappings.PowerGrid.scale,-0.001);
  assert.equal(sent[1].body.mappings.Temperature.uuid,'');
+ rejectPost=true;await sandbox.api.submit('test');assert(nodes.get('status').textContent.includes('jelszó érvénytelen'));
+ await sandbox.api.refresh();assert(nodes.get('status').textContent.includes('jelszó érvénytelen'));assert(!nodes.get('test').disabled);rejectPost=false;
  nodes.get('password').value='';assert.equal(sandbox.api.values().password,null);
  state.busy=true;await sandbox.api.refresh();assert(nodes.get('save').disabled);await sandbox.api.submit('save');assert.equal(sent.length,2);
- console.log('PASS: actual Loxone web JS, discovery, retained test password, mapping/filter, transforms, optional fields, save and busy state');
+ const html=fs.readFileSync('assets/web/loxone.html','utf8');assert.equal((html.match(/id="status"/g)||[]).length,1);assert(html.indexOf('id="status"')<html.indexOf('id="mappings"'));
+ console.log('PASS: visible persistent WSS/server errors, no invalid POST, and actual Loxone web JS, discovery, retained test password, mapping/filter, transforms, optional fields, save and busy state');
 })().catch(e=>{console.error(e);process.exitCode=1;});
