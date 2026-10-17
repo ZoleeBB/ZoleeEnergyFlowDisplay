@@ -30,10 +30,10 @@ class AutomaticReleaseTests(unittest.TestCase):
         self.assertEqual(next_tag([], [{'tag_name':'v1.0.8','name':'Draft','draft':True}]),'v1.0.9')
 
     def test_loxone_major_release(self):
-        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',42,[{'name':'v1.4.9'}],[],head='feature/loxone-direct'),'v2.0.0')
-        self.assertEqual(tag_for_merged_pr('other/repo',42,[{'name':'v1.4.9'}],[],head='feature/loxone-direct'),'v1.4.10')
-        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',43,[{'name':'v2.0.0'}],[],head='fix/next'),'v2.0.1')
-        with self.assertRaises(ValueError):tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',42,[{'name':'v2.0.0'}],[],head='feature/loxone-direct')
+        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v1.4.9'}],[]),'v2.0.0')
+        self.assertEqual(tag_for_merged_pr('other/repo',12,[{'name':'v1.4.9'}],[]),'v1.4.10')
+        self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',43,[{'name':'v2.0.0'}],[]),'v2.0.1')
+        with self.assertRaises(ValueError):tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v2.0.0'}],[])
 
     def test_major_release_only_for_project_pr9(self):
         existing=[{'name':'v0.0.6'}]

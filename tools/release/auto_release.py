@@ -27,12 +27,12 @@ def next_tag(tags, releases):
     return validate_tag(f'v{major}.{minor}.{patch + 1}')
 
 
-def tag_for_merged_pr(repository, number, tags, releases, head=None):
+def tag_for_merged_pr(repository, number, tags, releases):
     """Scoped major promotions for the approved v1 and direct-Loxone releases.
 
     Existing release versions are never overwritten; other PRs increment patch.
     """
-    if repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and head == 'feature/loxone-direct':
+    if repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and number == 12:
         versions=[stable_version(t.get('name')) for t in tags]
         versions += [stable_version(r.get('tag_name')) or stable_version(r.get('name')) for r in releases if not r.get('prerelease')]
         if any(v is not None and v >= (2,0,0) for v in versions):
@@ -117,7 +117,7 @@ def reserve_tag(root, tag, marker, commit):
 def prepare(repository, number, commit):
     root = f'https://api.github.com/repos/{repository}'
     marker = identity(number, commit)
-    merged_pr=verify_merge(root, repository, number, commit)
+    verify_merge(root, repository, number, commit)
     releases = listing(root, 'releases')
     existing = find_release(releases, marker)
     if existing:
@@ -133,10 +133,7 @@ def prepare(repository, number, commit):
                 and owned_tag(root, tag['name'], marker, commit)]
     if len(reserved) > 1:
         raise ValueError('Multiple versions reserved for the same merge')
-    head=merged_pr.get('head') or {}
-    source_repo=head.get('repo') or {}
-    promoted_head=head.get('ref') if source_repo.get('full_name')==repository else None
-    return {'tag': reserved[0] if reserved else tag_for_merged_pr(repository, number, tags, releases, promoted_head),
+    return {'tag': reserved[0] if reserved else tag_for_merged_pr(repository, number, tags, releases),
             'needed': 'true'}
 
 
