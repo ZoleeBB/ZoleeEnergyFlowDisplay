@@ -3,6 +3,7 @@
 #include <stdatomic.h>
 #include "bsp/esp-bsp.h"
 #include "sdmmc_cmd.h"
+#include "esp_vfs_fat.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -13,6 +14,19 @@
 static atomic_bool s_ok;
 static bool s_recovery_task_started;
 static SemaphoreHandle_t s_io_mutex;
+
+static portMUX_TYPE s_space_lock=portMUX_INITIALIZER_UNLOCKED;
+static uint64_t s_total_bytes,s_free_bytes;
+bool app_storage_space(uint64_t *total,uint64_t *free_bytes){
+    portENTER_CRITICAL(&s_space_lock);*total=s_total_bytes;*free_bytes=s_free_bytes;portEXIT_CRITICAL(&s_space_lock);
+    return app_storage_is_ok()&&*total>0&&*free_bytes<=*total;
+}
+/* Csak a háttértaskból, az SD-zár alatt, legfeljebb percenként. */
+static void update_space(void){
+    uint64_t total=0,available=0;
+    if(app_storage_is_ok()&&esp_vfs_fat_info(APP_SD_MOUNT_POINT,&total,&available)!=ESP_OK)total=available=0;
+    portENTER_CRITICAL(&s_space_lock);s_total_bytes=total;s_free_bytes=available;portEXIT_CRITICAL(&s_space_lock);
+}
 
 /* Az SD fájlműveletek és az unmount/mount nem futhatnak egymás mellett. */
 esp_err_t app_storage_lock(void)
@@ -47,7 +61,7 @@ bool app_storage_is_ok(void){return atomic_load(&s_ok);}
 static void recovery_task(void *arg)
 {
     (void)arg;
-    int64_t next_recovery=0;
+    int64_t next_recovery=0,next_space=0;
     while(true){
         if(app_storage_lock()==ESP_OK){
             int64_t now=esp_timer_get_time();
@@ -66,6 +80,7 @@ static void recovery_task(void *arg)
                     app_events_add(APP_EVENT_INFO,"SD-kártya kapcsolat helyreállt.");
                 }
             }
+            if(now>=next_space){update_space();next_space=now+60000000LL;}
             app_storage_unlock();
         }
         vTaskDelay(pdMS_TO_TICKS(5000));

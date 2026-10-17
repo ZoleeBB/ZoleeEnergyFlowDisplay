@@ -178,3 +178,12 @@ cJSON *lx_catalog_parse(const char *json,size_t length)
     }
     cJSON_Delete(root);return out;
 }
+
+int64_t lx_token_refresh_delay_us(int64_t valid_until,int64_t now_epoch){
+    int64_t seconds=3600;
+    if(valid_until>0&&now_epoch>=1577836800){
+        int64_t remaining=valid_until+1230768000LL-now_epoch;
+        seconds=remaining>2?remaining/2:1;if(seconds>3600)seconds=3600;
+    }
+    return seconds*1000000LL;
+}

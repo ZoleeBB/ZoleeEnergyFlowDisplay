@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create one complete, patch-versioned release per merged main PR."""
+"""Create one complete release per merged main PR, including scoped major promotions."""
 import argparse
 import json
 import os
@@ -27,12 +27,17 @@ def next_tag(tags, releases):
     return validate_tag(f'v{major}.{minor}.{patch + 1}')
 
 
-def tag_for_merged_pr(repository, number, tags, releases):
-    """One-time major promotion for the approved #9 PR; no other merge changes policy.
+def tag_for_merged_pr(repository, number, tags, releases, head=None):
+    """Scoped major promotions for the approved v1 and direct-Loxone releases.
 
-    The request is scoped to the actual project and exact PR identity.
-    A preexisting v1.0.0 (or newer stable tag) must never be overwritten.
+    Existing release versions are never overwritten; other PRs increment patch.
     """
+    if repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and head == 'feature/loxone-direct':
+        versions=[stable_version(t.get('name')) for t in tags]
+        versions += [stable_version(r.get('tag_name')) or stable_version(r.get('name')) for r in releases if not r.get('prerelease')]
+        if any(v is not None and v >= (2,0,0) for v in versions):
+            raise ValueError('Cannot assign v2.0.0: stable v2.0.0 or newer already exists')
+        return validate_tag('v2.0.0')
     if repository != 'ZoleeBB/ZoleeEnergyFlowDisplay' or number != 9:
         return next_tag(tags, releases)
     versions = [stable_version(t.get('name')) for t in tags]
@@ -68,6 +73,7 @@ def verify_merge(root, repository, number, commit):
     if (not pr['merged'] or pr['base']['ref'] != 'main' or
             pr['base']['repo']['full_name'] != repository or pr['merge_commit_sha'] != commit):
         raise ValueError('Only the verified, merged main PR commit may be released')
+    return pr
 
 
 def find_release(releases, marker):
@@ -111,7 +117,7 @@ def reserve_tag(root, tag, marker, commit):
 def prepare(repository, number, commit):
     root = f'https://api.github.com/repos/{repository}'
     marker = identity(number, commit)
-    verify_merge(root, repository, number, commit)
+    merged_pr=verify_merge(root, repository, number, commit)
     releases = listing(root, 'releases')
     existing = find_release(releases, marker)
     if existing:
@@ -127,7 +133,10 @@ def prepare(repository, number, commit):
                 and owned_tag(root, tag['name'], marker, commit)]
     if len(reserved) > 1:
         raise ValueError('Multiple versions reserved for the same merge')
-    return {'tag': reserved[0] if reserved else tag_for_merged_pr(repository, number, tags, releases),
+    head=merged_pr.get('head') or {}
+    source_repo=head.get('repo') or {}
+    promoted_head=head.get('ref') if source_repo.get('full_name')==repository else None
+    return {'tag': reserved[0] if reserved else tag_for_merged_pr(repository, number, tags, releases, promoted_head),
             'needed': 'true'}
 
 

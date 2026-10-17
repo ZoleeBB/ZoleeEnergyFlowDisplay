@@ -49,6 +49,7 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP
 static mbedtls_pk_context server_key;
 static char last_command[4096],previous_salt[17];
 static int catalog_mode;
+static bool reject_refresh;
 static const char *catalog_reply="{\"controls\":{\"pv\":{\"name\":\"PV\",\"type\":\"InfoOnlyAnalog\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}";
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 {
@@ -96,6 +97,7 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==2)s_dead=true;
             else if(catalog_mode==0)server_response(catalog_reply);
         }
+        else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0&&reject_refresh)server_response("{\"LL\":{\"Code\":401}}");
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
         else server_response("{\"LL\":{\"Code\":200,\"value\":\"OK\"}}");
         return len;
@@ -153,6 +155,10 @@ int main(int argc,char **argv)
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";calls=http_calls;assert(!download_catalog_with_fallback(&cfg,token));assert(http_calls==calls);
     free(large_catalog);http_fallback_mode=0;http_chunked=false;strcpy(cfg.username,"display");
     cJSON_Delete(s_catalog);s_catalog=NULL;
+    int64_t before_refresh=esp_timer_get_time();cJSON *expiry=cJSON_CreateObject();
+    cJSON_AddNumberToObject(expiry,"validUntil",(double)time(NULL)-1230768000+600);schedule_token_refresh(expiry);cJSON_Delete(expiry);
+    assert(s_token_refresh_us-before_refresh>299000000LL&&s_token_refresh_us-before_refresh<301000000LL);
+    reject_refresh=true;assert(renew_token(&cfg,token));assert(!s_dead);assert(strcmp(token,"jwt-test-token")==0);reject_refresh=false;
     assert(!reply("denied",false));assert(strstr(s_failure,"401"));
     /* A teljes HTTP-előlépés darabolt válasszal, valamint konkrét hibák. */
     cJSON *key_json=cJSON_CreateObject(),*ll=cJSON_CreateObject();cJSON_AddStringToObject(ll,"value",s_public_key);cJSON_AddItemToObject(key_json,"LL",ll);

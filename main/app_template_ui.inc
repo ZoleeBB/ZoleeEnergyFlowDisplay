@@ -767,7 +767,9 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             uint32_t flow_color=tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             template_flow_tone(node,flow_color,fabs(value)>=.001);
         }
-        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
+        if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);
+            if(!strcmp(source,"battery_temp")&&!strcmp(template_view.id,"09-solar-journey")){char number[64];fmt_dec(number,sizeof(number),s->battery_temperature_c,0);snprintf(text,sizeof(text),"%s °C",number);}
+            label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
             if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);
@@ -942,12 +944,19 @@ static void diagnostics_render(app_runtime_state_t rt){
         lv_obj_t *hint=lbl(s_screen,tr("Lefelé húzás: vissza az előző témához","Swipe down to return to the selected theme"),32,73,APP_FONT_16,MUTED_DARK);
         lv_obj_set_width(hint,560);lv_label_set_long_mode(hint,LV_LABEL_LONG_MODE_DOTS);
         const char *titles[]={"Wi-Fi / IP",tr("Adatfogadás","Data input"),tr("Utolsó adatcsomag","Last data packet"),
-            tr("SD-kártya","SD card"),"Firmware",tr("Üzemidő / memória","Uptime / memory")};
-        for(int i=0;i<6;i++){
-            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,32,126+i*106);lv_obj_set_size(card,576,96);card_style(card,true);lv_obj_set_style_pad_all(card,0,0);
+            tr("SD-kártya","SD card"),tr("Firmware / üzemidő","Firmware / uptime"),"CPU",tr("Belső RAM","Internal RAM"),"PSRAM"};
+        for(int i=0;i<8;i++){
+            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,32,118+i*82);lv_obj_set_size(card,576,76);card_style(card,true);lv_obj_set_style_pad_all(card,0,0);
             lv_obj_remove_flag(card,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(card,LV_OBJ_FLAG_GESTURE_BUBBLE);
             lbl(card,titles[i],16,8,APP_FONT_16,MUTED_DARK);
-            s_diagnostic_values[i]=lbl(card,"",16,32,APP_FONT_20,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],536,54);
+            s_diagnostic_values[i]=lbl(card,"",16,27,APP_FONT_16,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],536,42);
+            if(i==6)lv_obj_set_style_text_font(s_diagnostic_values[i],APP_FONT_14,0);
+            if(i==3||i==6||i==7){lv_obj_set_height(s_diagnostic_values[i],34);int bar=i==3?0:i-5;s_diagnostic_bars[bar]=lv_bar_create(card);
+                lv_obj_set_pos(s_diagnostic_bars[bar],16,67);lv_obj_set_size(s_diagnostic_bars[bar],536,4);
+                lv_bar_set_range(s_diagnostic_bars[bar],0,100);lv_obj_set_style_bg_color(s_diagnostic_bars[bar],c(0x32465B),LV_PART_MAIN);
+                lv_obj_set_style_bg_color(s_diagnostic_bars[bar],c(0x58B89C),LV_PART_INDICATOR);
+                lv_obj_add_flag(s_diagnostic_bars[bar],LV_OBJ_FLAG_GESTURE_BUBBLE);
+            }
             lv_obj_add_flag(s_diagnostic_values[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
         lv_obj_t *log=lv_obj_create(s_screen);lv_obj_set_pos(log,640,24);lv_obj_set_size(log,608,752);card_style(log,true);lv_obj_set_style_pad_all(log,0,0);
@@ -964,16 +973,31 @@ static void diagnostics_render(app_runtime_state_t rt){
     char text[192];
     snprintf(text,sizeof(text),"%s · %d dBm\n%s",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.rssi,s_diagnostics.ip);
     label_text_if_changed(s_diagnostic_values[0],text);
-    snprintf(text,sizeof(text),"%s · %s",rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
+    snprintf(text,sizeof(text),"%s · %s",rt.data_recept_mode==APP_DATA_LOXONE?"Loxone":rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
     label_text_if_changed(s_diagnostic_values[1],text);
     if(s_diagnostics.packet_age_seconds<0)snprintf(text,sizeof(text),"%s",tr("Még nem érkezett","No packet received"));
     else snprintf(text,sizeof(text),"%lld s · %s",(long long)s_diagnostics.packet_age_seconds,
         app_state_data_timed_out(&rt,esp_timer_get_time(),app_config_data_timeout(&s_cfg))?tr("Lejárt adat","Stale data"):tr("Érvényes adat","Valid data"));
     label_text_if_changed(s_diagnostic_values[2],text);
-    label_text_if_changed(s_diagnostic_values[3],rt.sd_ok?tr("Elérhető · mentés aktív","Available · saving active"):tr("Hiba · kijelzés RAM-ból","Fault · display continues from RAM"));
-    label_text_if_changed(s_diagnostic_values[4],s_diagnostics.firmware);
-    snprintf(text,sizeof(text),"%lld min · RAM %u KiB\n%s %u KiB · DMA %u KiB",(long long)(s_diagnostics.uptime_seconds/60),s_diagnostics.free_heap_kib,tr("Belső","Internal"),s_diagnostics.free_internal_kib,s_diagnostics.largest_dma_block_bytes/1024);
+    unsigned sd_used=s_diagnostics.sd_space_valid?(unsigned)((s_diagnostics.sd_total_bytes-s_diagnostics.sd_free_bytes)*100/s_diagnostics.sd_total_bytes):0;
+    if(rt.sd_ok&&s_diagnostics.sd_space_valid)snprintf(text,sizeof(text),"%u%% · %.1f / %.1f GiB",sd_used,
+        (double)(s_diagnostics.sd_total_bytes-s_diagnostics.sd_free_bytes)/1073741824.,(double)s_diagnostics.sd_total_bytes/1073741824.);
+    else snprintf(text,sizeof(text),"%s",rt.sd_ok?tr("Kapacitás lekérése…","Reading capacity…"):tr("Hiba · kijelzés RAM-ból","Fault · display from RAM"));
+    label_text_if_changed(s_diagnostic_values[3],text);
+    lv_bar_set_value(s_diagnostic_bars[0],sd_used,LV_ANIM_OFF);
+    if(rt.sd_ok&&s_diagnostics.sd_space_valid)lv_obj_remove_flag(s_diagnostic_bars[0],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(s_diagnostic_bars[0],LV_OBJ_FLAG_HIDDEN);
+    snprintf(text,sizeof(text),"%s · %lld min",s_diagnostics.firmware,(long long)(s_diagnostics.uptime_seconds/60));label_text_if_changed(s_diagnostic_values[4],text);
+    if(s_diagnostics.cpu_valid)snprintf(text,sizeof(text),"CPU0 %u%% · CPU1 %u%%",s_diagnostics.cpu_percent[0],s_diagnostics.cpu_percent[1]);
+    else snprintf(text,sizeof(text),"%s",tr("Mérés indul…","Starting measurement…"));
     label_text_if_changed(s_diagnostic_values[5],text);
+    for(int i=0;i<2;i++){
+        unsigned total=i?s_diagnostics.total_psram_kib:s_diagnostics.total_internal_kib;
+        unsigned available=i?s_diagnostics.free_psram_kib:s_diagnostics.free_internal_kib;
+        unsigned used=total&&available<=total?(total-available)*100/total:0;
+        snprintf(text,sizeof(text),"%u%% · %s %u / %u KiB",used,tr("szabad","free"),available,total);
+        if(!i){size_t end=strlen(text);snprintf(text+end,sizeof(text)-end,"\nDMA max %u KiB",s_diagnostics.largest_dma_block_bytes/1024);}
+        label_text_if_changed(s_diagnostic_values[6+i],text);lv_bar_set_value(s_diagnostic_bars[1+i],used,LV_ANIM_OFF);
+    }
     for(unsigned i=0;i<15;i++){
         if(i>=s_diagnostic_event_count){label_text_if_changed(s_diagnostic_log[i],i==0?tr("Még nincs esemény.","No events yet."):"");continue;}
         const app_event_entry_t *entry=&s_diagnostic_events[s_diagnostic_event_count-1-i];

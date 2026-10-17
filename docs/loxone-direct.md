@@ -1,4 +1,4 @@
-# Közvetlen Loxone adatforrás (fejlesztői ág)
+# Közvetlen Loxone adatforrás (v2.0.0)
 
 Az elsődleges cél a helyi Gen2/v17 Miniserver. Régebbi generáció működése külön próbát igényel.
 
@@ -77,8 +77,7 @@ webfelület elegendő, nem kell 3 percen belül elvégezni az első párosítás
 Egy WebSocket, 8 elemű üzenetsor, legfeljebb 512 KiB struktúra/üzenet és 512
 listázott állapot. A nagyobb adatlista hibával elutasított, nem részlegesen elfogadott.
 A nem használt állapotok nem kerülnek tartós állapottárba. A kezdeti teljes JSON
-feldolgozásakor átmeneti többletmemória szükséges. A JWT RAM-ban él, óránként
-megújul, újraindításkor új hitelesítés történik.
+feldolgozásakor átmeneti többletmemória szükséges. A JWT RAM-ban él. Megújítása a Miniserver `validUntil` időpontjából számított hátralévő idő felénél, legfeljebb óránként történik. Ismeretlen lejárat vagy még hiányzó pontos rendszeridő esetén az órás ütemezés érvényes. A sikeres megújítás nem bontja a WebSocketet és nem törli az állapottárat. Ha elutasítják, ugyanazon a kapcsolaton új tokent kérünk; csak kapcsolat- vagy hitelesítési hiba indít újracsatlakozást. Újraindításkor új hitelesítés történik.
 
 A platformfüggetlen C-tesztek a valódi UUID/formátumkezelést, szorzókat,
 hiányzó kezdőértékeket, null időjárást, numerikus/szöveges eseménytáblákat és hibás

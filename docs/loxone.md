@@ -1,5 +1,7 @@
 # Loxone Program blokk
 
+Ez az útmutató az MQTT/HTTP adatküldéshez tartozik. A v2.0.0-tól használható [közvetlen Loxone mód](loxone-direct.md) nem igényel Program blokkot; a Miniserver állapotait a webfelületen párosítod.
+
 A kijelzőhöz szükséges JSON állapotcsomagot a Loxone Config **Program** blokkjában futó Pico C script állítja elő.
 
 A két teljes, különálló minta:

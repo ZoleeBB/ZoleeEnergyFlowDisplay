@@ -10,6 +10,9 @@ static unsigned char uuid[16]={0x44,0x33,0x22,0x11,0x66,0x55,0x88,0x77,0x99,0xaa
 static void numeric(unsigned char *p,double v){memcpy(p,uuid,16);memcpy(p+16,&v,8);}
 int main(void)
 {
+    assert(lx_token_refresh_delay_us(0,1700000000)==3600000000LL);
+    assert(lx_token_refresh_delay_us(1700000000-1230768000+600,1700000000)==300000000LL);
+    assert(lx_token_refresh_delay_us(1700000000-1230768000-1,1700000000)==1000000LL);
     lx_config_t cfg;lx_config_defaults(&cfg);lx_values_t v={0};char id[LX_UUID_LEN];
     lx_uuid_string(uuid,id);assert(strcmp(id,"11223344-5566-7788-99aabbccddeeff00")==0);
     assert(lx_uuid_valid(id)&&!lx_uuid_valid("11223344-5566-7788-99aa-bbccddeeff00"));

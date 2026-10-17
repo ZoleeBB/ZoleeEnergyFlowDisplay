@@ -89,3 +89,8 @@ CONFIG_LV_GRADIENT_MAX_STOPS=3
 # Bounded transport backlog for 5-second energy samples and local web UI.
 CONFIG_ESP_HOSTED_SDIO_TX_Q_SIZE=8
 CONFIG_ESP_HOSTED_SDIO_RX_Q_SIZE=8
+
+# Valós, magonkénti diagnosztikai CPU-terhelés az idle futásidőből.
+CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
+CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y
+CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64=y

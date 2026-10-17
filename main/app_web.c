@@ -806,6 +806,13 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON_AddBoolToObject(o,"sd_ok",d.runtime.sd_ok);cJSON_AddBoolToObject(o,"time_synced",d.runtime.time_synced);
     if(d.packet_age_seconds<0)cJSON_AddNullToObject(o,"packet_age_seconds");else cJSON_AddNumberToObject(o,"packet_age_seconds",d.packet_age_seconds);
     cJSON_AddStringToObject(o,"firmware",d.firmware);cJSON_AddNumberToObject(o,"uptime_seconds",d.uptime_seconds);
+    if(d.cpu_valid){cJSON_AddNumberToObject(o,"cpu0_percent",d.cpu_percent[0]);cJSON_AddNumberToObject(o,"cpu1_percent",d.cpu_percent[1]);}
+    else {cJSON_AddNullToObject(o,"cpu0_percent");cJSON_AddNullToObject(o,"cpu1_percent");}
+    cJSON_AddNumberToObject(o,"total_internal_kib",d.total_internal_kib);
+    cJSON_AddNumberToObject(o,"total_psram_kib",d.total_psram_kib);cJSON_AddNumberToObject(o,"free_psram_kib",d.free_psram_kib);
+    if(d.sd_space_valid){cJSON_AddNumberToObject(o,"sd_total_bytes",d.sd_total_bytes);cJSON_AddNumberToObject(o,"sd_free_bytes",d.sd_free_bytes);
+        cJSON_AddNumberToObject(o,"sd_used_percent",(double)(d.sd_total_bytes-d.sd_free_bytes)*100/d.sd_total_bytes);}
+    else{cJSON_AddNullToObject(o,"sd_total_bytes");cJSON_AddNullToObject(o,"sd_free_bytes");cJSON_AddNullToObject(o,"sd_used_percent");}
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
     cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
     cJSON_AddNumberToObject(o,"largest_dma_block_bytes",d.largest_dma_block_bytes);
@@ -819,10 +826,10 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
     return httpd_resp_sendstr(req,"<!doctype html><html><meta charset='utf-8'><title>Diagnostics</title>"
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
-        "<script>const names={wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
+        "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
         "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
-        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;row.insertCell().textContent=v===null?'—':v;}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
+        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':v;if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>");
 }
 

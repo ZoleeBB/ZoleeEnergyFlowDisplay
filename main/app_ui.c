@@ -92,8 +92,9 @@ static int64_t s_last_chart_update_us;
 static app_stats_snapshot_t s_stats_snapshot;
 static app_stats_period_t s_week_period,s_month_period;
 static app_diagnostics_t s_diagnostics;
+static lv_obj_t *s_diagnostic_bars[3];
 static bool s_diagnostics_requested;
-static lv_obj_t *s_diagnostic_values[6],*s_diagnostic_log[15];
+static lv_obj_t *s_diagnostic_values[8],*s_diagnostic_log[15];
 /* A meglévő RAM-napló másolata; nem a runtime task vermén tároljuk. */
 static app_event_entry_t s_diagnostic_events[15];
 static size_t s_diagnostic_event_count;

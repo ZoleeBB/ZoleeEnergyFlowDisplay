@@ -48,3 +48,6 @@ bool lx_values_update(lx_values_t *values, const lx_config_t *cfg, int type,
 cJSON *lx_values_payload(const lx_values_t *values, const lx_config_t *cfg);
 /* Korlátos, lapos katalógus. UUID, név, helyiség, kategória, típus, állapot. */
 cJSON *lx_catalog_parse(const char *json, size_t length);
+
+/* Előzetes megújítás: fél hátralévő élettartam, legfeljebb egy óra. */
+int64_t lx_token_refresh_delay_us(int64_t valid_until,int64_t now_epoch);

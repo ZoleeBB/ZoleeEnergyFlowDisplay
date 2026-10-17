@@ -22,6 +22,7 @@
 #include "mbedtls/platform_util.h"
 #include <math.h>
 #include <stdatomic.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,7 +56,7 @@ static char s_salt[17];
 static char *s_public_key;
 static lx_values_t s_values;
 static const lx_config_t *s_session_config;
-static int64_t s_last_response;
+static int64_t s_last_response,s_token_refresh_us;
 
 static void status(const char *message)
 {
@@ -161,6 +162,7 @@ static cJSON *reply(const char *command,bool encrypt)
     int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&esp_timer_get_time()<deadline) {
         message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
+        s_last_response=esp_timer_get_time();
         if(m.type!=0){if(s_session_config&&!lx_values_update(&s_values,s_session_config,m.type,m.data,m.length))s_dead=true;free_message(&m);continue;}
         cJSON *root=cJSON_ParseWithLength((char*)m.data,m.length);free_message(&m);
         cJSON *ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
@@ -215,6 +217,11 @@ static bool hash_hmac(const cJSON *key,const char *input,char out[65])
     if(ok)hex(digest,mbedtls_md_get_size(md),out);
     mbedtls_platform_zeroize(k,sizeof(k));return ok;
 }
+static void schedule_token_refresh(const cJSON *value){
+    const cJSON *until=cJSON_GetObjectItemCaseSensitive(value,"validUntil");
+    int64_t valid_until=cJSON_IsNumber(until)&&until->valuedouble>0&&until->valuedouble<1e12?(int64_t)until->valuedouble:0;
+    s_token_refresh_us=esp_timer_get_time()+lx_token_refresh_delay_us(valid_until,(int64_t)time(NULL));
+}
 static bool acquire_token(const lx_config_t *cfg,char *token,size_t token_size)
 {
     phase("Loxone felhasználói hitelesítési kulcs");
@@ -238,7 +245,7 @@ static bool acquire_token(const lx_config_t *cfg,char *token,size_t token_size)
             mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
         phase("Loxone felhasználói bejelentkezés");
         cJSON *v=reply(command,true);const char *t=string(v,"token");
-        ok=*t&&strlen(t)<token_size;if(ok)snprintf(token,token_size,"%s",t);cJSON_Delete(v);
+        ok=*t&&strlen(t)<token_size;if(ok){snprintf(token,token_size,"%s",t);schedule_token_refresh(v);}cJSON_Delete(v);
     }free(user);return ok;
 }
 static bool token_command(const lx_config_t *cfg,char *token,const char *operation)
@@ -251,7 +258,12 @@ static bool token_command(const lx_config_t *cfg,char *token,const char *operati
     char cmd[768];snprintf(cmd,sizeof(cmd),"%s%s/%s/%s",strcmp(operation,"authwithtoken")==0?"":"jdev/sys/",operation,hmac,user);free(user);
     cJSON *v=reply(cmd,true);ok=v!=NULL;
     if(ok&&strcmp(operation,"refreshjwt")==0){const char *t=string(v,"token");ok=*t&&strlen(t)<1024;if(ok)snprintf(token,1024,"%s",t);}
+    if(ok&&strcmp(operation,"killtoken")!=0)schedule_token_refresh(v);
     cJSON_Delete(v);return ok;
+}
+static bool renew_token(const lx_config_t *cfg,char token[1024]){
+    if(token_command(cfg,token,"refreshjwt"))return true;
+    return !s_dead&&acquire_token(cfg,token,1024);
 }
 static bool download_catalog(int *response_code)
 {
@@ -467,7 +479,7 @@ static void worker(void *arg)
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
         xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
         app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
-        s_last_response=esp_timer_get_time();int64_t heartbeat=s_last_response,last_sample=0,refresh=s_last_response;
+        s_last_response=esp_timer_get_time();int64_t heartbeat=s_last_response,last_sample=0;
         failures=0;
         while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0) {
             message_t m;int64_t now=esp_timer_get_time();
@@ -478,10 +490,10 @@ static void worker(void *arg)
             }
             if(now-heartbeat>=LX_KEEPALIVE_US){if(!send_plain("keepalive"))break;heartbeat=now;}
             if(now-s_last_response>=LX_KEEPALIVE_US*3)break;
-            if(now-refresh>=3600000000LL) {
+            if(now>=s_token_refresh_us) {
                 /* A válaszban kapott új JWT lesz a következő kapcsolódás hitelesítője. */
-                if(!token_command(active,token,"refreshjwt"))break;
-                refresh=now;
+                if(!renew_token(active,token))break;
+                status("Kapcsolódva. A token megújítva.");
             }
             if(now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
                 cJSON *payload=lx_values_payload(&s_values,active);
