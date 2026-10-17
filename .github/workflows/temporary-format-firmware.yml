@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - chore/firmware-kodformatum-magyar-kommentek
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
