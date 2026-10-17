@@ -31,6 +31,8 @@ esp_err_t esp_http_client_close(esp_http_client_handle_t h){(void)h;return ESP_O
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP_OK;}
 static mbedtls_pk_context server_key;
 static char last_command[4096],previous_salt[17];
+static int catalog_mode;
+static const char *catalog_reply="{\"controls\":{\"pv\":{\"name\":\"PV\",\"type\":\"InfoOnlyAnalog\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}";
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 {
     /* Több driver-chunk és valódi WS-fragmentáció külön-külön is szerepel. */
@@ -72,7 +74,12 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
         if(strncmp(cmd,"jdev/sys/getjwt/",16)==0){
             assert(strstr(cmd,"607d176490faff37feb2c44ae19cd3135d03270cc19245695b620246a800ea1c/display/4/"));
             server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-test-token\"}}}");
-        }else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
+        }else if(strcmp(cmd,"data/LoxAPP3.json")==0){
+            if(catalog_mode==1){unsigned char huge[8]={3,0,0,0,0,0,0,1};frame(huge,8,2,true);}
+            else if(catalog_mode==2)s_dead=true;
+            else if(catalog_mode==0)server_response(catalog_reply);
+        }
+        else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
         else server_response("{\"LL\":{\"Code\":200,\"value\":\"OK\"}}");
         return len;
     }
@@ -98,6 +105,17 @@ int main(int argc,char **argv)
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
+    assert(download_catalog());assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
+    catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";
+    assert(!download_catalog());assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));
+    catalog_reply="{\"LL\":{\"code\":\"401\",\"value\":\"denied\"}}";
+    assert(!download_catalog());assert(strstr(s_failure,"401"));
+    catalog_reply="{\"wrong\":{}}";assert(!download_catalog());assert(strstr(s_failure,"controls"));
+    catalog_reply="broken JSON";assert(!download_catalog());assert(strstr(s_failure,"JSON"));
+    catalog_mode=1;assert(!download_catalog());assert(strstr(s_failure,"513 KiB"));s_dead=false;s_rx_failure=LX_RX_OK;
+    catalog_mode=2;assert(!download_catalog());assert(strstr(s_failure,"megszakadt"));s_dead=false;
+    catalog_mode=3;assert(!download_catalog());assert(strstr(s_failure,"12 másodpercen"));catalog_mode=0;
+    cJSON_Delete(s_catalog);s_catalog=NULL;
     assert(!reply("denied",false));assert(strstr(s_failure,"401"));
     /* A teljes HTTP-előlépés darabolt válasszal, valamint konkrét hibák. */
     cJSON *key_json=cJSON_CreateObject(),*ll=cJSON_CreateObject();cJSON_AddStringToObject(ll,"value",s_public_key);cJSON_AddItemToObject(key_json,"LL",ll);
@@ -114,5 +132,5 @@ int main(int argc,char **argv)
     /* Túlméretes fejléc, majd a sor feltorlódása kontrolláltan megszakítja a kapcsolatot. */
     unsigned char huge[8]={3,2,0,0,0,0,0,1};frame(huge,8,2,true);assert(s_dead);s_dead=false;
     for(int i=0;i<9;i++)frame(keep,8,2,true);assert(s_dead);
-    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, estimated/exact headers, HTTP preflight and error diagnostics, driver/WS fragmentation, heartbeat and bounded overflow");
+    puts("PASS: real RSA key exchange, SHA256/HMAC JWT acquisition, AES salt chain, token authentication/refresh, denied auth, estimated/exact headers, encrypted catalog download and explicit rejection/format/size/disconnect/timeout diagnostics, HTTP preflight, driver/WS fragmentation, heartbeat and bounded overflow");
 }

@@ -47,6 +47,9 @@ static size_t s_rx_len,s_rx_cap;
 static bool s_rx_bad;
 static int s_message_type=-1;
 static atomic_bool s_dead;
+/* A fogadó callback csak hibakódot ír; a felhasználói szöveg a workerben készül. */
+static atomic_int s_rx_failure;
+enum { LX_RX_OK, LX_RX_TOO_LARGE, LX_RX_NO_MEMORY, LX_RX_BAD_HEADER, LX_RX_QUEUE_FULL };
 static unsigned char s_aes_key[32],s_iv[16];
 static char s_salt[17];
 static char *s_public_key;
@@ -101,13 +104,13 @@ static void receive_event(void *arg,esp_event_base_t base,int32_t event,void *da
     if(e->op_code!=0&&e->op_code!=1&&e->op_code!=2)return;
     if(e->data_len<0||e->payload_offset<0||e->payload_len<0){s_dead=true;return;}
     if(e->payload_offset==0&&e->op_code!=0) {s_rx_len=0;s_rx_bad=false;}
-    if((size_t)e->data_len>LX_MAX_RX-s_rx_len){s_rx_bad=true;s_dead=true;return;}
+    if((size_t)e->data_len>LX_MAX_RX-s_rx_len){s_rx_failure=LX_RX_TOO_LARGE;s_rx_bad=true;s_dead=true;return;}
     size_t need=s_rx_len+e->data_len+1;
     if(need>s_rx_cap) {
         size_t cap=s_rx_cap?s_rx_cap:4096;
         while(cap<need){if(cap>(LX_MAX_RX+1)/2){cap=LX_MAX_RX+1;break;}cap*=2;}
         unsigned char *next=realloc(s_rx,cap);
-        if(!next){s_rx_bad=true;s_dead=true;return;}
+        if(!next){s_rx_failure=LX_RX_NO_MEMORY;s_rx_bad=true;s_dead=true;return;}
         s_rx=next;s_rx_cap=cap;
     }
     memcpy(s_rx+s_rx_len,e->data_ptr,e->data_len);s_rx_len+=e->data_len;s_rx[s_rx_len]=0;
@@ -115,22 +118,22 @@ static void receive_event(void *arg,esp_event_base_t base,int32_t event,void *da
     if(s_rx_bad)return;
     /* A Loxone fejléc önálló WS-üzenet, az utána következő payload külön üzenet. */
     if(s_message_type<0) {
-        if(s_rx_len!=8||s_rx[0]!=3){s_dead=true;return;}
+        if(s_rx_len!=8||s_rx[0]!=3){s_rx_failure=LX_RX_BAD_HEADER;s_dead=true;return;}
         /* A 0x80-as estimated fejléc után még PONTOS fejléc jön, nem payload.
          * A becslésből nem foglalunk memóriát és nem következtetünk üzenettípusra. */
         if(s_rx[2]&0x80){s_rx_len=0;return;}
         unsigned declared=(unsigned)s_rx[4]|(unsigned)s_rx[5]<<8|(unsigned)s_rx[6]<<16|(unsigned)s_rx[7]<<24;
-        if(declared>LX_MAX_RX){s_dead=true;return;}
+        if(declared>LX_MAX_RX){s_rx_failure=LX_RX_TOO_LARGE;s_dead=true;return;}
         int type=s_rx[1];
         if(type==6) {
-            message_t m={.type=6};if(xQueueSend(s_messages,&m,0)!=pdTRUE)s_dead=true;
+            message_t m={.type=6};if(xQueueSend(s_messages,&m,0)!=pdTRUE){s_rx_failure=LX_RX_QUEUE_FULL;s_dead=true;}
         }else if(type==5) {s_dead=true;return;}
         else s_message_type=type;
         s_rx_len=0;return;
     }
     message_t m={.type=s_message_type,.length=s_rx_len,.data=s_rx};s_message_type=-1;
     s_rx=NULL;s_rx_len=0;s_rx_cap=0;
-    if(xQueueSend(s_messages,&m,0)!=pdTRUE){free_message(&m);s_dead=true;}
+    if(xQueueSend(s_messages,&m,0)!=pdTRUE){free_message(&m);s_rx_failure=LX_RX_QUEUE_FULL;s_dead=true;}
 }
 static bool send_plain(const char *command)
 {return !s_dead&&esp_websocket_client_send_text(s_ws,command,strlen(command),pdMS_TO_TICKS(LX_TIMEOUT_MS))>=0;}
@@ -253,14 +256,35 @@ static bool token_command(const lx_config_t *cfg,char *token,const char *operati
 static bool download_catalog(void)
 {
     phase("Loxone adatlista letöltése");
-    if(!send_plain("data/LoxAPP3.json"))return false;
+    /* LoxAPP3.json esetén enc támogatott, fenc (titkosított válasz) nem. */
+    if(!send_encrypted("data/LoxAPP3.json"))return failed("Az adatlista kérése nem küldhető el.",0);
     int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&esp_timer_get_time()<deadline) {
         message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
-        cJSON *catalog=m.type==0?lx_catalog_parse((char*)m.data,m.length):NULL;free_message(&m);
-        if(!catalog)continue;
+        if(m.type!=0){free_message(&m);continue;}
+        cJSON *catalog=lx_catalog_parse((char*)m.data,m.length);
+        if(!catalog) {
+            /* A hibaválasz nem katalógus: ne nyeljük el időtúllépésként. */
+            cJSON *root=cJSON_ParseWithLength((char*)m.data,m.length);
+            const cJSON *ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
+            const cJSON *code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
+            if(!code)code=cJSON_GetObjectItemCaseSensitive(ll,"code");
+            int result=cJSON_IsNumber(code)?code->valueint:cJSON_IsString(code)?atoi(code->valuestring):0;
+            if(ll)failed(result==403?"Az adatlista hozzáférése tiltott. Ellenőrizd a felhasználói jogosultságot.":"A Miniserver adatlista helyett parancsválaszt küldött.",result);
+            else if(m.length>LX_STRUCTURE_MAX)failed("Az adatlista meghaladja az 512 KiB méretkorlátot.",0);
+            else if(!root)failed("A válasz nem érvényes JSON, hiányos, vagy nincs elég memória.",0);
+            else if(!cJSON_IsObject(cJSON_GetObjectItemCaseSensitive(root,"controls")))failed("A válaszból hiányzik a controls adatlista.",0);
+            else failed("Az állapotlista feldolgozása sikertelen (512 állapot, mélység- vagy memóriakorlát).",0);
+            cJSON_Delete(root);free_message(&m);return false;
+        }
+        free_message(&m);
         xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;xSemaphoreGive(s_lock);return true;
-    }return false;
+    }
+    if(s_rx_failure==LX_RX_TOO_LARGE)return failed("A fogadott üzenet meghaladja az 513 KiB vételi korlátot.",0);
+    if(s_rx_failure==LX_RX_NO_MEMORY)return failed("Nincs elég memória az adatlista fogadásához.",0);
+    if(s_rx_failure==LX_RX_BAD_HEADER)return failed("Érvénytelen Loxone üzenetfejléc érkezett.",0);
+    if(s_rx_failure==LX_RX_QUEUE_FULL)return failed("A fogadott üzenetek sora megtelt.",0);
+    return failed(s_dead?"A kapcsolat megszakadt az adatlista fogadása közben.":"12 másodpercen belül nem érkezett adatlista.",0);
 }
 static void close_connection(void)
 {
@@ -306,7 +330,7 @@ static bool connect_server(const lx_config_t *cfg)
     esp_websocket_client_config_t ws={.uri=uri,.subprotocol="remotecontrol",.disable_auto_reconnect=true,
         .buffer_size=2048,.task_stack=6144,.network_timeout_ms=LX_TIMEOUT_MS,
         .cert_pem=cfg->tls?cfg->ca_pem:NULL};
-    s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return failed("A WebSocket kliens nem indítható (memóriahiba).",0);
+    s_rx_failure=LX_RX_OK;s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return failed("A WebSocket kliens nem indítható (memóriahiba).",0);
     if(esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,receive_event,NULL)!=ESP_OK||esp_websocket_client_start(s_ws)!=ESP_OK)return failed("A WebSocket feladat nem indítható.",0);
     int64_t until=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&!esp_websocket_client_is_connected(s_ws)&&esp_timer_get_time()<until)vTaskDelay(pdMS_TO_TICKS(50));
