@@ -28,7 +28,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           persist-credentials: false
-      - name: Verify merge and select the next patch version
+      - name: Verify merge and select the release version
         id: version
         env:
           GITHUB_TOKEN: ${{ github.token }}

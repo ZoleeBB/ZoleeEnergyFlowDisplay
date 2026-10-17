@@ -363,5 +363,14 @@ int main(void){
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);
     test_period_metrics();
     test_mode_config();test_http();test_energy_split();
+    /* Rövid kapcsolatkimaradáson át sem integrálunk elavult mérésből. */
+    time_t lx_time=instant("2026-10-05",12,0,0);reset(lx_time);
+    feed(lx_time,2,0,0);app_stats_break_continuity();feed(lx_time+10,2,0,0);
+    app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,0);
+    app_state_set_data_mode(APP_DATA_LOXONE);app_state_set_http_ready(true);app_state_set_loxone(true,true);
+    app_runtime_state_t lx_runtime;app_state_get_runtime(&lx_runtime);assert(app_state_data_ready(&lx_runtime));
+    app_state_clear_sample();app_energy_sample_t stale;assert(!app_state_get_sample(&stale));
+    app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
+    tests++;
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

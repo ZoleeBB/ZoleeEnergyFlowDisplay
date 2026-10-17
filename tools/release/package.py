@@ -65,6 +65,7 @@ def package(build, output, tag, commit):
     files['TELEPITES.md'] = '# Telepítés\n\nLásd: [USB telepítés](docs/usb-install.md) és [SD-kártya](docs/sd-card.md).\n'.encode('utf-8')
     files['README.md'] = (ROOT / 'README.md').read_bytes()
     files['config.sample.json'] = (ROOT / 'config.sample.json').read_bytes()
+    files['assets/loxone-logo.png'] = (ROOT / 'assets/loxone-logo.png').read_bytes()
     files['assets/template-manifest.json'] = (ROOT / 'assets/template-manifest.json').read_bytes()
     for folder in ('docs', 'examples'):
         for path in sorted((ROOT / folder).rglob('*')):

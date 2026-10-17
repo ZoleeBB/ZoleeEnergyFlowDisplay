@@ -1,10 +1,10 @@
 # Konfiguráció
 
-A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config.http.sample.json) másold a FAT32 microSD gyökerébe `config.json` néven. A személyes konfiguráció nincs verziókezelve. Újraindításkor töltődik be.
+A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config.http.sample.json), illetve a [közvetlen Loxone-mintát](../examples/config.loxone.sample.json) másold a FAT32 microSD gyökerébe `config.json` néven. A személyes konfiguráció nincs verziókezelve. Újraindításkor töltődik be.
 
 | Rész | Beállítás |
 | --- | --- |
-| `DataReceptMode` | `mqtt` (alapérték) vagy `http` |
+| `DataReceptMode` | `mqtt` (alapérték), `http` vagy `loxone` |
 | `project` | Cím, nyelv (`hu`/`en`), pénznem felirata |
 | `wifi` | SSID, jelszó, újracsatlakozás; opcionális statikus IP, átjáró, maszk, DNS |
 | `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
@@ -25,7 +25,7 @@ Az OTA hitelesítésnél mindkét mező legyen kitöltve vagy mindkettő üres. 
 
 ## Beállítások a webes felületen
 
-Az `/settings` oldalon minden beállítás módosítható, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, MQTT/HTTP, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek.
+Az `/settings` oldalon minden beállítás módosítható, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, MQTT/HTTP/Loxone, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek.
 
 A napi statisztika mentési időköze alapértelmezetten 15 perc, és legfeljebb 15 perc lehet. A korábban már SD-kártyán szereplő `save_interval_minutes: 60` beállítást a firmware automatikusan 15-re korlátozza. Az OTA firmware-frissítés és kézi újraindítás előtt ezen felül azonnali mentés történik.
 
@@ -35,3 +35,11 @@ A háttérszinkron siker után a `time.resync_hours` teljes időközét várja k
 a `background_retry_minutes` csak sikertelen szinkron vagy hiányzó Wi-Fi esetén érvényes.
 Az órás időköz tickre váltása 64 bites számítást használ, így az 1000 Hz-es
 FreeRTOS mellett sem rövidül a 6 óra körülbelül 125 másodpercre.
+
+## Közvetlen Loxone mód
+
+`DataReceptMode: "loxone"` esetén a külön [Loxone beállító](loxone-direct.md) kezeli a Miniserver adatait és a párosításokat. Ezek az SD `loxone.json` fájljába kerülnek; nem kell Loxone szekciót létrehozni az alapkonfigurációban. [Példakonfiguráció](../examples/config.loxone.sample.json).
+
+## Közvetlen Loxone mód
+
+Az alapfájlban csak `DataReceptMode: "loxone"` szükséges. A Miniserver címe, portja, felhasználója, titkosított jelszava és a párosítások külön `loxone.json` fájlba kerülnek; a `/loxone` felületen szerkeszthetők. Helyiség-/funkciószűrés, mértékegységek és a négy nappályamező részletei: [Loxone adatkapcsolat](loxone-direct.md).

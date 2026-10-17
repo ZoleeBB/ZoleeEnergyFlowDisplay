@@ -7,7 +7,7 @@ Mindkét jelenet 1280×800 px-es; a kártyák geometriája azonos.
 ## Napjárás és sugárzás
 
 Az opcionális `SunPosition` formátuma: `azimut#napmagasság#napkeltePerc#napnyugtaPerc`.
-A [Loxone T1 bekötése](loxone.md) és a [JSON-protokoll](mqtt.md) közös az MQTT/HTTP módokban.
+A [Loxone T1 bekötése](loxone.md) és a [JSON-protokoll](mqtt.md) közös az MQTT/HTTP módokban. Közvetlen Loxone módban négy külön numerikus állapot párosítható: azimut és magasság fokban, napkelte és napnyugta éjféltől eltelt percben; [beállítások](loxone-direct.md).
 Adat nélkül a témalapozás átugorja a Nap pályát. A napkorong a helyi idő,
 napkelte és napnyugta alapján, ívhossz szerint követi a háttérhez kalibrált
 31 pontos nappali és 21 pontos éjszakai pályát. A nappali ív napnyugta előtti
@@ -83,3 +83,5 @@ A napnyugta-illesztést a v18-as ZIP tartalmazza. A v19 geometriailag azonos,
 friss előnézetet ad az erősebb holdudvarról. A holdudvar és a váltási hiba
 javításához firmware-frissítés szükséges; ez a korábbi sablonnal is működik. A többi sablon
 előnézete a saját új ZIP-je feltöltése után jelenik meg; a csomagok egyenként frissíthetők.
+
+A nappálya témában az akku hőmérséklete egész °C-ra kerekítve látszik nappal és éjjel. Ez firmware-oldali formázás: a meglévő SD-s sablon is megkapja a javítást.

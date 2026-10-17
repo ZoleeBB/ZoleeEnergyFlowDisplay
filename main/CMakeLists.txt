@@ -60,6 +60,9 @@ idf_component_register(
         "app_ingest.c"
         "app_http.c"
         "app_mqtt.c"
+        "app_loxone.c"
+        "app_loxone_model.c"
+        "app_loxone_store.c"
         "app_ota.c"
         "app_payload.c"
         "app_state.c"
@@ -74,6 +77,8 @@ idf_component_register(
     REQUIRES
         app_update
         esp_event
+        esp_http_client
+        esp_websocket_client
         esp_http_server
         esp_netif
         esp_timer

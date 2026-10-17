@@ -27,3 +27,7 @@ simulator-demo.ppm
 
 # Headless LVGL renders are generated verification output.
 /*.ppm
+
+/loxone.json
+/loxone.json.tmp
+/loxone.json.bak

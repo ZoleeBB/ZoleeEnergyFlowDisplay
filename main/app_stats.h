@@ -115,3 +115,6 @@ esp_err_t app_stats_save_now(void);
 /* Futás közben biztonságosan módosítható mentési és integrálási paraméterek. */
 void app_stats_update_config(const app_statistics_config_t *cfg);
 
+
+/* Megszakadt adatfolyamon át nem integrálunk energiát. */
+void app_stats_break_continuity(void);

@@ -1,6 +1,6 @@
 # Felépítés
 
-Az ESP32-P4 firmware közös állapotmodellt használ az MQTT- és HTTP-adatfogadáshoz. A kiválasztott fogadó ellenőrzi a teljes JSON-csomagot, majd az érvényes mintát a statisztika és a kijelző kapja meg. Hibás csomag nem módosít állapotot és nem hosszabbítja meg az adatfrissességet.
+Az ESP32-P4 firmware közös állapotmodellt használ az MQTT-, HTTP- és közvetlen Loxone-adatfogadáshoz. A kiválasztott fogadó ellenőrzi a teljes JSON-csomagot, majd az érvényes mintát a statisztika és a kijelző kapja meg. Hibás csomag nem módosít állapotot és nem hosszabbítja meg az adatfrissességet.
 
 A konfiguráció a FAT32 microSD gyökerében található. A Wi-Fi csatlakozás után az NTP időszinkron szükséges a helyi naptári statisztikához. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
 
@@ -34,8 +34,10 @@ A generikus UI/JSON/zlib heap foglalások PSRAM-ot részesítenek előnyben, 32 
 
 A sablon-geometria külső BSS-ben, PSRAM-ban van; a skálázott képek legfeljebb 6 MiB-os, témaváltáskor felszabadított natív raster-cache-t használnak. A memória- és képfrissítési döntések, kutatási források és hardveres mérés részletei: [teljesítmény](performance.md).
 
-A diagnosztika bal oldalán hat tömör adatmező, jobb oldalán a meglévő
+A diagnosztika bal oldalán nyolc tömör adatmező, jobb oldalán a meglévő
 RAM-eseménynapló legfrissebb 15 bejegyzése látszik, legújabb felül. A
 figyelmeztetések narancssárgák, a hibák pirosak. A naplómásolat statikus
 memóriában él; a másolás az LVGL-lock előtt, csak nyitott diagnosztikánál
 történik. Ez nem ír új naplófájlt az SD-re.
+
+A Loxone kliens RSA/AES-hitelesítést, JWT-megújítást, állapotfelderítést és WebSocket-eseménytáblákat kezel. A fájlkérés 404-es hibájánál HTTP(S) token-HMAC-hitelesítéssel tölti le a struktúrát. Csak a párosított számok állapotát őrzi, öt másodpercenként a közös validálón át publikál mintát. A külön SD-konfiguráció eszközkulccsal védi a jelszót. [Részletek](loxone-direct.md).

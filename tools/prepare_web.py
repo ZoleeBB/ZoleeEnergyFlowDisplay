@@ -29,5 +29,7 @@ def embed(html, js, placeholder, name, header):
 
 embed('template-manager.html', 'template-manager.js', '/*MANAGER_JS*/',
       'template_manager_page', 'app_template_page.h')
+embed('loxone.html', 'loxone.js', '/*LOXONE_JS*/',
+      'app_loxone_page', 'app_loxone_page.h')
 embed('settings.html', 'settings.js', '/*SETTINGS_JS*/',
       'app_settings_page', 'app_settings_page.h')

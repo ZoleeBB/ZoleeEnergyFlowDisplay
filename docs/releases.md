@@ -4,7 +4,7 @@
 
 A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.
 
-A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri. Korábbi verzió nélkül `v0.0.1`-gyel indul. A minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
+A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri. Korábbi verzió nélkül `v0.0.1`-gyel indul. A [#12 PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/12) main ágra egyesítve egyszeri **v2.0.0** kiadást kap. Pusztán a PR lezárása egyesítés nélkül nem indít release-t. Már létező v2.0.0 vagy újabb verziót nem ír felül. Ezt követően a normál javítóverzió-növelés folytatódik: v2.0.1, v2.0.2. Más minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
 
 A kiválasztott verzióval a PR pontos merge-commitja fordul újra, és minden regressziós/LVGL ellenőrzés lefut. A workflow csak ezután hoz létre draft release-t, feltölti az OTA/USB-csomagokat és a kísérőfájlokat, végül publikálja a kész kiadást. Ez az immutable release beállítással is összeegyeztethető: a fájlok a lezárás előtt kerülnek fel.
 
@@ -50,3 +50,5 @@ A firmware-, sablon-, LVGL-előnézet- és Windows-szimulátor-feltöltések
 rövidebb tényleges lejáratot is meghatározhat; ezt az Actions felületén ellenőrizd.
 A beállítás az új artifactokra vonatkozik, a korábbiak lejáratát nem módosítja.
 A release Assets alá publikált firmware-ek megőrzését ez nem érinti.
+
+A release-ek és Assets mellékleteik nem Actions artifactok: a hét napos artifact-retenció nem járatja le őket. A repository workflow-jai nem törölnek kiadásokat vagy release-mellékleteket. A kiadások kézi törlésig, illetve a repository elérhetőségéig maradnak letölthetők; ez nem azonos a módosíthatatlansági védelemmel. Ellenőrzéskor a v1.0.0–v1.0.2 kiadások OTA/USB Assets fájljai elérhetők voltak.

@@ -891,6 +891,10 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
     app_events_init();
     for(int i=0;i<20;i++)app_events_add(i%3,"Teszt esemény %02d",i);
+    assert(app_diagnostics_cpu_percent(0,2000000)==100);
+    assert(app_diagnostics_cpu_percent(1000000,2000000)==50);
+    assert(app_diagnostics_cpu_percent(2000001,2000000)==0);
+    assert(app_diagnostics_cpu_percent(0,0)==0);
     s_diagnostics_requested=true;diagnostics_capture();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
     assert(s_diagnostic_event_count==15);
@@ -898,11 +902,17 @@ int main(void)
     assert(strstr(lv_label_get_text(s_diagnostic_log[14]),"05"));
     lv_obj_update_layout(s_screen);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_log[0]))==640);
-    for(int i=0;i<6;i++){
+    for(int i=0;i<8;i++){
         lv_area_t row,parent;lv_obj_get_coords(s_diagnostic_values[i],&row);
         lv_obj_get_coords(lv_obj_get_parent(s_diagnostic_values[i]),&parent);
         assert(row.y2<parent.y2&&row.x2<parent.x2);
     }
+    rt.data_recept_mode=APP_DATA_LOXONE;s_diagnostics.cpu_valid=true;s_diagnostics.cpu_percent[0]=67;s_diagnostics.cpu_percent[1]=29;
+    s_diagnostics.total_internal_kib=512;s_diagnostics.free_internal_kib=180;
+    s_diagnostics.total_psram_kib=28000;s_diagnostics.free_psram_kib=12000;
+    s_diagnostics.sd_space_valid=true;s_diagnostics.sd_total_bytes=16ULL*1024*1024*1024;s_diagnostics.sd_free_bytes=12ULL*1024*1024*1024;rt.sd_ok=true;
+    render_runtime(rt,sample,true,31000000);assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Loxone"));
+    assert(lv_bar_get_value(s_diagnostic_bars[0])==25);assert(strstr(lv_label_get_text(s_diagnostic_values[5]),"67%"));
     save_frame("diagnostics-common");
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
@@ -966,6 +976,10 @@ int main(void)
                     assert(temperature_shadow);template_update(&sample,&fixture);
                 }
                 if(!strcmp(list[i].id,"09-solar-journey")){
+                    app_energy_sample_t fractional=sample;fractional.battery_temperature_c=32.6;template_update(&fractional,&fixture);
+                    for(unsigned n=0;n<template_node_count;n++)if(!strcmp(ts(template_nodes[n].spec,"source"),"battery_temp")&&!strcmp(ts(template_nodes[n].spec,"type"),"value")){
+                        assert(strstr(lv_label_get_text(template_nodes[n].obj),"33"));assert(!strchr(lv_label_get_text(template_nodes[n].obj),'.'));assert(!strchr(lv_label_get_text(template_nodes[n].obj),','));}
+                    template_update(&sample,&fixture);
                     sample.sun_position_valid=true;sample.sun_altitude_deg=night?-25:25;
                     sample.sunrise_minute=420;sample.sunset_minute=1080;sample.sun_azimuth_deg=220;
                     sample.has_sun_radiation=false;sample.power_pv_kw=night?0:3.5;
@@ -1039,6 +1053,20 @@ int main(void)
         build_dashboard(night);s_last_night=night;update(&builtin_sample,&fixture);
         save_frame(night?"builtin-dark":"builtin-light");
     }
+    clear();
+    memset(&template_pending,0,sizeof(template_pending));memset(&template_view,0,sizeof(template_view));
+    config.data_recept_mode=APP_DATA_LOXONE;config.mqtt.data_timeout_seconds=180;app_ui_set_config(&config);
+    rt=(app_runtime_state_t){.data_recept_mode=APP_DATA_LOXONE,.wifi_connected=true};
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_SETUP);save_frame("loxone-setup-hu");
+    rt.loxone_configured=true;
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_WAIT);save_frame("loxone-connecting-hu");
+    rt.loxone_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    rt.loxone_connected=false;rt.has_valid_sample=false;
+    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_ERROR);save_frame("loxone-disconnected-hu");
+    rt.loxone_connected=true;rt.has_valid_sample=true;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    puts("PASS: Loxone setup, initial connection, lost connection and automatic dashboard recovery");
     clear();
     lv_display_delete(display);lv_deinit();return 0;
 }

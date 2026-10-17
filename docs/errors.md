@@ -27,7 +27,7 @@ Külön MQTT kapcsolati hibaképernyő jelenik meg. Az újracsatlakozási idő a
 
 ## Adatkimaradás
 
-Ha az aktív MQTT- vagy HTTP-fogadó kész, de a konfigurált időn belül nincs érvényes csomag, teljes képernyős adathiányjelzés jelenik meg. A hibás csomag nem indítja újra az időkorlátot; érvényes csomagnál a felület automatikusan helyreáll.
+Ha az aktív MQTT-, HTTP- vagy Loxone-fogadó kész, de a konfigurált időn belül nincs érvényes csomag, teljes képernyős adathiányjelzés jelenik meg. A hibás csomag nem indítja újra az időkorlátot; érvényes csomagnál a felület automatikusan helyreáll.
 
 ## Futás közbeni SD hiba
 
@@ -136,3 +136,7 @@ A várakozás most 64 biten számolódik; siker után a konfigurált órás peri
 hibánál vagy Wi-Fi-hiánynál a konfigurált perces újrapróbálás érvényes.
 A regresszió a valódi háttértaskot futtatja szimulált várakozással,
 6/168 órás periódussal, 100/1000 Hz-en és a helyreállási ágakon is.
+
+## Közvetlen Loxone kapcsolat
+
+Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg. A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik; a szükséges állapotok visszaérkezésekor automatikusan folytatódik a kijelzés. A token előzetes megújítása normál esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál a webfelület a konkrét fázist és hibakódot mutatja. [Hibaelhárítás és korlátok](loxone-direct.md).

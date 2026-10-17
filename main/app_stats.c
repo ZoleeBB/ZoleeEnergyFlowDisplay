@@ -1091,3 +1091,11 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
     }
     xSemaphoreGive(s_mutex);
 }
+
+void app_stats_break_continuity(void)
+{
+    if(!s_mutex)return;
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    s_have_prev=false;
+    xSemaphoreGive(s_mutex);
+}

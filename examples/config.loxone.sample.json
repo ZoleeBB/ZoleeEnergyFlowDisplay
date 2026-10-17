@@ -1,0 +1,49 @@
+{
+  "DataReceptMode": "loxone",
+  "project": {
+    "title": "Otthoni energia",
+    "language": "hu",
+    "currency": "Ft"
+  },
+  "wifi": {
+    "ssid": "",
+    "password": "",
+    "reconnect_seconds": 15,
+    "network": {
+      "use_static_ip": 0,
+      "ip": "",
+      "gateway": "",
+      "subnet": "",
+      "dns": ""
+    }
+  },
+  "time": {
+    "ntp_server": "hu.pool.ntp.org",
+    "timezone": "Europe/Budapest",
+    "auto_dst": 1,
+    "utc_offset_minutes": 60,
+    "startup_retry_seconds": 15,
+    "resync_hours": 6,
+    "background_retry_minutes": 15
+  },
+  "display": {
+    "day_brightness": 80,
+    "night_brightness": 20,
+    "rotation_degrees": 270
+  },
+  "statistics": {
+    "save_interval_minutes": 15,
+    "max_integration_gap_seconds": 30
+  },
+  "energy": {
+    "battery_capacity_kwh": 0,
+    "electricity_purchase_price": 65,
+    "feed_in_price": 5,
+    "co2_factor_kg_per_kwh": 0.381,
+    "tree_absorption_kg_per_year": 22
+  },
+  "ota": {
+    "username": "",
+    "password": ""
+  }
+}

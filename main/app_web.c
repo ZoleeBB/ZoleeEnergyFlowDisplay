@@ -12,6 +12,7 @@
  */
 #include "app_web.h"
 #include "app_http.h"
+#include "app_loxone.h"
 #include "app_templates.h"
 #include "app_diagnostics.h"
 
@@ -337,8 +338,10 @@ static esp_err_t root_handler(httpd_req_t *req)
         "table{border-collapse:collapse;width:100%}"
         "td{padding:7px;border-bottom:1px solid #eee}"
         "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
-        ".actions{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 22px}"
-        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;width:205px;min-height:44px;box-sizing:border-box;margin:0;text-align:center;font:inherit}"
+        ".actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:8px 0 22px}"
+        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;min-width:0;height:56px;padding:8px;box-sizing:border-box;margin:0;text-align:center;font:inherit;line-height:1.2}"
+        ".actions button:disabled{background:#c4c9ce;color:#626a71;cursor:not-allowed}"
+        "@media(max-width:640px){.actions{grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto;padding-bottom:6px}}"
         ".actions .restart{background:#DE790E;color:white;font-weight:600}"
         ".actions .restart:hover{background:#B85E06}"
         ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
@@ -354,16 +357,21 @@ static esp_err_t root_handler(httpd_req_t *req)
         sizeof(safe_title));
 
     sendf(req, "<h1>%s</h1>", safe_title);
-    /* A négy főművelet együtt, az oldal tetején, az eszközinformációk előtt. */
+    /* Az öt főművelet közös sorban; a Loxone minden módban látható. */
     httpd_resp_send_chunk(req,s_hu?
-        "<nav class='actions' aria-label='Eszközműveletek'>"
-        "<a href='/settings'>Beállítások</a>"
+        "<nav class='actions' aria-label='Eszközműveletek'><a href='/settings'>Beállítások</a>":
+        "<nav class='actions' aria-label='Device actions'><a href='/settings'>Settings</a>",HTTPD_RESP_USE_STRLEN);
+    if(s_config.data_recept_mode==APP_DATA_LOXONE)
+        httpd_resp_send_chunk(req,s_hu?"<a href='/loxone'>Loxone beállítások</a>":"<a href='/loxone'>Loxone settings</a>",HTTPD_RESP_USE_STRLEN);
+    else
+        httpd_resp_send_chunk(req,s_hu?
+            "<button type='button' disabled aria-disabled='true' title='Csak Loxone adatfogadási módban érhető el'>Loxone beállítások</button>":
+            "<button type='button' disabled aria-disabled='true' title='Available only in Loxone input mode'>Loxone settings</button>",HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req,s_hu?
         "<a href='/templates'>Sablonkezelő</a>"
         "<a href='/update'>Firmware frissítés</a>"
         "<button class='restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button>"
         "</nav>":
-        "<nav class='actions' aria-label='Device actions'>"
-        "<a href='/settings'>Settings</a>"
         "<a href='/templates'>Templates</a>"
         "<a href='/update'>Firmware update</a>"
         "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
@@ -399,7 +407,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr>",
         runtime.wifi_connected ? rssi : 0);
 
-    const char *mode = runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    const char *mode = runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
     sendf(req, "<tr><td>%s</td><td>%s</td></tr>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
     sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", mode,
         s_hu ? "adatfogadó" : "receiver",
@@ -797,12 +805,19 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
     cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
     cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
-    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
     cJSON_AddBoolToObject(o,"data_ready",app_state_data_ready(&d.runtime));
     cJSON_AddBoolToObject(o,"mqtt_connected",d.runtime.mqtt_connected);
     cJSON_AddBoolToObject(o,"sd_ok",d.runtime.sd_ok);cJSON_AddBoolToObject(o,"time_synced",d.runtime.time_synced);
     if(d.packet_age_seconds<0)cJSON_AddNullToObject(o,"packet_age_seconds");else cJSON_AddNumberToObject(o,"packet_age_seconds",d.packet_age_seconds);
     cJSON_AddStringToObject(o,"firmware",d.firmware);cJSON_AddNumberToObject(o,"uptime_seconds",d.uptime_seconds);
+    if(d.cpu_valid){cJSON_AddNumberToObject(o,"cpu0_percent",d.cpu_percent[0]);cJSON_AddNumberToObject(o,"cpu1_percent",d.cpu_percent[1]);}
+    else {cJSON_AddNullToObject(o,"cpu0_percent");cJSON_AddNullToObject(o,"cpu1_percent");}
+    cJSON_AddNumberToObject(o,"total_internal_kib",d.total_internal_kib);
+    cJSON_AddNumberToObject(o,"total_psram_kib",d.total_psram_kib);cJSON_AddNumberToObject(o,"free_psram_kib",d.free_psram_kib);
+    if(d.sd_space_valid){cJSON_AddNumberToObject(o,"sd_total_bytes",d.sd_total_bytes);cJSON_AddNumberToObject(o,"sd_free_bytes",d.sd_free_bytes);
+        cJSON_AddNumberToObject(o,"sd_used_percent",(double)(d.sd_total_bytes-d.sd_free_bytes)*100/d.sd_total_bytes);}
+    else{cJSON_AddNullToObject(o,"sd_total_bytes");cJSON_AddNullToObject(o,"sd_free_bytes");cJSON_AddNullToObject(o,"sd_used_percent");}
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
     cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
     cJSON_AddNumberToObject(o,"largest_dma_block_bytes",d.largest_dma_block_bytes);
@@ -816,16 +831,17 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
     return httpd_resp_sendstr(req,"<!doctype html><html><meta charset='utf-8'><title>Diagnostics</title>"
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
-        "<script>const names={wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
+        "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
         "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
-        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;row.insertCell().textContent=v===null?'—':v;}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
+        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':v;if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>");
 }
 
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
 #include "app_template_web.inc"
 #include "app_settings_web.inc"
+#include "app_loxone_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -870,7 +886,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 24;
+    http_cfg.max_uri_handlers = 32;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -931,11 +947,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
     if ((err = settings_register(s_server)) != ESP_OK) goto failed;
+    if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get}};
     for(unsigned i=0;i<2;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
-    app_state_set_http_ready(cfg->data_recept_mode == APP_DATA_HTTP);
+    app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(
         APP_EVENT_INFO,

@@ -25,3 +25,9 @@ sablonkezelő képe. A runtime előtöltő kihagyja őket, nem foglalnak LVGL
 asset-/raster-cache-t. A web a 480×300-as képeket közvetlenül, lusta betöltéssel
 és verzióhoz kötött gyorsítótárazással mutatja; régi csomagnál nincs háttérletöltés
 vagy második, közelítő rajzoló.
+
+## Futásidejű terhelési adatok (v2.0.0)
+
+A kijelző és a webes diagnosztika magonként jelzi a CPU becsült foglaltságát. Az ESP-timer mikrosekundumos, 64 bites FreeRTOS futásidő-számlálóiból, az idle idő különbségével, legalább két másodperces ablakban számolunk; az első ablak előtt nincs százalék. Ez feladatütemezési foglaltság, nem panel-FPS vagy külön Wi-Fi társprocesszor-terhelés. Nem listázzuk az összes taskot, és nem kérünk stack-vízjelet. A számlálás kis többletmunkát jelent minden taskváltásnál; pontos hardveres összehasonlítás szükséges.
+
+A belső RAM és PSRAM adatai az allocator által kezelt teljes és szabad heapet jelentik; a sáv a foglalt arányt mutatja. A belső RAM-nál a legnagyobb DMA-blokk is megmarad. Az SD telítettségét a háttérben legfeljebb percenként frissítjük; a diagnosztika csak a gyorsítótárból olvas, LVGL-zár alatt nincs FAT-vizsgálat. SD-hibánál a sáv rejtett. A kezdeti FAT-szabadhelyszámítás nagy kártyán időigényes lehet, de nem a megjelenítőtask végzi.

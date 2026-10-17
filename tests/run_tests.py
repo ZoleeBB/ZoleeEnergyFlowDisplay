@@ -63,3 +63,17 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_runtime_resources.py")],
 
 # Kritikus vizuális és animációs regressziók.
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_visual_regressions.py')], check=True)
+
+# Loxone bináris adatfolyam és párosítás valódi C-kóddal.
+with tempfile.TemporaryDirectory(prefix='zolee-loxone-') as directory:
+    binary=str(Path(directory)/'test_loxone_model')
+    subprocess.run([os.environ.get('CC','cc'),'-std=gnu11','-Wall','-Wextra','-Werror',
+                    '-fsanitize=undefined','-fno-sanitize-recover=all','-Itests/stubs','-Imain',
+                    'main/app_loxone_model.c','main/app_payload.c','tests/test_loxone_model.c',
+                    '-l:libcjson.so.1','-lm','-o',binary],cwd=ROOT,check=True)
+    subprocess.run([binary],check=True,timeout=10)
+subprocess.run(['node','--check',str(ROOT/'assets/web/loxone.js')],check=True)
+
+subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_store.py")],check=True)
+subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_protocol.py")],check=True)
+subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True)
