@@ -50,7 +50,10 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
 {
     (void)h;(void)timeout;char decoded[4096];assert(len<(int)sizeof(decoded));
     if(strncmp(text,"jdev/sys/keyexchange/",21)==0){
-        unsigned char cipher[512],plain[512];size_t n,out;decode_url(text+21,decoded);
+        unsigned char cipher[512],plain[512];size_t n,out;
+        /* A kulcscsere nyers Base64 adatot vár, nem URL-kódolt parancsot. */
+        if(strchr(text+21,'%')){server_response("{\"LL\":{\"Code\":401,\"value\":\"invalid key\"}}");return len;}
+        snprintf(decoded,sizeof(decoded),"%s",text+21);
         assert(mbedtls_base64_decode(cipher,sizeof(cipher),&n,(unsigned char*)decoded,strlen(decoded))==0);
         assert(mbedtls_pk_decrypt(&server_key,cipher,n,plain,&out,sizeof(plain),rng,NULL)==0);plain[out]=0;
         char k[65],iv[33],expected[100];hex(s_aes_key,32,k);hex(s_iv,16,iv);snprintf(expected,sizeof(expected),"%s:%s",k,iv);assert(strcmp((char*)plain,expected)==0);
@@ -67,7 +70,7 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
         memcpy(previous_salt,cmd,16);previous_salt[16]=0;assert(cmd[16]=='/');cmd+=17;
         snprintf(last_command,sizeof(last_command),"%s",cmd);
         if(strncmp(cmd,"jdev/sys/getjwt/",16)==0){
-            assert(strstr(cmd,"e55d6e884eb8904ec9c0e207670b3777716763d0aa594a4a5fb045c5ed5140e4/display/4/"));
+            assert(strstr(cmd,"607d176490faff37feb2c44ae19cd3135d03270cc19245695b620246a800ea1c/display/4/"));
             server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-test-token\"}}}");
         }else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
         else server_response("{\"LL\":{\"Code\":200,\"value\":\"OK\"}}");
@@ -91,7 +94,7 @@ int main(int argc,char **argv)
 #endif
     free(private);s_messages=xQueueCreate(8,sizeof(message_t));s_dead=false;
     assert(key_exchange());
-    lx_config_t cfg;lx_config_defaults(&cfg);strcpy(cfg.username,"display");strcpy(cfg.password,"secret");char token[1024]={0};
+    lx_config_t cfg;lx_config_defaults(&cfg);strcpy(cfg.username,"display");strcpy(cfg.password,"secret]!.+");char token[1024]={0};
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);

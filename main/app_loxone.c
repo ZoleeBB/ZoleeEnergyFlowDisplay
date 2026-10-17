@@ -196,8 +196,9 @@ static bool key_exchange(void)
     mbedtls_pk_free(&pk);mbedtls_platform_zeroize(plain,sizeof(plain));mbedtls_platform_zeroize(key,sizeof(key));
     if(ok)ok=mbedtls_base64_encode(base,sizeof(base)-1,&b64,encrypted,n)==0;
     if(!ok)return false;
-    base[b64]=0;char *encoded=urlencode((char*)base);if(!encoded)return false;
-    char command[2200];snprintf(command,sizeof(command),"jdev/sys/keyexchange/%s",encoded);free(encoded);
+    /* A kulcscsere nyers Base64-t vár; csak az AES parancsok URL-kódoltak. */
+    base[b64]=0;
+    char command[sizeof(base)+32];snprintf(command,sizeof(command),"jdev/sys/keyexchange/%s",base);
     cJSON *value=reply(command,false);ok=value!=NULL;cJSON_Delete(value);return ok;
 }
 static bool hash_hmac(const cJSON *key,const char *input,char out[65])
