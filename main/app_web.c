@@ -338,8 +338,10 @@ static esp_err_t root_handler(httpd_req_t *req)
         "table{border-collapse:collapse;width:100%}"
         "td{padding:7px;border-bottom:1px solid #eee}"
         "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
-        ".actions{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 22px}"
-        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;width:205px;min-height:44px;box-sizing:border-box;margin:0;text-align:center;font:inherit}"
+        ".actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:8px 0 22px}"
+        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;min-width:0;height:56px;padding:8px;box-sizing:border-box;margin:0;text-align:center;font:inherit;line-height:1.2}"
+        ".actions button:disabled{background:#c4c9ce;color:#626a71;cursor:not-allowed}"
+        "@media(max-width:640px){.actions{grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto;padding-bottom:6px}}"
         ".actions .restart{background:#DE790E;color:white;font-weight:600}"
         ".actions .restart:hover{background:#B85E06}"
         ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
@@ -355,22 +357,25 @@ static esp_err_t root_handler(httpd_req_t *req)
         sizeof(safe_title));
 
     sendf(req, "<h1>%s</h1>", safe_title);
-    /* A négy főművelet együtt, az oldal tetején, az eszközinformációk előtt. */
+    /* Az öt főművelet közös sorban; a Loxone minden módban látható. */
     httpd_resp_send_chunk(req,s_hu?
-        "<nav class='actions' aria-label='Eszközműveletek'>"
-        "<a href='/settings'>Beállítások</a>"
+        "<nav class='actions' aria-label='Eszközműveletek'><a href='/settings'>Beállítások</a>":
+        "<nav class='actions' aria-label='Device actions'><a href='/settings'>Settings</a>",HTTPD_RESP_USE_STRLEN);
+    if(s_config.data_recept_mode==APP_DATA_LOXONE)
+        httpd_resp_send_chunk(req,s_hu?"<a href='/loxone'>Loxone beállítások</a>":"<a href='/loxone'>Loxone settings</a>",HTTPD_RESP_USE_STRLEN);
+    else
+        httpd_resp_send_chunk(req,s_hu?
+            "<button type='button' disabled aria-disabled='true' title='Csak Loxone adatfogadási módban érhető el'>Loxone beállítások</button>":
+            "<button type='button' disabled aria-disabled='true' title='Available only in Loxone input mode'>Loxone settings</button>",HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req,s_hu?
         "<a href='/templates'>Sablonkezelő</a>"
         "<a href='/update'>Firmware frissítés</a>"
         "<button class='restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button>"
         "</nav>":
-        "<nav class='actions' aria-label='Device actions'>"
-        "<a href='/settings'>Settings</a>"
         "<a href='/templates'>Templates</a>"
         "<a href='/update'>Firmware update</a>"
         "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
         "</nav>",HTTPD_RESP_USE_STRLEN);
-    if(s_config.data_recept_mode==APP_DATA_LOXONE)
-        httpd_resp_send_chunk(req,"<p><a href='/loxone'>Loxone beállítások</a></p>",HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
     httpd_resp_send_chunk(
