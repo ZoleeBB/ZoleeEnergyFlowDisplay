@@ -37,7 +37,8 @@
   },
   "display": {
     "day_brightness": 80,
-    "night_brightness": 20
+    "night_brightness": 20,
+    "rotation_degrees": 270
   },
   "statistics": {
     "save_interval_minutes": 15,

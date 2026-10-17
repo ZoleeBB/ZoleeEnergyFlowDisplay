@@ -6,6 +6,7 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
 #include "app_chart.h"
@@ -1665,16 +1666,25 @@ static void initial_refresh_report(lv_event_t *event)
     }
 }
 
-/* Waveshare BSP kijelző és LVGL inicializálása fix 1280x800 fekvő tájolásban. */
-esp_err_t app_ui_init(void){
-    /* Inverse of pixel rotation: logical x=1280-raw y, logical y=raw x.
-     * The touch driver mirrors native Y before swapping the axes. */
-    bsp_display_cfg_t cfg={.lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),.rotation=ESP_LV_ADAPTER_ROTATE_270,.tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,.touch_flags={.swap_xy=1,.mirror_x=0,.mirror_y=1}};
+/*
+ * A kijelzőt a BSP kezdeti konfigurációjában fordítjuk. Futás közben
+ * lv_display_set_rotation() MIPI DSI/TRIPLE_PARTIAL mellett nem használható:
+ * 90 foknál Store access faultot okozhat a háttérben futó frissítés.
+ */
+esp_err_t app_ui_init(uint16_t rotation_degrees){
+    const app_display_orientation_t o=app_display_orientation_for_rotation(rotation_degrees);
+    bsp_display_cfg_t cfg={
+        .lv_adapter_cfg=ESP_LV_ADAPTER_DEFAULT_CONFIG(),
+        .rotation=o.rotation_degrees==90?ESP_LV_ADAPTER_ROTATE_90:ESP_LV_ADAPTER_ROTATE_270,
+        .tear_avoid_mode=ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
+        .touch_flags={.swap_xy=o.touch_swap_xy,.mirror_x=o.touch_mirror_x,.mirror_y=o.touch_mirror_y}
+    };
     /* Synchronous PNG/vector drawing runs on this task, rather than 32 KB
      * drawing threads. Keep its stack in PSRAM, preserving internal DMA RAM. */
     cfg.lv_adapter_cfg.task_stack_size = 32768;
     cfg.lv_adapter_cfg.stack_in_psram = true;
     lv_display_t *disp=bsp_display_start_with_config(&cfg);if(!disp)return ESP_FAIL;bsp_display_backlight_on();bsp_display_brightness_set(50);
+    ESP_LOGI("app_ui","Display initialized at %u degrees",(unsigned)o.rotation_degrees);
     ESP_LOGI("app_ui", "Display started; waiting for LVGL lock");
     esp_err_t lock_err = bsp_display_lock(5000);
     if (lock_err != ESP_OK) {
@@ -1700,7 +1710,9 @@ void app_ui_set_config(const app_config_t *cfg)
     }
 
     s_cfg=*cfg;
+    s_cfg.display.rotation_degrees=app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok=true;
+
     s_target=s_cfg.display.day_brightness;
     s_brightness=s_target;
 

@@ -13,6 +13,9 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
+#include "nvs.h"
+#include "esp_system.h"
+#include "app_display_boot.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -37,6 +40,53 @@
 
 static const char *TAG = "app";
 static app_config_t s_config;
+static app_display_boot_state_t s_boot_orientation = {.rotation_degrees=270};
+static uint16_t s_active_rotation = 270;
+
+/* Az NVS mentés csak a tájolás korai indításához és a bootloop elleni védelemhez kell.
+ * A felhasználói beállítás továbbra is a config.json-ban van. */
+static esp_err_t orientation_read(app_display_boot_state_t *state)
+{
+    nvs_handle_t h;
+    esp_err_t err=nvs_open("display_ui",NVS_READONLY,&h);
+    if(err==ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
+    if(err!=ESP_OK) return err;
+    (void)nvs_get_u16(h,"rotation",&state->rotation_degrees);
+    (void)nvs_get_u8(h,"trial",&state->trial);
+    (void)nvs_get_u8(h,"blocked",&state->blocked);
+    nvs_close(h);
+    state->rotation_degrees=state->rotation_degrees==90?90:270;
+    return ESP_OK;
+}
+static esp_err_t orientation_write(const app_display_boot_state_t *state)
+{
+    nvs_handle_t h;
+    esp_err_t err=nvs_open("display_ui",NVS_READWRITE,&h);
+    if(err!=ESP_OK) return err;
+    err=nvs_set_u16(h,"rotation",state->rotation_degrees);
+    if(err==ESP_OK) err=nvs_set_u8(h,"trial",state->trial);
+    if(err==ESP_OK) err=nvs_set_u8(h,"blocked",state->blocked);
+    if(err==ESP_OK) err=nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+
+/* Csak a már stabilan frissülő 90 fokos kijelzőt tekintjük sikeresnek.
+ * Ha előbb összeomlik, a következő boot 270-re tér vissza. */
+static void orientation_verified_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(15000));
+    app_display_boot_state_t current={.rotation_degrees=270};
+    if(orientation_read(&current)==ESP_OK &&
+       current.rotation_degrees==90 && current.trial && !current.blocked) {
+        current.trial=0;
+        esp_err_t err=orientation_write(&current);
+        ESP_LOGI(TAG,"90-degree orientation trial %s",
+                 err==ESP_OK?"verified":"could not be persisted");
+    }
+    vTaskDelete(NULL);
+}
 
 /* A konfiguráció betöltése után használt egyszerű HU/EN szövegválasztó. */
 static bool configured_hu(void)
@@ -101,21 +151,30 @@ void app_main(void)
     /* Indítási memóriahiba esetén újraindulunk; pending OTA-nál a bootloader rollbackel. */
     ESP_ERROR_CHECK(app_ota_start_validation_task());
 
-    /* A kijelző már a további indulási lépések állapotát is mutatja. */
-    if (app_ui_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Display initialization failed");
+    /* Az első UI-képkocka előtt kiválasztjuk az NVS-ben eltárolt tájolást.
+     * Sikertelen korábbi 90 fokos boot után visszaállunk 270-re. */
+    if(orientation_read(&s_boot_orientation)!=ESP_OK)
+        app_events_add(APP_EVENT_WARNING,"Tájolási NVS nem olvasható; 270 fokkal indulunk.");
+    const bool failed_trial=s_boot_orientation.rotation_degrees==90 && s_boot_orientation.trial;
+    s_active_rotation=app_display_boot_select(&s_boot_orientation);
+    if((s_active_rotation==90 || failed_trial) &&
+       orientation_write(&s_boot_orientation)!=ESP_OK) {
+        s_active_rotation=270; /* NVS védelem nélkül 90 fokban nem indulunk. */
+        app_events_add(APP_EVENT_WARNING,"A tájolási biztonsági állapot nem menthető; 270 fok.");
+    }
+    if(failed_trial)
+        app_events_add(APP_EVENT_WARNING,"A 90 fokos kijelzőindítás korábban meghiúsult, biztonsági 270 fok.");
+    ESP_LOGI(TAG,"Display startup rotation: %u degrees",(unsigned)s_active_rotation);
 
-        /*
-         * Nem rebootolunk azonnal: ha ez próba OTA image, a validációs task
-         * három perc után szabályosan érvényteleníti és visszagörgeti.
-         */
-        while (true) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+    /* Eredeti indulás: a kijelző már az SD-kártya ellenőrzését is mutatja. */
+    if (app_ui_init(s_active_rotation) != ESP_OK) {
+        ESP_LOGE(TAG, "Display initialization failed");
+        /* A sikertelen 90 fokos kísérletet a következő indulás letiltja. */
+        if(s_active_rotation==90) esp_restart();
+        /* Az OTA-rollback validáció tovább futhat. */
+        while (true) vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    /* SD-kártya nélkül nincs konfiguráció, ezért ez blokkoló feltétel. */
-    ESP_LOGI(TAG, "Display UI ready; mounting SD card");
     app_ui_show_boot(APP_BOOT_SD, NULL);
     esp_err_t err = app_storage_boot_mount();
     if (err != ESP_OK) {
@@ -123,25 +182,33 @@ void app_main(void)
             "SD-kártya hiba",
             "A rendszer nem tudja elérni az SD-kártyát. Ellenőrizd a kártyát, majd indítsd újra az eszközt.");
     }
-
-    /* A konfigurációt kizárólag induláskor olvassuk be. */
-    ESP_LOGI(TAG, "SD mounted; loading configuration");
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
-    char config_error[256];
-    /* A tápvesztés miatt félbemaradt webes konfigurációmentés helyreállítása. */
-    if(access(CONFIG_PATH,F_OK)!=0 && access(CONFIG_BACKUP_PATH,F_OK)==0){
-        if(rename(CONFIG_BACKUP_PATH,CONFIG_PATH)==0)
+    char config_error[256] = {0};
+    /* Félbemaradt webes konfigurációmentés helyreállítása. */
+    if (access(CONFIG_PATH,F_OK)!=0 && access(CONFIG_BACKUP_PATH,F_OK)==0) {
+        if (rename(CONFIG_BACKUP_PATH,CONFIG_PATH)==0)
             app_events_add(APP_EVENT_WARNING,"Konfiguráció helyreállítva a mentésből.");
     }
-    err = app_config_load_file(
-        CONFIG_PATH,
-        &s_config,
-        config_error,
-        sizeof(config_error));
+    err = app_config_load_file(CONFIG_PATH,&s_config,config_error,sizeof(config_error));
+    if (err != ESP_OK) fatal_forever("Konfigurációs hiba",config_error);
 
-    if (err != ESP_OK) {
-        fatal_forever("Konfigurációs hiba", config_error);
+    /* Az SD-n tárolt konfiguráció a hiteles forrás. Változás esetén az NVS
+     * gyorsindítási másolat frissül, és a kijelző az új beállítással újraindul.
+     * Nem hívjuk az LVGL futás közbeni rotation API-ját. */
+    if(app_display_boot_sync(&s_boot_orientation,s_config.display.rotation_degrees)) {
+        if(orientation_write(&s_boot_orientation)==ESP_OK) {
+            ESP_LOGI(TAG,"New display orientation saved; controlled restart");
+            vTaskDelay(pdMS_TO_TICKS(100));
+            esp_restart();
+        } else {
+            app_events_add(APP_EVENT_WARNING,"Tájolási NVS írása sikertelen; jelenlegi állás marad.");
+        }
     }
+    if(s_boot_orientation.blocked && s_config.display.rotation_degrees==90)
+        app_events_add(APP_EVENT_WARNING,"90 fokos mód letiltva korábbi kijelzőhiba után. Válassz 270 fokot a beállításokban.");
+    if(s_active_rotation==90 &&
+       xTaskCreate(orientation_verified_task,"orientation_ok",3072,NULL,3,NULL)!=pdPASS)
+        app_events_add(APP_EVENT_WARNING,"90 fokos kijelző ellenőrző feladat nem indult el.");
 
     app_state_set_data_mode(s_config.data_recept_mode);
     app_state_set_config_ok(true);

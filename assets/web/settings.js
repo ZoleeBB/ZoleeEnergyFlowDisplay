@@ -12,7 +12,7 @@ const definitions=[
 ['mqtt.broker','Broker cím'],['mqtt.port','Port','integer'],['mqtt.topic','Topic'],['mqtt.username','Felhasználónév'],
 ['mqtt.password','MQTT jelszó','secret'],['mqtt.data_timeout_seconds','Adat időtúllépés (másodperc)','integer'],['mqtt.reconnect_seconds','Újracsatlakozás (másodperc)','integer']]],
 ['HTTP adatfogadás', [['http.data_timeout_seconds','Adat időtúllépés (másodperc)','integer']]],
-['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer']]],
+['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation']]],
 ['Statisztika', [['statistics.save_interval_minutes','Mentési időköz (perc, maximum 15)','integer'],['statistics.max_integration_gap_seconds','Maximális mintaköz (másodperc)','integer']]],
 ['Energia és költség',[
 ['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],
@@ -27,13 +27,13 @@ function nestedSet(obj,path,value){const a=path.split('.'),last=a.pop();const ta
 for(const [title,fields] of definitions){
  const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid';
  for(const [path,labelText,type='text'] of fields){
-  const label=document.createElement('label'),input=document.createElement(type==='mode'||type==='language'?'select':'input');
+  const label=document.createElement('label'),input=document.createElement(type==='mode'||type==='language'||type==='rotation'?'select':'input');
   label.textContent=labelText;input.id=path;fieldTypes.set(path,type);
   if(type==='bool')input.type='checkbox';
   else if(type==='integer'||type==='number'){input.type='number';input.step=type==='integer'?'1':'any';}
   else if(type==='secret'){input.type='password';input.autocomplete='new-password';input.placeholder='Változatlan jelszó';}
   else if(input.tagName==='INPUT')input.type='text';
-  if(type==='mode'||type==='language')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP']]:[['hu','Magyar'],['en','Angol']])){
+  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
    const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);
   }
   label.append(input);
@@ -46,7 +46,7 @@ function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=
 function values(){const result=structuredClone(state);for(const [path,type] of fieldTypes){
  const input=byPath(path);let value;
  if(type==='bool')value=input.checked?1:0;
- else if(type==='integer'||type==='number')value=Number(input.value);
+ else if(type==='integer'||type==='number'||type==='rotation')value=Number(input.value);
  else if(type==='secret')value=byPath(path+'__clear').checked?'':(input.value||null);
  else value=input.value;
  nestedSet(result,path,value);

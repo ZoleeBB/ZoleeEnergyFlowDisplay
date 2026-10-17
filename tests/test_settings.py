@@ -20,6 +20,9 @@ assert 'config.json.webbak' in settings
 assert '/*SETTINGS_JS*/' in page
 assert 'X-Zolee-Settings' in js
 assert "statistics.save_interval_minutes" in js
+assert "display.rotation_degrees" in js
+assert "csatlakozók jobb oldalon" in js and "csatlakozók bal oldalon" in js
+assert 'NUM(display,"rotation_degrees",v->display.rotation_degrees)' in settings
 for path in ['settings.js','template-manager.js']:
     subprocess.run(['node','--check',str(root/'assets/web'/path)],check=True)
 for header in ['app_settings_page.h','app_template_page.h']:
