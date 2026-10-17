@@ -14,8 +14,10 @@ A webes sablonkezelő HTML/JS forrása és a belőle generált `main/app_templat
 
 ## Loxone kapcsolat képernyő
 
-A `main/app_loxone_logo.h` PNG-adatfolyama a Loxone saját
-[LxCommunicator.NET](https://github.com/Loxone/LxCommunicator.NET/blob/master/Logo.png)
-MIT-licencű példatárának változatlan `Logo.png` képe. A márkajelzés kizárólag
+A [helyben tárolt Loxone-logó](../assets/loxone-logo.png) a Loxone saját
+LxCommunicator.NET MIT-licencű példatárának változatlan `Logo.png` képe.
+A `main/app_loxone_logo.h` ugyanezt a PNG-t ágyazza a firmware-be, ezért
+a kijelzőnek nincs szüksége internetelérésre vagy SD-s logófájlra.
+A helyi PNG az USB-telepítőcsomag `assets/loxone-logo.png` fájlja is. A márkajelzés kizárólag
 az adatkapcsolat megjelölésére szolgál. A Loxone név és logó a jogosult tulajdona.
 A példatár licencét a `main/licenses/Loxone-LxCommunicator-MIT.txt` őrzi.
