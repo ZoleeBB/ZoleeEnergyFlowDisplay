@@ -10,7 +10,7 @@ import re
 
 def includes_code(source, fragment):
     """Az ellenőrzött C-kódrészletet szóköz- és sortörésfüggetlenül keresd."""
-    compact = lambda text: re.sub(r"\\s+", "", text)
+    compact = lambda text: re.sub(r"\s+", "", text)
     return compact(fragment) in compact(source)
 
 ROOT = Path(__file__).resolve().parents[1]
