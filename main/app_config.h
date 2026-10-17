@@ -75,6 +75,7 @@ typedef struct {
 typedef struct {
     uint8_t day_brightness;
     uint8_t night_brightness;
+    uint16_t rotation_degrees; /* Csak 270 (jobb) vagy 90 (bal) */
 } app_display_config_t;
 
 /* Statisztika mentési és integrálási paraméterek. */

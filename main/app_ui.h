@@ -15,7 +15,7 @@ typedef enum {
 } app_boot_stage_t;
 
 /* Kijelző, LVGL és háttérvilágítás inicializálása. */
-esp_err_t app_ui_init(void);
+esp_err_t app_ui_init(uint16_t rotation_degrees);
 
 /* A betöltött konfiguráció átadása a UI-nak. */
 void app_ui_set_config(const app_config_t *cfg);

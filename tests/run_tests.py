@@ -17,6 +17,23 @@ with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
                '-l:libcjson.so.1', '-Wl,--wrap=fsync', '-Wl,--wrap=rename', '-o', str(temp/'test_core')]
     subprocess.run(command, cwd=ROOT, check=True)
     subprocess.run([str(temp/'test_core')], check=True, timeout=30)
+# A forgatás és az érintési leképezés regresziós ellenőrzése.
+with tempfile.TemporaryDirectory(prefix='zolee-orientation-') as directory:
+    binary=str(Path(directory)/'test_display_orientation')
+    subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra',
+                    '-Werror','-Imain','tests/test_display_orientation.c','-o',binary],cwd=ROOT,check=True)
+    subprocess.run([binary],check=True,timeout=10)
+main_source=(ROOT/'main/app_main.c').read_text()
+assert main_source.index('app_ui_init(s_active_rotation)') < main_source.index('app_storage_boot_mount()') < main_source.index('app_config_load_file(')
+assert 'app_display_boot_sync(' in main_source and 'orientation_verified_task' in main_source
+ui_source=(ROOT/'main/app_ui.c').read_text()
+assert 'lv_display_set_rotation(s_panel_display' not in ui_source
+assert 'ESP_LV_ADAPTER_ROTATE_90' in ui_source and 'ESP_LV_ADAPTER_ROTATE_270' in ui_source
+with tempfile.TemporaryDirectory(prefix='zolee-boot-') as directory:
+    binary=str(Path(directory)/'test_display_boot')
+    subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
+                    '-Imain','tests/test_display_boot.c','-o',binary],cwd=ROOT,check=True)
+    subprocess.run([binary],check=True,timeout=10)
 # Generated full/partial five-minute energy histories, built as real C code.
 with tempfile.TemporaryDirectory(prefix="zolee-compare-") as directory:
     binary=str(Path(directory)/"test_stats_comparison")

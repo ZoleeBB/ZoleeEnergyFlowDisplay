@@ -78,6 +78,7 @@ void app_config_set_defaults(app_config_t *cfg)
     /* Kijelző és statisztika. */
     cfg->display.day_brightness = 80;
     cfg->display.night_brightness = 20;
+    cfg->display.rotation_degrees = 270;
     cfg->statistics.save_interval_minutes = 15;
     cfg->statistics.max_integration_gap_seconds = 30;
 
@@ -425,19 +426,26 @@ static bool parse_config(
 
     }
 
-    /* Kijelzőfényerő. */
+    /* Opcionális tájolás; régi config.json esetén marad a 270 fok. */
     cJSON *display = get_object_section(root, "display", false, error, error_len);
     if (display) {
         uint32_t day = cfg->display.day_brightness;
         uint32_t night = cfg->display.night_brightness;
+        uint32_t rotation = cfg->display.rotation_degrees;
 
         if (!read_u32(display, "day_brightness", &day, 1, 100, false, error, error_len) ||
-            !read_u32(display, "night_brightness", &night, 1, 100, false, error, error_len)) {
+            !read_u32(display, "night_brightness", &night, 1, 100, false, error, error_len) ||
+            !read_u32(display, "rotation_degrees", &rotation, 90, 270, false, error, error_len)) {
+            return false;
+        }
+        if (rotation != 90 && rotation != 270) {
+            set_error(error, error_len, "A display.rotation_degrees csak 90 vagy 270 lehet.");
             return false;
         }
 
         cfg->display.day_brightness = (uint8_t)day;
         cfg->display.night_brightness = (uint8_t)night;
+        cfg->display.rotation_degrees = (uint16_t)rotation;
     } else if (error && *error) {
         return false;
     }

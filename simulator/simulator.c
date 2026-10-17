@@ -135,7 +135,7 @@ static void init_demo(void)
     lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);
     lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(display,flush);
-    if(app_ui_init()!=ESP_OK)exit(2);
+    if(app_ui_init(270)!=ESP_OK)exit(2);
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia - DEMO");
     snprintf(config.project.language,sizeof(config.project.language),"hu");
     snprintf(config.project.currency,sizeof(config.project.currency),"Ft");

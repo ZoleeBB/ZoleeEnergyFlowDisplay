@@ -10,12 +10,14 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
 | `http` | HTTP módban adatkimaradási timeout |
 | `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
-| `display` | Nappali/éjszakai fényerő, százalékban 1–100 |
+| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90 |
 | `statistics` | Mentési időköz és maximális integrálási adatrés |
 | `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
 
 HTTP módban MQTT broker nem szükséges. A kiválasztott mód adatkimaradási időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli.
+
+A `display.rotation_degrees` csak `270` (csatlakozók jobb oldalon, alapérték) vagy `90` (csatlakozók bal oldalon) lehet. A GT911 érintéskezelése együtt fordul a képpel. A mező opcionális: régi konfigurációs fájloknál automatikusan 270° érvényes; más értéket az ellenőrzés elutasít. A kijelző az induláskor NVS-ből kiválasztott tájolással inicializálódik, és az SD-kártyát csak ezután olvassa. A `config.json` a hiteles forrás: ha a tájolás eltér az NVS-ben tárolt értéktől, azt frissíti és egyszer újraindul. Futás közbeni LVGL-forgatás nincs, mert a MIPI DSI részleges framebufferrel hardveres összeomlást okozhat. A 90°-os indulás 15 másodperc után válik igazolttá; ha addig újraindulás történik, a következő boot automatikusan 270°-ra tér vissza, és letiltja a 90°-os újrapróbálást. Feloldás: válassz 270°-ot, mentsd, majd ismét 90°-ot. Az első átállítás két egymást követő, szándékos újraindítást eredményezhet.
 
 A `Europe/Budapest` időzónát a firmware CET/CEST szabályként kezeli. `auto_dst=0` esetén fix `utc_offset_minutes` érvényes; más automatikus időzónához POSIX TZ szabály kell, nincs általános IANA-időzónaadatbázis. Alap NTP: `hu.pool.ntp.org`, ismételt szinkron 6 óránként, háttérbeli újrapróbálás 15 percenként.
 

@@ -36,6 +36,7 @@ static cJSON *settings_json(const app_config_t *v)
     OBJ(http);NUM(http,"data_timeout_seconds",v->http.data_timeout_seconds);
     OBJ(display);NUM(display,"day_brightness",v->display.day_brightness);
     NUM(display,"night_brightness",v->display.night_brightness);
+    NUM(display,"rotation_degrees",v->display.rotation_degrees);
     OBJ(statistics);
     NUM(statistics,"save_interval_minutes",v->statistics.save_interval_minutes);
     NUM(statistics,"max_integration_gap_seconds",v->statistics.max_integration_gap_seconds);

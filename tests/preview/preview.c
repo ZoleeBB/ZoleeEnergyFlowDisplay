@@ -795,7 +795,7 @@ int main(void)
     lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);
     lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(display,flush);
-    assert(app_ui_init()==ESP_OK);
+    assert(app_ui_init(270)==ESP_OK);
     runtime_wifi_connected=false;
     app_ui_show_boot(APP_BOOT_WIFI,NULL);
     animation_tick(NULL);

@@ -253,13 +253,36 @@ static void test_payload(void){
 }
 static void test_config(void){
     app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
+    assert(defaults.display.rotation_degrees==270);
     char error[256];const char *path=APP_SD_MOUNT_POINT "/config.json";
     for(int interval=60;interval<=61;interval++){
         FILE *f=fopen(path,"wb");assert(f);
         fprintf(f,"{\"project\":{\"language\":\"EN\"},\"wifi\":{\"ssid\":\"test\"},\"mqtt\":{\"broker\":\"localhost\"},\"statistics\":{\"save_interval_minutes\":%d}}",interval);fclose(f);
         esp_err_t error_code=app_config_load_file(path,&cfg,error,sizeof(error));
         assert((interval==60)==(error_code==ESP_OK));if(interval==60)assert(strcmp(cfg.project.language,"en")==0);
-    }tests++;
+    }
+    /* Régi config, mindkét új állás, érvénytelen értékek. */
+    const struct {const char *part;int expected;} cases[]={
+        {"",270}, {",\"display\":{}",270},
+        {",\"display\":{\"day_brightness\":55}",270},
+        {",\"display\":{\"rotation_degrees\":270}",270},
+        {",\"display\":{\"rotation_degrees\":90}",90},
+        {",\"display\":{\"rotation_degrees\":180}",-1},
+        {",\"display\":{\"rotation_degrees\":275}",-1},
+        {",\"display\":{\"rotation_degrees\":0}",-1},
+        {",\"display\":{\"rotation_degrees\":90.5}",-1},
+        {",\"display\":{\"rotation_degrees\":\"90\"}",-1},
+        {",\"display\":{\"rotation_degrees\":null}",-1}
+    };
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++){
+        FILE *f=fopen(path,"wb");assert(f);
+        fprintf(f,"{\"wifi\":{\"ssid\":\"test\"},\"mqtt\":{\"broker\":\"localhost\"}%s}",cases[i].part);
+        fclose(f);
+        esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
+        assert((rc==ESP_OK)==(cases[i].expected>=0));
+        if(rc==ESP_OK)assert(cfg.display.rotation_degrees==cases[i].expected);
+    }
+    tests++;
 }
 static void test_flow(void){
     near(app_flow_advance(.4f,7,false,0),.4f);
