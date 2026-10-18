@@ -3,7 +3,7 @@
 Célhardver: [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B, SKU 31416](../firmware/desk-slave-waveshare-4b/README.md).
 Ez a dokumentum az első látványtervezési lépést rögzíti; az új alkalmazás még
 nincs implementálva. A feladat a fő Rendszer téma Energiaáramlás kártyájának
-önálló, négyzetes megjelenítése és külön színes hátterének megtervezése.
+önálló, négyzetes megjelenítése és külön, virtuális tájat ábrázoló hátterének megtervezése.
 
 ## Elrendezés
 
@@ -16,11 +16,15 @@ az időjárás opcionális mezői hiányzó adatnál elrejthetők.
 | Cím | Fejléc bal oldala, legfeljebb kb. 240 pixel |
 | Időjárás | Fejléc középső/jobboldali része: ikon, hőmérséklet, szél ikon és km/h |
 | Óra | Fejléc jobb széle, külön szélességgel HH:MM számára |
-| Hálózat | Felső energiaelem, a középső függőleges tengelyen |
-| Akkumulátor | Bal oldali energiaelem; teljesítmény, egész SOC és akkuhőmérséklet |
-| Napelem | Jobb oldali energiaelem, teljesítménnyel |
-| Ház | Alsó energiaelem, alatta név és teljesítmény |
-| Hub | Középen, az eredeti szürke villámos ikon |
+| Hálózat | Fent, kb. (360,145); neve és teljesítménye jobbra, kb. x=421-től |
+| Akkumulátor | Bal szélen, kb. (94,380); alatta név, teljesítmény, egész SOC és akkuhőmérséklet |
+| Napelem | Jobb szélen, kb. (626,380); alatta név és teljesítmény |
+| Ház | Lent a zöldövezetben, kb. (360,625); neve és teljesítménye jobbra, kb. x=421-től |
+| Hub | Kb. (360,380), az eredeti szürke villámos ikon, sokkal kisebb, kb. 30 pixeles átmérővel |
+
+A külső ikonok körülbelül 88 pixelesek. Így a hub és a külső ikonok közt kb.
+175–210 pixel hosszú, megszakítatlan út maradhat, a mozgó energiapontoknak is.
+A koordináták látványtervezési irányértékek, a natív renderben ellenőrizendők.
 
 A négy külső ikon és a hub ugyanazt az elrendezést és ikoncsaládot használja,
 mint a 10,1 colos Rendszer kártya. Nincs napi összegző, grafikon vagy új funkció
@@ -30,14 +34,21 @@ a főprogram szabályait követi.
 
 ## Világos és sötét háttér
 
-Világos változat: törtfehér alap, lágy türkiz/zöld/kék hullámok és kevés meleg
-arany szín a széleken. A címkék sötétek, a középső terület világos és nyugodt.
+Világos változat: nyugodt kék égbolt, néhány puha felhő, a kép alsó részén zöld
+rét, fák és a zöld környezetbe illesztett ház. A fejléc és a felső/mellékoldali
+adatok tiszta égboltra, a ház jobb oldali adatai egyenletes világos rétre kerülnek.
+A táj természetes, finoman térhatású, nem absztrakt hullámos háttér.
 
-Sötét változat: mély tengerészkék/zöld alap, visszafogott türkiz/kék fények és
-kevés meleg borostyán szín. Világos, jól olvasható feliratok, mérsékelt ikonfényerő.
-A színes háttér nem halványíthatja el az energiautakat vagy a számokat.
+Sötét változat: ugyanaz a táj éjszaka, mélykék égbolt, visszafogott holdfény,
+sötétzöld táj és a ház meleg ablakfénye. A feliratok világosak, az energiautak
+színei elkülönülnek. A geometria és az adatpozíciók a nappalival azonosak.
 
-Mindkét háttér önálló, szöveg és ikon nélküli réteg lesz. Az ikonok, feliratok,
+Az olvashatóságot a táj részleteinek elhelyezése és a betűszínek biztosítják:
+nincs háttérmaszk, homályosító fátyol, üvegpanel vagy szövegenkénti doboz.
+Finom betűárnyék megengedett. A ház külön UI-ikonként a lenti tájba illeszkedhet;
+ne legyen két, egymásra rajzolt ház.
+
+Mindkét háttér önálló, szöveg és energiadiagram nélküli réteg lesz. Az ikonok, feliratok,
 energiautak és mozgó pontok a háttér előtt, külön natív UI-elemek. A pontos
 rétegrend: [megjelenési rétegek](../firmware/desk-slave-waveshare-4b/design/README.md).
 
