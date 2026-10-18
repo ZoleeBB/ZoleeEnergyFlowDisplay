@@ -14,18 +14,23 @@ felhasználó jóváhagyásával a háttér részei.
 | SOC | Vékony függőleges, alulról felfelé töltődő LVGL sáv az akku bal oldalán |
 | Állapot | PIN-pad, keresés/lejárt adat, diagnosztika |
 
-A két 1254×1254 PNG-t a renderer 720×720-ra méretezi. Nincs háttérfátyol vagy
+A két PNG natív 720×720 felbontású. Nincs háttérfátyol vagy
 adatkártya. A PIN és a kérhető diagnosztika külön állapotfelület.
 
 | Csomópont közepe | Nappal | Éjjel |
 | --- | --- | --- |
-| Hálózat | 360,161 | 360,140 |
-| Akkumulátor | 86,360 | 90,353 |
-| Napelem | 633,360 | 629,353 |
-| Ház | 360,576 | 360,568 |
+| Hálózat | 360,130 | 360,130 |
+| Akkumulátor | 130,360 | 130,360 |
+| Napelem | 590,360 | 590,360 |
+| Ház | 360,590 | 360,590 |
 | Hub | 360,360 | 360,360 |
 
-A koordináták az illusztrációhoz igazodnak. Hálózat/ház adatai jobbra,
+A két háttér illusztrációinak helye és mérete a nappali referenciához igazodik.
+Minden ikon középpontja 230 pixelre van a hub közepétől. A körök sugara
+egységesen 60 pixel, az energiautak hossza a hub közepétől a kör széléig
+170 pixel. A geometria mindkét módban azonos.
+A SOC sáv és az akku részletes felirata sem mozdul el módváltáskor.
+Hálózat/ház adatai jobbra,
 akku/napelem adatai alul. Hub: 42×42 pixel. A fő Rendszer téma közös
 fázismodellje adja a folyamatos, teljesítményarányos animációt.
 

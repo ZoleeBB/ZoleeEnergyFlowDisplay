@@ -135,6 +135,34 @@ static int self_test(void)
     sample = decoded;
     step(33);
     CHECK(save("slave-4b-day.ppm") == 0);
+    /* A tényleges LVGL körök helye és mérete mindkét váltási irányban állandó. */
+    lv_obj_t *rings[4];
+    lv_area_t ring_areas[4];
+    unsigned ring_count = 0;
+    lv_obj_t *screen = lv_screen_active();
+    for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++)
+    {
+        lv_obj_t *child = lv_obj_get_child(screen, i);
+        if (lv_obj_get_style_border_width(child, LV_PART_MAIN) == 3 &&
+            lv_obj_get_width(child) == lv_obj_get_height(child))
+        {
+            CHECK(ring_count < 4);
+            rings[ring_count] = child;
+            lv_obj_get_coords(child, &ring_areas[ring_count]);
+            int cx = lv_obj_get_x(child) + lv_obj_get_width(child) / 2;
+            int cy = lv_obj_get_y(child) + lv_obj_get_height(child) / 2;
+            CHECK(abs(cx - 360) + abs(cy - 360) == 230);
+            CHECK(cx == 360 || cy == 360);
+            CHECK(lv_obj_get_width(child) == 120);
+            /* A kör előtti testvér a hozzá vezető energiaút. */
+            CHECK(i > 0);
+            lv_obj_t *path = lv_obj_get_child(screen, i - 1);
+            int pw = lv_obj_get_width(path), ph = lv_obj_get_height(path);
+            CHECK((pw == 170 && ph == 4) || (pw == 4 && ph == 170));
+            ring_count++;
+        }
+    }
+    CHECK(ring_count == 4);
     uint64_t day = hash();
     step(200);
     CHECK(hash() != day); /* A mozgó pontok valóban változtatják a renderelt képet. */
@@ -142,6 +170,18 @@ static int self_test(void)
     step(33);
     CHECK(save("slave-4b-night.ppm") == 0);
     CHECK(hash() != day);
+    for (int mode = 0; mode < 3; mode++)
+    {
+        scene(mode != 1);
+        step(33);
+        for (unsigned i = 0; i < ring_count; i++)
+        {
+            lv_area_t area;
+            lv_obj_get_coords(rings[i], &area);
+            CHECK(area.x1 == ring_areas[i].x1 && area.y1 == ring_areas[i].y1 &&
+                  area.x2 == ring_areas[i].x2 && area.y2 == ring_areas[i].y2);
+        }
+    }
     /* Opcionális időjárás: a hiányzó mező ne hagyjon ott régi ikont vagy értéket. */
     sample.temperature_valid = false;
     sample.wind_speed_valid = false;

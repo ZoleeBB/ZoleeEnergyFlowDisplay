@@ -74,12 +74,10 @@ static void diagnostics_toggle(lv_event_t *event)
 
 static void layout(bool night)
 {
-    /* A két elfogadott illusztráció csomópontjai kissé eltérő helyen vannak. */
-    static const int day[4][3] = {{360, 161, 61}, {86, 360, 58},
-                                  {633, 360, 58}, {360, 576, 63}};
-    static const int dark[4][3] = {{360, 140, 57}, {90, 353, 55},
-                                   {629, 353, 57}, {360, 568, 60}};
-    const int (*positions)[3] = night ? dark : day;
+    /* A háttérváltozatok közös geometriája miatt témaváltáskor sem a körök,
+     * sem a hozzájuk igazított utak és feliratok nem mozdulhatnak el. */
+    static const int positions[4][3] = {{360, 130, 60}, {130, 360, 60},
+                                        {590, 360, 60}, {360, 590, 60}};
     lv_image_set_src(background, night ? &slave_4b_night : &slave_4b_day);
     for (int i = 0; i < 4; i++)
     {
@@ -102,8 +100,8 @@ static void layout(bool night)
         lv_obj_set_style_text_color(node->name, lv_color_hex(night ? 0xF5FAFF : 0x00183D), 0);
     }
     /* A rendszertéma vékony, alulról felfelé töltődő SOC sávja. */
-    lv_obj_set_pos(soc, night ? 68 : 64, night ? 327 : 332);
-    lv_obj_set_pos(battery_detail, 8, night ? 469 : 478);
+    lv_obj_set_pos(soc, 108, 332);
+    lv_obj_set_pos(battery_detail, 52, 478);
     lv_color_t text = lv_color_hex(night ? 0xF5FAFF : 0x00183D);
     lv_obj_set_style_text_color(root, text, 0);
     last_night = night;
