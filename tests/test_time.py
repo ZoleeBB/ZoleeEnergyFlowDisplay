@@ -38,6 +38,8 @@ esp_err_t esp_netif_sntp_sync_wait(TickType_t timeout);
 #include <stdint.h>
 #include <setjmp.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sys/time.h>
 #include "sdkconfig.h"
 #include "app_time.h"
 #include "app_events.h"
@@ -49,6 +51,16 @@ static jmp_buf stop_task;
 static unsigned task_creates, delays, stop_after, warnings, successes;
 static TickType_t observed[8];
 static bool reconnect_on_retry, succeed_on_retry;
+static int64_t rtc_ms;
+static int rtc_writes;
+static bool rtc_failure;
+int test_gettimeofday(struct timeval *tv,void *zone) {
+ (void)zone;tv->tv_sec=rtc_ms/1000;tv->tv_usec=(rtc_ms%1000)*1000;return 0;
+}
+int test_settimeofday(const struct timeval *tv,const struct timezone *zone) {
+ (void)zone;if(rtc_failure)return -1;
+ rtc_ms=(int64_t)tv->tv_sec*1000+tv->tv_usec/1000;++rtc_writes;return 0;
+}
 bool app_wifi_is_connected(void) { return connected; }
 void app_state_set_time_synced(bool value) { synced=value; }
 void app_events_add(app_event_level_t level,const char *fmt,...) {
@@ -81,6 +93,29 @@ esp_err_t esp_netif_sntp_start(void) {
 }
 esp_err_t esp_netif_sntp_sync_wait(TickType_t timeout) { assert(timeout==pdMS_TO_TICKS(10000));return wait_result; }
 int main(void) {
+#ifdef TEST_SLAVE_CLOCK
+ app_config_t cfg={.data_recept_mode=APP_DATA_SLAVE};
+ assert(app_time_sync_from_master(1800000000123LL,120)==ESP_ERR_INVALID_STATE);
+ assert(app_time_init(&cfg)==ESP_OK);
+ assert(app_time_sync_once()==ESP_ERR_INVALID_STATE);
+ assert(app_time_start_background_task()==ESP_OK&&task_creates==0);
+ assert(app_time_sync_from_master(1800000000123LL,120)==ESP_OK);
+ assert(synced&&rtc_writes==1&&rtc_ms==1800000000123LL);
+ assert(strcmp(getenv("TZ"),"UTC-2")==0);
+ assert(app_time_sync_from_master(1800000000223LL,120)==ESP_OK&&rtc_writes==1);
+ assert(app_time_sync_from_master(1800000001123LL,60)==ESP_OK&&rtc_writes==2);
+ assert(strcmp(getenv("TZ"),"UTC-1")==0);
+ assert(app_time_sync_from_master(1800000001123LL,345)==ESP_OK);
+ assert(strcmp(getenv("TZ"),"UTC-5:45")==0);
+ assert(app_time_sync_from_master(0,0)==ESP_ERR_INVALID_ARG);
+ assert(app_time_sync_from_master(1800000001123LL,900)==ESP_ERR_INVALID_ARG);
+ rtc_failure=true;
+ assert(app_time_sync_from_master(1800000003123LL,60)==ESP_FAIL);
+ assert(!connected&&starts==0);
+ /* A normál NTP segédeket ebben a variánsban is fordítjuk. */
+ (void)run_background;(void)seconds_to_ticks;
+ return 0;
+#else
  assert(app_time_init(NULL)==ESP_ERR_INVALID_ARG);
  assert(app_time_sync_once()==ESP_ERR_INVALID_STATE);
  app_config_t cfg={0};strcpy(cfg.time.ntp_server,"192.0.2.10");
@@ -112,12 +147,14 @@ int main(void) {
  assert(observed[0]==normal&&observed[1]==retry&&observed[2]==normal);
  assert(starts==before+1&&successes==5);
  return 0;
+#endif
 }
 ''')
     cc=os.environ.get('CC','cc')
     args=[cc,'-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
-          '-fno-sanitize-recover=all','-I'+str(tmp),'-I'+str(ROOT/'tests/stubs'),'-I'+str(ROOT/'main')]
-    for variant in ([], ['-DTEST_TICK_HZ=100'], ['-DTEST_MAX_INTERVAL']):
+          '-fno-sanitize-recover=all','-Dgettimeofday=test_gettimeofday','-Dsettimeofday=test_settimeofday',
+          '-I'+str(tmp),'-I'+str(ROOT/'tests/stubs'),'-I'+str(ROOT/'main')]
+    for variant in ([], ['-DTEST_TICK_HZ=100'], ['-DTEST_MAX_INTERVAL'], ['-DTEST_SLAVE_CLOCK']):
         subprocess.run([*args,*variant,str(ROOT/'main/app_time.c'),str(tmp/'test.c'),'-o',str(tmp/'test')],check=True)
         subprocess.run([str(tmp/'test')],check=True)
     (tmp/'sdkconfig.h').write_text('#define CONFIG_LWIP_SNTP_UPDATE_DELAY 1209600000\n')

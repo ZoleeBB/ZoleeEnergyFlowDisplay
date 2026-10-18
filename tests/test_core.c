@@ -254,6 +254,7 @@ static void test_payload(void){
 static void test_config(void){
     app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
     assert(defaults.display.rotation_degrees==270);
+    assert(!defaults.data_seed_enabled);
     char error[256];const char *path=APP_SD_MOUNT_POINT "/config.json";
     for(int interval=60;interval<=61;interval++){
         FILE *f=fopen(path,"wb");assert(f);
@@ -281,6 +282,27 @@ static void test_config(void){
         esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
         assert((rc==ESP_OK)==(cases[i].expected>=0));
         if(rc==ESP_OK)assert(cfg.display.rotation_degrees==cases[i].expected);
+    }
+    /* Az új kapcsoló régi konfigurációval kikapcsolt, csak 0/1 fogadható el. */
+    const char *seed_values[]={"0","1","2","-1","0.5","true","null","\"1\""};
+    for(size_t i=0;i<sizeof(seed_values)/sizeof(seed_values[0]);i++){
+        FILE *f=fopen(path,"wb");assert(f);
+        fprintf(f,"{\"wifi\":{\"ssid\":\"test\"},\"mqtt\":{\"broker\":\"localhost\"},\"DataSeedEnabled\":%s}",seed_values[i]);
+        fclose(f);
+        esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
+        assert((rc==ESP_OK)==(i<2));
+        if(rc==ESP_OK)assert(cfg.data_seed_enabled==(i==1));
+    }
+    const char *slave_configs[]={
+        "{\"DataReceptMode\":\"slave\"}",
+        "{\"DataReceptMode\":\"Slave\",\"wifi\":{\"ssid\":\"\"},\"time\":{\"ntp_server\":null}}",
+        "{\"DataReceptMode\":\"slave\",\"DataSeedEnabled\":1}",
+    };
+    for(size_t i=0;i<3;i++){
+        FILE *f=fopen(path,"wb");assert(f);fputs(slave_configs[i],f);fclose(f);
+        esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
+        assert((rc==ESP_OK)==(i<2));
+        if(rc==ESP_OK)assert(cfg.data_recept_mode==APP_DATA_SLAVE&&!cfg.wifi.ssid[0]);
     }
     tests++;
 }

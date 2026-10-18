@@ -59,6 +59,17 @@ typedef struct
     bool time_synced;
     bool mqtt_connected;
     bool has_valid_sample;
+    bool slave_connected;
+    bool slave_source_stale;
+    uint16_t slave_source_timeout_seconds;
+    int64_t slave_connected_monotonic_us;
+    int64_t slave_packet_monotonic_us;
+
+    /* A BLE host ugyanazon állapotmutexen keresztül ad diagnosztikát. */
+    bool ble_enabled, ble_master, ble_ready, ble_advertising, ble_scanning;
+    unsigned ble_slaves;
+    char ble_address[18], ble_peer[18];
+    int ble_rssi;
 
     int64_t mqtt_connected_monotonic_us;
     int64_t last_valid_packet_monotonic_us;
@@ -86,26 +97,44 @@ void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet);
+void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
+                       bool scanning, unsigned slaves, const char *address,
+                       const char *peer, int rssi);
 static inline bool app_state_data_ready(const app_runtime_state_t *s)
 {
+    if (s->data_recept_mode == APP_DATA_SLAVE)
+        return s->slave_connected;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready
                                                   : s->mqtt_connected;
 }
 static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
 {
+    if (s->data_recept_mode == APP_DATA_SLAVE)
+        return s->slave_connected_monotonic_us;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected_monotonic_us
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready_monotonic_us
                                                   : s->mqtt_connected_monotonic_us;
 }
 static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 {
+    if (s->data_recept_mode == APP_DATA_SLAVE)
+        return s->sd_ok && s->config_ok && s->time_synced && s->slave_connected
+            && s->has_valid_sample && !s->slave_source_stale;
     return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced &&
            (s->data_recept_mode == APP_DATA_LOXONE ? s->http_ready : app_state_data_ready(s));
 }
 static inline bool
 app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t seconds)
 {
+    if (s->data_recept_mode == APP_DATA_SLAVE) {
+        if (!s->slave_connected || s->slave_source_stale)
+            return true;
+        if (now - s->slave_packet_monotonic_us >= 15000000LL)
+            return true;
+        seconds = s->slave_source_timeout_seconds ? s->slave_source_timeout_seconds : 45;
+    }
     int64_t since =
         s->has_valid_sample ? s->last_valid_packet_monotonic_us : app_state_data_ready_since(s);
     return app_state_data_ready(s) && now - since >= (int64_t)seconds * 1000000LL;

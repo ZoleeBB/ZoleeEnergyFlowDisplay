@@ -902,7 +902,7 @@ int main(void)
     assert(strstr(lv_label_get_text(s_diagnostic_log[14]),"05"));
     lv_obj_update_layout(s_screen);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_log[0]))==640);
-    for(int i=0;i<8;i++){
+    for(int i=0;i<14;i++){
         lv_area_t row,parent;lv_obj_get_coords(s_diagnostic_values[i],&row);
         lv_obj_get_coords(lv_obj_get_parent(s_diagnostic_values[i]),&parent);
         assert(row.y2<parent.y2&&row.x2<parent.x2);
@@ -914,6 +914,32 @@ int main(void)
     render_runtime(rt,sample,true,31000000);assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Loxone"));
     assert(lv_bar_get_value(s_diagnostic_bars[0])==25);assert(strstr(lv_label_get_text(s_diagnostic_values[5]),"67%"));
     save_frame("diagnostics-common");
+    rt.ble_enabled=rt.ble_master=rt.ble_ready=rt.ble_advertising=true;
+    rt.ble_slaves=2;snprintf(rt.ble_address,sizeof(rt.ble_address),"01:02:03:04:05:06");
+    render_runtime(rt,sample,true,31000000);
+    assert(strcmp(lv_label_get_text(s_diagnostic_values[11]),"2")==0);
+    assert(strstr(lv_label_get_text(s_diagnostic_values[8]),"Master"));
+    assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[0]))==32);
+    assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[1]))==328);
+    save_frame("diagnostics-master");
+    app_data_mode_t previous_mode=s_cfg.data_recept_mode;
+    s_cfg.data_recept_mode=rt.data_recept_mode=APP_DATA_SLAVE;
+    rt.ble_master=rt.ble_advertising=rt.wifi_connected=false;
+    rt.slave_connected=rt.time_synced=rt.has_valid_sample=true;
+    rt.last_valid_packet_monotonic_us=rt.slave_packet_monotonic_us=31000000;
+    rt.slave_source_timeout_seconds=30;rt.ble_rssi=-62;
+    snprintf(rt.ble_peer,sizeof(rt.ble_peer),"06:05:04:03:02:01");
+    clear();render_runtime(rt,sample,true,31000000);
+    assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Slave"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[11]),"-62"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[13]),"Bluetooth"));
+    save_frame("diagnostics-slave");
+    s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DASHBOARD); /* Slave Wi-Fi nélkül is normál kijelző. */
+    rt.slave_connected=false;render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DATA_TIMEOUT);
+    s_cfg.data_recept_mode=previous_mode;
+    rt.data_recept_mode=APP_DATA_MQTT;rt.wifi_connected=true;
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);

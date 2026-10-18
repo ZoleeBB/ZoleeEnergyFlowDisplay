@@ -6,6 +6,20 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='zolee-ble-') as directory:
+    binary = str(Path(directory) / 'test_ble_protocol')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_protocol.c',
+                    'main/app_ble_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
+    binary = str(Path(directory) / 'test_ble_slave')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
+                    'main/app_ble_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
     sources = ['tests/test_core.c', 'main/app_payload.c', 'main/app_config.c',
@@ -51,6 +65,7 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=T
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
+subprocess.run(['node', str(ROOT/'tests/test_settings_web.js')], cwd=ROOT, check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)

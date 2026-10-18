@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <sys/time.h>
 #include "sdkconfig.h"
 #if CONFIG_LWIP_SNTP_UPDATE_DELAY > (UINT32_MAX / 4U)
 #error "SNTP update delay exceeds lwIP sys_timeout maximum; use sdkconfig.defaults (10 days)"
@@ -27,6 +28,7 @@ static const char *TAG = "time";
 static app_time_config_t s_cfg;
 static bool s_initialized;
 static bool s_background_started;
+static bool s_slave;
 
 /*
  * Fix UTC eltolás POSIX TZ formára alakítása.
@@ -97,6 +99,12 @@ esp_err_t app_time_init(const app_config_t *cfg)
     }
 
     s_cfg = cfg->time;
+    s_slave = cfg->data_recept_mode == APP_DATA_SLAVE;
+    if (s_slave) {
+        apply_timezone();
+        s_initialized = true;
+        return ESP_OK;
+    }
     ESP_LOGI(TAG,
              "Initializing SNTP: server=%s, automatic interval=%u ms",
              s_cfg.ntp_server,
@@ -128,7 +136,7 @@ esp_err_t app_time_init(const app_config_t *cfg)
  */
 esp_err_t app_time_sync_once(void)
 {
-    if (!s_initialized || !app_wifi_is_connected())
+    if (!s_initialized || s_slave || !app_wifi_is_connected())
     {
         return ESP_ERR_INVALID_STATE;
     }
@@ -217,10 +225,40 @@ static void time_sync_task(void *arg)
 /* A háttérszinkron task egyszeri elindítása. */
 esp_err_t app_time_start_background_task(void)
 {
+    if (s_slave)
+        return ESP_OK;
     if (s_background_started)
         return ESP_OK;
     if (xTaskCreate(time_sync_task, "time_sync_task", 4096, NULL, 4, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
     s_background_started = true;
+    return ESP_OK;
+}
+
+esp_err_t app_time_sync_from_master(int64_t epoch_ms, int16_t utc_offset_minutes)
+{
+    if (!s_initialized || !s_slave)
+        return ESP_ERR_INVALID_STATE;
+    if (epoch_ms < INT64_C(1577836800000) || epoch_ms > INT64_C(4102444800000)
+        || utc_offset_minutes < -720 || utc_offset_minutes > 840)
+        return ESP_ERR_INVALID_ARG;
+    struct timeval current, next = {
+        .tv_sec = (time_t)(epoch_ms / 1000),
+        .tv_usec = (suseconds_t)((epoch_ms % 1000) * 1000),
+    };
+    gettimeofday(&current, NULL);
+    int64_t difference = epoch_ms - ((int64_t)current.tv_sec * 1000 + current.tv_usec / 1000);
+    if ((difference > 250 || difference < -250) && settimeofday(&next, NULL) != 0)
+        return ESP_FAIL;
+    /* A master aktuális eltolása a nyári/téli váltást is automatikusan követi. */
+    static int previous_offset = INT16_MAX;
+    if (previous_offset != utc_offset_minutes) {
+        char tz[32];
+        build_fixed_timezone(utc_offset_minutes, tz, sizeof(tz));
+        setenv("TZ", tz, 1);
+        tzset();
+        previous_offset = utc_offset_minutes;
+    }
+    app_state_set_time_synced(true);
     return ESP_OK;
 }

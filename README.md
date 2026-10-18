@@ -6,6 +6,15 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a te
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
+Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master mód
+`ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
+Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](docs/ble-data-seed.md).
+
+Az új **Slave (Bluetooth)** adatfogadási mód automatikusan mastert keres,
+és onnan kapja az energiaadatokat és az időszinkront, Wi-Fi/NTP-beállítás nélkül is.
+A Wi-Fi opcionális marad webes kezeléshez/OTA-hoz. A kétoszlopos diagnosztika
+a BT-szerepet, címeket, kapcsolatot, jelerősséget és masterként a kapcsolódó slave-ek számát is mutatja.
+
 ## Első indítás
 
 1. Telepítsd a firmware-t az [USB útmutató](docs/usb-install.md) szerint.

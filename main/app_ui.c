@@ -96,7 +96,7 @@ static app_stats_period_t s_week_period, s_month_period;
 static app_diagnostics_t s_diagnostics;
 static lv_obj_t *s_diagnostic_bars[3];
 static bool s_diagnostics_requested;
-static lv_obj_t *s_diagnostic_values[8], *s_diagnostic_log[15];
+static lv_obj_t *s_diagnostic_values[14], *s_diagnostic_log[15];
 /* A meglévő RAM-napló másolata; nem a runtime task vermén tároljuk. */
 static app_event_entry_t s_diagnostic_events[15];
 static size_t s_diagnostic_event_count;
@@ -1753,8 +1753,9 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
 
     const char *hu_steps[] = {"SD-kártya",
                               "Konfiguráció",
-                              "Wi-Fi kapcsolat",
-                              "Időszinkron",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (opcionális)" : "Wi-Fi kapcsolat",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / master keresése" :
                               s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone kapcsolat"
                               : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP adatfogadó"
                                                                         : "MQTT kapcsolat",
@@ -1762,8 +1763,9 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
 
     const char *en_steps[] = {"SD card",
                               "Configuration",
-                              "Wi-Fi connection",
-                              "Time synchronization",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (optional)" : "Wi-Fi connection",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / searching for master" :
                               s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone connection"
                               : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP receiver"
                                                                         : "MQTT connection",
@@ -1907,7 +1909,16 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     bool timed_out = app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg));
     bool http = s_cfg.data_recept_mode == APP_DATA_HTTP;
 
-    if (!rt.wifi_connected)
+    if (s_cfg.data_recept_mode == APP_DATA_SLAVE &&
+        (!rt.slave_connected || !have || timed_out))
+    {
+        error_screen(VIEW_DATA_TIMEOUT,
+            !rt.slave_connected ? tr("Master keresése", "Searching for master")
+                               : tr("Nincs friss master adat", "No fresh master data"),
+            tr("Bluetooth kapcsolatra és érvényes energiaadatokra várunk...",
+               "Waiting for Bluetooth connection and valid energy data..."), false);
+    }
+    else if (s_cfg.data_recept_mode != APP_DATA_SLAVE && !rt.wifi_connected)
     {
         error_screen(
             VIEW_WIFI_ERROR,

@@ -314,11 +314,14 @@ static bool parse_config(
     size_t error_len)
 {
     char mode[8] = "mqtt";
+    if (!read_bool01(root, "DataSeedEnabled", &cfg->data_seed_enabled, false, error, error_len))
+        return false;
     if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
     if (strcasecmp(mode, "loxone") == 0) cfg->data_recept_mode = APP_DATA_LOXONE;
     else if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
+    else if (strcasecmp(mode, "slave") == 0) cfg->data_recept_mode = APP_DATA_SLAVE;
     else if (strcasecmp(mode, "mqtt") != 0) {
-        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http' vagy 'loxone' lehet.");
+        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http', 'loxone' vagy 'slave' lehet.");
         return false;
     }
     /* Csak az aktív adatfogadási mód beállításait ellenőrizzük. */
@@ -352,20 +355,25 @@ static bool parse_config(
         sizeof(cfg->project.language),
         strcasecmp(cfg->project.language, "hu") == 0 ? "hu" : "en");
 
-    /* Wi-Fi szekció kötelező. */
-    cJSON *wifi = get_object_section(root, "wifi", true, error, error_len);
-    if (!wifi) {
+    bool slave = cfg->data_recept_mode == APP_DATA_SLAVE;
+    if (slave && cfg->data_seed_enabled) {
+        set_error(error, error_len, "Slave módban az adat seed kapcsolót ki kell kapcsolni.");
+        return false;
+    }
+    /* Slave esetén Wi-Fi nélkül is működik az adat- és időszinkron. */
+    cJSON *wifi = get_object_section(root, "wifi", !slave, error, error_len);
+    if (!wifi && (!slave || (error && *error))) {
         return false;
     }
 
-    if (!read_string(wifi, "ssid", cfg->wifi.ssid, sizeof(cfg->wifi.ssid), true, false, error, error_len) ||
+    if (wifi && (!read_string(wifi, "ssid", cfg->wifi.ssid, sizeof(cfg->wifi.ssid), !slave, slave, error, error_len) ||
         !read_string(wifi, "password", cfg->wifi.password, sizeof(cfg->wifi.password), false, true, error, error_len) ||
-        !read_u32(wifi, "reconnect_seconds", &cfg->wifi.reconnect_seconds, 1, 3600, false, error, error_len)) {
+        !read_u32(wifi, "reconnect_seconds", &cfg->wifi.reconnect_seconds, 1, 3600, false, error, error_len))) {
         return false;
     }
 
     /* Statikus IP opcionális; engedélyezve mind a négy cím kötelezően valid. */
-    cJSON *network = get_object_section(wifi, "network", false, error, error_len);
+    cJSON *network = wifi ? get_object_section(wifi, "network", false, error, error_len) : NULL;
     if (network) {
         if (!read_bool01(network, "use_static_ip", &cfg->wifi.network.use_static_ip, false, error, error_len) ||
             !read_string(network, "ip", cfg->wifi.network.ip, sizeof(cfg->wifi.network.ip), false, true, error, error_len) ||
@@ -378,7 +386,7 @@ static bool parse_config(
         return false;
     }
 
-    if (cfg->wifi.network.use_static_ip &&
+    if ((!slave || cfg->wifi.ssid[0]) && cfg->wifi.network.use_static_ip &&
         (!valid_ipv4(cfg->wifi.network.ip) ||
          !valid_ipv4(cfg->wifi.network.gateway) ||
          !valid_ipv4(cfg->wifi.network.subnet) ||
@@ -391,7 +399,7 @@ static bool parse_config(
     }
 
     /* Időkezelési szekció. */
-    cJSON *time_cfg = get_object_section(root, "time", false, error, error_len);
+    cJSON *time_cfg = slave ? NULL : get_object_section(root, "time", false, error, error_len);
     if (time_cfg) {
         if (!read_string(time_cfg, "ntp_server", cfg->time.ntp_server, sizeof(cfg->time.ntp_server), false, false, error, error_len) ||
             !read_string(time_cfg, "timezone", cfg->time.timezone, sizeof(cfg->time.timezone), false, false, error, error_len) ||

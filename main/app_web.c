@@ -407,7 +407,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr>",
         runtime.wifi_connected ? rssi : 0);
 
-    const char *mode = runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    const char *mode = runtime.data_recept_mode == APP_DATA_SLAVE ? "Slave (BLE)" : runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
     sendf(req, "<tr><td>%s</td><td>%s</td></tr>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
     sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", mode,
         s_hu ? "adatfogadó" : "receiver",
@@ -805,7 +805,18 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
     cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
     cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
-    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_SLAVE?"Slave (BLE)":d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddBoolToObject(o,"ble_enabled",d.runtime.ble_enabled);
+    if(d.runtime.ble_enabled){
+        cJSON_AddStringToObject(o,"ble_role",d.runtime.ble_master?"Master":"Slave");
+        cJSON_AddBoolToObject(o,"ble_ready",d.runtime.ble_ready);
+        cJSON_AddBoolToObject(o,"ble_advertising",d.runtime.ble_advertising);
+        cJSON_AddBoolToObject(o,"ble_scanning",d.runtime.ble_scanning);
+        cJSON_AddStringToObject(o,"ble_address",d.runtime.ble_address);
+        cJSON_AddStringToObject(o,"ble_peer",d.runtime.ble_peer);
+        if(d.runtime.ble_master)cJSON_AddNumberToObject(o,"ble_slaves",d.runtime.ble_slaves);
+        else{cJSON_AddBoolToObject(o,"slave_connected",d.runtime.slave_connected);cJSON_AddNumberToObject(o,"ble_rssi_dbm",d.runtime.ble_rssi);}
+    }
     cJSON_AddBoolToObject(o,"data_ready",app_state_data_ready(&d.runtime));
     cJSON_AddBoolToObject(o,"mqtt_connected",d.runtime.mqtt_connected);
     cJSON_AddBoolToObject(o,"sd_ok",d.runtime.sd_ok);cJSON_AddBoolToObject(o,"time_synced",d.runtime.time_synced);
@@ -832,7 +843,8 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
         "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
-        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'NTP',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
+        "ble_enabled:'Bluetooth',ble_role:'BT szerep / Role',ble_ready:'BT kész / Ready',ble_advertising:'BT hirdetés / Advertising',ble_scanning:'Master keresés / Scanning',ble_address:'Saját BT cím / Local address',ble_peer:'BT partner / Peer',ble_slaves:'Kapcsolódó slave-ek / Connected slaves',slave_connected:'Master kapcsolat / Master connected',ble_rssi_dbm:'BT RSSI (dBm)',"
+        "mqtt_connected:'MQTT',sd_ok:'SD',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':v;if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>");

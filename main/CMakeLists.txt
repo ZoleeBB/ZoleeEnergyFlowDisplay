@@ -37,6 +37,8 @@ set(app_png_files
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_ble_seed.c"
+        "app_ble_protocol.c"
         "app_diagnostics.c"
         "app_display.c"
         "app_assets.c"
@@ -76,6 +78,7 @@ idf_component_register(
     EMBED_FILES ${app_png_files}
     REQUIRES
         app_update
+        bt
         esp_event
         esp_http_client
         esp_websocket_client

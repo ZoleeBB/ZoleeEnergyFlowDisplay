@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 
 #include "app_config.h"
+#include "app_ble_seed.h"
 #include "app_events.h"
 #include "app_mqtt.h"
 #include "app_loxone.h"
@@ -221,16 +222,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* Wi-Fi kapcsolat létrehozása; induláskor addig várunk, amíg fel nem áll. */
+    const bool slave = s_config.data_recept_mode == APP_DATA_SLAVE;
+    /* Slave esetén a Wi-Fi csak opcionális web/OTA kapcsolat, nem bootfeltétel. */
     app_ui_show_boot(APP_BOOT_WIFI, NULL);
-    err = app_wifi_start(&s_config);
-    if (err != ESP_OK) {
+    err = (!slave || s_config.wifi.ssid[0]) ? app_wifi_start(&s_config) : ESP_OK;
+    if (err != ESP_OK && !slave) {
         fatal_forever(
             cfg_tr("Wi-Fi inicializálási hiba", "Wi-Fi initialization error"),
             esp_err_to_name(err));
     }
 
-    while (!app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
+    if (err != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "Opcionális Slave Wi-Fi nem indult: %s", esp_err_to_name(err));
+    while (!slave && !app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
         /* Az eseménykezelő és a reconnect task végzi a tényleges kapcsolódást. */
     }
 
@@ -246,7 +250,21 @@ void app_main(void)
             esp_err_to_name(err));
     }
 
-    while ((err = app_time_sync_once()) != ESP_OK) {
+    err = app_ble_seed_start(&s_config);
+    if (err != ESP_OK) {
+        if (slave)
+            fatal_forever("Bluetooth inicializálási hiba", esp_err_to_name(err));
+        app_events_add(APP_EVENT_WARNING, "BLE adat seed indítási hiba: %s", esp_err_to_name(err));
+    }
+    if (slave) {
+        app_ui_show_boot(APP_BOOT_NTP, cfg_tr("Master keresése és Bluetooth időszinkron...", "Searching for master and synchronizing Bluetooth time..."));
+        app_runtime_state_t runtime;
+        do {
+            vTaskDelay(pdMS_TO_TICKS(250));
+            app_state_get_runtime(&runtime);
+        } while (!runtime.time_synced);
+    }
+    while (!slave && (err = app_time_sync_once()) != ESP_OK) {
         char message[160];
         snprintf(
             message,
@@ -262,7 +280,7 @@ void app_main(void)
             s_config.time.startup_retry_seconds * 1000U));
     }
 
-    app_events_add(APP_EVENT_INFO, "NTP időszinkron sikeres.");
+    app_events_add(APP_EVENT_INFO, slave ? "Bluetooth master időszinkron sikeres." : "NTP időszinkron sikeres.");
 
     /* A mai és tegnapi statisztika betöltése / létrehozása. */
     err = app_stats_init(&s_config);
@@ -298,7 +316,7 @@ void app_main(void)
             "Web/OTA felület nem indult el: %s",
             esp_err_to_name(err));
         ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
-        if (s_config.data_recept_mode != APP_DATA_MQTT)
+        if (s_config.data_recept_mode != APP_DATA_MQTT && !slave)
             fatal_forever(cfg_tr("HTTP inicializálási hiba", "HTTP initialization error"), esp_err_to_name(err));
     }
 

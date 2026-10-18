@@ -2,6 +2,8 @@
 const definitions=[
 ['Általános',[
 ['DataReceptMode','Adatfogadási mód','mode'],['project.title','Projekt neve'],['project.language','Nyelv','language'],['project.currency','Pénznem']]],
+['Bluetooth adatmegosztás',[
+['DataSeedEnabled','Adat seed – master kijelző (BLE)','bool']]],
 ['Wi-Fi és hálózat',[
 ['wifi.ssid','SSID'],['wifi.password','Wi-Fi jelszó','secret'],['wifi.reconnect_seconds','Újracsatlakozás (másodperc)','integer'],
 ['wifi.network.use_static_ip','Statikus IP használata','bool'],['wifi.network.ip','IP cím'],['wifi.network.gateway','Átjáró'],['wifi.network.subnet','Alhálózati maszk'],['wifi.network.dns','DNS cím']]],
@@ -21,11 +23,13 @@ const definitions=[
 const form=document.getElementById('settings'),holder=document.getElementById('fields'),message=document.getElementById('message'),save=document.getElementById('save');
 let state=null;
 const fieldTypes=new Map();
+const sections=new Map();
 const byPath=p=>document.getElementById(p);
 const nestedGet=(obj,path)=>path.split('.').reduce((v,k)=>v?.[k],obj);
 function nestedSet(obj,path,value){const a=path.split('.'),last=a.pop();const target=a.reduce((v,k)=>v[k],obj);target[last]=value;}
 for(const [title,fields] of definitions){
  const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid';
+ sections.set(fields[0][0],section);
  for(const [path,labelText,type='text'] of fields){
   const label=document.createElement('label'),input=document.createElement(type==='mode'||type==='language'||type==='rotation'?'select':'input');
   label.textContent=labelText;input.id=path;fieldTypes.set(path,type);
@@ -33,7 +37,7 @@ for(const [title,fields] of definitions){
   else if(type==='integer'||type==='number'){input.type='number';input.step=type==='integer'?'1':'any';}
   else if(type==='secret'){input.type='password';input.autocomplete='new-password';input.placeholder='Változatlan jelszó';}
   else if(input.tagName==='INPUT')input.type='text';
-  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
+  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
    const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);
   }
   label.append(input);
@@ -41,8 +45,27 @@ for(const [title,fields] of definitions){
   grid.append(label);
  }
  section.append(h,grid);holder.append(section);
+ if(fields[0][0]==='wifi.ssid'){
+  const hint=document.createElement('p');hint.id='slave-wifi-hint';hint.className='hint';
+  hint.textContent='Slave módban a Wi-Fi opcionális, csak a webes kezeléshez és OTA-frissítéshez kell. Az adatokat és a pontos időt automatikusan a Bluetooth mastertől kapja. Üres SSID mellett is működik; ilyenkor a beállítások SD-kártyán módosíthatók.';
+  section.append(hint);
+ }
+ if(fields.some(([path])=>path==='DataSeedEnabled')){
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='Bekapcsolva ZoleeEnergy néven osztja meg az energiaadatokat a slave kijelzőkkel. Nem kér párosítást vagy jelszót: a közelben bárki olvashatja ezeket az adatokat. Mentés után újraindul.';
+  section.append(hint);
+ }
 }
-function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}}
+function updateVisibility(){
+ const mode=byPath('DataReceptMode').value,slave=mode==='slave';
+ sections.get('mqtt.broker').hidden=mode!=='mqtt';
+ sections.get('http.data_timeout_seconds').hidden=mode!=='http';
+ sections.get('time.ntp_server').hidden=slave;
+ byPath('slave-wifi-hint').hidden=!slave;
+ const seed=byPath('DataSeedEnabled');seed.disabled=slave;if(slave)seed.checked=false;
+}
+byPath('DataReceptMode').onchange=updateVisibility;
+function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}updateVisibility();}
 function values(){const result=structuredClone(state);for(const [path,type] of fieldTypes){
  const input=byPath(path);let value;
  if(type==='bool')value=input.checked?1:0;

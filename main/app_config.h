@@ -65,7 +65,8 @@ typedef enum
 {
     APP_DATA_MQTT = 0,
     APP_DATA_HTTP = 1,
-    APP_DATA_LOXONE = 2
+    APP_DATA_LOXONE = 2,
+    APP_DATA_SLAVE = 3
 } app_data_mode_t;
 typedef struct
 {
@@ -120,6 +121,7 @@ typedef struct
 typedef struct
 {
     app_data_mode_t data_recept_mode;
+    bool data_seed_enabled; /* BLE master: csak olvasható energiaadat-megosztás. */
     app_http_config_t http;
     app_project_config_t project;
     app_wifi_config_t wifi;
@@ -139,6 +141,8 @@ esp_err_t app_config_load_file(const char *path, app_config_t *cfg, char *error,
 
 static inline uint32_t app_config_data_timeout(const app_config_t *cfg)
 {
+    if (cfg->data_recept_mode == APP_DATA_SLAVE)
+        return 15; /* BLE heartbeat felügyelet; a forrás lejáratát a master küldi. */
     return cfg->data_recept_mode == APP_DATA_LOXONE ? 45
          : cfg->data_recept_mode == APP_DATA_HTTP   ? cfg->http.data_timeout_seconds
                                                     : cfg->mqtt.data_timeout_seconds;
