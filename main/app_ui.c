@@ -1329,7 +1329,7 @@ static void animation_tick(lv_timer_t *timer)
     {
         app_runtime_state_t state;
         app_state_get_runtime(&state);
-        if (!state.wifi_connected)
+        if (s_cfg.data_recept_mode != APP_DATA_SLAVE && !state.wifi_connected)
             error_screen(
                 VIEW_WIFI_ERROR,
                 tr("Nincs Wi-Fi kapcsolat", "No Wi-Fi connection"),

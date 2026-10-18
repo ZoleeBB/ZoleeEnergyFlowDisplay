@@ -309,7 +309,8 @@ void app_main(void)
     if (s_config.data_recept_mode == APP_DATA_HTTP) app_ui_show_boot(APP_BOOT_MQTT, NULL);
     if (s_config.data_recept_mode == APP_DATA_LOXONE && app_loxone_start() != ESP_OK)
         fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
-    err = app_web_start(&s_config);
+    /* Hálózat nélküli slave-hez nem foglalunk HTTP/mDNS háttérfeladatokat. */
+    err = (!slave || s_config.wifi.ssid[0]) ? app_web_start(&s_config) : ESP_OK;
     if (err != ESP_OK) {
         app_events_add(
             APP_EVENT_ERROR,

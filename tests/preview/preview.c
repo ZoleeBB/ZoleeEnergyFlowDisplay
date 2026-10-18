@@ -929,6 +929,13 @@ int main(void)
     rt.last_valid_packet_monotonic_us=rt.slave_packet_monotonic_us=31000000;
     rt.slave_source_timeout_seconds=30;rt.ble_rssi=-62;
     snprintf(rt.ble_peer,sizeof(rt.ble_peer),"06:05:04:03:02:01");
+    bool previous_started=s_started;
+    app_boot_stage_t previous_boot=s_boot_stage;
+    runtime_wifi_connected=false;s_started=false;
+    app_ui_show_boot(APP_BOOT_NTP,"Master keresése...");
+    animation_tick(NULL);assert(s_view==VIEW_NONE);
+    save_frame("slave-boot-no-wifi");
+    s_started=previous_started;s_boot_stage=previous_boot;runtime_wifi_connected=true;
     clear();render_runtime(rt,sample,true,31000000);
     assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Slave"));
     assert(strstr(lv_label_get_text(s_diagnostic_values[11]),"-62"));
