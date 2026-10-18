@@ -1,5 +1,11 @@
 # Automatikus firmware-release
 
+A master/Slave, PIN-es párosítás, SD nélküli Rendszer nézet és éjféli OTA
+fejlesztésének átadási állapota, automatizált bizonyítékai és eszközös próbái:
+[master/Slave lezárási jegyzet](master-slave-handover.md). A kisebb asztali
+Slave hardver portolása a beszerzés után, új ágon folytatódik; a jelenlegi
+kiadási csatorna a 10,1 colos P4 kijelzőt célozza.
+
 ## Automatikus kiadás PR-merge után
 
 A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.

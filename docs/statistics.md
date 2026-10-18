@@ -29,6 +29,24 @@ A beépített rendszernézet korábbi összegző képletei eltérnek: önellát�
 
 A v3 napfájlok integrált forrásenergiát és SOC-átlagot is tárolnak. A v1/v2 állományok olvashatók; forrásarányaik közelítettek, SOC-görbéjük hiányzik. A mentés alapértelmezetten 15 percenként történik; OTA firmware-frissítés és kézi újraindítás előtt is azonnali mentés fut. A mentés revíziós, `.tmp`/`.bak` helyreállítással, `fflush` és `fsync` használatával. SD-hibánál a RAM-beli gyűjtés tovább fut. Az opcionális időjárás nem befolyásolja az energiaszámítást.
 
+## Slave statisztikák
+
+SD-kártyával a Slave ugyanígy, helyben integrálja a mastertől fogadott élő
+mintákat, és a saját kártyájára ment. Minden telepített témát használhat;
+a heti/havi nézetek a saját történetből dolgoznak. A master korábbi napjait nem
+tölti le automatikusan. Kimaradáskor nincs becsült visszatöltés, és az ismételt
+BLE heartbeat ugyanazt a mérést nem integrálja újra.
+
+SD nélkül a master az egyetlen integrátor. A Slave 30 másodpercenként átveszi
+a Rendszer témához szükséges mai 288 diagrampontot, összesítőket, tegnapi
+összehasonlítást és a pénznem/ár/CO₂/fa referenciaértékeket. Csak a teljes,
+ellenőrzött kép válik láthatóvá. Első szinkronig a napi érték `--`; kapcsolatbontáskor
+vagy 90 másodperc után az utolsó jó, aznapi kép elavultságjelzéssel marad meg.
+Másik masterre vagy új napra váltáskor a korábbi kép nem használható mai adatként.
+A cache RAM-ban van, újraindításkor újra letöltődik, statisztikát nem írunk flashbe.
+Nincs helyi heti/havi archívum. A transzferhibák az élő energia- és időadatok
+fogadásától külön kezelődnek. [Protokoll és időkorlátok](ble-data-seed.md#a-diagramok-és-napi-összesítők-szinkronja).
+
 ## Órás napelemtermelés
 
 A Nap pálya témához fejlesztett `solar_hourly` diagram a meglévő ötperces

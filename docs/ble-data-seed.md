@@ -36,6 +36,10 @@ felület Slave módban elrejti, illetve a Wi-Fi/masterfüggő működését megj
 SD-kártyával a helyi sablonok és statisztikai tárhely használható; SD nélkül
 a kijelző az alábbi korlátozott, beépített Rendszer módban működik.
 
+SD-vel a Slave saját magának integrálja és menti a fogadott élő mintákat,
+és minden telepített témát használhat. A master korábbi történetét nem másolja
+át. Az eltérő kezdési idő és adatrések miatt az összesítők eltérhetnek.
+
 ## SD nélküli Slave – csak Rendszer téma
 
 Új, korábbi fő kijelzőként nem azonosított eszköz SD nélkül automatikusan Slave
@@ -99,6 +103,8 @@ működhet, de statisztika nem lesz; a mastert is frissíteni kell.
 Az éjféli automatikus OTA SD nélkül is működik, ha van örökölt internetkapcsolat.
 A rollback-validációhoz SD helyett teljes, friss master-statisztika kell a többi
 Slave indulási feltétel mellett. Ez nem lazítja a fő kijelző SD-ellenőrzését.
+
+## Közös kapcsolódás és időszinkron
 
 A slave az első megtalált, megfelelő UUID-t hirdető masterhez kapcsolódik.
 Először titkosított párosítást végez, majd hosszú GATT-olvasással átveszi a 1004
@@ -314,3 +320,7 @@ Hardveres átvételi próba:
 A host automatizált tesztje a bináris csomagolást, előjeleket, skálázást,
 opcionális adatokat, timeoutot és a konfigurációs kapcsoló validálását ellenőrzi.
 A fizikai rádió, hatótáv és több eszköz stabilitása csak valódi hardveren igazolható.
+
+A dokumentált automatizált eredmények, az SD-s/SD nélküli elfogadási próbák és
+a későbbi kis asztali kijelző fejlesztési határai az
+[átadási jegyzetben](master-slave-handover.md) találhatók.

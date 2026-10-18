@@ -22,13 +22,16 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
 - A letöltés közvetlenül az inaktív OTA-partícióra kerül, korlátozott pufferrel;
   ellenőrzi a méretet, a firmware projektnevét és verzióját, a teljes fájl SHA-256
   ellenőrzőösszegét és az ESP-IDF image-validációját.
-- Csak sikeres, közvetlenül aktiválás előtti SD-statisztikamentés után állítja át
+- SD-s eszközön csak sikeres, közvetlenül aktiválás előtti SD-statisztikamentés után állítja át
   a bootpartíciót, majd újraindul. A már meglévő háromperces OTA-visszaállítási
   védelem megmarad. Korábban visszagörgetett azonos verziót automatikusan nem
   próbál újra; a következő újabb release-re vár, vagy kézi OTA használható.
+  SD nélküli Slave-nél a mastertől kapott statisztika csak a Slave RAM-jában él;
+  nincs helyi statisztikai fájlmentés. A beállítások és a párosítási profil külön,
+  tartós NVS-ben vannak.
 - Nincs párhuzamos kézi OTA, konfigurációmentés vagy webes újraindítás: ilyenkor
   a webes módosítás 409 választ ad, illetve a foglalt éjféli ellenőrzés kimarad.
-- Internet/Wi-Fi hiányakor, GitHub limitnél, hibás/csonka letöltésnél vagy SD-hibánál
+- Internet/Wi-Fi hiányakor, GitHub limitnél, hibás/csonka letöltésnél vagy SD-s eszköz SD-hibájánál
   a jelenlegi firmware marad. A következő helyi napváltáskor próbálkozik újra;
   nincs nappali ismétlés és nincs bekapcsoláskori bepótlás.
 
@@ -65,15 +68,19 @@ Ha mindkettő üres, nincs hitelesítés.
 
 A firmware két alkalmazáspartíciót használ. Az új image először próbaállapotban indul.
 
-Az új firmware legfeljebb 3 percen belül akkor minősül sikeresnek, ha:
+Az új firmware legfeljebb 3 percen belül akkor minősül sikeresnek, ha a
+konfiguráció betöltődött, és a módnak megfelelő indulási feltételek teljesültek:
 
-- SD-kártya elérhető
-- konfiguráció sikeresen betöltődött
-- Wi-Fi kapcsolat létrejött
-- NTP szinkron sikeres
-- MQTT módban a brokerkapcsolat létrejött; HTTP módban a fogadó szerver elindult
+| Mód | Tárhely | Kapcsolat és idő | Adatfeltétel |
+| --- | --- | --- | --- |
+| MQTT | Elérhető SD | Wi-Fi és NTP | Brokerkapcsolat |
+| HTTP | Elérhető SD | Wi-Fi és NTP | Elindult HTTP-fogadó |
+| Közvetlen Loxone | Elérhető SD | Wi-Fi és NTP | Működő webfelület; a kezdeti párosítás kivárható |
+| Slave SD-vel | Elérhető SD | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
+| Slave SD nélkül | Friss, teljes master-statisztika RAM-ban | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
 
-Érvényes mérési csomag érkezése nem feltétele az OTA firmware elfogadásának.
+Az első három módhoz nem kell már beérkezett érvényes mérés. Slave módban kell;
+a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
 
@@ -95,17 +102,21 @@ Az oldalon külön megerősítéssel újraindítható az eszköz.
 
 A közös diagnosztika a `/diagnostics` és `/api/diagnostics` útvonalon érhető el. A `POST /api/energy` adatfogadás hitelesítés nélkül működik; [HTTP útmutató](http-input.md).
 
-## SD-beállítások böngészőből
+## Beállítások böngészőből
 
 A `/settings` oldalon a `config.json` minden dokumentált paramétere módosítható. A `GET /api/settings` az aktuális beállításokat adja vissza, a jelszavakat `null` értékkel helyettesíti (nem küldi ki). A `POST /api/settings` JSON tartalmú, `X-Zolee-Settings: 1` fejlécet igényel; a `null` jelszó megtartja a korábbit, a nem üres szöveg módosítja, az üres szöveg törli.
 
 Mentéskor a firmware ideiglenes fájlba ír, a tartalmat ugyanazzal a konfigurációs validátorral ellenőrzi, majd a régi fájlról biztonsági másolatot készít. Egy megszakadt fájlcsere esetén a korábbi `config.json.webbak` következő indításkor visszaállítható. A statisztikai mentési és integrációs paraméterek újraindítás nélkül érvényesülnek, minden más konfigurációváltozás automatikus újraindítást indít.
 
+SD nélküli Slave-nél a validált JSON belső NVS-be kerül; a felső mérethatár
+3072 bájt. A felület ezt a működést jelzi, és az adatfogadási módot Slave-re rögzíti.
+A Wi-Fi/automatikus frissítés mastertől való öröklése mindkét Slave változatban azonos.
+
 **Fontos:** A Basic Auth titkosítás nélkül, HTTP-n működik, ezért a beállításkezelést csak megbízható helyi hálózaton használd. Az üres adminisztrátori felhasználónév/jelszó azt jelenti, hogy a felület nincs védve.
 
 ## Biztonságos firmware-frissítés
 
-A feltöltőoldal százalékos előrehaladást és egyértelmű siker/hiba üzeneteket mutat. Az OTA firmware csak az utolsó statisztikai SD-mentés sikeres befejezése után aktiválódik. Kézi újraindítás előtt is azonnali mentés fut; ha ez sikertelen, az újraindítás elmarad és hibaüzenet jelenik meg.
+A feltöltőoldal százalékos előrehaladást és egyértelmű siker/hiba üzeneteket mutat. SD-s eszközön az OTA firmware csak az utolsó statisztikai SD-mentés sikeres befejezése után aktiválódik. Kézi újraindítás előtt is azonnali mentés fut; ha ez sikertelen, az újraindítás elmarad és hibaüzenet jelenik meg. SD nélküli Slave esetén a statisztikai mentés nem végez fájlműveletet; az újraindulás után a master tölti vissza a diagramokat.
 
 Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az eszköz újraindításakor törlődik, nem tartós hibahistória.
 
