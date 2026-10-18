@@ -129,6 +129,59 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '16 MiB'): command(unpack, 'COM3', DEFAULT_BAUD, no_stub=True)
         self.assertIn('0x1000000', command(unpack, 'COM3', DEFAULT_BAUD))
 
+    def test_slave_usb_and_combined_checksums(self):
+        self.pack()
+        image = bytearray(self.app)
+        image[80:80+len(b'zolee_slave_4b')] = b'zolee_slave_4b'
+        (self.build/'app.bin').write_bytes(image)
+        description = json.loads((self.build/'project_description.json').read_text())
+        description['project_name'] = 'zolee_slave_4b'
+        (self.build/'project_description.json').write_text(json.dumps(description))
+        package(self.build, self.out, self.tag, self.sha, 'slave-4b')
+        usb = self.out/f'ZoleeEnergyFlowDisplay-slave-4b-{self.tag}-usb.zip'
+        unpack = self.root/'slave usb'
+        with zipfile.ZipFile(usb) as archive:
+            archive.extractall(unpack)
+        self.assertEqual((unpack/'app.bin').read_bytes(), bytes(image))
+        self.assertIn('4B', (unpack/'TELEPITES.md').read_text())
+        self.assertIn('zolee_slave_4b', (unpack/'firmware/slave-waveshare-4b/README.md').read_text())
+        command(unpack, 'COM5', DEFAULT_BAUD, no_stub=True, manual_boot=True)
+        checks = dict(line.split('  ', 1)[::-1] for line in (self.out/'SHA256SUMS.txt').read_text().splitlines())
+        self.assertEqual(len(checks), 6)
+        for name, expected in checks.items():
+            self.assertEqual(hashlib.sha256((self.out/name).read_bytes()).hexdigest(), expected)
+        assets = []
+        def api(url, data=None, content_type=None):
+            if data is not None:
+                from urllib.parse import parse_qs, urlsplit
+                name = parse_qs(urlsplit(url).query)['name'][0]
+                result = {'name': name, 'size': len(data), 'state': 'uploaded',
+                          'digest': 'sha256:'+hashlib.sha256(data).hexdigest()}
+                assets.append(result)
+                return result
+            if '/commits/' in url:
+                return {'sha': self.sha}
+            if '/assets?' in url:
+                return assets
+            return {'tag_name': self.tag, 'draft': False, 'immutable': False,
+                    'upload_url': 'https://uploads.github.com/assets{?name}'}
+        with patch('publish.api', api):
+            publish(self.out, 'owner/repo', self.tag, self.sha, 1)
+            self.assertEqual(len(assets), 7)
+            publish(self.out, 'owner/repo', self.tag, self.sha, 1)
+            self.assertEqual(len(assets), 7)
+            info_path = self.out/'slave-4b-build-info.json'
+            info = json.loads(info_path.read_text())
+            info['commit'] = 'b'*40
+            info_path.write_text(json.dumps(info))
+            with self.assertRaises(ValueError):
+                publish(self.out, 'owner/repo', self.tag, self.sha, 1)
+            self.assertEqual(len(assets), 7)
+        image[80] = ord('X')
+        (self.build/'app.bin').write_bytes(image)
+        with self.assertRaises(ValueError):
+            package(self.build, self.out, self.tag, self.sha, 'slave-4b')
+
     def test_bad_build(self):
         (self.build/'ota_data_initial.bin').unlink()
         with self.assertRaises(ValueError):self.pack()

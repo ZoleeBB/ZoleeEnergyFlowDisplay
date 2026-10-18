@@ -76,7 +76,7 @@ bool app_ota_release_parse(const cJSON *root,
         return false;
     app_ota_release_t result = {0};
     snprintf(result.tag, sizeof(result.tag), "%s", tag);
-    snprintf(result.filename, sizeof(result.filename), "ZoleeEnergyFlowDisplay-%s-ota.bin", tag);
+    snprintf(result.filename, sizeof(result.filename), APP_OTA_ASSET_PREFIX "-%s-ota.bin", tag);
     snprintf(result.url, sizeof(result.url), APP_OTA_RELEASE_BASE "%s/%s", tag, result.filename);
     snprintf(result.checksums_url,
              sizeof(result.checksums_url),

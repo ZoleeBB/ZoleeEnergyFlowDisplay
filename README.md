@@ -80,7 +80,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Automatikus kiadás](docs/releases.md)
 - [Felépítés](docs/architecture.md)
 - [Master/Slave átadási és lezárási jegyzet](docs/master-slave-handover.md)
-- [Waveshare 4B asztali Slave – 720×720-as látvány- és firmware-terv](docs/desk-slave-waveshare-4b.md) (fejlesztés alatt, külön alkalmazás)
+- [Waveshare 4B Slave – 720×720-as firmware és szimulátor](docs/slave-waveshare-4b.md) (külön alkalmazás, falra vagy asztali tartóra)
 - [Képek és licencek](docs/assets.md)
 
 ## Fejlesztői ellenőrzés

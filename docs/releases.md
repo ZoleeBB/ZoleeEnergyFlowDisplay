@@ -2,9 +2,9 @@
 
 A master/Slave, PIN-es párosítás, SD nélküli Rendszer nézet és éjféli OTA
 fejlesztésének átadási állapota, automatizált bizonyítékai és eszközös próbái:
-[master/Slave lezárási jegyzet](master-slave-handover.md). A kisebb asztali
-Slave hardver portolása a beszerzés után, új ágon folytatódik; a jelenlegi
-kiadási csatorna a 10,1 colos P4 kijelzőt célozza.
+[master/Slave lezárási jegyzet](master-slave-handover.md). A kiadások a
+10,1 colos P4 mellett a [720×720-as Waveshare 4B Slave](slave-waveshare-4b.md)
+külön firmware-ét is tartalmazzák. A két alkalmazás nem cserélhető fel.
 
 ## Automatikus kiadás PR-merge után
 
@@ -30,7 +30,10 @@ A `.github/workflows/release.yml` a GitHub **Publish release** eseményére indu
 
    - `ZoleeEnergyFlowDisplay-v1.2.0-ota.bin`: ezt töltsd fel a `http://ESZKOZ-IP/update` oldalon.
    - `ZoleeEnergyFlowDisplay-v1.2.0-usb.zip`: teljes USB első telepítő, magyar útmutatóval és `flash.py` indítóval.
-   - `SHA256SUMS.txt`: az OTA, USB és build-info SHA256 ellenőrzőösszegei.
+   - `ZoleeEnergyFlowDisplay-slave-4b-v1.2.0-ota.bin`: a 720×720-as 4B Slave saját, automatikus OTA-ja.
+   - `ZoleeEnergyFlowDisplay-slave-4b-v1.2.0-usb.zip`: a 4B Slave első USB telepítője, SD nélkül.
+   - `slave-4b-build-info.json`: a 4B fordítás eredete és ellenőrzőösszegei.
+   - `SHA256SUMS.txt`: mindkét hardver OTA, USB és build-info SHA256 ellenőrzőösszegei.
    - `build-info.json`: tag, commit, célhardver, ESP-IDF/esptool verzió és flash-fájlok ellenőrzőösszegei.
 
 Az OTA és az USB csomag alkalmazásképe bájtra azonos. A ZIP a build összes flash-bemenetét tartalmazza, az eredeti címekkel és hordozható fájlutakkal. A rögzített esptool verzió `5.5.0`; [USB útmutató](usb-install.md).

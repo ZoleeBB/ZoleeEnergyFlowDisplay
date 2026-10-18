@@ -5,6 +5,11 @@
 #include <stdint.h>
 #include "cJSON.h"
 
+/* Minden hardver saját OTA assetet kap; a fő kijelző neve változatlan. */
+#ifndef APP_OTA_ASSET_PREFIX
+#define APP_OTA_ASSET_PREFIX "ZoleeEnergyFlowDisplay"
+#endif
+
 #define APP_OTA_RELEASE_BASE "https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases/download/"
 #define APP_OTA_RELEASE_API                                                                        \
     "https://api.github.com/repos/ZoleeBB/ZoleeEnergyFlowDisplay/releases/latest"

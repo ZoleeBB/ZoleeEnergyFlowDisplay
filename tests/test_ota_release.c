@@ -36,9 +36,9 @@ int main(void)
     for (unsigned i = 0; i < sizeof(bad_urls) / sizeof(bad_urls[0]); i++)
         assert(!app_ota_download_url_allowed(bad_urls[i]));
     const char *json = "{\"tag_name\":\"v3.0.0\",\"draft\":false,\"prerelease\":false,\"assets\":["
-                       "{\"name\":\"ZoleeEnergyFlowDisplay-v3.0.0-ota.bin\",\"state\":\"uploaded\","
+                       "{\"name\":\"" APP_OTA_ASSET_PREFIX "-v3.0.0-ota.bin\",\"state\":\"uploaded\","
                        "\"size\":12345,\"browser_download_url\":\"" APP_OTA_RELEASE_BASE
-                       "v3.0.0/ZoleeEnergyFlowDisplay-v3.0.0-ota.bin\"},"
+                       "v3.0.0/" APP_OTA_ASSET_PREFIX "-v3.0.0-ota.bin\"},"
                        "{\"name\":\"SHA256SUMS.txt\",\"state\":\"uploaded\",\"size\":300,\"browser_"
                        "download_url\":\"" APP_OTA_RELEASE_BASE "v3.0.0/SHA256SUMS.txt\"}]}";
     cJSON *root = cJSON_Parse(json);
@@ -59,6 +59,11 @@ int main(void)
     root = cJSON_Parse(json);
     cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(root, "assets"), 1);
     assert(!app_ota_release_parse(root, "v2.0.0", 8 * 1024 * 1024, &release));
+    cJSON_Delete(root);
+    root = cJSON_Parse(json);
+    image = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root, "assets"), 0);
+    cJSON_ReplaceItemInObjectCaseSensitive(image, "name", cJSON_CreateString("other-board-v3.0.0-ota.bin"));
+    assert(!app_ota_release_parse(root, "v2.0.0", 12 * 1024 * 1024, &release));
     cJSON_Delete(root);
     uint8_t hash[32];
     const char *sum =
