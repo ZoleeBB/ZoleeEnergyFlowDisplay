@@ -26,19 +26,24 @@ static bool json_content_type(httpd_req_t *req)
     char type[128];
     size_t length = httpd_req_get_hdr_value_len(req, "Content-Type");
     if (!length || length >= sizeof(type) ||
-        httpd_req_get_hdr_value_str(req, "Content-Type", type, sizeof(type)) != ESP_OK) return false;
+        httpd_req_get_hdr_value_str(req, "Content-Type", type, sizeof(type)) != ESP_OK)
+        return false;
     char *end = strchr(type, ';');
-    if (!end) end = type + strlen(type);
-    while (end > type && isspace((unsigned char)end[-1])) --end;
+    if (!end)
+        end = type + strlen(type);
+    while (end > type && isspace((unsigned char)end[-1]))
+        --end;
     *end = 0;
     char *start = type;
-    while (isspace((unsigned char)*start)) ++start;
+    while (isspace((unsigned char)*start))
+        ++start;
     return strcasecmp(start, "application/json") == 0;
 }
 
 static esp_err_t energy_post(httpd_req_t *req)
 {
-    if (req->method != HTTP_POST) {
+    if (req->method != HTTP_POST)
+    {
         httpd_resp_set_hdr(req, "Allow", "POST");
         return reject(req, "405 Method Not Allowed", "{\"ok\":false,\"error\":\"method\"}");
     }
@@ -51,20 +56,25 @@ static esp_err_t energy_post(httpd_req_t *req)
     if (req->content_len > MAX_BODY_BYTES)
         return reject(req, "413 Payload Too Large", "{\"ok\":false,\"error\":\"size\"}");
     if (!json_content_type(req))
-        return reject(req, "415 Unsupported Media Type", "{\"ok\":false,\"error\":\"content_type\"}");
+        return reject(
+            req, "415 Unsupported Media Type", "{\"ok\":false,\"error\":\"content_type\"}");
     if (!req->content_len)
         return reject(req, "400 Bad Request", "{\"ok\":false,\"error\":\"empty\"}");
     char *body = malloc(req->content_len + 1);
-    if (!body) return reject(req, "503 Service Unavailable", "{\"ok\":false,\"error\":\"memory\"}");
+    if (!body)
+        return reject(req, "503 Service Unavailable", "{\"ok\":false,\"error\":\"memory\"}");
     size_t received = 0;
     int64_t deadline = esp_timer_get_time() + RECEIVE_DEADLINE_US;
-    while (received < req->content_len) {
+    while (received < req->content_len)
+    {
         int n = httpd_req_recv(req, body + received, req->content_len - received);
-        if (n == HTTPD_SOCK_ERR_TIMEOUT || esp_timer_get_time() >= deadline) {
+        if (n == HTTPD_SOCK_ERR_TIMEOUT || esp_timer_get_time() >= deadline)
+        {
             free(body);
             return reject(req, "408 Request Timeout", "{\"ok\":false,\"error\":\"timeout\"}");
         }
-        if (n <= 0) {
+        if (n <= 0)
+        {
             free(body);
             return reject(req, "400 Bad Request", "{\"ok\":false,\"error\":\"incomplete\"}");
         }
@@ -84,6 +94,6 @@ static esp_err_t energy_post(httpd_req_t *req)
 
 esp_err_t app_http_register(httpd_handle_t server)
 {
-    const httpd_uri_t route = { .uri = "/api/energy", .method = HTTP_ANY, .handler = energy_post };
+    const httpd_uri_t route = {.uri = "/api/energy", .method = HTTP_ANY, .handler = energy_post};
     return httpd_register_uri_handler(server, &route);
 }

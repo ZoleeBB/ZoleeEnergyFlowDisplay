@@ -12,4 +12,3 @@ esp_err_t app_time_sync_once(void);
 
 /* A konfigurált órás újraszinkront és perces hibaretry-t végző háttértask. */
 esp_err_t app_time_start_background_task(void);
-

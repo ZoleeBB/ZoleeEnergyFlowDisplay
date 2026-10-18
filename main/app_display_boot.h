@@ -2,7 +2,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct {
+typedef struct
+{
     uint16_t rotation_degrees; /* NVS-ben gyorsindításhoz tárolt érték */
     uint8_t trial;             /* 90 fokos boot még nem igazolt */
     uint8_t blocked;           /* előző sikertelen 90 fokos indítás */
@@ -10,8 +11,10 @@ typedef struct {
 
 static inline uint16_t app_display_boot_select(app_display_boot_state_t *state)
 {
-    if (state->rotation_degrees != 90 || state->blocked) return 270;
-    if (state->trial) {
+    if (state->rotation_degrees != 90 || state->blocked)
+        return 270;
+    if (state->trial)
+    {
         state->trial = 0;
         state->blocked = 1;
         return 270;
@@ -23,7 +26,8 @@ static inline uint16_t app_display_boot_select(app_display_boot_state_t *state)
 static inline bool app_display_boot_sync(app_display_boot_state_t *state, uint16_t desired)
 {
     desired = desired == 90 ? 90 : 270;
-    if (state->rotation_degrees == desired) return false;
+    if (state->rotation_degrees == desired)
+        return false;
     state->rotation_degrees = desired;
     state->trial = 0;
     state->blocked = 0;

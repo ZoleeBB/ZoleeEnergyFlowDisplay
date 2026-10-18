@@ -10,14 +10,16 @@
 #define APP_EVENT_TEXT_MAX 128
 
 /* Esemény súlyossági szintek. */
-typedef enum {
+typedef enum
+{
     APP_EVENT_INFO = 0,
     APP_EVENT_WARNING,
     APP_EVENT_ERROR
 } app_event_level_t;
 
 /* Egy időbélyegzett RAM esemény. */
-typedef struct {
+typedef struct
+{
     int64_t epoch_s;
     app_event_level_t level;
     char text[APP_EVENT_TEXT_MAX];
@@ -32,4 +34,3 @@ void app_events_add(app_event_level_t level, const char *fmt, ...);
 
 /* A legfrissebb események másolása a hívó által megadott tömbbe. */
 size_t app_events_snapshot(app_event_entry_t *out, size_t max_items);
-

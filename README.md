@@ -57,6 +57,8 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 
 ## Fejlesztői ellenőrzés
 
+A firmware-források egységes, jól olvasható tagolására és magyar nyelvű kommentelésére vonatkozó kötelező szabályokat a fejlesztői instrukciók (`AGENTS.md`) tartalmazzák. A kódformázás nem érintheti a beágyazott erőforrásokat és nem növelheti problémásan a firmware méretét.
+
 ```sh
 python3 tests/run_tests.py
 python3 tools/prepare_templates.py

@@ -5,4 +5,4 @@
 esp_err_t app_loxone_start(void);
 cJSON *app_loxone_web_state(void);
 /* Mentés, illetve mentés nélküli kapcsolatteszt/listázás; aszinkron feladat. */
-esp_err_t app_loxone_request(const cJSON *request,bool save);
+esp_err_t app_loxone_request(const cJSON *request, bool save);
