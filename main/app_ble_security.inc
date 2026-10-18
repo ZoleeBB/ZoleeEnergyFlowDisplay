@@ -117,10 +117,19 @@ static int security_gap_event(struct ble_gap_event *event)
             security_clear_request(event->enc_change.conn_handle);
             if (event->enc_change.status || !security_authenticated(event->enc_change.conn_handle))
             {
+                /* Hibás visszaállítás, illetve elutasított Just Works után ne
+                 * maradjon használhatatlan/gyenge bond a tartós kulcstárban. */
                 if (slave_mode() && event->enc_change.status)
                 {
                     struct ble_gap_conn_desc desc;
                     if (ble_gap_conn_find(event->enc_change.conn_handle, &desc) == 0)
+                        (void)ble_store_util_delete_peer(&desc.peer_id_addr);
+                }
+                else if (!event->enc_change.status)
+                {
+                    struct ble_gap_conn_desc desc;
+                    if (ble_gap_conn_find(event->enc_change.conn_handle, &desc) == 0 &&
+                        !desc.sec_state.authenticated)
                         (void)ble_store_util_delete_peer(&desc.peer_id_addr);
                 }
                 if (!slave_mode() && s_pair_failures >= 5)

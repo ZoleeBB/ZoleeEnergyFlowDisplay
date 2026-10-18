@@ -179,6 +179,11 @@ int main(void)
     }
     app_ble_pairing_status(&status);
     assert(!status.seconds); /* Öt hibás próbálkozás lezár. */
+    unsigned before_deleted = deleted;
+    security.sec_state.authenticated = 0;
+    event.enc_change.status = 0;
+    security_gap_event(&event);
+    assert(deleted == before_deleted + 1);
     app_config_t master = {0}, slave = {0};
     strcpy(master.wifi.ssid, "My WiFi");
     strcpy(master.wifi.password, "secret password");
