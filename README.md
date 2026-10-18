@@ -2,9 +2,28 @@
 
 Otthoni energiaáramlás-kijelző a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150) panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja.
 
-A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát. FAT32 microSD tárolja a konfigurációt, kilenc, szabadon sorbarendezhető sablont és 35 nap statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
+A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát, a Slave pedig Bluetooth-on a mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, kilenc, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
+
+Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master mód
+`ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
+Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](docs/ble-data-seed.md).
+
+**SD nélküli Slave** is használható: új eszköz automatikus Slave indulással,
+belső NVS-beállításokkal és kizárólag a beépített Rendszer témával. A napi
+diagramokat és összehasonlításokat hitelesített BLE-kapcsolaton a mastertől
+kapja; nincs szükség hálózati fájlmegosztásra vagy flashbe írt statisztikára.
+A korábban fő kijelzőként használt eszköz SD-hibája nem vált automatikusan Slave-re.
+**SD-kártyával a Slave minden telepített témát használhat, és saját statisztikát
+gyűjt a fogadott élő mintákból.** A master korábbi történetét nem másolja át.
+
+Az új **Slave (Bluetooth)** adatfogadási mód automatikusan mastert keres,
+és onnan kapja az energiaadatokat és az időszinkront, Wi-Fi/NTP-beállítás nélkül is.
+A slave az első csatlakozáskor érintős PIN-padot mutat, majd titkosítva átveszi
+a master Wi-Fi-jét és automatikusfrissítés-kapcsolóját. A kétoszlopos diagnosztika
+a BT-szerepet, címeket, kapcsolatot, jelerősséget, masterként a kapcsolódó slave-ek
+számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablaka itt nyitható meg.
 
 ## Első indítás
 
@@ -13,9 +32,15 @@ A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [L
 3. A repó `templates` vagy az USB-csomag `sd-card/templates` könyvtárát másold az SD gyökerébe.
 4. MQTT/HTTP esetén állítsd be a [Loxone adatküldést](docs/loxone.md). Közvetlen Loxone módban indulás után a `/loxone` weboldalon add meg a Miniservert és párosítsd az állapotokat. Wi-Fi és NTP szükséges az induláshoz.
 
+Slave-ként SD-vel a minimális `config.json`: `{"DataReceptMode":"slave"}`.
+Új, korábban fő kijelzőként nem azonosított eszköz SD nélkül automatikusan Slave
+módban indul. A masteren kapcsold be az adat seedet, nyisd meg a párosítási ablakot,
+és a diagnosztikáján látható PIN-t írd be a Slave-en. Saját MQTT/Loxone/NTP
+beállítás nem kell. [Párosítás és átállítás](docs/ble-data-seed.md).
+
 Az I1–I12 bemenetek sorrendje fix; I13 az időjárási jelenlétmaszk, T1 pedig az opcionális, `#`-elválasztott nappályaadat. Mindkét Pico C változat (MQTT és HTTP) ezt a kiosztást használja. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-A Nap pálya érvényes `SunPosition` esetén lapozható. A témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a kilenc sablon között. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` az SD-kártya beállításainak szerkesztése, `/diagnostics` diagnosztika. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mindhárom adatforrást jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot és SD-telítettségi sávot mutat.
+A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a kilenc sablon között; SD nélkül csak a Rendszer nézet érhető el. Felfelé húzás nyitja a diagnosztikát, lefelé húzás bezárja. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` beállítások (SD-n vagy belső NVS-ben), `/diagnostics` diagnosztika. A Slave webfelületéhez a mastertől örökölt Wi-Fi-n kapott saját IP-cím használható. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mind a négy adatfogadási módot jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot, SD- vagy belsőtár-állapotot és Bluetooth-adatokat mutat.
 
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
@@ -43,16 +68,18 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Közvetlen Loxone kapcsolat](docs/loxone-direct.md)
 - [Loxone mintaprogramok](docs/loxone.md)
 - [SD-kártya](docs/sd-card.md)
+- [BLE master/Slave, PIN-es párosítás és SD nélküli működés](docs/ble-data-seed.md)
 - [Kilenc választható téma](docs/templates.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Statisztika és számítások](docs/statistics.md)
-- [Webfelület és OTA](docs/ota.md)
+- [Webfelület és OTA, kapcsolható automatikus éjféli GitHub-frissítés](docs/ota.md)
 - [Hibakezelés](docs/errors.md)
 - [Fordítás és flash](docs/build-flash.md)
 - [USB telepítés](docs/usb-install.md)
 - [Windows szimulátor](docs/simulator.md)
 - [Automatikus kiadás](docs/releases.md)
 - [Felépítés](docs/architecture.md)
+- [Master/Slave átadási és lezárási jegyzet](docs/master-slave-handover.md)
 - [Képek és licencek](docs/assets.md)
 
 ## Fejlesztői ellenőrzés

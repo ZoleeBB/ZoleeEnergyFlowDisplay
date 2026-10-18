@@ -6,6 +6,70 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-transfer-') as directory:
+    binary = str(Path(directory) / 'test_ble_stats_transfer')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_stats_transfer.c',
+                    'main/app_ble_stats_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-boot-config-') as directory:
+    binary = str(Path(directory) / 'test_boot_config')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/ble_profile_stubs', '-Itests/stubs', '-Imain',
+                    'tests/test_boot_config.c', 'main/app_boot_config.c', 'main/app_config.c',
+                    '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-') as directory:
+    binary = str(Path(directory) / 'test_ble_stats')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_stats.c',
+                    'main/app_ble_stats_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-profile-') as directory:
+    binary = str(Path(directory) / 'test_ble_profile')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/ble_profile_stubs', '-Itests/ota_stubs', '-Itests/stubs', '-Imain',
+                    'tests/test_ble_profile.c', 'main/app_ble_profile_model.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-security-') as directory:
+    binary = str(Path(directory) / 'test_ble_security')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_security.c',
+                    'main/app_ble_profile_model.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-auto-ota-') as directory:
+    binary = str(Path(directory) / 'test_ota_auto')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_auto.c',
+                    'main/app_ota_release.c', '-l:libcjson.so.1', '-lmbedcrypto', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ota-release-') as directory:
+    binary = str(Path(directory) / 'test_ota_release')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ota_release.c',
+                    'main/app_ota_release.c', '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-') as directory:
+    binary = str(Path(directory) / 'test_ble_protocol')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_protocol.c',
+                    'main/app_ble_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
+    binary = str(Path(directory) / 'test_ble_slave')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
+                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
     sources = ['tests/test_core.c', 'main/app_payload.c', 'main/app_config.c',
@@ -51,6 +115,7 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=T
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
+subprocess.run(['node', str(ROOT/'tests/test_settings_web.js')], cwd=ROOT, check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)

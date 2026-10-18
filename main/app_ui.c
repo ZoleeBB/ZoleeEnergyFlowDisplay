@@ -6,6 +6,7 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#include "app_ble_seed.h"
 #include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
@@ -72,6 +73,8 @@ LV_FONT_DECLARE(app_font_28);
 
 /* A boot után RAM-ban tartott konfiguráció és a UI életciklusának állapota. */
 static app_config_t s_cfg;
+static app_energy_config_t s_display_energy;
+static bool s_stats_missing_for_ui;
 static bool s_cfg_ok, s_started, s_dash_created, s_last_night;
 static lv_obj_t *s_screen, *s_dash, *s_sd_warn;
 static lv_obj_t *s_title, *s_date, *s_clock, *s_weather_temp, *s_wind_speed, *s_weather_icon,
@@ -96,7 +99,10 @@ static app_stats_period_t s_week_period, s_month_period;
 static app_diagnostics_t s_diagnostics;
 static lv_obj_t *s_diagnostic_bars[3];
 static bool s_diagnostics_requested;
-static lv_obj_t *s_diagnostic_values[8], *s_diagnostic_log[15];
+static lv_obj_t *s_diagnostic_values[14], *s_diagnostic_log[15];
+static lv_obj_t *s_pair_pad, *s_pair_mask, *s_pair_countdown, *s_pair_window_label;
+static char s_pair_digits[7];
+static uint32_t s_pair_ui_token;
 /* A meglévő RAM-napló másolata; nem a runtime task vermén tároljuk. */
 static app_event_entry_t s_diagnostic_events[15];
 static size_t s_diagnostic_event_count;
@@ -300,6 +306,8 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 static void clear(void)
 {
     lv_obj_clean(s_screen);
+    s_pair_pad = s_pair_mask = s_pair_countdown = s_pair_window_label = NULL;
+    memset(s_pair_digits, 0, sizeof(s_pair_digits));
     s_dash = NULL;
     s_dash_created = false;
     s_error_pulse = NULL;
@@ -1148,18 +1156,18 @@ static double money(const app_energy_totals_t *t)
     double local = t->production_kwh - t->grid_export_kwh;
     if (local < 0)
         local = 0;
-    return local * s_cfg.energy.electricity_purchase_price +
-           t->grid_export_kwh * s_cfg.energy.feed_in_price;
+    return local * s_display_energy.electricity_purchase_price +
+           t->grid_export_kwh * s_display_energy.feed_in_price;
 }
 /* Napi PV-termeléshez tartozó megtakarított CO2 tömeg számítása. */
 static double co2(const app_energy_totals_t *t)
 {
-    return t->production_kwh * s_cfg.energy.co2_factor_kg_per_kwh;
+    return t->production_kwh * s_display_energy.co2_factor_kg_per_kwh;
 }
 /* Megtakarított CO2 fa-egyenértékre történő átszámítása. */
 static double tree(const app_energy_totals_t *t)
 {
-    return co2(t) / s_cfg.energy.tree_absorption_kg_per_year;
+    return co2(t) / s_display_energy.tree_absorption_kg_per_year;
 }
 /* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
 static bool s_yesterday_partial_for_ui;
@@ -1167,6 +1175,12 @@ static bool s_yesterday_partial_for_ui;
 static void
 metric(int index, const char *value, double today, double yesterday, bool have_yesterday)
 {
+    if (s_stats_missing_for_ui) {
+        label_text_if_changed(s_metric[index], "--");
+        label_text_if_changed(s_cmp[index], "");
+        if (s_cmp_note[index]) lv_obj_add_flag(s_cmp_note[index], LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
     fit_text(s_metric[index], value, index < 4 ? 190 : 162, index < 4 ? APP_FONT_28 : APP_FONT_20);
 
     if (!have_yesterday)
@@ -1320,16 +1334,19 @@ static void update_flows(const app_energy_sample_t *s, float dt)
     }
 }
 
+#include "app_ble_pin_ui.inc"
+
 /* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
+    if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
     if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
     {
         app_runtime_state_t state;
         app_state_get_runtime(&state);
-        if (!state.wifi_connected)
+        if (s_cfg.data_recept_mode != APP_DATA_SLAVE && !state.wifi_connected)
             error_screen(
                 VIEW_WIFI_ERROR,
                 tr("Nincs Wi-Fi kapcsolat", "No Wi-Fi connection"),
@@ -1393,6 +1410,8 @@ static void animation_tick(lv_timer_t *timer)
 /* Egy érvényes minta és statisztikai snapshot alapján minden dashboard-elem frissítése. */
 static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
 {
+    s_display_energy = st->reference_valid ? st->reference_energy : s_cfg.energy;
+    s_stats_missing_for_ui = st->remote && !st->remote_available;
     time_t now = time(NULL);
     struct tm tmv;
     localtime_r(&now, &tmv);
@@ -1477,7 +1496,7 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
            st->comparison_today_totals.grid_export_kwh,
            st->comparison_yesterday_totals.grid_export_kwh,
            st->comparison_ready);
-    snprintf(b, sizeof(b), "%.0f %s", money(&st->totals), s_cfg.project.currency);
+    snprintf(b, sizeof(b), "%.0f %s", money(&st->totals), st->reference_valid ? st->reference_currency : s_cfg.project.currency);
     metric(4,
            b,
            money(&st->comparison_today_totals),
@@ -1508,8 +1527,10 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
            self(&st->comparison_yesterday_totals),
            st->comparison_ready);
     fmt_kwh(q, sizeof(q), st->totals.battery_charge_kwh);
+    if (s_stats_missing_for_ui) snprintf(q, sizeof(q), "--");
     fit_text(s_bat_charge, q, 88, APP_FONT_20);
     fmt_kwh(q, sizeof(q), st->totals.battery_discharge_kwh);
+    if (s_stats_missing_for_ui) snprintf(q, sizeof(q), "--");
     fit_text(s_bat_discharge, q, 92, APP_FONT_20);
 
     /* A tegnapi összehasonlítást csak akkor mutatjuk, ha tényleges tegnapi adat létezik. */
@@ -1601,10 +1622,23 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
 
     bg_color_if_changed(s_status_bubble, c(tone(status_color, s->night_mode)), 0);
 
-    if (app_storage_is_ok())
-        lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
-    else
-        lv_obj_clear_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    if (s_cfg.cardless_slave) {
+        lv_obj_set_pos(s_sd_warn, 700, 49);
+        lv_obj_set_width(s_sd_warn, 180);
+        lv_obj_set_style_text_align(s_sd_warn, LV_TEXT_ALIGN_LEFT, 0);
+        label_text_if_changed(s_sd_warn, s_stats_missing_for_ui ? tr("Statisztika szinkron...", "Statistics syncing...")
+                                                               : tr("Elavult statisztika", "Statistics outdated"));
+        if (s_stats_missing_for_ui || st->remote_stale) lv_obj_remove_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    }
+    else {
+        lv_obj_set_pos(s_sd_warn, 430, 37);
+        lv_obj_set_width(s_sd_warn, 230);
+        lv_obj_set_style_text_align(s_sd_warn, LV_TEXT_ALIGN_RIGHT, 0);
+        label_text_if_changed(s_sd_warn, tr("SD-kártya hiba", "SD card error"));
+        if (app_storage_is_ok()) lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    }
 
     int64_t chart_now = esp_timer_get_time();
     if (s_last_chart_update_us == 0 || chart_now - s_last_chart_update_us >= 5000000LL)
@@ -1727,6 +1761,7 @@ void app_ui_set_config(const app_config_t *cfg)
     }
 
     s_cfg = *cfg;
+    s_display_energy = cfg->energy;
     s_cfg.display.rotation_degrees = app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok = true;
 
@@ -1751,19 +1786,21 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
     clear();
     screen_style(s_screen, false);
 
-    const char *hu_steps[] = {"SD-kártya",
+    const char *hu_steps[] = {s_cfg.cardless_slave ? "Belső tár (SD nélkül)" : "SD-kártya",
                               "Konfiguráció",
-                              "Wi-Fi kapcsolat",
-                              "Időszinkron",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (opcionális)" : "Wi-Fi kapcsolat",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / master keresése" :
                               s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone kapcsolat"
                               : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP adatfogadó"
                                                                         : "MQTT kapcsolat",
                               "Várakozás az első adatcsomagra"};
 
-    const char *en_steps[] = {"SD card",
+    const char *en_steps[] = {s_cfg.cardless_slave ? "Internal storage (no SD)" : "SD card",
                               "Configuration",
-                              "Wi-Fi connection",
-                              "Time synchronization",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (optional)" : "Wi-Fi connection",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization",
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / searching for master" :
                               s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone connection"
                               : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP receiver"
                                                                         : "MQTT connection",
@@ -1882,6 +1919,9 @@ static void loxone_screen(runtime_view_t view)
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    app_ble_pairing_status_t pairing;
+    app_ble_pairing_status(&pairing);
+    if (pairing.pin_required) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
         had_loxone_connection = true;
@@ -1907,7 +1947,16 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     bool timed_out = app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg));
     bool http = s_cfg.data_recept_mode == APP_DATA_HTTP;
 
-    if (!rt.wifi_connected)
+    if (s_cfg.data_recept_mode == APP_DATA_SLAVE &&
+        (!rt.slave_connected || !have || timed_out))
+    {
+        error_screen(VIEW_DATA_TIMEOUT,
+            !rt.slave_connected ? tr("Master keresése", "Searching for master")
+                               : tr("Nincs friss master adat", "No fresh master data"),
+            tr("Bluetooth kapcsolatra és érvényes energiaadatokra várunk...",
+               "Waiting for Bluetooth connection and valid energy data..."), false);
+    }
+    else if (s_cfg.data_recept_mode != APP_DATA_SLAVE && !rt.wifi_connected)
     {
         error_screen(
             VIEW_WIFI_ERROR,

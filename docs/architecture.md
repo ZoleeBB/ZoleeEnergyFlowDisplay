@@ -1,12 +1,20 @@
 # Felépítés
 
-Az ESP32-P4 firmware közös állapotmodellt használ az MQTT-, HTTP- és közvetlen Loxone-adatfogadáshoz. A kiválasztott fogadó ellenőrzi a teljes JSON-csomagot, majd az érvényes mintát a statisztika és a kijelző kapja meg. Hibás csomag nem módosít állapotot és nem hosszabbítja meg az adatfrissességet.
+Az ESP32-P4 firmware közös állapotmodellt használ az MQTT-, HTTP-, közvetlen Loxone- és BLE Slave-adatfogadáshoz. Az első három út a közös JSON-validálón át publikál; a Slave a master bináris energia/időjárás/óra csomagjait ellenőrzi és állítja össze. Hibás vagy hiányos minta nem hosszabbítja meg az adatfrissességet. Az opcionális BLE master a már validált állapotot szolgáltatja; Slave módban nincs továbbosztás.
 
-A konfiguráció a FAT32 microSD gyökerében található. A Wi-Fi csatlakozás után az NTP időszinkron szükséges a helyi naptári statisztikához. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
+A konfiguráció SD-s működésben a FAT32 microSD gyökerében található. SD nélküli Slave-nél a `device_boot` NVS-névtér JSON-konfigurációt és tartós szerepjelölőt tárol. A `ble_profile` a párosított master Wi-Fi/OTA profilját őrzi. A helyi naptári statisztikához MQTT/HTTP/Loxone módban NTP, Slave módban a master UTC ideje és helyi UTC-eltolása szükséges. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
 
 A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció időlépése 16 ms, a diagramok frissítése 5 másodperc. A PNG-dekódolás gyorsítótára 10 MiB; a kijelző három teljes RGB565 képpufferrel és egy 50 soros LVGL rajzpufferrel működik. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
+
+Ez az SD-s Slave saját integrálására is érvényes; az összes telepített témát
+használhatja. SD nélkül a helyi integrálás és az SD-helyreállító task kimarad,
+csak a beépített Rendszer nézet aktív. A 1005 GATT-karakterisztikán érkező,
+6664 bájtos master-pillanatkép 14 lapon, ellenőrzés után atomi RAM-cserével frissül.
+Az élő energia/óra értesítések ettől külön működnek. A 1004 profil és a 1005
+statisztika LE Secure Connections/MITM/bonding és 16 bájtos kulcs mellett érhető el.
+Az NVS-írást külön profil-worker végzi, a statisztikai GATT-kiszolgáló nem végez SD I/O-t.
 
 A beépített nézet és kilenc SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás lapoz, felfelé húzás nyitja a közös diagnosztikát, lefelé húzás bezárja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
@@ -22,7 +30,7 @@ Az LVGL `OS_NONE` módban egy szoftveres rajzolóegységet használ, ugyanúgy, 
 
 A kijelző első render/flush eseményeinek egyszeri naplózása a regisztrációs wrapperben, az LVGL worker indítása előtt történik. Így az app_ui kezdeti zárolásának hibája nem akadályozza meg a renderelés és a panelre küldés elkülönítését. A fordítás tiltja az eltérő LVGL OS/render-worker konfigurációt.
 
-Az lwIP automatikus SNTP periódusa 10 nap, az alkalmazás saját periódusa legfeljebb 7 nap (alapértelmezésben 6 óra). A 14 napos SDK érték az lwIP `UINT32_MAX/4` időzítőkorlátján kívül esett, ezért az új firmware fordítási őrrel is védi ezt a korlátot. A napi statisztika az első sikeres NTP-szinkron előtt nem indul el.
+Az lwIP automatikus SNTP periódusa 10 nap, az alkalmazás saját periódusa legfeljebb 7 nap (alapértelmezésben 6 óra). A 14 napos SDK érték az lwIP `UINT32_MAX/4` időzítőkorlátján kívül esett, ezért az új firmware fordítási őrrel is védi ezt a korlátot. A napi statisztika az első sikeres NTP- vagy Slave esetén BT-időszinkron előtt nem indul el.
 
 A PPA nélküli részleges rajzolási út CPU-val javítja a back buffer változatlan területeit is. A CPU által módosított pixelek és a DMA-javítás ugyanazon cache-vonalat használhatnák; a későbbi CPU write-back felülírhatná a DMA eredményét. A buildbeli adaptermásolat ezért az összes részleges másolási ágban CPU-t használ, ha a profil gyorsítása tiltott, és ezen az úton kihagyja a hardveres íróhoz szükséges cache-invalidation lépést. A kész puffer CPU→RAM write-backje a kijelzőre küldés előtt megmarad. A képkockakövetés és a három panelpuffer nem változik.
 
@@ -34,10 +42,16 @@ A generikus UI/JSON/zlib heap foglalások PSRAM-ot részesítenek előnyben, 32 
 
 A sablon-geometria külső BSS-ben, PSRAM-ban van; a skálázott képek legfeljebb 6 MiB-os, témaváltáskor felszabadított natív raster-cache-t használnak. A memória- és képfrissítési döntések, kutatási források és hardveres mérés részletei: [teljesítmény](performance.md).
 
-A diagnosztika bal oldalán nyolc tömör adatmező, jobb oldalán a meglévő
+A diagnosztika bal oldalán két oszlopban 14 adatcsoport, jobb oldalán a meglévő
 RAM-eseménynapló legfrissebb 15 bejegyzése látszik, legújabb felül. A
 figyelmeztetések narancssárgák, a hibák pirosak. A naplómásolat statikus
 memóriában él; a másolás az LVGL-lock előtt, csak nyitott diagnosztikánál
 történik. Ez nem ír új naplófájlt az SD-re.
+
+A helyi napváltás a statisztikai karbantartásból ébreszti az opcionális GitHub
+OTA-feladatot. A kézi OTA, konfigurációmentés és szabályozott újraindítás közös
+kizárást használ. A próbaindítás validációja SD nélküli Slave-nél friss master-
+statisztikát kér az SD helyett; a többi mód feltételei az [OTA útmutatóban](ota.md)
+szerepelnek.
 
 A Loxone kliens RSA/AES-hitelesítést, JWT-megújítást, állapotfelderítést és WebSocket-eseménytáblákat kezel. A fájlkérés 404-es hibájánál HTTP(S) token-HMAC-hitelesítéssel tölti le a struktúrát. Csak a párosított számok állapotát őrzi, öt másodpercenként a közös validálón át publikál mintát. A külön SD-konfiguráció eszközkulccsal védi a jelszót. [Részletek](loxone-direct.md).

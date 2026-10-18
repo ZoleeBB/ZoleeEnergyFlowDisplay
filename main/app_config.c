@@ -314,11 +314,22 @@ static bool parse_config(
     size_t error_len)
 {
     char mode[8] = "mqtt";
+    if (!read_bool01(root, "DataSeedEnabled", &cfg->data_seed_enabled, false, error, error_len))
+        return false;
+    if (!read_string(root, "DataSeedPin", cfg->data_seed_pin, sizeof(cfg->data_seed_pin), false, true, error, error_len))
+        return false;
+    if (cfg->data_seed_pin[0]) {
+        if (strlen(cfg->data_seed_pin) != 6 || strspn(cfg->data_seed_pin, "0123456789") != 6) {
+            set_error(error, error_len, "A DataSeedPin pontosan hat számjegy vagy üres lehet.");
+            return false;
+        }
+    }
     if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
     if (strcasecmp(mode, "loxone") == 0) cfg->data_recept_mode = APP_DATA_LOXONE;
     else if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
+    else if (strcasecmp(mode, "slave") == 0) cfg->data_recept_mode = APP_DATA_SLAVE;
     else if (strcasecmp(mode, "mqtt") != 0) {
-        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http' vagy 'loxone' lehet.");
+        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http', 'loxone' vagy 'slave' lehet.");
         return false;
     }
     /* Csak az aktív adatfogadási mód beállításait ellenőrizzük. */
@@ -352,20 +363,25 @@ static bool parse_config(
         sizeof(cfg->project.language),
         strcasecmp(cfg->project.language, "hu") == 0 ? "hu" : "en");
 
-    /* Wi-Fi szekció kötelező. */
-    cJSON *wifi = get_object_section(root, "wifi", true, error, error_len);
-    if (!wifi) {
+    bool slave = cfg->data_recept_mode == APP_DATA_SLAVE;
+    if (slave && cfg->data_seed_enabled) {
+        set_error(error, error_len, "Slave módban az adat seed kapcsolót ki kell kapcsolni.");
+        return false;
+    }
+    /* Slave esetén Wi-Fi nélkül is működik az adat- és időszinkron. */
+    cJSON *wifi = get_object_section(root, "wifi", !slave, error, error_len);
+    if (!wifi && (!slave || (error && *error))) {
         return false;
     }
 
-    if (!read_string(wifi, "ssid", cfg->wifi.ssid, sizeof(cfg->wifi.ssid), true, false, error, error_len) ||
+    if (wifi && (!read_string(wifi, "ssid", cfg->wifi.ssid, sizeof(cfg->wifi.ssid), !slave, slave, error, error_len) ||
         !read_string(wifi, "password", cfg->wifi.password, sizeof(cfg->wifi.password), false, true, error, error_len) ||
-        !read_u32(wifi, "reconnect_seconds", &cfg->wifi.reconnect_seconds, 1, 3600, false, error, error_len)) {
+        !read_u32(wifi, "reconnect_seconds", &cfg->wifi.reconnect_seconds, 1, 3600, false, error, error_len))) {
         return false;
     }
 
     /* Statikus IP opcionális; engedélyezve mind a négy cím kötelezően valid. */
-    cJSON *network = get_object_section(wifi, "network", false, error, error_len);
+    cJSON *network = wifi ? get_object_section(wifi, "network", false, error, error_len) : NULL;
     if (network) {
         if (!read_bool01(network, "use_static_ip", &cfg->wifi.network.use_static_ip, false, error, error_len) ||
             !read_string(network, "ip", cfg->wifi.network.ip, sizeof(cfg->wifi.network.ip), false, true, error, error_len) ||
@@ -378,7 +394,7 @@ static bool parse_config(
         return false;
     }
 
-    if (cfg->wifi.network.use_static_ip &&
+    if ((!slave || cfg->wifi.ssid[0]) && cfg->wifi.network.use_static_ip &&
         (!valid_ipv4(cfg->wifi.network.ip) ||
          !valid_ipv4(cfg->wifi.network.gateway) ||
          !valid_ipv4(cfg->wifi.network.subnet) ||
@@ -391,7 +407,7 @@ static bool parse_config(
     }
 
     /* Időkezelési szekció. */
-    cJSON *time_cfg = get_object_section(root, "time", false, error, error_len);
+    cJSON *time_cfg = slave ? NULL : get_object_section(root, "time", false, error, error_len);
     if (time_cfg) {
         if (!read_string(time_cfg, "ntp_server", cfg->time.ntp_server, sizeof(cfg->time.ntp_server), false, false, error, error_len) ||
             !read_string(time_cfg, "timezone", cfg->time.timezone, sizeof(cfg->time.timezone), false, false, error, error_len) ||
@@ -487,7 +503,8 @@ static bool parse_config(
     cJSON *ota = get_object_section(root, "ota", false, error, error_len);
     if (ota) {
         if (!read_string(ota, "username", cfg->ota.username, sizeof(cfg->ota.username), false, true, error, error_len) ||
-            !read_string(ota, "password", cfg->ota.password, sizeof(cfg->ota.password), false, true, error, error_len)) {
+            !read_string(ota, "password", cfg->ota.password, sizeof(cfg->ota.password), false, true, error, error_len) ||
+            !read_bool01(ota, "auto_update", &cfg->ota.auto_update, false, error, error_len)) {
             return false;
         }
 
@@ -570,6 +587,17 @@ esp_err_t app_config_load_file(
      * Így egy érvényes JSON objektum után maradt véletlen vagy sérült adat
      * nem kerül csendben figyelmen kívül.
      */
+    esp_err_t result = app_config_parse_json(buffer, (size_t)size, cfg, error, error_len);
+    free(buffer);
+    return result;
+}
+
+esp_err_t app_config_parse_json(const char *buffer, size_t size, app_config_t *cfg,
+                                char *error, size_t error_len)
+{
+    if (!buffer || !cfg || !size || size > CONFIG_FILE_MAX_BYTES) return ESP_ERR_INVALID_ARG;
+    app_config_set_defaults(cfg);
+    if (error && error_len) error[0] = 0;
     const char *parse_end = NULL;
     cJSON *root = cJSON_ParseWithLengthOpts(
         buffer,
@@ -578,7 +606,6 @@ esp_err_t app_config_load_file(
         false);
 
     if (!root || !cJSON_IsObject(root)) {
-        free(buffer);
         cJSON_Delete(root);
         set_error(error, error_len, "A config.json nem érvényes JSON objektum.");
         return ESP_ERR_INVALID_ARG;
@@ -593,7 +620,6 @@ esp_err_t app_config_load_file(
     }
 
     if (parse_end != buffer + size) {
-        free(buffer);
         cJSON_Delete(root);
         set_error(
             error,
@@ -601,8 +627,6 @@ esp_err_t app_config_load_file(
             "A config.json az érvényes JSON után további adatot tartalmaz.");
         return ESP_ERR_INVALID_ARG;
     }
-
-    free(buffer);
 
     bool ok = parse_config(root, cfg, error, error_len);
     cJSON_Delete(root);

@@ -37,6 +37,10 @@ set(app_png_files
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_ble_seed.c"
+        "app_ble_protocol.c"
+        "app_ble_profile.c"
+        "app_ble_profile_model.c"
         "app_diagnostics.c"
         "app_display.c"
         "app_assets.c"
@@ -56,6 +60,8 @@ idf_component_register(
         "fonts/app_font_22.c"
         "fonts/app_font_28.c"
         "app_config.c"
+        "app_boot_config.c"
+        "app_ble_stats_protocol.c"
         "app_events.c"
         "app_ingest.c"
         "app_http.c"
@@ -64,6 +70,8 @@ idf_component_register(
         "app_loxone_model.c"
         "app_loxone_store.c"
         "app_ota.c"
+        "app_ota_auto.c"
+        "app_ota_release.c"
         "app_payload.c"
         "app_state.c"
         "app_stats.c"
@@ -76,6 +84,7 @@ idf_component_register(
     EMBED_FILES ${app_png_files}
     REQUIRES
         app_update
+        bt
         esp_event
         esp_http_client
         esp_websocket_client

@@ -693,6 +693,18 @@ esp_err_t app_templates_init(void)
     if (!lock)
         return ESP_ERR_NO_MEM;
     xSemaphoreTake(lock, portMAX_DELAY);
+    #ifndef APP_TEMPLATE_DESKTOP
+    if (app_storage_is_cardless()) {
+        memset(catalogue, 0, sizeof(catalogue));
+        snprintf(catalogue[0].id, sizeof(catalogue[0].id), "builtin");
+        snprintf(catalogue[0].name, sizeof(catalogue[0].name), "Rendszer / System");
+        count = 1;
+        snprintf(selected, sizeof(selected), "builtin");
+        generation++;
+        xSemaphoreGive(lock);
+        return ESP_OK;
+    }
+    #endif
     if (STORAGE_TAKE() != ESP_OK)
     {
         xSemaphoreGive(lock);
@@ -930,6 +942,17 @@ bool app_templates_load_pending(app_template_view_t *out)
         xSemaphoreGive(lock);
         return false;
     }
+    #ifndef APP_TEMPLATE_DESKTOP
+    if (app_storage_is_cardless()) {
+        snprintf(next->id, sizeof(next->id), "builtin");
+        next->generation = generation;
+        next->catalogue_count = 1;
+        *out = *next;
+        free(next);
+        xSemaphoreGive(lock);
+        return true;
+    }
+    #endif
     if (!STORAGE_TRY())
     {
         free(next);

@@ -1,5 +1,7 @@
 {
   "DataReceptMode": "mqtt",
+  "DataSeedEnabled": 0,
+  "DataSeedPin": "",
   "project": {
     "title": "Otthoni energia",
     "language": "hu",
@@ -52,6 +54,7 @@
     "tree_absorption_kg_per_year": 22
   },
   "ota": {
+    "auto_update": 0,
     "username": "",
     "password": ""
   },

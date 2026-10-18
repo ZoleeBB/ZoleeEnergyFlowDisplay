@@ -16,13 +16,13 @@ typedef struct {
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
-static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
+static unsigned template_catalogue_count(void){return s_cfg.cardless_slave ? 1 : template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static bool template_loading_requested;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
-static bool template_is_active(void){return template_view.document!=NULL;}
+static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
     return !strcmp(template_view.id,"02-energy-paths")||
            !strcmp(template_view.id,"06-energy-orbit");
@@ -318,13 +318,14 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     snprintf(out,128,"%s %s",value,unit);
 }
 static void template_gesture(lv_event_t *event){
+    if (s_pair_pad) return;
     (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
     lv_dir_t direction=lv_indev_get_gesture_dir(input);
     if(direction==LV_DIR_TOP||direction==LV_DIR_BOTTOM){
         s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
     }
     if(s_diagnostics_requested)return;
-    if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){
+    if(!s_cfg.cardless_slave && (direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT)){
         app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
         template_loading_requested=true;
         lv_indev_wait_release(input);
@@ -363,6 +364,7 @@ static void template_loading_screen(void){
 /* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
 static bool template_loading_frame(void){
+    if (s_cfg.cardless_slave) return true;
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     template_loading_screen();bsp_display_unlock();
@@ -371,11 +373,13 @@ static bool template_loading_frame(void){
     return true;
 }
 static void template_prepare(void){
+    if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
     app_templates_load_pending(&template_pending);
 }
 static void template_apply(void){
+    if (s_cfg.cardless_slave) return;
     if(template_pending.generation==template_view.generation)return;
     template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
@@ -937,74 +941,256 @@ static void diagnostics_capture(void){
     if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
 }
 /* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
-static void diagnostics_render(app_runtime_state_t rt){
-    if(s_view!=VIEW_DIAGNOSTICS){
-        clear();screen_style(s_screen,true);
-        lbl(s_screen,tr("Eszközdiagnosztika","Device diagnostics"),32,28,APP_FONT_28,TEXT_DARK);
-        lv_obj_t *hint=lbl(s_screen,tr("Lefelé húzás: vissza az előző témához","Swipe down to return to the selected theme"),32,73,APP_FONT_16,MUTED_DARK);
-        lv_obj_set_width(hint,560);lv_label_set_long_mode(hint,LV_LABEL_LONG_MODE_DOTS);
-        const char *titles[]={"Wi-Fi / IP",tr("Adatfogadás","Data input"),tr("Utolsó adatcsomag","Last data packet"),
-            tr("SD-kártya","SD card"),tr("Firmware / üzemidő","Firmware / uptime"),"CPU",tr("Belső RAM","Internal RAM"),"PSRAM"};
-        for(int i=0;i<8;i++){
-            lv_obj_t *card=lv_obj_create(s_screen);lv_obj_set_pos(card,32,118+i*82);lv_obj_set_size(card,576,76);card_style(card,true);lv_obj_set_style_pad_all(card,0,0);
-            lv_obj_remove_flag(card,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(card,LV_OBJ_FLAG_GESTURE_BUBBLE);
-            lbl(card,titles[i],16,8,APP_FONT_16,MUTED_DARK);
-            s_diagnostic_values[i]=lbl(card,"",16,27,APP_FONT_16,TEXT_DARK);lv_obj_set_size(s_diagnostic_values[i],536,42);
-            if(i==6)lv_obj_set_style_text_font(s_diagnostic_values[i],APP_FONT_14,0);
-            if(i==3||i==6||i==7){lv_obj_set_height(s_diagnostic_values[i],34);int bar=i==3?0:i-5;s_diagnostic_bars[bar]=lv_bar_create(card);
-                lv_obj_set_pos(s_diagnostic_bars[bar],16,67);lv_obj_set_size(s_diagnostic_bars[bar],536,4);
-                lv_bar_set_range(s_diagnostic_bars[bar],0,100);lv_obj_set_style_bg_color(s_diagnostic_bars[bar],c(0x32465B),LV_PART_MAIN);
-                lv_obj_set_style_bg_color(s_diagnostic_bars[bar],c(0x58B89C),LV_PART_INDICATOR);
-                lv_obj_add_flag(s_diagnostic_bars[bar],LV_OBJ_FLAG_GESTURE_BUBBLE);
+static void diagnostics_render(app_runtime_state_t rt)
+{
+    if (s_view != VIEW_DIAGNOSTICS)
+    {
+        clear();
+        screen_style(s_screen, true);
+        lbl(s_screen,
+            tr("Eszközdiagnosztika", "Device diagnostics"),
+            32,
+            28,
+            APP_FONT_28,
+            TEXT_DARK);
+        lv_obj_t *hint = lbl(s_screen,
+                             tr("Lefelé húzás: vissza az előző témához",
+                                "Swipe down to return to the selected theme"),
+                             32,
+                             73,
+                             APP_FONT_16,
+                             MUTED_DARK);
+        lv_obj_set_width(hint, 560);
+        lv_label_set_long_mode(hint, LV_LABEL_LONG_MODE_DOTS);
+        const char *titles[] = {
+            "Wi-Fi / IP",
+            tr("Adatfogadás", "Data input"),
+            tr("Utolsó adatcsomag", "Last data packet"),
+            tr("SD-kártya", "SD card"),
+            tr("Firmware / üzemidő", "Firmware / uptime"),
+            "CPU",
+            tr("Belső RAM", "Internal RAM"),
+            "PSRAM",
+            tr("Bluetooth szerep", "Bluetooth role"),
+            tr("Saját BT cím", "Local BT address"),
+            rt.data_recept_mode == APP_DATA_SLAVE ? tr("Master BT cím", "Master BT address")
+                                                  : tr("BT név / párosítási PIN", "BT name / pairing PIN"),
+            rt.data_recept_mode == APP_DATA_SLAVE ? tr("Master jelerősség", "Master signal")
+                                                  : tr("Kapcsolódó slave-ek", "Connected slaves"),
+            tr("Bluetooth állapot", "Bluetooth state"),
+            tr("Időszinkron", "Time synchronization")};
+        if (rt.ble_enabled && rt.ble_master) {
+            lv_obj_t *button = pairing_button(s_screen, "", 352, 28, 272, 36);
+            s_pair_window_label = lv_obj_get_child(button, 0);
+            lv_obj_set_style_text_font(s_pair_window_label, APP_FONT_14, 0);
+            lv_obj_add_event_cb(button, pairing_window_clicked, LV_EVENT_CLICKED, NULL);
+        }
+        for (int i = 0; i < 14; i++)
+        {
+            lv_obj_t *card = lv_obj_create(s_screen);
+            lv_obj_set_pos(card, 32 + (i % 2) * 296, 118 + (i / 2) * 94);
+            lv_obj_set_size(card, 280, 88);
+            card_style(card, true);
+            lv_obj_set_style_pad_all(card, 0, 0);
+            lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(card, LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lbl(card, titles[i], 16, 8, APP_FONT_14, MUTED_DARK);
+            s_diagnostic_values[i] = lbl(card, "", 16, 29, APP_FONT_14, TEXT_DARK);
+            lv_obj_set_size(s_diagnostic_values[i], 248, 46);
+            lv_label_set_long_mode(s_diagnostic_values[i], LV_LABEL_LONG_MODE_DOTS);
+            if (i == 6)
+                lv_obj_set_style_text_font(s_diagnostic_values[i], APP_FONT_12, 0);
+            if (i == 3 || i == 6 || i == 7)
+            {
+                int bar = i == 3 ? 0 : i - 5;
+                s_diagnostic_bars[bar] = lv_bar_create(card);
+                lv_obj_set_pos(s_diagnostic_bars[bar], 16, 78);
+                lv_obj_set_size(s_diagnostic_bars[bar], 248, 4);
+                lv_bar_set_range(s_diagnostic_bars[bar], 0, 100);
+                lv_obj_set_style_bg_color(s_diagnostic_bars[bar], c(0x32465B), LV_PART_MAIN);
+                lv_obj_set_style_bg_color(s_diagnostic_bars[bar], c(0x58B89C), LV_PART_INDICATOR);
+                lv_obj_add_flag(s_diagnostic_bars[bar], LV_OBJ_FLAG_GESTURE_BUBBLE);
             }
-            lv_obj_add_flag(s_diagnostic_values[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lv_obj_add_flag(s_diagnostic_values[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
-        lv_obj_t *log=lv_obj_create(s_screen);lv_obj_set_pos(log,640,24);lv_obj_set_size(log,608,752);card_style(log,true);lv_obj_set_style_pad_all(log,0,0);
-        lv_obj_remove_flag(log,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(log,LV_OBJ_FLAG_GESTURE_BUBBLE);
-        lbl(log,tr("Rendszernapló · legutóbbi események","System log · latest events"),18,16,APP_FONT_20,TEXT_DARK);
-        for(int i=0;i<15;i++){
-            s_diagnostic_log[i]=lbl(log,"",18,60+i*44,APP_FONT_16,TEXT_DARK);
-            lv_obj_set_size(s_diagnostic_log[i],564,40);
-            lv_label_set_long_mode(s_diagnostic_log[i],LV_LABEL_LONG_MODE_DOTS);
-            lv_obj_add_flag(s_diagnostic_log[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_t *log = lv_obj_create(s_screen);
+        lv_obj_set_pos(log, 640, 24);
+        lv_obj_set_size(log, 608, 752);
+        card_style(log, true);
+        lv_obj_set_style_pad_all(log, 0, 0);
+        lv_obj_remove_flag(log, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(log, LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lbl(log,
+            tr("Rendszernapló · legutóbbi események", "System log · latest events"),
+            18,
+            16,
+            APP_FONT_20,
+            TEXT_DARK);
+        for (int i = 0; i < 15; i++)
+        {
+            s_diagnostic_log[i] = lbl(log, "", 18, 60 + i * 44, APP_FONT_16, TEXT_DARK);
+            lv_obj_set_size(s_diagnostic_log[i], 564, 40);
+            lv_label_set_long_mode(s_diagnostic_log[i], LV_LABEL_LONG_MODE_DOTS);
+            lv_obj_add_flag(s_diagnostic_log[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
-        s_view=VIEW_DIAGNOSTICS;
+        s_view = VIEW_DIAGNOSTICS;
     }
     char text[192];
-    snprintf(text,sizeof(text),"%s · %d dBm\n%s",rt.wifi_connected?tr("Kapcsolódva","Connected"):tr("Nincs kapcsolat","Disconnected"),s_diagnostics.rssi,s_diagnostics.ip);
-    label_text_if_changed(s_diagnostic_values[0],text);
-    snprintf(text,sizeof(text),"%s · %s",rt.data_recept_mode==APP_DATA_LOXONE?"Loxone":rt.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT",app_state_data_ready(&rt)?tr("Elérhető","Ready"):tr("Nem elérhető","Unavailable"));
-    label_text_if_changed(s_diagnostic_values[1],text);
-    if(s_diagnostics.packet_age_seconds<0)snprintf(text,sizeof(text),"%s",tr("Még nem érkezett","No packet received"));
-    else snprintf(text,sizeof(text),"%lld s · %s",(long long)s_diagnostics.packet_age_seconds,
-        app_state_data_timed_out(&rt,esp_timer_get_time(),app_config_data_timeout(&s_cfg))?tr("Lejárt adat","Stale data"):tr("Érvényes adat","Valid data"));
-    label_text_if_changed(s_diagnostic_values[2],text);
-    unsigned sd_used=s_diagnostics.sd_space_valid?(unsigned)((s_diagnostics.sd_total_bytes-s_diagnostics.sd_free_bytes)*100/s_diagnostics.sd_total_bytes):0;
-    if(rt.sd_ok&&s_diagnostics.sd_space_valid)snprintf(text,sizeof(text),"%u%% · %.1f / %.1f GiB",sd_used,
-        (double)(s_diagnostics.sd_total_bytes-s_diagnostics.sd_free_bytes)/1073741824.,(double)s_diagnostics.sd_total_bytes/1073741824.);
-    else snprintf(text,sizeof(text),"%s",rt.sd_ok?tr("Kapacitás lekérése…","Reading capacity…"):tr("Hiba · kijelzés RAM-ból","Fault · display from RAM"));
-    label_text_if_changed(s_diagnostic_values[3],text);
-    lv_bar_set_value(s_diagnostic_bars[0],sd_used,LV_ANIM_OFF);
-    if(rt.sd_ok&&s_diagnostics.sd_space_valid)lv_obj_remove_flag(s_diagnostic_bars[0],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(s_diagnostic_bars[0],LV_OBJ_FLAG_HIDDEN);
-    snprintf(text,sizeof(text),"%s · %lld min",s_diagnostics.firmware,(long long)(s_diagnostics.uptime_seconds/60));label_text_if_changed(s_diagnostic_values[4],text);
-    if(s_diagnostics.cpu_valid)snprintf(text,sizeof(text),"CPU0 %u%% · CPU1 %u%%",s_diagnostics.cpu_percent[0],s_diagnostics.cpu_percent[1]);
-    else snprintf(text,sizeof(text),"%s",tr("Mérés indul…","Starting measurement…"));
-    label_text_if_changed(s_diagnostic_values[5],text);
-    for(int i=0;i<2;i++){
-        unsigned total=i?s_diagnostics.total_psram_kib:s_diagnostics.total_internal_kib;
-        unsigned available=i?s_diagnostics.free_psram_kib:s_diagnostics.free_internal_kib;
-        unsigned used=total&&available<=total?(total-available)*100/total:0;
-        snprintf(text,sizeof(text),"%u%% · %s %u / %u KiB",used,tr("szabad","free"),available,total);
-        if(!i){size_t end=strlen(text);snprintf(text+end,sizeof(text)-end,"\nDMA max %u KiB",s_diagnostics.largest_dma_block_bytes/1024);}
-        label_text_if_changed(s_diagnostic_values[6+i],text);lv_bar_set_value(s_diagnostic_bars[1+i],used,LV_ANIM_OFF);
+    snprintf(text,
+             sizeof(text),
+             "%s · %d dBm\n%s",
+             rt.wifi_connected ? tr("Kapcsolódva", "Connected")
+                               : tr("Nincs kapcsolat", "Disconnected"),
+             s_diagnostics.rssi,
+             s_diagnostics.ip);
+    label_text_if_changed(s_diagnostic_values[0], text);
+    snprintf(text,
+             sizeof(text),
+             "%s · %s",
+             rt.data_recept_mode == APP_DATA_SLAVE    ? "Slave (BLE)"
+             : rt.data_recept_mode == APP_DATA_LOXONE ? "Loxone"
+             : rt.data_recept_mode == APP_DATA_HTTP   ? "HTTP"
+                                                      : "MQTT",
+             app_state_data_ready(&rt) ? tr("Elérhető", "Ready")
+                                       : tr("Nem elérhető", "Unavailable"));
+    label_text_if_changed(s_diagnostic_values[1], text);
+    if (s_diagnostics.packet_age_seconds < 0)
+        snprintf(text, sizeof(text), "%s", tr("Még nem érkezett", "No packet received"));
+    else
+        snprintf(
+            text,
+            sizeof(text),
+            "%lld s · %s",
+            (long long)s_diagnostics.packet_age_seconds,
+            app_state_data_timed_out(&rt, esp_timer_get_time(), app_config_data_timeout(&s_cfg))
+                ? tr("Lejárt adat", "Stale data")
+                : tr("Érvényes adat", "Valid data"));
+    label_text_if_changed(s_diagnostic_values[2], text);
+    unsigned sd_used = s_diagnostics.sd_space_valid
+                         ? (unsigned)((s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) *
+                                      100 / s_diagnostics.sd_total_bytes)
+                         : 0;
+    if (rt.sd_ok && s_diagnostics.sd_space_valid)
+        snprintf(text,
+                 sizeof(text),
+                 "%u%% · %.1f / %.1f GiB",
+                 sd_used,
+                 (double)(s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) / 1073741824.,
+                 (double)s_diagnostics.sd_total_bytes / 1073741824.);
+    else
+        snprintf(text,
+                 sizeof(text),
+                 "%s",
+                 rt.sd_ok ? tr("Kapacitás lekérése...", "Reading capacity...")
+                          : tr("Hiba · kijelzés RAM-ból", "Fault · display from RAM"));
+    if (rt.cardless_slave)
+        snprintf(text, sizeof(text), "%s\n%s", tr("SD nélkül · belső tár", "No SD · internal storage"),
+                 rt.remote_stats_valid ? tr("Master stat.: friss", "Master stats: current") : tr("Master stat.: várakozás", "Master stats: waiting"));
+    label_text_if_changed(s_diagnostic_values[3], text);
+    lv_bar_set_value(s_diagnostic_bars[0], sd_used, LV_ANIM_OFF);
+    if (rt.sd_ok && s_diagnostics.sd_space_valid)
+        lv_obj_remove_flag(s_diagnostic_bars[0], LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(s_diagnostic_bars[0], LV_OBJ_FLAG_HIDDEN);
+    snprintf(text,
+             sizeof(text),
+             "%s\n%lld min",
+             s_diagnostics.firmware,
+             (long long)(s_diagnostics.uptime_seconds / 60));
+    label_text_if_changed(s_diagnostic_values[4], text);
+    if (s_diagnostics.cpu_valid)
+        snprintf(text,
+                 sizeof(text),
+                 "CPU0 %u%% · CPU1 %u%%",
+                 s_diagnostics.cpu_percent[0],
+                 s_diagnostics.cpu_percent[1]);
+    else
+        snprintf(text, sizeof(text), "%s", tr("Mérés indul...", "Starting measurement..."));
+    label_text_if_changed(s_diagnostic_values[5], text);
+    for (int i = 0; i < 2; i++)
+    {
+        unsigned total = i ? s_diagnostics.total_psram_kib : s_diagnostics.total_internal_kib;
+        unsigned available = i ? s_diagnostics.free_psram_kib : s_diagnostics.free_internal_kib;
+        unsigned used = total && available <= total ? (total - available) * 100 / total : 0;
+        snprintf(text,
+                 sizeof(text),
+                 "%u%% · %s %u / %u KiB",
+                 used,
+                 tr("szabad", "free"),
+                 available,
+                 total);
+        if (!i)
+        {
+            size_t end = strlen(text);
+            snprintf(text + end,
+                     sizeof(text) - end,
+                     "\nDMA max %u KiB",
+                     s_diagnostics.largest_dma_block_bytes / 1024);
+        }
+        label_text_if_changed(s_diagnostic_values[6 + i], text);
+        lv_bar_set_value(s_diagnostic_bars[1 + i], used, LV_ANIM_OFF);
     }
-    for(unsigned i=0;i<15;i++){
-        if(i>=s_diagnostic_event_count){label_text_if_changed(s_diagnostic_log[i],i==0?tr("Még nincs esemény.","No events yet."):"");continue;}
-        const app_event_entry_t *entry=&s_diagnostic_events[s_diagnostic_event_count-1-i];
-        char stamp[16]="--:--:--";time_t epoch=(time_t)entry->epoch_s;struct tm tmv;
-        if(epoch>=1577836800 && localtime_r(&epoch,&tmv))strftime(stamp,sizeof(stamp),"%H:%M:%S",&tmv);
-        snprintf(text,sizeof(text),"%s  %s",stamp,hu()?entry->text:entry->text_en);
-        label_text_if_changed(s_diagnostic_log[i],text);
-        text_color_if_changed(s_diagnostic_log[i],c(entry->level==APP_EVENT_ERROR?RED:entry->level==APP_EVENT_WARNING?ORANGE:TEXT_DARK),0);
+    label_text_if_changed(s_diagnostic_values[8],
+                          !rt.ble_enabled ? tr("Kikapcsolva", "Disabled")
+                          : rt.ble_master ? "Master (BLE)"
+                                          : "Slave (BLE)");
+    label_text_if_changed(s_diagnostic_values[9],
+                          rt.ble_enabled && rt.ble_address[0] ? rt.ble_address : "-");
+    if (rt.ble_enabled && rt.ble_master) {
+        snprintf(text, sizeof(text), "ZoleeEnergy\nPIN: %s", s_cfg.data_seed_pin);
+        label_text_if_changed(s_diagnostic_values[10], text);
+        app_ble_pairing_status_t pairing; app_ble_pairing_status(&pairing);
+        snprintf(text, sizeof(text), pairing.seconds ? tr("Párosítás nyitva: %u mp", "Pairing open: %u s")
+                                                    : tr("Párosítás engedélyezése (2 perc)", "Enable pairing (2 min)"), pairing.seconds);
+        if (s_pair_window_label) label_text_if_changed(s_pair_window_label, text);
+    } else {
+        label_text_if_changed(s_diagnostic_values[10], rt.ble_enabled ?
+            (rt.ble_peer[0] ? rt.ble_peer : tr("Keresés...", "Searching...")) : "-");
+    }
+    if (!rt.ble_enabled)
+        snprintf(text, sizeof(text), "-");
+    else if (rt.ble_master)
+        snprintf(text, sizeof(text), "%u", rt.ble_slaves);
+    else if (rt.ble_peer[0])
+        snprintf(text, sizeof(text), "%d dBm", rt.ble_rssi);
+    else
+        snprintf(text, sizeof(text), "-");
+    label_text_if_changed(s_diagnostic_values[11], text);
+    label_text_if_changed(s_diagnostic_values[12],
+                          !rt.ble_enabled      ? tr("Kikapcsolva", "Disabled")
+                          : !rt.ble_ready      ? tr("Inicializálás...", "Initializing...")
+                          : rt.ble_advertising ? tr("Hirdetés aktív", "Advertising")
+                          : rt.ble_scanning    ? tr("Master keresése", "Searching for master")
+                          : rt.slave_connected ? tr("Master csatlakoztatva", "Master connected")
+                          : rt.ble_master      ? tr("Aktív", "Active")
+                                               : tr("Kapcsolódás...", "Connecting..."));
+    snprintf(text,
+             sizeof(text),
+             "%s\n%s",
+             rt.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth / master" : "NTP",
+             rt.time_synced ? tr("Szinkronizálva", "Synchronized")
+                            : tr("Várakozás...", "Waiting..."));
+    label_text_if_changed(s_diagnostic_values[13], text);
+    for (unsigned i = 0; i < 15; i++)
+    {
+        if (i >= s_diagnostic_event_count)
+        {
+            label_text_if_changed(s_diagnostic_log[i],
+                                  i == 0 ? tr("Még nincs esemény.", "No events yet.") : "");
+            continue;
+        }
+        const app_event_entry_t *entry = &s_diagnostic_events[s_diagnostic_event_count - 1 - i];
+        char stamp[16] = "--:--:--";
+        time_t epoch = (time_t)entry->epoch_s;
+        struct tm tmv;
+        if (epoch >= 1577836800 && localtime_r(&epoch, &tmv))
+            strftime(stamp, sizeof(stamp), "%H:%M:%S", &tmv);
+        snprintf(text, sizeof(text), "%s  %s", stamp, hu() ? entry->text : entry->text_en);
+        label_text_if_changed(s_diagnostic_log[i], text);
+        text_color_if_changed(s_diagnostic_log[i],
+                              c(entry->level == APP_EVENT_ERROR     ? RED
+                                : entry->level == APP_EVENT_WARNING ? ORANGE
+                                                                    : TEXT_DARK),
+                              0);
     }
 }

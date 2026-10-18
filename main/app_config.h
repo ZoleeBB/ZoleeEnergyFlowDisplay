@@ -65,7 +65,8 @@ typedef enum
 {
     APP_DATA_MQTT = 0,
     APP_DATA_HTTP = 1,
-    APP_DATA_LOXONE = 2
+    APP_DATA_LOXONE = 2,
+    APP_DATA_SLAVE = 3
 } app_data_mode_t;
 typedef struct
 {
@@ -114,12 +115,16 @@ typedef struct
 {
     char username[APP_OTA_USER_MAX];
     char password[APP_OTA_PASSWORD_MAX];
+    bool auto_update; /* Stabil GitHub-release ellenőrzése helyi napváltáskor. */
 } app_ota_config_t;
 
 /* A teljes, induláskor betöltött alkalmazáskonfiguráció. */
 typedef struct
 {
     app_data_mode_t data_recept_mode;
+    bool cardless_slave; /* Belső indulási állapot; JSON-ból nem kapcsolható be. */
+    bool data_seed_enabled; /* BLE master: csak olvasható energiaadat-megosztás. */
+    char data_seed_pin[7]; /* Hat számjegy; üresen eszközön generált, tartós PIN. */
     app_http_config_t http;
     app_project_config_t project;
     app_wifi_config_t wifi;
@@ -134,11 +139,17 @@ typedef struct
 /* Beépített alapértékek betöltése. */
 void app_config_set_defaults(app_config_t *cfg);
 
+/* Ugyanaz a szigorú validátor fájl és belső NVS-konfiguráció számára. */
+esp_err_t app_config_parse_json(const char *json, size_t length, app_config_t *cfg,
+                                char *error, size_t error_len);
+
 /* config.json beolvasása, validálása és az alapértékekkel való kiegészítése. */
 esp_err_t app_config_load_file(const char *path, app_config_t *cfg, char *error, size_t error_len);
 
 static inline uint32_t app_config_data_timeout(const app_config_t *cfg)
 {
+    if (cfg->data_recept_mode == APP_DATA_SLAVE)
+        return 15; /* BLE heartbeat felügyelet; a forrás lejáratát a master küldi. */
     return cfg->data_recept_mode == APP_DATA_LOXONE ? 45
          : cfg->data_recept_mode == APP_DATA_HTTP   ? cfg->http.data_timeout_seconds
                                                     : cfg->mqtt.data_timeout_seconds;

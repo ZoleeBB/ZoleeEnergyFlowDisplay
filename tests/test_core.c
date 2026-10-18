@@ -110,10 +110,18 @@ static void test_integrals(void){
     feed(t+41,15,15,15);app_stats_get_snapshot(&snapshot);
     near(snapshot.totals.production_kwh,70./3600);tests++;
 }
+static unsigned day_notifications;
+static void day_notification(void){day_notifications++;}
 static void test_midnight(bool background_first){
     time_t t=instant("2026-10-04",23,59,58);reset(t);feed(t,7,0,0);
+    day_notifications=0;app_stats_set_day_change_callback(day_notification);
+    app_stats_tick();assert(day_notifications==0); /* Induláskor nem frissítünk. */
     if(background_first){clock_at(t+2);app_stats_tick();}
     feed(t+5,7,0,0);app_stats_get_snapshot(&snapshot);
+    app_stats_tick();app_stats_tick();assert(day_notifications==1);
+    clock_at(t);app_stats_tick();clock_at(t+5);app_stats_tick();
+    assert(day_notifications==1); /* Visszaállított óra sem indíthat újra. */
+    app_stats_set_day_change_callback(NULL);
     assert(strcmp(snapshot.date,"2026-10-05")==0);near(snapshot.totals.production_kwh,21./3600);
     assert(app_stats_save_now()==ESP_OK);cJSON *day=read_json("2026-10-04");near(total(day),14./3600);cJSON_Delete(day);
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,21./3600);tests++;
@@ -254,6 +262,27 @@ static void test_payload(void){
 static void test_config(void){
     app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
     assert(defaults.display.rotation_degrees==270);
+    assert(!defaults.data_seed_enabled);
+    assert(!defaults.ota.auto_update);
+    const char *pins[]={"\"\"","\"012345\"","\"999999\"","\"12345\"","\"abcdef\"","123456","\"1234567\""};
+    for(unsigned i=0;i<sizeof(pins)/sizeof(pins[0]);i++){
+        const char *pin_path=APP_SD_MOUNT_POINT "/pin-config.json";
+        FILE *f=fopen(pin_path,"wb");assert(f);
+        fprintf(f,"{\"DataReceptMode\":\"slave\",\"DataSeedPin\":%s}",pins[i]);fclose(f);
+        char pin_error[256];app_config_t parsed;
+        esp_err_t rc=app_config_load_file(pin_path,&parsed,pin_error,sizeof(pin_error));
+        assert((i<3)==(rc==ESP_OK));
+        if(i==1)assert(!strcmp(parsed.data_seed_pin,"012345"));
+    }
+    for(int enabled=0;enabled<3;enabled++){
+        const char *auto_path=APP_SD_MOUNT_POINT "/auto-config.json";
+        FILE *f=fopen(auto_path,"wb");assert(f);
+        fprintf(f,"{\"DataReceptMode\":\"slave\",\"ota\":{\"auto_update\":%d}}",enabled);fclose(f);
+        char auto_error[256];app_config_t parsed;
+        esp_err_t rc=app_config_load_file(auto_path,&parsed,auto_error,sizeof(auto_error));
+        assert((enabled<2)==(rc==ESP_OK));
+        if(enabled<2)assert(parsed.ota.auto_update==(enabled==1));
+    }
     char error[256];const char *path=APP_SD_MOUNT_POINT "/config.json";
     for(int interval=60;interval<=61;interval++){
         FILE *f=fopen(path,"wb");assert(f);
@@ -281,6 +310,27 @@ static void test_config(void){
         esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
         assert((rc==ESP_OK)==(cases[i].expected>=0));
         if(rc==ESP_OK)assert(cfg.display.rotation_degrees==cases[i].expected);
+    }
+    /* Az új kapcsoló régi konfigurációval kikapcsolt, csak 0/1 fogadható el. */
+    const char *seed_values[]={"0","1","2","-1","0.5","true","null","\"1\""};
+    for(size_t i=0;i<sizeof(seed_values)/sizeof(seed_values[0]);i++){
+        FILE *f=fopen(path,"wb");assert(f);
+        fprintf(f,"{\"wifi\":{\"ssid\":\"test\"},\"mqtt\":{\"broker\":\"localhost\"},\"DataSeedEnabled\":%s}",seed_values[i]);
+        fclose(f);
+        esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
+        assert((rc==ESP_OK)==(i<2));
+        if(rc==ESP_OK)assert(cfg.data_seed_enabled==(i==1));
+    }
+    const char *slave_configs[]={
+        "{\"DataReceptMode\":\"slave\"}",
+        "{\"DataReceptMode\":\"Slave\",\"wifi\":{\"ssid\":\"\"},\"time\":{\"ntp_server\":null}}",
+        "{\"DataReceptMode\":\"slave\",\"DataSeedEnabled\":1}",
+    };
+    for(size_t i=0;i<3;i++){
+        FILE *f=fopen(path,"wb");assert(f);fputs(slave_configs[i],f);fclose(f);
+        esp_err_t rc=app_config_load_file(path,&cfg,error,sizeof(error));
+        assert((rc==ESP_OK)==(i<2));
+        if(rc==ESP_OK)assert(cfg.data_recept_mode==APP_DATA_SLAVE&&!cfg.wifi.ssid[0]);
     }
     tests++;
 }
@@ -354,6 +404,59 @@ static void test_period_metrics(void){
     app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].soc_pct,80);
     tests++;
 }
+static void test_cardless_stats(void)
+{
+    time_t t=instant("2026-10-18",12,0,0);
+    reset(t);
+    app_config_set_defaults(&cfg);cfg.cardless_slave=true;cfg.data_recept_mode=APP_DATA_SLAVE;
+    sd_ok=false;rename_calls=0;
+    assert(app_stats_init(&cfg)==ESP_OK&&app_stats_is_ready());
+    app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote&&!snapshot.remote_available&&snapshot.remote_stale);
+    feed(t,3,1,0);feed(t+20,3,1,0);
+    app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,0);
+    assert(app_stats_save_now()==ESP_OK&&rename_calls==0&&!sd_ok);
+    app_stats_remote_source("master-one");
+    memset(&snapshot,0,sizeof(snapshot));strcpy(snapshot.date,"2026-10-18");
+    snapshot.totals.production_kwh=42;snapshot.slots[123].valid=true;
+    snapshot.slots[123].split.pv_home=3;
+    assert(app_stats_remote_publish(&snapshot));
+    app_state_set_cardless(true);app_state_set_data_mode(APP_DATA_SLAVE);
+    app_state_set_config_ok(true);app_state_set_time_synced(true);
+    app_state_set_slave(true,false,30,true);
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    runtime.has_valid_sample=true;
+    assert(runtime.remote_stats_valid&&app_state_ota_ready(&runtime));
+    runtime.remote_stats_valid=false;assert(!app_state_ota_ready(&runtime));
+    runtime.cardless_slave=false;runtime.sd_ok=false;assert(!app_state_ota_ready(&runtime));
+    app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote&&snapshot.remote_available&&!snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,42);
+    fake_us+=91000000;
+    app_stats_tick();app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote_available&&snapshot.remote_stale&&snapshot.slots[123].valid);
+    assert(app_stats_remote_publish(&snapshot));
+    app_stats_remote_disconnected();app_stats_get_snapshot(&snapshot);
+    app_state_get_runtime(&runtime);assert(!runtime.remote_stats_valid);
+    assert(snapshot.remote_available&&snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,42);
+    app_stats_remote_source("master-two");app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available);near(snapshot.totals.production_kwh,0);
+    strcpy(snapshot.date,"2026-10-17");assert(!app_stats_remote_publish(&snapshot));
+    strcpy(snapshot.date,"2026-10-18");snapshot.totals.production_kwh=99;
+    assert(app_stats_remote_publish(&snapshot));
+    clock_at(t+86400);app_stats_tick();app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available&&snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,0);
+    assert(!strcmp(snapshot.date,"2026-10-19"));
+    app_stats_period_t period;app_stats_get_period(false,&period);assert(period.count==0);
+    assert(app_stats_save_now()==ESP_OK&&rename_calls==0);
+    /* Újrainduláskor nincs flashbe írt másolat: a mastertől újra kérjük. */
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available);
+    tests++;
+}
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -372,5 +475,6 @@ int main(void){
     app_state_clear_sample();app_energy_sample_t stale;assert(!app_state_get_sample(&stale));
     app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
     tests++;
+    test_cardless_stats();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

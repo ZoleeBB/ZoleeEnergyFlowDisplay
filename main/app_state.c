@@ -7,6 +7,7 @@
 #include "app_state.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -53,6 +54,20 @@ void app_state_set_config_ok(bool value)
     lock();
     s_runtime.config_ok = value;
     unlock();
+}
+
+void app_state_set_cardless(bool value)
+{
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_runtime.cardless_slave = value;
+    xSemaphoreGive(s_mutex);
+}
+
+void app_state_set_remote_stats(bool valid)
+{
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_runtime.remote_stats_valid = valid;
+    xSemaphoreGive(s_mutex);
 }
 
 /* Wi-Fi kapcsolati állapot frissítése. */
@@ -141,6 +156,36 @@ void app_state_set_data_mode(app_data_mode_t mode)
 {
     lock();
     s_runtime.data_recept_mode = mode;
+    unlock();
+}
+
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet)
+{
+    lock();
+    if (connected && !s_runtime.slave_connected)
+        s_runtime.slave_connected_monotonic_us = esp_timer_get_time();
+    s_runtime.slave_connected = connected;
+    s_runtime.slave_source_stale = stale;
+    s_runtime.slave_source_timeout_seconds = source_timeout;
+    if (packet)
+        s_runtime.slave_packet_monotonic_us = esp_timer_get_time();
+    unlock();
+}
+
+void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
+                       bool scanning, unsigned slaves, const char *address,
+                       const char *peer, int rssi)
+{
+    lock();
+    s_runtime.ble_enabled = enabled;
+    s_runtime.ble_master = master;
+    s_runtime.ble_ready = ready;
+    s_runtime.ble_advertising = advertising;
+    s_runtime.ble_scanning = scanning;
+    s_runtime.ble_slaves = slaves;
+    s_runtime.ble_rssi = rssi;
+    snprintf(s_runtime.ble_address, sizeof(s_runtime.ble_address), "%s", address ? address : "");
+    snprintf(s_runtime.ble_peer, sizeof(s_runtime.ble_peer), "%s", peer ? peer : "");
     unlock();
 }
 void app_state_set_http_ready(bool ready)

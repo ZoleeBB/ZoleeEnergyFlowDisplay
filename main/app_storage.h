@@ -18,6 +18,8 @@ void app_storage_mark_fault(const char *reason);
 
 /* Pillanatnyi SD állapot lekérése. */
 bool app_storage_is_ok(void);
+bool app_storage_is_cardless(void);
+void app_storage_set_cardless(void);
 
 /* Percenkénti automatikus helyreállítást végző task elindítása. */
 esp_err_t app_storage_start_recovery_task(void);

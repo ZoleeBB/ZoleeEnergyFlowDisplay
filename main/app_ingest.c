@@ -16,6 +16,17 @@
 static SemaphoreHandle_t s_mutex;
 static app_data_mode_t s_mode;
 
+esp_err_t app_ingest_slave_sample(const app_energy_sample_t *sample)
+{
+    if (!s_mutex || s_mode != APP_DATA_SLAVE || !sample)
+        return ESP_ERR_INVALID_STATE;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    app_stats_process_sample(sample);
+    app_state_set_sample(sample);
+    xSemaphoreGive(s_mutex);
+    return ESP_OK;
+}
+
 /* A kiválasztott adatforrást a teljes futási időre rögzítjük. */
 esp_err_t app_ingest_init(app_data_mode_t mode)
 {

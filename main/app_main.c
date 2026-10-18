@@ -21,11 +21,14 @@
 #include "freertos/task.h"
 
 #include "app_config.h"
+#include "app_ble_seed.h"
 #include "app_events.h"
 #include "app_mqtt.h"
 #include "app_loxone.h"
 #include "app_ingest.h"
 #include "app_ota.h"
+#include "app_ble_profile.h"
+#include "app_boot_config.h"
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
@@ -178,20 +181,25 @@ void app_main(void)
 
     app_ui_show_boot(APP_BOOT_SD, NULL);
     esp_err_t err = app_storage_boot_mount();
-    if (err != ESP_OK) {
-        fatal_forever(
-            "SD-kártya hiba",
-            "A rendszer nem tudja elérni az SD-kártyát. Ellenőrizd a kártyát, majd indítsd újra az eszközt.");
-    }
+    bool cardless = err != ESP_OK;
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
     char config_error[256] = {0};
-    /* Félbemaradt webes konfigurációmentés helyreállítása. */
-    if (access(CONFIG_PATH,F_OK)!=0 && access(CONFIG_BACKUP_PATH,F_OK)==0) {
-        if (rename(CONFIG_BACKUP_PATH,CONFIG_PATH)==0)
-            app_events_add(APP_EVENT_WARNING,"Konfiguráció helyreállítva a mentésből.");
+    if (cardless) {
+        err = app_boot_config_fallback(&s_config, config_error, sizeof(config_error));
+        if (err != ESP_OK) fatal_forever("SD / belső konfiguráció hiba", config_error[0] ? config_error : esp_err_to_name(err));
+        app_storage_set_cardless();
+        app_events_add(APP_EVENT_INFO, "SD nélküli Slave: belső beállítások, beépített Rendszer téma.");
+    } else {
+        /* Félbemaradt webes konfigurációmentés helyreállítása. */
+        if (access(CONFIG_PATH, F_OK) != 0 && access(CONFIG_BACKUP_PATH, F_OK) == 0) {
+            if (rename(CONFIG_BACKUP_PATH, CONFIG_PATH) == 0)
+                app_events_add(APP_EVENT_WARNING, "Konfiguráció helyreállítva a mentésből.");
+        }
+        err = app_config_load_file(CONFIG_PATH, &s_config, config_error, sizeof(config_error));
+        if (err != ESP_OK) fatal_forever("Konfigurációs hiba", config_error);
+        if (app_boot_config_remember(&s_config) != ESP_OK)
+            fatal_forever("NVS hiba", "Az eszköz szerepe nem menthető biztonságosan.");
     }
-    err = app_config_load_file(CONFIG_PATH,&s_config,config_error,sizeof(config_error));
-    if (err != ESP_OK) fatal_forever("Konfigurációs hiba",config_error);
 
     /* Az SD-n tárolt konfiguráció a hiteles forrás. Változás esetén az NVS
      * gyorsindítási másolat frissül, és a kijelző az új beállítással újraindul.
@@ -211,6 +219,9 @@ void app_main(void)
        xTaskCreate(orientation_verified_task,"orientation_ok",3072,NULL,3,NULL)!=pdPASS)
         app_events_add(APP_EVENT_WARNING,"90 fokos kijelző ellenőrző feladat nem indult el.");
 
+    if (app_ble_profile_init(&s_config) != ESP_OK &&
+        (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
+        fatal_forever("Bluetooth profilhiba", "A párosítási profil nem inicializálható.");
     app_state_set_data_mode(s_config.data_recept_mode);
     app_state_set_config_ok(true);
     app_ui_set_config(&s_config);
@@ -221,16 +232,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* Wi-Fi kapcsolat létrehozása; induláskor addig várunk, amíg fel nem áll. */
+    const bool slave = s_config.data_recept_mode == APP_DATA_SLAVE;
+    /* Slave esetén a Wi-Fi csak opcionális web/OTA kapcsolat, nem bootfeltétel. */
     app_ui_show_boot(APP_BOOT_WIFI, NULL);
-    err = app_wifi_start(&s_config);
-    if (err != ESP_OK) {
+    err = !slave ? app_wifi_start(&s_config) : ESP_OK;
+    if (err != ESP_OK && !slave) {
         fatal_forever(
             cfg_tr("Wi-Fi inicializálási hiba", "Wi-Fi initialization error"),
             esp_err_to_name(err));
     }
 
-    while (!app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
+    if (err != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "Opcionális Slave Wi-Fi nem indult: %s", esp_err_to_name(err));
+    while (!slave && !app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
         /* Az eseménykezelő és a reconnect task végzi a tényleges kapcsolódást. */
     }
 
@@ -246,7 +260,25 @@ void app_main(void)
             esp_err_to_name(err));
     }
 
-    while ((err = app_time_sync_once()) != ESP_OK) {
+    err = app_ble_seed_start(&s_config);
+    if (err != ESP_OK) {
+        if (slave)
+            fatal_forever("Bluetooth inicializálási hiba", esp_err_to_name(err));
+        app_events_add(APP_EVENT_WARNING, "BLE adat seed indítási hiba: %s", esp_err_to_name(err));
+    }
+    if (slave) {
+        app_ui_show_boot(APP_BOOT_NTP, cfg_tr("Master keresése és Bluetooth időszinkron...", "Searching for master and synchronizing Bluetooth time..."));
+        app_runtime_state_t runtime;
+        do {
+            vTaskDelay(pdMS_TO_TICKS(250));
+            app_state_get_runtime(&runtime);
+        } while (!runtime.time_synced);
+        /* Az óracsomag csak a hitelesített profil tartós átvétele után érkezhet. */
+        app_ble_profile_apply(&s_config);
+        if (s_config.wifi.ssid[0] && app_wifi_start(&s_config) != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "Az átvett Slave Wi-Fi nem indult el.");
+    }
+    while (!slave && (err = app_time_sync_once()) != ESP_OK) {
         char message[160];
         snprintf(
             message,
@@ -262,7 +294,7 @@ void app_main(void)
             s_config.time.startup_retry_seconds * 1000U));
     }
 
-    app_events_add(APP_EVENT_INFO, "NTP időszinkron sikeres.");
+    app_events_add(APP_EVENT_INFO, slave ? "Bluetooth master időszinkron sikeres." : "NTP időszinkron sikeres.");
 
     /* A mai és tegnapi statisztika betöltése / létrehozása. */
     err = app_stats_init(&s_config);
@@ -278,6 +310,9 @@ void app_main(void)
         fatal_forever(cfg_tr("Memóriahiba", "Memory error"), cfg_tr("Az adatfogadó nem indítható.", "Data receiver initialization failed"));
 
     /* Háttérfeladatok indulása. */
+    if (app_ota_start_auto_update(&s_config) != ESP_OK) {
+        app_events_add(APP_EVENT_ERROR, "Az automatikus frissítés feladata nem indítható.");
+    }
     if(app_storage_start_recovery_task()!=ESP_OK ||
        app_stats_start_task()!=ESP_OK || app_time_start_background_task()!=ESP_OK){
         fatal_forever(cfg_tr("Memóriahiba","Memory error"),
@@ -291,14 +326,15 @@ void app_main(void)
     if (s_config.data_recept_mode == APP_DATA_HTTP) app_ui_show_boot(APP_BOOT_MQTT, NULL);
     if (s_config.data_recept_mode == APP_DATA_LOXONE && app_loxone_start() != ESP_OK)
         fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
-    err = app_web_start(&s_config);
+    /* Hálózat nélküli slave-hez nem foglalunk HTTP/mDNS háttérfeladatokat. */
+    err = (!slave || s_config.wifi.ssid[0]) ? app_web_start(&s_config) : ESP_OK;
     if (err != ESP_OK) {
         app_events_add(
             APP_EVENT_ERROR,
             "Web/OTA felület nem indult el: %s",
             esp_err_to_name(err));
         ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
-        if (s_config.data_recept_mode != APP_DATA_MQTT)
+        if (s_config.data_recept_mode != APP_DATA_MQTT && !slave)
             fatal_forever(cfg_tr("HTTP inicializálási hiba", "HTTP initialization error"), esp_err_to_name(err));
     }
 
@@ -325,6 +361,7 @@ void app_main(void)
             cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
     }
     app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+    if (slave) app_ble_profile_boot_complete();
 
     /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */
     while (true) {

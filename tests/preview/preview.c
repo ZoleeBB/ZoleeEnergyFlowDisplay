@@ -7,6 +7,12 @@
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
 #include "src/draw/lv_draw_vector_private.h"
+static app_ble_pairing_status_t pairing_fixture;
+static char submitted_pin[7];
+static unsigned pairing_open_requests;
+void app_ble_pairing_status(app_ble_pairing_status_t *out){*out=pairing_fixture;}
+bool app_ble_pairing_submit(uint32_t token,const char *pin){assert(token==pairing_fixture.token);snprintf(submitted_pin,sizeof(submitted_pin),"%s",pin?pin:"");pairing_fixture.pin_required=false;return true;}
+void app_ble_pairing_open(void){pairing_open_requests++;}
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
@@ -902,7 +908,7 @@ int main(void)
     assert(strstr(lv_label_get_text(s_diagnostic_log[14]),"05"));
     lv_obj_update_layout(s_screen);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_log[0]))==640);
-    for(int i=0;i<8;i++){
+    for(int i=0;i<14;i++){
         lv_area_t row,parent;lv_obj_get_coords(s_diagnostic_values[i],&row);
         lv_obj_get_coords(lv_obj_get_parent(s_diagnostic_values[i]),&parent);
         assert(row.y2<parent.y2&&row.x2<parent.x2);
@@ -914,6 +920,118 @@ int main(void)
     render_runtime(rt,sample,true,31000000);assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Loxone"));
     assert(lv_bar_get_value(s_diagnostic_bars[0])==25);assert(strstr(lv_label_get_text(s_diagnostic_values[5]),"67%"));
     save_frame("diagnostics-common");
+    rt.ble_enabled=rt.ble_master=rt.ble_ready=rt.ble_advertising=true;
+    rt.ble_slaves=2;snprintf(rt.ble_address,sizeof(rt.ble_address),"01:02:03:04:05:06");
+    snprintf(s_cfg.data_seed_pin,sizeof(s_cfg.data_seed_pin),"012345");
+    clear();
+    render_runtime(rt,sample,true,31000000);
+    assert(strcmp(lv_label_get_text(s_diagnostic_values[11]),"2")==0);
+    assert(strstr(lv_label_get_text(s_diagnostic_values[8]),"Master"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[10]),"012345"));
+    assert(s_pair_window_label);
+    lv_obj_send_event(lv_obj_get_parent(s_pair_window_label),LV_EVENT_CLICKED,NULL);
+    assert(pairing_open_requests==1);
+    lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[0]))==32);
+    assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[1]))==328);
+    save_frame("diagnostics-master");
+    app_data_mode_t previous_mode=s_cfg.data_recept_mode;
+    s_cfg.data_recept_mode=rt.data_recept_mode=APP_DATA_SLAVE;
+    rt.ble_master=rt.ble_advertising=rt.wifi_connected=false;
+    rt.slave_connected=rt.time_synced=rt.has_valid_sample=true;
+    rt.last_valid_packet_monotonic_us=rt.slave_packet_monotonic_us=31000000;
+    rt.slave_source_timeout_seconds=30;rt.ble_rssi=-62;
+    snprintf(rt.ble_peer,sizeof(rt.ble_peer),"06:05:04:03:02:01");
+    bool previous_started=s_started;
+    app_boot_stage_t previous_boot=s_boot_stage;
+    runtime_wifi_connected=false;s_started=false;
+    app_ui_show_boot(APP_BOOT_NTP,"Master keresése...");
+    animation_tick(NULL);assert(s_view==VIEW_NONE);
+    save_frame("slave-boot-no-wifi");
+    s_started=previous_started;s_boot_stage=previous_boot;runtime_wifi_connected=true;
+    clear();render_runtime(rt,sample,true,31000000);
+    assert(strstr(lv_label_get_text(s_diagnostic_values[1]),"Slave"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[11]),"-62"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[13]),"Bluetooth"));
+    save_frame("diagnostics-slave");
+    pairing_fixture=(app_ble_pairing_status_t){.pin_required=true,.token=7,.seconds=25};
+    animation_tick(NULL);assert(s_pair_pad);
+    save_frame("slave-pairing-pin");
+    lv_indev_t *pin_input=lv_indev_create();lv_indev_set_type(pin_input,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(pin_input,display);lv_indev_set_read_cb(pin_input,touch_read);
+    lv_obj_update_layout(s_screen);
+    touch_sample_xy(636,580,true);touch_sample_xy(636,580,false);
+    assert(!strcmp(s_pair_digits,"0"));
+    memset(s_pair_digits,0,sizeof(s_pair_digits));pairing_mask_update();
+    touch_sample_xy(120,200,true);touch_sample_xy(120,400,true);touch_sample_xy(120,600,true);touch_sample_xy(120,600,false);
+    assert(s_diagnostics_requested);
+    lv_indev_delete(pin_input);
+    /* Valódi LVGL gombesemények: vezető nulla, törlés, túl hosszú és rövid PIN. */
+    for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+        lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+        if(lv_obj_check_type(child,&lv_button_class)){
+            lv_obj_t *caption=lv_obj_get_child(child,0);
+            const char *text=lv_label_get_text(caption);
+            if(!strcmp(text,"OK"))lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+        }
+    }
+    assert(pairing_fixture.pin_required&&!submitted_pin[0]);
+    for(unsigned digit=0;digit<6;digit++){
+        for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+            lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+            if(!lv_obj_check_type(child,&lv_button_class))continue;
+            const char *caption=lv_label_get_text(lv_obj_get_child(child,0));
+            if(caption[0]==(char)('0'+digit)&&!caption[1])lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+        }
+    }
+    assert(!strcmp(s_pair_digits,"012345"));
+    for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+        lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+        if(lv_obj_check_type(child,&lv_button_class)&&!strcmp(lv_label_get_text(lv_obj_get_child(child,0)),"OK"))
+            lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+    }
+    assert(!strcmp(submitted_pin,"012345")&&!s_pair_digits[0]);
+    animation_tick(NULL);assert(!s_pair_pad);
+    s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DASHBOARD); /* Slave Wi-Fi nélkül is normál kijelző. */
+    /* A kártya nélküli slave csak a beépített nézetet használhatja. */
+    s_cfg.cardless_slave=rt.cardless_slave=true;sd_ok=false;
+    fixture.remote=true;fixture.remote_available=false;fixture.remote_stale=true;
+    s_stats_snapshot=fixture;
+    render_runtime(rt,sample,true,31000000);
+    assert(!template_is_active()&&template_catalogue_count()==1);
+    assert(!strcmp(lv_label_get_text(s_metric[0]),"--"));
+    assert(strstr(lv_label_get_text(s_sd_warn),"szinkron"));
+    assert(!lv_obj_has_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN));
+    assert(template_loading_frame());template_prepare();template_apply();
+    assert(s_view==VIEW_DASHBOARD&&!template_is_active());
+    save_frame("cardless-slave-sync");
+    fixture.remote_available=true;fixture.remote_stale=false;
+    fixture.reference_valid=true;fixture.reference_energy=s_cfg.energy;
+    fixture.reference_energy.electricity_purchase_price=321;
+    snprintf(fixture.reference_currency,sizeof(fixture.reference_currency),"EUR");
+    s_stats_snapshot=fixture;
+    render_runtime(rt,sample,true,31000000);
+    assert(strcmp(lv_label_get_text(s_metric[0]),"--"));
+    assert(lv_obj_has_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN));
+    assert(s_display_energy.electricity_purchase_price==321);
+    save_frame("cardless-slave-fresh");
+    fixture.remote_stale=true;s_stats_snapshot=fixture;render_runtime(rt,sample,true,31000000);
+    assert(strstr(lv_label_get_text(s_sd_warn),"Elavult"));
+    assert(!lv_obj_has_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN));
+    save_frame("cardless-slave-stale");
+    s_diagnostics_requested=true;render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DIAGNOSTICS);
+    assert(strstr(lv_label_get_text(s_diagnostic_values[3]),"SD nélkül"));
+    save_frame("cardless-slave-diagnostics");
+    s_cfg.cardless_slave=rt.cardless_slave=false;sd_ok=true;
+    fixture.remote=fixture.remote_available=fixture.remote_stale=fixture.reference_valid=false;
+    s_stats_snapshot=fixture;
+    s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);
+    rt.slave_connected=false;render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DATA_TIMEOUT);
+    s_cfg.data_recept_mode=previous_mode;
+    rt.data_recept_mode=APP_DATA_MQTT;rt.wifi_connected=true;
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);

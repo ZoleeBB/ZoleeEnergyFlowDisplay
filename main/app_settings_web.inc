@@ -4,12 +4,16 @@
  * hagyja, a szöveg újraírja, az üres szöveg törli a jelszót.
  */
 #include "app_settings_page.h"
+#include "app_boot_config.h"
 
 static cJSON *settings_json(const app_config_t *v)
 {
     cJSON *root=cJSON_CreateObject();
     if(!root)return NULL;
-    cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
+    cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave);
+    cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
+    cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
+    cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
 #define OBJ(id) cJSON *id=cJSON_AddObjectToObject(root,#id)
 #define STR(o,k,val) cJSON_AddStringToObject(o,k,val)
 #define NUM(o,k,val) cJSON_AddNumberToObject(o,k,val)
@@ -47,6 +51,7 @@ static cJSON *settings_json(const app_config_t *v)
     NUM(energy,"co2_factor_kg_per_kwh",v->energy.co2_factor_kg_per_kwh);
     NUM(energy,"tree_absorption_kg_per_year",v->energy.tree_absorption_kg_per_year);
     OBJ(ota);
+    NUM(ota,"auto_update",v->ota.auto_update?1:0);
     STR(ota,"username",v->ota.username);cJSON_AddNullToObject(ota,"password");
 #undef OBJ
 #undef STR
@@ -96,7 +101,7 @@ static void keep_secret(cJSON *root,const char *section,const char *previous)
     if(cJSON_IsNull(password))
         cJSON_ReplaceItemInObjectCaseSensitive(object,"password",cJSON_CreateString(previous));
 }
-static esp_err_t settings_post(httpd_req_t *req)
+static esp_err_t settings_post_locked(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
     char header[8]={0};
@@ -124,6 +129,13 @@ static esp_err_t settings_post(httpd_req_t *req)
     keep_secret(root,"ota",s_config.ota.password);
     char *data=cJSON_PrintUnformatted(root);cJSON_Delete(root);
     if(!data)return settings_response(req,500,"Nincs elegendő memória.",false,NULL);
+    app_config_t next;char error[256]={0};
+    if (s_config.cardless_slave) {
+        esp_err_t result = app_boot_config_save(data, strlen(data), &next, error, sizeof(error));
+        free(data);
+        if (result != ESP_OK) return settings_response(req,400,error[0]?error:"A belső mentés sikertelen.",false,NULL);
+        goto apply_settings;
+    }
     const char *path=APP_SD_MOUNT_POINT "/config.json";
     const char *tmp=APP_SD_MOUNT_POINT "/config.json.webtmp";
     const char *bak=APP_SD_MOUNT_POINT "/config.json.webbak";
@@ -138,7 +150,6 @@ static esp_err_t settings_post(httpd_req_t *req)
         app_storage_unlock();
         return settings_response(req,500,"Nem sikerült az SD-kártyára írni.",false,NULL);
     }
-    app_config_t next;char error[256]={0};
     if(app_config_load_file(tmp,&next,error,sizeof(error))!=ESP_OK){
         remove(tmp);app_storage_unlock();
         return settings_response(req,400,error[0]?error:"Hibás konfiguráció.",false,NULL);
@@ -160,6 +171,8 @@ static esp_err_t settings_post(httpd_req_t *req)
     remove(bak);
     app_storage_unlock();
 
+apply_settings:
+    ;
     app_config_t old_cmp=s_config,new_cmp=next;
     memset(&old_cmp.statistics,0,sizeof(old_cmp.statistics));
     memset(&new_cmp.statistics,0,sizeof(new_cmp.statistics));
@@ -170,6 +183,7 @@ static esp_err_t settings_post(httpd_req_t *req)
             return settings_response(req,500,"A konfiguráció mentve, de a statisztika mentése sikertelen. Kézi újraindítás szükséges.",false,NULL);
         if(xTaskCreate(reboot_task,"settings_restart",2048,NULL,8,NULL)!=pdPASS)
             return settings_response(req,500,"Beállítások mentve, de az automatikus újraindítás nem indítható.",false,NULL);
+        s_restart_pending = true;
     }else{
         app_stats_update_config(&next.statistics);
     }
@@ -177,12 +191,32 @@ static esp_err_t settings_post(httpd_req_t *req)
         "Webes beállítások mentve; újraindítás.":"Webes statisztikai beállítások alkalmazva.");
     return settings_response(req,200,restart?"Sikeres mentés, újraindítás következik.":"Beállítások mentve és alkalmazva.",restart,&s_config);
 }
+static esp_err_t settings_post(httpd_req_t *req)
+{
+    return exclusive_request(req, settings_post_locked);
+}
+
+static esp_err_t pairing_open_post(httpd_req_t *req)
+{
+    if (!authorize(req)) return ESP_OK;
+    char header[8] = {0};
+    if (!s_config.data_seed_enabled ||
+        httpd_req_get_hdr_value_str(req, "X-Zolee-Settings", header, sizeof(header)) != ESP_OK ||
+        strcmp(header, "1")) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        return httpd_resp_sendstr(req, "Csak master módban engedélyezhető.");
+    }
+    app_ble_pairing_open();
+    return httpd_resp_sendstr(req, "Párosítás engedélyezve 2 percre.");
+}
+
 static esp_err_t settings_register(httpd_handle_t server)
 {
     const httpd_uri_t routes[]={
         {.uri="/settings",.method=HTTP_GET,.handler=settings_page},
         {.uri="/api/settings",.method=HTTP_GET,.handler=settings_get},
-        {.uri="/api/settings",.method=HTTP_POST,.handler=settings_post}};
+        {.uri="/api/settings",.method=HTTP_POST,.handler=settings_post},
+        {.uri="/api/ble/pairing",.method=HTTP_POST,.handler=pairing_open_post}};
     for(unsigned i=0;i<sizeof(routes)/sizeof(routes[0]);i++){
         esp_err_t result=httpd_register_uri_handler(server,&routes[i]);
         if(result!=ESP_OK)return result;
