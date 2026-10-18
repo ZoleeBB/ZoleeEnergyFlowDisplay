@@ -42,5 +42,12 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
  assert(!seed.disabled&&sections.get('mqtt.broker').hidden);
  assert(!sections.get('http.data_timeout_seconds').hidden&&!sections.get('time.ntp_server').hidden);
  assert(nodes.get('slave-wifi-hint').hidden);
+ configuration.DataReceptMode='slave';configuration.cardless_slave=true;
+ await sandbox.api.load();
+ assert(mode.disabled&&seed.disabled&&nodes.get('ota.auto_update').disabled);
+ assert(nodes.get('message').textContent.includes('belső tár'));
+ await nodes.get('settings').onsubmit({preventDefault(){}});
+ assert.equal(posted.DataReceptMode,'slave');assert.equal(posted.DataSeedEnabled,0);
+ assert.equal(posted.cardless_slave,true);
  console.log('PASS: actual settings JS switches Slave without Wi-Fi/MQTT/NTP, prevents relay mode and saves canonical config');
 })().catch(error=>{console.error(error);process.exitCode=1;});

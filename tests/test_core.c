@@ -404,6 +404,59 @@ static void test_period_metrics(void){
     app_stats_get_snapshot(&snapshot);near(snapshot.slots[144].soc_pct,80);
     tests++;
 }
+static void test_cardless_stats(void)
+{
+    time_t t=instant("2026-10-18",12,0,0);
+    reset(t);
+    app_config_set_defaults(&cfg);cfg.cardless_slave=true;cfg.data_recept_mode=APP_DATA_SLAVE;
+    sd_ok=false;rename_calls=0;
+    assert(app_stats_init(&cfg)==ESP_OK&&app_stats_is_ready());
+    app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote&&!snapshot.remote_available&&snapshot.remote_stale);
+    feed(t,3,1,0);feed(t+20,3,1,0);
+    app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,0);
+    assert(app_stats_save_now()==ESP_OK&&rename_calls==0&&!sd_ok);
+    app_stats_remote_source("master-one");
+    memset(&snapshot,0,sizeof(snapshot));strcpy(snapshot.date,"2026-10-18");
+    snapshot.totals.production_kwh=42;snapshot.slots[123].valid=true;
+    snapshot.slots[123].split.pv_home=3;
+    assert(app_stats_remote_publish(&snapshot));
+    app_state_set_cardless(true);app_state_set_data_mode(APP_DATA_SLAVE);
+    app_state_set_config_ok(true);app_state_set_time_synced(true);
+    app_state_set_slave(true,false,30,true);
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    runtime.has_valid_sample=true;
+    assert(runtime.remote_stats_valid&&app_state_ota_ready(&runtime));
+    runtime.remote_stats_valid=false;assert(!app_state_ota_ready(&runtime));
+    runtime.cardless_slave=false;runtime.sd_ok=false;assert(!app_state_ota_ready(&runtime));
+    app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote&&snapshot.remote_available&&!snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,42);
+    fake_us+=91000000;
+    app_stats_tick();app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote_available&&snapshot.remote_stale&&snapshot.slots[123].valid);
+    assert(app_stats_remote_publish(&snapshot));
+    app_stats_remote_disconnected();app_stats_get_snapshot(&snapshot);
+    app_state_get_runtime(&runtime);assert(!runtime.remote_stats_valid);
+    assert(snapshot.remote_available&&snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,42);
+    app_stats_remote_source("master-two");app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available);near(snapshot.totals.production_kwh,0);
+    strcpy(snapshot.date,"2026-10-17");assert(!app_stats_remote_publish(&snapshot));
+    strcpy(snapshot.date,"2026-10-18");snapshot.totals.production_kwh=99;
+    assert(app_stats_remote_publish(&snapshot));
+    clock_at(t+86400);app_stats_tick();app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available&&snapshot.remote_stale);
+    near(snapshot.totals.production_kwh,0);
+    assert(!strcmp(snapshot.date,"2026-10-19"));
+    app_stats_period_t period;app_stats_get_period(false,&period);assert(period.count==0);
+    assert(app_stats_save_now()==ESP_OK&&rename_calls==0);
+    /* Újrainduláskor nincs flashbe írt másolat: a mastertől újra kérjük. */
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    assert(!snapshot.remote_available);
+    tests++;
+}
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -422,5 +475,6 @@ int main(void){
     app_state_clear_sample();app_energy_sample_t stale;assert(!app_state_get_sample(&stale));
     app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
     tests++;
+    test_cardless_stats();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

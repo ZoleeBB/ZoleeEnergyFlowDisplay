@@ -33,7 +33,72 @@ A Beállításokban válaszd a **Slave (Bluetooth)** adatfogadási módot. Minim
 SD `config.json`: `{"DataReceptMode":"slave"}`. Nincs szükség SSID-re, brokerre,
 HTTP- vagy Loxone-beállításokra, NTP-kiszolgálóra vagy kézi időzónára. Ezeket a
 felület Slave módban elrejti, illetve a Wi-Fi/masterfüggő működését megjelöli.
-Az SD, a helyi sablonok és a statisztikai tárhely továbbra is szükségesek.
+SD-kártyával a helyi sablonok és statisztikai tárhely használható; SD nélkül
+a kijelző az alábbi korlátozott, beépített Rendszer módban működik.
+
+## SD nélküli Slave – csak Rendszer téma
+
+Új, korábbi fő kijelzőként nem azonosított eszköz SD nélkül automatikusan Slave
+módban indul. Bekapcsolás után keresd meg a master diagnosztikáján a PIN-t,
+nyisd meg a kétperces párosítási ablakot, majd írd be a slave érintős PIN-padén.
+Nem kell külön firmware vagy partícióváltás. Ez a jelenlegi P4 hardverre készül;
+más méretű/hardverű kijelzőhöz továbbra is külön port szükséges.
+
+- Csak a firmware-be épített **Rendszer / System** nézet érhető el. Nincs
+  SD-s képfájl, ZIP, témaletöltés, vízszintes témaváltás vagy helyi történeti archívum.
+  A diagnosztika és a PIN-pad továbbra is használható.
+- A webes beállítások belső NVS-be mentődnek, verziófüggetlen JSON-ként,
+  legfeljebb 3072 bájtban. Slave módból SD nélkül nem lehet más adatfogadásra
+  vagy masterre váltani; a backend ezt manipulált webkérésnél is ellenőrzi.
+- A párosítás, Wi-Fi/OTA profil és tájolás is NVS-ben marad. A Wi-Fi és
+  automatikus frissítés továbbra is a mastertől öröklődik.
+- Az SD állapota **nem** lesz mesterségesen sikeres: a diagnosztika külön
+  jelzi az SD nélküli működést és a master-statisztika frissességét.
+
+Biztonsági korlát: a firmware SD-s induláskor tartósan megjegyzi, hogy az eszköz
+fő kijelző vagy Slave volt. Ismert fő kijelző SD-hibája **nem** vált automatikusan
+Slave-re. Régebbi firmware-ről frissítve először a meglévő SD-vel induljon el az
+eszköz, hogy szerepét eltárolja; régi tájolási/master-PIN nyom esetén a jelölő
+nélküli eszközt is konzervatívan fő kijelzőnek tekintjük. Korábban főként használt
+eszköznél az SD-s konfigurációban válassz Slave-et, indítsd el egyszer SD-vel,
+majd kikapcsolás után vedd ki a kártyát. Érvénytelen belső konfigurációnál nincs
+csendes alaphelyzetbe állítás. A behelyezett SD-t a következő újraindítás veszi át.
+
+### A diagramok és napi összesítők szinkronja
+
+Nem teljes SD-megosztást használunk. Az új, **1005** GATT karakterisztika a
+Rendszer nézethez szükséges, 6664 bájtos pillanatképet szolgálja ki: a mai 288
+ötperces pont öt energiaáramlási komponensét és hiányjelölőit, napi és lezárt
+összesítőket, tegnapi összehasonlítást, valamint a master pénznemét és energia/
+CO₂/fa-számítási alapértékeit. Nincs helyi újraintegrálás: a master a hiteles forrás.
+Az élő teljesítmény/SOC/időjárás/óra a meglévő három értesítési csatornán marad.
+
+A 1005 READ + WRITE jogosultsága **LE Secure Connections, MITM, bonding,
+16 bájtos kulcs és titkosítás**. Az írás csak olvasási kurzort mozgat, nem
+módosít fájlt vagy beállítást. A 8 bájtos kérés verzió/op/lap/transzferazonosító
+mezőkből áll; 14 lap követi, laponként 12 bájtos fejléc és maximum 480 bájt adat.
+Az ATT hosszú olvasás kisebb MTU-val is működik, a slave 247-es MTU-t kér.
+Mindhárom kapcsolat külön, legfeljebb 45 másodpercig érvényes változatlan
+pillanatképet kap; új transzfer kapcsolatonként legfeljebb három másodpercenként.
+A master nem végez SD I/O-t a GATT callbackben.
+
+A slave 30 másodpercenként frissít; 30 másodperces átviteli határidő és hiba
+után 5 másodperces újrapróbálkozás védi az erőforrásokat. A teljes kép
+transzferazonosító-, lapsorrend-, hossz-, CRC32-, számérték-, helyi dátum- és
+korvizsgálat után, egyetlen mutex alatti cserével válik láthatóvá. Részleges
+vagy hibás kép soha nem jelenik meg. A statisztikai hiba nem bontja az élő BLE
+kapcsolatot, és a profilolvasással nem indít párhuzamos GATT-eljárást.
+
+Az utolsó jó, aznapi kép RAM-ban marad; megszakadt kapcsolatnál vagy 90 másodperc
+után elavultságjelzés látszik. Első szinkronig a napi kártyák `--` értéket mutatnak,
+nem hamis nullát. Napváltáskor a tegnapi kép nem használható maiként, másik masterre
+váltáskor a gyorsítótár érvénytelen. A statisztikát nem írjuk flashbe: újraindítás
+után a mastertől töltődik vissza. Régi, 1005 nélküli master mellett az élő adat
+működhet, de statisztika nem lesz; a mastert is frissíteni kell.
+
+Az éjféli automatikus OTA SD nélkül is működik, ha van örökölt internetkapcsolat.
+A rollback-validációhoz SD helyett teljes, friss master-statisztika kell a többi
+Slave indulási feltétel mellett. Ez nem lazítja a fő kijelző SD-ellenőrzését.
 
 A slave az első megtalált, megfelelő UUID-t hirdető masterhez kapcsolódik.
 Először titkosított párosítást végez, majd hosszú GATT-olvasással átveszi a 1004

@@ -28,6 +28,7 @@
 #include "app_ingest.h"
 #include "app_ota.h"
 #include "app_ble_profile.h"
+#include "app_boot_config.h"
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
@@ -180,20 +181,25 @@ void app_main(void)
 
     app_ui_show_boot(APP_BOOT_SD, NULL);
     esp_err_t err = app_storage_boot_mount();
-    if (err != ESP_OK) {
-        fatal_forever(
-            "SD-kártya hiba",
-            "A rendszer nem tudja elérni az SD-kártyát. Ellenőrizd a kártyát, majd indítsd újra az eszközt.");
-    }
+    bool cardless = err != ESP_OK;
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
     char config_error[256] = {0};
-    /* Félbemaradt webes konfigurációmentés helyreállítása. */
-    if (access(CONFIG_PATH,F_OK)!=0 && access(CONFIG_BACKUP_PATH,F_OK)==0) {
-        if (rename(CONFIG_BACKUP_PATH,CONFIG_PATH)==0)
-            app_events_add(APP_EVENT_WARNING,"Konfiguráció helyreállítva a mentésből.");
+    if (cardless) {
+        err = app_boot_config_fallback(&s_config, config_error, sizeof(config_error));
+        if (err != ESP_OK) fatal_forever("SD / belső konfiguráció hiba", config_error[0] ? config_error : esp_err_to_name(err));
+        app_storage_set_cardless();
+        app_events_add(APP_EVENT_INFO, "SD nélküli Slave: belső beállítások, beépített Rendszer téma.");
+    } else {
+        /* Félbemaradt webes konfigurációmentés helyreállítása. */
+        if (access(CONFIG_PATH, F_OK) != 0 && access(CONFIG_BACKUP_PATH, F_OK) == 0) {
+            if (rename(CONFIG_BACKUP_PATH, CONFIG_PATH) == 0)
+                app_events_add(APP_EVENT_WARNING, "Konfiguráció helyreállítva a mentésből.");
+        }
+        err = app_config_load_file(CONFIG_PATH, &s_config, config_error, sizeof(config_error));
+        if (err != ESP_OK) fatal_forever("Konfigurációs hiba", config_error);
+        if (app_boot_config_remember(&s_config) != ESP_OK)
+            fatal_forever("NVS hiba", "Az eszköz szerepe nem menthető biztonságosan.");
     }
-    err = app_config_load_file(CONFIG_PATH,&s_config,config_error,sizeof(config_error));
-    if (err != ESP_OK) fatal_forever("Konfigurációs hiba",config_error);
 
     /* Az SD-n tárolt konfiguráció a hiteles forrás. Változás esetén az NVS
      * gyorsindítási másolat frissül, és a kijelző az új beállítással újraindul.

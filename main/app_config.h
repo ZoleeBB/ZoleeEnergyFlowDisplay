@@ -122,6 +122,7 @@ typedef struct
 typedef struct
 {
     app_data_mode_t data_recept_mode;
+    bool cardless_slave; /* Belső indulási állapot; JSON-ból nem kapcsolható be. */
     bool data_seed_enabled; /* BLE master: csak olvasható energiaadat-megosztás. */
     char data_seed_pin[7]; /* Hat számjegy; üresen eszközön generált, tartós PIN. */
     app_http_config_t http;
@@ -137,6 +138,10 @@ typedef struct
 
 /* Beépített alapértékek betöltése. */
 void app_config_set_defaults(app_config_t *cfg);
+
+/* Ugyanaz a szigorú validátor fájl és belső NVS-konfiguráció számára. */
+esp_err_t app_config_parse_json(const char *json, size_t length, app_config_t *cfg,
+                                char *error, size_t error_len);
 
 /* config.json beolvasása, validálása és az alapértékekkel való kiegészítése. */
 esp_err_t app_config_load_file(const char *path, app_config_t *cfg, char *error, size_t error_len);

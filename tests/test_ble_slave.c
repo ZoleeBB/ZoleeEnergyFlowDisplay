@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
+#include "app_ble_stats_protocol.h"
 #include "app_ble_protocol.h"
 #include "app_events.h"
 #include "app_ble_profile.h"
@@ -10,6 +13,7 @@
 #define BLE_HS_EDONE 14
 #define BLE_ERR_REM_USER_CONN_TERM 19
 #define BLE_GATT_CHR_PROP_READ 2
+#define BLE_GATT_CHR_PROP_WRITE 8
 #define BLE_GATT_CHR_PROP_NOTIFY 16
 #define BLE_GAP_EVENT_DISC 1
 #define BLE_GAP_EVENT_CONNECT 2
@@ -113,7 +117,12 @@ typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_
 
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
                            s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
-                           s_profile_uuid = {{1004}};
+                           s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}};
+static app_config_t s_config;
+bool app_stats_is_ready(void) { return false; }
+bool app_stats_remote_publish(const app_stats_snapshot_t *snapshot) { (void)snapshot; return true; }
+void app_stats_remote_source(const char *id) { (void)id; }
+void app_stats_remote_disconnected(void) {}
 static bool s_started = true, s_synced = true, scanning;
 static uint8_t s_own_addr_type;
 static char s_address[18] = "01:02:03:04:05:06";
@@ -236,6 +245,12 @@ ble_gattc_disc_svc_by_uuid(uint16_t conn, const ble_uuid_t *uuid, service_cb cb,
     assert(conn == 7 && uuid->value == 1000);
     ++services;
     return 0;
+}
+static int ble_gattc_exchange_mtu(uint16_t conn,
+    int (*cb)(uint16_t, const struct ble_gatt_error *, uint16_t, void *), void *arg)
+{
+    struct ble_gatt_error error = {0};
+    return cb(conn, &error, 247, arg);
 }
 static int
 ble_gattc_disc_all_chrs(uint16_t conn, uint16_t start, uint16_t end, chr_cb cb, void *arg)

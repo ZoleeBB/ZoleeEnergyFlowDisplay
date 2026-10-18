@@ -73,6 +73,8 @@ LV_FONT_DECLARE(app_font_28);
 
 /* A boot után RAM-ban tartott konfiguráció és a UI életciklusának állapota. */
 static app_config_t s_cfg;
+static app_energy_config_t s_display_energy;
+static bool s_stats_missing_for_ui;
 static bool s_cfg_ok, s_started, s_dash_created, s_last_night;
 static lv_obj_t *s_screen, *s_dash, *s_sd_warn;
 static lv_obj_t *s_title, *s_date, *s_clock, *s_weather_temp, *s_wind_speed, *s_weather_icon,
@@ -1154,18 +1156,18 @@ static double money(const app_energy_totals_t *t)
     double local = t->production_kwh - t->grid_export_kwh;
     if (local < 0)
         local = 0;
-    return local * s_cfg.energy.electricity_purchase_price +
-           t->grid_export_kwh * s_cfg.energy.feed_in_price;
+    return local * s_display_energy.electricity_purchase_price +
+           t->grid_export_kwh * s_display_energy.feed_in_price;
 }
 /* Napi PV-termeléshez tartozó megtakarított CO2 tömeg számítása. */
 static double co2(const app_energy_totals_t *t)
 {
-    return t->production_kwh * s_cfg.energy.co2_factor_kg_per_kwh;
+    return t->production_kwh * s_display_energy.co2_factor_kg_per_kwh;
 }
 /* Megtakarított CO2 fa-egyenértékre történő átszámítása. */
 static double tree(const app_energy_totals_t *t)
 {
-    return co2(t) / s_cfg.energy.tree_absorption_kg_per_year;
+    return co2(t) / s_display_energy.tree_absorption_kg_per_year;
 }
 /* Egy napi kártya értékének és opcionális tegnapi összehasonlításának frissítése. */
 static bool s_yesterday_partial_for_ui;
@@ -1173,6 +1175,12 @@ static bool s_yesterday_partial_for_ui;
 static void
 metric(int index, const char *value, double today, double yesterday, bool have_yesterday)
 {
+    if (s_stats_missing_for_ui) {
+        label_text_if_changed(s_metric[index], "--");
+        label_text_if_changed(s_cmp[index], "");
+        if (s_cmp_note[index]) lv_obj_add_flag(s_cmp_note[index], LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
     fit_text(s_metric[index], value, index < 4 ? 190 : 162, index < 4 ? APP_FONT_28 : APP_FONT_20);
 
     if (!have_yesterday)
@@ -1402,6 +1410,8 @@ static void animation_tick(lv_timer_t *timer)
 /* Egy érvényes minta és statisztikai snapshot alapján minden dashboard-elem frissítése. */
 static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
 {
+    s_display_energy = st->reference_valid ? st->reference_energy : s_cfg.energy;
+    s_stats_missing_for_ui = st->remote && !st->remote_available;
     time_t now = time(NULL);
     struct tm tmv;
     localtime_r(&now, &tmv);
@@ -1486,7 +1496,7 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
            st->comparison_today_totals.grid_export_kwh,
            st->comparison_yesterday_totals.grid_export_kwh,
            st->comparison_ready);
-    snprintf(b, sizeof(b), "%.0f %s", money(&st->totals), s_cfg.project.currency);
+    snprintf(b, sizeof(b), "%.0f %s", money(&st->totals), st->reference_valid ? st->reference_currency : s_cfg.project.currency);
     metric(4,
            b,
            money(&st->comparison_today_totals),
@@ -1517,8 +1527,10 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
            self(&st->comparison_yesterday_totals),
            st->comparison_ready);
     fmt_kwh(q, sizeof(q), st->totals.battery_charge_kwh);
+    if (s_stats_missing_for_ui) snprintf(q, sizeof(q), "--");
     fit_text(s_bat_charge, q, 88, APP_FONT_20);
     fmt_kwh(q, sizeof(q), st->totals.battery_discharge_kwh);
+    if (s_stats_missing_for_ui) snprintf(q, sizeof(q), "--");
     fit_text(s_bat_discharge, q, 92, APP_FONT_20);
 
     /* A tegnapi összehasonlítást csak akkor mutatjuk, ha tényleges tegnapi adat létezik. */
@@ -1610,10 +1622,23 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
 
     bg_color_if_changed(s_status_bubble, c(tone(status_color, s->night_mode)), 0);
 
-    if (app_storage_is_ok())
-        lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
-    else
-        lv_obj_clear_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    if (s_cfg.cardless_slave) {
+        lv_obj_set_pos(s_sd_warn, 700, 49);
+        lv_obj_set_width(s_sd_warn, 180);
+        lv_obj_set_style_text_align(s_sd_warn, LV_TEXT_ALIGN_LEFT, 0);
+        label_text_if_changed(s_sd_warn, s_stats_missing_for_ui ? tr("Statisztika szinkron...", "Statistics syncing...")
+                                                               : tr("Elavult statisztika", "Statistics outdated"));
+        if (s_stats_missing_for_ui || st->remote_stale) lv_obj_remove_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    }
+    else {
+        lv_obj_set_pos(s_sd_warn, 430, 37);
+        lv_obj_set_width(s_sd_warn, 230);
+        lv_obj_set_style_text_align(s_sd_warn, LV_TEXT_ALIGN_RIGHT, 0);
+        label_text_if_changed(s_sd_warn, tr("SD-kártya hiba", "SD card error"));
+        if (app_storage_is_ok()) lv_obj_add_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(s_sd_warn, LV_OBJ_FLAG_HIDDEN);
+    }
 
     int64_t chart_now = esp_timer_get_time();
     if (s_last_chart_update_us == 0 || chart_now - s_last_chart_update_us >= 5000000LL)
@@ -1736,6 +1761,7 @@ void app_ui_set_config(const app_config_t *cfg)
     }
 
     s_cfg = *cfg;
+    s_display_energy = cfg->energy;
     s_cfg.display.rotation_degrees = app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok = true;
 
@@ -1760,7 +1786,7 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
     clear();
     screen_style(s_screen, false);
 
-    const char *hu_steps[] = {"SD-kártya",
+    const char *hu_steps[] = {s_cfg.cardless_slave ? "Belső tár (SD nélkül)" : "SD-kártya",
                               "Konfiguráció",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (opcionális)" : "Wi-Fi kapcsolat",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron",
@@ -1770,7 +1796,7 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
                                                                         : "MQTT kapcsolat",
                               "Várakozás az első adatcsomagra"};
 
-    const char *en_steps[] = {"SD card",
+    const char *en_steps[] = {s_cfg.cardless_slave ? "Internal storage (no SD)" : "SD card",
                               "Configuration",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (optional)" : "Wi-Fi connection",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization",

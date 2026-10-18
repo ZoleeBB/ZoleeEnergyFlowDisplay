@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdatomic.h>
 
 #include "cJSON.h"
 #include "esp_log.h"
@@ -59,6 +60,13 @@ static bool s_have_prev;
 static bool s_task_started;
 static app_energy_sample_t s_prev;
 static int64_t s_last_save_us;
+static atomic_bool s_initialized;
+static app_stats_snapshot_t *s_remote;
+static bool s_remote_available, s_remote_disconnected;
+static int64_t s_remote_received_us;
+static char s_remote_identity[18];
+
+bool app_stats_is_ready(void) { return atomic_load(&s_initialized); }
 
 /* Helyi dátum előállítása YYYY-MM-DD formában. */
 static void date_for(time_t t, char out[11])
@@ -830,6 +838,7 @@ static void sum_completed_slots(
 /* Statisztikai tárhely inicializálása és a mai/tegnapi állapot visszatöltése. */
 esp_err_t app_stats_init(const app_config_t *cfg)
 {
+    atomic_store(&s_initialized, false);
     if (!cfg) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -843,6 +852,18 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     }
 
     s_cfg = *cfg;
+    if (cfg->cardless_slave) {
+        if (cfg->data_recept_mode != APP_DATA_SLAVE) return ESP_ERR_INVALID_ARG;
+        if (!s_remote) s_remote = calloc(1, sizeof(*s_remote));
+        if (!s_remote) return ESP_ERR_NO_MEM;
+        memset(s_remote, 0, sizeof(*s_remote));
+        s_remote_available = false;
+        s_remote_disconnected = true;
+        s_remote_identity[0] = '\0';
+        date_for(time(NULL), s_notified_date);
+        atomic_store(&s_initialized, true);
+        return ESP_OK;
+    }
 
     if (mkdir(STATS_DIR, 0775) != 0 && errno != EEXIST) {
         app_storage_mark_fault("STATS_MKDIR");
@@ -900,6 +921,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 
     xSemaphoreGive(s_mutex);
 
+    atomic_store(&s_initialized, true);
     ESP_LOGI(TAG, "Statistics initialized for %s", today);
     return ESP_OK;
 }
@@ -907,6 +929,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 /* Egy új érvényes MQTT minta beépítése a napi energiába és az ötperces átlagba. */
 void app_stats_process_sample(const app_energy_sample_t *sample)
 {
+    if (s_cfg.cardless_slave) return; /* A master az egyetlen hiteles integrátor. */
     if (!sample || !s_mutex) {
         return;
     }
@@ -954,9 +977,24 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
+    if (s_cfg.cardless_slave) {
+        char date[11]; date_for(time(NULL), date);
+        bool available = s_remote_available && !strcmp(date, s_remote->date);
+        if (available) *out = *s_remote;
+        else { memset(out, 0, sizeof(*out)); snprintf(out->date, sizeof(out->date), "%s", date); }
+        out->remote = true;
+        out->remote_available = available;
+        out->remote_stale = !available || s_remote_disconnected || esp_timer_get_time() - s_remote_received_us > 90000000;
+        xSemaphoreGive(s_mutex);
+        return;
+    }
+
     memset(out, 0, sizeof(*out));
     snprintf(out->date, sizeof(out->date), "%s", s_today.date);
     out->totals = s_today.totals;
+    out->reference_valid = true;
+    out->reference_energy = s_cfg.energy;
+    snprintf(out->reference_currency, sizeof(out->reference_currency), "%s", s_cfg.project.currency);
     memcpy(out->slots, s_today.slots, sizeof(out->slots));
 
     sum_completed_slots(
@@ -991,6 +1029,9 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
 /* Mindkét megtartott nap konzisztens másolatának mentése. A lassú I/O nem fogja a mérési zárat. */
 esp_err_t app_stats_save_now(void)
 {
+    /* SD nélküli slave-en nincs helyi, elveszíthető statisztikai írás.
+     * A konfiguráció/profil már a saját NVS-commitja után kér újraindítást. */
+    if (app_stats_is_ready() && s_cfg.cardless_slave) return ESP_OK;
     if(!s_mutex || !s_save_mutex)return ESP_ERR_INVALID_STATE;
     if(!app_storage_is_ok())return ESP_ERR_INVALID_STATE;
     day_data_t *copy=malloc(sizeof(*copy));
@@ -1040,6 +1081,15 @@ void app_stats_tick(void)
 {
     static bool previous_sd_ok=true;
     time_t now=time(NULL);
+    if (s_cfg.cardless_slave) {
+        char date[11]; date_for(now, date);
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        bool valid = s_remote_available && !s_remote_disconnected && !strcmp(date, s_remote->date) &&
+                     esp_timer_get_time() - s_remote_received_us <= 90000000;
+        xSemaphoreGive(s_mutex);
+        app_state_set_remote_stats(valid);
+        goto notify_day;
+    }
     bool sd_ok=app_storage_is_ok();
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     roll_day(now);
@@ -1053,6 +1103,8 @@ void app_stats_tick(void)
         if(app_stats_save_now()!=ESP_OK){previous_sd_ok=false;return;}
     }
     previous_sd_ok=sd_ok;
+notify_day:
+    ;
     /* A mintafogadás is válthat napot, ezért külön dátum őrzi az értesítést.
      * A callback nem fut statisztikai/SD záron belül, és nem végez hálózati I/O-t. */
     char current[11];
@@ -1086,8 +1138,48 @@ esp_err_t app_stats_start_task(void)
     return ESP_OK;
 }
 
+bool app_stats_remote_publish(const app_stats_snapshot_t *snapshot)
+{
+    if (!snapshot || !app_stats_is_ready() || !s_cfg.cardless_slave) return false;
+    char date[11]; date_for(time(NULL), date);
+    if (strcmp(date, snapshot->date)) return false;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    *s_remote = *snapshot;
+    s_remote_available = true;
+    s_remote_disconnected = false;
+    s_remote_received_us = esp_timer_get_time();
+    xSemaphoreGive(s_mutex);
+    app_state_set_remote_stats(true);
+    return true;
+}
+
+void app_stats_remote_source(const char *identity)
+{
+    if (!app_stats_is_ready() || !s_cfg.cardless_slave || !identity) return;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    bool changed = false;
+    if (strcmp(s_remote_identity, identity)) {
+        changed = true;
+        s_remote_available = false;
+        s_remote_disconnected = true;
+        snprintf(s_remote_identity, sizeof(s_remote_identity), "%s", identity);
+    }
+    xSemaphoreGive(s_mutex);
+    if (changed) app_state_set_remote_stats(false);
+}
+
+void app_stats_remote_disconnected(void)
+{
+    if (!app_stats_is_ready() || !s_cfg.cardless_slave) return;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_remote_disconnected = true;
+    xSemaphoreGive(s_mutex);
+    app_state_set_remote_stats(false);
+}
+
 /* Naptári hét (hétfőtől) vagy aktuális hónap; hiányzó nap nem nulla mérés. */
 void app_stats_get_period(bool month,app_stats_period_t *out){
+    if (s_cfg.cardless_slave) { if (out) memset(out, 0, sizeof(*out)); return; }
     if(!out)return;
     memset(out,0,sizeof(*out));if(!s_mutex)return;
     time_t now=time(NULL);struct tm local;localtime_r(&now,&local);

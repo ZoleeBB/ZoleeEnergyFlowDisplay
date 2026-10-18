@@ -10,6 +10,12 @@ Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master m
 `ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
 Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](docs/ble-data-seed.md).
 
+**SD nélküli Slave** is használható: új eszköz automatikus Slave indulással,
+belső NVS-beállításokkal és kizárólag a beépített Rendszer témával. A napi
+diagramokat és összehasonlításokat hitelesített BLE-kapcsolaton a mastertől
+kapja; nincs szükség hálózati fájlmegosztásra vagy flashbe írt statisztikára.
+A korábban fő kijelzőként használt eszköz SD-hibája nem vált automatikusan Slave-re.
+
 Az új **Slave (Bluetooth)** adatfogadási mód automatikusan mastert keres,
 és onnan kapja az energiaadatokat és az időszinkront, Wi-Fi/NTP-beállítás nélkül is.
 A slave az első csatlakozáskor érintős PIN-padot mutat, majd titkosítva átveszi

@@ -4,11 +4,13 @@
  * hagyja, a szöveg újraírja, az üres szöveg törli a jelszót.
  */
 #include "app_settings_page.h"
+#include "app_boot_config.h"
 
 static cJSON *settings_json(const app_config_t *v)
 {
     cJSON *root=cJSON_CreateObject();
     if(!root)return NULL;
+    cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave);
     cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
     cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
     cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
@@ -127,6 +129,13 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
     keep_secret(root,"ota",s_config.ota.password);
     char *data=cJSON_PrintUnformatted(root);cJSON_Delete(root);
     if(!data)return settings_response(req,500,"Nincs elegendő memória.",false,NULL);
+    app_config_t next;char error[256]={0};
+    if (s_config.cardless_slave) {
+        esp_err_t result = app_boot_config_save(data, strlen(data), &next, error, sizeof(error));
+        free(data);
+        if (result != ESP_OK) return settings_response(req,400,error[0]?error:"A belső mentés sikertelen.",false,NULL);
+        goto apply_settings;
+    }
     const char *path=APP_SD_MOUNT_POINT "/config.json";
     const char *tmp=APP_SD_MOUNT_POINT "/config.json.webtmp";
     const char *bak=APP_SD_MOUNT_POINT "/config.json.webbak";
@@ -141,7 +150,6 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
         app_storage_unlock();
         return settings_response(req,500,"Nem sikerült az SD-kártyára írni.",false,NULL);
     }
-    app_config_t next;char error[256]={0};
     if(app_config_load_file(tmp,&next,error,sizeof(error))!=ESP_OK){
         remove(tmp);app_storage_unlock();
         return settings_response(req,400,error[0]?error:"Hibás konfiguráció.",false,NULL);
@@ -163,6 +171,8 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
     remove(bak);
     app_storage_unlock();
 
+apply_settings:
+    ;
     app_config_t old_cmp=s_config,new_cmp=next;
     memset(&old_cmp.statistics,0,sizeof(old_cmp.statistics));
     memset(&new_cmp.statistics,0,sizeof(new_cmp.statistics));

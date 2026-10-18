@@ -8,6 +8,7 @@ static bool s_connecting, s_slave_ready;
 static uint16_t s_service_start, s_service_end;
 static uint16_t s_remote_values[3], s_remote_defs[3], s_cccd;
 static uint16_t s_remote_profile;
+static uint16_t s_remote_stats;
 static bool s_profile_reading, s_profile_waiting;
 static bool s_profile_accepted;
 static size_t s_profile_length;
@@ -31,6 +32,9 @@ static int s_master_rssi;
 
 static int slave_gap_event(struct ble_gap_event *event, void *arg);
 static void slave_setup_next(void);
+static void slave_stats_reset(void);
+static void slave_stats_poll(int64_t now);
+static bool slave_stats_busy(void);
 
 static void slave_diagnostics(void)
 {
@@ -47,12 +51,14 @@ static void slave_diagnostics(void)
 
 static void slave_reset(void)
 {
+    slave_stats_reset();
     s_master = BLE_HS_CONN_HANDLE_NONE;
     s_connecting = s_slave_ready = false;
     s_service_start = s_service_end = 0;
     memset(s_remote_values, 0, sizeof(s_remote_values));
     memset(s_remote_defs, 0, sizeof(s_remote_defs));
     s_remote_profile = 0;
+    s_remote_stats = 0;
     s_profile_reading = s_profile_waiting = false;
     s_profile_accepted = false;
     s_profile_length = 0;
@@ -310,6 +316,9 @@ static int slave_characteristic(uint16_t conn,
         if (ble_uuid_cmp(&chr->uuid.u, &s_profile_uuid.u) == 0 &&
             (chr->properties & BLE_GATT_CHR_PROP_READ))
             s_remote_profile = chr->val_handle;
+        if (ble_uuid_cmp(&chr->uuid.u, &s_stats_uuid.u) == 0 &&
+            (chr->properties & BLE_GATT_CHR_PROP_READ) && (chr->properties & BLE_GATT_CHR_PROP_WRITE))
+            s_remote_stats = chr->val_handle;
         for (unsigned i = 0; i < 3; ++i)
         {
             if (ble_uuid_cmp(&chr->uuid.u, &uuids[i]->u) == 0 &&
@@ -362,6 +371,16 @@ static int slave_service(uint16_t conn,
     {
         slave_fail("szolgáltatás hiányzik", error->status);
     }
+    return 0;
+}
+
+static int slave_mtu_done(uint16_t connection, const struct ble_gatt_error *error, uint16_t mtu, void *arg)
+{
+    (void)error; (void)mtu; (void)arg;
+    if (connection != s_master) return 0;
+    /* Sikertelen MTU-egyeztetésnél a szabványos 23 bájtos MTU is elegendő. */
+    if (ble_gattc_disc_svc_by_uuid(s_master, &s_service_uuid.u, slave_service, NULL))
+        slave_fail("szolgáltatáskeresés nem indítható", -1);
     return 0;
 }
 
@@ -426,8 +445,8 @@ static int slave_gap_event(struct ble_gap_event *event, void *arg)
                 break;
             }
             s_setup_deadline_us = esp_timer_get_time() + 15000000;
-            if (ble_gattc_disc_svc_by_uuid(s_master, &s_service_uuid.u, slave_service, NULL))
-                slave_fail("szolgáltatáskeresés nem indítható", -1);
+            if (ble_gattc_exchange_mtu(s_master, slave_mtu_done, NULL))
+                (void)slave_mtu_done(s_master, NULL, 23, NULL);
             break;
         case BLE_GAP_EVENT_DISCONNECT:
             if (event->disconnect.conn.conn_handle == s_master)
@@ -466,6 +485,7 @@ static void slave_poll(int64_t now)
 {
     if (s_master != BLE_HS_CONN_HANDLE_NONE)
     {
+        slave_stats_poll(now);
         if (s_profile_waiting && app_ble_profile_ready())
         {
             s_profile_waiting = false;
@@ -476,7 +496,7 @@ static void slave_poll(int64_t now)
                 slave_setup_next();
             }
         }
-        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && now >= s_profile_next_read)
+        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && !slave_stats_busy() && now >= s_profile_next_read)
             slave_read_profile();
         if ((!s_slave_ready && now >= s_setup_deadline_us) ||
             (s_slave_ready &&
@@ -496,3 +516,5 @@ static void slave_poll(int64_t now)
         slave_begin_scan();
     }
 }
+
+#include "app_ble_stats_client.inc"

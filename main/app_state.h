@@ -54,6 +54,7 @@ typedef struct
     bool http_ready;
     int64_t http_ready_monotonic_us;
     bool sd_ok;
+    bool cardless_slave, remote_stats_valid;
     bool config_ok;
     bool wifi_connected;
     bool time_synced;
@@ -81,6 +82,8 @@ void app_state_init(void);
 
 /* Alrendszer-állapotok frissítése. */
 void app_state_set_sd_ok(bool value);
+void app_state_set_cardless(bool value);
+void app_state_set_remote_stats(bool valid);
 void app_state_set_config_ok(bool value);
 void app_state_set_wifi_connected(bool value);
 void app_state_set_time_synced(bool value);
@@ -120,7 +123,7 @@ static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
 static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 {
     if (s->data_recept_mode == APP_DATA_SLAVE)
-        return s->sd_ok && s->config_ok && s->time_synced && s->slave_connected
+        return (s->cardless_slave ? s->remote_stats_valid : s->sd_ok) && s->config_ok && s->time_synced && s->slave_connected
             && s->has_valid_sample && !s->slave_source_stale;
     return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced &&
            (s->data_recept_mode == APP_DATA_LOXONE ? s->http_ready : app_state_data_ready(s));

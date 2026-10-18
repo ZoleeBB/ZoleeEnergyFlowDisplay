@@ -16,13 +16,13 @@ typedef struct {
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
-static unsigned template_catalogue_count(void){return template_view.catalogue_count;}
+static unsigned template_catalogue_count(void){return s_cfg.cardless_slave ? 1 : template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static bool template_loading_requested;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
-static bool template_is_active(void){return template_view.document!=NULL;}
+static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
     return !strcmp(template_view.id,"02-energy-paths")||
            !strcmp(template_view.id,"06-energy-orbit");
@@ -325,7 +325,7 @@ static void template_gesture(lv_event_t *event){
         s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
     }
     if(s_diagnostics_requested)return;
-    if(direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT){
+    if(!s_cfg.cardless_slave && (direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT)){
         app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
         template_loading_requested=true;
         lv_indev_wait_release(input);
@@ -364,6 +364,7 @@ static void template_loading_screen(void){
 /* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
 static bool template_loading_frame(void){
+    if (s_cfg.cardless_slave) return true;
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     template_loading_screen();bsp_display_unlock();
@@ -372,11 +373,13 @@ static bool template_loading_frame(void){
     return true;
 }
 static void template_prepare(void){
+    if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
     app_templates_load_pending(&template_pending);
 }
 static void template_apply(void){
+    if (s_cfg.cardless_slave) return;
     if(template_pending.generation==template_view.generation)return;
     template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
@@ -1080,6 +1083,9 @@ static void diagnostics_render(app_runtime_state_t rt)
                  "%s",
                  rt.sd_ok ? tr("Kapacitás lekérése...", "Reading capacity...")
                           : tr("Hiba · kijelzés RAM-ból", "Fault · display from RAM"));
+    if (rt.cardless_slave)
+        snprintf(text, sizeof(text), "%s\n%s", tr("SD nélkül · belső tár", "No SD · internal storage"),
+                 rt.remote_stats_valid ? tr("Master stat.: friss", "Master stats: current") : tr("Master stat.: várakozás", "Master stats: waiting"));
     label_text_if_changed(s_diagnostic_values[3], text);
     lv_bar_set_value(s_diagnostic_bars[0], sd_used, LV_ANIM_OFF);
     if (rt.sd_ok && s_diagnostics.sd_space_valid)

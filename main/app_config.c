@@ -587,6 +587,17 @@ esp_err_t app_config_load_file(
      * Így egy érvényes JSON objektum után maradt véletlen vagy sérült adat
      * nem kerül csendben figyelmen kívül.
      */
+    esp_err_t result = app_config_parse_json(buffer, (size_t)size, cfg, error, error_len);
+    free(buffer);
+    return result;
+}
+
+esp_err_t app_config_parse_json(const char *buffer, size_t size, app_config_t *cfg,
+                                char *error, size_t error_len)
+{
+    if (!buffer || !cfg || !size || size > CONFIG_FILE_MAX_BYTES) return ESP_ERR_INVALID_ARG;
+    app_config_set_defaults(cfg);
+    if (error && error_len) error[0] = 0;
     const char *parse_end = NULL;
     cJSON *root = cJSON_ParseWithLengthOpts(
         buffer,
@@ -595,7 +606,6 @@ esp_err_t app_config_load_file(
         false);
 
     if (!root || !cJSON_IsObject(root)) {
-        free(buffer);
         cJSON_Delete(root);
         set_error(error, error_len, "A config.json nem érvényes JSON objektum.");
         return ESP_ERR_INVALID_ARG;
@@ -610,7 +620,6 @@ esp_err_t app_config_load_file(
     }
 
     if (parse_end != buffer + size) {
-        free(buffer);
         cJSON_Delete(root);
         set_error(
             error,
@@ -618,8 +627,6 @@ esp_err_t app_config_load_file(
             "A config.json az érvényes JSON után további adatot tartalmaz.");
         return ESP_ERR_INVALID_ARG;
     }
-
-    free(buffer);
 
     bool ok = parse_config(root, cfg, error, error_len);
     cJSON_Delete(root);

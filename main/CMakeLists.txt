@@ -60,6 +60,8 @@ idf_component_register(
         "fonts/app_font_22.c"
         "fonts/app_font_28.c"
         "app_config.c"
+        "app_boot_config.c"
+        "app_ble_stats_protocol.c"
         "app_events.c"
         "app_ingest.c"
         "app_http.c"

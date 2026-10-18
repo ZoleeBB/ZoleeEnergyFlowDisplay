@@ -104,7 +104,16 @@ typedef struct
     app_energy_totals_t comparison_yesterday_totals;
     app_energy_totals_t yesterday_completed_interval_totals;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
+    bool remote, remote_available, remote_stale;
+    bool reference_valid;
+    app_energy_config_t reference_energy;
+    char reference_currency[APP_CURRENCY_MAX];
 } app_stats_snapshot_t;
+
+bool app_stats_is_ready(void);
+bool app_stats_remote_publish(const app_stats_snapshot_t *snapshot);
+void app_stats_remote_source(const char *identity);
+void app_stats_remote_disconnected(void);
 
 /* Statisztikai könyvtár és napi állományok inicializálása. */
 esp_err_t app_stats_init(const app_config_t *cfg);

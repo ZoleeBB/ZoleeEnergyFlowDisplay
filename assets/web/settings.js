@@ -76,6 +76,7 @@ function updateVisibility(){
  byPath('DataSeedPin').parentElement.hidden=!seed.checked;
  byPath('ble-pairing-open').hidden=!seed.checked;
  byPath('ota.auto_update').disabled=slave;
+ byPath('DataReceptMode').disabled=!!state?.cardless_slave;
 }
 byPath('DataReceptMode').onchange=updateVisibility;
 byPath('DataSeedEnabled').onchange=updateVisibility;
@@ -89,7 +90,7 @@ function values(){const result=structuredClone(state);for(const [path,type] of f
  nestedSet(result,path,value);
  }return result;
 }
-async function load(){message.textContent='Beállítások betöltése…';try{const response=await fetch('/api/settings',{cache:'no-store'});if(!response.ok)throw Error(await response.text());state=await response.json();fill();message.textContent='';}catch(e){message.textContent='Betöltési hiba: '+e.message;save.disabled=true;}}
+async function load(){message.textContent='Beállítások betöltése…';try{const response=await fetch('/api/settings',{cache:'no-store'});if(!response.ok)throw Error(await response.text());state=await response.json();fill();message.textContent=state.cardless_slave?'SD nélküli Slave: csak Rendszer téma; beállítások a belső tárban.':'';}catch(e){message.textContent='Betöltési hiba: '+e.message;save.disabled=true;}}
 form.addEventListener('submit',async event=>{event.preventDefault();if(!state)return;save.disabled=true;message.textContent='Mentés és ellenőrzés folyamatban…';
  try{const response=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','X-Zolee-Settings':'1'},body:JSON.stringify(values())});
  const result=await response.json();if(!response.ok)throw Error(result.message||'HTTP '+response.status);

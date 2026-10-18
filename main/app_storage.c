@@ -17,6 +17,7 @@
 #include "app_state.h"
 
 static atomic_bool s_ok;
+static atomic_bool s_cardless;
 static bool s_recovery_task_started;
 static SemaphoreHandle_t s_io_mutex;
 
@@ -96,6 +97,14 @@ bool app_storage_is_ok(void)
     return atomic_load(&s_ok);
 }
 
+bool app_storage_is_cardless(void) { return atomic_load(&s_cardless); }
+
+void app_storage_set_cardless(void)
+{
+    atomic_store(&s_cardless, true);
+    app_state_set_cardless(true);
+}
+
 /*
  * Öt másodpercenként CMD13 állapotolvasás: nincs próbaírás vagy FatFs-cache függés.
  * Hibánál legkorábban 60 másodperc múlva csatoljuk újra az SD-kártyát.
@@ -146,6 +155,7 @@ static void recovery_task(void *arg)
 /* Az ismételt indítási kérések nem hoznak létre párhuzamos helyreállító taskokat. */
 esp_err_t app_storage_start_recovery_task(void)
 {
+    if (app_storage_is_cardless()) return ESP_OK;
     if (s_recovery_task_started)
         return ESP_OK;
     if (xTaskCreate(recovery_task, "sd_recovery", 4096, NULL, 4, NULL) != pdPASS)

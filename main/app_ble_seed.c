@@ -10,6 +10,8 @@
 #include "app_time.h"
 #include "app_ingest.h"
 #include "app_ble_profile.h"
+#include "app_ble_stats_protocol.h"
+#include <stdlib.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -59,6 +61,7 @@ static const ble_uuid128_t s_energy_uuid = SEED_UUID(0x01);
 static const ble_uuid128_t s_weather_uuid = SEED_UUID(0x02);
 static const ble_uuid128_t s_clock_uuid = SEED_UUID(0x03);
 static const ble_uuid128_t s_profile_uuid = SEED_UUID(0x04);
+static const ble_uuid128_t s_stats_uuid = SEED_UUID(0x05);
 static app_config_t s_config;
 static bool s_started;
 static bool s_synced;
@@ -79,6 +82,10 @@ typedef struct
     bool used;
     uint16_t handle;
     bool subscribed[3];
+    uint8_t *stats_wire;
+    uint32_t stats_id;
+    uint16_t stats_page;
+    int64_t stats_started_us;
 } seed_peer_t;
 
 static seed_peer_t s_peers[CONFIG_BT_NIMBLE_MAX_CONNECTIONS];
@@ -133,6 +140,8 @@ static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
+#include "app_ble_stats_server.inc"
+
 static const struct ble_gatt_svc_def s_services[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -165,6 +174,14 @@ static const struct ble_gatt_svc_def s_services[] = {
                     .access_cb = read_profile,
                     .flags =
                         BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                    .min_key_size = 16,
+                },
+                {
+                    .uuid = &s_stats_uuid.u,
+                    .access_cb = access_stats,
+                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE |
+                             BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN |
+                             BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
                     .min_key_size = 16,
                 },
                 {0},
@@ -346,7 +363,10 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         case BLE_GAP_EVENT_DISCONNECT:
             for (unsigned i = 0; i < CONFIG_BT_NIMBLE_MAX_CONNECTIONS; ++i)
                 if (s_peers[i].used && s_peers[i].handle == event->disconnect.conn.conn_handle)
+                {
+                    free(s_peers[i].stats_wire);
                     memset(&s_peers[i], 0, sizeof(s_peers[i]));
+                }
             advertise();
             break;
         case BLE_GAP_EVENT_SUBSCRIBE:
@@ -385,6 +405,7 @@ static void on_reset(int reason)
     if (s_synced)
         s_sync_wait_started_us = esp_timer_get_time();
     s_synced = false;
+    for (unsigned i = 0; i < CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++) free(s_peers[i].stats_wire);
     memset(s_peers, 0, sizeof(s_peers));
     if (slave_mode())
         slave_reset();
