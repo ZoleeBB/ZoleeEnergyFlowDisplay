@@ -115,6 +115,7 @@ typedef struct
 {
     char username[APP_OTA_USER_MAX];
     char password[APP_OTA_PASSWORD_MAX];
+    bool auto_update; /* Stabil GitHub-release ellenőrzése helyi napváltáskor. */
 } app_ota_config_t;
 
 /* A teljes, induláskor betöltött alkalmazáskonfiguráció. */

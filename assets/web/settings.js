@@ -19,6 +19,7 @@ const definitions=[
 ['Energia és költség',[
 ['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],
 ['energy.co2_factor_kg_per_kwh','CO₂ tényező (kg/kWh)','number'],['energy.tree_absorption_kg_per_year','Fa elnyelés (kg/év)','number']]],
+['Frissítés', [['ota.auto_update','Automatikus rendszerfrissítés éjfélkor','bool']]],
 ['Webes hozzáférés', [['ota.username','Adminisztrátori felhasználónév'],['ota.password','Adminisztrátori jelszó','secret']]]];
 const form=document.getElementById('settings'),holder=document.getElementById('fields'),message=document.getElementById('message'),save=document.getElementById('save');
 let state=null;
@@ -45,6 +46,11 @@ for(const [title,fields] of definitions){
   grid.append(label);
  }
  section.append(h,grid);holder.append(section);
+ if(fields[0][0]==='ota.auto_update'){
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='Napváltáskor ellenőrzi a ZoleeBB/ZoleeEnergyFlowDisplay legújabb stabil GitHub-release-ét. Újabb verzió esetén mentés után automatikusan frissít és újraindul. Internetelérés és Wi-Fi szükséges, Slave módban is. A sablonokat nem írja felül. Alapból kikapcsolva.';
+  section.append(hint);
+ }
  if(fields[0][0]==='wifi.ssid'){
   const hint=document.createElement('p');hint.id='slave-wifi-hint';hint.className='hint';
   hint.textContent='Slave módban a Wi-Fi opcionális, csak a webes kezeléshez és OTA-frissítéshez kell. Az adatokat és a pontos időt automatikusan a Bluetooth mastertől kapja. Üres SSID mellett is működik; ilyenkor a beállítások SD-kártyán módosíthatók.';

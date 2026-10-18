@@ -31,9 +31,11 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
  assert(sections.get('mqtt.broker').hidden&&sections.get('http.data_timeout_seconds').hidden);
  assert(sections.get('time.ntp_server').hidden&&!nodes.get('slave-wifi-hint').hidden);
  nodes.get('wifi.ssid').value='';
+ nodes.get('ota.auto_update').checked=true;
  await nodes.get('settings').onsubmit({preventDefault(){}});
  assert.equal(posted.DataReceptMode,'slave');assert.equal(posted.DataSeedEnabled,0);
  assert.equal(posted.wifi.ssid,'');assert.equal(posted.mqtt.broker,'');
+ assert.equal(posted.ota.auto_update,1);
  assert(nodes.get('message').textContent.includes('újraindul'));
  configuration.DataReceptMode='http';configuration.DataSeedEnabled=0;
  await sandbox.api.load();

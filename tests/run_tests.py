@@ -6,6 +6,20 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='zolee-auto-ota-') as directory:
+    binary = str(Path(directory) / 'test_ota_auto')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_auto.c',
+                    'main/app_ota_release.c', '-l:libcjson.so.1', '-lmbedcrypto', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ota-release-') as directory:
+    binary = str(Path(directory) / 'test_ota_release')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ota_release.c',
+                    'main/app_ota_release.c', '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-') as directory:
     binary = str(Path(directory) / 'test_ble_protocol')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',

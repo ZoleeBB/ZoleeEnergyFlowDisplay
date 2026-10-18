@@ -51,6 +51,8 @@ static SemaphoreHandle_t s_mutex;
 static SemaphoreHandle_t s_save_mutex;
 static app_config_t s_cfg;
 static day_data_t s_today;
+static char s_notified_date[11];
+static void (*s_day_change_callback)(void);
 static day_data_t s_yesterday;
 static app_stats_day_t s_history[APP_STATS_HISTORY_DAYS];
 static bool s_have_prev;
@@ -851,6 +853,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     char today[11];
     char yesterday[11];
     date_for(now, today);
+    snprintf(s_notified_date, sizeof(s_notified_date), "%s", today);
     yesterday_for(now, yesterday);
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
@@ -1050,6 +1053,19 @@ void app_stats_tick(void)
         if(app_stats_save_now()!=ESP_OK){previous_sd_ok=false;return;}
     }
     previous_sd_ok=sd_ok;
+    /* A mintafogadás is válthat napot, ezért külön dátum őrzi az értesítést.
+     * A callback nem fut statisztikai/SD záron belül, és nem végez hálózati I/O-t. */
+    char current[11];
+    date_for(now, current);
+    if (strcmp(current, s_notified_date) > 0) {
+        snprintf(s_notified_date, sizeof(s_notified_date), "%s", current);
+        if (s_day_change_callback) s_day_change_callback();
+    }
+}
+
+void app_stats_set_day_change_callback(void (*callback)(void))
+{
+    s_day_change_callback = callback;
 }
 
 /* Másodperces RAM-karbantartás; a mentés végig külön I/O-zárral fut. */

@@ -121,6 +121,9 @@ esp_err_t app_stats_start_task(void);
 /* Egy karbantartási lépés: RAM-napváltás és szükség szerinti mentés. */
 void app_stats_tick(void);
 
+/* Csak a karbantartó task hívja, záron kívül, előrehaladó helyi napváltáskor. */
+void app_stats_set_day_change_callback(void (*callback)(void));
+
 /* Azonnali kézi mentés, például diagnosztikai célra. */
 esp_err_t app_stats_save_now(void);
 

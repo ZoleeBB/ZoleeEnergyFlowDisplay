@@ -39,12 +39,14 @@
 #include "app_storage.h"
 #include "app_stats.h"
 #include "app_wifi.h"
+#include "app_ota.h"
 
 static const char *TAG = "web";
 
 static app_ota_config_t s_auth_cfg;
 static app_config_t s_config;
 static httpd_handle_t s_server;
+static bool s_restart_pending;
 static char s_expected_auth[256];
 static char s_project_title[APP_PROJECT_TITLE_MAX];
 static bool s_hu = true;
@@ -628,7 +630,7 @@ static void reboot_task(void *arg)
 }
 
 /* Kézi újraindítás HTTP kezelője. */
-static esp_err_t reboot_post(httpd_req_t *req)
+static esp_err_t reboot_post_locked(httpd_req_t *req)
 {
     if (!authorize(req)) {
         return ESP_OK;
@@ -645,6 +647,7 @@ static esp_err_t reboot_post(httpd_req_t *req)
             s_hu?"Az újraindítás nem ütemezhető.":"Could not schedule restart.");
         return ESP_OK;
     }
+    s_restart_pending = true;
     httpd_resp_sendstr(req,s_hu?"Újraindítás...":"Restarting...");
 
     return ESP_OK;
@@ -654,7 +657,7 @@ static esp_err_t reboot_post(httpd_req_t *req)
  * Bináris OTA image fogadása.
  * A bejövő adat közvetlenül az inaktív OTA partícióra kerül, 4 kB-os blokkokban.
  */
-static esp_err_t ota_post(httpd_req_t *req)
+static esp_err_t ota_post_locked(httpd_req_t *req)
 {
     if (!authorize(req)) {
         return ESP_OK;
@@ -793,10 +796,36 @@ static esp_err_t ota_post(httpd_req_t *req)
             "Firmware saved. Please restart the device.");
         return ESP_OK;
     }
+    s_restart_pending = true;
     httpd_resp_sendstr(req,s_hu?"Firmware feltöltve. Az eszköz újraindul.":
         "Firmware uploaded. The device will restart.");
 
     return ESP_OK;
+}
+
+/* Az egyetlen webtask és az automatikus OTA ugyanazt az atomi foglalást használja.
+ * Sikeres aktiválás után a rebootig nem engedünk új flash-írást/konfigváltást. */
+static esp_err_t exclusive_request(httpd_req_t *req, esp_err_t (*handler)(httpd_req_t *))
+{
+    if (!authorize(req)) return ESP_OK;
+    if (!app_ota_try_begin_operation()) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "OTA/frissítés vagy újraindítás folyamatban. Próbáld később.");
+    }
+    esp_err_t result = handler(req);
+    if (!s_restart_pending && esp_ota_get_boot_partition() == esp_ota_get_running_partition())
+        app_ota_end_operation();
+    return result;
+}
+
+static esp_err_t ota_post(httpd_req_t *req)
+{
+    return exclusive_request(req, ota_post_locked);
+}
+
+static esp_err_t reboot_post(httpd_req_t *req)
+{
+    return exclusive_request(req, reboot_post_locked);
 }
 
 static esp_err_t diagnostics_get(httpd_req_t *req){

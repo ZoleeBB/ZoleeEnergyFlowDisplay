@@ -495,7 +495,8 @@ static bool parse_config(
     cJSON *ota = get_object_section(root, "ota", false, error, error_len);
     if (ota) {
         if (!read_string(ota, "username", cfg->ota.username, sizeof(cfg->ota.username), false, true, error, error_len) ||
-            !read_string(ota, "password", cfg->ota.password, sizeof(cfg->ota.password), false, true, error, error_len)) {
+            !read_string(ota, "password", cfg->ota.password, sizeof(cfg->ota.password), false, true, error, error_len) ||
+            !read_bool01(ota, "auto_update", &cfg->ota.auto_update, false, error, error_len)) {
             return false;
         }
 

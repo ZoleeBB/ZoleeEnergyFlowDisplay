@@ -66,6 +66,8 @@ idf_component_register(
         "app_loxone_model.c"
         "app_loxone_store.c"
         "app_ota.c"
+        "app_ota_auto.c"
+        "app_ota_release.c"
         "app_payload.c"
         "app_state.c"
         "app_stats.c"

@@ -55,7 +55,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Kilenc választható téma](docs/templates.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Statisztika és számítások](docs/statistics.md)
-- [Webfelület és OTA](docs/ota.md)
+- [Webfelület és OTA, kapcsolható automatikus éjféli GitHub-frissítés](docs/ota.md)
 - [Hibakezelés](docs/errors.md)
 - [Fordítás és flash](docs/build-flash.md)
 - [USB telepítés](docs/usb-install.md)

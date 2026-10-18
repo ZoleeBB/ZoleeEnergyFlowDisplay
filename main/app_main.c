@@ -296,6 +296,9 @@ void app_main(void)
         fatal_forever(cfg_tr("Memóriahiba", "Memory error"), cfg_tr("Az adatfogadó nem indítható.", "Data receiver initialization failed"));
 
     /* Háttérfeladatok indulása. */
+    if (app_ota_start_auto_update(&s_config) != ESP_OK) {
+        app_events_add(APP_EVENT_ERROR, "Az automatikus frissítés feladata nem indítható.");
+    }
     if(app_storage_start_recovery_task()!=ESP_OK ||
        app_stats_start_task()!=ESP_OK || app_time_start_background_task()!=ESP_OK){
         fatal_forever(cfg_tr("Memóriahiba","Memory error"),

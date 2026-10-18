@@ -110,10 +110,18 @@ static void test_integrals(void){
     feed(t+41,15,15,15);app_stats_get_snapshot(&snapshot);
     near(snapshot.totals.production_kwh,70./3600);tests++;
 }
+static unsigned day_notifications;
+static void day_notification(void){day_notifications++;}
 static void test_midnight(bool background_first){
     time_t t=instant("2026-10-04",23,59,58);reset(t);feed(t,7,0,0);
+    day_notifications=0;app_stats_set_day_change_callback(day_notification);
+    app_stats_tick();assert(day_notifications==0); /* Induláskor nem frissítünk. */
     if(background_first){clock_at(t+2);app_stats_tick();}
     feed(t+5,7,0,0);app_stats_get_snapshot(&snapshot);
+    app_stats_tick();app_stats_tick();assert(day_notifications==1);
+    clock_at(t);app_stats_tick();clock_at(t+5);app_stats_tick();
+    assert(day_notifications==1); /* Visszaállított óra sem indíthat újra. */
+    app_stats_set_day_change_callback(NULL);
     assert(strcmp(snapshot.date,"2026-10-05")==0);near(snapshot.totals.production_kwh,21./3600);
     assert(app_stats_save_now()==ESP_OK);cJSON *day=read_json("2026-10-04");near(total(day),14./3600);cJSON_Delete(day);
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,21./3600);tests++;
@@ -255,6 +263,16 @@ static void test_config(void){
     app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
     assert(defaults.display.rotation_degrees==270);
     assert(!defaults.data_seed_enabled);
+    assert(!defaults.ota.auto_update);
+    for(int enabled=0;enabled<3;enabled++){
+        const char *auto_path=APP_SD_MOUNT_POINT "/auto-config.json";
+        FILE *f=fopen(auto_path,"wb");assert(f);
+        fprintf(f,"{\"DataReceptMode\":\"slave\",\"ota\":{\"auto_update\":%d}}",enabled);fclose(f);
+        char auto_error[256];app_config_t parsed;
+        esp_err_t rc=app_config_load_file(auto_path,&parsed,auto_error,sizeof(auto_error));
+        assert((enabled<2)==(rc==ESP_OK));
+        if(enabled<2)assert(parsed.ota.auto_update==(enabled==1));
+    }
     char error[256];const char *path=APP_SD_MOUNT_POINT "/config.json";
     for(int interval=60;interval<=61;interval++){
         FILE *f=fopen(path,"wb");assert(f);

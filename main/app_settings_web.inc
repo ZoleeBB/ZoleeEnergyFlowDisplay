@@ -48,6 +48,7 @@ static cJSON *settings_json(const app_config_t *v)
     NUM(energy,"co2_factor_kg_per_kwh",v->energy.co2_factor_kg_per_kwh);
     NUM(energy,"tree_absorption_kg_per_year",v->energy.tree_absorption_kg_per_year);
     OBJ(ota);
+    NUM(ota,"auto_update",v->ota.auto_update?1:0);
     STR(ota,"username",v->ota.username);cJSON_AddNullToObject(ota,"password");
 #undef OBJ
 #undef STR
@@ -97,7 +98,7 @@ static void keep_secret(cJSON *root,const char *section,const char *previous)
     if(cJSON_IsNull(password))
         cJSON_ReplaceItemInObjectCaseSensitive(object,"password",cJSON_CreateString(previous));
 }
-static esp_err_t settings_post(httpd_req_t *req)
+static esp_err_t settings_post_locked(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
     char header[8]={0};
@@ -171,6 +172,7 @@ static esp_err_t settings_post(httpd_req_t *req)
             return settings_response(req,500,"A konfiguráció mentve, de a statisztika mentése sikertelen. Kézi újraindítás szükséges.",false,NULL);
         if(xTaskCreate(reboot_task,"settings_restart",2048,NULL,8,NULL)!=pdPASS)
             return settings_response(req,500,"Beállítások mentve, de az automatikus újraindítás nem indítható.",false,NULL);
+        s_restart_pending = true;
     }else{
         app_stats_update_config(&next.statistics);
     }
@@ -178,6 +180,11 @@ static esp_err_t settings_post(httpd_req_t *req)
         "Webes beállítások mentve; újraindítás.":"Webes statisztikai beállítások alkalmazva.");
     return settings_response(req,200,restart?"Sikeres mentés, újraindítás következik.":"Beállítások mentve és alkalmazva.",restart,&s_config);
 }
+static esp_err_t settings_post(httpd_req_t *req)
+{
+    return exclusive_request(req, settings_post_locked);
+}
+
 static esp_err_t settings_register(httpd_handle_t server)
 {
     const httpd_uri_t routes[]={
