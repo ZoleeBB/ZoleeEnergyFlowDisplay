@@ -10,6 +10,7 @@ static cJSON *settings_json(const app_config_t *v)
     cJSON *root=cJSON_CreateObject();
     if(!root)return NULL;
     cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
+    cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
     cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
 #define OBJ(id) cJSON *id=cJSON_AddObjectToObject(root,#id)
 #define STR(o,k,val) cJSON_AddStringToObject(o,k,val)
@@ -185,12 +186,27 @@ static esp_err_t settings_post(httpd_req_t *req)
     return exclusive_request(req, settings_post_locked);
 }
 
+static esp_err_t pairing_open_post(httpd_req_t *req)
+{
+    if (!authorize(req)) return ESP_OK;
+    char header[8] = {0};
+    if (!s_config.data_seed_enabled ||
+        httpd_req_get_hdr_value_str(req, "X-Zolee-Settings", header, sizeof(header)) != ESP_OK ||
+        strcmp(header, "1")) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        return httpd_resp_sendstr(req, "Csak master módban engedélyezhető.");
+    }
+    app_ble_pairing_open();
+    return httpd_resp_sendstr(req, "Párosítás engedélyezve 2 percre.");
+}
+
 static esp_err_t settings_register(httpd_handle_t server)
 {
     const httpd_uri_t routes[]={
         {.uri="/settings",.method=HTTP_GET,.handler=settings_page},
         {.uri="/api/settings",.method=HTTP_GET,.handler=settings_get},
-        {.uri="/api/settings",.method=HTTP_POST,.handler=settings_post}};
+        {.uri="/api/settings",.method=HTTP_POST,.handler=settings_post},
+        {.uri="/api/ble/pairing",.method=HTTP_POST,.handler=pairing_open_post}};
     for(unsigned i=0;i<sizeof(routes)/sizeof(routes[0]);i++){
         esp_err_t result=httpd_register_uri_handler(server,&routes[i]);
         if(result!=ESP_OK)return result;

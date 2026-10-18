@@ -318,6 +318,7 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     snprintf(out,128,"%s %s",value,unit);
 }
 static void template_gesture(lv_event_t *event){
+    if (s_pair_pad) return;
     (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
     lv_dir_t direction=lv_indev_get_gesture_dir(input);
     if(direction==LV_DIR_TOP||direction==LV_DIR_BOTTOM){
@@ -970,11 +971,17 @@ static void diagnostics_render(app_runtime_state_t rt)
             tr("Bluetooth szerep", "Bluetooth role"),
             tr("Saját BT cím", "Local BT address"),
             rt.data_recept_mode == APP_DATA_SLAVE ? tr("Master BT cím", "Master BT address")
-                                                  : tr("BT eszköznév", "BT device name"),
+                                                  : tr("BT név / párosítási PIN", "BT name / pairing PIN"),
             rt.data_recept_mode == APP_DATA_SLAVE ? tr("Master jelerősség", "Master signal")
                                                   : tr("Kapcsolódó slave-ek", "Connected slaves"),
             tr("Bluetooth állapot", "Bluetooth state"),
             tr("Időszinkron", "Time synchronization")};
+        if (rt.ble_enabled && rt.ble_master) {
+            lv_obj_t *button = pairing_button(s_screen, "", 352, 28, 272, 36);
+            s_pair_window_label = lv_obj_get_child(button, 0);
+            lv_obj_set_style_text_font(s_pair_window_label, APP_FONT_14, 0);
+            lv_obj_add_event_cb(button, pairing_window_clicked, LV_EVENT_CLICKED, NULL);
+        }
         for (int i = 0; i < 14; i++)
         {
             lv_obj_t *card = lv_obj_create(s_screen);
@@ -1123,11 +1130,17 @@ static void diagnostics_render(app_runtime_state_t rt)
                                           : "Slave (BLE)");
     label_text_if_changed(s_diagnostic_values[9],
                           rt.ble_enabled && rt.ble_address[0] ? rt.ble_address : "-");
-    label_text_if_changed(s_diagnostic_values[10],
-                          rt.ble_enabled ? (rt.ble_master    ? "ZoleeEnergy"
-                                            : rt.ble_peer[0] ? rt.ble_peer
-                                                             : tr("Keresés...", "Searching..."))
-                                         : "-");
+    if (rt.ble_enabled && rt.ble_master) {
+        snprintf(text, sizeof(text), "ZoleeEnergy\nPIN: %s", s_cfg.data_seed_pin);
+        label_text_if_changed(s_diagnostic_values[10], text);
+        app_ble_pairing_status_t pairing; app_ble_pairing_status(&pairing);
+        snprintf(text, sizeof(text), pairing.seconds ? tr("Párosítás nyitva: %u mp", "Pairing open: %u s")
+                                                    : tr("Párosítás engedélyezése (2 perc)", "Enable pairing (2 min)"), pairing.seconds);
+        if (s_pair_window_label) label_text_if_changed(s_pair_window_label, text);
+    } else {
+        label_text_if_changed(s_diagnostic_values[10], rt.ble_enabled ?
+            (rt.ble_peer[0] ? rt.ble_peer : tr("Keresés...", "Searching...")) : "-");
+    }
     if (!rt.ble_enabled)
         snprintf(text, sizeof(text), "-");
     else if (rt.ble_master)

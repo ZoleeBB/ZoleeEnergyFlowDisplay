@@ -123,6 +123,7 @@ typedef struct
 {
     app_data_mode_t data_recept_mode;
     bool data_seed_enabled; /* BLE master: csak olvasható energiaadat-megosztás. */
+    char data_seed_pin[7]; /* Hat számjegy; üresen eszközön generált, tartós PIN. */
     app_http_config_t http;
     app_project_config_t project;
     app_wifi_config_t wifi;

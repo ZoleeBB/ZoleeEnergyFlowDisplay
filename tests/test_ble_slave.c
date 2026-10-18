@@ -4,6 +4,7 @@
 #include <string.h>
 #include "app_ble_protocol.h"
 #include "app_events.h"
+#include "app_ble_profile.h"
 
 #define BLE_HS_CONN_HANDLE_NONE 0xffff
 #define BLE_HS_EDONE 14
@@ -15,6 +16,8 @@
 #define BLE_GAP_EVENT_DISCONNECT 3
 #define BLE_GAP_EVENT_DISC_COMPLETE 4
 #define BLE_GAP_EVENT_NOTIFY_RX 5
+#define BLE_GAP_EVENT_ENC_CHANGE 6
+#define BLE_GAP_EVENT_REPEAT_PAIRING 7
 typedef struct
 {
     unsigned value;
@@ -40,6 +43,7 @@ struct ble_gatt_error
 struct ble_gatt_attr
 {
     struct os_mbuf *om;
+    uint16_t offset;
 };
 struct ble_gatt_svc
 {
@@ -91,6 +95,11 @@ struct ble_gap_event
         uint16_t conn_handle, attr_handle;
         struct os_mbuf *om;
     } notify_rx;
+    struct
+    {
+        uint16_t conn_handle;
+        int status;
+    } enc_change;
 };
 typedef int (*gap_cb)(struct ble_gap_event *, void *);
 typedef int (*service_cb)(uint16_t,
@@ -103,7 +112,8 @@ typedef int (*desc_cb)(
 typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_attr *, void *);
 
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
-                           s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}};
+                           s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
+                           s_profile_uuid = {{1004}};
 static bool s_started = true, s_synced = true, scanning;
 static uint8_t s_own_addr_type;
 static char s_address[18] = "01:02:03:04:05:06";
@@ -116,6 +126,35 @@ static unsigned scans, connects, services, characteristics, descriptors, writes,
 static uint16_t requested_value, requested_cccd;
 static int64_t clock_ms;
 static int clock_offset;
+static bool authenticated = true, profile_ready;
+static unsigned security_requests, profile_reads, profile_submits;
+static bool security_authenticated(uint16_t conn)
+{
+    assert(conn == 7);
+    return authenticated;
+}
+static int security_gap_event(struct ble_gap_event *event)
+{
+    (void)event;
+    return 0;
+}
+static int ble_gap_security_initiate(uint16_t conn)
+{
+    assert(conn == 7);
+    security_requests++;
+    return 0;
+}
+bool app_ble_profile_ready(void)
+{
+    return profile_ready;
+}
+bool app_ble_profile_submit(const uint8_t data[APP_BLE_PROFILE_SIZE])
+{
+    (void)data;
+    profile_submits++;
+    profile_ready = true;
+    return true;
+}
 
 int64_t esp_timer_get_time(void)
 {
@@ -238,6 +277,15 @@ static int ble_gattc_read(uint16_t conn, uint16_t handle, attr_cb cb, void *arg)
     ++reads;
     return 0;
 }
+static int
+ble_gattc_read_long(uint16_t conn, uint16_t handle, uint16_t offset, attr_cb cb, void *arg)
+{
+    (void)cb;
+    (void)arg;
+    assert(conn == 7 && handle == 110 && offset == 0);
+    profile_reads++;
+    return 0;
+}
 void app_events_add(app_event_level_t level, const char *fmt, ...)
 {
     (void)level;
@@ -319,6 +367,11 @@ static void connect_link(bool clock_service)
 {
     struct ble_gap_event event = {.type = BLE_GAP_EVENT_CONNECT, .connect = {.conn_handle = 7}};
     slave_gap_event(&event, NULL);
+    assert(security_requests > 0);
+    event.type = BLE_GAP_EVENT_ENC_CHANGE;
+    event.enc_change.conn_handle = 7;
+    event.enc_change.status = 0;
+    slave_gap_event(&event, NULL);
     const struct ble_gatt_svc svc = {100, 110};
     slave_service(7, &ok, &svc, NULL);
     slave_service(7, &done, NULL, NULL);
@@ -331,9 +384,28 @@ static void connect_link(bool clock_service)
                                              BLE_GATT_CHR_PROP_READ | BLE_GATT_CHR_PROP_NOTIFY};
         slave_characteristic(7, &ok, &chr, NULL);
     }
+    const struct ble_gatt_chr profile = {.uuid = {{1004}},
+                                         .def_handle = 109,
+                                         .val_handle = 110,
+                                         .properties = BLE_GATT_CHR_PROP_READ};
+    slave_characteristic(7, &ok, &profile, NULL);
     slave_characteristic(7, &done, NULL, NULL);
     if (!clock_service)
         return;
+    assert(s_profile_reading && !s_slave_ready);
+    unsigned before_clocks = clocks;
+    slave_receive(2, &packets[2]);
+    assert(clocks == before_clocks); /* Profil előtt nincs óraszinkron. */
+    for (unsigned offset = 0; offset < APP_BLE_PROFILE_SIZE; offset += 20)
+    {
+        struct os_mbuf part = {
+            .len = APP_BLE_PROFILE_SIZE - offset < 20 ? APP_BLE_PROFILE_SIZE - offset : 20};
+        struct ble_gatt_attr attr = {.om = &part, .offset = offset};
+        slave_profile_read(7, &ok, &attr, NULL);
+    }
+    slave_profile_read(7, &done, NULL, NULL);
+    slave_poll(now_us);
+    assert(profile_submits > 0 && profile_reads > 0 && !s_profile_waiting);
     for (unsigned i = 0; i < 3; ++i)
     {
         void *arg = (void *)(uintptr_t)i;
@@ -421,6 +493,18 @@ int main(void)
     notify(2);
     assert(terminations == 3 && ingests == 3 && !runtime.has_valid_sample);
     assert(clears >= 4);
+    unsigned before_termination = terminations;
+    s_master = 7;
+    authenticated = false;
+    slave_read_profile();
+    assert(terminations == before_termination + 1);
+    authenticated = true;
+    s_master = 7;
+    s_profile_length = 0;
+    struct os_mbuf invalid_part = {.len = 20};
+    struct ble_gatt_attr invalid_attr = {.om = &invalid_part, .offset = 1};
+    slave_profile_read(7, &ok, &invalid_attr, NULL);
+    assert(terminations == before_termination + 2);
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");
     return 0;

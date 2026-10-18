@@ -264,6 +264,16 @@ static void test_config(void){
     assert(defaults.display.rotation_degrees==270);
     assert(!defaults.data_seed_enabled);
     assert(!defaults.ota.auto_update);
+    const char *pins[]={"\"\"","\"012345\"","\"999999\"","\"12345\"","\"abcdef\"","123456","\"1234567\""};
+    for(unsigned i=0;i<sizeof(pins)/sizeof(pins[0]);i++){
+        const char *pin_path=APP_SD_MOUNT_POINT "/pin-config.json";
+        FILE *f=fopen(pin_path,"wb");assert(f);
+        fprintf(f,"{\"DataReceptMode\":\"slave\",\"DataSeedPin\":%s}",pins[i]);fclose(f);
+        char pin_error[256];app_config_t parsed;
+        esp_err_t rc=app_config_load_file(pin_path,&parsed,pin_error,sizeof(pin_error));
+        assert((i<3)==(rc==ESP_OK));
+        if(i==1)assert(!strcmp(parsed.data_seed_pin,"012345"));
+    }
     for(int enabled=0;enabled<3;enabled++){
         const char *auto_path=APP_SD_MOUNT_POINT "/auto-config.json";
         FILE *f=fopen(auto_path,"wb");assert(f);

@@ -34,7 +34,8 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
 
 A naplóban megjelenik az ellenőrzés, az új verzió letöltése, a siker vagy a hiba.
 Slave módban is használható, **de saját Wi-Fi és internet kell hozzá**; a master
-Bluetooth-kapcsolata nem továbbít firmware-t. A sablonokat, az SD-konfigurációt,
+Wi-Fi-beállítását és auto-update kapcsolóját PIN-es párosítás után automatikusan
+átveszi. A Bluetooth-kapcsolat nem továbbít firmware-t. A sablonokat, az SD-konfigurációt,
 a C6 firmware-t, a bootloadert és a partíciós táblát nem cseréli.
 Ez kizárólag az aktuális 10,1 colos ESP32-P4 firmware frissítési csatornája;
 eltérő hardverhez külön OTA-csatorna szükséges.

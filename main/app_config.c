@@ -316,6 +316,14 @@ static bool parse_config(
     char mode[8] = "mqtt";
     if (!read_bool01(root, "DataSeedEnabled", &cfg->data_seed_enabled, false, error, error_len))
         return false;
+    if (!read_string(root, "DataSeedPin", cfg->data_seed_pin, sizeof(cfg->data_seed_pin), false, true, error, error_len))
+        return false;
+    if (cfg->data_seed_pin[0]) {
+        if (strlen(cfg->data_seed_pin) != 6 || strspn(cfg->data_seed_pin, "0123456789") != 6) {
+            set_error(error, error_len, "A DataSeedPin pontosan hat számjegy vagy üres lehet.");
+            return false;
+        }
+    }
     if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
     if (strcasecmp(mode, "loxone") == 0) cfg->data_recept_mode = APP_DATA_LOXONE;
     else if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;

@@ -7,6 +7,12 @@
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
 #include "src/draw/lv_draw_vector_private.h"
+static app_ble_pairing_status_t pairing_fixture;
+static char submitted_pin[7];
+static unsigned pairing_open_requests;
+void app_ble_pairing_status(app_ble_pairing_status_t *out){*out=pairing_fixture;}
+bool app_ble_pairing_submit(uint32_t token,const char *pin){assert(token==pairing_fixture.token);snprintf(submitted_pin,sizeof(submitted_pin),"%s",pin?pin:"");pairing_fixture.pin_required=false;return true;}
+void app_ble_pairing_open(void){pairing_open_requests++;}
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
@@ -916,9 +922,16 @@ int main(void)
     save_frame("diagnostics-common");
     rt.ble_enabled=rt.ble_master=rt.ble_ready=rt.ble_advertising=true;
     rt.ble_slaves=2;snprintf(rt.ble_address,sizeof(rt.ble_address),"01:02:03:04:05:06");
+    snprintf(s_cfg.data_seed_pin,sizeof(s_cfg.data_seed_pin),"012345");
+    clear();
     render_runtime(rt,sample,true,31000000);
     assert(strcmp(lv_label_get_text(s_diagnostic_values[11]),"2")==0);
     assert(strstr(lv_label_get_text(s_diagnostic_values[8]),"Master"));
+    assert(strstr(lv_label_get_text(s_diagnostic_values[10]),"012345"));
+    assert(s_pair_window_label);
+    lv_obj_send_event(lv_obj_get_parent(s_pair_window_label),LV_EVENT_CLICKED,NULL);
+    assert(pairing_open_requests==1);
+    lv_obj_update_layout(s_screen);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[0]))==32);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[1]))==328);
     save_frame("diagnostics-master");
@@ -941,6 +954,44 @@ int main(void)
     assert(strstr(lv_label_get_text(s_diagnostic_values[11]),"-62"));
     assert(strstr(lv_label_get_text(s_diagnostic_values[13]),"Bluetooth"));
     save_frame("diagnostics-slave");
+    pairing_fixture=(app_ble_pairing_status_t){.pin_required=true,.token=7,.seconds=25};
+    animation_tick(NULL);assert(s_pair_pad);
+    save_frame("slave-pairing-pin");
+    lv_indev_t *pin_input=lv_indev_create();lv_indev_set_type(pin_input,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(pin_input,display);lv_indev_set_read_cb(pin_input,touch_read);
+    lv_obj_update_layout(s_screen);
+    touch_sample_xy(636,580,true);touch_sample_xy(636,580,false);
+    assert(!strcmp(s_pair_digits,"0"));
+    memset(s_pair_digits,0,sizeof(s_pair_digits));pairing_mask_update();
+    touch_sample_xy(120,200,true);touch_sample_xy(120,400,true);touch_sample_xy(120,600,true);touch_sample_xy(120,600,false);
+    assert(s_diagnostics_requested);
+    lv_indev_delete(pin_input);
+    /* Valódi LVGL gombesemények: vezető nulla, törlés, túl hosszú és rövid PIN. */
+    for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+        lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+        if(lv_obj_check_type(child,&lv_button_class)){
+            lv_obj_t *caption=lv_obj_get_child(child,0);
+            const char *text=lv_label_get_text(caption);
+            if(!strcmp(text,"OK"))lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+        }
+    }
+    assert(pairing_fixture.pin_required&&!submitted_pin[0]);
+    for(unsigned digit=0;digit<6;digit++){
+        for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+            lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+            if(!lv_obj_check_type(child,&lv_button_class))continue;
+            const char *caption=lv_label_get_text(lv_obj_get_child(child,0));
+            if(caption[0]==(char)('0'+digit)&&!caption[1])lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+        }
+    }
+    assert(!strcmp(s_pair_digits,"012345"));
+    for(unsigned i=0;i<lv_obj_get_child_count(s_pair_pad);i++){
+        lv_obj_t *child=lv_obj_get_child(s_pair_pad,(int)i);
+        if(lv_obj_check_type(child,&lv_button_class)&&!strcmp(lv_label_get_text(lv_obj_get_child(child,0)),"OK"))
+            lv_obj_send_event(child,LV_EVENT_CLICKED,NULL);
+    }
+    assert(!strcmp(submitted_pin,"012345")&&!s_pair_digits[0]);
+    animation_tick(NULL);assert(!s_pair_pad);
     s_diagnostics_requested=false;render_runtime(rt,sample,true,31000000);
     assert(s_view==VIEW_DASHBOARD); /* Slave Wi-Fi nélkül is normál kijelző. */
     rt.slave_connected=false;render_runtime(rt,sample,true,31000000);

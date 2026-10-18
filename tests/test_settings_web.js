@@ -4,7 +4,7 @@ const nodes=new Map();
 class Element {
  constructor(tag='input'){this.tagName=tag.toUpperCase();this.children=[];this.value='';this.checked=false;this.disabled=false;this.hidden=false;}
  set id(id){this._id=id;nodes.set(id,this);}get id(){return this._id;}
- append(...children){this.children.push(...children);if(this.tagName==='SELECT'&&this.children.length===1)this.value=children[0].value;}
+ append(...children){this.children.push(...children);for(const child of children)child.parentElement=this;if(this.tagName==='SELECT'&&this.children.length===1)this.value=children[0].value;}
  prepend(...children){this.children.unshift(...children);}
  addEventListener(name,callback){this['on'+name]=callback;}
 }

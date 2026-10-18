@@ -27,6 +27,7 @@
 #include "app_loxone.h"
 #include "app_ingest.h"
 #include "app_ota.h"
+#include "app_ble_profile.h"
 #include "app_state.h"
 #include "app_stats.h"
 #include "app_storage.h"
@@ -212,6 +213,9 @@ void app_main(void)
        xTaskCreate(orientation_verified_task,"orientation_ok",3072,NULL,3,NULL)!=pdPASS)
         app_events_add(APP_EVENT_WARNING,"90 fokos kijelző ellenőrző feladat nem indult el.");
 
+    if (app_ble_profile_init(&s_config) != ESP_OK &&
+        (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
+        fatal_forever("Bluetooth profilhiba", "A párosítási profil nem inicializálható.");
     app_state_set_data_mode(s_config.data_recept_mode);
     app_state_set_config_ok(true);
     app_ui_set_config(&s_config);
@@ -225,7 +229,7 @@ void app_main(void)
     const bool slave = s_config.data_recept_mode == APP_DATA_SLAVE;
     /* Slave esetén a Wi-Fi csak opcionális web/OTA kapcsolat, nem bootfeltétel. */
     app_ui_show_boot(APP_BOOT_WIFI, NULL);
-    err = (!slave || s_config.wifi.ssid[0]) ? app_wifi_start(&s_config) : ESP_OK;
+    err = !slave ? app_wifi_start(&s_config) : ESP_OK;
     if (err != ESP_OK && !slave) {
         fatal_forever(
             cfg_tr("Wi-Fi inicializálási hiba", "Wi-Fi initialization error"),
@@ -263,6 +267,11 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(250));
             app_state_get_runtime(&runtime);
         } while (!runtime.time_synced);
+        /* Az óracsomag csak a hitelesített profil tartós átvétele után érkezhet. */
+        app_ble_profile_apply(&s_config);
+        app_ui_set_config(&s_config);
+        if (s_config.wifi.ssid[0] && app_wifi_start(&s_config) != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "Az átvett Slave Wi-Fi nem indult el.");
     }
     while (!slave && (err = app_time_sync_once()) != ESP_OK) {
         char message[160];
@@ -347,6 +356,7 @@ void app_main(void)
             cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
     }
     app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+    if (slave) app_ble_profile_boot_complete();
 
     /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */
     while (true) {

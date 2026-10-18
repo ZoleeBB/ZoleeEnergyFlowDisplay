@@ -1,6 +1,7 @@
 {
   "DataReceptMode": "mqtt",
   "DataSeedEnabled": 0,
+  "DataSeedPin": "",
   "project": {
     "title": "Otthoni energia",
     "language": "hu",

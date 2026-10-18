@@ -6,6 +6,20 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='zolee-ble-profile-') as directory:
+    binary = str(Path(directory) / 'test_ble_profile')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/ble_profile_stubs', '-Itests/ota_stubs', '-Itests/stubs', '-Imain',
+                    'tests/test_ble_profile.c', 'main/app_ble_profile_model.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ble-security-') as directory:
+    binary = str(Path(directory) / 'test_ble_security')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain', 'tests/test_ble_security.c',
+                    'main/app_ble_profile_model.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-auto-ota-') as directory:
     binary = str(Path(directory) / 'test_ota_auto')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',

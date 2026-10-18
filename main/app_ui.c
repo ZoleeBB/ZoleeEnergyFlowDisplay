@@ -6,6 +6,7 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#include "app_ble_seed.h"
 #include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
@@ -97,6 +98,9 @@ static app_diagnostics_t s_diagnostics;
 static lv_obj_t *s_diagnostic_bars[3];
 static bool s_diagnostics_requested;
 static lv_obj_t *s_diagnostic_values[14], *s_diagnostic_log[15];
+static lv_obj_t *s_pair_pad, *s_pair_mask, *s_pair_countdown, *s_pair_window_label;
+static char s_pair_digits[7];
+static uint32_t s_pair_ui_token;
 /* A meglévő RAM-napló másolata; nem a runtime task vermén tároljuk. */
 static app_event_entry_t s_diagnostic_events[15];
 static size_t s_diagnostic_event_count;
@@ -300,6 +304,8 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 static void clear(void)
 {
     lv_obj_clean(s_screen);
+    s_pair_pad = s_pair_mask = s_pair_countdown = s_pair_window_label = NULL;
+    memset(s_pair_digits, 0, sizeof(s_pair_digits));
     s_dash = NULL;
     s_dash_created = false;
     s_error_pulse = NULL;
@@ -1320,10 +1326,13 @@ static void update_flows(const app_energy_sample_t *s, float dt)
     }
 }
 
+#include "app_ble_pin_ui.inc"
+
 /* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
+    if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
     if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
     {
@@ -1884,6 +1893,9 @@ static void loxone_screen(runtime_view_t view)
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    app_ble_pairing_status_t pairing;
+    app_ble_pairing_status(&pairing);
+    if (pairing.pin_required) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
         had_loxone_connection = true;

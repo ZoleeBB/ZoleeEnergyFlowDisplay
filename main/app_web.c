@@ -40,6 +40,7 @@
 #include "app_stats.h"
 #include "app_wifi.h"
 #include "app_ota.h"
+#include "app_ble_seed.h"
 
 static const char *TAG = "web";
 

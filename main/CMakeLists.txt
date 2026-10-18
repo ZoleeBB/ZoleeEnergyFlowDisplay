@@ -39,6 +39,8 @@ idf_component_register(
         "app_main.c"
         "app_ble_seed.c"
         "app_ble_protocol.c"
+        "app_ble_profile.c"
+        "app_ble_profile_model.c"
         "app_diagnostics.c"
         "app_display.c"
         "app_assets.c"

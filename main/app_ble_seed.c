@@ -9,6 +9,7 @@
 #include "app_events.h"
 #include "app_time.h"
 #include "app_ingest.h"
+#include "app_ble_profile.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -21,6 +22,11 @@
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
 #include "host/util/util.h"
+#include "host/ble_sm.h"
+#include "host/ble_store.h"
+#include "store/config/ble_store_config.h"
+/* Az IDF NimBLE config-store init hookját a publikus fejléc nem deklarálja. */
+void ble_store_config_init(void);
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_npl.h"
 #include "services/gap/ble_svc_gap.h"
@@ -52,6 +58,7 @@ static const ble_uuid128_t s_service_uuid = SEED_UUID(0x00);
 static const ble_uuid128_t s_energy_uuid = SEED_UUID(0x01);
 static const ble_uuid128_t s_weather_uuid = SEED_UUID(0x02);
 static const ble_uuid128_t s_clock_uuid = SEED_UUID(0x03);
+static const ble_uuid128_t s_profile_uuid = SEED_UUID(0x04);
 static app_config_t s_config;
 static bool s_started;
 static bool s_synced;
@@ -89,6 +96,8 @@ static bool slave_mode(void)
 
 static void diagnostics_update(void);
 
+#include "app_ble_security.inc"
+
 /* Az ESP-IDF 5.5 NimBLE már kéri ezt a lezáró hookot, az ESP-Hosted 1.4.7
  * viszont csak ll_init-et ad. A közös SDIO buszt itt nem zárhatjuk le,
  * mert a Wi-Fi akkor is használja, ha a BLE host inicializálása meghiúsul. */
@@ -96,7 +105,7 @@ void ble_transport_ll_deinit(void)
 {
 }
 
-/* Nincs GATT írás, hitelesítés, párosítás vagy kulcstárolás. */
+/* A nyilvános mérési karakterisztikák nem tartalmaznak Wi-Fi-t vagy PIN-t. */
 static int read_packet(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     (void)conn;
@@ -107,6 +116,21 @@ static int read_packet(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt
     return os_mbuf_append(ctxt->om, s_packets[packet], APP_BLE_PACKET_SIZE) == 0
              ? 0
              : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
+static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)attr;
+    (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR)
+        return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
+    if (!security_authenticated(conn))
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    uint8_t profile[APP_BLE_PROFILE_SIZE];
+    app_ble_profile_encode(&s_config, profile);
+    int rc = os_mbuf_append(ctxt->om, profile, sizeof(profile));
+    memset(profile, 0, sizeof(profile));
+    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
 static const struct ble_gatt_svc_def s_services[] = {
@@ -135,6 +159,13 @@ static const struct ble_gatt_svc_def s_services[] = {
                     .arg = (void *)(uintptr_t)2,
                     .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
                     .val_handle = &s_handles[2],
+                },
+                {
+                    .uuid = &s_profile_uuid.u,
+                    .access_cb = read_profile,
+                    .flags =
+                        BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                    .min_key_size = 16,
                 },
                 {0},
             },
@@ -256,6 +287,7 @@ static void poll_state(struct ble_npl_event *event)
 {
     (void)event;
     int64_t now = esp_timer_get_time();
+    security_poll(now);
     if (!s_synced && !s_sync_warning_reported && now - s_sync_wait_started_us >= 15000000)
     {
         s_sync_warning_reported = true;
@@ -290,6 +322,9 @@ static void poll_state(struct ble_npl_event *event)
 static int gap_event(struct ble_gap_event *event, void *arg)
 {
     (void)arg;
+    int security_result = security_gap_event(event);
+    if (event->type == BLE_GAP_EVENT_REPEAT_PAIRING)
+        return security_result;
     switch (event->type)
     {
         case BLE_GAP_EVENT_CONNECT:
@@ -345,6 +380,8 @@ static int gap_event(struct ble_gap_event *event, void *arg)
 
 static void on_reset(int reason)
 {
+    security_clear_request(s_pin_connection);
+    atomic_store(&s_window_end, 0);
     if (s_synced)
         s_sync_wait_started_us = esp_timer_get_time();
     s_synced = false;
@@ -399,9 +436,25 @@ static void host_task(void *arg)
     }
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;
-    ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
-    ble_hs_cfg.sm_bonding = 0;
-    ble_hs_cfg.sm_mitm = 0;
+    ble_hs_cfg.sm_io_cap = slave_mode() ? BLE_HS_IO_KEYBOARD_ONLY : BLE_HS_IO_DISPLAY_ONLY;
+    ble_hs_cfg.sm_bonding = 1;
+    ble_hs_cfg.sm_mitm = 1;
+    ble_hs_cfg.sm_sc = 1;
+    ble_hs_cfg.sm_sc_only = 1;
+    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_store_config_init();
+    if (!slave_mode() && app_ble_profile_pin_changed())
+    {
+        if (ble_store_clear() != 0 || app_ble_profile_confirm_pin() != ESP_OK)
+        {
+            app_events_add(APP_EVENT_ERROR,
+                           "A BLE PIN/kulcstároló nem frissíthető; BLE leállítva.");
+            (void)nimble_port_deinit();
+            vTaskDelete(NULL);
+            return;
+        }
+    }
     ble_svc_gap_init();
     ble_svc_gatt_init();
     int rc = ble_svc_gap_device_name_set(APP_BLE_SEED_NAME);
@@ -437,6 +490,9 @@ static void host_task(void *arg)
 esp_err_t app_ble_seed_start(const app_config_t *cfg)
 {
     if (!cfg)
+        return ESP_ERR_INVALID_ARG;
+    if (cfg->data_seed_enabled &&
+        (strlen(cfg->data_seed_pin) != 6 || strspn(cfg->data_seed_pin, "0123456789") != 6))
         return ESP_ERR_INVALID_ARG;
     if (!cfg->data_seed_enabled && cfg->data_recept_mode != APP_DATA_SLAVE)
         return ESP_OK;

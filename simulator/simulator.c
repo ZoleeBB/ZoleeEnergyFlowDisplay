@@ -15,6 +15,9 @@ static struct tm *localtime_r(const time_t *t, struct tm *out)
 #endif
 #include "../main/app_ui.c"
 #include "app_ingest.h"
+void app_ble_pairing_status(app_ble_pairing_status_t *out){memset(out,0,sizeof(*out));}
+bool app_ble_pairing_submit(uint32_t token,const char *pin){(void)token;(void)pin;return false;}
+void app_ble_pairing_open(void){}
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];

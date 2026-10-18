@@ -15,8 +15,10 @@ Mentés után a szokásos szabályozott újraindítás alkalmazza a változást.
 - Óra karakterisztika: `8b7e1003-6c8a-4f57-9b2e-5d1a7c0e9f30`.
 - Mindhárom karakterisztika READ + NOTIFY, nincs alkalmazásadat-írás.
 - A CCCD-re a szokásos `01 00` írás kapcsolja be az adott értesítéseket.
-- Nincs párosítás, bonding, PIN vagy titkosítás. A közelben bárki olvashatja a méréseket.
-  Konfiguráció, hálózati hitelesítő adatok és jelszavak nem szerepelnek a csomagokban.
+- A három mérési karakterisztika nyilvánosan olvasható; jelszó nincs bennük.
+- A **1004** karakterisztika külön, PIN-nel hitelesített és titkosított Wi-Fi/OTA profilt ad.
+  LE Secure Connections, MITM, bonding és 16 bájtos kulcs szükséges hozzá;
+  Just Works, legacy pairing és rövid kulcs nem fogadható el.
 - A host legfeljebb három kapcsolatot kezel; a tényleges határt a C6 vezérlő firmware-e is korlátozhatja.
 - Kapcsolódás után szabad kapacitás esetén folytatódik a hirdetés; bontás után újraindul.
 
@@ -30,21 +32,25 @@ A kisebb S3 kijelzők külön firmware-e későbbi fejlesztés.
 A Beállításokban válaszd a **Slave (Bluetooth)** adatfogadási módot. Minimális
 SD `config.json`: `{"DataReceptMode":"slave"}`. Nincs szükség SSID-re, brokerre,
 HTTP- vagy Loxone-beállításokra, NTP-kiszolgálóra vagy kézi időzónára. Ezeket a
-felület Slave módban elrejti, illetve a Wi-Fi-t opcionálisként jelöli.
+felület Slave módban elrejti, illetve a Wi-Fi/masterfüggő működését megjelöli.
 Az SD, a helyi sablonok és a statisztikai tárhely továbbra is szükségesek.
 
 A slave az első megtalált, megfelelő UUID-t hirdető masterhez kapcsolódik.
+Először titkosított párosítást végez, majd hosszú GATT-olvasással átveszi a 1004
+Wi-Fi/OTA profilt. Csak sikeres, tartós NVS-mentés után dolgoz fel órát/adatot.
 Felderíti az energia-, időjárás- és órakarakterisztikát, feliratkozik mindháromra,
-és azonnali kiolvasást is kér. A 1003 órakarakterisztika nélkül a régi master
-nem kompatibilis ezzel a Slave móddal; előbb a mastert is frissíteni kell.
+és azonnali kiolvasást is kér. A **1003 és 1004** karakterisztika nélküli régi master
+nem kompatibilis ezzel a PIN-es Slave móddal; előbb a mastert is frissíteni kell.
 Kapcsolatvesztéskor törli a kijelzett érvényes mintát, és automatikusan újrakeres.
 Legfeljebb 5 s-os keresési ablakot és 3 s-os újrapróbálkozási szünetet használ.
-A felderítés/első adat határideje 15 s, a csatlakozásé 8 s.
+A felderítés/első adat határideje 15 s, a csatlakozásé 8 s; a párosításra külön
+45 s-os indulási határidő jut, a megjelenő PIN-pad 28 s-ig vár bevitelt.
 
-Ha megtartod vagy megadod a Wi-Fi SSID-t, a webes beállítások és OTA is
-elérhetők maradnak. Wi-Fi-hiba nem állítja meg a slave indulását vagy a kijelzést.
-Üres SSID esetén nincs hálózati webes elérés; beállításváltás SD-n, frissítés USB-n
-lehetséges. Slave módban az Adat seed kapcsoló kikapcsolt és letiltott;
+A Wi-Fi SSID/jelszó és az automatikus frissítés állapota a párosított mastertől
+származik. A master statikus IP-jét, adminjelszavát, NTP/MQTT/Loxone beállításait
+nem másoljuk át: a slave **DHCP-vel saját IP-t kap**. A webes felület és az OTA
+ezen a saját Wi-Fi-kapcsolaton használható, a Bluetooth nem internetátjáró.
+Wi-Fi-hiba nem állítja meg a slave kijelzését. Slave módban az Adat seed kapcsoló kikapcsolt és letiltott;
 egyszerre fogadás/továbbítás nem engedett, így nem alakulhat ki adattovábbítási hurok.
 
 Az óra a master UTC idejét és aktuális helyi UTC-eltolását követi, beleértve
@@ -58,6 +64,69 @@ szerep, saját cím, master címe vagy `ZoleeEnergy` név, keresés/hirdetés/ka
 slave jelerősség, master kapcsolatszám és NTP/BT időszinkron is megjelenik.
 A master számlálója minden tényleges BLE-kapcsolatot számol, így egy telefonos
 BLE scanner kapcsolata is beleszámít. A webes `/api/diagnostics` ugyanezt az állapotot adja.
+
+## PIN-es párosítás és beállításöröklés
+
+1. A masteren kapcsold be az Adat seed funkciót. A `DataSeedPin` opcionális,
+   pontosan hat számjegyű szöveg, például `"012345"`; üresen véletlen, eszközön
+   tartósan megjegyzett PIN generálódik. A vezető nullák számítanak.
+2. A master **helyi diagnosztikáján** a „BT név / párosítási PIN” mezőből olvasd le
+   a PIN-t. Nyomd meg a **Párosítás engedélyezése (2 perc)** gombot. Ez a webes
+   Bluetooth-beállításokban is elérhető, a szokásos adminhitelesítéssel.
+3. A slave kijelzőjén megjelenő számbillentyűzeten írd be a kódot, majd OK.
+   Törlés, Mégsem, vezető nulla, maszkolt bevitel és időtúllépés támogatott.
+   PIN-bevitel alatt a témalapozó/diagnosztikai gesztusok nem működnek.
+4. A sikeres párosítási kulcsok NVS-ben maradnak: újraindításkor nincs új PIN-kérés
+   vagy párosítási ablakigény. Új eszköz zárt ablakban nem párosítható.
+
+Legfeljebb három bond tárolható; öt PIN-próba után újra meg kell nyitni az ablakot.
+Kulcsot újrapárosításhoz csak szándékosan megnyitott masterablakban törlünk;
+a slave hibás titkosítás-visszaállításkor eldobja a saját érvénytelen bondját,
+így a következő próbán ismét PIN-nel kell hitelesíteni. **Master PIN-váltás
+minden korábbi bondot töröl**, a már korábban átadott Wi-Fi-jelszót azonban nem
+tudja visszavonni; elveszett slave esetén a Wi-Fi-jelszót is változtasd meg.
+
+A slave 30 másodpercenként, védett kapcsolaton újraolvassa a masterprofilt.
+Változatlan adat nem írja újra a flash-t. Módosult SSID/jelszó vagy auto-update
+kapcsoló esetén tartós profilt ment, majd statisztikamentés és az OTA kizáró
+zárjának megszerzése után újraindul. A master kapcsolóját mindkét irányban követi.
+A profilt induláskor a helyi konfiguráció fölé alkalmazza; a kapcsolót a webes
+Slave-beállításokban ezért nem lehet kézzel állítani. A mastertől nem kap admin-
+jelszót: a slave webes hozzáférését külön védd, ha erre szükség van.
+
+A PIN fizikailag leolvasható a masterről: a kijelzők fizikai hozzáférése bizalmi
+határ. Nincs PIN/jelszó az eseménynaplóban vagy a nyilvános mérési csomagokban.
+Az opcionális webes adminhitelesítést a masteren is célszerű beállítani:
+üres adminadatokkal a helyi hálózaton a PIN-beállítás és a párosításnyitás nem védett.
+Az NVS-tárolás önmagában **nem jelent flash-titkosítást**; fizikai kiolvasás ellen
+Secure Boot/Flash Encryption külön gyártási beállítása szükséges. A személyes
+NVS-profil nem kerül a repóba vagy automatikusan az SD-re.
+
+### 1004 védett profil (102 bájt)
+
+| Offset | Tartalom |
+|---|---|
+| 0–1 | ASCII `ZB` |
+| 2 | Verzió: 1 |
+| 3 | Master automatikus frissítése: 0/1 |
+| 4–5 | SSID és jelszó bájthossza (1–32, illetve 0–64) |
+| 6–37 | SSID, nullával kitöltve |
+| 38–101 | Wi-Fi-jelszó, nullával kitöltve |
+
+Nincs szükség nagy MTU-ra: a kliens sorrend- és méretellenőrzött hosszú ATT-olvasást
+végez. Titkosítatlan olvasáskor a GATT jogosultság és a callback is elutasítja a kérést.
+
+### Hardveres párosítási elfogadási próba
+
+- Mindkét eszközön az új firmware fusson, megfelelő C6 Bluetooth HCI-támogatással.
+- Zárt ablak, hibás PIN, lejárt bevitel és titkosítatlan 1004 olvasás legyen elutasítva.
+- Nyitott ablakban helyes, vezető nullás PIN-nel történjen SC/MITM/bonding;
+  újraindítás és kapcsolatvesztés után ne kelljen ismét PIN.
+- A slave kapjon saját DHCP-címet. Master Wi-Fi/auto-update módosítását
+  legfeljebb a következő profilolvasás és mentés utáni újraindítás alkalmazza.
+- PIN-váltás után a korábbi slave új PIN nélkül ne kaphasson új hálózati profilt.
+- Három valós slave, nagy témák és Wi-Fi/OTA együttes használata ne okozzon
+  watchdogot, SD-mentési hibát vagy hostverem-kimerülést.
 
 ## Adatfolyam és frissesség
 

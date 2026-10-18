@@ -12,8 +12,10 @@ Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás
 
 Az új **Slave (Bluetooth)** adatfogadási mód automatikusan mastert keres,
 és onnan kapja az energiaadatokat és az időszinkront, Wi-Fi/NTP-beállítás nélkül is.
-A Wi-Fi opcionális marad webes kezeléshez/OTA-hoz. A kétoszlopos diagnosztika
-a BT-szerepet, címeket, kapcsolatot, jelerősséget és masterként a kapcsolódó slave-ek számát is mutatja.
+A slave az első csatlakozáskor érintős PIN-padot mutat, majd titkosítva átveszi
+a master Wi-Fi-jét és automatikusfrissítés-kapcsolóját. A kétoszlopos diagnosztika
+a BT-szerepet, címeket, kapcsolatot, jelerősséget, masterként a kapcsolódó slave-ek
+számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablaka itt nyitható meg.
 
 ## Első indítás
 

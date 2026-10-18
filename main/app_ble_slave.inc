@@ -7,6 +7,12 @@ static uint16_t s_master = BLE_HS_CONN_HANDLE_NONE;
 static bool s_connecting, s_slave_ready;
 static uint16_t s_service_start, s_service_end;
 static uint16_t s_remote_values[3], s_remote_defs[3], s_cccd;
+static uint16_t s_remote_profile;
+static bool s_profile_reading, s_profile_waiting;
+static bool s_profile_accepted;
+static size_t s_profile_length;
+static uint8_t s_slave_profile[APP_BLE_PROFILE_SIZE];
+static int64_t s_profile_next_read;
 static unsigned s_setup_packet;
 static uint8_t s_received[3][APP_BLE_PACKET_SIZE];
 static bool s_received_valid[3];
@@ -46,6 +52,11 @@ static void slave_reset(void)
     s_service_start = s_service_end = 0;
     memset(s_remote_values, 0, sizeof(s_remote_values));
     memset(s_remote_defs, 0, sizeof(s_remote_defs));
+    s_remote_profile = 0;
+    s_profile_reading = s_profile_waiting = false;
+    s_profile_accepted = false;
+    s_profile_length = 0;
+    memset(s_slave_profile, 0, sizeof(s_slave_profile));
     memset(s_received_valid, 0, sizeof(s_received_valid));
     s_master_address[0] = 0;
     s_master_rssi = 0;
@@ -68,6 +79,54 @@ static void slave_fail(const char *stage, int status)
     /* Az aszinkron callbackek a régi connection handle-lel már nem írhatnak. */
     slave_reset();
     slave_diagnostics();
+}
+
+static int slave_profile_read(uint16_t conn,
+                              const struct ble_gatt_error *error,
+                              struct ble_gatt_attr *attr,
+                              void *arg)
+{
+    (void)arg;
+    if (conn != s_master)
+        return 0;
+    if (error->status == 0 && attr)
+    {
+        size_t length = OS_MBUF_PKTLEN(attr->om);
+        if (attr->offset != s_profile_length ||
+            length > sizeof(s_slave_profile) - s_profile_length ||
+            os_mbuf_copydata(attr->om, 0, length, s_slave_profile + s_profile_length) != 0)
+        {
+            slave_fail("hibás védett profilrészlet", -1);
+            return 0;
+        }
+        s_profile_length += length;
+    }
+    else if (error->status == BLE_HS_EDONE && security_authenticated(conn) &&
+             s_profile_length == sizeof(s_slave_profile) && app_ble_profile_submit(s_slave_profile))
+    {
+        memset(s_slave_profile, 0, sizeof(s_slave_profile));
+        s_profile_reading = false;
+        s_profile_waiting = true;
+        s_profile_next_read = esp_timer_get_time() + 30000000;
+    }
+    else
+    {
+        slave_fail("védett profil nem olvasható", error->status);
+    }
+    return 0;
+}
+
+static void slave_read_profile(void)
+{
+    if (!security_authenticated(s_master))
+    {
+        slave_fail("a profilhoz hitelesítés kell", -1);
+        return;
+    }
+    s_profile_length = 0;
+    s_profile_reading = true;
+    if (ble_gattc_read_long(s_master, s_remote_profile, 0, slave_profile_read, NULL))
+        slave_fail("védett profilolvasás nem indítható", -1);
 }
 
 static void slave_try_frame(int64_t now)
@@ -114,6 +173,8 @@ static void slave_try_frame(int64_t now)
 
 static void slave_receive(unsigned packet, const struct os_mbuf *om)
 {
+    if (!s_profile_accepted || !security_authenticated(s_master))
+        return;
     if (packet >= 3 || OS_MBUF_PKTLEN(om) != APP_BLE_PACKET_SIZE)
         return;
     if (os_mbuf_copydata(om, 0, APP_BLE_PACKET_SIZE, s_received[packet]) != 0)
@@ -246,6 +307,9 @@ static int slave_characteristic(uint16_t conn,
     if (error->status == 0)
     {
         const ble_uuid128_t *uuids[] = {&s_energy_uuid, &s_weather_uuid, &s_clock_uuid};
+        if (ble_uuid_cmp(&chr->uuid.u, &s_profile_uuid.u) == 0 &&
+            (chr->properties & BLE_GATT_CHR_PROP_READ))
+            s_remote_profile = chr->val_handle;
         for (unsigned i = 0; i < 3; ++i)
         {
             if (ble_uuid_cmp(&chr->uuid.u, &uuids[i]->u) == 0 &&
@@ -260,8 +324,12 @@ static int slave_characteristic(uint16_t conn,
     else if (error->status == BLE_HS_EDONE && s_remote_values[0] && s_remote_values[1] &&
              s_remote_values[2])
     {
-        s_setup_packet = 0;
-        slave_setup_next();
+        if (!s_remote_profile)
+        {
+            slave_fail("a master nem támogat PIN-es profilátadást", -1);
+            return 0;
+        }
+        slave_read_profile();
     }
     else
     {
@@ -300,6 +368,9 @@ static int slave_service(uint16_t conn,
 static int slave_gap_event(struct ble_gap_event *event, void *arg)
 {
     (void)arg;
+    int security_result = security_gap_event(event);
+    if (event->type == BLE_GAP_EVENT_REPEAT_PAIRING)
+        return security_result;
     switch (event->type)
     {
         case BLE_GAP_EVENT_DISC:
@@ -342,6 +413,18 @@ static int slave_gap_event(struct ble_gap_event *event, void *arg)
                 break;
             }
             s_master = event->connect.conn_handle;
+            s_setup_deadline_us = esp_timer_get_time() + 45000000;
+            if (ble_gap_security_initiate(s_master))
+                slave_fail("hitelesítés nem indítható", -1);
+            break;
+        case BLE_GAP_EVENT_ENC_CHANGE:
+            if (event->enc_change.conn_handle != s_master)
+                break;
+            if (event->enc_change.status || !security_authenticated(s_master))
+            {
+                slave_fail("PIN/titkosítás ellenőrzése sikertelen", -1);
+                break;
+            }
             s_setup_deadline_us = esp_timer_get_time() + 15000000;
             if (ble_gattc_disc_svc_by_uuid(s_master, &s_service_uuid.u, slave_service, NULL))
                 slave_fail("szolgáltatáskeresés nem indítható", -1);
@@ -383,6 +466,18 @@ static void slave_poll(int64_t now)
 {
     if (s_master != BLE_HS_CONN_HANDLE_NONE)
     {
+        if (s_profile_waiting && app_ble_profile_ready())
+        {
+            s_profile_waiting = false;
+            if (!s_slave_ready)
+            {
+                s_profile_accepted = true;
+                s_setup_packet = 0;
+                slave_setup_next();
+            }
+        }
+        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && now >= s_profile_next_read)
+            slave_read_profile();
         if ((!s_slave_ready && now >= s_setup_deadline_us) ||
             (s_slave_ready &&
              (now - s_last_frame_us >= 15000000 ||
