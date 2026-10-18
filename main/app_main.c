@@ -269,7 +269,6 @@ void app_main(void)
         } while (!runtime.time_synced);
         /* Az óracsomag csak a hitelesített profil tartós átvétele után érkezhet. */
         app_ble_profile_apply(&s_config);
-        app_ui_set_config(&s_config);
         if (s_config.wifi.ssid[0] && app_wifi_start(&s_config) != ESP_OK)
             app_events_add(APP_EVENT_WARNING, "Az átvett Slave Wi-Fi nem indult el.");
     }
