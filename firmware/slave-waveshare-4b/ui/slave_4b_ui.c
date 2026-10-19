@@ -44,6 +44,51 @@ static lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h)
     return object;
 }
 
+static void text_shadow(lv_event_t *event)
+{
+    /* A betűket rajzoljuk újra 1 pixeles eltolással, nem a felirat dobozát.
+     * A szín a tényleges szövegszínt követi, így a teljesítményértékek
+     * színváltása és a nappali/éjjeli mód sem igényel második feliratot. */
+    lv_obj_t *object = lv_event_get_current_target(event);
+    bool opaque_background = lv_obj_get_style_bg_opa(object, LV_PART_MAIN) != LV_OPA_TRANSP;
+    bool after_main = lv_event_get_code(event) == LV_EVENT_DRAW_MAIN_END;
+    if (opaque_background != after_main)
+        return;
+    lv_draw_label_dsc_t shadow;
+    lv_draw_label_dsc_init(&shadow);
+    shadow.base.layer = lv_event_get_layer(event);
+    lv_obj_init_draw_label_dsc(object, LV_PART_MAIN, &shadow);
+    shadow.text = lv_label_get_text(object);
+    shadow.flag = LV_TEXT_FLAG_EXPAND;
+    lv_area_t area;
+    lv_obj_get_content_coords(object, &area);
+    lv_text_get_size(&shadow.text_size, shadow.text, shadow.font,
+                     shadow.letter_space, shadow.line_space,
+                     lv_area_get_width(&area), shadow.flag);
+    lv_color_t foreground = shadow.color;
+    lv_opa_t foreground_opa = shadow.opa;
+    shadow.color = lv_color_hex(lv_color_luminance(shadow.color) < 130
+                                  ? 0xF4FAFF : 0x001020);
+    shadow.opa = (lv_opa_t)((unsigned)shadow.opa * 85 / 100);
+    area.x1++;
+    area.x2++;
+    area.y1++;
+    area.y2++;
+    lv_draw_label(shadow.base.layer, &shadow, &area);
+    if (after_main)
+    {
+        /* Saját hátterű diagnosztikai feliratnál a háttér után rajzolunk,
+         * majd visszatesszük a fő betűréteget az árnyék elé. */
+        area.x1--;
+        area.x2--;
+        area.y1--;
+        area.y2--;
+        shadow.color = foreground;
+        shadow.opa = foreground_opa;
+        lv_draw_label(shadow.base.layer, &shadow, &area);
+    }
+}
+
 static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y,
                        int width, const lv_font_t *font)
 {
@@ -53,6 +98,8 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y,
     lv_obj_set_style_text_font(object, font, 0);
     lv_label_set_long_mode(object, LV_LABEL_LONG_CLIP);
     lv_label_set_text(object, text);
+    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_BEGIN, NULL);
+    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_END, NULL);
     return object;
 }
 
