@@ -74,3 +74,19 @@ A korábbi fix 1024-es puffer nem fedte le a letöltő által megengedett
 URL-hosszt. Ez javított lehetséges hibaforrás; a konkrét eszközhibát az új
 naplóval lehet bizonyítani. Az URL hossza és a TX-puffer mérete naplózott,
 a signed URL tartalma továbbra sem kerül naplóba.
+
+## TLS-olvasási hiba a SHA256-listánál
+
+Az ESP-IDF 5.5.4 `0x801d` kódja `ESP_ERR_MBEDTLS_SSL_READ_FAILED`,
+tehát a már megnyitott TLS-kapcsolat adatolvasása hibázott. Ez önmagában
+nem bizonyít memóriahiányt, a `cert=0` pedig nem jelez tanúsítványhibát.
+A képernyőképen a release API 200-as válasza és annak teljes letöltése
+sikerült; a következő, SHA256SUMS.txt-hez nyitott kapcsolat hibázott.
+
+A TLS alapértelmezett belső RAM-foglalása a nagy PSRAM szabad területét
+nem használta. Mindkét kijelzőprofil most a támogatott
+`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` módot kéri, hogy a TLS-pufferek
+a PSRAM-ból foglaljanak, több belső RAM-ot hagyva a Wi-Fi-nek és DMA-nak.
+A hálózati hiba utáni memóriaállapot is naplózott, hogy a tényleges
+eszközteszt ezt az okot megerősíthesse vagy kizárhassa. A változtatás
+nem kapcsolja ki a TLS-, tanúsítvány- vagy firmware-ellenőrzést.

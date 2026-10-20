@@ -460,6 +460,7 @@ int main(void)
         assert(strstr(logs, stage) && strstr(logs, "kód=28675"));
         assert(strstr(logs, "errno=110") && strstr(logs, "TLS=0x800d"));
         assert(strstr(logs, "mbedTLS=-9984") && strstr(logs, "cert=0x4"));
+        assert(strstr(strstr(logs, "OTA hálózat"), "OTA RAM"));
         assert(!begins && !boots && !restarts);
     }
     reset();

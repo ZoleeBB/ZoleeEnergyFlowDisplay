@@ -77,6 +77,9 @@ static void network_error(esp_http_client_handle_t client, ota_trace_t *trace,
                    "OTA hálózat [%s]: errno=%d; TLS=0x%x; mbedTLS=%d; cert=0x%x",
                    trace->stage, esp_http_client_get_errno(client),
                    (unsigned)tls, tls_code, (unsigned)flags);
+    /* A titkosító/DMA alréteg általános -1 kódot is adhat memóriahiánynál.
+     * Ezért a hiba pillanatát is mérjük, nem csak a kapcsolódás előtti állapotot. */
+    ota_memory(trace->stage);
 }
 
 static void ota_stage(ota_trace_t *trace, const char *stage)
