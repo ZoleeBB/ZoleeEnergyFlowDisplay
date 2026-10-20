@@ -24,6 +24,7 @@
 | D06 | Éjjel elsötétített Slave jelenlétjelre felébred, majd az utolsó jel után a beállított timeout végén újra elsötétedik. |
 | D07 | Nyugodt otthon és Energiakör teljes újratervezése; régi azonosító és sorrend megmarad. Látványtervek külön egyeztetendők. |
 | D08 | Minden új fogyasztói ikon 96×96 px. Master teljes képernyős háttér 1280×800 px; esetleges Slave háttér 720×720 px. Nagy generálási forrásképek ne kerüljenek a repóba. |
+| D10 | Slave nappal folyamatosan a saját beállított nappali fényerején világít. Éjjel az engedélyezett elsötétítés mellett sötét; jelenlétre a saját beállított éjszakai fényerejére ébred, timeout után újra sötét. |
 | D09 | Jól tagolt forrás, magyar kommentek; firmware/RAM/PSRAM korlátok és a már működő adatfogadás/animáció védelme. |
 
 ## Követelmények – fogyasztói oldal
@@ -100,7 +101,8 @@
 - Slave-enként jelenlétjel-párosítás, timeout és éjszakai elsötétítés kapcsoló.
 - Impulzusos jelenlét újraindítja az időzítőt; tartós aktív jel ne eredményezzen téves elsötétítést.
 - D06: éjszakai jelenlét felébreszt; utolsó jel/aktív állapot vége után timeouttal ismét sötét.
-- Érintéses ébresztés, kapcsolatvesztés és nappali viselkedés végleges szemantikája még tisztázandó.
+- D10: nappal a jelenlét hiánya nem sötétít; folyamatos saját nappali fényerő. Éjjel jelenlétre saját éjszakai fényerő, timeout után teljes elsötétítés. A Slave saját fényerőértékeit nem írhatja felül a Master pillanatnyi kijelzőfényereje.
+- Érintéses ébresztés és kapcsolatvesztés végleges szemantikája még tisztázandó.
 - Szükséges profil/időzítés minimális állapota BLE-n; új kártyák vezérlése nem kerül a Slave-re.
 - PIN/MITM/bonding és a Wi-Fi/OTA profil meglévő védelme nem gyengülhet.
 - Visszafelé kompatibilitás és régi Master/Slave viselkedés dokumentálandó.
@@ -180,7 +182,16 @@ Forrásfelmérés:
 Még nincs: tartós home-konfigurációmentés, webes szerkesztő, élő állapottár,
 parancsküldés, speciális képernyő vagy új grafika. A modell önmagában nem kész funkció.
 
-Következő egyetlen tisztázandó termékkérdés: jelenlétre vezérelt Slave nappal is
-elsötétedjen-e timeout után, vagy ez csak az éjszakai időszakban legyen érvényes.
+Az itt korábban nyitott nappali/éjszakai viselkedést a felhasználó a 3. checkpointban eldöntötte (D10).
 Ezzel párhuzamos következő technikai lépés: modellek SD-s atomi mentése és a meglévő
 Loxone webes konfigurációba illesztés, a régi beállítások/jelszavak megőrzésével.
+
+
+## Checkpoint 2026-10-20 / 3
+
+Felhasználó által elfogadva (D10): nappal folyamatos világítás a Slave saját nappali
+fényerején; éjjel elsötétítés, jelenlétre a saját éjszakai fényerőre ébredés,
+majd timeout után újra elsötétítés. Az éjszakai elsötétítés külön eszközkapcsolója megmarad.
+Ebben a checkpointban csak a specifikáció változott, futási kód nem.
+Következő egyetlen termékkérdés: a sötét Slave érintésre is ébredjen-e az éjszakai
+fényerőre, ugyanazzal az időkorláttal; az ébresztő érintés ne indítson más műveletet.
