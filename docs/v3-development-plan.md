@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, két élő Master-oldal és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime bekötve; a jelenlétprofil/BLE/NVS, energiaasszisztens és tématervek hátravan.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime bekötve; a jelenlétprofil/BLE/NVS, energiaasszisztens és tématervek hátravan.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -636,8 +636,20 @@ Ellenőrzések:
   v1 kompatibilitás; normál csomag korlátja megmarad. Webgenerátor és 64 ikon ellenőrizve.
 - Valódi 640×400 előnézetek a repó `assets/loxone-home/previews/` könyvtárában;
   világos/sötét és második/üres/12 kártyás lap is vizuálisan ellenőrizve.
-- Távoli firmware/Windows CI és új binárisméretek: feltöltés után ellenőrizendő.
-  Nincs fizikai panelpróba, nincs PR és nincs release.
+- Távoli forráscommit: `ab2aaea253eeb68fe16843c86c81282de439c5e3`, helyivel
+  ellenőrzött fájlfa: `69f6ce3fcd0270082a6ac2cda26e9e0168474942`.
+  [Master regresszió/LVGL/ikonok/csomagok/két firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39482302189),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39482302204),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39482302150)
+  minden jobja sikeres. Mindkét teljes USB/OTA-csomag és a tényleges binárisokkal
+  ellenőrzött telepítő elkészült; a v2 erőforrások a Master USB-csomagban is benne vannak.
+- Master: `0x2ddf00` = 3 006 208 bájt (+8096 bájt a 9. checkpointhoz), 8 MiB
+  app-partíción 64% szabad. 4B: `0x31dee0` = 3 268 320 bájt, mérete változatlan;
+  12 MiB app-partíción 74% szabad. Ez méretellenőrzés, nem bájtraazonossági állítás.
+- A webes JS regresszió Node/DOM-illesztővel futott, tényleges Chromium-képernyőteszt
+  nincs (a környezetben nincs használható böngészőbináris). A megjelenített kijelzőképek
+  valódi LVGL-renderek. Futási paneles DMA-/PSRAM-/FPS-próba még szükséges.
+  Nincs PR és nincs release.
 
 Következő blokk: a 9. checkpoint végén részletezett Slave identitás/jelenlétprofil/
 védett BLE/NVS adatút; energiaasszisztens és a külön egyeztetendő 05/06 tématervek.
