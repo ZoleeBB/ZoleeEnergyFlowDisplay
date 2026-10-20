@@ -23,7 +23,7 @@ static void identity_tests(void)
     assert(!app_slave_identity_valid(&identity));
     identity.address[5] = 0xc5;
     assert(app_slave_identity_id(&identity, id));
-    assert(strcmp(id, "ble-1-c504030201") == 0);
+    assert(strcmp(id, "ble-1-c50504030201") == 0);
     identity.type = 2;
     assert(!app_slave_identity_valid(&identity));
     identity = (app_slave_identity_t){0};
