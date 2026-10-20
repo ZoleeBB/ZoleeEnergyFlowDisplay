@@ -1,0 +1,515 @@
+{
+  "schema": 1,
+  "icon_size": 96,
+  "style": "realistic-home-v3",
+  "icons": [
+    {
+      "id": "refrigerator",
+      "hu": "Hűtőszekrény",
+      "en": "Refrigerator",
+      "category": "kitchen",
+      "subject": "a modern freestanding stainless steel double-door refrigerator with small recessed handles",
+      "file": "icons/refrigerator.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern freestanding stainless steel double-door refrigerator with small recessed handles.",
+      "original_sha256": "f75b92a352c3d1a71f51deb1e982f08685e2e28595763587f44235028c191a04",
+      "sha256": "6f3a65b36b91b2bc81b7c183218ee88f4ffa9a9633333bbc2ec866e6caf0104b"
+    },
+    {
+      "id": "washing-machine",
+      "hu": "Mosógép",
+      "en": "Washing machine",
+      "category": "laundry",
+      "subject": "a white front-loading washing machine with a round dark glass door and subtle control dial",
+      "file": "icons/washing-machine.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a white front-loading washing machine with a round dark glass door and subtle control dial.",
+      "original_sha256": "2425c6fcdad6f2988fdf098c2d843bf00b9d0ca0c3bddfb0eb48ca9ffdebe6f3",
+      "sha256": "620a2d3681d48048f00e68323736edc5145e38304edd11aaea723bc50d4bbbf5"
+    },
+    {
+      "id": "tumble-dryer",
+      "hu": "Szárítógép",
+      "en": "Tumble dryer",
+      "category": "laundry",
+      "subject": "a white modern front-loading tumble dryer with circular softly translucent door, visible empty drum and lower lint grille, clearly distinct from a washing machine",
+      "file": "icons/tumble-dryer.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a white modern front-loading tumble dryer with circular softly translucent door, visible empty drum and lower lint grille, clearly distinct from a washing machine.",
+      "original_sha256": "ea3895777e2c7118d6d88f611b390782e9103becbf96c62d336b77265dcdf4f8",
+      "sha256": "4ccff8670fd160c5441ab5d1bc48a880ac1d6274f6a1a6e1e2965ced1e503fc9"
+    },
+    {
+      "id": "dishwasher",
+      "hu": "Mosogatógép",
+      "en": "Dishwasher",
+      "category": "kitchen",
+      "subject": "a stainless steel dishwasher with door partly open, revealing neat wire racks and a few white plates",
+      "file": "icons/dishwasher.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a stainless steel dishwasher with door partly open, revealing neat wire racks and a few white plates.",
+      "original_sha256": "fe3fe12372ef9da960e4487112394361129433e2784bac5122967a8baa5bfc2f",
+      "sha256": "2790c676e7797d06c23657608a273f31078a439a813cba06d7ba49badce12c5c"
+    },
+    {
+      "id": "oven",
+      "hu": "Sütő",
+      "en": "Oven",
+      "category": "kitchen",
+      "subject": "a modern built-in black glass and brushed-steel electric oven, front dark glass showing warm amber interior light and shelves",
+      "file": "icons/oven.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern built-in black glass and brushed-steel electric oven, front dark glass showing warm amber interior light and shelves.",
+      "original_sha256": "20a49bae504088f5705d80fbd20d3b1ecf59ef450809748e1ce77eb8b9cd05c2",
+      "sha256": "a28758c5827971954b1653b5b309878a2e75dc3f424d4ce1d5f953d65e8f37ba"
+    },
+    {
+      "id": "hob",
+      "hu": "Főzőlap",
+      "en": "Induction hob",
+      "category": "kitchen",
+      "subject": "a black glass induction cooktop with four clearly outlined cooking zones, gently tilted so the surface is recognizable",
+      "file": "icons/hob.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a black glass induction cooktop with four clearly outlined cooking zones, gently tilted so the surface is recognizable.",
+      "original_sha256": "4b8665134290a6cf002f904e9cd251ce2894c49b1f4c6e2601004e4b89bce979",
+      "sha256": "5153f7455b9091c6f626ded42c10e238822c6d48e96a985b7448bf707c41e2ba"
+    },
+    {
+      "id": "ac-indoor",
+      "hu": "Beltéri klíma",
+      "en": "Indoor air conditioner",
+      "category": "climate",
+      "subject": "a single white wall-mounted indoor split air conditioner unit with opened lower air flap, no wall",
+      "file": "icons/ac-indoor.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a single white wall-mounted indoor split air conditioner unit with opened lower air flap, no wall.",
+      "original_sha256": "68aac962a674e22e9d240f0358564fd3afecb9ffcb0a87b315b02199961d2d1c",
+      "sha256": "cd2bfdd9be85c2afb45b3c44b84eed41aed38143b4ecf7497127d8bab4469491"
+    },
+    {
+      "id": "ac-dual",
+      "hu": "Dual klíma",
+      "en": "Dual air conditioner",
+      "category": "climate",
+      "subject": "one compact dual-split air-conditioning system icon composed of EXACTLY TWO matching white wall-mounted indoor units arranged diagonally, both fully visible, no outdoor unit",
+      "file": "icons/ac-dual.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: one compact dual-split air-conditioning system icon composed of EXACTLY TWO matching white wall-mounted indoor units arranged diagonally, both fully visible, no outdoor unit.",
+      "original_sha256": "2170e4e9a7328f18b64796ad8bb5a9f999792a12c0fa3c287ba71fca5fb2fbb9",
+      "sha256": "7372f4abc5915aae9cdeffaecca6ed322252bcc24a567f5d2e7f7112e62a0d25"
+    },
+    {
+      "id": "ac-trial",
+      "hu": "Trial klíma",
+      "en": "Triple air conditioner",
+      "category": "climate",
+      "subject": "one compact triple-split air-conditioning system icon composed of EXACTLY THREE matching white wall-mounted indoor units arranged in a clear stepped diagonal group, all fully visible, no outdoor unit",
+      "file": "icons/ac-trial.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: one compact triple-split air-conditioning system icon composed of EXACTLY THREE matching white wall-mounted indoor units arranged in a clear stepped diagonal group, all fully visible, no outdoor unit.",
+      "original_sha256": "19906243472006a8a4958a7d69c7439180a286ce35ddad9900503e8e85dc26c9",
+      "sha256": "84b23bc444419a46222e855f52438579ef47759a0cbc600f0dc267b48c8b68a4"
+    },
+    {
+      "id": "ac-portable",
+      "hu": "Mobil klíma",
+      "en": "Portable air conditioner",
+      "category": "climate",
+      "subject": "a white freestanding portable air conditioner with front air grille, small wheels and a short corrugated exhaust hose",
+      "file": "icons/ac-portable.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a white freestanding portable air conditioner with front air grille, small wheels and a short corrugated exhaust hose.",
+      "original_sha256": "4ff52a6078d3a01d00155844a0272bd8befbc1bab2e3080d7cce4d6a3550612b",
+      "sha256": "fc5242f42f03bd729525e2d0da6deec1ba051cd81f772e136dd843f9949ef5df"
+    },
+    {
+      "id": "ev-charger",
+      "hu": "Elektromos autótöltő",
+      "en": "EV charger",
+      "category": "mobility",
+      "subject": "a premium compact dark residential EV wallbox with a neatly looped charging cable, recognizable Type 2 connector and thin green status light",
+      "file": "icons/ev-charger.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium compact dark residential EV wallbox with a neatly looped charging cable, recognizable Type 2 connector and thin green status light.",
+      "original_sha256": "5cb91a9c6cffa4b4455d5ec4da682996f89d630c0fb560c9afb9781fdacc6e3a",
+      "sha256": "b4ee67b8c2132ba9293c5182e85344b0152b6aa40174d107a295c80d1cb7e47f"
+    },
+    {
+      "id": "ups",
+      "hu": "UPS",
+      "en": "UPS",
+      "category": "electrical",
+      "subject": "a compact black tower uninterruptible power supply with a small blue-green status display and lower ventilation slots",
+      "file": "icons/ups.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact black tower uninterruptible power supply with a small blue-green status display and lower ventilation slots.",
+      "original_sha256": "baa79793e5183601077735ed62d3cecc47ebdf0063ddc118f89af2d291f26014",
+      "sha256": "8a06d69858e69c4017481e9ab286a65806650937effe49d1a5278eb27624c95a"
+    },
+    {
+      "id": "dehumidifier",
+      "hu": "Páramentesítő",
+      "en": "Dehumidifier",
+      "category": "climate",
+      "subject": "a compact white portable household dehumidifier with top vent and lower translucent water collection tank"
+    },
+    {
+      "id": "tv",
+      "hu": "TV",
+      "en": "Television",
+      "category": "technology",
+      "subject": "a slim widescreen modern television on two small feet, its screen showing a calm blue-green abstract landscape without words"
+    },
+    {
+      "id": "ventilation",
+      "hu": "Szellőztető",
+      "en": "Ventilation unit",
+      "category": "climate",
+      "subject": "a white compact residential heat-recovery ventilation box with two round silver duct collars, technical product render"
+    },
+    {
+      "id": "fan",
+      "hu": "Ventilátor",
+      "en": "Fan",
+      "category": "climate",
+      "subject": "a modern small freestanding pedestal fan with a circular protective wire grille, three visible blades and compact stand"
+    },
+    {
+      "id": "extractor-hood",
+      "hu": "Elszívó",
+      "en": "Extractor hood",
+      "category": "kitchen",
+      "subject": "a stainless-steel kitchen extractor hood with broad flat canopy and short vertical chimney section, isolated with no kitchen furniture"
+    },
+    {
+      "id": "wine-fridge",
+      "hu": "Borhűtő",
+      "en": "Wine cooler",
+      "category": "kitchen",
+      "subject": "a small premium black glass-front wine cooler with several wood shelves and horizontal wine bottles visible inside"
+    },
+    {
+      "id": "radiator",
+      "hu": "Fűtőtest",
+      "en": "Radiator",
+      "category": "climate",
+      "subject": "a white modern electric panel radiator with slim top grille and a discreet side thermostat, isolated without wall"
+    },
+    {
+      "id": "lamp",
+      "hu": "Lámpa",
+      "en": "Lamp",
+      "category": "lighting",
+      "subject": "a beautiful warm glowing dome pendant lamp with brushed brass top and cream shade, short cable ending inside the image"
+    },
+    {
+      "id": "heat-pump",
+      "hu": "Hőszivattyú",
+      "en": "Heat pump",
+      "category": "climate",
+      "subject": "a realistic large white residential outdoor air-to-water heat-pump unit, dark circular fan behind a fine protective grille and a short raised base"
+    },
+    {
+      "id": "water-heater",
+      "hu": "Bojler",
+      "en": "Water heater",
+      "category": "climate",
+      "subject": "a clean white cylindrical domestic hot-water storage tank with a small analog gauge and two short pipe connections beneath"
+    },
+    {
+      "id": "underfloor-heating",
+      "hu": "Padlófűtés",
+      "en": "Underfloor heating",
+      "category": "climate",
+      "subject": "a compact cutaway sample of warm wooden floor over a neat serpentine red underfloor heating tube embedded in a thin layered floor cross-section"
+    },
+    {
+      "id": "freezer",
+      "hu": "Fagyasztó",
+      "en": "Freezer",
+      "category": "kitchen",
+      "subject": "a modern white upright household freezer with a partly open door revealing a few transparent pull-out freezer drawers"
+    },
+    {
+      "id": "coffee-machine",
+      "hu": "Kávéfőző",
+      "en": "Coffee machine",
+      "category": "kitchen",
+      "subject": "a premium compact silver and black espresso coffee machine with portafilter and one small white cup underneath"
+    },
+    {
+      "id": "kettle",
+      "hu": "Vízforraló",
+      "en": "Kettle",
+      "category": "kitchen",
+      "subject": "a brushed stainless steel electric kettle with black curved handle and short spout standing on its compact round base"
+    },
+    {
+      "id": "microwave",
+      "hu": "Mikrohullámú sütő",
+      "en": "Microwave",
+      "category": "kitchen",
+      "subject": "a compact silver household microwave oven with dark glass front door, clear side dial and short feet"
+    },
+    {
+      "id": "vacuum-cleaner",
+      "hu": "Porszívó",
+      "en": "Vacuum cleaner",
+      "category": "household",
+      "subject": "a compact modern teal-and-gray canister vacuum cleaner with a short curved hose and floor cleaning head arranged as one recognizable product icon"
+    },
+    {
+      "id": "robot-vacuum",
+      "hu": "Robotporszívó",
+      "en": "Robot vacuum",
+      "category": "household",
+      "subject": "a round white robot vacuum cleaner with dark rim, small laser turret and one visible side brush, slightly top-down view"
+    },
+    {
+      "id": "computer",
+      "hu": "Számítógép",
+      "en": "Computer",
+      "category": "technology",
+      "subject": "one modern home desktop computer setup, slim dark monitor with calm teal screen and a small matching compact tower beside it"
+    },
+    {
+      "id": "nas",
+      "hu": "NAS",
+      "en": "NAS",
+      "category": "technology",
+      "subject": "a compact premium black four-bay network storage enclosure with four clear vertical drive drawers and tiny green status LEDs"
+    },
+    {
+      "id": "circulation-pump",
+      "hu": "Keringetőszivattyú",
+      "en": "Circulation pump",
+      "category": "climate",
+      "subject": "a compact red residential heating circulation pump with round black motor housing and short metal pipe flanges"
+    },
+    {
+      "id": "pool-pump",
+      "hu": "Medenceszivattyú",
+      "en": "Pool pump",
+      "category": "garden",
+      "subject": "a compact dark blue swimming-pool circulation pump with cylindrical electric motor and transparent strainer lid, short pipe connectors"
+    },
+    {
+      "id": "towel-heater",
+      "hu": "Törölközőszárító",
+      "en": "Towel warmer",
+      "category": "climate",
+      "subject": "a polished white ladder-style heated towel radiator with one neatly folded soft white towel, isolated without wall"
+    },
+    {
+      "id": "socket",
+      "hu": "Konnektor",
+      "en": "Power socket",
+      "category": "electrical",
+      "subject": "a modern European white square recessed Schuko electrical wall outlet with realistic round socket and two holes, isolated without wall"
+    },
+    {
+      "id": "thermostat",
+      "hu": "Termosztát",
+      "en": "Thermostat",
+      "category": "climate",
+      "subject": "a premium small white square wall thermostat with a subtle neutral blank glass display, no digits or readings and no wall"
+    },
+    {
+      "id": "temperature",
+      "hu": "Hőmérséklet",
+      "en": "Temperature",
+      "category": "sensor",
+      "subject": "a beautifully realistic small vertical glass thermometer with red liquid column and rounded red bulb on a simple pale backing, no readable numbers"
+    },
+    {
+      "id": "humidity",
+      "hu": "Páratartalom",
+      "en": "Humidity",
+      "category": "sensor",
+      "subject": "a single beautiful translucent blue glass water droplet with delicate reflections and a few tiny bubbles, like a premium realistic humidity symbol"
+    },
+    {
+      "id": "co2",
+      "hu": "CO₂ / levegőminőség",
+      "en": "CO2 / air quality",
+      "category": "sensor",
+      "subject": "a small white air-quality sensor with dark blank display, perforated lower grille and three subtle translucent teal air bubbles beside it, no readings or text"
+    },
+    {
+      "id": "water-level",
+      "hu": "Vízszint",
+      "en": "Water level",
+      "category": "sensor",
+      "subject": "a small transparent cylindrical water tank half filled with clear blue water, visible water surface and simple metallic top and base"
+    },
+    {
+      "id": "electric-car",
+      "hu": "Elektromos autó",
+      "en": "Electric car",
+      "category": "mobility",
+      "subject": "a clean realistic compact modern white electric hatchback car, black glass roof and dark wheels, no brand logos or license-plate text"
+    },
+    {
+      "id": "garage-door",
+      "hu": "Garázskapu",
+      "en": "Garage door",
+      "category": "access",
+      "subject": "a realistic dark gray sectional residential garage door in a slim clean white frame with a small warm light above, no driveway or surrounding building"
+    },
+    {
+      "id": "gate",
+      "hu": "Kertkapu",
+      "en": "Garden gate",
+      "category": "access",
+      "subject": "a realistic modern dark gray double-leaf garden driveway gate with horizontal metal slats and two short simple gateposts, isolated"
+    },
+    {
+      "id": "blinds",
+      "hu": "Redőny",
+      "en": "Roller shutter",
+      "category": "access",
+      "subject": "a modern white-framed window with an anthracite roller shutter lowered halfway, clearly visible horizontal shutter slats"
+    },
+    {
+      "id": "curtain",
+      "hu": "Függöny",
+      "en": "Curtain",
+      "category": "access",
+      "subject": "a pair of elegant warm cream curtains gently parted on a short slim rail, realistic soft fabric folds and a little visible opening in the center"
+    },
+    {
+      "id": "door",
+      "hu": "Ajtó",
+      "en": "Door",
+      "category": "access",
+      "subject": "a modern slightly open warm oak interior door in a simple white frame with a brushed silver lever handle, no surrounding room"
+    },
+    {
+      "id": "window",
+      "hu": "Ablak",
+      "en": "Window",
+      "category": "access",
+      "subject": "a modern white double-glazed casement window with one leaf partly open, subtle pale blue glass reflections and visible handle, isolated without wall"
+    },
+    {
+      "id": "motion",
+      "hu": "Mozgásérzékelő",
+      "en": "Motion sensor",
+      "category": "sensor",
+      "subject": "a small realistic white wall-mounted PIR motion detector with a curved translucent Fresnel lens, accompanied by two restrained teal sensing arcs"
+    },
+    {
+      "id": "presence",
+      "hu": "Jelenlétérzékelő",
+      "en": "Presence sensor",
+      "category": "sensor",
+      "subject": "a small realistic round white ceiling presence sensor with a dark central sensing lens and a subtle teal halo, isolated without ceiling"
+    },
+    {
+      "id": "water-leak",
+      "hu": "Vízszivárgás",
+      "en": "Water leak",
+      "category": "security",
+      "subject": "a small low-profile white floor water-leak sensor puck beside a tiny shallow clear blue puddle, no floor background"
+    },
+    {
+      "id": "smoke",
+      "hu": "Füstérzékelő",
+      "en": "Smoke detector",
+      "category": "security",
+      "subject": "a realistic round white smoke detector with vented rim and a tiny amber status LED, no ceiling and no fire"
+    },
+    {
+      "id": "alarm",
+      "hu": "Riasztó",
+      "en": "Alarm",
+      "category": "security",
+      "subject": "a compact modern outdoor alarm siren with white faceted case and a small red translucent strobe section, no wall"
+    },
+    {
+      "id": "lock",
+      "hu": "Zár",
+      "en": "Lock",
+      "category": "security",
+      "subject": "a realistic brushed stainless steel smart door-lock cylinder and sleek compact black keypad housing as one product, no digits or text"
+    },
+    {
+      "id": "irrigation",
+      "hu": "Öntözés",
+      "en": "Irrigation",
+      "category": "garden",
+      "subject": "a small realistic black pop-up garden sprinkler with a controlled fan of clear blue water droplets and a tiny neat tuft of grass at its base"
+    },
+    {
+      "id": "garden-light",
+      "hu": "Kerti világítás",
+      "en": "Garden lighting",
+      "category": "lighting",
+      "subject": "a premium compact black cylindrical garden bollard lamp with warm amber glow, isolated with no garden background"
+    },
+    {
+      "id": "wall-light",
+      "hu": "Fali / teraszlámpa",
+      "en": "Wall / patio light",
+      "category": "lighting",
+      "subject": "a realistic modern black cylindrical outdoor wall sconce with visible warm amber diffuser and restrained glow, no wall"
+    },
+    {
+      "id": "ceiling-light",
+      "hu": "Mennyezeti világítás",
+      "en": "Ceiling light",
+      "category": "lighting",
+      "subject": "a premium modern round shallow ceiling light with white rim and softly glowing warm diffuser, slightly tilted for a clear product view, no ceiling"
+    },
+    {
+      "id": "led-strip",
+      "hu": "LED szalag",
+      "en": "LED strip",
+      "category": "lighting",
+      "subject": "a short realistic flexible LED strip forming one gentle S curve, warm white illuminated LED chips on a pale ribbon, no reel or background"
+    },
+    {
+      "id": "home",
+      "hu": "Otthon",
+      "en": "At home",
+      "category": "scene",
+      "subject": "a beautiful realistic miniature contemporary two-storey family house with white walls, dark roof and welcoming warm-lit windows, small neat shrubs at its base"
+    },
+    {
+      "id": "away",
+      "hu": "Távollét",
+      "en": "Away",
+      "category": "scene",
+      "subject": "a beautiful realistic miniature contemporary white family house with dark windows and one small clean teal three-dimensional arrow pointing outward beside it"
+    },
+    {
+      "id": "night",
+      "hu": "Éjszakai mód",
+      "en": "Night mode",
+      "category": "scene",
+      "subject": "a softly luminous realistic silver crescent moon with two tiny warm stars, elegant calm night-mode symbol, isolated on transparent background"
+    },
+    {
+      "id": "movie",
+      "hu": "Mozi / film",
+      "en": "Movie scene",
+      "category": "scene",
+      "subject": "a premium realistic small black-and-white movie clapperboard with a short curled film strip, no lettering, no numbers, compact movie-night symbol"
+    },
+    {
+      "id": "relax",
+      "hu": "Pihenés / hangulat",
+      "en": "Relax scene",
+      "category": "scene",
+      "subject": "a beautiful realistic small warm beige lounge armchair with a tiny brass floor lamp beside it, warm inviting glow, compact relaxation scene icon"
+    },
+    {
+      "id": "router",
+      "hu": "Router / hálózat",
+      "en": "Router / network",
+      "category": "technology",
+      "subject": "a compact premium white wireless router with three slim upright antennas and a tiny green status light, no cables or brand markings"
+    }
+  ]
+}

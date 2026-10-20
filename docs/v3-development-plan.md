@@ -28,6 +28,7 @@
 | D10 | Slave nappal folyamatosan a saját beállított nappali fényerején világít. Éjjel az engedélyezett elsötétítés mellett sötét; jelenlétre a saját beállított éjszakai fényerejére ébred, timeout után újra sötét. |
 | D11 | A sötét Slave érintésre is ébred az éjszakai fényerőre, ugyanazzal az időkorláttal. Az első érintés csak ébreszt: a teljes érintéssorozatot (felengedés is) el kell nyelni, nem indíthat kattintást vagy gesztust. |
 | D12 | A világos fogyasztói oldal látványterve elfogadva: 4×3, legfeljebb 12 kártya. Hiányos sor vízszintesen középre igazítva, a két szélén azonos üres hellyel; 7 elemnél felül 4, alul 3 középre. |
+| D13 | A világos Otthon oldal látványterve elfogadva (értékek, kapcsolók és indítógombok). A felhasználó sokféle ikont kér a közös készletbe, a fogyasztói ikonokon túl is. |
 
 ## Követelmények – fogyasztói oldal
 
@@ -269,3 +270,29 @@ vizuális világban; a világos fogyasztói tervre már nem kell ismét jóváha
 További grafikai egyeztetés: sötét változat és a 05/06 témák külön tervei.
 Technikai feladatok továbbra is nyitva: SD-mentés/webes szerkesztő és a tényleges
 LVGL-oldalak, runtime állapotok/vezérlés, Slave BLE-profil és inputkapu.
+
+## Checkpoint 2026-10-20 / 6 – ikonkészlet folyamatban
+
+Elfogadva (D13): a világos Otthon kártyás oldal terve. A felhasználó bőséges,
+sokféle ikonkészletet kér. A közös katalógus 64 megtervezett ikont tartalmaz:
+háztartási fogyasztók, klíma/fűtés, technika, érzékelők, világítás, kapuk,
+árnyékolók, biztonság, kert és jelenetek.
+
+- Forrásjegyzék: `assets/loxone-home/catalog.json`, magyar/angol név, kategória és
+  generálási leírás; a kész tételeknél runtime-útvonal, pontos prompt és SHA256.
+- Kizárólag 96×96 RGBA runtime PNG-k az `assets/loxone-home/icons` alatt.
+  A nagy generált eredetik nem kerülnek a repóba.
+- `tools/import_home_icons.py`: valódi alfa ellenőrzése, kért méretre alakítás,
+  eredet és ellenőrzőösszegek rögzítése. `--check`: kész részhalmaz ellenőrzése;
+  `--complete`: csak mind a 64 ikon meglétekor sikeres.
+- Első 12 ikon elkészült és méretre alakítva. A katalógus `file` mezője jelöli
+  a kész tételeket; a többi ikon generálása még hátravan. Folytatáskor ezt olvasd,
+  ne generáld újra a már kész ikonokat.
+- Az első négy ikon valódi 96×96 méreten, világos és sötét alapon vizuálisan
+  ellenőrizve; részleteik és átlátszóságuk megfelelő. További csoportok is ilyen
+  ellenőrzést igényelnek.
+- Még nincs bekötve az új SD-s speciális csomagba vagy a firmware UI-ba.
+
+Következő lépés: a katalógus hiányzó ikonjainak generálása csoportonként,
+96×96 import és vizuális ellenőrzés, majd a teljes készlet ellenőrzése.
+Az illusztrációs checkpointok `[skip ci]` jelölést kapnak; a futási kód nem változik.
