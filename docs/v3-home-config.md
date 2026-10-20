@@ -88,6 +88,19 @@ A hálózati struktúrából készülő katalógus az állapot `uuid` mellett mo
 `control_uuid` mezőt is tartalmaz. Az értékek különbözhetnek; hiányzó vagy
 érvénytelen vezérlőkulcsból nem szabad parancscélt készíteni.
 
+## Elfogadott fogyasztói elrendezés
+
+A 1280×800 Master-oldalon legfeljebb négy kártya van egy sorban, legfeljebb
+három sorban. A kártyák mérete minden elemszámnál azonos. A hiányos utolsó sor
+vízszintesen középre igazított, a két szélén azonos üres hellyel.
+Hét elemnél négy kártya van az első sorban és három középre igazítva a másodikban.
+Öt elemnél az utolsó egy kártya, hatnál az utolsó kettő kerül középre.
+
+A közös geometria a `app_loxone_home_layout.h` `lx_home_card_rect()` függvénye.
+A későbbi LVGL-oldal ezt hívja; a megjelenítőben ne legyen ettől eltérő másolt képlet.
+Nulla vagy 12 feletti elemszám, hibás index és hiányzó kimenet elutasított.
+Ez az elrendezési modell még nem a kész képernyő.
+
 ## Ellenőrzés
 
 ```sh

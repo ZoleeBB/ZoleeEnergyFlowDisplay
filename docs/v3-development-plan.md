@@ -27,6 +27,7 @@
 | D09 | Jól tagolt forrás, magyar kommentek; firmware/RAM/PSRAM korlátok és a már működő adatfogadás/animáció védelme. |
 | D10 | Slave nappal folyamatosan a saját beállított nappali fényerején világít. Éjjel az engedélyezett elsötétítés mellett sötét; jelenlétre a saját beállított éjszakai fényerejére ébred, timeout után újra sötét. |
 | D11 | A sötét Slave érintésre is ébred az éjszakai fényerőre, ugyanazzal az időkorláttal. Az első érintés csak ébreszt: a teljes érintéssorozatot (felengedés is) el kell nyelni, nem indíthat kattintást vagy gesztust. |
+| D12 | A világos fogyasztói oldal látványterve elfogadva: 4×3, legfeljebb 12 kártya. Hiányos sor vízszintesen középre igazítva, a két szélén azonos üres hellyel; 7 elemnél felül 4, alul 3 középre. |
 
 ## Követelmények – fogyasztói oldal
 
@@ -44,7 +45,7 @@
 - Fogyasztói élő részletek aktív oldalon frissüljenek. Az asszisztens minimális állapotigényét ehhez külön meg kell tervezni.
 - Háttér és ikonok SD-s speciális témacsomagban, a meglévő témakezelőn át frissíthetők.
 - Visszafogott, helyi Loxone-logó. Forrás: https://upload.wikimedia.org/wikipedia/commons/c/c6/Logo-Loxone-green-Web.png
-- Egy képernyőre korlátozott elemszám megengedett; javasolt 12 fogyasztó (4×3), végleges elrendezés renderrel ellenőrzendő.
+- Elfogadott 12 fogyasztós keret (4×3); hiányos utolsó sor középre igazítva (D12). A teljes sorok és a kártyák mérete nem változik az elemszámmal. Végleges elrendezés valódi LVGL-renderrel is ellenőrizendő.
 
 ## Követelmények – energiaasszisztens
 
@@ -236,3 +237,35 @@ Következő terméklépés: a fogyasztói oldal látványtervének egyeztetése;
 96×96 ikonokkal és 1280×800 felbontásra tervezett, olvasható otthonhangulatú elrendezés.
 Következő technikai lépés: a home-konfiguráció atomi SD-mentése és webes szerkesztője;
 Slave oldalon stabil identitás/profil és az inputkapu bekötése mindkét kijelzőn.
+
+## Checkpoint 2026-10-20 / 5
+
+Felhasználó által elfogadva (D12): a fogyasztói oldal világos látványterve,
+legfeljebb 12 kártyával, hiányos utolsó sor középre igazítva. Példája: 7 elem =
+4 az első sorban, 3 középen a másodikban, egyenlő üres bal/jobb széllel.
+A látványterv példaértékeket mutat; önmagában nem telepíthető háttér vagy kész UI.
+
+Elkészült:
+
+- `app_loxone_home_layout.h`: a valódi megjelenítő által használandó közös,
+  memóriát nem foglaló kártyageometria, egységes mérettel és sorközökkel.
+- A meglévő natív teszt minden 1–12 közötti elemszám minden sorát ellenőrzi:
+  szimmetrikus margók, állandó méret, hézagok, képernyőhatárok és a konkrét
+  hétkártyás eset. Hibás elemszám/index nem írja felül a kimenetet.
+- A fejlesztői formátumleírás tartalmazza az elfogadott elrendezési szabályt.
+
+Ellenőrzés:
+
+- `python3 tests/test_loxone_home.py`: sikeres az új geometriai tesztekkel is.
+- `git diff --check`: sikeres.
+- Az előző kódcheckpoint (`cf6700d21aeecf0cdba64d792f09f8a418f7936e`) CI-je:
+  [Master teljes regresszió, valódi LVGL render, csomagolás és firmware-build](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39440931504)
+  minden jobja sikeres; [Windows-szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39440931695)
+  és [4B Slave ellenőrzés](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39440931483)
+  szintén sikeres. Ez nem a még el nem készült v3 UI hardveres igazolása.
+
+Következő terméklépés: a szabad Loxone-kártyás oldal látványterve ugyanebben a
+vizuális világban; a világos fogyasztói tervre már nem kell ismét jóváhagyást kérni.
+További grafikai egyeztetés: sötét változat és a 05/06 témák külön tervei.
+Technikai feladatok továbbra is nyitva: SD-mentés/webes szerkesztő és a tényleges
+LVGL-oldalak, runtime állapotok/vezérlés, Slave BLE-profil és inputkapu.
