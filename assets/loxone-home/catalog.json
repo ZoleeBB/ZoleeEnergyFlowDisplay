@@ -488,84 +488,144 @@
       "hu": "Elektromos autó",
       "en": "Electric car",
       "category": "mobility",
-      "subject": "a clean realistic compact modern white electric hatchback car, black glass roof and dark wheels, no brand logos or license-plate text"
+      "subject": "a clean realistic compact modern white electric hatchback car, black glass roof and dark wheels, no brand logos or license-plate text",
+      "file": "icons/electric-car.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a clean realistic compact modern white electric hatchback car, black glass roof and dark wheels, no brand logos or license-plate text.",
+      "original_sha256": "f1b44e91674ccbbf9deac40754aa19cff9273175290f00fc4e01de28c021ced9",
+      "sha256": "1d34a2f90509d641c74d8ef3159860f73558f302995d077e2b564fc086a5641c"
     },
     {
       "id": "garage-door",
       "hu": "Garázskapu",
       "en": "Garage door",
       "category": "access",
-      "subject": "a realistic dark gray sectional residential garage door in a slim clean white frame with a small warm light above, no driveway or surrounding building"
+      "subject": "a realistic dark gray sectional residential garage door in a slim clean white frame with a small warm light above, no driveway or surrounding building",
+      "file": "icons/garage-door.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic dark gray sectional residential garage door in a slim clean white frame with a small warm light above, no driveway or surrounding building.",
+      "original_sha256": "d4aab1c91709faea265bffc504cdd6bf686bdcefee411eb69b44bae2cd992ad4",
+      "sha256": "0c4017fde2740d5960da0be6dd7a302a61502154d1a4aa25a54d9dea20a9381a"
     },
     {
       "id": "gate",
       "hu": "Kertkapu",
       "en": "Garden gate",
       "category": "access",
-      "subject": "a realistic modern dark gray double-leaf garden driveway gate with horizontal metal slats and two short simple gateposts, isolated"
+      "subject": "a realistic modern dark gray double-leaf garden driveway gate with horizontal metal slats and two short simple gateposts, isolated",
+      "file": "icons/gate.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic modern dark gray double-leaf garden driveway gate with horizontal metal slats and two short simple gateposts, isolated.",
+      "original_sha256": "04055207ccb519870c3f03a12d741ec53a8d4cc8e5dc1e52272c33a6eb52b18f",
+      "sha256": "7b443fd659d8aff6970f49b4ac37e30304467354c1a93b581e97fd3bc227402d"
     },
     {
       "id": "blinds",
       "hu": "Redőny",
       "en": "Roller shutter",
       "category": "access",
-      "subject": "a modern white-framed window with an anthracite roller shutter lowered halfway, clearly visible horizontal shutter slats"
+      "subject": "a modern white-framed window with an anthracite roller shutter lowered halfway, clearly visible horizontal shutter slats",
+      "file": "icons/blinds.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern white-framed window with an anthracite roller shutter lowered halfway, clearly visible horizontal shutter slats.",
+      "original_sha256": "b38725519ba06d5fb6030b40487cc206b63c1c765a3628b4982659f46d36b52c",
+      "sha256": "d8ced7950b65f4664acdeb16860dc8f533c4f51304205c734bf5081265e1f4da"
     },
     {
       "id": "curtain",
       "hu": "Függöny",
       "en": "Curtain",
       "category": "access",
-      "subject": "a pair of elegant warm cream curtains gently parted on a short slim rail, realistic soft fabric folds and a little visible opening in the center"
+      "subject": "a pair of elegant warm cream curtains gently parted on a short slim rail, realistic soft fabric folds and a little visible opening in the center",
+      "file": "icons/curtain.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a pair of elegant warm cream curtains gently parted on a short slim rail, realistic soft fabric folds and a little visible opening in the center.",
+      "original_sha256": "882975a6964ddf913fb4678730dbcf00efc21eb1a6b60f5eae2a04afae0c5ffe",
+      "sha256": "b580766f61acf0dd002234ddb56b27b03221f9afb1867c9de60d32729598fb26"
     },
     {
       "id": "door",
       "hu": "Ajtó",
       "en": "Door",
       "category": "access",
-      "subject": "a modern slightly open warm oak interior door in a simple white frame with a brushed silver lever handle, no surrounding room"
+      "subject": "a modern slightly open warm oak interior door in a simple white frame with a brushed silver lever handle, no surrounding room",
+      "file": "icons/door.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern slightly open warm oak interior door in a simple white frame with a brushed silver lever handle, no surrounding room.",
+      "original_sha256": "baf66e64f42c7d420760c74861c29ae9b45c31555a6bd15a38caa76e275c3718",
+      "sha256": "ab2ccfa8ea93453bdfcb22a42a810de828acfe6acad271d159dc79f547588b8c"
     },
     {
       "id": "window",
       "hu": "Ablak",
       "en": "Window",
       "category": "access",
-      "subject": "a modern white double-glazed casement window with one leaf partly open, subtle pale blue glass reflections and visible handle, isolated without wall"
+      "subject": "a modern white double-glazed casement window with one leaf partly open, subtle pale blue glass reflections and visible handle, isolated without wall",
+      "file": "icons/window.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern white double-glazed casement window with one leaf partly open, subtle pale blue glass reflections and visible handle, isolated without wall.",
+      "original_sha256": "7b7105529e7d3b84f8a1c77faccec9f697b1ab0d7fd24e47131ec26d3bdf191b",
+      "sha256": "563640e24968b6b4b2e97d463add3c4bd94a30ece76c591e8a324f65609b3320"
     },
     {
       "id": "motion",
       "hu": "Mozgásérzékelő",
       "en": "Motion sensor",
       "category": "sensor",
-      "subject": "a small realistic white wall-mounted PIR motion detector with a curved translucent Fresnel lens, accompanied by two restrained teal sensing arcs"
+      "subject": "a small realistic white wall-mounted PIR motion detector with a curved translucent Fresnel lens, accompanied by two restrained teal sensing arcs",
+      "file": "icons/motion.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small realistic white wall-mounted PIR motion detector with a curved translucent Fresnel lens, accompanied by two restrained teal sensing arcs.",
+      "original_sha256": "56666e2eaba5ce2feddc594ebeb21a8d1e8c4d0313d54240ffc1f2e29724ba45",
+      "sha256": "a5686edbfdaa2ffc7383b41f0ee59f6845abde469a7e1f0251b96b454cd2e058"
     },
     {
       "id": "presence",
       "hu": "Jelenlétérzékelő",
       "en": "Presence sensor",
       "category": "sensor",
-      "subject": "a small realistic round white ceiling presence sensor with a dark central sensing lens and a subtle teal halo, isolated without ceiling"
+      "subject": "a small realistic round white ceiling presence sensor with a dark central sensing lens and a subtle teal halo, isolated without ceiling",
+      "file": "icons/presence.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small realistic round white ceiling presence sensor with a dark central sensing lens and a subtle teal halo, isolated without ceiling.",
+      "original_sha256": "f53ad67318bb0a1d689a853029266932174c655e60ac5f890c84ae856ab585af",
+      "sha256": "bfed5d62cde6f01f0de45b7fb84e64ce4daee99961daed9ab1f31c1b42663edb"
     },
     {
       "id": "water-leak",
       "hu": "Vízszivárgás",
       "en": "Water leak",
       "category": "security",
-      "subject": "a small low-profile white floor water-leak sensor puck beside a tiny shallow clear blue puddle, no floor background"
+      "subject": "a small low-profile white floor water-leak sensor puck beside a tiny shallow clear blue puddle, no floor background",
+      "file": "icons/water-leak.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small low-profile white floor water-leak sensor puck beside a tiny shallow clear blue puddle, no floor background.",
+      "original_sha256": "60dbb943c1ce15869d4986eeccbb7ba3e0254e516f455c999bada4faccccb126",
+      "sha256": "94b6de56775a8bf4279ef5f64aec7654eb1b5ade482744853c0c052c82e51635"
     },
     {
       "id": "smoke",
       "hu": "Füstérzékelő",
       "en": "Smoke detector",
       "category": "security",
-      "subject": "a realistic round white smoke detector with vented rim and a tiny amber status LED, no ceiling and no fire"
+      "subject": "a realistic round white smoke detector with vented rim and a tiny amber status LED, no ceiling and no fire",
+      "file": "icons/smoke.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic round white smoke detector with vented rim and a tiny amber status LED, no ceiling and no fire.",
+      "original_sha256": "869006a589b5337fec7c8bf1e40d6498b09f50d5e530a2be5f20fc5fbf43268c",
+      "sha256": "c977456f571b2477000fd4334d5774a629643008eb8b7da11c4423a5800ea7cf"
     },
     {
       "id": "alarm",
       "hu": "Riasztó",
       "en": "Alarm",
       "category": "security",
-      "subject": "a compact modern outdoor alarm siren with white faceted case and a small red translucent strobe section, no wall"
+      "subject": "a compact modern outdoor alarm siren with white faceted case and a small red translucent strobe section, no wall",
+      "file": "icons/alarm.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact modern outdoor alarm siren with white faceted case and a small red translucent strobe section, no wall.",
+      "original_sha256": "3b56344b7e92b8c03c8b67279c5ca07879715f4f6b4f026e2b98aa39e1a32e46",
+      "sha256": "2738d7816ac33ac0abd3a1afe789c7cbd0717b2e85417af80886af2b4ef06494"
     },
     {
       "id": "lock",
