@@ -287,6 +287,14 @@ static bool catalog_controls(
             if (!item)
                 return false;
             cJSON_AddStringToObject(item, "uuid", state->valuestring);
+            /* Vezérléshez az objektum kulcsa kell, nem a visszajelző állapot UUID-ja.
+             * Régi/szokatlan struktúrában érvénytelen kulcsból nem képzünk parancscélt. */
+            if (!cJSON_AddStringToObject(item, "control_uuid",
+                                         lx_uuid_valid(control->string) ? control->string : ""))
+            {
+                cJSON_Delete(item);
+                return false;
+            }
             cJSON_AddStringToObject(item, "name", str(control, "name"));
             cJSON_AddStringToObject(item, "type", type);
             cJSON_AddStringToObject(item, "state", state->string ? state->string : "");

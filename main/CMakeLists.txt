@@ -68,6 +68,7 @@ idf_component_register(
         "app_mqtt.c"
         "app_loxone.c"
         "app_loxone_model.c"
+        "app_loxone_home_model.c"
         "app_loxone_store.c"
         "app_ota.c"
         "app_ota_auto.c"

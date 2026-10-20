@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: követelmények egyeztetése folyamatban; kezdeti repófelmérés elkészült.
+- Állapot: követelmények egyeztetése folyamatban; első konfigurációs modell és célzott teszt elkészült, UI/runtime integráció még nincs.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -137,3 +137,50 @@ Ellenőrzés: read-only repómeta/PR/dokumentáció felmérés; funkcionális k�
 Ismert kockázatok: belső RAM/DMA szűk keret, 32 képes csomagkorlát, állapot- és parancs-UUID különbsége,
 aktív oldalhoz kötött fogyasztói adatok versus asszisztens állapotigénye.
 Következő lépés: releváns C/JS/kiadási források és tesztkörnyezet beolvasása; első önálló modell/validátor megvalósításának előkészítése.
+
+## Checkpoint 2026-10-20 / 2
+
+Elkészült:
+
+- `app_loxone_home_model.h/.c`: külön, jelszómentes, kezdetben 12 fogyasztót és
+  12 érték/pulse/kapcsolókártyát leíró modell, atomi parse és JSON-szerializálás.
+- Opcionális üzemi teljesítmény, alapból tiltott indításjavaslat, külön állapot-
+  és vezérlési UUID, skálázás és figyelmeztetési beállítások validálása.
+- Loxone katalógus kiegészítése `control_uuid` mezővel; nem változott meg a régi
+  `uuid` jelentése. Érvénytelen objektumkulcs nem használható parancscélként.
+- A Master fordítási listájában az új modell; a Slave firmware listája változatlan.
+- [Fejlesztői formátumleírás](v3-home-config.md) és `tests/test_loxone_home.py/.c`;
+  az új teszt bekerült a teljes regressziós teszt belépési pontjába.
+
+Ellenőrzés:
+
+- Új modell célzott tesztje: sikeres (UBSan, 8192 bájtos stack-frame korlát,
+  teljes 12+12 profil, hibás bemenetek, atomi elutasítás, calloc-hiba és minden
+  szerializálási JSON-foglalási pont hibainjektálása, szivárgásszámláló).
+- Profilméret a natív tesztkörnyezetben: 6248 bájt, parse ideiglenes tár heapen.
+  Ez nem a paneles memóriahasználat mérése.
+- Meglévő Loxone C-modellteszt: sikeres.
+- Meglévő valódi Loxone webes JS-teszt: sikeres.
+- Beágyazott oldalak generátor-ellenőrzése és git diff whitespace: sikeres.
+- A módosítás előtti teljes regresszió az első öt BLE/boot tesztcsoporton átment,
+  majd hiányzó `mbedtls/version.h` miatt megállt. ESP-IDF nincs a PATH-on.
+  Teljes firmware-build, LVGL-render és paneles próba ebben a checkpointban nem volt.
+
+Forrásfelmérés:
+
+- `app_templates_safe_id` nem csak saját témaneveket enged; a meglévő teszt
+  egy `test-layout` nevű saját csomag telepítését is ellenőrzi. Nem kell új általános
+  témamotor. A célzott kompatibilitási és hibaüzenet-vizsgálat még hátravan.
+- A release kiválasztás jelenleg PR-számhoz kötött v1/v2 kivételt tartalmaz.
+  A v3 kiválasztását a záráskor kell a valós végső PR-hoz kötni vagy megfelelően
+  szűkített szabállyal megoldani; a workflow nem lett előre átállítva.
+- A munkakönyvtárban észlelt, nem követett `assets/source/.weather_cloud.png.4Dadnb`
+  nem e fejlesztés módosítása; nem commitolandó, nem törlendő mellékesen.
+
+Még nincs: tartós home-konfigurációmentés, webes szerkesztő, élő állapottár,
+parancsküldés, speciális képernyő vagy új grafika. A modell önmagában nem kész funkció.
+
+Következő egyetlen tisztázandó termékkérdés: jelenlétre vezérelt Slave nappal is
+elsötétedjen-e timeout után, vagy ez csak az éjszakai időszakban legyen érvényes.
+Ezzel párhuzamos következő technikai lépés: modellek SD-s atomi mentése és a meglévő
+Loxone webes konfigurációba illesztés, a régi beállítások/jelszavak megőrzésével.
