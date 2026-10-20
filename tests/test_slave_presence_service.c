@@ -263,8 +263,10 @@ int main(void)
     profile.blank_at_night = true;
     profile.timeout_seconds = 5;
     memcpy(profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
+    uint32_t source_revision = app_slave_presence_service_source_revision();
     assert(!app_slave_presence_service_update(&first, &profile, snapshot.revision - 1));
     assert(app_slave_presence_service_update(&first, &profile, snapshot.revision));
+    assert(app_slave_presence_service_source_revision() != source_revision);
     worker_step();
     assert(writes == before + 1);
     assert(app_slave_presence_service_snapshot(&snapshot));
@@ -279,6 +281,9 @@ int main(void)
     app_slave_presence_receiver_t receiver = {0};
     assert(app_slave_presence_receive(&receiver, packet, sizeof(packet), true, 0));
     assert(receiver.counter == 1);
+    now_us = 45000000;
+    assert(app_slave_presence_service_packet(&first, 2, packet) && packet[3] == 1);
+    now_us = 0;
     assert(app_slave_presence_service_packet(&second, 1, packet) && packet[3] == 0);
     assert(app_slave_presence_service_snapshot(&snapshot));
     assert(!snapshot.table.peers[0].valid && !snapshot.table.peers[0].counter);

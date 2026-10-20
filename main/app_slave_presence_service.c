@@ -20,6 +20,8 @@ static SemaphoreHandle_t s_presence_mutex;
 static QueueHandle_t s_presence_queue;
 static atomic_bool s_presence_ready;
 static bool s_presence_master, s_presence_online;
+static int64_t s_presence_online_us;
+static uint32_t s_presence_source_revision;
 static app_slave_presence_snapshot_t s_presence_state;
 static app_slave_presence_receiver_t s_presence_receiver;
 
@@ -200,6 +202,8 @@ esp_err_t app_slave_presence_service_init(bool master)
     s_presence_state = state;
     memset(&s_presence_receiver, 0, sizeof(s_presence_receiver));
     s_presence_online = false;
+    s_presence_online_us = 0;
+    s_presence_source_revision = 0;
     s_presence_mutex = mutex;
     s_presence_queue = queue;
     if (master && xTaskCreate(presence_save_task, "presence_nvs", 4096, NULL, 3, NULL) != pdPASS)
@@ -266,10 +270,14 @@ bool app_slave_presence_service_update(const app_slave_identity_t *identity,
         return false;
     int index = app_slave_presence_find(&s_presence_state.table, identity);
     bool changed = false;
+    bool source_changed = index >= 0 && strcmp(s_presence_state.table.peers[index].profile.presence_uuid,
+                                               profile->presence_uuid) != 0;
     bool ok = index >= 0 && expected_revision == s_presence_state.revision &&
               app_slave_presence_update(&s_presence_state.table, (unsigned)index, profile, &changed);
     if (ok && (changed || s_presence_state.save_error != ESP_OK))
         config_changed();
+    if (ok && source_changed)
+        ++s_presence_source_revision;
     xSemaphoreGive(s_presence_mutex);
     return ok;
 }
@@ -281,8 +289,11 @@ bool app_slave_presence_service_packet(const app_slave_identity_t *identity,
     if (!out || !service_lock(true))
         return false;
     int index = app_slave_presence_find(&s_presence_state.table, identity);
+    int64_t now = esp_timer_get_time();
+    bool live = s_presence_online && now >= s_presence_online_us &&
+                now - s_presence_online_us < INT64_C(45000000);
     bool ok = index >= 0 && app_slave_presence_encode(&s_presence_state.table.peers[index],
-                                                      sequence, s_presence_online, out);
+                                                      sequence, live, out);
     xSemaphoreGive(s_presence_mutex);
     return ok;
 }
@@ -301,9 +312,19 @@ void app_slave_presence_service_online(bool online)
     if (!service_lock(true))
         return;
     s_presence_online = online;
+    s_presence_online_us = esp_timer_get_time();
     if (!online)
         app_slave_presence_invalidate(&s_presence_state.table);
     xSemaphoreGive(s_presence_mutex);
+}
+
+uint32_t app_slave_presence_service_source_revision(void)
+{
+    if (!service_lock(true))
+        return 0;
+    uint32_t revision = s_presence_source_revision;
+    xSemaphoreGive(s_presence_mutex);
+    return revision;
 }
 
 bool app_slave_presence_service_receive(const uint8_t *data, size_t size, bool authenticated)

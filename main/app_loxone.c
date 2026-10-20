@@ -3,6 +3,7 @@
 #include "app_loxone_model.h"
 #include "app_loxone_store.h"
 #include "app_loxone_home_store.h"
+#include "app_slave_presence_service.h"
 #include "app_ingest.h"
 #include "app_state.h"
 #include "app_stats.h"
@@ -52,6 +53,7 @@ static EXT_RAM_BSS_ATTR lx_home_values_t s_home_values;
 static lx_home_values_t s_home_values;
 #endif
 static bool s_home_live, s_command_pending;
+static bool s_presence_session_live;
 static unsigned s_home_session;
 static int64_t s_command_deadline, s_home_response;
 static char s_command_status[LX_HOME_ERROR_SIZE];
@@ -171,6 +173,8 @@ static void mark_response(void)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_home_response = s_last_response;
     xSemaphoreGive(s_lock);
+    if (s_presence_session_live)
+        app_slave_presence_service_online(true);
 }
 static bool send_plain(const char *command)
 {return !s_dead&&esp_websocket_client_send_text(s_ws,command,strlen(command),pdMS_TO_TICKS(LX_TIMEOUT_MS))==(int)strlen(command);}
@@ -475,6 +479,8 @@ static bool connect_server(const lx_config_t *cfg)
 }
 static void invalidate(bool configured)
 {
+    s_presence_session_live = false;
+    app_slave_presence_service_online(false);
     app_state_set_loxone(configured,false);app_state_clear_sample();app_stats_break_continuity();
     memset(&s_values,0,sizeof(s_values));
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -521,6 +527,7 @@ static void worker(void *arg)
     if(!active){status("Nincs elegendő memória a Loxone klienshez.");vTaskDelete(NULL);return;}
     char token[1024]={0};bool testing=false;unsigned failures=0;
     for(;;) {
+        uint32_t presence_revision = app_slave_presence_service_source_revision();
         if(xQueueReceive(s_requests,&request,0)==pdTRUE) {
             if (request->home)
             {
@@ -552,6 +559,9 @@ static void worker(void *arg)
         if(!token[0]&&!acquire_token(active,token,sizeof(token))) {report_failure("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
         if(!download_catalog_with_fallback(active,token)) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
         if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
+        /* A hitelesítés és a katalógus már sikeres; a kezdő delta az ACK előtt is jöhet. */
+        s_presence_session_live = true;
+        app_slave_presence_service_online(true);
         cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
         xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
@@ -561,7 +571,8 @@ static void worker(void *arg)
         app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
         mark_response();int64_t heartbeat=s_last_response,last_sample=0;
         failures=0;
-        while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0) {
+        while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0 &&
+              app_slave_presence_service_source_revision() == presence_revision) {
             message_t m;int64_t now=esp_timer_get_time();
             if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))==pdTRUE) {
                 mark_response();
@@ -715,6 +726,22 @@ static bool update_values(int type, const uint8_t *data, size_t size)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);
     xSemaphoreGive(s_lock);
+    if (ok && type == 2 && s_presence_session_live)
+    {
+        /* Ugyanaz a már ellenőrzött, 24 bájtos numerikus WS-delta: nincs új kapcsolat,
+         * és a két BLE-olvasás közé eső 1->0 él sem veszik el. */
+        for (size_t position = 0; position < size; position += 24)
+        {
+            char uuid[LX_UUID_LEN];
+            lx_uuid_string(data + position, uuid);
+            uint64_t bits = 0;
+            for (unsigned byte = 0; byte < 8; ++byte)
+                bits |= (uint64_t)data[position + 16 + byte] << (8 * byte);
+            double value;
+            memcpy(&value, &bits, sizeof(value));
+            app_slave_presence_service_source(uuid, true, value);
+        }
+    }
     return ok;
 }
 

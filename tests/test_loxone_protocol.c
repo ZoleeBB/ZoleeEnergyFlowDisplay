@@ -7,6 +7,22 @@
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
 
+/* A hálózati teszt a valódi jelenléttermelőt használja, RTOS/NVS nélkül. */
+static app_slave_presence_table_t presence_fixture;
+static bool presence_online;
+void app_slave_presence_service_online(bool online)
+{
+    presence_online = online;
+    if (!online)
+        app_slave_presence_invalidate(&presence_fixture);
+}
+void app_slave_presence_service_source(const char *uuid, bool valid, double value)
+{
+    if (presence_online)
+        (void)app_slave_presence_source(&presence_fixture, uuid, valid, value);
+}
+uint32_t app_slave_presence_service_source_revision(void) { return 0; }
+
 typedef struct {unsigned count,head,tail,capacity;size_t item;unsigned char *data;} queue_t;
 QueueHandle_t xQueueCreate(unsigned count,size_t item){queue_t *q=calloc(1,sizeof(*q));assert(q);q->capacity=count;q->item=item;q->data=calloc(count,item);assert(q->data);return q;}
 int xQueueSend(QueueHandle_t handle,const void *item,TickType_t ticks){(void)ticks;queue_t *q=handle;if(q->count==q->capacity)return 0;memcpy(q->data+q->tail*q->item,item,q->item);q->tail=(q->tail+1)%q->capacity;q->count++;return 1;}
@@ -200,6 +216,57 @@ static void home_control_test(lx_config_t *energy)
     free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
 }
 static char *load(const char *path){FILE *f=fopen(path,"rb");assert(f);fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);char *s=calloc(1,n+1);assert(s&&fread(s,1,n,f)==(size_t)n);fclose(f);return s;}
+static void presence_stream_test(lx_config_t *energy)
+{
+    app_slave_identity_t identity = {0, {1, 2, 3, 4, 5, 6}};
+    assert(app_slave_presence_register(&presence_fixture, &identity, "Jelenlét") == 0);
+    app_slave_presence_profile_t profile = presence_fixture.peers[0].profile;
+    memcpy(profile.presence_uuid, "00000000-0000-0000-0000000000000000", 36);
+    profile.blank_at_night = true;
+    assert(app_slave_presence_update(&presence_fixture, 0, &profile, NULL));
+    s_session_config = energy;
+    uint8_t numeric[24] = {0};
+    double value = 1;
+    memcpy(numeric + 16, &value, sizeof(value));
+    s_presence_session_live = false;
+    presence_online = false;
+    mark_response();
+    assert(!presence_online); /* A bejelentkezés válasza még nem jelenlét. */
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(!presence_fixture.peers[0].valid);
+
+    s_presence_session_live = true;
+    mark_response();
+    assert(presence_online);
+    value = 0;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    app_slave_presence_receiver_t receiver = {0};
+    uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 1, true, wire));
+    assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 0));
+    value = 1;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    value = 0;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(presence_fixture.peers[0].counter == 1 && !presence_fixture.peers[0].active);
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 2, true, wire));
+    assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 1));
+    assert(receiver.pending_pulse);
+    uint32_t counter = presence_fixture.peers[0].counter;
+    assert(!update_values(2, numeric, sizeof(numeric) - 1));
+    assert(presence_fixture.peers[0].counter == counter);
+    value = NAN;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(!presence_fixture.peers[0].valid);
+    invalidate(true);
+    assert(!presence_online && !s_presence_session_live);
+    s_session_config = NULL;
+}
+
 int main(int argc,char **argv)
 {
     home_requests();
@@ -218,6 +285,7 @@ int main(int argc,char **argv)
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
     home_control_test(&cfg);
+    presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";
     assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));

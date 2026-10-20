@@ -771,9 +771,18 @@ Elkészült forrásként:
   hibás wire, régi callback, timeout, hitelesítés és legacy. A desktop demók BLE-t
   nem indítanak, ezért ott az új szolgáltatás kijelzőadaptere üres illesztő.
 
-Hátralévő bekötés: három jelenlét-UUID táplálása az egyetlen Loxone WS-deltaútból,
-kapcsolati frissesség és profilváltás utáni teljes állapotfrissítés; webes
-eszközlista/szerkesztő és mentési hibajelzés. Alapból továbbra sincs bekapcsolt
+- Bekötött jelenlétértékek az egyetlen meglévő Loxone WebSocket 24 bájtos numerikus
+  deltaútjába. Csak sikeres hitelesítés/katalógus után él; a kezdő delta az
+  enablebinstatusupdate ACK előtt is megőrződik. Hibás üzenet nem táplál állapotot.
+- Kapcsolati frissesség a meglévő 45 s-os Loxone heartbeat-határral; disconnect
+  invalidál, változatlan állapot-UUID nem évül el önmagában. Új jelenlét-UUID-nál
+  a worker a meglévő kapcsolatot újraépíti, így a teljes kezdő állapot is megérkezik.
+  Ehhez nem készül második socket vagy külön parancskapcsolat.
+- A natív RSA/AES/HMAC protokollteszt a tényleges WS-frissítőből a valódi
+  jelenléttermelőig/fogadóig ellenőrzi a rövid 1→0 jelet, login előtti tiltást,
+  NaN és hibás méret elutasítását, valamint a disconnect invalidálását.
+
+Hátralévő bekötés: webes eszközlista/szerkesztő és mentési hibajelzés. Alapból továbbra sincs bekapcsolt
 sötétítés, és a jelenlétfunkció e blokk után sem tekinthető végig elkészültnek.
 Slave oldali, Master-identitáshoz kötött esetleges bootprofil-cache külön mérlegelendő;
 a Master konfigurációja tartós, a fogadó profilja disconnect alatt memóriában marad.

@@ -25,6 +25,7 @@ bool app_slave_presence_service_packet(const app_slave_identity_t *identity,
                                        uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE]);
 void app_slave_presence_service_source(const char *uuid, bool valid, double value);
 void app_slave_presence_service_online(bool online);
+uint32_t app_slave_presence_service_source_revision(void);
 bool app_slave_presence_service_receive(const uint8_t *data, size_t size, bool authenticated);
 void app_slave_presence_service_disconnected(void);
 void app_slave_presence_service_legacy(void);
