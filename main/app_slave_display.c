@@ -29,8 +29,8 @@ static unsigned brightness(const app_slave_display_t *state, int64_t now)
 {
     if (!state->night)
         return state->profile.day_brightness;
-    if (!state->profile.blank_at_night || state->presence_active || state->pointer_down ||
-        now < state->awake_until_us)
+    if (!state->profile.blank_at_night || state->keep_visible || state->presence_active ||
+        state->pointer_down || now < state->awake_until_us)
         return state->profile.night_brightness;
     return 0;
 }
@@ -83,6 +83,14 @@ void app_slave_display_presence(app_slave_display_t *state, bool valid, bool act
     state->presence_active = valid && active;
     if (state->presence_active || (valid && was_active))
         wake(state, now);
+}
+
+void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, int64_t now_us)
+{
+    if (!state)
+        return;
+    monotonic(state, now_us);
+    state->keep_visible = visible;
 }
 
 bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t now_us)

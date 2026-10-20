@@ -8,6 +8,7 @@
 #include "../../main/app_ui.c"
 #include "../../simulator/home_fixture.h"
 #include "src/draw/lv_draw_vector_private.h"
+void app_test_slave_display_input(lv_display_t *display);
 static app_ble_pairing_status_t pairing_fixture;
 static char submitted_pin[7];
 static unsigned pairing_open_requests;
@@ -24,6 +25,7 @@ static app_stats_snapshot_t fixture;
 static time_t epoch;
 static lv_point_t touch_point;
 static bool touch_pressed;
+static int last_pwm_brightness;
 static int touch_swap_xy,touch_mirror_x,touch_mirror_y;
 static void touch_read(lv_indev_t *input,lv_indev_data_t *data){
     (void)input;data->point=touch_point;
@@ -44,7 +46,7 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
-void bsp_display_brightness_set(int value){(void)value;}
+void bsp_display_brightness_set(int value){last_pwm_brightness=value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
@@ -1243,5 +1245,49 @@ int main(void)
     lv_indev_delete(home_input);
     clear();template_release_cache();app_templates_view_free(&template_view);
     puts("PASS: actual LVGL consumer/cards light/dark pages, 7-item centering, real grayscale, separate command/feedback, pending/offline controls, resource cleanup and exact theme return");
+    app_test_slave_display_input(display);
+    /* A tényleges Master-hardver Slave runtime-ja, külön napszak- és PWM-ellenőrzéssel. */
+    config.data_recept_mode = APP_DATA_SLAVE;
+    config.display.day_brightness = 83;
+    config.display.night_brightness = 17;
+    app_ui_set_config(&config);
+    assert(s_slave_display_ready && !s_slave_display.profile.blank_at_night);
+    app_slave_display_profile_t slave_profile = s_slave_display.profile;
+    slave_profile.blank_at_night = true;
+    assert(app_slave_display_profile(&s_slave_display, &slave_profile, ticks));
+    lv_indev_t *slave_input = lv_indev_create();
+    lv_indev_set_type(slave_input, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(slave_input, display);
+    lv_indev_set_read_cb(slave_input, touch_read);
+    app_runtime_state_t slave_rt = {
+        .data_recept_mode = APP_DATA_SLAVE, .slave_connected = true, .has_valid_sample = true,
+        .last_valid_packet_monotonic_us = ticks, .slave_packet_monotonic_us = ticks,
+    };
+    sample.night_mode = false;
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 83 && last_pwm_brightness == 83 && s_slave_input.input == slave_input);
+    sample.night_mode = true;
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 0 && last_pwm_brightness == 0);
+    pairing_fixture.pin_required = true;
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 17 && last_pwm_brightness == 17);
+    pairing_fixture.pin_required = false;
+    slave_rt.slave_connected = false;
+    sample.night_mode = false;
+    slave_display_update(&slave_rt, &sample, false, ticks);
+    assert(s_brightness == 0 && last_pwm_brightness == 0 && s_slave_display.night);
+    slave_rt.slave_connected = true;
+    slave_rt.slave_source_stale = true;
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 0 && last_pwm_brightness == 0 && s_slave_display.night);
+    slave_rt.slave_source_stale = false;
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 83 && last_pwm_brightness == 83);
+    sample.night_mode = true;
+    lv_indev_delete(slave_input);
+    slave_display_update(&slave_rt, &sample, true, ticks);
+    assert(s_brightness == 17 && last_pwm_brightness == 17 && !s_slave_input.input);
+    puts("PASS: actual Slave runtime own day/night PWM, PIN visibility, stale/disconnected night retention and missing-touch fallback");
     lv_display_delete(display);lv_deinit();return 0;
 }

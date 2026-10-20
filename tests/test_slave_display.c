@@ -95,6 +95,22 @@ int main(void)
     assert(!app_slave_display_pointer(&state, true, SECONDS(103)));
     app_slave_display_pointer(&state, false, SECONDS(104));
 
+    /* A PIN/boot ideiglenes láthatósága nem generál jelenlétet vagy új timeoutot. */
+    app_slave_display_t visible;
+    assert(app_slave_display_init(&visible, &profile, 0));
+    app_slave_display_night(&visible, true, SECONDS(1));
+    app_slave_display_keep_visible(&visible, true, SECONDS(2));
+    assert(app_slave_display_brightness(&visible, SECONDS(100)) == 9);
+    assert(!visible.presence_active && !visible.awake_until_us);
+    assert(!app_slave_display_pointer(&visible, true, SECONDS(101)));
+    assert(!app_slave_display_pointer(&visible, false, SECONDS(102)));
+    app_slave_display_keep_visible(&visible, false, SECONDS(103));
+    assert(app_slave_display_brightness(&visible, SECONDS(131)) == 9);
+    assert(app_slave_display_brightness(&visible, SECONDS(132)) == 0);
+    app_slave_display_keep_visible(&visible, true, SECONDS(133));
+    app_slave_display_keep_visible(&visible, false, SECONDS(134));
+    assert(app_slave_display_brightness(&visible, SECONDS(134)) == 0);
+
     /* Hibás órasorrend és int64 túlcsordulás se okozhat azonnali elsötétülést. */
     app_slave_display_presence(&state, true, false, SECONDS(105));
     app_slave_display_presence(&state, true, true, SECONDS(106));

@@ -20,6 +20,7 @@ typedef struct
     bool presence_active;
     bool pointer_down;
     bool swallow_pointer;
+    bool keep_visible;
     int64_t awake_until_us;
     int64_t last_now_us;
 } app_slave_display_t;
@@ -31,6 +32,8 @@ bool app_slave_display_profile(app_slave_display_t *state,
 void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now_us);
 /* Érvénytelen jelenlét (pl. kapcsolatvesztés) nem hosszabbítja meg az ébrenlétet. */
 void app_slave_display_presence(app_slave_display_t *state, bool valid, bool active, int64_t now_us);
+/* Indulás/PIN alatt látható marad, de az ideiglenes felülbírálás nem jelenlétjel. */
+void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, int64_t now_us);
 /* A true a teljes ébresztő érintés lenyelését jelenti, a felengedést is beleértve.
  * A hívó inputréteg ilyenkor ne továbbítson kattintást/gesztust az LVGL-nek. */
 bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t now_us);

@@ -504,3 +504,54 @@ Feltöltési javítás az „Invalid conversation body” hiba után:
   SD-telepítés/frissítés/törlés tesztje az optimalizált képekkel is sikeres.
 - A hat képfájl külön GitHub-blobként sikeresen feltöltve; a forrásfák kisebb
   kérésekben kerülnek fel. A hiba pontos szerveroldali oka nem bizonyított.
+
+A feltöltés lezárása: `e62c0c2e34024f3dfedbb8e851e34e6e8e3d8648` a távoli ágon;
+a teljes fájlfa helyivel ellenőrzött SHA-ja `e6434ad9a5e330910587491e71f874f081093d3d`.
+Mind a hat kép és mind az 55 szövegfájl sikeresen felkerült, kisméretű kérésekben.
+Az `e62c0c2` összes távoli ellenőrzése sikeres:
+[Master regresszió/LVGL/ikonok/csomagolás/két firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39475070978),
+[Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39475070936),
+[4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39475070882).
+Master app: `0x2db6e0` bájt, 8 MiB app-partíción 64% szabad; 4B app:
+`0x31d810` bájt, 12 MiB app-partíción 74% szabad. Mindkét USB/OTA-csomag és
+a valódi buildkimenetekkel ellenőrzött telepítő elkészült. Futási heap/FPS/panelmérés nincs.
+
+## Checkpoint 2026-10-20 / 9 – Slave érintéskapu és runtime
+
+Elkészült:
+
+- `app_slave_display_input.c/.h`: a BSP eredeti LVGL-read callbackjét egyszer hívó,
+  a nyers eseményt még a widgetek előtt szűrő kapu. A teljes ébresztő érintés,
+  mozgás és felengedés elnyelődik; a következő érintés használható. Nem írja át
+  a driver/user adatmutatókat, nem foglal saját heapet. Input törlésekor lekapcsol;
+  explicit leválasztáskor visszaállítja az eredeti olvasót. Minden állapota LVGL-zár alatt.
+- Közös boot/PIN láthatósági felülbírálás: a saját nappali/éjszakai fényerő
+  megmarad, nincs kitalált jelenlét és nincs profilfrissítés miatti ébresztés.
+  A már lenyelt érintés közben felugró PIN sem kap téves felengedést/kattintást.
+- A fő panel Slave runtime-ja és a 4B runtime a közös állapotgépet használja,
+  közvetlen PWM-célértékkel. Csak friss, csatlakoztatott és nem lejárt minta
+  változtat napszakot. Kapcsolatvesztéskor megmarad az utolsó ismert éjszaka.
+- Bekötött LVGL-inputkapu mindkét hardveren; érintőkapu nélkül nem sötétülhet
+  felébreszthetetlenül a kijelző. A 4B boot közbeni láthatósági jel atomikus.
+- A Slave saját fényerőit nem írja felül a Master mérési csomagjának fényereje.
+  Alapból továbbra is `blank_at_night=false`: a védett jelenlétprofil még hátravan.
+
+Ellenőrzések:
+
+- Teljes `tests/run_tests.py` regresszió sikeres; modellállapot továbbra is 32 bájt.
+- Natív LVGL 9.5 build és tényleges 1280×800 UI-regresszió sikeres: első érintés,
+  gesztus, felengedés, második kattintás, PIN, az input törlése/leválasztása.
+- Ugyanez a valós kaputeszt a 720×720 4B szimulátorban is sikeres; a meglévő
+  energia/PIN/diagnosztikai képek és tesztek megmaradtak. Windows CI-ben is fut.
+- A tényleges főpaneles Slave runtime helper PWM-adaptere ellenőrzött: saját
+  83/17%, sötét 0%, PIN-láthatóság, lejárt/kapcsolat nélküli éjszaka megőrzése,
+  friss nappali visszatérés és hiányzó érintő melletti láthatóság.
+- Webgenerátor-ellenőrzés, 64/64 ikonkatalógus és whitespace-ellenőrzés sikeres.
+- E checkpoint ESP-IDF/Windows CI-je a következő feltöltés után ellenőrzendő.
+  A szimulátor nem hardveres panelpróba, nincs PR és nincs release.
+
+Következő önálló technikai blokk: legfeljebb három Slave stabil, párosított
+identitása; Masteren tárolt név/jelenlét-UUID/timeout/sötétítés profil; a jelenlét
+minimális, hitelesített BLE-adatútja és célzott NVS-mentése. A Wi-Fi/OTA profilt
+ne terjesszük ki törő módon, és ne gyengítsük az SMP/MITM/bonding ellenőrzését.
+A kártyaoldalak sötét megjelenése és a 05/06 témák terve továbbra is egyeztetendő.

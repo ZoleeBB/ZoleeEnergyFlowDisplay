@@ -7,6 +7,7 @@
  */
 #include "app_ui.h"
 #include "app_ble_seed.h"
+#include "app_slave_display_input.h"
 #include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
@@ -97,6 +98,9 @@ static lv_obj_t *s_chart2_y_top, *s_chart2_y_mid, *s_chart2_y_bottom;
 
 static lv_obj_t *s_error_pulse;
 static int s_brightness = 50, s_target = 50;
+static app_slave_display_t s_slave_display;
+static app_slave_display_input_t s_slave_input;
+static bool s_slave_display_ready;
 static int64_t s_last_chart_update_us;
 /* A 20 kB-os snapshot a UI modul tulajdona, nem a task vermét terheli. */
 static app_stats_snapshot_t s_stats_snapshot;
@@ -1785,6 +1789,23 @@ void app_ui_set_config(const app_config_t *cfg)
      * nappali fényerő az indulási képernyőkre is azonnal érvényes.
      */
     bsp_display_brightness_set(s_brightness);
+    if (cfg->data_recept_mode == APP_DATA_SLAVE && bsp_display_lock(-1) == ESP_OK)
+    {
+        /* A jelenlétprofil védett átviteléig a régi, folyamatos éjszakai fényerő
+         * marad. Az energia-BLE csomag fényerőmezőjét itt sem használjuk. */
+        app_slave_display_profile_t profile = {
+            .day_brightness = cfg->display.day_brightness,
+            .night_brightness = cfg->display.night_brightness,
+            .blank_at_night = false, .presence_timeout_seconds = 30,
+        };
+        int64_t now = esp_timer_get_time();
+        s_slave_display_ready = s_slave_display_ready
+            ? app_slave_display_profile(&s_slave_display, &profile, now)
+            : app_slave_display_init(&s_slave_display, &profile, now);
+        if (s_slave_display_ready)
+            app_slave_display_keep_visible(&s_slave_display, true, now);
+        bsp_display_unlock();
+    }
 }
 /* Indulási folyamat aktuális lépésének megjelenítése vektoros állapotikonokkal. */
 void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
@@ -2021,6 +2042,41 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     }
 }
 
+/* Kizárólag a kijelző zárja alatt: az inputkapu ugyanazt az állapotot frissíti. */
+static void slave_display_update(const app_runtime_state_t *state,
+                                  const app_energy_sample_t *sample, bool have, int64_t now)
+{
+    if (s_cfg.data_recept_mode != APP_DATA_SLAVE || !s_slave_display_ready)
+        return;
+    if (!s_slave_input.input)
+    {
+        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+        {
+            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+                lv_indev_get_display(input) == lv_display_get_default())
+            {
+                (void)app_slave_display_input_bind(&s_slave_input, input,
+                                                  &s_slave_display, esp_timer_get_time);
+                break;
+            }
+        }
+    }
+    if (have && state->slave_connected &&
+        !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg)))
+        app_slave_display_night(&s_slave_display, sample->night_mode, now);
+    app_ble_pairing_status_t pairing;
+    app_ble_pairing_status(&pairing);
+    /* Használható érintő nélkül ne lehessen véletlenül felébreszthetetlenül sötét. */
+    app_slave_display_keep_visible(&s_slave_display,
+                                   pairing.pin_required || !s_slave_input.input, now);
+    s_target = (int)app_slave_display_brightness(&s_slave_display, now);
+    if (s_brightness != s_target)
+    {
+        s_brightness = s_target;
+        bsp_display_brightness_set(s_brightness);
+    }
+}
+
 static void runtime(void *arg)
 {
     (void)arg;
@@ -2048,7 +2104,7 @@ static void runtime(void *arg)
             }
         }
 
-        if (have)
+        if (have && s_cfg.data_recept_mode != APP_DATA_SLAVE)
         {
             s_target = s.night_mode ? s_cfg.display.night_brightness : s_cfg.display.day_brightness;
             if (s_brightness != s_target)
@@ -2070,6 +2126,7 @@ static void runtime(void *arg)
         if (!home_is_open()) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {
+            slave_display_update(&rt, &s, have, now);
             render_runtime(rt, s, have, now);
 
             bsp_display_unlock();

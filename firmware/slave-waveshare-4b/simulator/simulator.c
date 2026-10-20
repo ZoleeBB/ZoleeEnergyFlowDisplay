@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+void app_test_slave_display_input(lv_display_t *display);
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -243,6 +244,7 @@ static int self_test(void)
     click(650, 35);
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
     puts("PASS: BLE decode, day/night, animation, optional weather, SOC 0..100, island, timeout/disconnect, touch PIN/reset/delete/cancel, diagnostics");
+    app_test_slave_display_input(display);
     return 0;
 }
 
