@@ -763,7 +763,9 @@ Elkészült forrásként:
   Hibás wire/replay nem törli a fogadó bázisát és nem frissíti az érvényességet.
 - Mindkét panel a közös szolgáltatáson keresztül, a saját LVGL-zárja alatt alkalmazza
   a profilt. BLE host nem vár LVGL-zárra; az NVS-worker nem fogja meg I/O alatt
-  a receiver-zárat. Saját fényerő, ismert napszak, első érintéskapu és PIN megmarad.
+  a receiver-zárat. Az adapter a zár után friss monoton időt vesz, ezért egy korábban
+  vett UI-időbélyeg nem dobhatja el a közben érkezett rövid impulzust (külön teszt).
+  Saját fényerő, ismert napszak, első érintéskapu és PIN megmarad.
 - HTTP/MQTT Master az opcionális karakterisztikán kikapcsolt profilt ad, a korábbi
   Wi-Fi/OTA/energia adatutat változatlanul megtartja.
 - Natív tesztek: valódi NVS-worker és GATT access handler; tartós commit,

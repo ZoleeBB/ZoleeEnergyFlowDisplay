@@ -338,6 +338,21 @@ int main(void)
     app_slave_presence_service_apply(&display, 7000000);
     assert(!display.profile.blank_at_night && display.profile.day_brightness == 83);
     assert(app_slave_display_brightness(&display, 7000000) == 17);
+    /* Közben jött BLE-csomagot a korábban vett UI-idő nem nyelhet el. */
+    memcpy(peer.profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
+    peer.valid = true;
+    now_us = 10000000;
+    assert(app_slave_presence_encode(&peer, 1, true, packet));
+    assert(app_slave_presence_service_receive(packet, sizeof(packet), true));
+    app_slave_presence_service_apply(&display, 9000000);
+    assert(app_slave_display_brightness(&display, 10000000) == 0);
+    peer.counter++;
+    now_us = 11000000;
+    assert(app_slave_presence_encode(&peer, 2, true, packet));
+    assert(app_slave_presence_service_receive(packet, sizeof(packet), true));
+    app_slave_presence_service_apply(&display, 10000000);
+    assert(app_slave_display_brightness(&display, 11000000) == 17);
+    assert(display.last_now_us == 11000000);
     printf("PASS: actual presence NVS worker, canonical %u-byte CRC blob, coalescing, "
            "auth receiver, commit/OOM/corruption, reboot, no flash per activity\n", (unsigned)PRESENCE_STORE_SIZE);
     return 0;

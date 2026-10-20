@@ -359,6 +359,11 @@ void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now_
     if (!display || !atomic_load(&s_presence_ready) || s_presence_master ||
         xSemaphoreTake(s_presence_mutex, 0) != pdTRUE)
         return;
-    app_slave_presence_apply(&s_presence_receiver, display, now_us);
+    /* A UI a képek betöltése előtt is vehette az időbélyegét. Azóta már
+     * érkezhetett BLE-impulzus; azt egy régi UI-idő nem dobhatja el. */
+    int64_t current = esp_timer_get_time();
+    if (now_us > current)
+        current = now_us;
+    app_slave_presence_apply(&s_presence_receiver, display, current);
     xSemaphoreGive(s_presence_mutex);
 }
