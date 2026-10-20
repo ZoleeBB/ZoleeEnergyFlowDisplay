@@ -152,56 +152,96 @@
       "hu": "Páramentesítő",
       "en": "Dehumidifier",
       "category": "climate",
-      "subject": "a compact white portable household dehumidifier with top vent and lower translucent water collection tank"
+      "subject": "a compact white portable household dehumidifier with top vent and lower translucent water collection tank",
+      "file": "icons/dehumidifier.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact white portable household dehumidifier with top vent and lower translucent water collection tank.",
+      "original_sha256": "0d421bff91ecdf67592b89f7e6b3b6af61fe336f4ffef327d8050d18823a91c1",
+      "sha256": "79e3db785cd2d3f9a5c630509c26394d36d72f3a5c7e636a11ab7d4f60439883"
     },
     {
       "id": "tv",
       "hu": "TV",
       "en": "Television",
       "category": "technology",
-      "subject": "a slim widescreen modern television on two small feet, its screen showing a calm blue-green abstract landscape without words"
+      "subject": "a slim widescreen modern television on two small feet, its screen showing a calm blue-green abstract landscape without words",
+      "file": "icons/tv.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a slim widescreen modern television on two small feet, its screen showing a calm blue-green abstract landscape without words.",
+      "original_sha256": "7cbb00d161118185660599cf85e8493cea40ab4a3067aaf55fea9e91697057f0",
+      "sha256": "48628fce4225d02b9595fb70a0baa73d58eb4daa8ce4a33ba6230bb60f62e867"
     },
     {
       "id": "ventilation",
       "hu": "Szellőztető",
       "en": "Ventilation unit",
       "category": "climate",
-      "subject": "a white compact residential heat-recovery ventilation box with two round silver duct collars, technical product render"
+      "subject": "a white compact residential heat-recovery ventilation box with two round silver duct collars, technical product render",
+      "file": "icons/ventilation.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a white compact residential heat-recovery ventilation box with two round silver duct collars, technical product render.",
+      "original_sha256": "c1e173b14af71b7e2254c996c19b33bef531183d2276e04f433ccb473c50b219",
+      "sha256": "5f0d018f62262b9941270e994884584b833f31490eb33f225010fbf7adc45be7"
     },
     {
       "id": "fan",
       "hu": "Ventilátor",
       "en": "Fan",
       "category": "climate",
-      "subject": "a modern small freestanding pedestal fan with a circular protective wire grille, three visible blades and compact stand"
+      "subject": "a modern small freestanding pedestal fan with a circular protective wire grille, three visible blades and compact stand",
+      "file": "icons/fan.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern small freestanding pedestal fan with a circular protective wire grille, three visible blades and compact stand.",
+      "original_sha256": "74bcbe0027f3016f6d4713fcdcb5c7fe0a018507adb010d3fcf5daff13873564",
+      "sha256": "c6cf5828e80ba5b416c7a6ddcca7e765445c09029e62af5edea7cbf51e475bfd"
     },
     {
       "id": "extractor-hood",
       "hu": "Elszívó",
       "en": "Extractor hood",
       "category": "kitchen",
-      "subject": "a stainless-steel kitchen extractor hood with broad flat canopy and short vertical chimney section, isolated with no kitchen furniture"
+      "subject": "a stainless-steel kitchen extractor hood with broad flat canopy and short vertical chimney section, isolated with no kitchen furniture",
+      "file": "icons/extractor-hood.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a stainless-steel kitchen extractor hood with broad flat canopy and short vertical chimney section, isolated with no kitchen furniture.",
+      "original_sha256": "c11e70974093c4b9e7d270002e0024b02221c0900097e6ffdccd5df869606392",
+      "sha256": "9e10e70aeca58c7cdcbbd54d78f6b9e38f5616b2b1b0b32edd54af2a4dfb54a1"
     },
     {
       "id": "wine-fridge",
       "hu": "Borhűtő",
       "en": "Wine cooler",
       "category": "kitchen",
-      "subject": "a small premium black glass-front wine cooler with several wood shelves and horizontal wine bottles visible inside"
+      "subject": "a small premium black glass-front wine cooler with several wood shelves and horizontal wine bottles visible inside",
+      "file": "icons/wine-fridge.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small premium black glass-front wine cooler with several wood shelves and horizontal wine bottles visible inside.",
+      "original_sha256": "8f1da25484bd3feefc66335f7b75a3b27687fb7744efe5194b0bc058a5704020",
+      "sha256": "bf617c46d2312c3ac35662ece33a5f25c1b6ff4e583f66ffc61c96584777ef07"
     },
     {
       "id": "radiator",
       "hu": "Fűtőtest",
       "en": "Radiator",
       "category": "climate",
-      "subject": "a white modern electric panel radiator with slim top grille and a discreet side thermostat, isolated without wall"
+      "subject": "a white modern electric panel radiator with slim top grille and a discreet side thermostat, isolated without wall",
+      "file": "icons/radiator.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a white modern electric panel radiator with slim top grille and a discreet side thermostat, isolated without wall.",
+      "original_sha256": "3c389ab30e75e365d5cf40def875edb24456590f65c8c0b839cca30849693a05",
+      "sha256": "943328c0d524436087d9cb65b909b6f3455ba57c5c855ef2c9283b59369e5dd4"
     },
     {
       "id": "lamp",
       "hu": "Lámpa",
       "en": "Lamp",
       "category": "lighting",
-      "subject": "a beautiful warm glowing dome pendant lamp with brushed brass top and cream shade, short cable ending inside the image"
+      "subject": "a beautiful warm glowing dome pendant lamp with brushed brass top and cream shade, short cable ending inside the image",
+      "file": "icons/lamp.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a beautiful warm glowing dome pendant lamp with brushed brass top and cream shade, short cable ending inside the image.",
+      "original_sha256": "c1451d6f9ea5a71febb1cd508ee4a7a73db1bb4ed2c490c6452d4569c80aa7cf",
+      "sha256": "fc818f882b2be1da4ce6d5345230a6e20cfc6b68d6673e56fd2b4509f8d6c978"
     },
     {
       "id": "heat-pump",
