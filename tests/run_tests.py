@@ -124,6 +124,7 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_release.py")], check=Tru
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_home_resources.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)

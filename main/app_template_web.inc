@@ -21,6 +21,12 @@ static esp_err_t template_list_get(httpd_req_t *req){
     cJSON *root=cJSON_CreateObject();if(!root)return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(root,"active",active);cJSON *array=cJSON_AddArrayToObject(root,"templates");
     for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddNumberToObject(item,"version",list[i].version);cJSON_AddItemToArray(array,item);}
+    app_template_info_t resource;
+    cJSON *resources=cJSON_AddArrayToObject(root,"resources");
+    if(resources&&app_templates_home_info(&resource,NULL)){
+        cJSON *item=cJSON_CreateObject();
+        if(item){cJSON_AddStringToObject(item,"id",resource.id);cJSON_AddStringToObject(item,"name",resource.name);cJSON_AddNumberToObject(item,"version",resource.version);cJSON_AddItemToArray(resources,item);}
+    }
     char *json=cJSON_PrintUnformatted(root);cJSON_Delete(root);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }

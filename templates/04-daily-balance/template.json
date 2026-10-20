@@ -4,6 +4,7 @@
   "name": "Napi mérleg",
   "version": 7,
   "light": {
+    "home_hotspot": {"x": 32, "y": 370, "w": 95, "h": 85},
     "background": "#E5F1ED",
     "elements": [
       {
@@ -363,6 +364,7 @@
     }
   },
   "dark": {
+    "home_hotspot": {"x": 32, "y": 370, "w": 95, "h": 85},
     "background": "#1B2E38",
     "elements": [
       {

@@ -4,6 +4,7 @@
   "name": "Nyugodt otthon",
   "version": 8,
   "light": {
+    "home_hotspot": {"x": 560, "y": 150, "w": 130, "h": 125},
     "background": "#E8F0E7",
     "elements": [
       {
@@ -405,6 +406,7 @@
     }
   },
   "dark": {
+    "home_hotspot": {"x": 560, "y": 150, "w": 130, "h": 125},
     "background": "#223432",
     "elements": [
       {

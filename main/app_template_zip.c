@@ -38,7 +38,7 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
 
     bool ok = false;
     unsigned char *tail = NULL, *input = NULL, *output = NULL;
-    char names[34][65];
+    char names[72][65];
     unsigned entries = 0;
     size_t total = 0;
 
@@ -69,7 +69,7 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
     const unsigned char *e = tail + end;
     entries = u16(e + 10);
     uint32_t cd = u32(e + 16), cd_size = u32(e + 12);
-    if (u16(e + 4) || u16(e + 6) || u16(e + 8) != entries || !entries || entries > 34 ||
+    if (u16(e + 4) || u16(e + 6) || u16(e + 8) != entries || !entries || entries > 72 ||
         (uint64_t)cd + cd_size != (uint64_t)(length - (long)tail_size + end))
         goto done;
 
@@ -168,6 +168,45 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
     }
 
     ok = next == (long)((uint64_t)cd + cd_size);
+    /* A nagyobb fájlszám kizárólag a fenntartott, külön validált home-csomagé.
+     * Normál témának ugyanúgy legfeljebb 34 ZIP-bejegyzése lehet. */
+    if (ok && entries > 34)
+    {
+        char manifest[256];
+        snprintf(manifest, sizeof(manifest), "%s/template.json", directory);
+        FILE *json_file = fopen(manifest, "rb");
+        char *body = calloc(1, 65537);
+        size_t size = json_file && body ? fread(body, 1, 65536, json_file) : 0;
+        unsigned depth = 0;
+        bool valid_json = size > 0 && size < 65536 && !memchr(body, 0, size);
+        bool quoted = false, escaped = false;
+        for (size_t i = 0; valid_json && i < size; i++)
+        {
+            char ch = body[i];
+            if (quoted)
+            {
+                if (escaped) escaped = false;
+                else if (ch == '\\') escaped = true;
+                else if (ch == '"') quoted = false;
+            }
+            else if (ch == '"') quoted = true;
+            else if (ch == '{' || ch == '[') valid_json = ++depth <= 16;
+            else if (ch == '}' || ch == ']')
+            {
+                if (!depth) valid_json = false;
+                else depth--;
+            }
+        }
+        cJSON *root = valid_json && !depth && !quoted ?
+                      cJSON_ParseWithLengthOpts(body, size + 1, NULL, true) : NULL;
+        const char *kind = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "kind"));
+        const char *id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "id"));
+        ok = kind && id && !strcmp(kind, APP_HOME_RESOURCE_KIND) && !strcmp(id, APP_HOME_RESOURCE_ID);
+        cJSON_Delete(root);
+        free(body);
+        if (json_file)
+            fclose(json_file);
+    }
 
 done:
     /* Minden hibás ágon az összes puffer és a megnyitott ZIP felszabadul. */

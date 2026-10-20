@@ -71,6 +71,7 @@ idf_component_register(
         "app_loxone_model.c"
         "app_loxone_home_model.c"
         "app_loxone_home_store.c"
+        "app_loxone_home_runtime.c"
         "app_loxone_store.c"
         "app_ota.c"
         "app_ota_auto.c"

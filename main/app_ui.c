@@ -32,6 +32,11 @@
 #include "app_storage.h"
 #include "app_templates.h"
 #include "app_diagnostics.h"
+#include "app_loxone.h"
+#include "app_loxone_home_layout.h"
+#ifndef _MSC_VER
+#include <stdatomic.h>
+#endif
 
 LV_FONT_DECLARE(app_font_12);
 #define APP_FONT_12 (&app_font_12)
@@ -122,6 +127,7 @@ typedef enum
     VIEW_DASHBOARD,
     VIEW_THEME_LOADING,
     VIEW_DIAGNOSTICS,
+    VIEW_HOME,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
     VIEW_LOXONE_SETUP,
@@ -134,6 +140,10 @@ typedef enum
 
 static runtime_view_t s_view = VIEW_NONE;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
+static bool home_is_open(void);
+static void home_cards_requested(void);
+static void home_open_clicked(lv_event_t *event);
+static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene);
 static void error_screen(runtime_view_t view, const char *title, const char *detail, bool fatal);
 
 /* Az MQTT adatokból származtatott időjárási ikonállapotok. */
@@ -880,6 +890,8 @@ static void build_dashboard(bool night)
 
     /* Ház alul. */
     s_home_node = energy_circle(flow, 245, 390, 92, &app_img_home_scene, NULL, night, ORANGE);
+    lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *home_name =
         lbl(flow, tr("Ház", "Home"), 170, 439, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
@@ -1870,6 +1882,7 @@ void app_ui_show_fatal(const char *title, const char *detail)
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
 #include "app_template_ui.inc"
+#include "app_loxone_home_ui.inc"
 #include "app_loxone_logo.h"
 /* Saját Loxone képernyők: a témákhoz nem foglalunk új képcache-t. */
 static void loxone_screen(runtime_view_t view)
@@ -1922,6 +1935,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     if (pairing.pin_required) return;
+    if (home_render()) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
         had_loxone_connection = true;
@@ -2047,12 +2061,13 @@ static void runtime(void *arg)
 
         diagnostics_capture();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
-        if (!template_loading_frame())
+        if (!home_is_open() && !template_loading_frame())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        template_prepare();
+        home_prepare(have ? s.night_mode : home_night);
+        if (!home_is_open()) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {
             render_runtime(rt, s, have, now);

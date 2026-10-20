@@ -267,49 +267,54 @@ cJSON *lx_values_payload(const lx_values_t *v, const lx_config_t *cfg)
     }
     return root;
 }
+static bool catalog_entry(cJSON *out, const cJSON *control, const cJSON *state,
+                           const cJSON *rooms, const cJSON *cats, bool secured)
+{
+    if (cJSON_GetArraySize(out) >= LX_CATALOG_MAX)
+        return false;
+    cJSON *item = cJSON_CreateObject();
+    if (!item)
+        return false;
+    bool ok = cJSON_AddStringToObject(item, "uuid", state ? state->valuestring : "") &&
+              cJSON_AddStringToObject(item, "control_uuid", lx_uuid_valid(control->string) ? control->string : "") &&
+              cJSON_AddStringToObject(item, "name", str(control, "name")) &&
+              cJSON_AddStringToObject(item, "type", str(control, "type")) &&
+              cJSON_AddBoolToObject(item, "secured", secured) &&
+              cJSON_AddStringToObject(item, "state", state && state->string ? state->string : "") &&
+              cJSON_AddStringToObject(item, "room", str(cJSON_GetObjectItemCaseSensitive(rooms, str(control, "room")), "name")) &&
+              cJSON_AddStringToObject(item, "category", str(cJSON_GetObjectItemCaseSensitive(cats, str(control, "cat")), "name"));
+    if (ok && cJSON_AddItemToArray(out, item))
+        return true;
+    cJSON_Delete(item);
+    return false;
+}
 static bool catalog_controls(
-    cJSON *out, const cJSON *controls, const cJSON *rooms, const cJSON *cats, int depth)
+    cJSON *out, const cJSON *controls, const cJSON *rooms, const cJSON *cats, int depth, bool parent_secured)
 {
     if (depth > 8)
         return false;
     const cJSON *control;
     cJSON_ArrayForEach(control, controls)
     {
-        const char *type = str(control, "type");
+        unsigned before = (unsigned)cJSON_GetArraySize(out);
+        const cJSON *protection = cJSON_GetObjectItemCaseSensitive(control, "isSecured");
+        bool secured = parent_secured || (protection &&
+            !(cJSON_IsFalse(protection) || (cJSON_IsNumber(protection) && protection->valuedouble == 0)));
         const cJSON *state;
         cJSON_ArrayForEach(state, cJSON_GetObjectItemCaseSensitive(control, "states"))
         {
             if (!cJSON_IsString(state) || !lx_uuid_valid(state->valuestring))
                 continue;
-            if (cJSON_GetArraySize(out) >= LX_CATALOG_MAX)
+            if (!catalog_entry(out, control, state, rooms, cats, secured))
                 return false;
-            cJSON *item = cJSON_CreateObject();
-            if (!item)
-                return false;
-            cJSON_AddStringToObject(item, "uuid", state->valuestring);
-            /* Vezérléshez az objektum kulcsa kell, nem a visszajelző állapot UUID-ja.
-             * Régi/szokatlan struktúrában érvénytelen kulcsból nem képzünk parancscélt. */
-            if (!cJSON_AddStringToObject(item, "control_uuid",
-                                         lx_uuid_valid(control->string) ? control->string : ""))
-            {
-                cJSON_Delete(item);
-                return false;
-            }
-            cJSON_AddStringToObject(item, "name", str(control, "name"));
-            cJSON_AddStringToObject(item, "type", type);
-            cJSON_AddStringToObject(item, "state", state->string ? state->string : "");
-            cJSON_AddStringToObject(
-                item,
-                "room",
-                str(cJSON_GetObjectItemCaseSensitive(rooms, str(control, "room")), "name"));
-            cJSON_AddStringToObject(
-                item,
-                "category",
-                str(cJSON_GetObjectItemCaseSensitive(cats, str(control, "cat")), "name"));
-            cJSON_AddItemToArray(out, item);
         }
+        /* Állapot nélküli pillanatnyi gomb is párosítható parancscélként.
+         * Üres állapot-UUID-ja nem kerülhet a mérési legördülőkbe. */
+        if ((unsigned)cJSON_GetArraySize(out) == before && lx_uuid_valid(control->string) &&
+            !catalog_entry(out, control, NULL, rooms, cats, secured))
+            return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");
-        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1))
+        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured))
             return false;
     }
     return true;
@@ -325,7 +330,7 @@ cJSON *lx_catalog_parse(const char *json, size_t length)
                           controls,
                           cJSON_GetObjectItemCaseSensitive(root, "rooms"),
                           cJSON_GetObjectItemCaseSensitive(root, "cats"),
-                          0))
+                          0, false))
     {
         cJSON_Delete(root);
         cJSON_Delete(out);

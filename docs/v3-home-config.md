@@ -4,8 +4,9 @@
 
 Az `app_loxone_home_model.c` platformfüggetlen konfigurációs modell elkészült.
 A tartós SD-mentés és a meglévő `/loxone` oldal külön fogyasztói/Otthon-szerkesztője
-is elkészült. **Az élő értékek, a parancsküldés és a két új kijelzőoldal még nincs
-bekötve.** A szerkesztő már menthető profilt készít, ez még nem a teljes v3 funkció. A teljes feladat és a folytatás: [fejlesztési terv](v3-development-plan.md).
+is elkészült. Az élő értékek, a korlátos parancsküldés és a két Master kijelzőoldal is be van
+kötve, külön SD-erőforráscsomaggal. Ez még nem a teljes v3: Slave-jelenlét,
+energiaasszisztens és a 05/06 témák külön fejlesztési pontok. A teljes feladat és a folytatás: [fejlesztési terv](v3-development-plan.md).
 
 A modell külön objektum; nem növeli meg a több helyen másolt, jelszót is tartalmazó
 `lx_config_t` hitelesítési konfigurációt. A modellben nincs token vagy jelszó.
@@ -28,7 +29,10 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
   újraépít, ezért mentés után rövid adatkapcsolati szünet lehetséges.
 - A szerkesztő 64 ikont és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
   felül a helyi szerkesztést. A vezérlési cél listája a `control_uuid` mezőből
-  készül, nem a mérési UUID-ból. A parancstámogatás runtime ellenőrzése még hátravan.
+  készül, nem a mérési UUID-ból. A parancstámogatást a runtime is ellenőrzi: Switch visszajelzésnél az objektum
+  saját `active` állapota szükséges; pulse célként Switch/Pushbutton/TimedSwitch
+  támogatott. Védett és más típusú objektum tiltott; ilyen funkcióhoz Loxone-ban
+  megfelelő virtuális nyomógomb/kapcsoló párosítható.
 
 ## Formátum
 
@@ -116,9 +120,9 @@ Hét elemnél négy kártya van az első sorban és három középre igazítva a
 Öt elemnél az utolsó egy kártya, hatnál az utolsó kettő kerül középre.
 
 A közös geometria a `app_loxone_home_layout.h` `lx_home_card_rect()` függvénye.
-A későbbi LVGL-oldal ezt hívja; a megjelenítőben ne legyen ettől eltérő másolt képlet.
+A tényleges LVGL-oldal ezt hívja; a megjelenítőben ne legyen ettől eltérő másolt képlet.
 Nulla vagy 12 feletti elemszám, hibás index és hiányzó kimenet elutasított.
-Ez az elrendezési modell még nem a kész képernyő.
+A natív LVGL-render a hétkártyás eset tényleges pozícióját is ellenőrzi.
 
 ## Ellenőrzés
 
@@ -133,3 +137,24 @@ hibás párosítást, nem véges számokat, opcionális átlagteljesítményt, k
 parancs-/állapot-UUID-t és minden JSON-szerializálási foglalási pont hibáját vizsgálja.
 A teszt UBSan és 8192 bájtos stack-frame fordítási korlát mellett fut.
 Ez nem paneles RAM-/FPS-mérés és nem Miniserver-parancsküldési próba.
+
+
+## Kijelzőoldalak és közös csomag
+
+A `tools/prepare_home_resources.py` a forrásképekből és az ellenőrzött 64 ikonból
+`dist/templates/loxone-home.zip` fájlt készít. Ez a meglévő `/templates` felületen
+ellenőrizhető, telepíthető és frissíthető. Külön erőforrásként jelenik meg; nem
+lapozható energiaelrendezés, és nem változtatja meg a mentett témaválasztást.
+
+A ház megérintése a fogyasztókat, lefelé húzás az Otthon-kártyákat nyitja meg.
+Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált elem kell.
+A jobb felső X pontosan az előző témát állítja vissza. Speciális oldalon a
+lapozás/diagnosztikagesztus nem indít másik műveletet. Az egyes oldalak képei
+csak aktív állapotuk alatt maradnak betöltve.
+
+A pillanatnyi gomb egyszer küld; a kérést kapcsolatvesztés után nem ismételjük.
+A kapcsoló a visszaérkező értéket mutatja, nyugta vagy érintés nem változtatja meg
+optimistán. Friss kapcsolat, támogatott párosítás és érvényes kapcsolóállapot nélkül
+a vezérlés tiltott. 2 másodpercnél régebbi sorba állított kérés nem hajtható végre.
+
+A telepítés/tesztelés teljes v3 fejlesztési ágra vonatkozik; v3 release még nincs.

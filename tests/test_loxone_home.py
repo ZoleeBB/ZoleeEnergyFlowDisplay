@@ -16,3 +16,13 @@ with tempfile.TemporaryDirectory(prefix="loxone-home-") as directory:
         "-o", binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=15)
+
+with tempfile.TemporaryDirectory(prefix="loxone-home-runtime-") as directory:
+    binary = str(Path(directory) / "test")
+    subprocess.run([
+        os.environ.get("CC", "cc"), "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+        "-Werror=frame-larger-than=8192", "-fsanitize=undefined", "-fno-sanitize-recover=all",
+        "-Itests/stubs", "-Imain", "main/app_loxone_model.c", "main/app_loxone_home_runtime.c",
+        "tests/test_loxone_home_runtime.c", "-l:libcjson.so.1", "-lm", "-o", binary,
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=15)

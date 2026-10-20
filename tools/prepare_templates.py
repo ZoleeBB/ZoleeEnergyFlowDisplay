@@ -52,7 +52,9 @@ def main():
         old_zip.unlink()  # Never ship a ZIP from an earlier build.
     for folder in folders:
         package_existing_template(folder, output)
-    assert {p.stem for p in output.glob('*.zip')} == {p.name for p in folders}
+    from prepare_home_resources import package_home_resources
+    package_home_resources(output)
+    assert {p.stem for p in output.glob('*.zip')} == {p.name for p in folders} | {'loxone-home'}
 
 
 if __name__=='__main__':main()

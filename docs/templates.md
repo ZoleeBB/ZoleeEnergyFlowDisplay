@@ -302,3 +302,19 @@ szimmetrikus keresztet használ; a középső `pulse` elem `foreground: true`
 beállítással a vonalak és a mozgó pontok fölött pulzál mindkét módban.
 Ehhez a v12-es ZIP mellett a `pulse` előtérjelölését támogató firmware is
 frissítendő. Az energiaáramlás közös sebességképlete változatlan.
+
+## Loxone Otthon – közös erőforrások (v3 fejlesztési ág)
+
+A fogyasztói és Otthon-kártyás oldal közös `loxone-home.zip` csomagját ugyanitt,
+a témakezelőben lehet ellenőrizni, telepíteni és frissíteni. A csomag külön
+**közös erőforrásként** jelenik meg; nem választható energiaelrendezés, és nem
+kerül a lapozási sorrendbe. 64 ikont, nappali/éjszakai hátteret és helyi logót ad.
+
+A Master teljes USB-csomagjának `sd-card/templates/loxone-home` könyvtárában is
+megtalálható. OTA-frissítésnél az új firmware mellett ezt az SD-csomagot is telepítsd.
+A kártyák a `/loxone` oldalon szerkeszthetők; a kijelzőn a ház érintése a fogyasztókat,
+a lefelé húzás az Otthon-kártyákat nyitja meg. Jobb felső X: vissza az előző témához.
+A diagnosztikát felfelé húzás nyitja, és saját X gombja zárja.
+
+A teljes v3 még fejlesztés alatt áll; a részletes állapot a
+[folytatási tervben](v3-development-plan.md) követhető.

@@ -61,12 +61,15 @@ jobs:
           path: .preview-lvgl
       - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build .preview-build -j 4
+      - name: Package shared Loxone resources for actual UI tests
+        run: python3 tools/prepare_home_resources.py
       - name: Render actual LVGL screens
         timeout-minutes: 2
         run: |
           mkdir -p .preview-images
           cp -r templates .preview-template-sd
           export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
+          export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
           cd .preview-images
           ../.preview-build/ui_preview
       - uses: actions/upload-artifact@v4

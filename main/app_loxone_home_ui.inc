@@ -1,0 +1,397 @@
+/* Az app_ui.c része. SD-előtöltés a grafikus lock ELŐTT, minden widget a lock
+ * alatt él. Bezáráskor a mentett témaválasztásból töltünk vissza, lapozás nélkül. */
+#ifdef _MSC_VER
+static volatile LONG home_requested;
+static int home_request_get(void) { return (int)InterlockedCompareExchange(&home_requested, 0, 0); }
+static void home_request_set(int value) { InterlockedExchange(&home_requested, value); }
+#else
+static atomic_int home_requested;
+static int home_request_get(void) { return atomic_load(&home_requested); }
+static void home_request_set(int value) { atomic_store(&home_requested, value); }
+#endif
+static int home_page;
+static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
+static unsigned home_revision, home_resource_generation;
+static TEMPLATE_RAM lx_home_config_t home_config, home_next_config;
+static lx_home_values_t home_values, home_next_values;
+static bool home_next_connected, home_next_wait;
+static unsigned home_next_revision;
+static char home_status[LX_HOME_ERROR_SIZE], home_next_status[LX_HOME_ERROR_SIZE];
+static app_template_view_t home_assets;
+static lv_image_dsc_t home_images[14];
+static lv_draw_buf_t *home_gray_buffers[14];
+static lv_image_dsc_t home_gray_images[14];
+static lv_obj_t *home_icons[12], *home_labels[12], *home_buttons[12], *home_switch_knobs[12], *home_message, *home_total;
+
+static bool home_is_open(void) { return home_request_get() != 0; }
+static void home_close(lv_event_t *event)
+{
+    (void)event;
+    home_request_set(0);
+    if (event) lv_event_stop_bubbling(event);
+}
+static void home_open_clicked(lv_event_t *event)
+{
+    (void)event;
+    if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
+        home_request_set(1);
+}
+static void home_cards_requested(void)
+{
+    if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
+        home_request_set(2);
+}
+static void home_release(void)
+{
+    for (unsigned i = 0; i < home_assets.asset_count; i++)
+    {
+        lv_image_cache_drop(&home_images[i]);
+        if (home_gray_buffers[i])
+        {
+            lv_image_cache_drop(&home_gray_images[i]);
+            lv_draw_buf_destroy(home_gray_buffers[i]);
+            home_gray_buffers[i] = NULL;
+        }
+    }
+    app_templates_view_free(&home_assets);
+    memset(home_images, 0, sizeof(home_images));
+    home_ready_to_draw = false;
+}
+static void home_reset_theme(void)
+{
+    clear();
+    template_release_cache();
+    app_templates_view_free(&template_view);
+    app_templates_view_free(&template_pending);
+    home_release();
+    template_node_count = 0;
+}
+static void home_prepare(bool night)
+{
+    int requested = home_request_get();
+    if (!requested && !home_page) return;
+    unsigned resource_generation = 0;
+    bool snapshot = s_cfg.data_recept_mode == APP_DATA_LOXONE &&
+                    app_loxone_home_snapshot(&home_next_config, &home_next_values,
+                        &home_next_revision, &home_next_connected, &home_next_wait, home_next_status);
+    bool sd_ok = app_storage_is_ok();
+    bool resources = sd_ok && app_templates_home_info(NULL, &resource_generation);
+    /* Hosszú webes telepítés alatt a nem blokkoló katalóguslekérdezés
+     * foglalt lehet. A már előtöltött oldal ilyenkor megmarad, friss állapottal. */
+    if (!resources && !resource_generation && requested && home_page && sd_ok && snapshot &&
+        home_next_revision == home_revision)
+        return;
+    bool available = snapshot && resources;
+    unsigned count = requested == 1 ? home_next_config.consumer_count : home_next_config.card_count;
+    if (!requested || !available || !count)
+    {
+        if (!home_page)
+        {
+            home_request_set(0);
+            return;
+        }
+        if (bsp_display_lock(-1) == ESP_OK)
+        {
+            home_reset_theme(); home_page = 0;
+            home_request_set(0);
+            bsp_display_unlock();
+        }
+        return;
+    }
+    if (home_page == requested && home_night == night && home_revision == home_next_revision &&
+        home_resource_generation == resource_generation)
+        return;
+    if (bsp_display_lock(-1) != ESP_OK) return;
+    home_reset_theme();
+    template_loading_screen();
+    home_page = requested;
+    bsp_display_unlock();
+    const char *icons[12];
+    for (unsigned i = 0; i < count; i++)
+        icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[i].icon;
+    bool loaded = app_templates_home_load(icons, count, night, &home_assets);
+    if (!loaded)
+    {
+        home_request_set(0);
+        home_page = 0;
+        return;
+    }
+    home_night = night;
+    home_revision = home_next_revision;
+    home_resource_generation = resource_generation;
+    for (unsigned i = 0; i < home_assets.asset_count; i++)
+    {
+        app_template_asset_t *asset = &home_assets.assets[i];
+        home_images[i] = (lv_image_dsc_t){
+            .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+                       .w = asset->width, .h = asset->height},
+            .data = asset->bytes, .data_size = asset->size};
+    }
+    home_ready_to_draw = true;
+}
+static int home_icon_index(const char *id)
+{
+    char name[65]; snprintf(name, sizeof(name), "icon-%s.png", id);
+    for (unsigned i = 2; i < home_assets.asset_count; i++)
+        if (!strcmp(name, home_assets.assets[i].name)) return (int)i;
+    return -1;
+}
+static const lv_image_dsc_t *home_gray(unsigned index)
+{
+    if (home_gray_buffers[index]) return &home_gray_images[index];
+    /* A valódi deszaturálás csak egy 96×96-os ARGB-példányt készít; a szürke
+     * recolor-réteg önmagában nem változtatná fekete-fehérré a színes ikont. */
+    lv_obj_t *root = lv_obj_create(NULL);
+    lv_obj_remove_style_all(root); lv_obj_set_size(root, 96, 96);
+    lv_obj_t *image = lv_image_create(root); lv_image_set_src(image, &home_images[index]);
+    lv_draw_buf_t *buffer = lv_snapshot_take(root, LV_COLOR_FORMAT_ARGB8888);
+    lv_obj_delete(root);
+    if (!buffer) return NULL;
+    for (unsigned y = 0; y < 96; y++)
+    {
+        uint8_t *row = buffer->data + y * buffer->header.stride;
+        for (unsigned x = 0; x < 96; x++)
+        {
+            uint8_t *pixel = row + 4 * x;
+            uint8_t gray = (uint8_t)((29U * pixel[0] + 150U * pixel[1] + 77U * pixel[2]) >> 8);
+            pixel[0] = pixel[1] = pixel[2] = gray;
+        }
+    }
+    home_gray_buffers[index] = buffer;
+    lv_draw_buf_to_image(buffer, &home_gray_images[index]);
+    return &home_gray_images[index];
+}
+static void home_action(lv_event_t *event)
+{
+    unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
+    if (s_pair_pad || !home_connected || home_command_wait || index >= home_config.card_count ||
+        !home_values.command_supported[index]) return;
+    const lx_home_card_t *card = &home_config.cards[index];
+    lx_home_command_t action = LX_HOME_COMMAND_PULSE;
+    if (card->type == LX_HOME_CARD_SWITCH)
+    {
+        if (!home_values.cards[index].valid) return;
+        action = home_values.cards[index].value == 0 ? LX_HOME_COMMAND_ON : LX_HOME_COMMAND_OFF;
+    }
+    if (app_loxone_home_command(card->id, action) == ESP_OK)
+    {
+        home_command_wait = true;
+        snprintf(home_status, sizeof(home_status), "%s", tr("Kérés küldése...", "Sending request..."));
+    }
+    else
+        snprintf(home_status, sizeof(home_status), "%s", tr("A művelet most nem engedélyezett.", "This action is currently unavailable."));
+    if (event) lv_event_stop_bubbling(event);
+}
+static void home_text(lv_obj_t *label, int width)
+{
+    lv_obj_set_width(label, width);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
+}
+static void home_build(void)
+{
+    clear(); screen_style(s_screen, home_night);
+    lv_obj_t *background = lv_image_create(s_screen);
+    lv_image_set_src(background, &home_images[0]);
+    lv_obj_remove_flag(background, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t *header = shape(s_screen, 24, 20, 1232, 80, home_night ? 0x17242B : 0xF8FBF4, 24);
+    bg_opa_if_changed(header, home_night ? 242 : 244, 0);
+    lbl(header, home_page == 1 ? tr("Ház fogyasztói", "Home consumers") : tr("Otthon", "Home"),
+        28, 10, APP_FONT_28, home_night ? 0xF2F7F6 : 0x071B32);
+    lbl(header, home_page == 1 ? tr("Pillanatnyi fogyasztás", "Live consumption") :
+        tr("Állapotok és vezérlés", "Status and controls"), 28, 46, APP_FONT_16, home_night ? 0xC0CDCE : 0x50615F);
+    home_total = lbl(header, "", 780, 28, APP_FONT_22, home_night ? 0x67DFD5 : 0x006C6C);
+    lv_obj_t *close = pairing_button(s_screen, "X", 1174, 32, 60, 56);
+    bg_color_if_changed(close, c(0x007D7D), 0);
+    lv_obj_set_style_radius(close, 28, 0);
+    lv_obj_add_event_cb(close, home_close, LV_EVENT_CLICKED, NULL);
+    unsigned count = home_page == 1 ? home_config.consumer_count : home_config.card_count;
+    memset(home_buttons, 0, sizeof(home_buttons));
+    memset(home_switch_knobs, 0, sizeof(home_switch_knobs));
+    for (unsigned i = 0; i < count; i++)
+    {
+        lx_home_card_rect_t rectangle; if (!lx_home_card_rect(count, i, &rectangle)) continue;
+        lv_obj_t *card = shape(s_screen, rectangle.x, rectangle.y, rectangle.width, rectangle.height,
+                                home_night ? 0x14252A : 0xF7FBF5, 20);
+        bg_opa_if_changed(card, home_night ? 242 : 244, 0);
+        lv_obj_set_style_border_width(card, 1, 0);
+        border_color_if_changed(card, c(home_night ? 0x367171 : 0x69B3AC), 0);
+        lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+        const char *name = home_page == 1 ? home_config.consumers[i].name : home_config.cards[i].name;
+        const char *icon = home_page == 1 ? home_config.consumers[i].icon : home_config.cards[i].icon;
+        int asset = home_icon_index(icon);
+        home_icons[i] = lv_image_create(card); lv_obj_set_pos(home_icons[i], 98, 8);
+        if (asset >= 0) lv_image_set_src(home_icons[i], &home_images[asset]);
+        lv_obj_t *title = lbl(card, name, 10, 108, APP_FONT_20, home_night ? 0xEFF6F5 : 0x071B32);
+        home_text(title, 272);
+        bool control = home_page == 2 && home_config.cards[i].type != LX_HOME_CARD_VALUE;
+        if (control)
+        {
+            bool is_switch = home_config.cards[i].type == LX_HOME_CARD_SWITCH;
+            lv_obj_t *button = pairing_button(card, "", is_switch ? 62 : 22, 146, is_switch ? 104 : 248, 44);
+            bg_color_if_changed(button, c(0x007D7D), 0);
+            lv_obj_set_style_radius(button, 22, 0);
+            lv_obj_set_style_pad_all(button, 0, 0);
+            home_buttons[i] = button;
+            if (is_switch)
+            {
+                home_switch_knobs[i] = shape(button, 6, 6, 32, 32, 0xFFFFFF, 16);
+                lv_obj_remove_flag(home_switch_knobs[i], LV_OBJ_FLAG_CLICKABLE);
+                home_labels[i] = lbl(card, "", 182, 154, APP_FONT_20, home_night ? 0x68E0D5 : 0x006B69);
+            }
+            else home_labels[i] = lv_obj_get_child(button, 0);
+            lv_obj_add_event_cb(button, home_action, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+        }
+        else
+        {
+            home_labels[i] = lbl(card, "", 10, 146, APP_FONT_28, home_night ? 0x68E0D5 : 0x006B69);
+            home_text(home_labels[i], 272);
+        }
+    }
+    lv_obj_t *logo_box = lv_obj_create(s_screen);
+    lv_obj_remove_style_all(logo_box);
+    lv_obj_set_size(logo_box, 40, 40); lv_obj_set_pos(logo_box, 24, 754);
+    lv_obj_remove_flag(logo_box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t *logo = lv_image_create(logo_box);
+    lv_image_set_src(logo, &home_images[1]); lv_image_set_pivot(logo, 0, 0);
+    lv_image_set_scale(logo, 40 * 256 / home_assets.assets[1].width);
+    lv_obj_set_pos(logo, 0, 0);
+    home_message = lbl(s_screen, "", 96, 762, APP_FONT_16, home_night ? 0xFFFFFF : 0x071B32);
+    lv_obj_set_width(home_message, 1136);
+    lv_label_set_long_mode(home_message, LV_LABEL_LONG_MODE_DOTS);
+    s_view = VIEW_HOME;
+}
+static const char *home_feedback(void)
+{
+    if (hu()) return home_status;
+    static const char *const messages[][2] = {
+        {"Kérés küldése...", "Sending request..."},
+        {"A kapcsolat megszakadt; a művelet eredménye nem igazolható.", "Connection lost; the outcome could not be confirmed."},
+        {"A művelet nem igazolható. Ellenőrizd a Loxone állapotát.", "The action could not be confirmed. Check the Loxone status."},
+        {"Impulzus elküldve.", "Pulse sent."},
+        {"Állapot-visszajelzésre várunk...", "Waiting for state feedback..."},
+        {"Loxone-állapot visszaigazolva.", "Loxone state confirmed."},
+        {"Nem érkezett megfelelő Loxone-állapot.", "No matching Loxone state received."},
+    };
+    for (unsigned i=0; i<sizeof(messages)/sizeof(messages[0]); i++)
+        if (!strcmp(home_status,messages[i][0])) return messages[i][1];
+    return home_status;
+}
+static bool home_render(void)
+{
+    if (!home_is_open()) return false;
+    if (!home_ready_to_draw) return true;
+    home_config = home_next_config; home_values = home_next_values;
+    home_connected = home_next_connected; home_command_wait = home_next_wait;
+    snprintf(home_status, sizeof(home_status), "%s", home_next_status);
+    if (s_view != VIEW_HOME) home_build();
+    unsigned count = home_page == 1 ? home_config.consumer_count : home_config.card_count;
+    double total = 0; bool complete = home_connected;
+    for (unsigned i = 0; i < count; i++)
+    {
+        lx_home_value_t value = home_page == 1 ? home_values.consumers[i] : home_values.cards[i];
+        const lx_home_card_t *card = &home_config.cards[i];
+        char text[128], number[96];
+        if (home_page == 2 && card->type == LX_HOME_CARD_PULSE)
+            snprintf(text, sizeof(text), "%s", tr("Indítás", "Start"));
+        else if (!home_connected || !value.valid)
+        {
+            snprintf(text, sizeof(text), "%s", tr("Nincs adat", "No data"));
+            complete = false;
+        }
+        else if (home_page == 1)
+        {
+            total += value.value;
+            if (value.value < 1) snprintf(text, sizeof(text), "%.0f W", value.value * 1000);
+            else { fmt_dec(number, sizeof(number), value.value, 2); snprintf(text, sizeof(text), "%s kW", number); }
+        }
+        else if (card->type == LX_HOME_CARD_SWITCH)
+            snprintf(text, sizeof(text), "%s", value.value == 1 ? tr("BE", "ON") : tr("KI", "OFF"));
+        else
+        {
+            fmt_dec(number, sizeof(number), value.value, (int)card->decimals);
+            snprintf(text, sizeof(text), "%s %s", number, card->unit);
+        }
+        label_text_if_changed(home_labels[i], text);
+        if (home_buttons[i])
+        {
+            bool enabled = home_connected && !home_command_wait && home_values.command_supported[i] &&
+                           (card->type == LX_HOME_CARD_PULSE || value.valid);
+            if (home_switch_knobs[i])
+            {
+                bool on = home_connected && value.valid && value.value == 1;
+                lv_obj_set_x(home_switch_knobs[i], on ? 66 : 6);
+                bg_color_if_changed(home_buttons[i], c(on ? 0x007D7D : 0x667678), 0);
+                text_color_if_changed(home_labels[i], c(on ? (home_night ? 0x68E0D5 : 0x006B69) :
+                                                       (home_night ? 0xAFBCBC : 0x586765)), 0);
+            }
+            if (enabled) lv_obj_remove_state(home_buttons[i], LV_STATE_DISABLED);
+            else lv_obj_add_state(home_buttons[i], LV_STATE_DISABLED);
+        }
+        else
+        {
+            uint32_t color = home_night ? 0x68E0D5 : 0x006B69;
+            if (!home_connected || !value.valid || (home_page == 1 && value.value == 0)) color = home_night ? 0x9DABAC : 0x687474;
+            if (home_page == 2 && home_connected && value.valid && ((card->warning_low_set && value.value < card->warning_low) ||
+                (card->warning_high_set && value.value > card->warning_high))) color = (uint32_t)strtoul(card->warning_color + 1, NULL, 16);
+            text_color_if_changed(home_labels[i], c(color), 0);
+        }
+        if (home_page == 1)
+        {
+            int index = home_icon_index(home_config.consumers[i].icon);
+            if (index >= 0)
+            {
+                lv_obj_remove_flag(home_icons[i], LV_OBJ_FLAG_HIDDEN);
+                const lv_image_dsc_t *image = &home_images[index];
+                if (home_connected && value.valid && value.value == 0)
+                {
+                    const lv_image_dsc_t *gray = home_gray((unsigned)index);
+                    if (gray) image = gray;
+                    else lv_obj_add_flag(home_icons[i], LV_OBJ_FLAG_HIDDEN);
+                }
+                if (lv_image_get_src(home_icons[i]) != image) lv_image_set_src(home_icons[i], image);
+            }
+        }
+    }
+    char text[128] = "", number[32];
+    if (home_page == 1)
+    {
+        fmt_dec(number, sizeof(number), total, 2);
+        snprintf(text, sizeof(text), complete ? tr("Összesen %s kW", "Total %s kW") :
+                 tr("Összesen: nincs teljes adat", "Total: incomplete data"), number);
+    }
+    label_text_if_changed(home_total, text);
+    label_text_if_changed(home_message, !home_connected ? tr("Nincs Loxone-kapcsolat; a vezérlés tiltva.", "No Loxone connection; controls disabled.") :
+                          home_status[0] ? home_feedback() : tr("Élő Loxone-adatok", "Live Loxone data"));
+    return true;
+}
+static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene)
+{
+    const cJSON *area = cJSON_GetObjectItemCaseSensitive(scene, "home_hotspot");
+    int x = tn(area,"x",0), y = tn(area,"y",0), w = tn(area,"w",0), h = tn(area,"h",0);
+    if (!area)
+    {
+        /* A már telepített gyári csomagok OTA után is megnyithatók. Saját
+         * illusztrált témánál az explicit home_hotspot a pontos megoldás. */
+        if (!strcmp(template_view.id,"01-live-home")) { x=460; y=300; w=380; h=230; }
+        else if (!strcmp(template_view.id,"09-solar-journey")) { x=970; y=310; w=245; h=220; }
+        else for (unsigned i=0; i<template_node_count; i++)
+        {
+            template_node_t *node=&template_nodes[i];
+            bool house=!strcmp(ts(node->spec,"file"),"flow_house.png");
+            if (house || (!w && !strcmp(ts(node->spec,"type"),"value") && !strcmp(ts(node->spec,"source"),"home")))
+            {
+                x=lv_obj_get_x(node->obj); y=lv_obj_get_y(node->obj);
+                w=lv_obj_get_width(node->obj); h=lv_obj_get_height(node->obj);
+                if(house)break;
+            }
+        }
+    }
+    if (w <= 0 || h <= 0) return;
+    lv_obj_t *hotspot = lv_obj_create(parent); lv_obj_remove_style_all(hotspot);
+    lv_obj_set_pos(hotspot, x, y);
+    lv_obj_set_size(hotspot, w, h);
+    lv_obj_add_flag(hotspot, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_remove_flag(hotspot, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(hotspot, home_open_clicked, LV_EVENT_CLICKED, NULL);
+}

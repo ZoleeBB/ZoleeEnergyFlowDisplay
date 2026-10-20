@@ -318,13 +318,15 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     snprintf(out,128,"%s %s",value,unit);
 }
 static void template_gesture(lv_event_t *event){
-    if (s_pair_pad) return;
+    if (s_pair_pad || home_is_open()) return;
     (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
     lv_dir_t direction=lv_indev_get_gesture_dir(input);
-    if(direction==LV_DIR_TOP||direction==LV_DIR_BOTTOM){
-        s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
-    }
     if(s_diagnostics_requested)return;
+    if(direction==LV_DIR_TOP){
+        s_diagnostics_requested=true;lv_indev_wait_release(input);return;
+    }
+    /* Lefelé húzás az Otthon-oldal számára fenntartva; diagnosztikát nem zár. */
+    if(direction==LV_DIR_BOTTOM){home_cards_requested();lv_indev_wait_release(input);return;}
     if(!s_cfg.cardless_slave && (direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT)){
         app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
         template_loading_requested=true;
@@ -589,6 +591,7 @@ static void template_build(bool night){
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
+    home_bind_hotspot(s_dash, scene);
     s_dash_created=true;s_view=VIEW_DASHBOARD;
     /*
      * A sok nagy PNG-vel és négy animált energiaúttal rajzolt gyári
@@ -941,6 +944,13 @@ static void diagnostics_capture(void){
     if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
 }
 /* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
+static void diagnostics_close(lv_event_t *event)
+{
+    (void)event;
+    s_diagnostics_requested = false;
+    if (event) lv_event_stop_bubbling(event);
+}
+
 static void diagnostics_render(app_runtime_state_t rt)
 {
     if (s_view != VIEW_DIAGNOSTICS)
@@ -954,8 +964,8 @@ static void diagnostics_render(app_runtime_state_t rt)
             APP_FONT_28,
             TEXT_DARK);
         lv_obj_t *hint = lbl(s_screen,
-                             tr("Lefelé húzás: vissza az előző témához",
-                                "Swipe down to return to the selected theme"),
+                             tr("Bezárás a jobb felső X gombbal",
+                                "Close with the X button in the upper right"),
                              32,
                              73,
                              APP_FONT_16,
@@ -983,6 +993,15 @@ static void diagnostics_render(app_runtime_state_t rt)
             lv_obj_t *button = pairing_button(s_screen, "", 352, 28, 272, 36);
             s_pair_window_label = lv_obj_get_child(button, 0);
             lv_obj_set_style_text_font(s_pair_window_label, APP_FONT_14, 0);
+            lv_obj_set_style_pad_all(button, 0, 0);
+            lv_obj_set_pos(s_pair_window_label, 24, 9);
+            lv_obj_set_width(s_pair_window_label, 244);
+            lv_obj_set_style_text_align(s_pair_window_label, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_t *icon = lv_label_create(button);
+            lv_label_set_text(icon, LV_SYMBOL_BLUETOOTH);
+            lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
+            lv_obj_set_style_text_color(icon, c(0xFFFFFF), 0);
+            lv_obj_set_pos(icon, 7, 9);
             lv_obj_add_event_cb(button, pairing_window_clicked, LV_EVENT_CLICKED, NULL);
         }
         for (int i = 0; i < 14; i++)
@@ -1033,6 +1052,9 @@ static void diagnostics_render(app_runtime_state_t rt)
             lv_label_set_long_mode(s_diagnostic_log[i], LV_LABEL_LONG_MODE_DOTS);
             lv_obj_add_flag(s_diagnostic_log[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
+        lv_obj_t *close = pairing_button(s_screen, "X", 1192, 32, 48, 48);
+        lv_obj_set_style_radius(close, 24, 0);
+        lv_obj_add_event_cb(close, diagnostics_close, LV_EVENT_CLICKED, NULL);
         s_view = VIEW_DIAGNOSTICS;
     }
     char text[192];
@@ -1141,8 +1163,13 @@ static void diagnostics_render(app_runtime_state_t rt)
         label_text_if_changed(s_diagnostic_values[10], text);
         app_ble_pairing_status_t pairing; app_ble_pairing_status(&pairing);
         snprintf(text, sizeof(text), pairing.seconds ? tr("Párosítás nyitva: %u mp", "Pairing open: %u s")
-                                                    : tr("Párosítás engedélyezése (2 perc)", "Enable pairing (2 min)"), pairing.seconds);
-        if (s_pair_window_label) label_text_if_changed(s_pair_window_label, text);
+                                                    : tr("Új párosítás (2 perc)", "New pairing (2 min)"), pairing.seconds);
+        if (s_pair_window_label)
+        {
+            label_text_if_changed(s_pair_window_label, text);
+            bg_color_if_changed(lv_obj_get_parent(s_pair_window_label),
+                                c(pairing.seconds ? 0x0082FC : 0x284C68), 0);
+        }
     } else {
         label_text_if_changed(s_diagnostic_values[10], rt.ble_enabled ?
             (rt.ble_peer[0] ? rt.ble_peer : tr("Keresés...", "Searching...")) : "-");

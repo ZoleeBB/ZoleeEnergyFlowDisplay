@@ -13,7 +13,7 @@ for(const id of ['home-editor','home-status','home-save','home-add-consumer','ho
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
 const uuid='11223344-5566-7788-99aabbccddeeff00',control='aabbccdd-5566-7788-99aabbccddeeff00';
-const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nappali',category:'Klíma',state:'value'},
+const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nappali',category:'Klíma',state:'value',type:'Switch',secured:false},
     {uuid:control,name:'Csak állapot',room:'Kert',category:'Kert',state:'value'}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:''}, reject=false, offline=false, hold=false;
 const posts=[];

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
+#include "../../simulator/home_fixture.h"
 #include "src/draw/lv_draw_vector_private.h"
 static app_ble_pairing_status_t pairing_fixture;
 static char submitted_pin[7];
@@ -931,6 +932,10 @@ int main(void)
     assert(s_pair_window_label);
     lv_obj_send_event(lv_obj_get_parent(s_pair_window_label),LV_EVENT_CLICKED,NULL);
     assert(pairing_open_requests==1);
+    pairing_fixture.seconds=60;diagnostics_render(rt);
+    assert(lv_color_to_u32(lv_obj_get_style_bg_color(lv_obj_get_parent(s_pair_window_label),0))==0xFF0082FC);
+    pairing_fixture.seconds=0;diagnostics_render(rt);
+    assert(lv_color_to_u32(lv_obj_get_style_bg_color(lv_obj_get_parent(s_pair_window_label),0))==0xFF284C68);
     lv_obj_update_layout(s_screen);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[0]))==32);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[1]))==328);
@@ -1155,8 +1160,10 @@ int main(void)
         render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
         lv_obj_update_layout(s_screen);
         touch_sample_xy(640,200,true);touch_sample_xy(640,400,true);touch_sample_xy(640,600,true);touch_sample_xy(640,600,false);
+        assert(s_diagnostics_requested);
+        touch_sample_xy(1216,56,true);touch_sample_xy(1216,56,false);
         assert(!s_diagnostics_requested);
-        puts("PASS: raw portrait touch mapping separates horizontal theme swipes and vertical diagnostics gestures");
+        puts("PASS: portrait touch mapping, theme swipes, diagnostics upward opening, downward gesture exclusion and X-only closing");
         lv_indev_delete(input);
         puts("PASS: 18 template renders, common error/recovery, NightMode and actual LVGL swipe across all 10 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
@@ -1186,5 +1193,55 @@ int main(void)
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     puts("PASS: Loxone setup, initial connection, lost connection and automatic dashboard recovery");
     clear();
+
+    const char *home_zip=getenv("ZOLEE_HOME_RESOURCE_ZIP");
+    assert(home_zip);
+    char home_error[160];assert(app_templates_install(home_zip,home_error)==ESP_OK);
+    assert(app_templates_select("01-live-home")==ESP_OK);template_prepare();
+    render_runtime(rt,sample,true,31000000);assert(!strcmp(template_view.id,"01-live-home"));
+    app_sim_home_reset();
+    lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);
+    lv_obj_update_layout(s_screen);touch_sample_xy(640,420,true);touch_sample_xy(640,420,false);
+    assert(home_is_open());home_prepare(false);render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_HOME&&home_page==1&&home_assets.asset_count<=9);
+    lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_x(lv_obj_get_parent(home_labels[4]))==186);
+    int gray_index=home_icon_index("washing-machine");
+    assert(gray_index>=0&&home_gray_buffers[gray_index]);
+    lv_draw_buf_t *gray=home_gray_buffers[gray_index];
+    for(unsigned y=0;y<96;y++)for(unsigned x=0;x<96;x++){
+        uint8_t *p=gray->data+y*gray->header.stride+4*x;assert(p[0]==p[1]&&p[1]==p[2]);
+    }
+    save_frame("loxone-consumers-light");
+    home_prepare(true);render_runtime(rt,sample,true,31000000);save_frame("loxone-consumers-dark");
+    lv_obj_update_layout(s_screen);touch_sample_xy(1204,60,true);touch_sample_xy(1204,60,false);
+    assert(!home_is_open());home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DASHBOARD&&!strcmp(template_view.id,"01-live-home")&&!home_assets.asset_count);
+    lv_obj_update_layout(s_screen);
+    touch_sample_xy(640,200,true);touch_sample_xy(640,400,true);touch_sample_xy(640,600,true);touch_sample_xy(640,600,false);
+    assert(home_is_open());home_prepare(false);render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_HOME&&home_page==2);
+    save_frame("loxone-cards-light");
+    home_prepare(true);render_runtime(rt,sample,true,31000000);save_frame("loxone-cards-dark");
+    lv_obj_send_event(home_buttons[4],LV_EVENT_CLICKED,NULL);
+    assert(app_sim_home_commands==1&&app_sim_home_last_action==LX_HOME_COMMAND_OFF);
+    assert(!strcmp(lv_label_get_text(home_labels[4]),"BE"));
+    lv_obj_send_event(home_buttons[4],LV_EVENT_CLICKED,NULL);assert(app_sim_home_commands==1);
+    home_prepare(true);render_runtime(rt,sample,true,31000000);
+    assert(lv_obj_has_state(home_buttons[4],LV_STATE_DISABLED));
+    app_sim_home_pending=false;app_sim_home_values.cards[4].value=0;
+    home_prepare(true);render_runtime(rt,sample,true,31000000);
+    assert(!strcmp(lv_label_get_text(home_labels[4]),"KI"));
+    app_sim_home_connected=false;home_prepare(true);render_runtime(rt,sample,true,31000000);
+    assert(lv_obj_has_state(home_buttons[6],LV_STATE_DISABLED));
+    assert(strstr(lv_label_get_text(home_labels[0]),"Nincs adat"));
+    save_frame("loxone-cards-offline");
+    home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
+    assert(!home_is_open()&&!home_assets.asset_count&&!strcmp(template_view.id,"01-live-home"));
+    app_sim_home_enabled=false;
+    lv_indev_delete(home_input);
+    clear();template_release_cache();app_templates_view_free(&template_view);
+    puts("PASS: actual LVGL consumer/cards light/dark pages, 7-item centering, real grayscale, separate command/feedback, pending/offline controls, resource cleanup and exact theme return");
     lv_display_delete(display);lv_deinit();return 0;
 }

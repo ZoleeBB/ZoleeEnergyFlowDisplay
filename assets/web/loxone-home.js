@@ -58,12 +58,14 @@ const LoxoneHome = (() => {
         controls.push(input); label.append(input); parent.append(label);
         return input;
     }
-    function stateChoices(control = false) {
+    function stateChoices(control = false, pulse = false) {
         const choices = [['', 'Nincs hozzárendelve']], seen = new Set();
         const room = get('home-room').value, category = get('home-category').value;
         for (const item of catalog) {
             if ((room && JSON.stringify(item.room || '') !== room) ||
                 (category && JSON.stringify(item.category || '') !== category)) continue;
+            if (control && !(item.secured === false && (item.type === 'Switch' ||
+                (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;
             const uuid = control ? item.control_uuid : item.uuid;
             if (!uuid || seen.has(uuid)) continue;
             seen.add(uuid);
@@ -109,7 +111,7 @@ const LoxoneHome = (() => {
                     };
                     if (entry.type !== 'pulse') source(grid, entry);
                     if (entry.type !== 'value')
-                        select(grid, 'Vezérelhető Loxone objektum', entry, 'control_uuid', stateChoices(true));
+                        select(grid, 'Vezérelhető Loxone objektum', entry, 'control_uuid', stateChoices(true, entry.type === 'pulse'));
                     if (entry.type === 'value') {
                         field(grid, 'Mértékegység', entry, 'unit');
                         const decimals = field(grid, 'Tizedesek (0–3)', entry, 'decimals', 'number');

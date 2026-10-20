@@ -4,6 +4,7 @@
   "name": "Nap pálya",
   "version": 19,
   "light": {
+    "home_hotspot": {"x": 970, "y": 310, "w": 245, "h": 220},
     "background": "#E2EDF7",
     "palette": {
       "pv": "#28C87C",
@@ -1245,6 +1246,7 @@
     ]
   },
   "dark": {
+    "home_hotspot": {"x": 970, "y": 310, "w": 245, "h": 220},
     "background": "#061D36",
     "palette": {
       "pv": "#28C87C",

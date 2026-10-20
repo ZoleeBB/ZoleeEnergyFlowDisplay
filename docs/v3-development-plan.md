@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: követelmények egyeztetése folyamatban; konfigurációs modell, tartós SD-mentés/webes szerkesztő, közös Slave-fényerő állapotgép, kártyageometria és 64 ikon elkészült; a teljes kijelző-UI/runtime integráció még nincs.
+- Állapot: követelmények egyeztetése folyamatban; konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, két élő Master-oldal és korlátos vezérlés elkészült. Slave-jelenlét runtime, energiaasszisztens és tématervek hátravan.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -390,3 +390,117 @@ Következő önálló technikai blokk: célzott SD-erőforráscsomag a 64 ikonho
 minimális élőállapot-tár a meglévő Loxone-adatfolyamon, majd az elfogadott két
 kijelzőoldal (házérintés/lefelé húzás, X és pontos téma-visszatérés).
 A még hátralévő termékegyeztetések: sötét oldaltervek és a 05/06 témák külön terve.
+
+## Checkpoint 2026-10-20 / 8 – erőforráscsomag, élő oldalak és vezérlés
+
+A felhasználó 2026-10-20-án folyamatos engedélyt adott a repóba történő feltöltésre.
+A 7. checkpoint `ef5e92bed468aa467ce8f79f40f5a109ebe59c02` alatt a távoli ágon van;
+a GitHub-kapcsolaton keresztüli feltöltés fájlfája bájtra egyezett a helyivel.
+Master, Slave és Windows-szimulátor CI-je sikeres. A helyi két korábbi commitot
+`checkpoint/local-home-editors-b3f0804` ág őrzi; a fejlesztési ág az egyező távoli
+fához lett igazítva. Újabb feltöltéshez ne kérj ismét felhatalmazást.
+
+Elkészült:
+
+- Közös `loxone-home` SD-erőforráscsomag a meglévő témakezelő ZIP telepítésével,
+  ellenőrzésével, frissítésével és törlésével. Nem lapozható/aktiválható téma,
+  nem foglal helyet a témák sorrendjében. A weben külön erőforrásként látszik.
+- Célzott `kind=loxone-home-resources`, 64 egyedi, 96×96 ikon, két pontos
+  1280×800 háttér és helyi logó. Normál téma továbbra is 32 PNG / 34 ZIP-bejegyzés;
+  a speciális, külön validált csomag kemény felső korlátja 72 bejegyzés.
+- Determinisztikus csomagoló; szerzői promptok és nagy generálási eredetik nélkül.
+  Kész csomag az RGB565-optimalizálás után 2 639 955 bájt (újrakészítéskor ellenőrizendő). Csak a kiválasztott
+  oldal legfeljebb 12 ikonját, egy hátterét és logóját tölti elő; az ismétlődő ikon
+  csak egyszer szerepel a memóriában. Az előző energiaoldal képei felszabadulnak.
+- Nappali háttér a jóváhagyott szoba rekonstrukciójából, éjszakai változat azonos
+  berendezéssel. A felhasználó még nem hagyta jóvá a sötét oldal végső megjelenését.
+  A háttér csak kép; a kártyák, feliratok, gombok, értékek és ikonok valódi LVGL-elemek.
+- A két Master-oldal: házérintés / lefelé húzás, jobb felső X, 4×3 rögzített geometria,
+  hiányos sor középen. Bezáráskor pontosan az előző témát tölti vissza; nem lapoz.
+- A gyári témák `home_hotspot` mezővel rendelkeznek. Régi SD-s gyári témákhoz
+  kompatibilis érintési terület és ház-/otthonérték-felismerés is van. Saját,
+  illusztrált csomagnál az explicit `home_hotspot` a támogatott szerzői felület.
+- A Loxone delta adatfolyam 24 számot tart meg (nem képeket/widgeteket), hogy egy
+  régóta változatlan mérés megnyitáskor se vesszen el. Értéktár 400 bájt a natív
+  környezetben, képességjelzőkkel együtt. Külön hálózati kapcsolat nincs.
+- Nulla mérés és hiányzó/hibás érték külön állapot; 1 kW alatt W. A 0 fogyasztású
+  ikon valódi luminanciaalapú szürke ARGB-változatot kap, változatlan alfával.
+- Korlátos pulse/On/Off parancsút a már hitelesített WebSocketen, kizárólag
+  konfigurált, támogatott és nem védett objektumokra. Switch állapot az adott
+  objektum `active` állapota kell legyen. Kezdetben Switch; pulse célként még
+  Pushbutton és TimedSwitch. Más típus vagy vizuális jelszó nem kerül megkerülésre.
+- Állapot nélküli Pushbutton is szerepelhet a katalógusban, külön parancscélként;
+  üres mérési UUID-ja nem jelenik meg a mérési listában. A szülő védettsége öröklődik.
+- Parancssor mélysége 1, érvényessége 2 másodperc. A revízió és kapcsolatazonosító
+  ellenőrzött. Pulse egyszer küldődik, reconnect után nem ismétlődik. Kapcsoló
+  200 nyugtától még nem vált: tényleges állapotot vár legfeljebb 5 másodpercig.
+- Kapcsolatvesztés/lejárt kapcsolat/hiányzó érték/nem támogatott cél esetén vezérlés
+  tiltva. A webes szerkesztő is csak a támogatott, nem védett célokat kínálja fel.
+- Diagnosztika X-szel zárható, lefelé húzás nem zárja. Nyitott párosítási ablak
+  tényleges státuszához kötött `#0082FC` háttér és helyi betűkészletes Bluetooth-jel.
+- HU/EN kijelzőfeliratok, magyar tizedesvessző; a felhasználó nevei/egységei változatlanok.
+- Windows-szimulátorban külön `--home-demo` mód és ugyanazon UI API-t helyettesítő
+  demóadatok; a valódi hálózati út tesztje nem e fixture-t használja.
+
+Ellenőrzések:
+
+- Új natív C/UBSan értéktár/parancsépítő teszt: előjelek, skálázás, nulla, NaN,
+  formahibás tábla atomi elutasítása, típus/UUID/állapot korlátok és örökölt védelem.
+- Tényleges RSA/AES/HMAC protokollteszt: parancs egyszeri titkosított küldése,
+  állapot-visszajelzés, nyugta érték nélkül, timeout, tiltás, sorürítés reconnectnél,
+  másik munkamenetből származó kérés és elöregedett kapcsolat.
+- Tényleges C és böngészős JS csomagteszt: 64 ikon, hiányzó/felesleges fájl,
+  normál csomag változatlan korlátja, SD telepítés/frissítés/törlés, nem választható
+  erőforrás, aktív képek korlátja és deduplikálása, régi nézet tulajdonjoga.
+- A teljes natív regresszió sikeres. Az utolsó UI-simítás után célzott LVGL-render
+  újra ellenőrizendő és az eredmény e checkpoint végén rögzítendő.
+- Helyben működő valódi LVGL 9.5.0 build:
+  `/workspace/scratch/77c8587e08fc/build-deps/cmake/data/bin/cmake`,
+  forrás `/workspace/scratch/77c8587e08fc/lvgl`, build `.../preview-build`.
+  Futtatáskor `ZOLEE_TEMPLATE_ROOT` egy másolt témakönyvtár;
+  `ZOLEE_HOME_RESOURCE_ZIP` a csomagolóval készített `loxone-home.zip` teljes útja.
+- Nincs fizikai panelpróba. Az új checkpoint tényleges firmware/OTA mérete és
+  Windows-buildje a friss távoli CI után állítható; a 7. checkpoint sikere nem
+  tekinthető az új megjelenítők hardveres igazolásának.
+
+Következő feladatok (továbbra sem kész v3):
+
+1. Sötét oldalterv egyeztetése a tényleges render alapján; 05/06 új témák külön tervei.
+2. Slave stabil identitás/profil, védett BLE-átvitel, NVS, jelenlét/érintés/PWM runtime.
+   A korábbi közös állapotgép és a saját nappali/éjszakai fényerők megőrzendők.
+3. Energiaasszisztens: csak Master/Loxone, 100% SOC + tartós tényleges PV-többlet,
+   opt-in fogyasztók és összevethető éjszakai alapfogyasztás. Automatikus kapcsolás nincs.
+4. Új firmware méret/PSRAM/DMA ellenőrzés, hardveres próbalista és végső HU/EN dokumentáció.
+5. v3.0.0 végső kiadási szabály és PR csak az összes vállalt pont elkészülte után.
+
+A 8. checkpoint helyi zárása:
+
+- Az utolsó natív LVGL-futtatás sikeres: tényleges házérintés, X, majd rögtön lefelé
+  húzás; négy világos/sötét oldalkép, valódi szürke ikon, parancsvárakozás,
+  kapcsolatvesztés, képfelszabadítás és azonos energiaelrendezésre visszatérés.
+- Ellenőrzött 640×400 renderképek: `assets/loxone-home/previews/` négy PNG-je.
+  Ezek a tényleges LVGL-render kicsinyítései, nem generált UI-mockupok.
+- A kártyák erősebb hátteret, a kapcsolók visszajelzésvezérelt fehér kapcsológombot,
+  a számok HU tizedesvesszőt kaptak. Megszűnt a lábléc okozta túlgördülés.
+- Az X eseménye már felengedett érintéskor jön; nem állít be új wait-release
+  állapotot, így a következő gesztust nem nyeli el. Gesztus közben továbbra is
+  a rendes gesztuskezelő várja meg a felengedést.
+- Az új csomag a Master teljes USB-csomagjának SD-könyvtárába is bekerül.
+  A csomagolás/regresszió célzott tesztje ezt és a 64 ikont ellenőrzi.
+- A teljes natív regresszió, új csomagtesztek, valódi Loxone protokollteszt,
+  webes JS, USB/OTA-csomagolási teszt és a natív LVGL-build/render sikeres.
+- Távoli CI: a mostani új forráshoz a feltöltés után új futás szükséges. Addig
+  nincs hardveres firmware-méret/FPS-állítás, nincs PR és nincs release.
+
+Feltöltési javítás az „Invalid conversation body” hiba után:
+
+- Minden ikon 96×96, mindkét háttér 1280×800, a négy valódi LVGL-előnézet 640×400.
+  Nem került nagy generálási eredeti a feltöltendő fájlok közé.
+- A panel `CONFIG_BSP_LCD_COLOR_FORMAT_RGB565=y` beállításának megfelelően a két
+  háttér alsó 3/2/3 színbitét elhagytuk. Mind a 2×1 024 000 képponton ellenőrzött
+  az eredeti és az optimalizált kép RGB565-értékeinek egyezése; a felbontás változatlan.
+  Világos: 1 934 717 → 1 067 208 bájt; sötét: 1 677 635 → 879 208 bájt.
+- A csomag 4 305 565 → 2 639 955 bájt; a tényleges C/JS csomagvalidálás és
+  SD-telepítés/frissítés/törlés tesztje az optimalizált képekkel is sikeres.
+- A hat képfájl külön GitHub-blobként sikeresen feltöltve; a forrásfák kisebb
+  kérésekben kerülnek fel. A hiba pontos szerveroldali oka nem bizonyított.

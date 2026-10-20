@@ -81,7 +81,11 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP
 static mbedtls_pk_context server_key;
 static char last_command[4096],previous_salt[17];
 static int catalog_mode;
-static bool reject_refresh;
+static bool reject_refresh, reject_home_command;
+static unsigned home_command_count;
+void app_state_set_loxone(bool configured, bool connected) { (void)configured; (void)connected; }
+void app_state_clear_sample(void) {}
+void app_stats_break_continuity(void) {}
 static const char *catalog_reply="{\"controls\":{\"pv\":{\"name\":\"PV\",\"type\":\"InfoOnlyAnalog\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}";
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 {
@@ -129,6 +133,10 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==2)s_dead=true;
             else if(catalog_mode==0)server_response(catalog_reply);
         }
+        else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
+            home_command_count++;
+            server_response(reject_home_command ? "{\"LL\":{\"Code\":403}}" : "{\"LL\":{\"Code\":200}}");
+        }
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0&&reject_refresh)server_response("{\"LL\":{\"Code\":401}}");
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
         else server_response("{\"LL\":{\"Code\":200,\"value\":\"OK\"}}");
@@ -139,6 +147,57 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
     else if(strcmp(text,"jdev/sys/getkey")==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"key\":\"0102030405060708090a0b0c0d0e0f10\",\"hashAlg\":\"SHA256\"}}}");
     else server_response("{\"LL\":{\"Code\":401,\"value\":\"denied\"}}");
     return len;
+}
+static void home_control_test(lx_config_t *energy)
+{
+    cJSON *original_catalog = s_catalog;
+    s_catalog = cJSON_Parse("[{\"uuid\":\"00000000-0000-0000-0000000000000000\",\"control_uuid\":\"aabbccdd-5566-7788-99aabbccddeeff00\",\"type\":\"Switch\",\"state\":\"active\",\"secured\":false}]");
+    assert(s_catalog);
+    s_home = calloc(1, sizeof(*s_home)); assert(s_home);
+    s_home->card_count = 1;
+    lx_home_card_t *card = &s_home->cards[0];
+    strcpy(card->id, "button"); card->type = LX_HOME_CARD_PULSE;
+    strcpy(card->control_uuid, "aabbccdd-5566-7788-99aabbccddeeff00");
+    s_home_commands = xQueueCreate(1, sizeof(home_command_t));
+    s_home_live = true; s_home_busy = false; s_command_pending = false;
+    s_session_config = energy; mark_response();
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == 1 && !s_command_pending && strstr(s_command_status, "elküldve"));
+    home_command_poll(esp_timer_get_time()); assert(home_command_count == 1);
+    card->type = LX_HOME_CARD_SWITCH;
+    strcpy(card->source.uuid, "00000000-0000-0000-0000000000000000"); card->source.scale = 1;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) != ESP_OK);
+    s_home_values.cards[0] = (lx_home_value_t){.value = 0, .valid = true};
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) == ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == 2 && s_command_pending && s_home_values.cards[0].value == 0);
+    uint8_t packet[24] = {0}; double on = 1; memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && strstr(s_command_status, "visszaigazolva"));
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_OFF) == ESP_OK);
+    home_command_poll(esp_timer_get_time()); assert(s_command_pending);
+    clock_us += 6000000; home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && strstr(s_command_status, "Nem érkezett"));
+    reject_home_command = true;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_OFF) == ESP_OK);
+    home_command_poll(esp_timer_get_time()); assert(!s_command_pending);
+    unsigned sent = home_command_count; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
+    reject_home_command = false;
+    card->type = LX_HOME_CARD_PULSE;
+    mark_response(); assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    invalidate(true);
+    assert(!s_command_pending && !uxQueueMessagesWaiting(s_home_commands));
+    s_home_live = true; mark_response(); home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
+    /* A másik kapcsolatból származó, illetve túl régi kérés nem hajtható végre. */
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    s_home_session++; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent && !s_command_pending);
+    clock_us += 46000000;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    cJSON_Delete(s_catalog); s_catalog = original_catalog;
+    free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
 }
 static char *load(const char *path){FILE *f=fopen(path,"rb");assert(f);fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);char *s=calloc(1,n+1);assert(s&&fread(s,1,n,f)==(size_t)n);fclose(f);return s;}
 int main(int argc,char **argv)
@@ -158,6 +217,7 @@ int main(int argc,char **argv)
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
+    home_control_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";
     assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));

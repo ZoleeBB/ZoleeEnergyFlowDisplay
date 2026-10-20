@@ -4,6 +4,7 @@
   "name": "Élő otthon",
   "version": 11,
   "light": {
+    "home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230},
     "background": "#F0F5F3",
     "elements": [
       {
@@ -767,6 +768,7 @@
     ]
   },
   "dark": {
+    "home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230},
     "background": "#111F2C",
     "elements": [
       {

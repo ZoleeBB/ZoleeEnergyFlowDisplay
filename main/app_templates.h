@@ -57,3 +57,12 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
 bool app_templates_safe_id(const char *id);
 bool app_templates_safe_asset(const char *path);
 const char *app_templates_root(void);
+
+/* Külön, nem lapozható erőforráscsomag a két Loxone Master-oldalhoz.
+ * Az általános témák 32 képes korlátja nem változik. */
+#define APP_HOME_RESOURCE_ID "loxone-home"
+#define APP_HOME_RESOURCE_KIND "loxone-home-resources"
+#define APP_HOME_RESOURCE_ICONS 64U
+bool app_templates_home_info(app_template_info_t *info, unsigned *generation);
+bool app_templates_home_load(const char *const *icons, unsigned count, bool night,
+                              app_template_view_t *out);

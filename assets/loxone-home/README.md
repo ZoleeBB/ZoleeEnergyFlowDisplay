@@ -45,16 +45,42 @@ Az import a kért méretre alakít, középre helyez és rögzíti az eredetet;
 nem fest át és nem távolít el hátteret. Az eredeti megmarad a külső helyén.
 Mindig a tényleges 96×96 változatot is ellenőrizni kell világos és sötét alapon.
 
-## Integráció állapota
+## Integráció és SD-csomag
 
-A webes ikonválasztóban már mind a 64 elem választható név szerint. A firmware-be
-csak az id/hu/en mezőket tartalmazó tömör lista kerül, a generálási leírások nem.
-Az új SD-s speciális csomag és a kijelző UI bekötése még hátravan. A további feladatokat a
-`docs/v3-development-plan.md` 6. checkpointja tartalmazza.
+A `/loxone` webes szerkesztő 64 ikont kínál. A firmware-be csak a tömör id/hu/en
+lista kerül; a generálási leírások nem. Az ikonok, a `backgrounds/` két pontos
+1280×800 képe és a meglévő helyi logó külön, nem lapozható SD-erőforráscsomagot alkot:
 
-A későbbi SD-csomaghoz tömör runtime-katalógust kell előállítani a szerzői
-promptok nélkül. Csak az aktív oldal látható ikonjait kell dekódolni:
-egy 96×96 RGBA kép 36 KiB, 12 kép 432 KiB nyers képadat a dekóder és LVGL
-járulékos memóriaigénye nélkül. A teljes készlet egyidejű betöltése nem szükséges.
-Az inaktív fogyasztó szürke megjelenítését a UI-nak kell megoldania;
-nincsenek külön, tárhelyet növelő szürke PNG-másolatok.
+```sh
+python3 tools/prepare_home_resources.py
+```
+
+A `dist/templates/loxone-home.zip` a meglévő témakezelővel telepíthető és frissíthető.
+A normál témák 32 PNG-s korlátja nem változik. A fenntartott közös csomag kizárólag
+64 egyedi ikont, két 1280×800 hátteret, kis logót és opcionális előnézeti párt fogad.
+A runtime csak a megnyitott oldal legfeljebb 12 ikonját, egy hátterét és a logót
+olvassa elő; azonos ikon csak egyszer kerül memóriába. Bezáráskor ezek és a szürke
+képpéldányok felszabadulnak, az előző energiaelrendezés visszatöltődik.
+
+A `backgrounds/light.png` a jóváhagyott nappali szoba kártyák/feliratok nélküli
+rekonstrukciója, a `dark.png` ugyanennek az éjszakai változata. A beépített image_gen
+eszközzel készültek; a nagy eredetik nincsenek a repóban. Végső méretük 1280×800 RGB.
+A PNG-k a panel RGB565 színpontosságára vannak optimalizálva: a vörös/kék csatorna
+alsó 3, a zöld alsó 2 bitje nulla. Ez nem változtatja meg a kijelző RGB565
+színértékeit, de a két háttér együtt 3 612 352 helyett 1 946 416 bájt.
+A fájlok továbbra is valódi RGB PNG-k; palettás PNG-t a csomagellenőrző nem fogad.
+A nappali prompt a referenciából minden UI-elem eltávolítását és a nyugodt,
+nagy ablakos, zöld környezetű nappali/konyha megtartását kérte. Az éjszakai prompt
+kizárólag időjárás-/fényváltást kért, változatlan kamerával és berendezéssel,
+sötétkék kerttel és a meglévő meleg beltéri világítással. Az éjszakai oldal végső
+vizuális elfogadása a fejlesztési tervben követendő.
+
+A fogyasztó 0 mérésénél valódi, luminanciaalapú szürke ARGB-változat készül;
+a színes ikon nem kap egyszerű áttetsző fedőréteget. Az alfa megmarad.
+
+A teljes folyamat ellenőrzése:
+
+```sh
+python3 tests/test_home_resources.py
+python3 tests/test_loxone_home.py
+```

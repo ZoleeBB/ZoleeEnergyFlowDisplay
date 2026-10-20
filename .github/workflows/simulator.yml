@@ -15,6 +15,10 @@ jobs:
         run: cmake -S . -B out/simulator -DZOLEE_SIMULATOR=ON -A x64
       - name: Build
         run: cmake --build out/simulator --config Debug --parallel 4
+      - name: Prepare common Loxone resources
+        run: |
+          python tools/prepare_home_resources.py
+          python -m zipfile -e dist/templates/loxone-home.zip out/simulator/simulator/templates/loxone-home
       - name: Validate demo packets, render, timeout and recovery
         run: ctest --test-dir out/simulator -C Debug --output-on-failure
       - uses: actions/upload-artifact@v4

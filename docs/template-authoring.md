@@ -196,3 +196,24 @@ mutatja a helyben felhasznált/tárolt (zöld) és visszatáplált (sárga) ener
 Az opcionális nap- és akkukapacitás-adatforrások az adat hiányában nem
 mutathatnak kitalált értéket. A grafikai elemek a `09-solar-journey` csomagban vannak;
 a fizikai panelen az olvashatóságot és az animáció folyamatosságát is ellenőrizd.
+
+## Loxone Otthon érintési terület (v3 fejlesztési ág)
+
+A világos és sötét scene külön opcionális `home_hotspot` objektumot kaphat:
+
+```json
+"home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230}
+```
+
+Ez a ház képi helyén átlátszó érintési területet ad. Minden mező egész szám,
+a téglalap teljes egészében a 1280×800 képernyőn belül legyen. Érintéskor kizárólag
+Master Loxone módban, működő SD/közös csomag és legalább egy fogyasztó mellett
+nyílik az oldal. Nem futtathat parancsszöveget, URL-t vagy saját kódot. A gyári
+régi csomagokhoz a firmware kompatibilis ház-/otthonérték-felismerést is ad;
+saját fotóháttérnél mindig az explicit téglalapot add meg.
+
+A `loxone-home` azonosító és `kind=loxone-home-resources` a közös erőforrások számára
+fenntartott. Ez külön, nem lapozható csomag, a `tools/prepare_home_resources.py`
+készíti. A normál témák 32 PNG / 34 ZIP-bejegyzés korlátja változatlan. A fenntartott
+csomag csak a saját, kötött 64 ikonos formátumával használhat nagyobb fájlszámot;
+sem tetszőleges extra erőforrás, sem pluginrendszer nem engedélyezett.

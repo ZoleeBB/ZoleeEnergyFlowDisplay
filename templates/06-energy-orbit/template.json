@@ -4,6 +4,7 @@
   "name": "Energiakör",
   "version": 12,
   "light": {
+    "home_hotspot": {"x": 800, "y": 145, "w": 180, "h": 180},
     "background": "#E8EEF7",
     "elements": [
       {
@@ -499,6 +500,7 @@
     }
   },
   "dark": {
+    "home_hotspot": {"x": 800, "y": 145, "w": 180, "h": 180},
     "background": "#1B263C",
     "elements": [
       {
