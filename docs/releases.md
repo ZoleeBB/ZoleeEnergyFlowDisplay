@@ -6,6 +6,35 @@ fejlesztésének átadási állapota, automatizált bizonyítékai és eszközö
 10,1 colos P4 mellett a [720×720-as Waveshare 4B Slave](slave-waveshare-4b.md)
 külön firmware-ét is tartalmazzák. A két alkalmazás nem cserélhető fel.
 
+## Workflow-nevek és tesztfirmware letöltése
+
+| Actions név | Workflow-fájl | Feladat |
+| --- | --- | --- |
+| Waveshare 10.1 Master | `.github/workflows/build.yml` | Fő kijelző ellenőrzése, közös firmware-build és mindkét cél kiadási csomagolása |
+| Waveshare 4B Slave | `.github/workflows/slave-4b.yml` | A 720×720-as Slave közös UI-jának Linux/Windows szimulátora |
+| Windows UI simulator | `.github/workflows/simulator.yml` | A fő kijelző Windows-szimulátora |
+
+A korábbi **ESP-IDF build** neve **Waveshare 10.1 Master** lett. A workflow
+fájlútvonala, job-azonosítói és a release-ek közös buildre mutató hivatkozásai
+változatlanok. A korábbi futások a régi megjelenítési nevet is mutathatják.
+
+A sikeres **Waveshare 10.1 Master** futás Artifacts részében webes frissítéshez:
+
+- `master-10.1-ota-<commit>`: kizárólag a 10,1 colos fő kijelző OTA-binárisa és a SHA256SUMS.txt.
+- `slave-4b-ota-<commit>`: kizárólag a 720×720-as Slave OTA-binárisa és a SHA256SUMS.txt.
+- `firmware-packages-<commit>`: változatlan teljes csomag az USB-telepítőkkel; a release-publikáló ezt használja.
+
+Az Actions az artifactot ZIP-ként tölti le. Webes frissítéshez csomagold ki,
+és a megfelelő `-ota.bin` fájlt válaszd ki az eszköz `/update` oldalán.
+A két hardver binárisa nem cserélhető fel. A külön OTA-artifact ugyanazokat
+a binárisbájtokat tartalmazza, mint a teljes csomag, újrafordítás nélkül.
+
+A Chrome biztonsági jelzésének pontos oka a figyelmeztetésből nem állapítható
+meg. A kisebb OTA-artifact nem tartalmaz telepítőszkriptet vagy USB-csomagot,
+de ettől a böngésző vagy a szervezeti szabály még blokkolhatja. A jelzést nem
+tekintjük bizonyítottan téves riasztásnak, és nem módosítunk böngészővédelmet.
+A SHA256SUMS.txt a bináris sértetlenségének ellenőrzésére használható.
+
 ## Automatikus kiadás PR-merge után
 
 A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.

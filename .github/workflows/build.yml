@@ -1,4 +1,4 @@
-name: ESP-IDF build
+name: Waveshare 10.1 Master
 
 # A firmware minden main pushnál és pull requestnél újrafordul.
 on:
@@ -150,3 +150,25 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: dist/*
+
+      # Webes OTA-hoz nincs szükség az USB-telepítő Python fájljaira.
+      # A teljes artifact neve változatlan, mert a release workflow-k arra hivatkoznak.
+      - name: Upload Master OTA only
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-10.1-ota-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            dist/ZoleeEnergyFlowDisplay-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
+            dist/SHA256SUMS.txt
+
+      - name: Upload Slave OTA only
+        uses: actions/upload-artifact@v4
+        with:
+          name: slave-4b-ota-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            dist/ZoleeEnergyFlowDisplay-slave-4b-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
+            dist/SHA256SUMS.txt
