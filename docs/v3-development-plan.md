@@ -660,7 +660,7 @@ A megszakadás után a távoli fej `250ded8040135eef6914a3fd5351dbed3d54204e`
 és a 10. checkpoint ellenőrizve. A korábbi, folyamatos feltöltési engedély érvényes.
 A helyi futtatókörnyezet nem érhető el; e változás ellenőrzése GitHub CI-ben történik.
 
-Elkészült forrásként (a CI eredménye lent rögzítendő):
+Elkészült és az alábbi CI-futásokkal ellenőrizve:
 
 - `app_slave_presence.c/.h`: három stabil, párosított identitáshoz kapcsolható,
   név/jelenlét-UUID/timeout/sötétítés profil tiszta modellje. A bemenet normalizált
@@ -687,7 +687,7 @@ Elkészült forrásként (a CI eredménye lent rögzítendő):
   rövid impulzus egyszer ébreszt, érvényes lefutó él egyszer hosszabbít;
   profilcsere, invalid adat és disconnect nem ad új timeoutot.
   A saját fényerők/napszak/PIN/inputkapu megmaradnak. A profil disconnectkor
-  megmarad; igazoltan régi Master külön legacy jelzése kikapcsolja a sötétítést.
+  a memóriában megmarad; igazoltan régi Master külön legacy jelzése kikapcsolja a sötétítést.
 - A modell mindkét firmware fordítási forráslistáján szerepel, de a tényleges
   BLE/Loxone/UI útba még nincs bekötve. Ez fejlesztési alap, nem kész jelenlétfunkció.
 - Új valódi C/UBSan teszt a közös regresszióban: identitás és Unicode határok,
@@ -700,3 +700,34 @@ olvasás/értesítés; opcionális Slave-discovery/freshness/snapshot; három je
 bekötése az egyetlen meglévő Loxone WS deltaútjába; webes szerkesztő és a két
 panel LVGL-zár alatti alkalmazása. Ezek továbbra is hátralévő feladatok.
 Nincs PR vagy release; a 05/06 látványtervek és az energiaasszisztens is hátravan.
+
+A 11. checkpoint első részének ellenőrzött zárása:
+
+- Távoli forráscommit: `018df757322557bb9359268fc418f0ee67387b46`;
+  teljes forrásfa: `5b02e2a3b281b6508ace1994e3893f9963f16b25`.
+  Feltöltés közvetlenül a GitHub-kapcsolaton, kis szöveges kérésekkel; helyi
+  munkafa/fordítás továbbra sem elérhető. A végső dokumentációs commit nem módosít kódot.
+- [Master teljes regresszió/LVGL/ikonok/csomagok/két ESP-IDF firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39493104910),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39493104747),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39493105023)
+  minden jobja sikeres, mind a végső forráscommitra.
+- A teljes natív regresszióban az új C/UBSan teszt is sikeres: tábla **444 bájt**,
+  receiver **48 bájt**, csomag **20 bájt**. A tényleges deltafeldolgozó 1→0
+  impulzusától a közös fényerőállapotgépig futó teszt is átment.
+  Külön ellenőrzött, hogy újabb inaktív heartbeat nem hosszabbítja a még UI-ra
+  váró régi impulzus saját 15 másodperces érvényességét; új valódi impulzus igen.
+- A napló mindkét firmware-ben igazolja az `app_slave_presence.c` fordítását.
+  Master app `0x2ddf00` = **3 006 208 bájt**, 8 MiB app-partíción 64% szabad.
+  4B app `0x31dee0` = **3 268 320 bájt**, 12 MiB app-partíción 74% szabad.
+  A 10. checkpointtal azonos méret; ez nem bájtraazonossági állítás.
+  Az éles hívások még hiányoznak, a nem hívott modulrészeket a linker elhagyhatja.
+- Mindkét USB/OTA-csomag, a tényleges buildkimenetekkel futó USB-telepítőellenőrzés
+  és a webgenerátor-ellenőrzés sikeres. Az ikonok/képek ebben a blokkban változatlanok.
+  Fizikai paneles DMA/PSRAM/FPS-mérés vagy új jelenlét-GATT/NVS integrációs próba nincs.
+- Az átviteli szerződés és a következő adapter követelményei:
+  [docs/slave-presence-protocol.md](slave-presence-protocol.md).
+  A host a tényleges BLE-fogadáskor őrizze meg az impulzus saját idejét;
+  pusztán a legutolsó wire-csomagot továbbító UI-sor ezt nem garantálja.
+  Rövid receiver-zár és LVGL→receiver zársorrend; BLE host nem vár LVGL-re.
+- Nincs PR vagy release. A következő folytatás a fenti NVS/host/GATT/WS/web/UI
+  bekötést végezze; a 11. checkpointot ne tekintse kész jelenlétfunkciónak.

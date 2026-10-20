@@ -81,8 +81,12 @@ késői válaszát. Régi üzenet az új kapcsolat bázisát sem állíthatja be
 csak számlálóbázis: régi impulzust nem játszik vissza. A friss, tényleges aktív
 szint ugyanakkor ébren tarthat. Lejárt vagy hibás mintából nem lesz ébresztés.
 
-A fogadó és az inputkapu közös állapotának műveletei ugyanazon LVGL-zár alatt
-fussanak; a BLE host korlátos üzenetet/snapshotot adjon át. Ha több csomag
+A receiver rövid külön zár alatt kezelendő; a host a tényleges BLE-fogadáskor,
+e zár megszerzése után vett monoton idővel hívja a dekódert. A BLE host nem
+várhat LVGL-zárra. A kijelzőadapter az inputkapuval azonos LVGL-zár alatt,
+e rövid receiver-zárat is megszerezve fusson; fordított zársorrend nincs.
+Teljes vevőállapot/snapshot adható át, de egy puszta „utolsó wire-csomag” sor
+önmagában nem őrzi meg a régi impulzus saját érkezési idejét. Ha több csomag
 érkezik egy UI-frissítés előtt, a függő impulzus megmarad a következő friss,
 érvényes csomag mellett, és egyszer fogy el. Az impulzus saját fogadási ideje külön megmarad: egy későbbi inaktív heartbeat
 nem hosszabbítja meg az esemény 15 másodperces érvényességét. Invalid csomag vagy
@@ -93,7 +97,7 @@ nappali/éjszakai fényereje, az utolsó ismert napszaka, a boot/PIN láthatós�
 az első teljes ébresztő érintést elnyelő kapu a meglévő közös állapotgépben marad.
 Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
 Profilváltás/invalid/disconnect nem ad új timeoutot és nem szimulál lefutó élt.
-Disconnectkor a profil megmarad; csak a tényleges legacy átállás kapcsolja ki.
+Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átállás kapcsolja ki.
 
 ## Ellenőrzés és korlátok
 
