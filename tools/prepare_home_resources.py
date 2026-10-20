@@ -16,10 +16,12 @@ def home_resource_files():
         raise ValueError('A home csomaghoz pontosan 64 egyedi ikon szükséges')
     document = {
         'schema': 1, 'id': 'loxone-home', 'kind': 'loxone-home-resources',
-        'name': 'Loxone Otthon – közös erőforrások', 'version': 1,
+        'name': 'Loxone Otthon – közös erőforrások', 'version': 2,
+        'consumer_backgrounds': {'light': 'consumers-light.png', 'dark': 'consumers-dark.png'},
         'icons': [{'id': icon['id'], 'file': 'icon-' + icon['id'] + '.png'} for icon in icons],
     }
     files = {f'background-{mode}.png': source / 'backgrounds' / f'{mode}.png' for mode in ('light', 'dark')}
+    files.update({f'consumers-{mode}.png': source / 'backgrounds' / f'consumers-{mode}.png' for mode in ('light', 'dark')})
     files['loxone-logo.png'] = ROOT / 'assets/loxone-logo.png'
     for mode in ('light', 'dark'):
         document[mode] = {
@@ -46,7 +48,7 @@ def package_home_resources(output):
             info = zipfile.ZipInfo(name, (2026, 10, 20, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, data[name])
-    print('loxone-home: 64 icons, 2 backgrounds, local logo,', archive_path.stat().st_size, 'bytes')
+    print('loxone-home: 64 icons, 4 backgrounds, local logo,', archive_path.stat().st_size, 'bytes')
     return archive_path
 
 

@@ -1239,6 +1239,60 @@ int main(void)
     assert(lv_obj_has_state(home_buttons[6],LV_STATE_DISABLED));
     assert(strstr(lv_label_get_text(home_labels[0]),"Nincs adat"));
     save_frame("loxone-cards-offline");
+    app_sim_home_connected = true;
+    app_sim_home_pending = false;
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_dots[0] && home_dots[1] && home_dots[2] && !home_dots[3]);
+    assert(home_card_page == 0 && home_card_count == 8);
+    /* Gombon induló balra húzás nem küld parancsot a felengedéskor. */
+    lv_obj_update_layout(s_screen);
+    touch_sample_xy(150,504,true); touch_sample_xy(85,504,true);
+    touch_sample_xy(10,504,true); touch_sample_xy(10,504,false);
+    assert(home_request_get() == 3 && app_sim_home_commands == 1);
+    app_sim_home_values.cards[8].value = 19.8;
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_card_page == 1 && home_first_card == 8 && home_card_count == 2);
+    assert(home_assets.asset_count == 4 && !strcmp(home_assets.assets[0].name,"background-light.png"));
+    assert(!strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(s_screen,1),0)),"Kert"));
+    assert(strstr(lv_label_get_text(home_labels[0]),"19,8"));
+    save_frame("loxone-cards-second-light");
+    /* A második lap gombja a globális, helyes kártyaazonosítóra küld. */
+    touch_sample_xy(790,288,true); touch_sample_xy(790,288,false);
+    assert(app_sim_home_commands == 2 && !strcmp(app_sim_home_last_id,"card-9"));
+    touch_sample_xy(1000,650,true); touch_sample_xy(700,650,true);
+    touch_sample_xy(300,650,true); touch_sample_xy(300,650,false);
+    assert(home_request_get() == 4 && app_sim_home_commands == 2);
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_card_page == 2 && home_card_count == 0 && home_assets.asset_count == 2);
+    assert(!strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(s_screen,1),0)),"Vendégszoba"));
+    save_frame("loxone-cards-empty-light");
+    touch_sample_xy(300,650,true); touch_sample_xy(700,650,true);
+    touch_sample_xy(1000,650,true); touch_sample_xy(1000,650,false);
+    assert(home_request_get() == 3);
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_card_page == 1);
+    home_gesture(LV_DIR_LEFT); home_prepare(false); render_runtime(rt,sample,true,31000000);
+    home_gesture(LV_DIR_LEFT); home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_card_page == 0 && home_request_get() == 2);
+    /* Egyetlen konfigurált lapnál eltűnnek a pontok. */
+    app_sim_home_config.page_count = 1; app_sim_home_config.card_count = 8;
+    home_prepare(true); render_runtime(rt,sample,true,31000000);
+    assert(!home_dots[0]);
+    for (unsigned i = 8; i < 12; i++) {
+        app_sim_home_config.cards[i] = app_sim_home_config.cards[0];
+        snprintf(app_sim_home_config.cards[i].id,LX_HOME_ID_SIZE,"extra-%u",i);
+        app_sim_home_values.cards[i] = (lx_home_value_t){.value=21+i*.1,.valid=true};
+    }
+    app_sim_home_config.card_count = app_sim_home_config.pages[0].card_count = 12;
+    app_sim_home_pending = false;
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    lv_obj_update_layout(s_screen);
+    assert(home_card_count == 12 && home_assets.asset_count <= 14);
+    assert(lv_obj_get_y(lv_obj_get_parent(home_labels[11])) == 552);
+    assert(lv_obj_get_y(lv_obj_get_parent(home_message)) == 754);
+    assert(lv_obj_get_style_bg_opa(lv_obj_get_parent(home_message),0) == LV_OPA_COVER);
+    save_frame("loxone-cards-twelve-light");
+    puts("PASS: actual LVGL titled pages, footer dots, both swipe directions/wrap, empty page, active images only, no command on swipe and correct off-first-page command ID");
     home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
     assert(!home_is_open()&&!home_assets.asset_count&&!strcmp(template_view.id,"01-live-home"));
     app_sim_home_enabled=false;

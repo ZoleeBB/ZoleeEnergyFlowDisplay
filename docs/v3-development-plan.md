@@ -29,6 +29,8 @@
 | D11 | A sötét Slave érintésre is ébred az éjszakai fényerőre, ugyanazzal az időkorláttal. Az első érintés csak ébreszt: a teljes érintéssorozatot (felengedés is) el kell nyelni, nem indíthat kattintást vagy gesztust. |
 | D12 | A világos fogyasztói oldal látványterve elfogadva: 4×3, legfeljebb 12 kártya. Hiányos sor vízszintesen középre igazítva, a két szélén azonos üres hellyel; 7 elemnél felül 4, alul 3 középre. |
 | D13 | A világos Otthon oldal látványterve elfogadva (értékek, kapcsolók és indítógombok). A felhasználó sokféle ikont kér a közös készletbe, a fogyasztói ikonokon túl is. |
+| D14 | A Ház fogyasztói és az Otthon-kártyák külön nappali/éjszakai hátteret kapnak. A világos lábléc Loxone-logó melletti szövegét kontrasztos, egységes panel tegye olvashatóvá. |
+| D15 | Az Otthon több, szerkesztőben hozzáadható és szabadon elnevezhető oldalból álljon. Oldalanként legfeljebb 12 kártya; fejlécben az oldal címe, több oldalnál alul oldalpontok. Jobbra/balra gesztus kizárólag e lapok között váltson, ne az energiatémák között. |
 
 ## Követelmények – fogyasztói oldal
 
@@ -63,6 +65,11 @@
 
 ## Követelmények – szabad Loxone-kártyák
 
+- D15: több elnevezhető oldal; kezdeti erőforráskorlát 8 oldal × 12 kártya. A korábbi egyoldalas schema 1 profil automatikusan egy „Otthon” oldalra migrálódik; új tartós/API formátum schema 2.
+- Oldalak hozzáadása, törlése, címadása és sorrendje a szerkesztőben; az oldalankénti kártyaszám külön ellenőrzött. Üres oldal is szerkeszthető és megnyitható.
+- Az oldalváltás csak az aktív oldal legfeljebb 12 ikonját/widgetjét tartsa memóriában; a többi lap minimális numerikus állapotát megőrzi a delta adatfolyamhoz. Oldalváltás nem indíthat kártyaparancsot.
+- A többoldalas konfiguráció külön, 128 KiB-ra korlátozott tárolót/API-kérést kap; hitelesítési adatok és Wi-Fi/OTA út változatlan.
+
 - Kizárólag Master és Loxone mód.
 - Kártyatípusok: érték, pillanatnyi gomb (`pulse`), On/Off kapcsoló.
 - Érték: név, ikon, állapotpárosítás, mértékegység, skálázás, figyelmeztetési határok/színek.
@@ -72,8 +79,8 @@
 - Kapcsolatvesztéskor vezérlés tiltva, felhasználó számára érthető visszajelzéssel.
 - Fentről lefelé húzás nyitja, jobb felső X zárja, korábbi téma visszaáll.
 - Csak legalább egy kártyánál és elérhető SD-s speciális csomagnál nyitható.
-- Saját színes, otthon hangulatú, jól olvasható hátterek; SD-ről és témakezelővel frissíthetően.
-- Javasolt felső határ 12 kártya; a részletek a látványtervnél ellenőrzendők.
+- Saját színes, otthon hangulatú, jól olvasható hátterek; SD-ről és témakezelővel frissíthetően. A fogyasztói oldal külön háttérpárt használ (D14).
+- Oldalanként legfeljebb 12 kártya, legfeljebb 8 oldalon (D15).
 - Biztonságos, engedélyezett konkrét műveletek; nincs önkényes felhasználói URL/parancs végrehajtás.
 
 ## Követelmények – diagnosztika és gesztusok
@@ -579,3 +586,58 @@ A következő blokk előkészített műszaki szempontjai (még nem implementáci
   érvénytelen/kapcsolat nélküli adat nem hosszabbít timeoutot.
 - NVS-be csak megváltozott, validált profil kerüljön, külön háttérfeladatból;
   az ismételt jelenlétminták/érintések ne írjanak flash-t és ne indítsanak újra.
+
+## Checkpoint 2026-10-20 / 10 – lapozható Otthon és külön fogyasztói háttér
+
+A felhasználó új kérései D14/D15-ként bekerültek a tervbe; e blokk ezeket valósítja meg.
+
+Elkészült:
+
+- Schema 2: legfeljebb 8, saját címmel/azonosítóval rendelkező oldal, oldalanként
+  12 kártya (összesen 96). A korábbi schema 1 kártyalistája automatikusan egy
+  `home` / „Otthon” oldalra kerül. Az üres lap is érvényes. A kártyaazonosítók
+  minden oldalon együtt egyediek, így a parancssor oldalváltáskor sem kever célt.
+- A webes szerkesztőben oldal hozzáadása, címadása, kiválasztása, törlése és
+  átrendezése; minden lap saját kártyái külön megmaradnak. A háttérfrissítés és
+  katalógusszűrés nem írja felül a helyi szerkesztést. Nincs HTML-ként értelmezett cím.
+- A kijelző fejlécében az oldal címe; több lapnál alul aktív/inaktív pontok.
+  Jobbra/balra húzás körbefordulással lapoz. A témaválasztás változatlan marad;
+  X-szel a korábbi energiaelrendezés áll vissza. Gombon induló húzás sem küld parancsot.
+- Egyszerre csak egy lap legfeljebb 12 widgetje/ikonja, egy háttér és logó él.
+  A rejtett lapok numerikus delta állapotai megmaradnak. Natív profil 32 112 bájt,
+  teljes értéktár 1824 bájt; UI-pillanatképek/értéktár PSRAM-ban. A külön SD/HTTP
+  JSON-korlát 128 KiB; a hitelesítési konfiguráció és az OTA/Wi-Fi út nem nőtt.
+- Fogyasztói oldal: új, külső ház-/kertnézet nappal/éjjel. Otthon: korábbi beltéri
+  háttérpár. Mind a négy RGB PNG pontosan 1280×800; 64 ikon továbbra is 96×96.
+  Az új képek beépített image_gen eszközzel készültek, RGB565-optimalizálással;
+  nagy eredetik nincsenek a repóban, szerzői prompt/meta nem kerül az SD-csomagba.
+- A v2 erőforráscsomag 70 fájl / 4 796 478 bájt; 4 háttér, 64 ikon és logó.
+  Csak e speciális csomag összesített dekódolt korlátja 20 MiB; normál témák
+  12 MiB korlátja, a ZIP 72-es határa és a 10 MiB LVGL-cache változatlan.
+  Régi v1 csomag továbbra is betölthető közös háttérrel; külön fogyasztói képhez
+  a v2 SD-csomag is frissítendő. Ez a Master USB-csomagba is bekerül.
+- Fedő világos/sötét lábléc a logóval és a felirattal: a kép tónusától független
+  kontraszt. A harmadik kártyasor és a lábléc nem fedik egymást.
+- Háromlapos szimulátordemó (Földszint / Kert / üres Vendégszoba), ugyanazzal a UI-val.
+
+Ellenőrzések:
+
+- Teljes natív regresszió sikeres. C/UBSan: 8×12 körút, egyedi lap-/kártya-ID,
+  per-page határ, címvalidálás, régi profil migrációja, üres oldal, atomi elutasítás,
+  JSON foglalási hibák, 96 numerikus állapot és az utolsó lap parancscélja.
+- Valódi SD-tároló: 96 kártyás mentés/betöltés, meglévő FAT/fsync/rename hibainjektálás;
+  HTTP: hitelesítés, strict JSON, 128 KiB korlát, aszinkron mentés.
+- Valódi webes JS: oldal hozzáadása/címadása/mozgatása/törlése, lapok közötti
+  szerkesztésmegőrzés, 8 oldalas és 12 kártyás korlát, régi pulse profil migrációja.
+- Tényleges LVGL: mindkét gesztusirány, körbefordulás, gombon induló húzás parancs
+  nélkül, második lap helyes parancs-ID-ja, üres lap, címsor, aktív lap képei,
+  pontok több lapnál / elrejtés egy lapnál, 12 kártya és fedő lábléc geometriája.
+- C/JS csomagellenőrzés: v2 külön háttérpár, hiányzó/rossz háttér elutasítása,
+  v1 kompatibilitás; normál csomag korlátja megmarad. Webgenerátor és 64 ikon ellenőrizve.
+- Valódi 640×400 előnézetek a repó `assets/loxone-home/previews/` könyvtárában;
+  világos/sötét és második/üres/12 kártyás lap is vizuálisan ellenőrizve.
+- Távoli firmware/Windows CI és új binárisméretek: feltöltés után ellenőrizendő.
+  Nincs fizikai panelpróba, nincs PR és nincs release.
+
+Következő blokk: a 9. checkpoint végén részletezett Slave identitás/jelenlétprofil/
+védett BLE/NVS adatút; energiaasszisztens és a külön egyeztetendő 05/06 tématervek.

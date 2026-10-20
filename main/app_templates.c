@@ -485,9 +485,24 @@ static bool home_package(const cJSON *root)
     const char *kind = str(root, "kind");
     return kind && !strcmp(kind, APP_HOME_RESOURCE_KIND);
 }
+static bool home_split_backgrounds(const cJSON *root)
+{
+    const cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "version");
+    return cJSON_IsNumber(version) && version->valueint >= 2;
+}
 static bool home_manifest(const cJSON *root)
 {
     if (!str(root, "id") || strcmp(str(root, "id"), APP_HOME_RESOURCE_ID))
+        return false;
+    const cJSON *backgrounds = cJSON_GetObjectItemCaseSensitive(root, "consumer_backgrounds");
+    if (home_split_backgrounds(root))
+    {
+        const char *light = str(backgrounds, "light"), *dark = str(backgrounds, "dark");
+        if (!cJSON_IsObject(backgrounds) || !light || !dark ||
+            strcmp(light, "consumers-light.png") || strcmp(dark, "consumers-dark.png"))
+            return false;
+    }
+    else if (backgrounds)
         return false;
     const cJSON *icons = cJSON_GetObjectItemCaseSensitive(root, "icons");
     if (!cJSON_IsArray(icons) || cJSON_GetArraySize(icons) != APP_HOME_RESOURCE_ICONS)
@@ -510,7 +525,8 @@ static bool home_manifest(const cJSON *root)
 }
 static bool home_asset(const cJSON *root, const char *name, unsigned width, unsigned height)
 {
-    if (!strcmp(name, "background-light.png") || !strcmp(name, "background-dark.png"))
+    if (!strcmp(name, "background-light.png") || !strcmp(name, "background-dark.png") ||
+        (home_split_backgrounds(root) && (!strcmp(name, "consumers-light.png") || !strcmp(name, "consumers-dark.png"))))
         return width == 1280 && height == 800;
     if (!strcmp(name, "loxone-logo.png"))
         return width <= 256 && height <= 256;
@@ -616,7 +632,7 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
                 valid = false;
             decoded += (size_t)w * h * 4;
         }
-        if (encoded > APP_TEMPLATE_ENCODED_MAX || decoded > 12 * 1024 * 1024)
+        if (encoded > APP_TEMPLATE_ENCODED_MAX || decoded > (resources ? 20U : 12U) * 1024 * 1024)
         {
             valid = false;
             break;
@@ -624,7 +640,7 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
     }
     closedir(dir);
     /* Régi SD-csomag: egyik sincs. Új előnézetek: a két üzemmód együtt érkezik. */
-    if (previews == 1 || (resources && assets != 67U + previews))
+    if (previews == 1 || (resources && assets != (home_split_backgrounds(root) ? 69U : 67U) + previews))
         valid = false;
     const char *themes[] = {"light", "dark"};
     for (int t = 0; valid && t < 2; t++)
@@ -1333,8 +1349,8 @@ bool app_templates_home_info(app_template_info_t *info, unsigned *version)
     return ready;
 }
 
-bool app_templates_home_load(const char *const *icons, unsigned icon_count, bool night,
-                              app_template_view_t *out)
+bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
+                                  bool consumers, app_template_view_t *out)
 {
     if (!out || icon_count > 12 || (!icons && icon_count) || !lock || !xSemaphoreTake(lock, 0))
         return false;
@@ -1351,7 +1367,8 @@ bool app_templates_home_load(const char *const *icons, unsigned icon_count, bool
     {
         char filename[65];
         if (i == 0)
-            snprintf(filename, sizeof(filename), "background-%s.png", night ? "dark" : "light");
+            snprintf(filename, sizeof(filename), "%s-%s.png",
+                     consumers && home_info.version >= 2 ? "consumers" : "background", night ? "dark" : "light");
         else if (i == 1)
             snprintf(filename, sizeof(filename), "loxone-logo.png");
         else
@@ -1390,4 +1407,11 @@ bool app_templates_home_load(const char *const *icons, unsigned icon_count, bool
     STORAGE_GIVE();
     xSemaphoreGive(lock);
     return ok;
+}
+
+/* A korábbi C-hívók az Otthon-hátteret kapják; a régi SD-csomag is betölthető. */
+bool app_templates_home_load(const char *const *icons, unsigned icon_count, bool night,
+                              app_template_view_t *out)
+{
+    return app_templates_home_load_for(icons, icon_count, night, false, out);
 }

@@ -45,7 +45,12 @@ static lx_config_t s_saved;
 static lx_home_config_t *s_home;
 static bool s_home_busy;
 static unsigned s_home_revision;
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+static EXT_RAM_BSS_ATTR lx_home_values_t s_home_values;
+#else
 static lx_home_values_t s_home_values;
+#endif
 static bool s_home_live, s_command_pending;
 static unsigned s_home_session;
 static int64_t s_command_deadline, s_home_response;

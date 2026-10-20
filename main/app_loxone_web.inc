@@ -60,7 +60,7 @@ static esp_err_t loxone_home_post(httpd_req_t *req)
         return ESP_OK;
     char header[8];
     if (httpd_req_get_hdr_value_str(req, "X-Zolee-Loxone", header, sizeof(header)) != ESP_OK ||
-        strcmp(header, "1") != 0 || req->content_len < 2 || req->content_len > 32768)
+        strcmp(header, "1") != 0 || req->content_len < 2 || req->content_len > LX_HOME_JSON_MAX)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen Otthon-kérés.");
     char *body = calloc(1, req->content_len + 1);
     if (!body)

@@ -45,10 +45,10 @@ int main(void)
     authorized=false;post("{\"schema\":1}");assert(status_code==401&&!requested);
     authorized=true;header_ok=false;post("{\"schema\":1}");assert(status_code==400&&!requested);
     header_ok=true;broken=true;post("{\"schema\":1}");assert(status_code==400&&!requested);broken=false;
-    post("{\"schema\":2}");assert(status_code==400&&requested==1&&strstr(response,"schema"));
+    post("{\"schema\":3}");assert(status_code==400&&requested==1&&strstr(response,"schema"));
     post("{\"schema\":1} trailing");assert(status_code==400);
     post("{\"schema\":1,\"consumers\":[],\"cards\":[]}");assert(status_code==202&&strstr(response,"accepted"));
-    char *large=malloc(32770);memset(large,' ',32769);large[32769]=0;int before=requested;
+    char *large=malloc(LX_HOME_JSON_MAX+2);memset(large,' ',LX_HOME_JSON_MAX+1);large[LX_HOME_JSON_MAX+1]=0;int before=requested;
     post(large);assert(status_code==400&&requested==before);free(large);
     httpd_req_t request={.method=HTTP_GET,.uri="/api/loxone/home"};
     authorized=false;status_code=200;loxone_home_get(&request);assert(status_code==401);

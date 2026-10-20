@@ -84,3 +84,14 @@ A teljes folyamat ellenőrzése:
 python3 tests/test_home_resources.py
 python3 tests/test_loxone_home.py
 ```
+
+
+A v2 csomag külön fogyasztói háttérpárt is tartalmaz: `backgrounds/consumers-light.png`
+és `backgrounds/consumers-dark.png`. Beépített image_gen eszközzel készült külső
+ház-/kertnézet, majd azonos geometriájú éjszakai fényváltozat. A pontos promptok,
+ellenőrzőösszegek és végleges méretek: `backgrounds/prompts.json`. Mindkét fájl
+1280×800 RGB PNG, RGB565 színpontosságra optimalizálva; a nagy eredetik nincsenek a repóban.
+Az Otthon-lapok továbbra is a korábbi beltéri háttérpárt használják.
+A teljes csomag 4 796 478 bájt; 70 fájl a ZIP-ben. Normál témák kép-/memóriakorlátja
+változatlan, a külön speciális csomag teljes dekódolt összege legfeljebb 20 MiB;
+ebből egyszerre csak az aktív oldal legfeljebb 14 képe él.

@@ -6,6 +6,7 @@
 bool app_sim_home_enabled, app_sim_home_connected, app_sim_home_pending;
 unsigned app_sim_home_commands;
 lx_home_command_t app_sim_home_last_action;
+char app_sim_home_last_id[LX_HOME_ID_SIZE];
 lx_home_config_t app_sim_home_config;
 lx_home_values_t app_sim_home_values;
 void app_sim_home_reset(void)
@@ -28,7 +29,18 @@ void app_sim_home_reset(void)
     const char *card_icons[]={"temperature","humidity","water-heater","electric-car","garden-light","ventilation","water-heater","garage-door"};
     const char *units[]={"°C","%","°C","%"};
     const double card_values[]={22.4,46,54,72,1,0};
-    app_sim_home_config.card_count=8;
+    app_sim_home_config.card_count = 10;
+    app_sim_home_config.page_count = 3;
+    const char *page_names[] = {"Földszint", "Kert", "Vendégszoba"};
+    const unsigned first_card[] = {0, 8, 10}, card_count[] = {8, 2, 0};
+    for (unsigned p = 0; p < 3; p++)
+    {
+        lx_home_page_t *page = &app_sim_home_config.pages[p];
+        snprintf(page->id, sizeof(page->id), "page-%u", p);
+        snprintf(page->title, sizeof(page->title), "%s", page_names[p]);
+        page->first_card = first_card[p];
+        page->card_count = card_count[p];
+    }
     for(unsigned i=0;i<8;i++) {
         lx_home_card_t *card=&app_sim_home_config.cards[i];snprintf(card->id,sizeof(card->id),"card-%u",i);
         snprintf(card->name,sizeof(card->name),"%s",card_names[i]);snprintf(card->icon,sizeof(card->icon),"%s",card_icons[i]);
@@ -37,6 +49,19 @@ void app_sim_home_reset(void)
         card->decimals=i==0?1:0;strcpy(card->warning_color,"#E66B6B");
         if(i<4)snprintf(card->unit,sizeof(card->unit),"%s",units[i]);
         if(i<6)app_sim_home_values.cards[i]=(lx_home_value_t){.value=card_values[i],.valid=true};
+    }
+    for (unsigned i = 8; i < 10; i++)
+    {
+        lx_home_card_t *card = &app_sim_home_config.cards[i];
+        snprintf(card->id, sizeof(card->id), "card-%u", i);
+        snprintf(card->name, sizeof(card->name), "%s", i == 8 ? "Kerti hőmérséklet" : "Öntözés indítása");
+        snprintf(card->icon, sizeof(card->icon), "%s", i == 8 ? "temperature" : "irrigation");
+        card->type = i == 8 ? LX_HOME_CARD_VALUE : LX_HOME_CARD_PULSE;
+        strcpy(card->unit, "°C");
+        strcpy(card->warning_color, "#E66B6B");
+        card->decimals = 1;
+        app_sim_home_values.cards[i] = (lx_home_value_t){.value = 18.6, .valid = i == 8};
+        app_sim_home_values.command_supported[i] = i == 9;
     }
 }
 bool app_loxone_home_snapshot(lx_home_config_t *config,lx_home_values_t *values,unsigned *revision,
@@ -49,5 +74,6 @@ bool app_loxone_home_snapshot(lx_home_config_t *config,lx_home_values_t *values,
 esp_err_t app_loxone_home_command(const char *id,lx_home_command_t action)
 {
     if(!app_sim_home_enabled||!app_sim_home_connected||app_sim_home_pending||!id)return ESP_ERR_INVALID_STATE;
+    snprintf(app_sim_home_last_id,sizeof(app_sim_home_last_id),"%s",id);
     app_sim_home_commands++;app_sim_home_last_action=action;app_sim_home_pending=true;return ESP_OK;
 }

@@ -21,7 +21,8 @@ def main():
     with zipfile.ZipFile(resources) as archive:
         doc = json.loads(archive.read('template.json'))
         assert doc['kind'] == 'loxone-home-resources' and len(doc['icons']) == 64
-        assert len(archive.namelist()) == 68
+        assert len(archive.namelist()) == 70
+        assert doc['consumer_backgrounds'] == {'light':'consumers-light.png','dark':'consumers-dark.png'}
         assert b'prompt' not in archive.read('template.json')
         assert b'original_sha256' not in archive.read('template.json')
     if not expected or expected.keys() != actual.keys():

@@ -78,3 +78,8 @@ Saját buildhez a repó gyökeréből készítsd el és bontsd a szimulátor má
 python tools/prepare_home_resources.py
 python -m zipfile -e dist/templates/loxone-home.zip out/simulator/simulator/templates/loxone-home
 ```
+
+A `--home-demo` már három címezett Otthon-lapot mutat: Földszint, Kert és egy üres
+Vendégszoba. Jobbra/balra húzással lapozható; a fejléc és a pontok követik az
+aktuális oldalt. A fogyasztói oldal külön külső háznézetet, az Otthon beltéri
+hátteret használ. Az alsó szöveg mindkettőn fedő, kontrasztos láblécen jelenik meg.

@@ -10,10 +10,12 @@ static int home_request_get(void) { return atomic_load(&home_requested); }
 static void home_request_set(int value) { atomic_store(&home_requested, value); }
 #endif
 static int home_page;
+static unsigned home_card_page, home_first_card, home_card_count;
+static lv_obj_t *home_dots[LX_HOME_MAX_PAGES];
 static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
 static unsigned home_revision, home_resource_generation;
 static TEMPLATE_RAM lx_home_config_t home_config, home_next_config;
-static lx_home_values_t home_values, home_next_values;
+static TEMPLATE_RAM lx_home_values_t home_values, home_next_values;
 static bool home_next_connected, home_next_wait;
 static unsigned home_next_revision;
 static char home_status[LX_HOME_ERROR_SIZE], home_next_status[LX_HOME_ERROR_SIZE];
@@ -40,6 +42,18 @@ static void home_cards_requested(void)
 {
     if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(2);
+}
+/* A kérés 1=fogyasztók, 2..9=Otthon-lap. Csak ez az atomikus kérés kerül
+ * át az input callbackből; az SD-képek cseréjét a runtime végzi. */
+static void home_gesture(lv_dir_t direction)
+{
+    int requested = home_request_get();
+    unsigned pages = lx_home_page_count(&home_config);
+    if (requested < 2 || pages < 2 || (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT))
+        return;
+    unsigned current = (unsigned)(requested - 2) % pages;
+    unsigned next = direction == LV_DIR_LEFT ? (current + 1) % pages : (current + pages - 1) % pages;
+    home_request_set(2 + (int)next);
 }
 static void home_release(void)
 {
@@ -82,8 +96,16 @@ static void home_prepare(bool night)
         home_next_revision == home_revision)
         return;
     bool available = snapshot && resources;
-    unsigned count = requested == 1 ? home_next_config.consumer_count : home_next_config.card_count;
-    if (!requested || !available || !count)
+    unsigned pages = lx_home_page_count(&home_next_config);
+    unsigned index = requested >= 2 ? (unsigned)(requested - 2) : 0;
+    if (pages && index >= pages)
+        index = pages - 1;
+    int mode = requested == 1 ? 1 : 2;
+    unsigned first = 0, count = home_next_config.consumer_count;
+    bool page_valid = requested == 1 || lx_home_page_range(&home_next_config, index, &first, &count);
+    if (requested >= 2 && page_valid && requested != 2 + (int)index)
+        home_request_set(2 + (int)index);
+    if (!requested || !available || !page_valid || (requested == 1 && !count))
     {
         if (!home_page)
         {
@@ -98,18 +120,21 @@ static void home_prepare(bool night)
         }
         return;
     }
-    if (home_page == requested && home_night == night && home_revision == home_next_revision &&
+    if (home_page == mode && home_card_page == index && home_night == night && home_revision == home_next_revision &&
         home_resource_generation == resource_generation)
         return;
     if (bsp_display_lock(-1) != ESP_OK) return;
     home_reset_theme();
     template_loading_screen();
-    home_page = requested;
+    home_page = mode;
+    home_card_page = index;
+    home_first_card = first;
+    home_card_count = count;
     bsp_display_unlock();
     const char *icons[12];
     for (unsigned i = 0; i < count; i++)
-        icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[i].icon;
-    bool loaded = app_templates_home_load(icons, count, night, &home_assets);
+        icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[first + i].icon;
+    bool loaded = app_templates_home_load_for(icons, count, night, requested == 1, &home_assets);
     if (!loaded)
     {
         home_request_set(0);
@@ -164,7 +189,8 @@ static const lv_image_dsc_t *home_gray(unsigned index)
 static void home_action(lv_event_t *event)
 {
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
-    if (s_pair_pad || !home_connected || home_command_wait || index >= home_config.card_count ||
+    if (s_pair_pad || home_request_get() != 2 + (int)home_card_page || !home_connected || home_command_wait ||
+        index < home_first_card || index >= home_first_card + home_card_count || index >= home_config.card_count ||
         !home_values.command_supported[index]) return;
     const lx_home_card_t *card = &home_config.cards[index];
     lx_home_command_t action = LX_HOME_COMMAND_PULSE;
@@ -196,16 +222,20 @@ static void home_build(void)
     lv_obj_remove_flag(background, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *header = shape(s_screen, 24, 20, 1232, 80, home_night ? 0x17242B : 0xF8FBF4, 24);
     bg_opa_if_changed(header, home_night ? 242 : 244, 0);
-    lbl(header, home_page == 1 ? tr("Ház fogyasztói", "Home consumers") : tr("Otthon", "Home"),
-        28, 10, APP_FONT_28, home_night ? 0xF2F7F6 : 0x071B32);
+    const char *page_title = home_config.page_count ? home_config.pages[home_card_page].title : tr("Otthon", "Home");
+    lv_obj_t *page_heading = lbl(header, home_page == 1 ? tr("Ház fogyasztói", "Home consumers") : page_title,
+                                 28, 10, APP_FONT_28, home_night ? 0xF2F7F6 : 0x071B32);
+    lv_obj_set_width(page_heading, home_page == 1 ? 700 : 1080);
+    lv_label_set_long_mode(page_heading, LV_LABEL_LONG_MODE_DOTS);
     lbl(header, home_page == 1 ? tr("Pillanatnyi fogyasztás", "Live consumption") :
         tr("Állapotok és vezérlés", "Status and controls"), 28, 46, APP_FONT_16, home_night ? 0xC0CDCE : 0x50615F);
     home_total = lbl(header, "", 780, 28, APP_FONT_22, home_night ? 0x67DFD5 : 0x006C6C);
     lv_obj_t *close = pairing_button(s_screen, "X", 1174, 32, 60, 56);
+    lv_obj_add_flag(close, LV_OBJ_FLAG_GESTURE_BUBBLE);
     bg_color_if_changed(close, c(0x007D7D), 0);
     lv_obj_set_style_radius(close, 28, 0);
     lv_obj_add_event_cb(close, home_close, LV_EVENT_CLICKED, NULL);
-    unsigned count = home_page == 1 ? home_config.consumer_count : home_config.card_count;
+    unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
     memset(home_buttons, 0, sizeof(home_buttons));
     memset(home_switch_knobs, 0, sizeof(home_switch_knobs));
     for (unsigned i = 0; i < count; i++)
@@ -216,19 +246,22 @@ static void home_build(void)
         bg_opa_if_changed(card, home_night ? 242 : 244, 0);
         lv_obj_set_style_border_width(card, 1, 0);
         border_color_if_changed(card, c(home_night ? 0x367171 : 0x69B3AC), 0);
-        lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
-        const char *name = home_page == 1 ? home_config.consumers[i].name : home_config.cards[i].name;
-        const char *icon = home_page == 1 ? home_config.consumers[i].icon : home_config.cards[i].icon;
+        lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(card, LV_OBJ_FLAG_GESTURE_BUBBLE);
+        unsigned index = home_first_card + i;
+        const char *name = home_page == 1 ? home_config.consumers[i].name : home_config.cards[index].name;
+        const char *icon = home_page == 1 ? home_config.consumers[i].icon : home_config.cards[index].icon;
         int asset = home_icon_index(icon);
         home_icons[i] = lv_image_create(card); lv_obj_set_pos(home_icons[i], 98, 8);
         if (asset >= 0) lv_image_set_src(home_icons[i], &home_images[asset]);
         lv_obj_t *title = lbl(card, name, 10, 108, APP_FONT_20, home_night ? 0xEFF6F5 : 0x071B32);
         home_text(title, 272);
-        bool control = home_page == 2 && home_config.cards[i].type != LX_HOME_CARD_VALUE;
+        bool control = home_page == 2 && home_config.cards[index].type != LX_HOME_CARD_VALUE;
         if (control)
         {
-            bool is_switch = home_config.cards[i].type == LX_HOME_CARD_SWITCH;
+            bool is_switch = home_config.cards[index].type == LX_HOME_CARD_SWITCH;
             lv_obj_t *button = pairing_button(card, "", is_switch ? 62 : 22, 146, is_switch ? 104 : 248, 44);
+            lv_obj_add_flag(button, LV_OBJ_FLAG_GESTURE_BUBBLE);
             bg_color_if_changed(button, c(0x007D7D), 0);
             lv_obj_set_style_radius(button, 22, 0);
             lv_obj_set_style_pad_all(button, 0, 0);
@@ -240,7 +273,7 @@ static void home_build(void)
                 home_labels[i] = lbl(card, "", 182, 154, APP_FONT_20, home_night ? 0x68E0D5 : 0x006B69);
             }
             else home_labels[i] = lv_obj_get_child(button, 0);
-            lv_obj_add_event_cb(button, home_action, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+            lv_obj_add_event_cb(button, home_action, LV_EVENT_CLICKED, (void *)(uintptr_t)index);
         }
         else
         {
@@ -248,17 +281,44 @@ static void home_build(void)
             home_text(home_labels[i], 272);
         }
     }
-    lv_obj_t *logo_box = lv_obj_create(s_screen);
+    if (home_page == 2 && !count)
+    {
+        lv_obj_t *empty = shape(s_screen, 250, 330, 780, 100, home_night ? 0x14252A : 0xF7FBF5, 20);
+        lv_obj_t *message = lbl(empty, tr("Ezen az oldalon még nincs kártya.", "This page has no cards yet."),
+                                20, 35, APP_FONT_22, home_night ? 0xEFF6F5 : 0x071B32);
+        home_text(message, 740);
+    }
+    /* A fedő lábléc a világos fotó sötét részletein is állandó kontrasztot ad. */
+    lv_obj_t *footer = shape(s_screen, 16, 754, 1248, 40, home_night ? 0x14252A : 0xF8FBF4, 14);
+    lv_obj_remove_flag(footer, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(footer, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_t *logo_box = lv_obj_create(footer);
     lv_obj_remove_style_all(logo_box);
-    lv_obj_set_size(logo_box, 40, 40); lv_obj_set_pos(logo_box, 24, 754);
+    lv_obj_set_size(logo_box, 32, 32);
+    lv_obj_set_pos(logo_box, 8, 4);
     lv_obj_remove_flag(logo_box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *logo = lv_image_create(logo_box);
-    lv_image_set_src(logo, &home_images[1]); lv_image_set_pivot(logo, 0, 0);
-    lv_image_set_scale(logo, 40 * 256 / home_assets.assets[1].width);
+    lv_image_set_src(logo, &home_images[1]);
+    lv_image_set_pivot(logo, 0, 0);
+    lv_image_set_scale(logo, 32 * 256 / home_assets.assets[1].width);
     lv_obj_set_pos(logo, 0, 0);
-    home_message = lbl(s_screen, "", 96, 762, APP_FONT_16, home_night ? 0xFFFFFF : 0x071B32);
-    lv_obj_set_width(home_message, 1136);
+    unsigned pages = home_page == 2 ? lx_home_page_count(&home_config) : 0;
+    home_message = lbl(footer, "", 64, 9, APP_FONT_16, home_night ? 0xFFFFFF : 0x071B32);
+    lv_obj_set_width(home_message, pages > 1 ? 440 : 1136);
     lv_label_set_long_mode(home_message, LV_LABEL_LONG_MODE_DOTS);
+    memset(home_dots, 0, sizeof(home_dots));
+    if (pages > 1)
+    {
+        unsigned width = pages * 18 - 8;
+        for (unsigned i = 0; i < pages; i++)
+        {
+            uint32_t color = i == home_card_page ? (home_night ? 0x68E0D5 : 0x006B69)
+                                                : (home_night ? 0x637E80 : 0x91A29C);
+            home_dots[i] = shape(footer, (1248 - width) / 2 + i * 18, 15, 10, 10, color, 5);
+            lv_obj_remove_flag(home_dots[i], LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(home_dots[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
+        }
+    }
     s_view = VIEW_HOME;
 }
 static const char *home_feedback(void)
@@ -285,12 +345,13 @@ static bool home_render(void)
     home_connected = home_next_connected; home_command_wait = home_next_wait;
     snprintf(home_status, sizeof(home_status), "%s", home_next_status);
     if (s_view != VIEW_HOME) home_build();
-    unsigned count = home_page == 1 ? home_config.consumer_count : home_config.card_count;
+    unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
     double total = 0; bool complete = home_connected;
     for (unsigned i = 0; i < count; i++)
     {
-        lx_home_value_t value = home_page == 1 ? home_values.consumers[i] : home_values.cards[i];
-        const lx_home_card_t *card = &home_config.cards[i];
+        unsigned index = home_first_card + i;
+        lx_home_value_t value = home_page == 1 ? home_values.consumers[i] : home_values.cards[index];
+        const lx_home_card_t *card = &home_config.cards[index];
         char text[128], number[96];
         if (home_page == 2 && card->type == LX_HOME_CARD_PULSE)
             snprintf(text, sizeof(text), "%s", tr("Indítás", "Start"));
@@ -315,7 +376,7 @@ static bool home_render(void)
         label_text_if_changed(home_labels[i], text);
         if (home_buttons[i])
         {
-            bool enabled = home_connected && !home_command_wait && home_values.command_supported[i] &&
+            bool enabled = home_connected && !home_command_wait && home_values.command_supported[index] &&
                            (card->type == LX_HOME_CARD_PULSE || value.valid);
             if (home_switch_knobs[i])
             {

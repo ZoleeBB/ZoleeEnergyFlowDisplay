@@ -13,8 +13,8 @@ typedef struct
 typedef struct
 {
     lx_home_value_t consumers[LX_HOME_MAX_CONSUMERS];
-    lx_home_value_t cards[LX_HOME_MAX_CARDS];
-    bool command_supported[LX_HOME_MAX_CARDS];
+    lx_home_value_t cards[LX_HOME_MAX_TOTAL_CARDS];
+    bool command_supported[LX_HOME_MAX_TOTAL_CARDS];
 } lx_home_values_t;
 
 typedef enum

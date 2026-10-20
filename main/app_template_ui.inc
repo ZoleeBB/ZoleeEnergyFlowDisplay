@@ -318,9 +318,15 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     snprintf(out,128,"%s %s",value,unit);
 }
 static void template_gesture(lv_event_t *event){
-    if (s_pair_pad || home_is_open()) return;
+    if (s_pair_pad) return;
     (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
     lv_dir_t direction=lv_indev_get_gesture_dir(input);
+    if (home_is_open()) {
+        home_gesture(direction);
+        lv_indev_wait_release(input);
+        lv_event_stop_bubbling(event);
+        return;
+    }
     if(s_diagnostics_requested)return;
     if(direction==LV_DIR_TOP){
         s_diagnostics_requested=true;lv_indev_wait_release(input);return;

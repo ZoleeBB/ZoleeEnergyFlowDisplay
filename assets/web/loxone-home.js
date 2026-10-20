@@ -3,7 +3,9 @@ const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
     const get = id => document.getElementById(id);
-    let model = {schema: 1, consumers: [], cards: []};
+    let model = {schema: 2, consumers: [], pages: []};
+    let selectedPage = 0;
+    const activeCards = () => model.pages[selectedPage]?.cards || [];
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
     let revision = 0, saveRevision = 0, currentSection = '';
@@ -25,7 +27,8 @@ const LoxoneHome = (() => {
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
         get('home-add-consumer').disabled = busy() || model.consumers.length >= 12;
-        get('home-add-card').disabled = busy() || model.cards.length >= 12;
+        get('home-add-card').disabled = busy() || !model.pages.length || activeCards().length >= 12;
+        get('home-add-page').disabled = busy() || model.pages.length >= 8;
     }
     function field(parent, title, entry, key, type = 'text', optional = false) {
         const label = create('label', title), input = create('input');
@@ -33,7 +36,7 @@ const LoxoneHome = (() => {
         if (type === 'checkbox') input.checked = !!entry[key];
         else input.value = entry[key] ?? '';
         if (type === 'number') input.step = 'any';
-        if (type === 'text') input.maxLength = key === 'name' ? 80 : key === 'unit' ? 16 : 36;
+        if (type === 'text') input.maxLength = ['name', 'title'].includes(key) ? 80 : key === 'unit' ? 16 : 36;
         input.id = domId(entry, key);
         input.oninput = input.onchange = () => {
             entry[key] = type === 'checkbox' ? input.checked : type === 'number' ?
@@ -86,12 +89,58 @@ const LoxoneHome = (() => {
         }
         if (entry.type === 'switch') scale.homeFixed = true;
     }
+    function renderPages() {
+        const target = get('home-pages'); target.replaceChildren();
+        if (!model.pages.length) {
+            target.append(create('p', 'Először adj hozzá egy Otthon-oldalt, majd azon kártyákat.'));
+            return;
+        }
+        selectedPage = Math.min(selectedPage, model.pages.length - 1);
+        const page = model.pages[selectedPage];
+        currentSection = 'pages';
+        const selector = select(target, 'Szerkesztett oldal', {id: 'selector', selected: page.id}, 'selected',
+            model.pages.map((item, index) => [item.id, (index + 1) + '. ' + item.title + ' · ' + item.cards.length + '/12 kártya']));
+        selector.id = 'home-page-select';
+        selector.onchange = () => { selectedPage = model.pages.findIndex(item => item.id === selector.value); render(); };
+        const title = field(target, 'Oldal címe (a kijelző fejlécében)', page, 'title');
+        title.id = 'home-page-title';
+        const updateTitle = title.oninput;
+        title.oninput = title.onchange = () => {
+            updateTitle();
+            selector.children[selectedPage].textContent = (selectedPage + 1) + '. ' + page.title + ' · ' + page.cards.length + '/12 kártya';
+        };
+        for (const [id, label, step] of [['home-page-up', 'Oldal előrébb', -1], ['home-page-down', 'Oldal hátrébb', 1]]) {
+            const button = create('button', label); button.type = 'button'; button.id = id;
+            button.homeFixed = selectedPage + step < 0 || selectedPage + step >= model.pages.length;
+            button.onclick = () => {
+                if (busy() || button.homeFixed) return;
+                const next = selectedPage + step;
+                [model.pages[selectedPage], model.pages[next]] = [model.pages[next], model.pages[selectedPage]];
+                selectedPage = next; render();
+            };
+            controls.push(button); target.append(button);
+        }
+        const remove = create('button', 'Oldal és kártyáinak törlése'); remove.type = 'button'; remove.id = 'home-remove-page';
+        remove.onclick = () => {
+            if (busy()) return;
+            model.pages.splice(selectedPage, 1); selectedPage = Math.max(0, selectedPage - 1); render();
+        };
+        controls.push(remove); target.append(remove);
+    }
+    function addPage() {
+        if (busy() || model.pages.length >= 8) return;
+        let serial = 1;
+        while (model.pages.some(page => page.id === 'page-' + serial)) serial++;
+        model.pages.push({id: 'page-' + serial, title: 'Új oldal', cards: []});
+        selectedPage = model.pages.length - 1; render();
+    }
     function render() {
         controls.length = 0;
+        renderPages();
         for (const section of ['consumers', 'cards']) {
             currentSection = section;
             const target = get('home-' + section); target.replaceChildren();
-            for (const entry of model[section]) {
+            for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
                 const box = create('fieldset'), legend = create('legend', entry.name || 'Új elem');
                 box.append(legend);
                 const grid = create('div'); grid.className = 'grid'; box.append(grid);
@@ -122,7 +171,12 @@ const LoxoneHome = (() => {
                     }
                 }
                 const remove = create('button', 'Elem törlése'); remove.type = 'button';
-                remove.onclick = () => { model[section] = model[section].filter(item => item.id !== entry.id); render(); };
+                remove.onclick = () => {
+                    if (busy()) return;
+                    if (section === 'consumers') model.consumers = model.consumers.filter(item => item.id !== entry.id);
+                    else model.pages[selectedPage].cards = activeCards().filter(item => item.id !== entry.id);
+                    render();
+                };
                 controls.push(remove); box.append(remove); target.append(box);
             }
         }
@@ -141,18 +195,20 @@ const LoxoneHome = (() => {
         }
     }
     function add(section) {
-        if (busy() || model[section].length >= 12) return;
+        const entries = section === 'consumers' ? model.consumers : activeCards();
+        if (busy() || entries.length >= 12 || (section === 'cards' && !model.pages.length)) return;
         let serial = 1;
-        while (model[section].some(item => item.id === 'item-' + serial)) serial++;
+        const all = section === 'consumers' ? model.consumers : model.pages.flatMap(page => page.cards);
+        while (all.some(item => item.id === 'item-' + serial)) serial++;
         const entry = {id: 'item-' + serial, name: '', icon: icons[0].id, source: {uuid: '', scale: 1, offset: 0}};
         if (section === 'consumers') Object.assign(entry, {average_kw: null, suggest_start: false});
         else Object.assign(entry, {type: 'value', control_uuid: '', unit: '', decimals: 1,
             warning_low: null, warning_high: null, warning_color: '#E66B6B'});
-        model[section].push(entry); render();
+        entries.push(entry); render();
     }
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
     function validate() {
-        for (const section of ['consumers', 'cards']) for (const entry of model[section]) {
+        for (const section of ['consumers', 'cards']) for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
             const title = entry.name || 'Névtelen elem';
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
             if (!icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
@@ -185,8 +241,9 @@ const LoxoneHome = (() => {
             const state = await response.json();
             const first = !loaded;
             if (first) {
-                model = {schema: 1, consumers: state.consumers || [], cards: state.cards || []};
-                for (const entry of model.cards) {
+                model = {schema: 2, consumers: state.consumers || [], pages: state.pages ||
+                    (state.cards?.length ? [{id: 'home', title: 'Otthon', cards: state.cards}] : [])};
+                for (const entry of model.pages.flatMap(page => page.cards)) {
                     entry.source ||= {uuid: '', scale: 1, offset: 0};
                     entry.control_uuid ||= '';
                     entry.unit ??= '';
@@ -201,7 +258,7 @@ const LoxoneHome = (() => {
             if (waiting && !remoteBusy) {
                 waiting = false;
                 notify(state.status || (revision > saveRevision ? 'Otthon-beállítások elmentve.' : 'A mentés nem fejeződött be.'), revision <= saveRevision);
-            } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 12 Otthon-kártya állítható be.');
+            } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 8 elnevezhető oldal, oldalanként 12 kártyával.');
             const nextKey = JSON.stringify(nextCatalog);
             if (first || nextKey !== catalogKey) {
                 catalog = nextCatalog; catalogKey = nextKey; filters(); render();
@@ -226,6 +283,7 @@ const LoxoneHome = (() => {
     }
     if (get('home-editor')) {
         get('home-add-consumer').onclick = () => add('consumers');
+        get('home-add-page').onclick = addPage;
         get('home-add-card').onclick = () => add('cards');
         get('home-save').onclick = save;
         get('home-room').onchange = get('home-category').onchange = render;

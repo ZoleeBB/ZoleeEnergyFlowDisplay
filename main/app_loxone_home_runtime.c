@@ -8,7 +8,7 @@ bool lx_home_values_update(lx_home_values_t *values, const lx_home_config_t *con
                            int type, const uint8_t *data, size_t size)
 {
     if (!values || !config || config->consumer_count > LX_HOME_MAX_CONSUMERS ||
-        config->card_count > LX_HOME_MAX_CARDS)
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS)
         return false;
     if (type != 2)
         return true;
@@ -64,7 +64,7 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
                            const char *card_id, lx_home_command_t action, char out[96])
 {
     if (!config || !card_id || !out || !cJSON_IsArray(catalog) ||
-        config->card_count > LX_HOME_MAX_CARDS || action > LX_HOME_COMMAND_OFF ||
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS || action > LX_HOME_COMMAND_OFF ||
         action < LX_HOME_COMMAND_PULSE)
         return false;
     const lx_home_card_t *card = NULL;

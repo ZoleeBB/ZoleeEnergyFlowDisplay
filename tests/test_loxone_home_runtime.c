@@ -12,7 +12,7 @@ static void value(uint8_t out[24], double number)
 }
 int main(void)
 {
-    lx_home_config_t config = {0}; lx_home_values_t values = {0};
+    static lx_home_config_t config; lx_home_values_t values = {0};
     config.consumer_count = 1; config.card_count = 2;
     strcpy(config.consumers[0].source.uuid,"00000000-0000-0000-0000000000000000");
     config.consumers[0].source.scale=.001;
@@ -65,5 +65,22 @@ int main(void)
     config.cards[0].type = LX_HOME_CARD_PULSE;
     assert(lx_home_command_build(&config, buttons, "light", LX_HOME_COMMAND_PULSE, command));
     cJSON_Delete(buttons);
+    config.card_count = LX_HOME_MAX_TOTAL_CARDS;
+    for (unsigned i = 0; i < config.card_count; i++)
+    {
+        config.cards[i] = config.cards[0];
+        config.cards[i].type = LX_HOME_CARD_VALUE;
+        config.cards[i].source.scale = 1;
+        config.cards[i].source.offset = i;
+    }
+    value(packet, 3);
+    assert(lx_home_values_update(&values, &config, 2, packet, 24));
+    for (unsigned i = 0; i < config.card_count; i++)
+        assert(values.cards[i].valid && values.cards[i].value == 3 + i);
+    config.cards[95].type = LX_HOME_CARD_PULSE;
+    strcpy(config.cards[95].id, "last-page-button");
+    catalog = cJSON_Parse("[{\"control_uuid\":\"aabbccdd-5566-7788-99aabbccddeeff00\",\"type\":\"Pushbutton\",\"secured\":false}]");
+    assert(catalog && lx_home_command_build(&config, catalog, "last-page-button", LX_HOME_COMMAND_PULSE, command));
+    cJSON_Delete(catalog);
     printf("PASS: actual home numeric stream, scale/offset, genuine zero, invalid samples, atomic malformed packet, allowed card/type/state targets and inherited secured control rejection; values=%zu bytes\n",sizeof(values));
 }

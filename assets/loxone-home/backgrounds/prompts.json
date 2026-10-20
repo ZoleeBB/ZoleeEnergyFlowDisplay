@@ -1,0 +1,26 @@
+{
+  "tool": "built-in image_gen",
+  "conversion": "1280x800 RGB PNG, native RGB565 channel precision",
+  "backgrounds": [
+    {
+      "file": "consumers-light.png",
+      "width": 1280,
+      "height": 800,
+      "mode": "RGB",
+      "bytes": 1231045,
+      "sha256": "008f18c4d2a3ea93f64897291a8653e166b73cb94809a6afad78ad4a14537ac7",
+      "generated_source_sha256": "84c1ad2899ad8194a9afc35ff12508e3738428acc454eafd6695d84a6b8d7dce",
+      "prompt": "Use case: photorealistic-natural. Asset type: background for the House Consumers page of an ESP32 smart-home energy dashboard. Generate a photorealistic, premium but believable central-European contemporary detached home seen from its garden, during soft daylight. Wide landscape composition, exactly 1280x800 if possible. A calm modern pale-stone and warm timber house with a pitched roof with discreet solar panels, large windows, gentle landscaped garden and terrace, trees, distant sky. Architectural photograph at human eye level, natural colors, sophisticated restrained light, continuous real photographic texture, no artificial blur or banding. This must be clearly distinct from an indoor living room/kitchen background used for another page. Balanced subject with quiet peripheral detail since opaque UI cards will cover much of the middle. IMPORTANT pure background only: no UI, no cards, no labels, no numbers, no logos, no icons, no text, no borders, no watermarks, no people. Do not draw any interface."
+    },
+    {
+      "file": "consumers-dark.png",
+      "width": 1280,
+      "height": 800,
+      "mode": "RGB",
+      "bytes": 924556,
+      "sha256": "fecc2d75a47079782bc5aebd032495bb2e0083f04d9e3282979489754117effd",
+      "generated_source_sha256": "9464f1f86f674f14e03c1bc5cb9e0acaacbb8efa1916b98432f04e3613ce36e3",
+      "prompt": "Use case: lighting-weather. Edit the generated daytime house image into the NIGHT counterpart for the same smart-home consumers dashboard background. Keep exactly the same architecture, roof, windows, garden, vegetation, terrace furniture, camera framing, perspective and geometry. Change ONLY time-of-day and illumination: deep natural navy-blue night sky, subdued garden, warm existing indoor window lights and discreet warm terrace lighting, realistic and tranquil, house still distinguishable. Natural photographic texture without posterization or artificial blur. Same wide aspect ratio. Pure photographic background only. No UI, no cards, no icons, no labels, no logos, no text, no watermarks, no people."
+    }
+  ]
+}

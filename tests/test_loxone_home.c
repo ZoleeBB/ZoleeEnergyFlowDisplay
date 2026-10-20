@@ -137,6 +137,75 @@ static void layout_tests(void)
     assert(!memcmp(&invalid, &saved, sizeof(invalid)));
 }
 
+static void page_tests(void)
+{
+    lx_home_config_t *config = calloc(1, sizeof(*config));
+    lx_home_config_t *again = calloc(1, sizeof(*again));
+    assert(config && again);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "schema", 2);
+    cJSON *pages = cJSON_AddArrayToObject(root, "pages");
+    char error[LX_HOME_ERROR_SIZE];
+    for (unsigned p = 0; p < LX_HOME_MAX_PAGES; p++)
+    {
+        cJSON *page = cJSON_CreateObject();
+        char id[33];
+        snprintf(id, sizeof(id), "page-%u", p);
+        cJSON_AddStringToObject(page, "id", id);
+        cJSON_AddStringToObject(page, "title", p ? "Emelet / Kert" : "Földszint – fények");
+        cJSON *cards = cJSON_AddArrayToObject(page, "cards");
+        for (unsigned i = 0; i < LX_HOME_MAX_CARDS; i++)
+        {
+            snprintf(id, sizeof(id), "p%u-card-%u", p, i);
+            cJSON_AddItemToArray(cards, entry(id, "value"));
+        }
+        cJSON_AddItemToArray(pages, page);
+    }
+    assert(lx_home_config_parse(root, config, error));
+    assert(config->page_count == 8 && config->card_count == 96);
+    for (unsigned p = 0; p < 8; p++)
+    {
+        unsigned first, count;
+        assert(lx_home_page_range(config, p, &first, &count) && first == p * 12 && count == 12);
+    }
+    cJSON *serialized = lx_home_config_json(config);
+    assert(serialized && lx_home_config_parse(serialized, again, error));
+    assert(!memcmp(config, again, sizeof(*config)));
+    char *body = cJSON_PrintUnformatted(serialized);
+    assert(body && strlen(body) < LX_HOME_JSON_MAX);
+    cJSON *document = lx_home_document_parse(body, strlen(body));
+    assert(document);
+    cJSON_Delete(document);
+    free(body);
+    cJSON_Delete(serialized);
+    cJSON_AddItemToArray(pages, cJSON_CreateObject());
+    rejected(root, config, "pages[1].count");
+    cJSON_DeleteItemFromArray(pages, 8);
+    cJSON *second = cJSON_GetArrayItem(pages, 1);
+    cJSON_ReplaceItemInObject(second, "id", cJSON_CreateString("page-0"));
+    rejected(root, config, "duplicate_id");
+    cJSON_ReplaceItemInObject(second, "id", cJSON_CreateString("page-1"));
+    cJSON_ReplaceItemInObject(second, "title", cJSON_CreateString("   "));
+    rejected(root, config, "id/title");
+    cJSON_ReplaceItemInObject(second, "title", cJSON_CreateString("Második"));
+    cJSON *cards = cJSON_GetObjectItemCaseSensitive(second, "cards");
+    cJSON_ReplaceItemInObject(cJSON_GetArrayItem(cards, 0), "id", cJSON_CreateString("p0-card-0"));
+    rejected(root, config, "duplicate_id");
+    cJSON_ReplaceItemInObject(cJSON_GetArrayItem(cards, 0), "id", cJSON_CreateString("p1-card-0"));
+    cJSON_AddItemToArray(cards, entry("overflow", "value"));
+    rejected(root, config, "count");
+    cJSON_DeleteItemFromArray(cards, 12);
+    while (cJSON_GetArraySize(cards))
+        cJSON_DeleteItemFromArray(cards, 0);
+    assert(lx_home_config_parse(root, config, error));
+    assert(config->pages[1].card_count == 0 && config->pages[2].first_card == 12);
+    assert(lx_home_page_count(config) == 8);
+    cJSON_Delete(root);
+    free(config);
+    free(again);
+    puts("PASS: 8 named pages / 96 cards, per-page bounds, empty page, unique page/card IDs, migration and schema-2 roundtrip");
+}
+
 int main(void)
 {
     char deep[2049]; memset(deep, '[', 1024); memset(deep+1024, ']', 1024); deep[2048] = 0;
@@ -148,6 +217,7 @@ int main(void)
     assert(small); cJSON_Delete(small);
 
     layout_tests();
+    page_tests();
     lx_home_config_t *config = calloc(1, sizeof(*config));
     lx_home_config_t *roundtrip = calloc(1, sizeof(*roundtrip));
     assert(config && roundtrip);
@@ -256,7 +326,7 @@ int main(void)
         {
             completed = true;
             assert(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(serialized, "consumers")) == 12);
-            assert(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(serialized, "cards")) == 12);
+            assert(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(serialized, "pages"), 0), "cards")) == 12);
             cJSON_Delete(serialized);
         }
         assert(live == 0);

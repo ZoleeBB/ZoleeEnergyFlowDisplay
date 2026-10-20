@@ -46,6 +46,10 @@ int main(void)
         strcpy(card->control_uuid, "aabbccdd-5566-7788-99aabbccddeeff00");
     }
     config->consumer_count = config->card_count = 12;
+    config->page_count = 1;
+    strcpy(config->pages[0].id, "home");
+    strcpy(config->pages[0].title, "Otthon");
+    config->pages[0].card_count = 12;
     assert(app_loxone_home_store_save(config) == ESP_OK);
     memset(out, 0, sizeof(*out));
     assert(app_loxone_home_store_load(out) == ESP_OK && memcmp(out, config, sizeof(*out)) == 0);
@@ -72,7 +76,7 @@ int main(void)
     assert(app_loxone_home_store_save(config) != ESP_OK); fail_rename = 0;
     assert(app_loxone_home_store_load(out) == ESP_OK && strcmp(out->consumers[0].name, "Mosógép") == 0);
     unlink(APP_SD_MOUNT_POINT "/loxone-home.json.bak");
-    unsigned char snapshot[sizeof(*out)]; memcpy(snapshot, out, sizeof(*out));
+    unsigned char *snapshot = malloc(sizeof(*out)); assert(snapshot); memcpy(snapshot, out, sizeof(*out));
     raw("{\"schema\":1} trailing");
     assert(app_loxone_home_store_load(out) == ESP_FAIL && memcmp(snapshot, out, sizeof(*out)) == 0);
     raw("{\"schema\":2}"); assert(app_loxone_home_store_load(out) == ESP_FAIL);
@@ -82,6 +86,22 @@ int main(void)
     secret = fopen(APP_SD_MOUNT_POINT "/loxone.json", "rb"); char password[64] = {0};
     assert(secret && fread(password, 1, sizeof(password)-1, secret)); fclose(secret);
     assert(strcmp(password, "existing-encrypted-secret") == 0);
+    config->consumer_count = 12;
+    config->page_count = LX_HOME_MAX_PAGES;
+    config->card_count = LX_HOME_MAX_TOTAL_CARDS;
+    for (unsigned p = 0; p < LX_HOME_MAX_PAGES; p++) {
+        lx_home_page_t *page = &config->pages[p];
+        snprintf(page->id, sizeof(page->id), "page-%u", p);
+        snprintf(page->title, sizeof(page->title), "Szoba %u", p);
+        page->first_card = p * 12; page->card_count = 12;
+    }
+    for (unsigned i = 1; i < LX_HOME_MAX_TOTAL_CARDS; i++) {
+        config->cards[i] = config->cards[0];
+        snprintf(config->cards[i].id, sizeof(config->cards[i].id), "card-%u", i);
+    }
+    assert(app_loxone_home_store_save(config) == ESP_OK);
+    assert(app_loxone_home_store_load(out) == ESP_OK && !memcmp(config, out, sizeof(*out)));
+    free(snapshot);
     free(config); free(out);
     puts("PASS: 12+12 profile persistence, no credentials touched, fsync/rename fault injection, reboot recovery, validated backup and atomic corrupted-file rejection");
 }

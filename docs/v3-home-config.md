@@ -14,15 +14,15 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
 
 ## Tárolás és webes szerkesztés
 
-- Külön `/sdcard/loxone-home.json`, legfeljebb 32 KiB, schema 1; jelszó és token nélkül.
+- Külön `/sdcard/loxone-home.json`, legfeljebb 128 KiB, schema 2; jelszó és token nélkül.
 - Ideiglenes `.tmp`, sikeres flush/fsync után FAT-kompatibilis `.bak` csere.
   Induláskor az első érvényes fő-/backup-profil töltődik be. Hibás fájl nem
   módosítja a memóriabeli kimenetet. A túl mély JSON még a parser előtt elutasított.
 - A titkosított `loxone.json` kapcsolatadatok külön maradnak; a régi kapcsolat
   mentése nem törli a kártyákat, és a kártyák mentése nem módosít jelszót.
 - A közös webes hitelesítés mögött `GET /api/loxone/home` adja a profilt,
-  `busy`, `revision` és `status` mezővel. `POST` ugyanide schema 1 profilt vár,
-  `X-Zolee-Loxone: 1` fejléccel, legfeljebb 32 KiB törzzsel.
+  `busy`, `revision` és `status` mezővel. `GET` schema 2 profilt ad; `POST` ugyanide schema 1/2 profilt fogad,
+  `X-Zolee-Loxone: 1` fejléccel, legfeljebb 128 KiB törzzsel.
 - A 202 csak sorba állítást jelez. Sikeres háttérmentéskor a revízió növekszik,
   hiba esetén a korábbi profil marad és a `status` közli az SD-hibát.
 - A mentés a meglévő Loxone-háttérfeladatban fut. Jelenleg egy élő kapcsolatot
@@ -38,44 +38,65 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
 
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "consumers": [
     {
       "id": "dishwasher",
       "name": "Mosogatógép",
       "icon": "dishwasher",
-      "source": {"uuid": "11223344-5566-7788-99aabbccddeeff00", "scale": 0.001},
+      "source": {
+        "uuid": "11223344-5566-7788-99aabbccddeeff00",
+        "scale": 0.001
+      },
       "average_kw": 1.4,
       "suggest_start": true
     }
   ],
-  "cards": [
+  "pages": [
     {
-      "id": "living-temperature",
-      "name": "Nappali hőmérséklet",
-      "icon": "temperature",
-      "type": "value",
-      "source": {"uuid": "11223344-5566-7788-99aabbccddeeff01", "scale": 1, "offset": 0},
-      "unit": "°C",
-      "decimals": 1,
-      "warning_low": 18,
-      "warning_high": 28,
-      "warning_color": "#E66B6B"
+      "id": "ground-floor",
+      "title": "Földszint",
+      "cards": [
+        {
+          "id": "living-temperature",
+          "name": "Nappali hőmérséklet",
+          "icon": "temperature",
+          "type": "value",
+          "source": {
+            "uuid": "11223344-5566-7788-99aabbccddeeff01",
+            "scale": 1,
+            "offset": 0
+          },
+          "unit": "°C",
+          "decimals": 1,
+          "warning_low": 18,
+          "warning_high": 28,
+          "warning_color": "#E66B6B"
+        },
+        {
+          "id": "water-boost",
+          "name": "Melegvíz-rásegítés",
+          "icon": "water-heater",
+          "type": "pulse",
+          "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff00"
+        },
+        {
+          "id": "garden-light",
+          "name": "Kerti világítás",
+          "icon": "lamp",
+          "type": "switch",
+          "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff01",
+          "source": {
+            "uuid": "11223344-5566-7788-99aabbccddeeff02",
+            "scale": 1
+          }
+        }
+      ]
     },
     {
-      "id": "water-boost",
-      "name": "Melegvíz-rásegítés",
-      "icon": "water-heater",
-      "type": "pulse",
-      "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff00"
-    },
-    {
-      "id": "garden-light",
-      "name": "Kerti világítás",
-      "icon": "lamp",
-      "type": "switch",
-      "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff01",
-      "source": {"uuid": "11223344-5566-7788-99aabbccddeeff02", "scale": 1}
+      "id": "garden",
+      "title": "Kert",
+      "cards": []
     }
   ]
 }
@@ -87,9 +108,11 @@ alakját vizsgálja, a tényleges fájlok meglétét a csomagkezelő fogja ellen
 
 ## Korlátok és hibák
 
-- Kezdeti keret oldalanként 12 elem; a végleges elrendezéshez igazítható konstans.
+- Legfeljebb 12 fogyasztó és 8 elnevezhető Otthon-oldal, oldalanként legfeljebb 12 kártya.
+- A schema 1 `cards` tömbje automatikusan egy `home` azonosítójú, „Otthon” című oldalra kerül. A mentés már schema 2 formátumú; az üres oldal is érvényes.
+- A `pages[].title` legfeljebb 80 UTF-8 bájt, szabad szöveg; nem HTML. A szerkesztő a sorrendet is módosíthatja.
 - Az `id` és `icon` 1–32 kisbetű, szám, kötőjel vagy aláhúzás; nincs fájlútvonal.
-- Az azonosító egy adott listán belül egyedi. A név legfeljebb 80 UTF-8 bájt,
+- Az oldalak azonosítója egyedi; a kártyaazonosító az összes oldalon együtt egyedi (oldalváltás közben sem változhat meg a parancscél). A fogyasztók külön névtérben élnek. A név legfeljebb 80 UTF-8 bájt,
   vezérlőkarakterek nélkül. A mértékegység legfeljebb 16 UTF-8 bájt.
 - A Loxone UUID 35 karakteres gyártói formátum, nem szabványos kötőjelezésű UUID.
 - A `source.scale` véges, nem nulla, abszolút értéke legfeljebb 1 000 000.
@@ -147,9 +170,9 @@ ellenőrizhető, telepíthető és frissíthető. Külön erőforrásként jelen
 lapozható energiaelrendezés, és nem változtatja meg a mentett témaválasztást.
 
 A ház megérintése a fogyasztókat, lefelé húzás az Otthon-kártyákat nyitja meg.
-Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált elem kell.
+Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált fogyasztó / legalább egy Otthon-oldal kell.
 A jobb felső X pontosan az előző témát állítja vissza. Speciális oldalon a
-lapozás/diagnosztikagesztus nem indít másik műveletet. Az egyes oldalak képei
+függőleges/diagnosztikagesztus nem indít másik műveletet. Otthon nézetben a jobbra/balra húzás a saját oldalai között lapoz, körbefordulással; a témaválasztás változatlan. Több oldalnál alul pontok mutatják az aktív lapot, a fejlécben annak saját címe látható. Az egyes oldalak képei
 csak aktív állapotuk alatt maradnak betöltve.
 
 A pillanatnyi gomb egyszer küld; a kérést kapcsolatvesztés után nem ismételjük.
@@ -158,3 +181,20 @@ optimistán. Friss kapcsolat, támogatott párosítás és érvényes kapcsoló�
 a vezérlés tiltott. 2 másodpercnél régebbi sorba állított kérés nem hajtható végre.
 
 A telepítés/tesztelés teljes v3 fejlesztési ágra vonatkozik; v3 release még nincs.
+
+
+## Többoldalas memória- és képszerződés
+
+A natív profil 32 112 bájt; a parser és az SD-s validálás heapen dolgozik, a két
+UI-pillanatkép PSRAM-ban él. A legfeljebb 96 kártya és 12 fogyasztó értéktára
+1824 bájt; a rejtett lapok delta állapotai sem vesznek el. Az aktív lap képei
+legfeljebb egy hátteret, egy logót és 12 külön ikont jelentenek, nem 8 teljes UI-t.
+
+A v2 közös erőforráscsomagban 64 ikon, 4×1280×800 háttér és logó van.
+A fogyasztók `consumers-light/dark.png`, az Otthon-lapok `background-light/dark.png`
+fájlokat használnak. A világos/sötét lábléc fedő panelje tartja a kontrasztot.
+A teljes csomag dekódolt összes képe legfeljebb 20 MiB lehet (csak speciális
+erőforráscsomagnál); normál témáknál a 12 MiB korlát megmarad. Egyszerre továbbra
+is csak az aktív oldal képei töltődnek be, a 10 MiB LVGL-cache nem nőtt.
+Régi v1 erőforráscsomag betölthető marad közös háttérrel; a külön fogyasztói
+háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.

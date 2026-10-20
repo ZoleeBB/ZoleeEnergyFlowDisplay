@@ -173,6 +173,29 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
     return true;
 }
 
+static bool parse_cards(const cJSON *array, lx_home_config_t *next, char *error)
+{
+    if (!array)
+        return true;
+    if (!cJSON_IsArray(array) || cJSON_GetArraySize(array) > LX_HOME_MAX_CARDS)
+        return fail(error, "cards", 0, "count");
+    unsigned length = (unsigned)cJSON_GetArraySize(array);
+    if (length > LX_HOME_MAX_TOTAL_CARDS - next->card_count)
+        return fail(error, "cards", 0, "count");
+    for (unsigned i = 0; i < length; i++)
+    {
+        unsigned index = next->card_count + i;
+        if (!card(cJSON_GetArrayItem(array, (int)i), &next->cards[index], index, error))
+            return false;
+        /* A parancssor oldalváltás közben is ugyanarra az egyedi kártyára mutat. */
+        for (unsigned j = 0; j < index; j++)
+            if (!strcmp(next->cards[index].id, next->cards[j].id))
+                return fail(error, "cards", index, "duplicate_id");
+    }
+    next->card_count += length;
+    return true;
+}
+
 bool lx_home_config_parse(const cJSON *root, lx_home_config_t *out,
                           char error[LX_HOME_ERROR_SIZE])
 {
@@ -180,8 +203,7 @@ bool lx_home_config_parse(const cJSON *root, lx_home_config_t *out,
         error[0] = 0;
     if (!out)
         return fail(error, "home", 0, "output");
-    /* Atomi elfogadás: hibás második elem sem ronthatja el a korábbi jó profilt.
-     * A több kB-os ideiglenes profil nem kerül a hálózati feladat stackjére. */
+    /* A teljes profil heapen épül fel; hiba esetén nincs részleges elfogadás. */
     lx_home_config_t *next = calloc(1, sizeof(*next));
     if (!next)
         return fail(error, "home", 0, "memory");
@@ -189,39 +211,65 @@ bool lx_home_config_parse(const cJSON *root, lx_home_config_t *out,
     if (root)
     {
         const cJSON *schema = cJSON_GetObjectItemCaseSensitive(root, "schema");
-        ok = cJSON_IsObject(root) && cJSON_IsNumber(schema) && schema->valuedouble == 1;
+        ok = cJSON_IsObject(root) && cJSON_IsNumber(schema) &&
+             (schema->valuedouble == 1 || schema->valuedouble == 2);
         if (!ok)
             fail(error, "home", 0, "schema");
-        const char *sections[] = {"consumers", "cards"};
-        const unsigned limits[] = {LX_HOME_MAX_CONSUMERS, LX_HOME_MAX_CARDS};
-        for (unsigned section = 0; ok && section < 2; section++)
+        const cJSON *consumers = cJSON_GetObjectItemCaseSensitive(root, "consumers");
+        if (ok && consumers)
         {
-            const cJSON *array = cJSON_GetObjectItemCaseSensitive(root, sections[section]);
-            if (!array)
-                continue;
-            if (!cJSON_IsArray(array) || cJSON_GetArraySize(array) > (int)limits[section])
+            ok = cJSON_IsArray(consumers) && cJSON_GetArraySize(consumers) <= LX_HOME_MAX_CONSUMERS;
+            if (!ok)
+                fail(error, "consumers", 0, "count");
+            for (unsigned i = 0; ok && i < (unsigned)cJSON_GetArraySize(consumers); i++)
             {
-                ok = fail(error, sections[section], 0, "count");
-                break;
-            }
-            unsigned count = (unsigned)cJSON_GetArraySize(array);
-            for (unsigned i = 0; ok && i < count; i++)
-            {
-                const cJSON *entry = cJSON_GetArrayItem(array, (int)i);
-                ok = section == 0 ? consumer(entry, &next->consumers[i], i, error)
-                                  : card(entry, &next->cards[i], i, error);
+                ok = consumer(cJSON_GetArrayItem(consumers, (int)i), &next->consumers[i], i, error);
                 for (unsigned j = 0; ok && j < i; j++)
-                {
-                    const char *id = section == 0 ? next->consumers[i].id : next->cards[i].id;
-                    const char *other = section == 0 ? next->consumers[j].id : next->cards[j].id;
-                    if (!strcmp(id, other))
-                        ok = fail(error, sections[section], i, "duplicate_id");
-                }
+                    if (!strcmp(next->consumers[i].id, next->consumers[j].id))
+                        ok = fail(error, "consumers", i, "duplicate_id");
+                next->consumer_count = i + 1;
             }
-            if (section == 0)
-                next->consumer_count = count;
+        }
+        if (ok && schema->valueint == 1)
+        {
+            if (cJSON_HasObjectItem(root, "pages"))
+                ok = fail(error, "home", 0, "schema");
             else
-                next->card_count = count;
+                ok = parse_cards(cJSON_GetObjectItemCaseSensitive(root, "cards"), next, error);
+            if (ok && next->card_count)
+            {
+                next->page_count = 1;
+                strcpy(next->pages[0].id, "home");
+                strcpy(next->pages[0].title, "Otthon");
+                next->pages[0].card_count = next->card_count;
+            }
+        }
+        else if (ok)
+        {
+            const cJSON *pages = cJSON_GetObjectItemCaseSensitive(root, "pages");
+            ok = !cJSON_HasObjectItem(root, "cards") && cJSON_IsArray(pages) &&
+                 cJSON_GetArraySize(pages) <= LX_HOME_MAX_PAGES;
+            if (!ok)
+                fail(error, "pages", 0, "count");
+            for (unsigned i = 0; ok && i < (unsigned)cJSON_GetArraySize(pages); i++)
+            {
+                const cJSON *entry = cJSON_GetArrayItem(pages, (int)i);
+                lx_home_page_t *page = &next->pages[i];
+                ok = cJSON_IsObject(entry) && identifier(entry, "id", page->id) &&
+                     text(entry, "title", page->title, sizeof(page->title));
+                if (!ok)
+                    fail(error, "pages", i, "id/title");
+                for (unsigned j = 0; ok && j < i; j++)
+                    if (!strcmp(page->id, next->pages[j].id))
+                        ok = fail(error, "pages", i, "duplicate_id");
+                page->first_card = next->card_count;
+                const cJSON *cards = cJSON_GetObjectItemCaseSensitive(entry, "cards");
+                if (ok)
+                    ok = cJSON_IsArray(cards) ? parse_cards(cards, next, error)
+                                              : fail(error, "pages", i, "cards");
+                page->card_count = next->card_count - page->first_card;
+                next->page_count = i + 1;
+            }
         }
     }
     if (ok)
@@ -269,70 +317,100 @@ static bool add_source(cJSON *entry, const lx_mapping_t *source)
     return false;
 }
 
+static cJSON *card_json(const lx_home_card_t *card)
+{
+    cJSON *entry = common_json(card->id, card->name, card->icon);
+    if (!entry)
+        return NULL;
+    const char *type = card->type == LX_HOME_CARD_VALUE ? "value" :
+                       card->type == LX_HOME_CARD_PULSE ? "pulse" : "switch";
+    if (!cJSON_AddStringToObject(entry, "type", type) ||
+        (card->type != LX_HOME_CARD_VALUE &&
+         !cJSON_AddStringToObject(entry, "control_uuid", card->control_uuid)) ||
+        (card->type != LX_HOME_CARD_PULSE && !add_source(entry, &card->source)))
+        goto failed;
+    if (card->type == LX_HOME_CARD_VALUE &&
+        (!cJSON_AddStringToObject(entry, "unit", card->unit) ||
+         !cJSON_AddNumberToObject(entry, "decimals", card->decimals) ||
+         !cJSON_AddStringToObject(entry, "warning_color", card->warning_color) ||
+         !(card->warning_low_set ? cJSON_AddNumberToObject(entry, "warning_low", card->warning_low)
+                                 : cJSON_AddNullToObject(entry, "warning_low")) ||
+         !(card->warning_high_set ? cJSON_AddNumberToObject(entry, "warning_high", card->warning_high)
+                                  : cJSON_AddNullToObject(entry, "warning_high"))))
+        goto failed;
+    return entry;
+failed:
+    cJSON_Delete(entry);
+    return NULL;
+}
+
 cJSON *lx_home_config_json(const lx_home_config_t *config)
 {
     if (!config || config->consumer_count > LX_HOME_MAX_CONSUMERS ||
-        config->card_count > LX_HOME_MAX_CARDS)
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS || config->page_count > LX_HOME_MAX_PAGES)
         return NULL;
     cJSON *root = cJSON_CreateObject();
-    if (!root || !cJSON_AddNumberToObject(root, "schema", 1))
+    if (!root || !cJSON_AddNumberToObject(root, "schema", 2))
         goto failed;
-    const char *sections[] = {"consumers", "cards"};
-    for (unsigned section = 0; section < 2; section++)
+    cJSON *consumers = cJSON_AddArrayToObject(root, "consumers");
+    if (!consumers)
+        goto failed;
+    for (unsigned i = 0; i < config->consumer_count; i++)
     {
-        cJSON *array = cJSON_AddArrayToObject(root, sections[section]);
-        if (!array)
+        const lx_home_consumer_t *consumer = &config->consumers[i];
+        cJSON *entry = common_json(consumer->id, consumer->name, consumer->icon);
+        if (!entry)
             goto failed;
-        unsigned count = section == 0 ? config->consumer_count : config->card_count;
-        for (unsigned i = 0; i < count; i++)
+        if (!cJSON_AddItemToArray(consumers, entry))
         {
-            const lx_home_consumer_t *consumer = &config->consumers[i];
-            const lx_home_card_t *card = &config->cards[i];
-            cJSON *entry = section == 0 ? common_json(consumer->id, consumer->name, consumer->icon)
-                                        : common_json(card->id, card->name, card->icon);
+            cJSON_Delete(entry);
+            goto failed;
+        }
+        if (!add_source(entry, &consumer->source) ||
+            !cJSON_AddBoolToObject(entry, "suggest_start", consumer->suggest_start) ||
+            !(consumer->average_known ? cJSON_AddNumberToObject(entry, "average_kw", consumer->average_kw)
+                                      : cJSON_AddNullToObject(entry, "average_kw")))
+            goto failed;
+    }
+    cJSON *pages = cJSON_AddArrayToObject(root, "pages");
+    if (!pages)
+        goto failed;
+    unsigned end = 0;
+    for (unsigned p = 0; p < lx_home_page_count(config); p++)
+    {
+        unsigned first, count;
+        if (!lx_home_page_range(config, p, &first, &count) || first != end)
+            goto failed;
+        end += count;
+        cJSON *page = cJSON_CreateObject();
+        if (!page)
+            goto failed;
+        if (!cJSON_AddItemToArray(pages, page))
+        {
+            cJSON_Delete(page);
+            goto failed;
+        }
+        if (!cJSON_AddStringToObject(page, "id", config->page_count ? config->pages[p].id : "home") ||
+            !cJSON_AddStringToObject(page, "title", config->page_count ? config->pages[p].title : "Otthon"))
+            goto failed;
+        cJSON *cards = cJSON_AddArrayToObject(page, "cards");
+        if (!cards)
+            goto failed;
+        for (unsigned i = first; i < end; i++)
+        {
+            cJSON *entry = card_json(&config->cards[i]);
             if (!entry)
                 goto failed;
-            if (!cJSON_AddItemToArray(array, entry))
+            if (!cJSON_AddItemToArray(cards, entry))
             {
                 cJSON_Delete(entry);
                 goto failed;
             }
-            if (section == 0)
-            {
-                if (!add_source(entry, &consumer->source) ||
-                    !cJSON_AddBoolToObject(entry, "suggest_start", consumer->suggest_start) ||
-                    !(consumer->average_known ?
-                          cJSON_AddNumberToObject(entry, "average_kw", consumer->average_kw) :
-                          cJSON_AddNullToObject(entry, "average_kw")))
-                    goto failed;
-            }
-            else
-            {
-                const char *type = card->type == LX_HOME_CARD_VALUE ? "value" :
-                                    card->type == LX_HOME_CARD_PULSE ? "pulse" : "switch";
-                if (!cJSON_AddStringToObject(entry, "type", type))
-                    goto failed;
-                if (card->type != LX_HOME_CARD_VALUE &&
-                    !cJSON_AddStringToObject(entry, "control_uuid", card->control_uuid))
-                    goto failed;
-                if (card->type != LX_HOME_CARD_PULSE && !add_source(entry, &card->source))
-                    goto failed;
-                if (card->type == LX_HOME_CARD_VALUE &&
-                    (!cJSON_AddStringToObject(entry, "unit", card->unit) ||
-                     !cJSON_AddNumberToObject(entry, "decimals", card->decimals) ||
-                     !cJSON_AddStringToObject(entry, "warning_color", card->warning_color) ||
-                     !(card->warning_low_set ?
-                           cJSON_AddNumberToObject(entry, "warning_low", card->warning_low) :
-                           cJSON_AddNullToObject(entry, "warning_low")) ||
-                     !(card->warning_high_set ?
-                           cJSON_AddNumberToObject(entry, "warning_high", card->warning_high) :
-                           cJSON_AddNullToObject(entry, "warning_high"))))
-                    goto failed;
-            }
         }
     }
+    if (end != config->card_count)
+        goto failed;
     return root;
-
 failed:
     cJSON_Delete(root);
     return NULL;
@@ -349,7 +427,7 @@ bool lx_home_consumer_start_kw(const lx_home_consumer_t *consumer, double *kw)
 
 cJSON *lx_home_document_parse(const char *body, size_t size)
 {
-    if (!body || size < 2 || size > 32768 || memchr(body, 0, size))
+    if (!body || size < 2 || size > LX_HOME_JSON_MAX || memchr(body, 0, size))
         return NULL;
     unsigned depth = 0;
     bool quoted = false, escaped = false;

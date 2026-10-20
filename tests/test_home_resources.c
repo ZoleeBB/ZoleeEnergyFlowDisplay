@@ -6,14 +6,14 @@
 #include <string.h>
 int main(int argc, char **argv)
 {
-    assert(argc == 6); setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);
+    assert(argc >= 7); setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);
     assert(app_templates_init()==ESP_OK);
     unsigned generation=0;
     assert(!app_templates_home_info(NULL,&generation));
     char error[160];
     assert(app_templates_install(argv[1],error)==ESP_OK);
     app_template_info_t info;
-    assert(app_templates_home_info(&info,&generation)&&info.version==1);
+    assert(app_templates_home_info(&info,&generation)&&info.version==2);
     assert(!strcmp(info.id,"loxone-home"));
     assert(app_templates_list(NULL,APP_TEMPLATE_MAX,NULL)==1);
     assert(app_templates_select("loxone-home")!=ESP_OK);
@@ -27,9 +27,16 @@ int main(int argc, char **argv)
     assert(app_templates_home_load(icons,3,true,view));
     assert(!strcmp(view->assets[0].name,"background-dark.png"));
     app_templates_view_free(view);
+    assert(app_templates_home_load_for(icons,3,false,true,view));
+    assert(!strcmp(view->assets[0].name,"consumers-light.png"));
+    assert(view->asset_count==4);
+    app_templates_view_free(view);
+    assert(app_templates_home_load_for(icons,3,true,true,view));
+    assert(!strcmp(view->assets[0].name,"consumers-dark.png"));
+    app_templates_view_free(view);
     const char *bad[]={"../unsafe"};
     assert(!app_templates_home_load(bad,1,false,view)&&!view->asset_count);
-    for(int i=3;i<6;i++) {
+    for(int i=3;i<argc-1;i++) {
         assert(app_templates_install(argv[i],error)!=ESP_OK);
         assert(app_templates_home_info(NULL,NULL));
     }
@@ -39,6 +46,12 @@ int main(int argc, char **argv)
     assert(app_templates_install(argv[1],error)==ESP_OK);
     unsigned next;assert(app_templates_home_info(NULL,&next)&&next>generation);
     assert(view->assets[2].size==size&&view->assets[2].bytes[0]==first);
+    app_templates_view_free(view);free(view);
+    assert(app_templates_install(argv[argc-1],error)==ESP_OK);
+    assert(app_templates_home_info(&info,NULL)&&info.version==1);
+    view=calloc(1,sizeof(*view));assert(view);
+    assert(app_templates_home_load_for(icons,3,false,true,view));
+    assert(!strcmp(view->assets[0].name,"background-light.png"));
     app_templates_view_free(view);free(view);
     assert(app_templates_delete("loxone-home",error)==ESP_OK&&!app_templates_home_info(NULL,NULL));
     assert(app_templates_list(NULL,APP_TEMPLATE_MAX,NULL)==1);

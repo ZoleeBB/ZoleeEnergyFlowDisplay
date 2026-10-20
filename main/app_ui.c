@@ -146,6 +146,7 @@ static runtime_view_t s_view = VIEW_NONE;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
 static bool home_is_open(void);
 static void home_cards_requested(void);
+static void home_gesture(lv_dir_t direction);
 static void home_open_clicked(lv_event_t *event);
 static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene);
 static void error_screen(runtime_view_t view, const char *title, const char *detail, bool fatal);
