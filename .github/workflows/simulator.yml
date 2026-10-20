@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, feature/v3-loxone-home]
 permissions:
   contents: read
 jobs:

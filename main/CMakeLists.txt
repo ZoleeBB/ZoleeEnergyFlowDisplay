@@ -43,6 +43,7 @@ idf_component_register(
         "app_ble_profile_model.c"
         "app_diagnostics.c"
         "app_display.c"
+        "app_slave_display.c"
         "app_assets.c"
         "app_chart.c"
         "app_templates.c"

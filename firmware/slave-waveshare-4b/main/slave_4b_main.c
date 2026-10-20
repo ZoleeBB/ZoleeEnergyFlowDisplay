@@ -46,7 +46,10 @@ static void refresh(lv_timer_t *timer)
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     slave_4b_ui_pairing(&pairing);
-    int brightness = sample.night_mode ? 25 : 70;
+    /* Az energiaminta csak a napszakot adja; minden Slave a saját két beállított
+     * fényerőértékét használja. A jelenlétprofil bekötése külön v3 munkaszakasz. */
+    int brightness = sample.night_mode ? config.display.night_brightness
+                                      : config.display.day_brightness;
     if (brightness != last_brightness)
     {
         bsp_display_brightness_set(brightness);

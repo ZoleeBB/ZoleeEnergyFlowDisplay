@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-transfer-') as directory:
     binary = str(Path(directory) / 'test_ble_stats_transfer')

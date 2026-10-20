@@ -24,8 +24,9 @@
 | D06 | Éjjel elsötétített Slave jelenlétjelre felébred, majd az utolsó jel után a beállított timeout végén újra elsötétedik. |
 | D07 | Nyugodt otthon és Energiakör teljes újratervezése; régi azonosító és sorrend megmarad. Látványtervek külön egyeztetendők. |
 | D08 | Minden új fogyasztói ikon 96×96 px. Master teljes képernyős háttér 1280×800 px; esetleges Slave háttér 720×720 px. Nagy generálási forrásképek ne kerüljenek a repóba. |
-| D10 | Slave nappal folyamatosan a saját beállított nappali fényerején világít. Éjjel az engedélyezett elsötétítés mellett sötét; jelenlétre a saját beállított éjszakai fényerejére ébred, timeout után újra sötét. |
 | D09 | Jól tagolt forrás, magyar kommentek; firmware/RAM/PSRAM korlátok és a már működő adatfogadás/animáció védelme. |
+| D10 | Slave nappal folyamatosan a saját beállított nappali fényerején világít. Éjjel az engedélyezett elsötétítés mellett sötét; jelenlétre a saját beállított éjszakai fényerejére ébred, timeout után újra sötét. |
+| D11 | A sötét Slave érintésre is ébred az éjszakai fényerőre, ugyanazzal az időkorláttal. Az első érintés csak ébreszt: a teljes érintéssorozatot (felengedés is) el kell nyelni, nem indíthat kattintást vagy gesztust. |
 
 ## Követelmények – fogyasztói oldal
 
@@ -102,7 +103,8 @@
 - Impulzusos jelenlét újraindítja az időzítőt; tartós aktív jel ne eredményezzen téves elsötétítést.
 - D06: éjszakai jelenlét felébreszt; utolsó jel/aktív állapot vége után timeouttal ismét sötét.
 - D10: nappal a jelenlét hiánya nem sötétít; folyamatos saját nappali fényerő. Éjjel jelenlétre saját éjszakai fényerő, timeout után teljes elsötétítés. A Slave saját fényerőértékeit nem írhatja felül a Master pillanatnyi kijelzőfényereje.
-- Érintéses ébresztés és kapcsolatvesztés végleges szemantikája még tisztázandó.
+- D11: érintés is ébreszt; az ébresztő érintés csak ébreszt, ugyanazzal a timeouttal.
+- Kapcsolatvesztésnél érvénytelen jelenlét nem hosszabbíthatja meg az ébrenlétet; a korábbi időzítő lejárhat. Friss éjszakai adat nélkül az utolsó ismert napszak megőrzése és az indulás/PIN-pad láthatósága külön integrációs ellenőrzés.
 - Szükséges profil/időzítés minimális állapota BLE-n; új kártyák vezérlése nem kerül a Slave-re.
 - PIN/MITM/bonding és a Wi-Fi/OTA profil meglévő védelme nem gyengülhet.
 - Visszafelé kompatibilitás és régi Master/Slave viselkedés dokumentálandó.
@@ -193,5 +195,44 @@ Felhasználó által elfogadva (D10): nappal folyamatos világítás a Slave saj
 fényerején; éjjel elsötétítés, jelenlétre a saját éjszakai fényerőre ébredés,
 majd timeout után újra elsötétítés. Az éjszakai elsötétítés külön eszközkapcsolója megmarad.
 Ebben a checkpointban csak a specifikáció változott, futási kód nem.
-Következő egyetlen termékkérdés: a sötét Slave érintésre is ébredjen-e az éjszakai
-fényerőre, ugyanazzal az időkorláttal; az ébresztő érintés ne indítson más műveletet.
+Az itt nyitott érintéses ébresztést a felhasználó elfogadta (D11, 4. checkpoint).
+
+## Checkpoint 2026-10-20 / 4
+
+Felhasználó által elfogadva: D11, érintéses ébresztés, csak ébresztő első érintéssel.
+
+Elkészült:
+
+- `app_slave_display.h/.c`: közös, platformfüggetlen nappali/éjszakai/jelenléti
+  állapotgép. Saját nappali és éjszakai fényerő, kapcsolható éjszakai elsötétítés,
+  impulzus/tartós jel, monoton timeout, kapcsolatvesztési érvénytelenítés.
+- Érintésnél a teljes első érintés lenyelésének jelzése a felengedéssel együtt;
+  a következő rendes érintés továbbítható. Hosszú nyomás alatt nem alszik el.
+- A modul nem foglal memóriát, nem ír NVS-t. Natív tesztben az állapot 32 bájt.
+- A közös forrás mindkét firmware fordítási listájában szerepel.
+- A 4B firmware tényleges, korábban fix 70/25%-os fényerőválasztása most a
+  saját `config.display.day_brightness/night_brightness` értékeit használja.
+- A három meglévő ellenőrző workflow a v3 fejlesztési ág push eseményeire is fut.
+  Így a PR-nyitásig is ellenőrizhető a két firmware és a szimulátor. A kiadási
+  workflow triggerei változatlanok: fejlesztési push nem készít release-t.
+
+Ellenőrzés:
+
+- `python3 tests/test_slave_display.py`: sikeres, valódi C és UBSan. Nappali
+  folyamatos világítás, éjszakai sötétítés, impulzusok és tartós jelenlét,
+  timeout határpillanat, első érintés/felengedés, második kattintás, kapcsolatvesztés,
+  nappal/éjjel váltás, profilvalidálás, hibás időbélyegsorrend és int64 túlcsordulás.
+- `python3 tests/test_loxone_home.py`: továbbra is sikeres.
+- `git diff --check`: sikeres.
+- A korábbi mbedTLS/ESP-IDF környezetkorlát változatlan. Teljes firmware-build
+  és paneles érintési próba itt még nem készült.
+
+Még nincs bekötve: BLE egyedi identitás és jelenlétprofil, védett profilátvitel,
+NVS-mentés, LVGL inputkapu és időzített PWM-ébresztés. Ezért a közös állapotgép
+elkészülte még nem jelenti a teljes éjszakai funkció üzemkész állapotát.
+A 4B saját fényerőértékeinek használata viszont már a meglévő runtime út része.
+
+Következő terméklépés: a fogyasztói oldal látványtervének egyeztetése; 4×3 kártyás,
+96×96 ikonokkal és 1280×800 felbontásra tervezett, olvasható otthonhangulatú elrendezés.
+Következő technikai lépés: a home-konfiguráció atomi SD-mentése és webes szerkesztője;
+Slave oldalon stabil identitás/profil és az inputkapu bekötése mindkét kijelzőn.
