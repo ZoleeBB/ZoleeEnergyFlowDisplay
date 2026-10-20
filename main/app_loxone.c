@@ -2,6 +2,7 @@
 #include "app_loxone.h"
 #include "app_loxone_model.h"
 #include "app_loxone_store.h"
+#include "app_loxone_home_store.h"
 #include "app_ingest.h"
 #include "app_state.h"
 #include "app_stats.h"
@@ -32,10 +33,19 @@
 #define LX_KEEPALIVE_US 15000000LL
 #define LX_MAX_RX (LX_STRUCTURE_MAX + 1024U)
 typedef struct { int type; size_t length; unsigned char *data; } message_t;
-typedef struct { lx_config_t config; bool save; } request_t;
+typedef struct {
+    lx_config_t config;
+    bool save;
+    lx_home_config_t *home;
+} request_t;
 static SemaphoreHandle_t s_lock;
 static QueueHandle_t s_messages,s_requests;
 static lx_config_t s_saved;
+/* Az új profil nem duzzasztja a hitelesítési konfiguráció másolatait. */
+static lx_home_config_t *s_home;
+static bool s_home_busy;
+static unsigned s_home_revision;
+static char s_home_status[LX_HOME_ERROR_SIZE] = "";
 static cJSON *s_catalog;
 static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
 static bool s_busy,s_password;
@@ -445,6 +455,23 @@ static bool configured(const lx_config_t *cfg)
     for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&!cfg->map[i].uuid[0])return false;
     return true;
 }
+/* A memóriabeli profil csak a sikeresen lezárt SD-tranzakció után változik. */
+static void save_home_request(const lx_home_config_t *home)
+{
+    esp_err_t saved = app_loxone_home_store_save(home);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (saved == ESP_OK)
+    {
+        *s_home = *home;
+        s_home_revision++;
+    }
+    snprintf(s_home_status, sizeof(s_home_status), "%s",
+             saved == ESP_OK ? "Otthon-beállítások elmentve." :
+             "Az SD-mentés sikertelen. A korábbi Otthon-beállítások érvényesek.");
+    s_home_busy = false;
+    xSemaphoreGive(s_lock);
+}
+
 static void worker(void *arg)
 {
     (void)arg;
@@ -453,6 +480,14 @@ static void worker(void *arg)
     char token[1024]={0};bool testing=false;unsigned failures=0;
     for(;;) {
         if(xQueueReceive(s_requests,&request,0)==pdTRUE) {
+            if (request->home)
+            {
+                save_home_request(request->home);
+                free(request->home);
+                free(request);
+                request = NULL;
+                continue;
+            }
             *active=request->config;testing=!request->save;
             if(request->save) {
                 if(app_loxone_store_save(active)==ESP_OK) {
@@ -523,6 +558,13 @@ esp_err_t app_loxone_start(void)
 {
     s_lock=xSemaphoreCreateMutex();s_messages=xQueueCreate(LX_QUEUE_DEPTH,sizeof(message_t));s_requests=xQueueCreate(1,sizeof(request_t*));
     if(!s_lock||!s_messages||!s_requests)return ESP_ERR_NO_MEM;
+    s_home = calloc(1, sizeof(*s_home));
+    if (!s_home)
+        return ESP_ERR_NO_MEM;
+    esp_err_t home_load = app_loxone_home_store_load(s_home);
+    if (home_load != ESP_OK && home_load != ESP_ERR_NOT_FOUND)
+        snprintf(s_home_status, sizeof(s_home_status), "%s",
+                 "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
     lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
     if(xTaskCreate(worker,"loxone",12288,NULL,3,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
     return ESP_OK;
@@ -552,10 +594,69 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
     else if(cJSON_IsNull(password)&&strcmp(r->config.host,s_saved.host)==0&&r->config.port==s_saved.port&&r->config.tls==s_saved.tls&&strcmp(r->config.username,s_saved.username)==0)snprintf(r->config.password,sizeof(r->config.password),"%s",s_saved.password);
     else ok=false;
     r->save=save;
-    if(!ok||!r->config.password[0]||s_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
+    if(!ok||!r->config.password[0]||s_busy||s_home_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
     s_busy=true;snprintf(s_status,sizeof(s_status),"%s",save?"Beállítások mentése...":"Kapcsolat tesztelése...");
     if(xQueueSend(s_requests,&r,0)!=pdTRUE){s_busy=false;ok=false;}
     xSemaphoreGive(s_lock);
     if(!ok){mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_FAIL;}
     return ESP_OK;
+}
+
+/* Külön API: a kapcsolat régi mentése nem írja felül az Otthon-profilt,
+ * és ezen az úton sem jelszó, sem tetszőleges parancs nem küldhető. */
+cJSON *app_loxone_home_web_state(void)
+{
+    if (!s_lock || !s_home)
+        return NULL;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    cJSON *root = lx_home_config_json(s_home);
+    if (root)
+    {
+        if (!cJSON_AddBoolToObject(root, "busy", s_home_busy) ||
+            !cJSON_AddNumberToObject(root, "revision", s_home_revision) ||
+            !cJSON_AddStringToObject(root, "status", s_home_status))
+        {
+            cJSON_Delete(root);
+            root = NULL;
+        }
+    }
+    xSemaphoreGive(s_lock);
+    return root;
+}
+
+esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SIZE])
+{
+    if (!s_lock || !s_home)
+        return ESP_ERR_INVALID_STATE;
+    request_t *request = calloc(1, sizeof(*request));
+    lx_home_config_t *home = calloc(1, sizeof(*home));
+    if (!request || !home)
+    {
+        free(request);
+        free(home);
+        return ESP_ERR_NO_MEM;
+    }
+    if (!body || !lx_home_config_parse(body, home, error))
+    {
+        free(request);
+        free(home);
+        return ESP_ERR_INVALID_ARG;
+    }
+    request->home = home;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool accepted = !s_busy && !s_home_busy &&
+                    xQueueSend(s_requests, &request, 0) == pdTRUE;
+    if (accepted)
+    {
+        s_home_busy = true;
+        snprintf(s_home_status, sizeof(s_home_status), "%s", "Otthon-beállítások mentése...");
+    }
+    xSemaphoreGive(s_lock);
+    if (!accepted)
+    {
+        free(home);
+        free(request);
+        snprintf(error, LX_HOME_ERROR_SIZE, "%s", "Várd meg a folyamatban lévő Loxone-műveletet.");
+    }
+    return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
 }

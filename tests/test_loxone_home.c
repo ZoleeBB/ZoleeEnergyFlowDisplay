@@ -139,6 +139,14 @@ static void layout_tests(void)
 
 int main(void)
 {
+    char deep[2049]; memset(deep, '[', 1024); memset(deep+1024, ']', 1024); deep[2048] = 0;
+    assert(!lx_home_document_parse(deep, 2048));
+    assert(!lx_home_document_parse("{} trailing", 11));
+    char embedded[] = {'{', '}', 0, 'x', 0};
+    assert(!lx_home_document_parse(embedded, 4));
+    cJSON *small = lx_home_document_parse("{\"name\":\"[\\\"{\"}", strlen("{\"name\":\"[\\\"{\"}"));
+    assert(small); cJSON_Delete(small);
+
     layout_tests();
     lx_home_config_t *config = calloc(1, sizeof(*config));
     lx_home_config_t *roundtrip = calloc(1, sizeof(*roundtrip));

@@ -47,8 +47,9 @@ Mindig a tényleges 96×96 változatot is ellenőrizni kell világos és sötét
 
 ## Integráció állapota
 
-Ez az elkészült grafikai készlet, még nincs bekötve a webes ikonválasztóba,
-az új SD-s speciális csomagba vagy a firmware UI-ba. A további feladatokat a
+A webes ikonválasztóban már mind a 64 elem választható név szerint. A firmware-be
+csak az id/hu/en mezőket tartalmazó tömör lista kerül, a generálási leírások nem.
+Az új SD-s speciális csomag és a kijelző UI bekötése még hátravan. A további feladatokat a
 `docs/v3-development-plan.md` 6. checkpointja tartalmazza.
 
 A későbbi SD-csomaghoz tömör runtime-katalógust kell előállítani a szerzői

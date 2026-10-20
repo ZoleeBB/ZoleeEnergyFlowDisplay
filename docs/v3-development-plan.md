@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: követelmények egyeztetése folyamatban; első konfigurációs modell, közös Slave-fényerő állapotgép, kártyageometria és 64 ikon elkészült; a teljes UI/runtime integráció még nincs.
+- Állapot: követelmények egyeztetése folyamatban; konfigurációs modell, tartós SD-mentés/webes szerkesztő, közös Slave-fényerő állapotgép, kártyageometria és 64 ikon elkészült; a teljes kijelző-UI/runtime integráció még nincs.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -318,3 +318,75 @@ Folytatás:
    önmagában még nem választható ki a jelenlegi webes felületen.
 5. Slave: stabil identitás/profil, BLE, inputkapu és a jelenléti állapotgép
    runtime bekötése továbbra is nyitott. Nincs PR és nincs release.
+
+## Checkpoint 2026-10-20 / 7 – folytatás új beszélgetésben
+
+Előzmény visszaállítva: a „v3 Loxone kártyák - 1” beszélgetés félbeszakadt,
+a helyi munkapéldány és a távoli `feature/v3-loxone-home` ág azonos `f9f10c7`
+checkpointon állt. A D01–D13 döntések változatlanok; az ikonok nem készültek újra.
+
+Elkészült:
+
+- Külön, jelszómentes `/sdcard/loxone-home.json` tároló, 32 KiB korláttal,
+  tmp/bak tranzakcióval, fsync és validált boot-helyreállítással. A kapcsolat
+  titkosított `loxone.json` fájlja változatlan marad.
+- Háttérfeladatba sorolt mentés; az élő konfiguráció és revízió csak sikeres
+  SD-tranzakció után változik. Foglalt állapot, konkrét validálási hiba és SD-hiba
+  külön visszajelezve. A JSON mélysége már a cJSON előtt korlátozott.
+- GET/POST `/api/loxone/home`, a meglévő webhitelesítéssel és kérésfejléccel,
+  csak Loxone módban. HTTP/MQTT/Slave nem regisztrálja.
+- A meglévő Loxone weboldalon külön 12 fogyasztós és 12 Otthon-kártyás szerkesztő:
+  64 ikon, név, állapotpárosítás, skálázás, átlagteljesítmény, javaslatkapcsoló;
+  érték/pulse/switch, külön vezérlési UUID, egység, tizedesek és figyelmeztetések.
+- Külön helyiség-/funkciószűrők; szűréskor a mentett párosítás megmarad.
+  Háttérfrissítés nem írja felül a helyi szerkesztést. Azonos elemkulcs a két
+  oldalon külön DOM-névtérben él. Mentéskor nincs kapcsolatjelszó a kérésben.
+- A firmware-be csak a tömör id/hu/en ikonlista kerül; a promptokat tartalmazó
+  szerzői katalógus továbbra sem kerül a készülék memóriájába.
+
+Ellenőrzés:
+
+- Valódi C/UBSan tárolóteszt: teljes 12+12 körút, hiányzó/sérült fájl, backup,
+  fsync és mindkét rename hibája, reboot a csere közben, sérült főfájllal
+  megszakadt újabb mentés, változatlan hitelesítési fájl.
+- Tényleges C HTTP-kezelők: hitelesítés, fejléc, méretkorlát, darabolt/megszakadt
+  fogadás, hibás séma, záró szemét, mód szerinti elérés, 202 háttérmentés.
+- Tényleges webes JS: 64 ikon, fogyasztóátalakítás, pulse/switch külön cél,
+  szűrés, háttérfrissítés, szerkesztésmegőrzés, foglalt és hibás mentés.
+- A Loxone protokollteszt a profilkérelmek sorba állítását és a sikeres/hibás
+  háttérmentés revízióját is ellenőrzi.
+- A teljes natív regresszió a korábbi környezetkorlát feloldásával futtatható:
+  `CPATH=/workspace/scratch/85d386cc142b/test-deps
+  LIBRARY_PATH=/workspace/scratch/85d386cc142b/test-deps python3 tests/run_tests.py`.
+  Ez a helyi függőségútvonal, nem a projekt új előfeltétele; CI továbbra is a
+  rendszeres libmbedtls-dev csomagot használja.
+
+A webes szerkesztő már menthető konfigurációt ad. A kijelzőn lévő két új oldal,
+SD-erőforráscsomag, élő értéktár és vezérlés, asszisztens, Slave-profil/BLE/inputkapu,
+05/06 új témák továbbra is külön integrációs feladatok; ezek még nem kész funkciók.
+
+
+A 7. checkpoint zárása:
+
+- A teljes `tests/run_tests.py` regresszió **sikeres** a felsorolt helyi
+  függőségútvonalakkal; a meglévő OTA/BLE/energiatéma/Loxone tesztek is átmentek.
+- `tools/prepare_web.py --check` és `git diff --check` sikeres.
+- A webes teszt a firmware-ből minimálisan szerializált pulse kártya újbóli
+  betöltését és értékké alakítását, illetve a 12-es korlátot/törlést is ellenőrzi.
+- Valódi Chromium-próba előkészítve, de a környezetben nincs telepített böngészőbináris;
+  ezért képernyőkép vagy valós böngészős megfelelés nincs állítva.
+- Helyi implementációcommit: `df3df8a`; a következő checkpoint-dokumentációs
+  commit is helyben marad, amíg a távoli feltöltésre engedély nem érkezik.
+- A `git push origin feature/v3-loxone-home` műveletet az automatikus
+  jóváhagyásellenőrzés elutasította: a távoli cél és a módosított fájlok feltöltésére
+  szóló felhatalmazást nem tekintette igazoltnak. A távoli fej `f9f10c7` maradt.
+  Nem történt kerülőutas connectoros feltöltés. A pontos célra felhasználói
+  megerősítés szükséges a folytatáskor; azt követően ezen az ágon push,
+  majd Master/Slave/szimulátor CI ellenőrzése a következő lépés.
+- Teljes ESP-IDF nincs helyben, ezért az új kód firmware-/OTA-mérete és hardveres
+  viselkedése még CI-/panelpróbát igényel. Nem készül PR vagy release ebben a fázisban.
+
+Következő önálló technikai blokk: célzott SD-erőforráscsomag a 64 ikonhoz,
+minimális élőállapot-tár a meglévő Loxone-adatfolyamon, majd az elfogadott két
+kijelzőoldal (házérintés/lefelé húzás, X és pontos téma-visszatérés).
+A még hátralévő termékegyeztetések: sötét oldaltervek és a 05/06 témák külön terve.

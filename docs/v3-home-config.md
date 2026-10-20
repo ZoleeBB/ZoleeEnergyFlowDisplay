@@ -3,13 +3,32 @@
 ## Megvalósítási állapot
 
 Az `app_loxone_home_model.c` platformfüggetlen konfigurációs modell elkészült.
-**A webes szerkesztő, a tartós mentés, az élő adatfogadás, a parancsküldés és az új
-képernyők még nincsenek hozzákapcsolva.** Ez nem telepítési útmutató és nem kész
-felhasználói funkció. A teljes feladat és a folytatás: [fejlesztési terv](v3-development-plan.md).
+A tartós SD-mentés és a meglévő `/loxone` oldal külön fogyasztói/Otthon-szerkesztője
+is elkészült. **Az élő értékek, a parancsküldés és a két új kijelzőoldal még nincs
+bekötve.** A szerkesztő már menthető profilt készít, ez még nem a teljes v3 funkció. A teljes feladat és a folytatás: [fejlesztési terv](v3-development-plan.md).
 
 A modell külön objektum; nem növeli meg a több helyen másolt, jelszót is tartalmazó
 `lx_config_t` hitelesítési konfigurációt. A modellben nincs token vagy jelszó.
-A készüléken csak Master és közvetlen Loxone mód számára lesz felhasználva.
+A készüléken csak Master és közvetlen Loxone módban érhető el.
+
+## Tárolás és webes szerkesztés
+
+- Külön `/sdcard/loxone-home.json`, legfeljebb 32 KiB, schema 1; jelszó és token nélkül.
+- Ideiglenes `.tmp`, sikeres flush/fsync után FAT-kompatibilis `.bak` csere.
+  Induláskor az első érvényes fő-/backup-profil töltődik be. Hibás fájl nem
+  módosítja a memóriabeli kimenetet. A túl mély JSON még a parser előtt elutasított.
+- A titkosított `loxone.json` kapcsolatadatok külön maradnak; a régi kapcsolat
+  mentése nem törli a kártyákat, és a kártyák mentése nem módosít jelszót.
+- A közös webes hitelesítés mögött `GET /api/loxone/home` adja a profilt,
+  `busy`, `revision` és `status` mezővel. `POST` ugyanide schema 1 profilt vár,
+  `X-Zolee-Loxone: 1` fejléccel, legfeljebb 32 KiB törzzsel.
+- A 202 csak sorba állítást jelez. Sikeres háttérmentéskor a revízió növekszik,
+  hiba esetén a korábbi profil marad és a `status` közli az SD-hibát.
+- A mentés a meglévő Loxone-háttérfeladatban fut. Jelenleg egy élő kapcsolatot
+  újraépít, ezért mentés után rövid adatkapcsolati szünet lehetséges.
+- A szerkesztő 64 ikont és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
+  felül a helyi szerkesztést. A vezérlési cél listája a `control_uuid` mezőből
+  készül, nem a mérési UUID-ból. A parancstámogatás runtime ellenőrzése még hátravan.
 
 ## Formátum
 
@@ -58,8 +77,8 @@ A készüléken csak Master és közvetlen Loxone mód számára lesz felhaszná
 }
 ```
 
-Az UUID-k szemléltetők, nem egy telepítés valós vezérlői. Az ikonkulcsok a később
-elkészülő SD-s katalógushoz tartoznak; a modell még csak a kulcs biztonságos
+Az UUID-k szemléltetők, nem egy telepítés valós vezérlői. Az ikonkulcsok az `assets/loxone-home/catalog.json` készlethez tartoznak (a fenti
+példakulcsok szemléltetők); a modell még csak a kulcs biztonságos
 alakját vizsgálja, a tényleges fájlok meglétét a csomagkezelő fogja ellenőrizni.
 
 ## Korlátok és hibák
@@ -105,6 +124,8 @@ Ez az elrendezési modell még nem a kész képernyő.
 
 ```sh
 python3 tests/test_loxone_home.py
+python3 tests/test_loxone_home_store.py
+node tests/test_loxone_home_web.js
 ```
 
 A valódi C-modulokkal futó teszt oda-vissza JSON-kezelést, elemszámhatárt,

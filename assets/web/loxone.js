@@ -27,6 +27,7 @@ async function refresh(){try{
  if(!initialized){for(const key of ['host','port','username','ca_pem'])$(key).value=state[key]??'';$('tls').checked=state.tls;for(const [key] of fields){const m=state.mappings[key];if(m){const o=document.createElement('option');o.value=m.uuid;o.textContent=m.uuid;$(key+'_uuid').append(o);$(key+'_uuid').value=m.uuid;$(key+'_scale').value=m.scale;$(key+'_offset').value=m.offset;}}$('password').placeholder=state.has_password?'Mentett jelszó változatlan':'Add meg a jelszót (másik kijelzőn újra szükséges)';initialized=true;}
  const next=JSON.stringify(state.catalog||[]);if(next!==catalogSnapshot){catalogSnapshot=next;catalog=(state.catalog||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','hu')||(a.state||'').localeCompare(b.state||'','hu'));filters();options();}
  serverBusy=!!state.busy;buttons();message(feedback||state.status,!!feedback);
+ if(typeof LoxoneHome!=='undefined')await LoxoneHome.refresh(catalog,serverBusy);
  }catch(e){if(!feedback)message('Kapcsolati hiba: '+(e.name==='AbortError'?'Az eszköz nem válaszolt 15 másodpercen belül.':e.message),true);}
 }
 async function submit(action){

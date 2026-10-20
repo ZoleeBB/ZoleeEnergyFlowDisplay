@@ -14,6 +14,38 @@ int xQueueReceive(QueueHandle_t handle,void *item,TickType_t ticks){queue_t *q=h
 unsigned uxQueueMessagesWaiting(QueueHandle_t handle){return ((queue_t*)handle)->count;}
 int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout){(void)mutex;(void)timeout;return 1;}
 int xSemaphoreGive(SemaphoreHandle_t mutex){(void)mutex;return 1;}
+static bool home_store_error;
+esp_err_t app_loxone_home_store_save(const lx_home_config_t *home)
+{
+    assert(home);
+    return home_store_error ? ESP_FAIL : ESP_OK;
+}
+static void home_requests(void)
+{
+    s_lock = (void *)1;
+    s_home = calloc(1, sizeof(*s_home)); assert(s_home);
+    s_requests = xQueueCreate(1, sizeof(request_t *));
+    char error[LX_HOME_ERROR_SIZE] = {0};
+    cJSON *empty = cJSON_Parse("{\"schema\":1}"); assert(empty);
+    assert(app_loxone_home_request(empty, error) == ESP_OK && s_home_busy);
+    assert(app_loxone_home_request(empty, error) != ESP_OK);
+    request_t *request = NULL; assert(xQueueReceive(s_requests, &request, 0));
+    save_home_request(request->home); free(request->home); free(request);
+    assert(!s_home_busy && s_home_revision == 1);
+    cJSON *state = app_loxone_home_web_state(); assert(state);
+    assert(!cJSON_GetObjectItemCaseSensitive(state, "password"));
+    assert(cJSON_GetObjectItemCaseSensitive(state, "revision")->valueint == 1);
+    cJSON_Delete(state);
+    home_store_error = true;
+    assert(app_loxone_home_request(empty, error) == ESP_OK);
+    assert(xQueueReceive(s_requests, &request, 0));
+    save_home_request(request->home); free(request->home); free(request);
+    assert(!s_home_busy && s_home_revision == 1 && strstr(s_home_status, "sikertelen"));
+    s_busy = true; assert(app_loxone_home_request(empty, error) != ESP_OK); s_busy = false;
+    cJSON *invalid = cJSON_Parse("{\"schema\":2}");
+    assert(app_loxone_home_request(invalid, error) != ESP_OK);
+    cJSON_Delete(invalid); cJSON_Delete(empty); free(s_home); s_home = NULL;
+}
 static int64_t clock_us;
 int64_t esp_timer_get_time(void){return clock_us+=1000;}
 void esp_fill_random(void *data,size_t n){FILE *f=fopen("/dev/urandom","rb");assert(f&&fread(data,1,n,f)==n);fclose(f);}
@@ -111,6 +143,8 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
 static char *load(const char *path){FILE *f=fopen(path,"rb");assert(f);fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);char *s=calloc(1,n+1);assert(s&&fread(s,1,n,f)==(size_t)n);fclose(f);return s;}
 int main(int argc,char **argv)
 {
+    home_requests();
+
     assert(argc==3);char *private=load(argv[1]);s_public_key=load(argv[2]);
     mbedtls_pk_init(&server_key);
 #if MBEDTLS_VERSION_MAJOR >= 3

@@ -63,3 +63,7 @@ cJSON *lx_home_config_json(const lx_home_config_t *config);
 
 /* Hiányzó átlagteljesítmény vagy tiltott javaslat sohasem ad indítási igényt. */
 bool lx_home_consumer_start_kw(const lx_home_consumer_t *consumer, double *kw);
+
+/* Korlátos JSON-beolvasás a hálózati/SD-s belépési pontoknak. A túl mély
+ * dokumentumot még a rekurzív cJSON-parser előtt elutasítjuk. body[size] terminátor szükséges; hívó szabadítja. */
+cJSON *lx_home_document_parse(const char *body, size_t size);

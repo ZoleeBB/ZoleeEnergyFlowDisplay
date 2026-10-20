@@ -346,3 +346,40 @@ bool lx_home_consumer_start_kw(const lx_home_consumer_t *consumer, double *kw)
     *kw = consumer->average_kw;
     return true;
 }
+
+cJSON *lx_home_document_parse(const char *body, size_t size)
+{
+    if (!body || size < 2 || size > 32768 || memchr(body, 0, size))
+        return NULL;
+    unsigned depth = 0;
+    bool quoted = false, escaped = false;
+    for (size_t i = 0; i < size; i++)
+    {
+        char ch = body[i];
+        if (quoted)
+        {
+            if (escaped)
+                escaped = false;
+            else if (ch == '\\')
+                escaped = true;
+            else if (ch == '"')
+                quoted = false;
+        }
+        else if (ch == '"')
+            quoted = true;
+        else if (ch == '{' || ch == '[')
+        {
+            if (++depth > 8)
+                return NULL;
+        }
+        else if (ch == '}' || ch == ']')
+        {
+            if (!depth)
+                return NULL;
+            depth--;
+        }
+    }
+    if (depth || quoted)
+        return NULL;
+    return cJSON_ParseWithLengthOpts(body, size + 1, NULL, true);
+}
