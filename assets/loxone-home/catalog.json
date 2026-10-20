@@ -248,56 +248,96 @@
       "hu": "Hőszivattyú",
       "en": "Heat pump",
       "category": "climate",
-      "subject": "a realistic large white residential outdoor air-to-water heat-pump unit, dark circular fan behind a fine protective grille and a short raised base"
+      "subject": "a realistic large white residential outdoor air-to-water heat-pump unit, dark circular fan behind a fine protective grille and a short raised base",
+      "file": "icons/heat-pump.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic large white residential outdoor air-to-water heat-pump unit, dark circular fan behind a fine protective grille and a short raised base.",
+      "original_sha256": "2ad9737b46448de4c1d9edf29d6b3132557d16d83ad36afbb3414ad0f2f80c7e",
+      "sha256": "a6125d258b1714ac5aedb787ef955a3b709888998d58b2c3f099af16b81206f7"
     },
     {
       "id": "water-heater",
       "hu": "Bojler",
       "en": "Water heater",
       "category": "climate",
-      "subject": "a clean white cylindrical domestic hot-water storage tank with a small analog gauge and two short pipe connections beneath"
+      "subject": "a clean white cylindrical domestic hot-water storage tank with a small analog gauge and two short pipe connections beneath",
+      "file": "icons/water-heater.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a clean white cylindrical domestic hot-water storage tank with a small analog gauge and two short pipe connections beneath.",
+      "original_sha256": "9582fff4a32a64662b68f78c4d680db071ec80c7f5e6b2b76e0bac23766d4165",
+      "sha256": "55950c0c73566bddc19b5bb6540f35fea636e570a737c9379ca15a7b47432941"
     },
     {
       "id": "underfloor-heating",
       "hu": "Padlófűtés",
       "en": "Underfloor heating",
       "category": "climate",
-      "subject": "a compact cutaway sample of warm wooden floor over a neat serpentine red underfloor heating tube embedded in a thin layered floor cross-section"
+      "subject": "a compact cutaway sample of warm wooden floor over a neat serpentine red underfloor heating tube embedded in a thin layered floor cross-section",
+      "file": "icons/underfloor-heating.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact cutaway sample of warm wooden floor over a neat serpentine red underfloor heating tube embedded in a thin layered floor cross-section.",
+      "original_sha256": "6a0d9cc44cab95c27759d51b3e6ce2ee9823ddb8aaada551d2548e0e1aacb888",
+      "sha256": "d5a575cace3b85dee7bcd5f8edb6e988ad7038ce1924a6dbfc8534c89abb8e93"
     },
     {
       "id": "freezer",
       "hu": "Fagyasztó",
       "en": "Freezer",
       "category": "kitchen",
-      "subject": "a modern white upright household freezer with a partly open door revealing a few transparent pull-out freezer drawers"
+      "subject": "a modern white upright household freezer with a partly open door revealing a few transparent pull-out freezer drawers",
+      "file": "icons/freezer.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern white upright household freezer with a partly open door revealing a few transparent pull-out freezer drawers.",
+      "original_sha256": "6b52a2a471a25de18fab9cf8189799cfe796c3ceef873823854198995b7b9d05",
+      "sha256": "d081f6309fd73bcd934b8e4b68f8be446d8fb875c093a1b21f089426473a7140"
     },
     {
       "id": "coffee-machine",
       "hu": "Kávéfőző",
       "en": "Coffee machine",
       "category": "kitchen",
-      "subject": "a premium compact silver and black espresso coffee machine with portafilter and one small white cup underneath"
+      "subject": "a premium compact silver and black espresso coffee machine with portafilter and one small white cup underneath",
+      "file": "icons/coffee-machine.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium compact silver and black espresso coffee machine with portafilter and one small white cup underneath.",
+      "original_sha256": "4b0f0c3b6aab8762d8329868fb1988ea6eb197ccf055a8cc39e1000f80bda4eb",
+      "sha256": "30cf69b8585e98a2f9806587d3a23281b36b964ca3595aef050f083412cf7446"
     },
     {
       "id": "kettle",
       "hu": "Vízforraló",
       "en": "Kettle",
       "category": "kitchen",
-      "subject": "a brushed stainless steel electric kettle with black curved handle and short spout standing on its compact round base"
+      "subject": "a brushed stainless steel electric kettle with black curved handle and short spout standing on its compact round base",
+      "file": "icons/kettle.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a brushed stainless steel electric kettle with black curved handle and short spout standing on its compact round base.",
+      "original_sha256": "340a2a484a6f3021f9c5871e11eb0822dbe0aa9c588ed88dabf74b6294e92cbb",
+      "sha256": "a0613e68f0d68c5bbcf8afc44358b4efacc262f3bdf2f47d250ace7e62ebc15f"
     },
     {
       "id": "microwave",
       "hu": "Mikrohullámú sütő",
       "en": "Microwave",
       "category": "kitchen",
-      "subject": "a compact silver household microwave oven with dark glass front door, clear side dial and short feet"
+      "subject": "a compact silver household microwave oven with dark glass front door, clear side dial and short feet",
+      "file": "icons/microwave.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact silver household microwave oven with dark glass front door, clear side dial and short feet.",
+      "original_sha256": "e48dd610449c9ee25b3fefe57bc492a3ae19a0ce768aa326c1af7b368db103d1",
+      "sha256": "aa682e4941d62989c5b35eb5e61a8348b05bd4dcef58d9306f99bb0a90fe41b3"
     },
     {
       "id": "vacuum-cleaner",
       "hu": "Porszívó",
       "en": "Vacuum cleaner",
       "category": "household",
-      "subject": "a compact modern teal-and-gray canister vacuum cleaner with a short curved hose and floor cleaning head arranged as one recognizable product icon"
+      "subject": "a compact modern teal-and-gray canister vacuum cleaner with a short curved hose and floor cleaning head arranged as one recognizable product icon",
+      "file": "icons/vacuum-cleaner.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact modern teal-and-gray canister vacuum cleaner with a short curved hose and floor cleaning head arranged as one recognizable product icon.",
+      "original_sha256": "5983e5f985edd049c25521b28e5bfc59a3888b7d2ba859a18a583f6eb0af0ccf",
+      "sha256": "b483fc451f8cab6404d37c92f71865fee71339363da772a46263c798c604d2bd"
     },
     {
       "id": "robot-vacuum",
