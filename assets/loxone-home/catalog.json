@@ -632,84 +632,144 @@
       "hu": "Zár",
       "en": "Lock",
       "category": "security",
-      "subject": "a realistic brushed stainless steel smart door-lock cylinder and sleek compact black keypad housing as one product, no digits or text"
+      "subject": "a realistic brushed stainless steel smart door-lock cylinder and sleek compact black keypad housing as one product, no digits or text",
+      "file": "icons/lock.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic brushed stainless steel smart door-lock cylinder and sleek compact black keypad housing as one product, no digits or text.",
+      "original_sha256": "9818d5d6ea1959cf3eed15a3fb3ce7eb67de099afc8f8c38e1c39e5be5f80815",
+      "sha256": "7e9ca77de45ae60505ac02e213a6bd197b95038b6591d5a4bb9001f956633e47"
     },
     {
       "id": "irrigation",
       "hu": "Öntözés",
       "en": "Irrigation",
       "category": "garden",
-      "subject": "a small realistic black pop-up garden sprinkler with a controlled fan of clear blue water droplets and a tiny neat tuft of grass at its base"
+      "subject": "a small realistic black pop-up garden sprinkler with a controlled fan of clear blue water droplets and a tiny neat tuft of grass at its base",
+      "file": "icons/irrigation.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small realistic black pop-up garden sprinkler with a controlled fan of clear blue water droplets and a tiny neat tuft of grass at its base.",
+      "original_sha256": "c2dfc03b44b31559fa87436cf7ad33a33e370a62f2d447db3fbbbe584b913cb2",
+      "sha256": "eed2675dfbb57e3a7ebb87032ff469adfdcdf9f4f2f17bbf319327b2267bd482"
     },
     {
       "id": "garden-light",
       "hu": "Kerti világítás",
       "en": "Garden lighting",
       "category": "lighting",
-      "subject": "a premium compact black cylindrical garden bollard lamp with warm amber glow, isolated with no garden background"
+      "subject": "a premium compact black cylindrical garden bollard lamp with warm amber glow, isolated with no garden background",
+      "file": "icons/garden-light.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium compact black cylindrical garden bollard lamp with warm amber glow, isolated with no garden background.",
+      "original_sha256": "d4a5f3457b5f45f086f81d3de9ab3b06946371ac4ab5f9d5caf81790a85d0a9c",
+      "sha256": "0d9658ed4622c64cc60f349584b127f7f0ba9bb4c38d6db9173cc79ad8d8c1ef"
     },
     {
       "id": "wall-light",
       "hu": "Fali / teraszlámpa",
       "en": "Wall / patio light",
       "category": "lighting",
-      "subject": "a realistic modern black cylindrical outdoor wall sconce with visible warm amber diffuser and restrained glow, no wall"
+      "subject": "a realistic modern black cylindrical outdoor wall sconce with visible warm amber diffuser and restrained glow, no wall",
+      "file": "icons/wall-light.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a realistic modern black cylindrical outdoor wall sconce with visible warm amber diffuser and restrained glow, no wall.",
+      "original_sha256": "b1339b6414c349f114a4d928fbd172aea9f7564ccd57bb16c988d46f44a3d8ca",
+      "sha256": "73e2e0ef4fdd6cf64c4c220d90392dd1b5a457ddb1750c44bc7ccc091e6aa465"
     },
     {
       "id": "ceiling-light",
       "hu": "Mennyezeti világítás",
       "en": "Ceiling light",
       "category": "lighting",
-      "subject": "a premium modern round shallow ceiling light with white rim and softly glowing warm diffuser, slightly tilted for a clear product view, no ceiling"
+      "subject": "a premium modern round shallow ceiling light with white rim and softly glowing warm diffuser, slightly tilted for a clear product view, no ceiling",
+      "file": "icons/ceiling-light.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium modern round shallow ceiling light with white rim and softly glowing warm diffuser, slightly tilted for a clear product view, no ceiling.",
+      "original_sha256": "180037c81cf6385df059b2b721009ace44d8db3f83b387e9f726a929498a3f93",
+      "sha256": "6fb37b2a4aee6a70e917c73ed5825a5dcf23d7272428bcc3aef389b833d9c6fb"
     },
     {
       "id": "led-strip",
       "hu": "LED szalag",
       "en": "LED strip",
       "category": "lighting",
-      "subject": "a short realistic flexible LED strip forming one gentle S curve, warm white illuminated LED chips on a pale ribbon, no reel or background"
+      "subject": "a short realistic flexible LED strip forming one gentle S curve, warm white illuminated LED chips on a pale ribbon, no reel or background",
+      "file": "icons/led-strip.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a short realistic flexible LED strip forming one gentle S curve, warm white illuminated LED chips on a pale ribbon, no reel or background.",
+      "original_sha256": "a5ad14b8cebfbe91465c1335dca093c935ac42626c570d7de525066e5223370d",
+      "sha256": "2d4d4c25b57d2d07a977db5c89b4dbebdee411bc6a33d3857ef0a7cda004981c"
     },
     {
       "id": "home",
       "hu": "Otthon",
       "en": "At home",
       "category": "scene",
-      "subject": "a beautiful realistic miniature contemporary two-storey family house with white walls, dark roof and welcoming warm-lit windows, small neat shrubs at its base"
+      "subject": "a beautiful realistic miniature contemporary two-storey family house with white walls, dark roof and welcoming warm-lit windows, small neat shrubs at its base",
+      "file": "icons/home.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a beautiful realistic miniature contemporary two-storey family house with white walls, dark roof and welcoming warm-lit windows, small neat shrubs at its base.",
+      "original_sha256": "0207fae9d28368bd84b5887830f7edc89620ffcdd9a89b899c6fd06725ada028",
+      "sha256": "83ca4e3a977b2085ea62de05318099b142c8962c1bc1cf5b9eb36e6580fa03b5"
     },
     {
       "id": "away",
       "hu": "Távollét",
       "en": "Away",
       "category": "scene",
-      "subject": "a beautiful realistic miniature contemporary white family house with dark windows and one small clean teal three-dimensional arrow pointing outward beside it"
+      "subject": "a beautiful realistic miniature contemporary white family house with dark windows and one small clean teal three-dimensional arrow pointing outward beside it",
+      "file": "icons/away.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a beautiful realistic miniature contemporary white family house with dark windows and one small clean teal three-dimensional arrow pointing outward beside it.",
+      "original_sha256": "114fe8daaf1a4d2bbb324c00a38d97c3fbe7d55040c2dd7a362c9bbc344b4a8d",
+      "sha256": "0b089d43d2f87cfa16ac86edb1f5c942fd1efe3a7c8d8db1244a96a99218ae4e"
     },
     {
       "id": "night",
       "hu": "Éjszakai mód",
       "en": "Night mode",
       "category": "scene",
-      "subject": "a softly luminous realistic silver crescent moon with two tiny warm stars, elegant calm night-mode symbol, isolated on transparent background"
+      "subject": "a softly luminous realistic silver crescent moon with two tiny warm stars, elegant calm night-mode symbol, isolated on transparent background",
+      "file": "icons/night.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a softly luminous realistic silver crescent moon with two tiny warm stars, elegant calm night-mode symbol, isolated on transparent background.",
+      "original_sha256": "4b3df5023679045dbe7a878b712e8076989b0b9530c19a4ae29d1453445fad6d",
+      "sha256": "c900d86b900ef331e1cd0641d497ffd58532ff149221870e35772e16201226cf"
     },
     {
       "id": "movie",
       "hu": "Mozi / film",
       "en": "Movie scene",
       "category": "scene",
-      "subject": "a premium realistic small black-and-white movie clapperboard with a short curled film strip, no lettering, no numbers, compact movie-night symbol"
+      "subject": "a premium realistic small black-and-white movie clapperboard with a short curled film strip, no lettering, no numbers, compact movie-night symbol",
+      "file": "icons/movie.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium realistic small black-and-white movie clapperboard with a short curled film strip, no lettering, no numbers, compact movie-night symbol.",
+      "original_sha256": "60986777c5de5a2a8d4516127c459e2d2d81beb9e83f3dccadf99f995a418a4e",
+      "sha256": "9f21fae3d1cdab89bfe69258425572ea1d8da1c031b3ce1478b6c4bd1db2e7b8"
     },
     {
       "id": "relax",
       "hu": "Pihenés / hangulat",
       "en": "Relax scene",
       "category": "scene",
-      "subject": "a beautiful realistic small warm beige lounge armchair with a tiny brass floor lamp beside it, warm inviting glow, compact relaxation scene icon"
+      "subject": "a beautiful realistic small warm beige lounge armchair with a tiny brass floor lamp beside it, warm inviting glow, compact relaxation scene icon",
+      "file": "icons/relax.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a beautiful realistic small warm beige lounge armchair with a tiny brass floor lamp beside it, warm inviting glow, compact relaxation scene icon.",
+      "original_sha256": "57dba14b1ab491e204000462b3c762fc9044d301f607754d132ae797e8185931",
+      "sha256": "3c54add91ebcc0fb6237a814ce0cabc31bf10b422bca421b80afa7eee56bcee3"
     },
     {
       "id": "router",
       "hu": "Router / hálózat",
       "en": "Router / network",
       "category": "technology",
-      "subject": "a compact premium white wireless router with three slim upright antennas and a tiny green status light, no cables or brand markings"
+      "subject": "a compact premium white wireless router with three slim upright antennas and a tiny green status light, no cables or brand markings",
+      "file": "icons/router.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact premium white wireless router with three slim upright antennas and a tiny green status light, no cables or brand markings.",
+      "original_sha256": "fe4d4e48406c140490cc41d9ca80a2b242cd7f544fc57b483584c5565ef04be0",
+      "sha256": "f9cf981b9eaed2cff8a6cd0f7eaee87708d55b31275b31f6dfe9203ff15c7567"
     }
   ]
 }

@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: követelmények egyeztetése folyamatban; első konfigurációs modell és célzott teszt elkészült, UI/runtime integráció még nincs.
+- Állapot: követelmények egyeztetése folyamatban; első konfigurációs modell, közös Slave-fényerő állapotgép, kártyageometria és 64 ikon elkészült; a teljes UI/runtime integráció még nincs.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -271,28 +271,50 @@ További grafikai egyeztetés: sötét változat és a 05/06 témák külön ter
 Technikai feladatok továbbra is nyitva: SD-mentés/webes szerkesztő és a tényleges
 LVGL-oldalak, runtime állapotok/vezérlés, Slave BLE-profil és inputkapu.
 
-## Checkpoint 2026-10-20 / 6 – ikonkészlet folyamatban
+## Checkpoint 2026-10-20 / 6 – teljes ikonkészlet elkészült
 
 Elfogadva (D13): a világos Otthon kártyás oldal terve. A felhasználó bőséges,
-sokféle ikonkészletet kér. A közös katalógus 64 megtervezett ikont tartalmaz:
+sokféle ikonkészletet kér. Mind a 64 megtervezett ikon elkészült:
 háztartási fogyasztók, klíma/fűtés, technika, érzékelők, világítás, kapuk,
 árnyékolók, biztonság, kert és jelenetek.
 
-- Forrásjegyzék: `assets/loxone-home/catalog.json`, magyar/angol név, kategória és
-  generálási leírás; a kész tételeknél runtime-útvonal, pontos prompt és SHA256.
-- Kizárólag 96×96 RGBA runtime PNG-k az `assets/loxone-home/icons` alatt.
-  A nagy generált eredetik nem kerülnek a repóba.
-- `tools/import_home_icons.py`: valódi alfa ellenőrzése, kért méretre alakítás,
-  eredet és ellenőrzőösszegek rögzítése. `--check`: kész részhalmaz ellenőrzése;
-  `--complete`: csak mind a 64 ikon meglétekor sikeres.
-- Első 12 ikon elkészült és méretre alakítva. A katalógus `file` mezője jelöli
-  a kész tételeket; a többi ikon generálása még hátravan. Folytatáskor ezt olvasd,
-  ne generáld újra a már kész ikonokat.
-- Az első négy ikon valódi 96×96 méreten, világos és sötét alapon vizuálisan
-  ellenőrizve; részleteik és átlátszóságuk megfelelő. További csoportok is ilyen
-  ellenőrzést igényelnek.
-- Még nincs bekötve az új SD-s speciális csomagba vagy a firmware UI-ba.
+Elkészült:
 
-Következő lépés: a katalógus hiányzó ikonjainak generálása csoportonként,
-96×96 import és vizuális ellenőrzés, majd a teljes készlet ellenőrzése.
-Az illusztrációs checkpointok `[skip ci]` jelölést kapnak; a futási kód nem változik.
+- `assets/loxone-home/catalog.json`: stabil ikonkulcs, magyar/angol név, kategória,
+  tárgyleírás, pontos generálási prompt, runtime-útvonal, eredeti és végleges SHA256.
+- `assets/loxone-home/icons/`: 64 különálló, 96×96 RGBA PNG valódi átlátszósággal.
+  A nagy generált eredetik nem kerültek a repóba. Beépített `image_gen` készült;
+  az import kizárólag méretre alakít, nem festi át és nem távolítja el a hátteret.
+- Teljes PNG-méret: 682 017 bájt (666 KiB); egy ikon 5 149–14 536 bájt.
+- `assets/loxone-home/README.md`: használat, teljességellenőrzés, importfolyamat,
+  memóriaigény és a még hátralévő integráció világos elhatárolása.
+- `tools/import_home_icons.py`: RGBA/alfa és méret ellenőrzése, import,
+  ellenőrzőösszeg és eredet rögzítése. `--check` kész részhalmazhoz;
+  `--complete` a teljes katalógushoz.
+- A Master workflow külön `home-icons` jobja minden jövőbeli futáskor ellenőrzi
+  a készlet teljességét, méretét, színmódját, átlátszóságát és ellenőrzőösszegét.
+
+Ellenőrzés:
+
+- `python3 tools/import_home_icons.py --complete`: 64/64 sikeres.
+- Mind a 64 valódi 96×96 PNG vizuálisan ellenőrizve világos és sötét alapon,
+  csoportonként. Nincsenek csak nagy méretben ellenőrzött ikonok.
+- A korábbi C/UBSan modelltesztek eredménye változatlan; e checkpointban futási
+  C-kód nem változott. A képek még nem firmware-be ágyazott erőforrások.
+- A korábbi célhardver-build eredménye nem igazolja a még hiányzó v3 UI működését.
+
+Folytatás:
+
+1. A kész ikonokat ne generáld újra. Igazságforrás a katalógus és a `--complete`.
+2. A 64 ikon közös, korlátos SD-erőforráscsomagba csomagolása következik.
+   A jelenlegi 32 PNG/csomag korlátot ne emeld korlátlanul; célzott speciális
+   csomagszabály és tömör runtime-katalógus kell. A promptokat tartalmazó
+   szerzői katalógus ne töltődjön a firmware memóriájába.
+3. A fogyasztói és Otthon oldal világos látványterve már elfogadva. Következő
+   grafika: tényleges, szöveg/kártya nélküli 1280×800 hátterek, helyi Loxone-logó;
+   majd sötét változat és a 05/06 témák külön egyeztetendő tervei.
+4. Technikai nyitott feladat: atomi SD-konfigurációmentés, webes szerkesztők,
+   aktív oldali állapotok, tényleges LVGL-oldalak és Loxone-vezérlés. A képkészlet
+   önmagában még nem választható ki a jelenlegi webes felületen.
+5. Slave: stabil identitás/profil, BLE, inputkapu és a jelenléti állapotgép
+   runtime bekötése továbbra is nyitott. Nincs PR és nincs release.
