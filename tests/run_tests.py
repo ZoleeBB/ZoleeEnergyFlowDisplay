@@ -56,6 +56,14 @@ with tempfile.TemporaryDirectory(prefix='zolee-ota-release-') as directory:
                     '-Itests/stubs', '-Imain', 'tests/test_ota_release.c',
                     'main/app_ota_release.c', '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+# Ugyanaz a release-választó a 4B névterével is fusson; más hardver nem tölthető le.
+with tempfile.TemporaryDirectory(prefix='zolee-slave-ota-release-') as directory:
+    binary = str(Path(directory) / 'test_ota_release')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                    '-Werror', '-DAPP_OTA_ASSET_PREFIX="ZoleeEnergyFlowDisplay-slave-4b"',
+                    '-Itests/stubs', '-Imain', 'tests/test_ota_release.c',
+                    'main/app_ota_release.c', '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-') as directory:
     binary = str(Path(directory) / 'test_ble_protocol')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
@@ -142,3 +150,6 @@ subprocess.run(['node','--check',str(ROOT/'assets/web/loxone.js')],check=True)
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_store.py")],check=True)
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_protocol.py")],check=True)
 subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True)
+
+# A kézi automatikus OTA tesztgomb valódi HTTP-kezelője és JS-e.
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_ota_web.py")], check=True)

@@ -1,0 +1,31 @@
+name: Waveshare 4B Slave
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure shared firmware UI simulator
+        run: cmake -S firmware/slave-waveshare-4b -B out/slave-4b -DSLAVE_4B_SIMULATOR=ON
+      - run: cmake --build out/slave-4b --config Debug --parallel 4
+      - name: Protocol, render, timeout and touch PIN regression
+        run: ctest --test-dir out/slave-4b -C Debug --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slave-4b-simulator-${{ matrix.os }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            out/slave-4b/simulator/*.ppm
+            out/slave-4b/simulator/Debug/zolee_slave_4b_simulator.exe
+            out/slave-4b/simulator/Debug/zolee_slave_4b_simulator.pdb

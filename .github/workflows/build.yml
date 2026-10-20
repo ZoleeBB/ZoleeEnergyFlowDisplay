@@ -1,4 +1,4 @@
-name: ESP-IDF build
+name: Waveshare 10.1 Master
 
 # A firmware minden main pushnál és pull requestnél újrafordul.
 on:
@@ -116,13 +116,32 @@ jobs:
           BUILD_COMMIT: ${{ inputs.source_sha || github.sha }}
         run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
 
+      - name: Build Waveshare 4B Slave with the same release version
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.4
+          target: esp32p4
+          path: firmware/slave-waveshare-4b
+
+      - name: Package separate Slave OTA and USB installer
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || 'v0.0.0-ci' }}
+          BUILD_COMMIT: ${{ inputs.source_sha || github.sha }}
+        run: >-
+          python3 tools/release/package.py --board slave-4b
+          --build firmware/slave-waveshare-4b/build
+          --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
+
       - name: Check USB installer against real build outputs
         run: |
-          python3 -m zipfile -e dist/*-usb.zip .usb-check
+          python3 -m zipfile -e dist/ZoleeEnergyFlowDisplay-${{ inputs.release_tag || 'v0.0.0-ci' }}-usb.zip .usb-check
           python3 -m pip install -r .usb-check/requirements-usb.txt
           python3 -m esptool version
           python3 .usb-check/flash.py --port TEST --dry-run
           python3 .usb-check/flash.py --port TEST --no-stub --manual-boot --dry-run
+          python3 -m zipfile -e dist/ZoleeEnergyFlowDisplay-slave-4b-${{ inputs.release_tag || 'v0.0.0-ci' }}-usb.zip .usb-check-slave
+          python3 .usb-check-slave/flash.py --port TEST --dry-run
+          python3 .usb-check-slave/flash.py --port TEST --no-stub --manual-boot --dry-run
 
       - name: Upload firmware packages
         uses: actions/upload-artifact@v4
@@ -131,3 +150,25 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: dist/*
+
+      # Webes OTA-hoz nincs szükség az USB-telepítő Python fájljaira.
+      # A teljes artifact neve változatlan, mert a release workflow-k arra hivatkoznak.
+      - name: Upload Master OTA only
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-10.1-ota-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            dist/ZoleeEnergyFlowDisplay-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
+            dist/SHA256SUMS.txt
+
+      - name: Upload Slave OTA only
+        uses: actions/upload-artifact@v4
+        with:
+          name: slave-4b-ota-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            dist/ZoleeEnergyFlowDisplay-slave-4b-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
+            dist/SHA256SUMS.txt

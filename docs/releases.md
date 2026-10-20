@@ -2,9 +2,38 @@
 
 A master/Slave, PIN-es párosítás, SD nélküli Rendszer nézet és éjféli OTA
 fejlesztésének átadási állapota, automatizált bizonyítékai és eszközös próbái:
-[master/Slave lezárási jegyzet](master-slave-handover.md). A kisebb asztali
-Slave hardver portolása a beszerzés után, új ágon folytatódik; a jelenlegi
-kiadási csatorna a 10,1 colos P4 kijelzőt célozza.
+[master/Slave lezárási jegyzet](master-slave-handover.md). A kiadások a
+10,1 colos P4 mellett a [720×720-as Waveshare 4B Slave](slave-waveshare-4b.md)
+külön firmware-ét is tartalmazzák. A két alkalmazás nem cserélhető fel.
+
+## Workflow-nevek és tesztfirmware letöltése
+
+| Actions név | Workflow-fájl | Feladat |
+| --- | --- | --- |
+| Waveshare 10.1 Master | `.github/workflows/build.yml` | Fő kijelző ellenőrzése, közös firmware-build és mindkét cél kiadási csomagolása |
+| Waveshare 4B Slave | `.github/workflows/slave-4b.yml` | A 720×720-as Slave közös UI-jának Linux/Windows szimulátora |
+| Windows UI simulator | `.github/workflows/simulator.yml` | A fő kijelző Windows-szimulátora |
+
+A korábbi **ESP-IDF build** neve **Waveshare 10.1 Master** lett. A workflow
+fájlútvonala, job-azonosítói és a release-ek közös buildre mutató hivatkozásai
+változatlanok. A korábbi futások a régi megjelenítési nevet is mutathatják.
+
+A sikeres **Waveshare 10.1 Master** futás Artifacts részében webes frissítéshez:
+
+- `master-10.1-ota-<commit>`: kizárólag a 10,1 colos fő kijelző OTA-binárisa és a SHA256SUMS.txt.
+- `slave-4b-ota-<commit>`: kizárólag a 720×720-as Slave OTA-binárisa és a SHA256SUMS.txt.
+- `firmware-packages-<commit>`: változatlan teljes csomag az USB-telepítőkkel; a release-publikáló ezt használja.
+
+Az Actions az artifactot ZIP-ként tölti le. Webes frissítéshez csomagold ki,
+és a megfelelő `-ota.bin` fájlt válaszd ki az eszköz `/update` oldalán.
+A két hardver binárisa nem cserélhető fel. A külön OTA-artifact ugyanazokat
+a binárisbájtokat tartalmazza, mint a teljes csomag, újrafordítás nélkül.
+
+A Chrome biztonsági jelzésének pontos oka a figyelmeztetésből nem állapítható
+meg. A kisebb OTA-artifact nem tartalmaz telepítőszkriptet vagy USB-csomagot,
+de ettől a böngésző vagy a szervezeti szabály még blokkolhatja. A jelzést nem
+tekintjük bizonyítottan téves riasztásnak, és nem módosítunk böngészővédelmet.
+A SHA256SUMS.txt a bináris sértetlenségének ellenőrzésére használható.
 
 ## Automatikus kiadás PR-merge után
 
@@ -30,7 +59,10 @@ A `.github/workflows/release.yml` a GitHub **Publish release** eseményére indu
 
    - `ZoleeEnergyFlowDisplay-v1.2.0-ota.bin`: ezt töltsd fel a `http://ESZKOZ-IP/update` oldalon.
    - `ZoleeEnergyFlowDisplay-v1.2.0-usb.zip`: teljes USB első telepítő, magyar útmutatóval és `flash.py` indítóval.
-   - `SHA256SUMS.txt`: az OTA, USB és build-info SHA256 ellenőrzőösszegei.
+   - `ZoleeEnergyFlowDisplay-slave-4b-v1.2.0-ota.bin`: a 720×720-as 4B Slave saját, automatikus OTA-ja.
+   - `ZoleeEnergyFlowDisplay-slave-4b-v1.2.0-usb.zip`: a 4B Slave első USB telepítője, SD nélkül.
+   - `slave-4b-build-info.json`: a 4B fordítás eredete és ellenőrzőösszegei.
+   - `SHA256SUMS.txt`: mindkét hardver OTA, USB és build-info SHA256 ellenőrzőösszegei.
    - `build-info.json`: tag, commit, célhardver, ESP-IDF/esptool verzió és flash-fájlok ellenőrzőösszegei.
 
 Az OTA és az USB csomag alkalmazásképe bájtra azonos. A ZIP a build összes flash-bemenetét tartalmazza, az eredeti címekkel és hordozható fájlutakkal. A rögzített esptool verzió `5.5.0`; [USB útmutató](usb-install.md).

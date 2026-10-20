@@ -32,6 +32,16 @@ def publish(directory, repository, tag, commit, release_id, allow_draft=False):
     if info['tag'] != tag or info['commit'] != commit:
         raise ValueError('Artifact provenance does not match this release')
     expected_names = {f'ZoleeEnergyFlowDisplay-{tag}-ota.bin', f'ZoleeEnergyFlowDisplay-{tag}-usb.zip', 'build-info.json'}
+    # Két cél közös kiadásakor mindkét forrásazonosságot ellenőrizzük feltöltés előtt.
+    slave_info = directory / 'slave-4b-build-info.json'
+    if slave_info.exists():
+        slave = json.loads(slave_info.read_text())
+        if (slave['tag'] != tag or slave['commit'] != commit or
+                slave['board'] != 'Waveshare ESP32-P4-WIFI6-Touch-LCD-4B'):
+            raise ValueError('Slave artifact provenance does not match this release')
+        expected_names.update({f'ZoleeEnergyFlowDisplay-slave-4b-{tag}-ota.bin',
+                               f'ZoleeEnergyFlowDisplay-slave-4b-{tag}-usb.zip',
+                               'slave-4b-build-info.json'})
     checks = {}
     for line in (directory / 'SHA256SUMS.txt').read_text().splitlines():
         digest, name = line.split('  ', 1)

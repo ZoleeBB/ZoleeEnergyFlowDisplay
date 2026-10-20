@@ -2,8 +2,9 @@
 
 Ez a [14-es PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/14)
 10,1 colos Waveshare ESP32-P4 kijelzőhöz készült fejlesztését foglalja össze.
-A kisebb asztali kijelző portolása a hardver kiválasztása és beszerzése után,
-új fejlesztési ágon következik.
+A külön [720×720-as Waveshare 4B Slave célprogram](slave-waveshare-4b.md)
+a `feature/slave-waveshare-4b` ágon folytatja ezt a közös kódot.
+Az alábbi korábbi mérési eredmények a 10,1 colos célra vonatkoznak.
 
 ## Elkészült működés
 
@@ -77,17 +78,17 @@ az SD-s vagy SD nélküli módot, valamint az észlelt hibát érdemes rögzíte
 PR-merge után a meglévő [release-folyamat](releases.md) készíti a kiadást;
 egyszerű bezárás összevonás nélkül nem indít release-t.
 
-## Folytatás a kis asztali kijelzővel
+## Waveshare 4B Slave
 
-A hardver megérkezése után a ténylegesen összevont állapotból új ág induljon,
-például `feature/desk-slave`. A pontos típust, panel-/érintésvezérlőt,
-GPIO-kiosztást, flash/PSRAM méretet és P4 esetén C6-firmware-t előbb rögzíteni kell.
+A külön alkalmazás útvonala `firmware/slave-waveshare-4b`. A közös BLE/PIN,
+Wi-Fi profil, időszinkron, RAM statisztikai cache, napváltás és OTA modulokból
+fordul. Saját ST7703/GT911 BSP-t, 720×720-as energiaáramlás-nézetet, érintős
+PIN-padot és alapdiagnosztikát használ. SD-t nem csatol.
 
-A javasolt felépítés ugyanebben a repóban külön, csak Slave-et tartalmazó
-alkalmazás és hardverprofil, közös BLE-protokollal, párosítással, idő-/profil- és
-statisztikaszinkronnal. A négyzetes felület külön elrendezést kap, saját PIN-paddal
-és alapdiagnosztikával. A célonkénti build, projektazonosító, firmware-fájlnév és
-OTA-kiválasztás különüljön el. A jelenlegi 10,1 colos image más kijelzőre nem való.
+A szimulátor a firmware UI-forrását és PNG-jeit futtatja. A nappali és éjszakai
+ház külön illusztráció, éjjel világító ablakokkal. A rendszerből átvett
+PSRAM-/adapter-/SDIO-javítások mindkét célon érvényesek.
 
-Ez fejlesztési irány, nem elkészült kis-kijelzős támogatás. A hardver beszerzéséig
-sem új port, sem külön OTA-csatorna vagy új ág nem része ennek a lezárásnak.
+A build és a kiadás mindkét célprogramot elkészíti, saját projektazonosítóval
+és OTA/USB fájlnévvel. Hardveradatok, telepítés, szimulátor, ellenőrzési
+állapot és az eszközön még elvégzendő próbák: [4B útmutató](slave-waveshare-4b.md).

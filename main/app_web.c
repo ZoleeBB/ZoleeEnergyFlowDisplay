@@ -555,6 +555,8 @@ static esp_err_t root_handler(httpd_req_t *req)
     return httpd_resp_send_chunk(req, NULL, 0);
 }
 
+#include "app_ota_web.inc"
+
 /* A böngészős OTA feltöltőoldal kiszolgálása, a beállított nyelven. */
 static esp_err_t update_get(httpd_req_t *req)
 {
@@ -565,9 +567,11 @@ static esp_err_t update_get(httpd_req_t *req)
         ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
         "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body>"
         "<a href='/'>← Eszköz</a><h1>Firmware frissítés</h1><div class='card'>"
+        "<div><button id='auto' onclick='autoNow()'>Automatikus frissítés most</button><p>A legújabb stabil GitHub-kiadás ellenőrzése. <a href='/'>Rendszernapló megnyitása</a></p></div>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></div>"
         "<script>"
+        "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"GitHub-ellenőrzés indítása…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Kapcsolati hiba; ellenőrizd a rendszernaplót.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
         "function reconnectAfterOta(){"
         "const status=document.getElementById('s');let left=30;"
         "status.textContent='Firmware telepítve, az eszköz újraindul. Újracsatlakozás '+left+' s múlva.';"
@@ -583,20 +587,22 @@ static esp_err_t update_get(httpd_req_t *req)
         "},1000);"
         "}"
         "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
-        "if(!f){s.textContent=\"Előbb válassz ki egy firmware-fájlt.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Feltöltés indítása…\";"
+        "if(!f){s.textContent=\"Előbb válassz ki egy firmware-fájlt.\";return;}pick.hidden=true;document.getElementById('auto').disabled=true;p.hidden=false;s.textContent=\"Feltöltés indítása…\";"
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware feltöltése: \"+n+'%';if(n===100)s.textContent=\"Feltöltve. Firmware ellenőrzése az eszközön…\";}};"
-        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
-        "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
+        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
         ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
         "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body>"
         "<a href='/'>← Device</a><h1>Firmware update</h1><div class='card'>"
+        "<div><button id='auto' onclick='autoNow()'>Check for automatic update now</button><p>Check the latest stable GitHub release. <a href='/'>Open system log</a></p></div>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></div>"
         "<script>"
+        "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"Starting GitHub check…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Connection error; check the system log.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
         "function reconnectAfterOta(){"
         "const status=document.getElementById('s');let left=30;"
         "status.textContent='Firmware installed; restarting. Reconnecting in '+left+' s.';"
@@ -612,11 +618,11 @@ static esp_err_t update_get(httpd_req_t *req)
         "},1000);"
         "}"
         "function go(){const f=document.getElementById('f').files[0],s=document.getElementById('s'),p=document.getElementById('p'),pick=document.getElementById('pick');"
-        "if(!f){s.textContent=\"Select a firmware file first.\";return;}pick.hidden=true;p.hidden=false;s.textContent=\"Starting upload…\";"
+        "if(!f){s.textContent=\"Select a firmware file first.\";return;}pick.hidden=true;document.getElementById('auto').disabled=true;p.hidden=false;s.textContent=\"Starting upload…\";"
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware upload: \"+n+'%';if(n===100)s.textContent=\"Uploaded. Verifying firmware on device…\";}};"
-        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
-        "x.onerror=()=>{pick.hidden=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script></body></html>";
+        "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
+        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script></body></html>";
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
     return httpd_resp_send(req,s_hu?page_hu:page_en,HTTPD_RESP_USE_STRLEN);
@@ -958,6 +964,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
         .handler = ota_post
     };
 
+    httpd_uri_t auto_update_uri = {
+        .uri = "/api/ota/auto",
+        .method = HTTP_POST,
+        .handler = ota_auto_post
+    };
+
     httpd_uri_t reboot_uri = {
         .uri = "/reboot",
         .method = HTTP_POST,
@@ -985,6 +997,10 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = httpd_register_uri_handler(
             s_server,
             &reboot_uri)) != ESP_OK) {
+        goto failed;
+    }
+
+    if ((err = httpd_register_uri_handler(s_server, &auto_update_uri)) != ESP_OK) {
         goto failed;
     }
 

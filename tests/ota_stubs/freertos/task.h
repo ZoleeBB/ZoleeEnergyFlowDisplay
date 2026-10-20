@@ -11,3 +11,5 @@ int xTaskCreate(void (*function)(void *),
 void vTaskDelay(TickType_t ticks);
 void xTaskNotifyGive(TaskHandle_t task);
 unsigned ulTaskNotifyTake(int clear, TickType_t ticks);
+
+void vTaskDelete(TaskHandle_t task);
