@@ -734,7 +734,7 @@ A 11. checkpoint első részének ellenőrzött zárása:
 
 ## Checkpoint 2026-10-20 / 12 – NVS és célzott, védett BLE-olvasás
 
-Fejlesztés alatt; a végső CI-eredmények e checkpoint végén rögzítendők.
+A végső CI-eredmények e checkpoint végén rögzítve.
 A helyi futtatókörnyezet továbbra sem elérhető, ellenőrzés GitHub CI-ben.
 
 Elkészült forrásként:
@@ -790,3 +790,61 @@ Slave oldali, Master-identitáshoz kötött esetleges bootprofil-cache külön m
 a Master konfigurációja tartós, a fogadó profilja disconnect alatt memóriában marad.
 Energiaasszisztens, 05/06 látványtervek, fizikai panelpróba és végső v3 zárás hátravan.
 Nincs PR vagy release.
+
+A 12. checkpoint ellenőrzött zárása:
+
+- Végső forráscommit: `f33ba7fc333a8007ebbb65d67a8aa61e05c0b5a9`;
+  teljes forrásfa: `11730da3099cb47f1374e20b000e3bffc3bfcf29`.
+  A helyi környezet nem volt elérhető; a feltöltés kisméretű GitHub-kérésekkel,
+  a natív és firmware-ellenőrzés GitHub CI-ben történt.
+- A végső forráscommit összes ellenőrzése:
+  [Master teljes regresszió/LVGL/ikonok/csomagok/két ESP-IDF firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39497979303),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39497979305),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39497979312).
+- Valódi C/UBSan: a profilmodell 444 bájt, receiver 48 bájt, GATT-csomag 20 bájt,
+  NVS-blob 410 bájt. A valódi háttértask commit/hibás commit/OOM/reboot/CRC minden
+  bájtján sérülés/célzott GATT access próbái sikeresek. Változatlan profil és
+  jelenlét nem ír NVS-t; sikertelen commit után a régi konfiguráció visszatölthető.
+- Tényleges central callbackek: opcionális discovery/READ, legacy, hitelesítés,
+  hibás wire, timeout és régi request-generáció ugyanazzal a connection handle-lel.
+  A teljes régi energia/idő/statisztika/Wi-Fi/PIN/OTA regresszió megmaradt.
+- A valódi RSA/AES/HMAC protokollteszt a közös WS-frissítőből indítja a rövid
+  1→0 jelenlétet. Login előtti tiltás, NaN/hibás üzenet és disconnect ellenőrzött.
+  Külön szolgáltatásteszt igazolja a 45 s-os Loxone-frissességet és azt, hogy a
+  friss BLE-impulzus egy korábban vett UI-időbélyeg mellett sem veszhet el.
+- A desktop demó szolgáltatásadaptere üres: a natív LVGL-regresszió a régi felület/
+  inputkapu megőrzését igazolja. A valódi új szolgáltatás külön natív tesztben fut;
+  a fizikai BLE/LVGL/panel integráció nem lett hardveren kipróbálva.
+
+- A végső forráscommit **minden jobja sikeres**. A két ESP-IDF fordítás naplója
+  az új szolgáltatást mindkét firmware-ben, a közös WS-bekötést a Masterben igazolja.
+- Master app: `0x2e00c0` = **3 014 848 bájt**,
+  a 11. checkpointhoz **+8640 bájt**; 8 MiB app-partíción 64% szabad.
+  4B app: `0x31fc60` = **3 275 872 bájt**,
+  **+7552 bájt**; 12 MiB app-partíción 74% szabad.
+  Mindkét USB/OTA-csomag elkészült, a tényleges binárisokkal végzett USB-telepítő-
+  ellenőrzés sikeres. A növekedés új funkciók kódja; bájtraazonossági állítás nincs.
+- Webgenerátor-ellenőrzés és 64/64 ikonellenőrzés sikeres. Új képfájl vagy
+  generált oldal kézi módosítása nem került a változásba. A végső dokumentációs
+  commit kizárólag e tervet, a protokoll-leírást és a 4B fejlesztési státuszát frissíti.
+- A Master külön NVS-taskja 4096 bájtos konfigurált vermet és egyhelyes értesítési
+  sort használ. Ez nem teljes futási heapmérés. Fizikai BLE/panel/DMA/PSRAM/FPS-próba
+  továbbra sincs, a webes beállító és HTTP-adapter még nincs elkészítve.
+- Nincs PR vagy release. A jelenlétfunkció adatútja már be van kötve, de webes
+  beállítás nélkül az új profilokban a sötétítés kikapcsolt marad.
+
+A következő folytatás konkrét feladata:
+
+1. Master/Loxone webes GET/POST adapter a meglévő hitelesítéssel és kérésfejléccel,
+   korlátos JSON-nal. A `app_slave_presence_service_snapshot/update` C API már kész;
+   ez még nem HTTP API. Stabil ID az `app_slave_identity_id`-ból; kizárólag már
+   ismert, hitelesített identitás szerkeszthető. Elavult revízió ne írjon felül profilt.
+2. Eszközlista, név, Loxone jelenlét-UUID szűrhető kiválasztása, timeout és éjszakai
+   sötétítés kapcsoló; mentett revízió/hiba/pending visszajelzés. HTTP-taskból nincs
+   NimBLE vagy NVS I/O. A generált webfejléceket továbbra is a generátor készítse.
+3. Valódi HTTP/JS-regresszió, szerkesztésmegőrzés, három eszköz és ismételt mentés,
+   a forrásváltás utáni teljes WS-frissítés integrációja. Az elavult profilok kézi
+   eltávolítása/bond-kezelése, ha bekerül a felületre, külön host-parancssoron történjen;
+   automatikus profil- vagy kulcskiszorítás nincs.
+4. Ezután energiaasszisztens, külön egyeztetendő 05/06 látványtervek és a v3 végső,
+   hardveren is ellenőrzött zárása. A korábbi tartós feltöltési engedély érvényes.

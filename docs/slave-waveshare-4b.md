@@ -28,8 +28,15 @@ A nyers LVGL-érintőolvasás elé kötött közös kapu az első, sötétből �
 már kattinthat. A BSP olvasója, koordinátái és adatmutatói megmaradnak.
 A valódi LVGL-teszt a 720×720 és az 1280×800 szimulátorban is fut.
 
-Az automatikus éjszakai elsötétítés **még kikapcsolva marad**: az eszközönkénti
-stabil identitás, a Master webes jelenlétprofilja, a hitelesített BLE-átvitel és
-az NVS-mentés a következő munkaszakasz. Régi Masterrel továbbra is a saját
-folyamatos nappali/éjszakai fényerő érvényes; az érintéskapu önmagában nem kész
-jelenlétfunkció. Fizikai paneles próba még szükséges.
+Az eszközönkénti stabil identitás, a Master NVS-profilja, a védett `1006` BLE-
+olvasás, a Loxone WS-jelenlétút és a két panel közös profiladaptere be van kötve.
+A Slave másodpercenként olvassa a 20 bájtos opcionális profilt. Rövid impulzus
+számlálóval, tartós aktív jel szinttel jut át; késői/replay/lejárt válasz nem ébreszt.
+SMP titkosítás/MITM/bond/16 bájtos kulcs kötelező.
+
+Az új profilban a sötétítés **alapból kikapcsolt**; a Master webes eszközlistája,
+profilbeállítója és a mentés hibajelzése még hátravan. Régi Masterrel továbbra is
+a saját folyamatos nappali/éjszakai fényerő érvényes. A fogadott profil disconnect
+alatt memóriában marad; saját fényerőinek korábbi NVS-beállítása nem változik.
+Részletes szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).
+Fizikai paneles próba még szükséges.

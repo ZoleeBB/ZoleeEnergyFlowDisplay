@@ -1,8 +1,9 @@
 # Slave jelenlétprofil – modell és átviteli szerződés
 
-Állapot: a tiszta modell és annak natív tesztje elkészült; az éles BLE/NVS/Loxone/
-web/UI integráció még hátravan. A fordítási forráslistán szereplő új modul
-önmagában nem kapcsolja be az éjszakai sötétítést.
+Állapot: a modell, a Master NVS-háttérmentése, a célzott védett BLE-olvasás,
+a közös Loxone WebSocket és a két panel adaptere be van kötve. A webes
+eszközlista/szerkesztő még hátravan; az újonnan párosított profilban a
+sötétítés alapból ki van kapcsolva. Fizikai paneles/radiós próba még szükséges.
 
 ## Identitás és jogosultság
 
@@ -29,11 +30,13 @@ mezőket hasonlítja, nem a C-struktúra paddingjét. Jelenlétminta, számlál�
 
 ## Opcionális karakterisztika
 
-Tervezett UUID: `8b7e1006-6c8a-4f57-9b2e-5d1a7c0e9f30`.
-Csak célzott read/notify; írás nincs. Mind a GATT-flagekben, mind az access/
-notify adapterben maradjon a meglévő szintű titkosítás, MITM/bond és 16 bájtos
-kulcsellenőrzés. A profilt az adott hitelesített kapcsolat identitásából kell
-kiválasztani, nem a kliens által küldött slotból vagy eszköznévből.
+UUID: `8b7e1006-6c8a-4f57-9b2e-5d1a7c0e9f30`.
+A jelenlegi karakterisztika csak célzott READ-et ad; a Slave másodpercenként
+olvassa, a három kötelező energia/idő notify setupját változatlanul hagyva.
+A GATT-flagek READ_ENC/READ_AUTHEN és min_key_size=16 értékűek; minden access
+külön ellenőrzi a meglévő encrypted/authenticated/bonded/16-byte szabályt.
+A profilt az adott hitelesített kapcsolat feloldott identitásából választjuk,
+nem kliens által küldött slotból vagy eszköznévből.
 
 A régi `1004` Wi-Fi/OTA profil **102 bájtos, v1 formátuma változatlan**.
 A jelenlét nem kérhet Wi-Fi-újraindítást. A régi Master opcionális `1006`
@@ -60,6 +63,11 @@ Egy revízión belül timeout/sötétítés nem változhat. A kliens minden hib�
 atomikusan utasít el; hibás csomag nem frissíti a lease-t.
 
 A Master **minden beérkező Loxone WS-deltánál** hívja a termelőmodellt.
+A jelenlét csak sikeres hitelesítés és katalógus után engedélyezett, már az
+enablebinstatusupdate ACK előtt érkező kezdő delta is megmarad.
+A 45 másodperces frissességi határt a közös Loxone heartbeat tartja; disconnect
+invalidál. Jelenlét-UUID cseréjekor a worker a meglévő socketet újraépíti a teljes
+kezdő állapothoz; második Loxone-kapcsolat nincs.
 A felfutó él azonnal növeli a számlálót, ezért két BLE-poll közé eső 1→0
 állapot sem veszik el. Több Slave ugyanazt a jelenlétforrást is használhatja.
 A 0 érvényes inaktív, pozitív véges szám aktív; negatív/NaN/infinite/invalid
@@ -85,6 +93,8 @@ A receiver rövid külön zár alatt kezelendő; a host a tényleges BLE-fogadá
 e zár megszerzése után vett monoton idővel hívja a dekódert. A BLE host nem
 várhat LVGL-zárra. A kijelzőadapter az inputkapuval azonos LVGL-zár alatt,
 e rövid receiver-zárat is megszerezve fusson; fordított zársorrend nincs.
+Az adapter e zár után új monoton időt vesz, így egy korábban megkezdett UI-tick
+nem dobhatja el a közben érkezett friss BLE-impulzust.
 Teljes vevőállapot/snapshot adható át, de egy puszta „utolsó wire-csomag” sor
 önmagában nem őrzi meg a régi impulzus saját érkezési idejét. Ha több csomag
 érkezik egy UI-frissítés előtt, a függő impulzus megmarad a következő friss,
@@ -99,10 +109,50 @@ Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
 Profilváltás/invalid/disconnect nem ad új timeoutot és nem szimulál lefutó élt.
 Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átállás kapcsolja ki.
 
+## Master NVS és háttérmentés
+
+A `ble_presence` névtér `peers` blobja 410 bájt. A 4 bájtos fejléc:
+ASCII `ZS`, verzió=1, slotok=3. Három 134 bájtos slot követi, majd 4 bájt
+little-endian CRC32 (IEEE, a megelőző 406 bájtra).
+
+| Sloton belüli offset | Hossz | Tartalom |
+| --- | --- | --- |
+| 0 | 1 | Használt slot: 0/1 |
+| 1 | 1 | Normalizált identitástípus |
+| 2 | 6 | Identitáscím NimBLE bájtsorrendben |
+| 8 | 81 | Név, NUL és nulla kitöltés |
+| 89 | 36 | Loxone állapot-UUID, NUL és nulla kitöltés |
+| 125 | 4 | Timeout másodpercben, little-endian |
+| 129 | 1 | Éjszakai sötétítés: 0/1 |
+| 130 | 4 | Nem nulla profilrevízió, little-endian |
+
+Üres slot minden bájtja nulla. A dekóder CRC, mezővalidálás és identitás-egyediség
+után újrakódolással ellenőrzi a kanonikus kitöltést. A C-struktúra paddingje nem
+kerül tárolásra. Impulzus, aktív szint, sorszám és fényerő nem része a blobnak.
+
+Az egyhelyes értesítési sor mögötti 4096 bájtos háttértask csak konfigurációs
+revízióeltéréskor nyit NVS-t. Az állapotzárat I/O előtt elengedi. Hibánál a
+mentett revízió nem lép, és legfeljebb 5 másodpercenként próbál újra.
+A publikus snapshot mutatja a konfiguráció/mentett revízió és hiba eltérését;
+a webes adapternek ezt is meg kell jelenítenie. Az elavult szerkesztési revízió
+elutasítandó; a Master bootonként véletlen kezdőrevíziót kap.
+A Slave fogadott profilja disconnect alatt memóriában marad; külön Slave NVS-cache
+nem készült. A saját fényerőinek meglévő belső konfigurációját ez nem módosítja.
+
+Az opcionális olvasás request-generációt használ. Négy másodperc után a függő
+kérés lejárt; késői válasza nem ébreszthet. Amíg az ATT-kérés még függőben van,
+nem indul mellé újabb kérés. Read-hiba nem jelent legacy Mastert. Hibás payload/
+replay nem törölheti a számlálóbázist és nem fiatalíthatja meg az érvényességet.
+
 ## Ellenőrzés és korlátok
 
 `python3 tests/test_slave_presence.py`: a tényleges C modell és
 `app_slave_display.c` közös UBSan-tesztje. A teljes regresszió is futtatja.
 A modell nem foglal heapet; fordítási guard: legfeljebb 512 bájt a hárompeer-es
 tábla, legfeljebb 64 bájt a receiver, pontosan 20 bájt a csomag.
-Ez nem GATT/NVS integrációs vagy fizikai paneles megfelelőségi állítás.
+A `tests/test_slave_presence_service.py` a valódi NVS-workert és GATT access
+handlert futtatja RTOS/NVS/transport mockokkal, hibainjektálással. A tényleges
+central callbackek tesztje late/replay/timeout/legacy eseteket is futtat.
+A Loxone RSA/AES/HMAC protokollteszt a valódi WS-frissítőtől ellenőrzi az impulzust.
+A CI mindkét ESP-IDF firmware-t és a Linux/Windows szimulátorokat is fordítja.
+Ezek nem helyettesítik a fizikai panel/radio/DMA/PSRAM/FPS próbát.
