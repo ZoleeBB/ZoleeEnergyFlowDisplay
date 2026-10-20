@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: követelmények egyeztetése folyamatban; konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, két élő Master-oldal és korlátos vezérlés elkészült. Slave-jelenlét runtime, energiaasszisztens és tématervek hátravan.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, két élő Master-oldal és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime bekötve; a jelenlétprofil/BLE/NVS, energiaasszisztens és tématervek hátravan.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -547,11 +547,35 @@ Ellenőrzések:
   83/17%, sötét 0%, PIN-láthatóság, lejárt/kapcsolat nélküli éjszaka megőrzése,
   friss nappali visszatérés és hiányzó érintő melletti láthatóság.
 - Webgenerátor-ellenőrzés, 64/64 ikonkatalógus és whitespace-ellenőrzés sikeres.
-- E checkpoint ESP-IDF/Windows CI-je a következő feltöltés után ellenőrzendő.
-  A szimulátor nem hardveres panelpróba, nincs PR és nincs release.
+- Távoli forráscommit: `2924f0e50b595e3df62851af03777caa763a7daa`, helyivel
+  ellenőrzött fájlfa: `9aff2d4491dc63d06612b177a8047e945b008c08`.
+  [Master teljes regresszió/LVGL/csomagolás/két ESP-IDF firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39477055116),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39477055055),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39477055041)
+  minden jobja sikeres. Mindkét USB/OTA-csomag és a tényleges binárisokkal ellenőrzött
+  USB-telepítő elkészült.
+- Master bináris: `0x2dbf60` = 2 998 112 bájt, az előző checkpointhoz +2176 bájt;
+  8 MiB app-partíción 64% szabad. 4B bináris: `0x31dee0` = 3 268 320 bájt,
+  +1744 bájt; 12 MiB app-partíción 74% szabad. A statikus/tesztelt korlátok nem
+  helyettesítenek futási DMA-/PSRAM-/FPS- és panelmérést. Nincs PR és nincs release.
 
 Következő önálló technikai blokk: legfeljebb három Slave stabil, párosított
 identitása; Masteren tárolt név/jelenlét-UUID/timeout/sötétítés profil; a jelenlét
 minimális, hitelesített BLE-adatútja és célzott NVS-mentése. A Wi-Fi/OTA profilt
 ne terjesszük ki törő módon, és ne gyengítsük az SMP/MITM/bonding ellenőrzését.
 A kártyaoldalak sötét megjelenése és a 05/06 témák terve továbbra is egyeztetendő.
+
+A következő blokk előkészített műszaki szempontjai (még nem implementáció):
+
+- A Master az SMP által hitelesített/bondolt peer feloldott identitásához kösse
+  a profilt, ne a hirdetési privát címhez vagy a Slave önbevallott azonosítójához.
+  A NimBLE műveletek maradjanak a host taskban; a web csak korlátos snapshotot kapjon.
+- A meglévő 102 bájtos Wi-Fi/OTA profil maradjon kompatibilis; az opcionális
+  jelenlét-karakterisztika is titkosítást, MITM/bondot és 16 bájtos kulcsot kérjen.
+  Régi Masterrel a biztonságos alap a kikapcsolt éjszakai sötétítés.
+- Az aktív szint mellé monoton impulzusszámláló szükséges, különben két BLE-poll
+  közé eső rövid 1→0 jel elveszhet. Új kapcsolat első csomagja csak bázisérték:
+  régi impulzust nem szabad visszajátszani. Tartós aktív szint ébren tart,
+  érvénytelen/kapcsolat nélküli adat nem hosszabbít timeoutot.
+- NVS-be csak megváltozott, validált profil kerüljön, külön háttérfeladatból;
+  az ismételt jelenlétminták/érintések ne írjanak flash-t és ne indítsanak újra.
