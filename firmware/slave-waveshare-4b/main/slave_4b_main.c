@@ -3,6 +3,7 @@
 #include "app_boot_config.h"
 #include "app_ble_profile.h"
 #include "app_slave_display_input.h"
+#include "app_slave_presence_service.h"
 #include "app_events.h"
 #include "app_ingest.h"
 #include "app_ota.h"
@@ -58,6 +59,7 @@ static void refresh(lv_timer_t *timer)
     app_slave_display_keep_visible(&display_state,
                                    !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input, now);
+    app_slave_presence_service_apply(&display_state, now);
     int brightness = (int)app_slave_display_brightness(&display_state, now);
     if (brightness != last_brightness)
     {
@@ -112,8 +114,7 @@ void app_main(void)
     config.cardless_slave = true;
     app_storage_set_cardless();
     ESP_ERROR_CHECK(app_ble_profile_init(&config));
-    /* Régi Masterrel a sötétítés kikapcsolva marad. A célzott, hitelesített
-     * jelenlétprofil külön átviteli útja még nem kapcsolja ezt be. */
+    /* Régi Masterrel és a célzott, védett profil megérkezéséig nincs sötétítés. */
     app_slave_display_profile_t display_profile = {
         .day_brightness = config.display.day_brightness,
         .night_brightness = config.display.night_brightness,

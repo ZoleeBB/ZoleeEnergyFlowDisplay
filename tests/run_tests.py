@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home_store.py')], check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_loxone_home_web.js')], cwd=ROOT, check=True)
@@ -81,7 +82,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
                     '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
                     '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
-                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c',
+                    'main/app_slave_presence.c', 'main/app_slave_display.c', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)

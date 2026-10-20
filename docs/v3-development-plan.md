@@ -731,3 +731,51 @@ A 11. checkpoint első részének ellenőrzött zárása:
   Rövid receiver-zár és LVGL→receiver zársorrend; BLE host nem vár LVGL-re.
 - Nincs PR vagy release. A következő folytatás a fenti NVS/host/GATT/WS/web/UI
   bekötést végezze; a 11. checkpointot ne tekintse kész jelenlétfunkciónak.
+
+## Checkpoint 2026-10-20 / 12 – NVS és célzott, védett BLE-olvasás
+
+Fejlesztés alatt; a végső CI-eredmények e checkpoint végén rögzítendők.
+A helyi futtatókörnyezet továbbra sem elérhető, ellenőrzés GitHub CI-ben.
+
+Elkészült forrásként:
+
+- Külön `ble_presence/peers` NVS-tár a Master három profiljához. Kanonikus,
+  410 bájtos, verziózott és CRC32-védett blob; csak identitás/profil/revízió.
+  Jelenlét, impulzusszámláló és fényerő nem tartós adat. Töltéskor minden mező,
+  identitás-egyediség és kanonikus nullázás ellenőrzött; sérült adatból nincs sötétítés.
+- Külön 4096 bájtos háttértask és egyhelyes értesítési sor; konfigurációs revízió
+  alapján összevont mentés, hiba után legfeljebb 5 másodpercenkénti újrapróbálás.
+  NVS I/O nincs az állapotzár alatt vagy BLE/LVGL callbackben. Hibastátusz és
+  mentett revízió snapshotolható; változatlan profil és aktivitás nem ír flash-t.
+- Publikus, korlátos szolgáltatás-API a későbbi webes szerkesztőhöz; idegen vagy
+  ismeretlen identitás nem szerkeszthető, elavult revízió elutasítva. A Master
+  bootonként véletlen kezdőrevíziót kap, a profilok saját revíziója tartós.
+- Valódi `1006` GATT-karakterisztika: csak READ, titkosítás + MITM + 16 bájtos
+  kulcs, és külön `security_authenticated` ellenőrzés minden olvasáskor.
+  A profil a feloldott `peer_id_addr`-ból választódik, nem kliensnévből/slotból.
+  A hitelesített peerek alapértelmezett, kikapcsolt profilja automatikusan létrejön.
+- A Slave az opcionális karakterisztikát a meglévő három energia/idő feliratkozás
+  megváltoztatása nélkül fedezi fel. Másodpercenkénti 20 bájtos READ; MTU=23 elég.
+  Külön request-generáció védi a késői választ újrahasznált connection handle-nél is.
+  4 s olvasási határidő után a késői adat nem alkalmazható, párhuzamos ATT-olvasás nincs.
+- Hiányzó opcionális karakterisztika csak a hitelesített, elfogadott régi Master
+  beállítása után vált legacy módba. Átmeneti hiba nem legacy jelzés.
+  Hibás wire/replay nem törli a fogadó bázisát és nem frissíti az érvényességet.
+- Mindkét panel a közös szolgáltatáson keresztül, a saját LVGL-zárja alatt alkalmazza
+  a profilt. BLE host nem vár LVGL-zárra; az NVS-worker nem fogja meg I/O alatt
+  a receiver-zárat. Saját fényerő, ismert napszak, első érintéskapu és PIN megmarad.
+- HTTP/MQTT Master az opcionális karakterisztikán kikapcsolt profilt ad, a korábbi
+  Wi-Fi/OTA/energia adatutat változatlanul megtartja.
+- Natív tesztek: valódi NVS-worker és GATT access handler; tartós commit,
+  hibainjektálás, coalescing, korrupció minden bájton, tiszta reboot, három peer célzása,
+  hibás wire, régi callback, timeout, hitelesítés és legacy. A desktop demók BLE-t
+  nem indítanak, ezért ott az új szolgáltatás kijelzőadaptere üres illesztő.
+
+Hátralévő bekötés: három jelenlét-UUID táplálása az egyetlen Loxone WS-deltaútból,
+kapcsolati frissesség és profilváltás utáni teljes állapotfrissítés; webes
+eszközlista/szerkesztő és mentési hibajelzés. Alapból továbbra sincs bekapcsolt
+sötétítés, és a jelenlétfunkció e blokk után sem tekinthető végig elkészültnek.
+Slave oldali, Master-identitáshoz kötött esetleges bootprofil-cache külön mérlegelendő;
+a Master konfigurációja tartós, a fogadó profilja disconnect alatt memóriában marad.
+Energiaasszisztens, 05/06 látványtervek, fizikai panelpróba és végső v3 zárás hátravan.
+Nincs PR vagy release.

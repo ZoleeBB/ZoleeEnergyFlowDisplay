@@ -8,6 +8,7 @@
 #include "app_ui.h"
 #include "app_ble_seed.h"
 #include "app_slave_display_input.h"
+#include "app_slave_presence_service.h"
 #include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
@@ -1792,8 +1793,8 @@ void app_ui_set_config(const app_config_t *cfg)
     bsp_display_brightness_set(s_brightness);
     if (cfg->data_recept_mode == APP_DATA_SLAVE && bsp_display_lock(-1) == ESP_OK)
     {
-        /* A jelenlétprofil védett átviteléig a régi, folyamatos éjszakai fényerő
-         * marad. Az energia-BLE csomag fényerőmezőjét itt sem használjuk. */
+        /* A védett jelenlétprofil megérkezéséig nincs sötétítés.
+         * Az energia-BLE csomag fényerőmezőjét itt sem használjuk. */
         app_slave_display_profile_t profile = {
             .day_brightness = cfg->display.day_brightness,
             .night_brightness = cfg->display.night_brightness,
@@ -2070,6 +2071,7 @@ static void slave_display_update(const app_runtime_state_t *state,
     /* Használható érintő nélkül ne lehessen véletlenül felébreszthetetlenül sötét. */
     app_slave_display_keep_visible(&s_slave_display,
                                    pairing.pin_required || !s_slave_input.input, now);
+    app_slave_presence_service_apply(&s_slave_display, now);
     s_target = (int)app_slave_display_brightness(&s_slave_display, now);
     if (s_brightness != s_target)
     {
