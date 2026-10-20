@@ -70,7 +70,10 @@ egy változatlan állapot-UUID önmagában nem évül el.
 Minden új BLE-mintához új sorszám szükséges. Csak pozitív, fél számtérnél kisebb
 unsigned különbség léphet előre; ismétlés, visszalépés és pontosan fél számtér
 elutasítandó. Profilváltáskor a számláló új bázis lehet. A kapcsolati adapter
-resetje kötelező, mielőtt egy új kapcsolatról adatot ad át.
+resetje kötelező, mielőtt egy új kapcsolatról adatot ad át. A sorba állított
+üzenetek és aszinkron callbackek kapcsolati generációt is ellenőrizzenek;
+az újrahasznált connection handle önmagában nem védi ki a korábbi kapcsolat
+késői válaszát. Régi üzenet az új kapcsolat bázisát sem állíthatja be.
 
 ## Fogadás és kijelzőállapot
 
@@ -81,8 +84,9 @@ szint ugyanakkor ébren tarthat. Lejárt vagy hibás mintából nem lesz ébresz
 A fogadó és az inputkapu közös állapotának műveletei ugyanazon LVGL-zár alatt
 fussanak; a BLE host korlátos üzenetet/snapshotot adjon át. Ha több csomag
 érkezik egy UI-frissítés előtt, a függő impulzus megmarad a következő friss,
-érvényes csomag mellett, és egyszer fogy el. Invalid csomag vagy új bázis
-eldobja a régi függő impulzust. A fogadási idő monoton idő, nem falióra.
+érvényes csomag mellett, és egyszer fogy el. Az impulzus saját fogadási ideje külön megmarad: egy későbbi inaktív heartbeat
+nem hosszabbítja meg az esemény 15 másodperces érvényességét. Invalid csomag vagy
+új bázis eldobja a régi függő impulzust. A fogadási idő monoton idő, nem falióra.
 
 A kijelzőadapter kizárólag a sötétítés/timeout mezőket veszi át. A Slave saját
 nappali/éjszakai fényereje, az utolsó ismert napszaka, a boot/PIN láthatósága és

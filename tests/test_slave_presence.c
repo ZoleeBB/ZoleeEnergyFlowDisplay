@@ -466,6 +466,26 @@ static void actual_delta_to_display_test(void)
     assert(!receiver.pending_pulse);
     app_slave_presence_apply(&receiver, &display, SECONDS(10));
     assert(app_slave_display_brightness(&display, SECONDS(10)) == 0);
+
+    /* Folyamatos inaktív heartbeat sem fiatalíthatja a UI-ra váró régi impulzust. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    send_packet(&receiver, &table.peers[0], 6, 11);
+    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    send_packet(&receiver, &table.peers[0], 7, 12);
+    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(12));
+    send_packet(&receiver, &table.peers[0], 8, 20);
+    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(12));
+    app_slave_presence_apply(&receiver, &display, SECONDS(27));
+    assert(app_slave_display_brightness(&display, SECONDS(27)) == 0);
+
+    /* Újabb valódi impulzus viszont frissíti az esemény saját idejét. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    send_packet(&receiver, &table.peers[0], 9, 28);
+    send_packet(&receiver, &table.peers[0], 10, 29);
+    app_slave_presence_apply(&receiver, &display, SECONDS(29));
+    assert(app_slave_display_brightness(&display, SECONDS(29)) == 13);
 }
 
 int main(void)

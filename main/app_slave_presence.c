@@ -312,6 +312,7 @@ void app_slave_presence_disconnected(app_slave_presence_receiver_t *receiver)
     receiver->valid = false;
     receiver->active = false;
     receiver->pending_pulse = false;
+    receiver->pulse_received_us = 0;
     receiver->reset_presence = true;
 }
 
@@ -357,6 +358,11 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
     bool pulse = valid && !rebase && forward(counter, receiver->counter);
     receiver->pending_pulse = valid &&
                               (pulse || (!rebase && receiver->pending_pulse));
+    /* Egy új heartbeat nem fiatalíthatja meg a még át nem adott régi impulzust. */
+    if (pulse)
+        receiver->pulse_received_us = now_us;
+    else if (!receiver->pending_pulse)
+        receiver->pulse_received_us = 0;
     receiver->reset_presence |= rebase;
     receiver->baseline = true;
     receiver->have_profile = true;
@@ -395,7 +401,9 @@ void app_slave_presence_apply(app_slave_presence_receiver_t *receiver,
         (void)app_slave_display_profile(display, &profile, now);
     bool valid = receiver->baseline && receiver->valid && now >= receiver->received_us &&
                  now - receiver->received_us < APP_SLAVE_PRESENCE_LEASE_US;
-    if (valid && receiver->pending_pulse)
+    bool pulse_fresh = now >= receiver->pulse_received_us &&
+                       now - receiver->pulse_received_us < APP_SLAVE_PRESENCE_LEASE_US;
+    if (valid && receiver->pending_pulse && pulse_fresh)
         app_slave_display_presence(display, true, true, now);
     app_slave_display_presence(display, valid, valid && receiver->active, now);
     receiver->pending_pulse = false;

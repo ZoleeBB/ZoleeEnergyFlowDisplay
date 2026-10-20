@@ -86,6 +86,7 @@ typedef struct
     uint32_t counter;
     uint32_t timeout_seconds;
     int64_t received_us;
+    int64_t pulse_received_us;
     int64_t last_now_us;
 } app_slave_presence_receiver_t;
 

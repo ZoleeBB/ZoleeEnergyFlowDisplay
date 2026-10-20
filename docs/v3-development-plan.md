@@ -681,7 +681,8 @@ Elkészült forrásként (a CI eredménye lent rögzítendő):
 - Fogadómodell: szigorú, atomi dekódolás; ismételt/regresszív/ambiguus
   sorszám, számláló vagy profil elutasítása; modulo-2^32 átfordulás.
   Új kapcsolat/profil és 15 s csend utáni első csomag csak számlálóbázis.
-  Lejárt/csatlakozás előtti impulzus nem játszódik vissza.
+  Lejárt/csatlakozás előtti impulzus nem játszódik vissza. A függő impulzusnak
+  külön időbélyege van; inaktív heartbeat nem fiatalítja meg a régi eseményt.
 - A meglévő közös Slave-fényerőállapotgéphez illesztő: aktív szint tart,
   rövid impulzus egyszer ébreszt, érvényes lefutó él egyszer hosszabbít;
   profilcsere, invalid adat és disconnect nem ad új timeoutot.
