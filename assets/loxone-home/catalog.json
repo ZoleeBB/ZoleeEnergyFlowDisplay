@@ -344,84 +344,144 @@
       "hu": "Robotporszívó",
       "en": "Robot vacuum",
       "category": "household",
-      "subject": "a round white robot vacuum cleaner with dark rim, small laser turret and one visible side brush, slightly top-down view"
+      "subject": "a round white robot vacuum cleaner with dark rim, small laser turret and one visible side brush, slightly top-down view",
+      "file": "icons/robot-vacuum.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a round white robot vacuum cleaner with dark rim, small laser turret and one visible side brush, slightly top-down view.",
+      "original_sha256": "6a3a7809c955e3e4d88974234edf2d8a2b1a3be8c2ff7ac72dcd2c944b7d217d",
+      "sha256": "084bfa2f8ae996be00e0c32a7e8e6f722b039788e2d553a21341de5f1a80cd8a"
     },
     {
       "id": "computer",
       "hu": "Számítógép",
       "en": "Computer",
       "category": "technology",
-      "subject": "one modern home desktop computer setup, slim dark monitor with calm teal screen and a small matching compact tower beside it"
+      "subject": "one modern home desktop computer setup, slim dark monitor with calm teal screen and a small matching compact tower beside it",
+      "file": "icons/computer.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: one modern home desktop computer setup, slim dark monitor with calm teal screen and a small matching compact tower beside it.",
+      "original_sha256": "90329ae3f8751c8f9395a5958988d505651d8e05ebea0a275486dbf3541e69b1",
+      "sha256": "3a6e4cfbbe4dc2708001c9772fa56391d3cfe3804e57ee8332ec970db987c528"
     },
     {
       "id": "nas",
       "hu": "NAS",
       "en": "NAS",
       "category": "technology",
-      "subject": "a compact premium black four-bay network storage enclosure with four clear vertical drive drawers and tiny green status LEDs"
+      "subject": "a compact premium black four-bay network storage enclosure with four clear vertical drive drawers and tiny green status LEDs",
+      "file": "icons/nas.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact premium black four-bay network storage enclosure with four clear vertical drive drawers and tiny green status LEDs.",
+      "original_sha256": "5fa475eea3916feff4f216ca36f4ab77fab52e11ff36155643ed4c6753a03184",
+      "sha256": "8a648bb08b0b6e89a4101ebe0fc582f144935c865148e1ab224b69327e2123c5"
     },
     {
       "id": "circulation-pump",
       "hu": "Keringetőszivattyú",
       "en": "Circulation pump",
       "category": "climate",
-      "subject": "a compact red residential heating circulation pump with round black motor housing and short metal pipe flanges"
+      "subject": "a compact red residential heating circulation pump with round black motor housing and short metal pipe flanges",
+      "file": "icons/circulation-pump.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact red residential heating circulation pump with round black motor housing and short metal pipe flanges.",
+      "original_sha256": "4fe139f785b6e72b151fa0703a5cc8cc0bc7dab4dc408b5774ed4205fd32d5ef",
+      "sha256": "38a2343f8e8aef9070474814d69249c8a711d3c09a795c6078cf724770813b35"
     },
     {
       "id": "pool-pump",
       "hu": "Medenceszivattyú",
       "en": "Pool pump",
       "category": "garden",
-      "subject": "a compact dark blue swimming-pool circulation pump with cylindrical electric motor and transparent strainer lid, short pipe connectors"
+      "subject": "a compact dark blue swimming-pool circulation pump with cylindrical electric motor and transparent strainer lid, short pipe connectors",
+      "file": "icons/pool-pump.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a compact dark blue swimming-pool circulation pump with cylindrical electric motor and transparent strainer lid, short pipe connectors.",
+      "original_sha256": "5656b1f40f5ebbf43436dc67cc9f9d0f9de3564fb07a92f5a8886701d34e950d",
+      "sha256": "0bbfddb6b03c6f3e0a534acfbd81b8fb8e19693ccf15a2107be5498abc665a97"
     },
     {
       "id": "towel-heater",
       "hu": "Törölközőszárító",
       "en": "Towel warmer",
       "category": "climate",
-      "subject": "a polished white ladder-style heated towel radiator with one neatly folded soft white towel, isolated without wall"
+      "subject": "a polished white ladder-style heated towel radiator with one neatly folded soft white towel, isolated without wall",
+      "file": "icons/towel-heater.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a polished white ladder-style heated towel radiator with one neatly folded soft white towel, isolated without wall.",
+      "original_sha256": "7716b152937de0299a7a1b45d7b72e1675eadb2b8de0ed5cc18c41377c840fe9",
+      "sha256": "5be73f421b03990f22947dac587b0328ed4656fc6efa8e4e9128714ab7757907"
     },
     {
       "id": "socket",
       "hu": "Konnektor",
       "en": "Power socket",
       "category": "electrical",
-      "subject": "a modern European white square recessed Schuko electrical wall outlet with realistic round socket and two holes, isolated without wall"
+      "subject": "a modern European white square recessed Schuko electrical wall outlet with realistic round socket and two holes, isolated without wall",
+      "file": "icons/socket.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a modern European white square recessed Schuko electrical wall outlet with realistic round socket and two holes, isolated without wall.",
+      "original_sha256": "76a89222aca11750ff476157d806b769531416b3b6deafd980854ffdb7a4662b",
+      "sha256": "6fcbd099b78f0127b9a72dadcc7c0f9f3ef82fa9e4f155c1f3475ba1e43e5336"
     },
     {
       "id": "thermostat",
       "hu": "Termosztát",
       "en": "Thermostat",
       "category": "climate",
-      "subject": "a premium small white square wall thermostat with a subtle neutral blank glass display, no digits or readings and no wall"
+      "subject": "a premium small white square wall thermostat with a subtle neutral blank glass display, no digits or readings and no wall",
+      "file": "icons/thermostat.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a premium small white square wall thermostat with a subtle neutral blank glass display, no digits or readings and no wall.",
+      "original_sha256": "0ceb98538c771318a4e6a7037f2ea4ff7fd9328ace9bceed4f6af89d068f8406",
+      "sha256": "8812b6c4acdc99801cfb0cd1e5f521a8f2dbcbad455f768fa63c3b6b8755c91c"
     },
     {
       "id": "temperature",
       "hu": "Hőmérséklet",
       "en": "Temperature",
       "category": "sensor",
-      "subject": "a beautifully realistic small vertical glass thermometer with red liquid column and rounded red bulb on a simple pale backing, no readable numbers"
+      "subject": "a beautifully realistic small vertical glass thermometer with red liquid column and rounded red bulb on a simple pale backing, no readable numbers",
+      "file": "icons/temperature.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a beautifully realistic small vertical glass thermometer with red liquid column and rounded red bulb on a simple pale backing, no readable numbers.",
+      "original_sha256": "3eb6c2accd84a8429fa8a33e8ffcbee2a4bf9e680c892dc9e4a03b2c149a11fc",
+      "sha256": "f2bb9540189a7c4929b29fa892c0b9d03eb3186ea4aa578d3f8279917d0e862c"
     },
     {
       "id": "humidity",
       "hu": "Páratartalom",
       "en": "Humidity",
       "category": "sensor",
-      "subject": "a single beautiful translucent blue glass water droplet with delicate reflections and a few tiny bubbles, like a premium realistic humidity symbol"
+      "subject": "a single beautiful translucent blue glass water droplet with delicate reflections and a few tiny bubbles, like a premium realistic humidity symbol",
+      "file": "icons/humidity.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a single beautiful translucent blue glass water droplet with delicate reflections and a few tiny bubbles, like a premium realistic humidity symbol.",
+      "original_sha256": "8ea5b4158cbcfa61a76e93af50de386b7da282dcf8043c5fee72fceb82b112da",
+      "sha256": "132ab83209cad0f9b87973062fd6b56adfb181796fab8274afa37fc0916198ca"
     },
     {
       "id": "co2",
       "hu": "CO₂ / levegőminőség",
       "en": "CO2 / air quality",
       "category": "sensor",
-      "subject": "a small white air-quality sensor with dark blank display, perforated lower grille and three subtle translucent teal air bubbles beside it, no readings or text"
+      "subject": "a small white air-quality sensor with dark blank display, perforated lower grille and three subtle translucent teal air bubbles beside it, no readings or text",
+      "file": "icons/co2.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small white air-quality sensor with dark blank display, perforated lower grille and three subtle translucent teal air bubbles beside it, no readings or text.",
+      "original_sha256": "62a28c1e5c66aa21006379425add4672cca40b0c49eaafc02cb3b8cca4b66ecc",
+      "sha256": "8a7835c7868b5ac8933d7d8b72f537283a0bd6f26f98e04f963b4cc301717b57"
     },
     {
       "id": "water-level",
       "hu": "Vízszint",
       "en": "Water level",
       "category": "sensor",
-      "subject": "a small transparent cylindrical water tank half filled with clear blue water, visible water surface and simple metallic top and base"
+      "subject": "a small transparent cylindrical water tank half filled with clear blue water, visible water surface and simple metallic top and base",
+      "file": "icons/water-level.png",
+      "generator": "built-in image_gen",
+      "prompt": "Use case: product-mockup. Asset type: ONE realistic household/smart-home dashboard icon, final use 96x96 pixels. Create the subject below as one isolated premium photorealistic 3D product render, matching a refined contemporary home dashboard with realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, consistent soft studio lighting, accurate recognizable silhouette, finely crafted but simple enough to read at 96 pixels. Entire subject fully visible and centered, occupying about 80-85% of the square with even transparent padding. GENUINE transparent RGBA background. No scene, no wall or floor backdrop, no badge, no circle, no surrounding frame, no caption, no logos, no brand name, no watermark, no letters or numeric readings. Retain only a very subtle contact shadow on transparency if helpful. This is one finished square icon, not a sheet, not a grid, not a user interface. Subject: a small transparent cylindrical water tank half filled with clear blue water, visible water surface and simple metallic top and base.",
+      "original_sha256": "b6d4428ceb98e55ba6ec9dd1ac057afb798c5c24f177863d7cdf0bfa7325cbcd",
+      "sha256": "fb7a3655ec1b09d12d890b932d2f0a49ac436816aa60810a35dd35a1b87accff"
     },
     {
       "id": "electric-car",
