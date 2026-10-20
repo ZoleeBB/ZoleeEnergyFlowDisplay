@@ -653,3 +653,49 @@ Ellenőrzések:
 
 Következő blokk: a 9. checkpoint végén részletezett Slave identitás/jelenlétprofil/
 védett BLE/NVS adatút; energiaasszisztens és a külön egyeztetendő 05/06 tématervek.
+
+## Checkpoint 2026-10-20 / 11 – Slave jelenlétmodell, első rész
+
+A megszakadás után a távoli fej `250ded8040135eef6914a3fd5351dbed3d54204e`
+és a 10. checkpoint ellenőrizve. A korábbi, folyamatos feltöltési engedély érvényes.
+A helyi futtatókörnyezet nem érhető el; e változás ellenőrzése GitHub CI-ben történik.
+
+Elkészült forrásként (a CI eredménye lent rögzítendő):
+
+- `app_slave_presence.c/.h`: három stabil, párosított identitáshoz kapcsolható,
+  név/jelenlét-UUID/timeout/sötétítés profil tiszta modellje. A bemenet normalizált
+  public vagy random-static identitás; privát hirdetési cím nem fogadható el.
+  A modell nem végez SMP-t: a későbbi host adapter köteles a valódi
+  encrypted/authenticated/bonded/16 bájtos ellenőrzés után a peer_id_addr-t átadni.
+- Korlátos UTF-8 név (80 bájt), Loxone 35 karakteres állapot-UUID,
+  1–86400 s timeout, alapból kikapcsolt sötétítés. Negyedik eszköz nem szorít ki
+  profilt. Ismételt regisztráció nem írja át a nevet; változatlan szerkesztés
+  nem kér mentést. A modell nem ír NVS-t és nem foglal heapet.
+- Minden WS-delta felfutó élét megtartó impulzusszámláló, külön aktív szinttel;
+  több Slave ugyanazt a forrást is használhatja. NaN/negatív/érvénytelen érték
+  és adatkapcsolat-vesztés nem érvényes aktivitás.
+- Új, opcionális 1006 karakterisztikához tervezett 20 bájtos wire-formátum,
+  revízióval, sorszámmal és impulzusszámlálóval. Nincs benne Wi-Fi, PIN vagy
+  fényerő; a régi 102 bájtos 1004 profil és SMP-ellenőrzés változatlan.
+  Ez a checkpoint még nem regisztrál új GATT-karakterisztikát.
+- Fogadómodell: szigorú, atomi dekódolás; ismételt/regresszív/ambiguus
+  sorszám, számláló vagy profil elutasítása; modulo-2^32 átfordulás.
+  Új kapcsolat/profil és 15 s csend utáni első csomag csak számlálóbázis.
+  Lejárt/csatlakozás előtti impulzus nem játszódik vissza.
+- A meglévő közös Slave-fényerőállapotgéphez illesztő: aktív szint tart,
+  rövid impulzus egyszer ébreszt, érvényes lefutó él egyszer hosszabbít;
+  profilcsere, invalid adat és disconnect nem ad új timeoutot.
+  A saját fényerők/napszak/PIN/inputkapu megmaradnak. A profil disconnectkor
+  megmarad; igazoltan régi Master külön legacy jelzése kikapcsolja a sötétítést.
+- A modell mindkét firmware fordítási forráslistáján szerepel, de a tényleges
+  BLE/Loxone/UI útba még nincs bekötve. Ez fejlesztési alap, nem kész jelenlétfunkció.
+- Új valódi C/UBSan teszt a közös regresszióban: identitás és Unicode határok,
+  három profil/célzás, paddingtől független változásjelzés, rövid impulzus,
+  stale/replay/reconnect/wrap, hibás wire, helyi fényerő és timeout együtt.
+
+Következő konkrét integráció: külön háttérmentő NVS-adapter és hitelesített
+Master eszközlista; a host taskban peer_id_addr alapú célzás és védett 1006
+olvasás/értesítés; opcionális Slave-discovery/freshness/snapshot; három jelenlét-UUID
+bekötése az egyetlen meglévő Loxone WS deltaútjába; webes szerkesztő és a két
+panel LVGL-zár alatti alkalmazása. Ezek továbbra is hátralévő feladatok.
+Nincs PR vagy release; a 05/06 látványtervek és az energiaasszisztens is hátravan.

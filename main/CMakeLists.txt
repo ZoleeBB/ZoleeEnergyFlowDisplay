@@ -44,6 +44,7 @@ idf_component_register(
         "app_diagnostics.c"
         "app_display.c"
         "app_slave_display.c"
+        "app_slave_presence.c"
         "app_slave_display_input.c"
         "app_assets.c"
         "app_chart.c"
