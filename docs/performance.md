@@ -74,3 +74,11 @@ jelzi a kész képkockát. Határidőn túli visszajelzésnél nincs képbetölt
 következő kör a meglévő loading oldallal próbálja újra. A headless próba a
 refresh-visszajelzés kihagyását és helyreállását is injektálja, nulla idő előtti
 SD-képolvasást megkövetelve. Forrás: [adapter 0.6.4](https://github.com/espressif/esp-iot-solution/tree/5d75f3f0dc499d9ed4b69284a3741187c2b75a70/components/display/tools/esp_lvgl_adapter).
+
+A 33 ms-ot a kész képkocka végétől mérjük, nem a rajzolás kezdetétől.
+90 ms-os rajzolásnál a puszta periódus már lejárt volna, ezért azonnal újabb
+rajzolás következne. A kész frame eseménye újraindítja a refresh időzítőjét;
+a köztes touch-időzítő futva marad. A valódi LVGL-regresszió 90 ms-os flush-t
+injektál: 16 ms múlva inputolvasást, nulla új képkockát, majd 34 ms után új
+képkockát követel meg. A kezdetétől mért ütemezés ezen a próbán elbukik.
+Ez felső frissítési korlát és garantált időrés, nem mért panel-FPS vagy CPU-adat.

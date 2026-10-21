@@ -27,6 +27,7 @@ static lv_display_t *display;
 static uint32_t pixels[1280*800];
 static bool rgb565;
 static unsigned frame_flushes;
+static unsigned slow_flush_ms, pointer_reads;
 static bool require_loading_flush;
 static unsigned loading_flush_baseline;
 /* A panel 16 bites és a desktop 32 bites képpontjait azonos RGB-re bontjuk. */
@@ -72,11 +73,12 @@ bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count
 static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
-static lv_point_t touch_point;
+static lv_point_t touch_point = {.x = 400, .y = 640};
 static bool touch_pressed;
 static int last_pwm_brightness;
 static int touch_swap_xy,touch_mirror_x,touch_mirror_y;
 static void touch_read(lv_indev_t *input,lv_indev_data_t *data){
+    pointer_reads++;
     (void)input;data->point=touch_point;
     /* Same order as esp_lcd_touch_get_data: native mirrors, then axis swap. */
     if(touch_mirror_x)data->point.x=800-data->point.x;
@@ -115,7 +117,17 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
-{(void)area;(void)map;frame_flushes++;lv_display_flush_ready(disp);}
+{
+    (void)area;(void)map;
+    frame_flushes++;
+    if (slow_flush_ms)
+    {
+        ticks += slow_flush_ms * 1000;
+        lv_tick_inc(slow_flush_ms);
+        slow_flush_ms = 0;
+    }
+    lv_display_flush_ready(disp);
+}
 static void count_invalidations(lv_event_t *event){unsigned *count=lv_event_get_user_data(event);++*count;}
 
 static void save_frame(const char *name)
@@ -1073,6 +1085,22 @@ static void test_home_return_navigation(app_runtime_state_t runtime, app_energy_
     assert(template_loading_frame());
     template_prepare();
     render_runtime(runtime, sample, true, 31000000);
+    /* A panel rajzolása lassabb lehet, mint a névleges periódus. A végén
+     * újrakezdett 33 ms biztosítson időt a touchnak; a render kezdetétől
+     * mért 33 ms ilyenkor azonnal újabb teljes képet indítana. */
+    slow_flush_ms = 90;
+    lv_obj_invalidate(s_screen);
+    lv_timer_ready(lv_display_get_refr_timer(display));
+    lv_timer_handler();
+    unsigned frames = frame_flushes;
+    unsigned reads_after_frame = pointer_reads;
+    lv_obj_invalidate(s_screen);
+    ticks += 16000;lv_tick_inc(16);lv_timer_handler();
+    assert(pointer_reads > reads_after_frame);
+    assert(frame_flushes == frames);
+    ticks += 18000;lv_tick_inc(18);lv_timer_handler();
+    assert(frame_flushes > frames);
+    puts("PASS: simulated 90 ms frame leaves a 33 ms redraw cooldown with intervening pointer polling");
     lv_display_remove_event_cb_with_user_data(display, initial_refresh_report, NULL);
     home_request_set(1);
     unsigned reads = home_resource_reads;

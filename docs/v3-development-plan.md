@@ -1557,3 +1557,21 @@ fizikai elfogadás. A korábbi villogás- és háttérjavítás megmarad.
 
 Folytatás: ellenőrzések befejezése, feltöltés, PR mainre, egyetlen PR-CI és
 négy csomag ellenőrzése. Egyesítés, verziótag és release most nincs kérve.
+
+## Checkpoint 2026-10-21 / 27 – lassú frame utáni touch-időrés
+
+A #16 PR megnyílt. Az első forrás (`f249880`) egyetlen CI-futásának
+mind a tíz jobja sikeres: `39637863758`, mindkét firmware-t is beleértve.
+A két ASan-render detect_leaks=1 beállítással szivárgás nélkül végzett.
+
+A lassulás további célzott próbája 90 ms-os panel-flush-t injektált. A puszta
+33 ms periódus ilyenkor lejár a rajzolás alatt, ezért folyamatos újrarajzolás
+maradna. Ez a próba a korábbi ütemezésen elbukott. A kész frame eseménye most
+újraindítja a refresh időzítőjét; a végén legalább 33 ms marad a következő
+normál rajzolásig. A touch saját időzítője ezalatt fut. A mozgás továbbra is
+a valódi eltelt időből számolódik. Új kép- vagy panelpuffer nincs.
+
+A kiegészítés 32 bites és RGB565 célzott LVGL/ASan-próbája ellenőrzi a köztes
+inputolvasást, a túl korai redraw hiányát és a későbbi redraw folytatódását.
+A PR új forrásának teljes CI-je és méret-/OTA-/USB-ellenőrzése a PR-ben követhető.
+Az eszközös F12-elfogadás és a számszerű terhelési napló továbbra is nyitott.

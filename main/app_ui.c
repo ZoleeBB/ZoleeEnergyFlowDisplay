@@ -1723,8 +1723,11 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
 
 static void initial_refresh_report(lv_event_t *event)
 {
-    (void)event;
     static bool reported;
+    /* A keretet a kész képkockától mérjük. Ha a rajzolás önmagában több
+     * mint 33 ms, a kezdetétől mért periódus folyamatos újrarajzolást és
+     * akadályozná az érintések olvasását. A kész frame után is maradjon idő rá. */
+    lv_timer_reset(lv_display_get_refr_timer(lv_event_get_target(event)));
     if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
     if (!reported)
     {
