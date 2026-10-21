@@ -111,6 +111,8 @@ jobs:
           cd .preview-images
           ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
+          ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ../.preview-build/ui_preview
+          ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ZOLEE_PREVIEW_FULL_REFRESH=1 ../.preview-build/ui_preview
 
   template-packages:
     name: Sablonok | 9 téma és Loxone-erőforrások
@@ -197,6 +199,8 @@ jobs:
           BUILD_COMMIT: ${{ inputs.source_sha }}
         run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
 
+      - name: Validate actual pinned CPU partial display pipeline
+        run: python3 tests/test_display_partial.py --adapter managed_components/espressif__esp_lvgl_adapter
       - name: Build Waveshare 4B Slave with the same release version
         uses: espressif/esp-idf-ci-action@v1
         with:

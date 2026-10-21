@@ -36,10 +36,11 @@ nem jelenik meg, a két speciális kijelzőoldal nem nyitható meg. A
 szemléltető UUID-it saját Loxone-állapotokra kell cserélni. Nem importálható
 `config.json`-ként. [Részletes formátum és kézi SD-használat](v3-home-config.md).
 
-Az F12 visszatérési javításhoz az aktuális PR firmware-csomagja szükséges; fizikai elfogadása nyitott. A panelvillanás F11 javításához az `adfa395` vagy az azt követő forrásból
-készült Master firmware kell. A már telepített v3 `loxone-home.zip` ehhez
+Az F14 javításhoz az aktuális PR firmware-csomagja szükséges; az F12/F13
+eszközön sikertelen volt. Az F14 visszatér a részleges rajzoláshoz, kész frame
+átadással, GUI/touch CPU1 és Loxone worker CPU0 felosztással. A már telepített v3 `loxone-home.zip` ehhez
 változatlanul használható; új grafikai csomag nem része ennek a javításnak.
-A teljes képkockás mód miatt a fényképes témák és az érintés sebességét is
+Az új CPU-baseline és a magelosztás mellett a fényképes témák és az érintés sebességét is
 ellenőrizd, tartós Wi-Fi/BLE forgalom mellett.
 
 ## Melyik eszközön mi működik?
@@ -175,3 +176,11 @@ swipe displacement across cached touch coordinates. Verify slow and fast swipes
 in both theme directions and upward diagnostics immediately after boot, then
 repeat after Home closes. Existing v3 SD resources remain valid. Physical F13
 acceptance and quantitative performance measurements are still pending.
+
+F14 supersedes F13: the user still reported roughly one successful swipe in ten,
+stuttering before Home opened, CPU0 at 28–52% and CPU1 around 1%. Check the new
+partial-refresh firmware with coherent complete-frame submission, GUI/touch on
+CPU1 and Loxone worker on CPU0. Record both core loads and slow/fast swipes before
+and after Home. Also verify cyan flicker, day/night backgrounds, transitions,
+controls and continued recovery after Wi-Fi loss. Existing SD resources remain
+valid; physical F14 acceptance is pending.

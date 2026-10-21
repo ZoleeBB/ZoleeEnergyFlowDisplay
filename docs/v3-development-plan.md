@@ -1598,3 +1598,29 @@ villogásjavítás, elődekódolt Home-háttér és egységes CI megmarad.
 Az aktuális eredmények a #16 PR-ben követhetők. Új SD-erőforrás nem kell.
 A fizikai F13-elfogadás és a számszerű terhelésmérés nyitott; nincs merge,
 verziótag vagy release.
+
+## Checkpoint 2026-10-21 / 29 – mainhez viszonyított grafikus regresszió (F14)
+
+Az F13 fizikai próbája sikertelen: Home nyitása nélkül is tízből kb. egy húzás,
+akadozó animációk; felhasználói értékek: belső RAM 82%, PSRAM 55%, CPU0 28–52%,
+CPU1 kb. 1%. A main (`04eef87`) és az F11 előtti `150fde5` részleges rajzolása
+az F11 `adfa395` óta teljes jelenetrajzolásra/forgatásra váltott. Az F13 ezt a
+költséget nem vonta vissza. A Loxone egyetlen WS-kapcsolata és az öt másodperces
+energia-ingest megmaradt; az új Home/jelenlét a meglévő deltákat dolgozza fel.
+
+Az F14 `TRIPLE_PARTIAL` módra tér vissza, 80 000 bájtos PSRAM-részpufferrel és
+a három meglévő panelpufferrel. A legutóbb leadott teljes kép az első flush
+előtt egyszer kerül a szabad hátsó pufferbe; csak a módosult részek rajzolódnak
+és fordulnak, az utolsó részlet után egyszeri CPU-cache write-back és kész
+képkocka-átadás következik. A régi diff-javítás és CPU/DMA cache-keverés nincs
+ezen az úton. Az adapter managed forrása érintetlen, csak buildmásolat változik.
+A GUI/touch CPU1-re, a Loxone worker CPU0-ra kerül; a közös mutexek megmaradnak.
+
+A korábbi DIRECT desktop próba nem fedte le a FULL firmware teljes rajzolási
+terhelését. Az alap UI-próba most részpufferes; azonos jelenetekkel külön FULL
+összevetés készül. A CPU-pipeline 480 frame-je teljes/átfedő/párnázott részleteket,
+pufferkörbefordulást, 90/270 fokot, RGB565/RGB888-at és hibás submit/free-buffer
+utakat fed le; a firmware-CI a tényleges upstream CPU-forgatót is futtatja.
+Új grafikai csomag nem kell. A végső CI, méret, OTA/USB és ASan eredmények a
+#16 PR-ben követhetők. Fizikai F14-elfogadás és számszerű visszamérés nyitott;
+merge, tag és release nincs.

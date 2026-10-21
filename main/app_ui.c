@@ -1740,13 +1740,12 @@ static void initial_refresh_report(lv_event_t *event)
 esp_err_t app_ui_init(uint16_t rotation_degrees)
 {
     const app_display_orientation_t o = app_display_orientation_for_rotation(rotation_degrees);
-    /* Teljes kész frame kerül a panelre; nincs forgatott részterületek
-     * közötti framebuffer-javítás és cache-vonalak megosztása. A három
-     * meglévő panelpuffert használjuk, új teljes puffer foglalása nélkül. */
+    /* Csak a módosult részletek rajzolódnak; a buildbeli CPU-pipeline
+     * a panel három pufferéből mindig kész, koherens képet ad át. */
     bsp_display_cfg_t cfg = {.lv_adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG(),
                              .rotation = o.rotation_degrees == 90 ? ESP_LV_ADAPTER_ROTATE_90
                                                                   : ESP_LV_ADAPTER_ROTATE_270,
-                             .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_FULL,
+                             .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
                              .touch_flags = {.swap_xy = o.touch_swap_xy,
                                              .mirror_x = o.touch_mirror_x,
                                              .mirror_y = o.touch_mirror_y}};
@@ -1754,13 +1753,15 @@ esp_err_t app_ui_init(uint16_t rotation_degrees)
      * drawing threads. Keep its stack in PSRAM, preserving internal DMA RAM. */
     cfg.lv_adapter_cfg.task_stack_size = 32768;
     cfg.lv_adapter_cfg.stack_in_psram = true;
+    /* A grafika és touch külön magon fusson a Loxone/hálózat mellett. */
+    cfg.lv_adapter_cfg.task_core_id = 1;
     lv_display_t *disp = bsp_display_start_with_config(&cfg);
     if (!disp)
         return ESP_FAIL;
     bsp_display_backlight_on();
     bsp_display_brightness_set(50);
     ESP_LOGI("app_ui", "Display initialized at %u degrees", (unsigned)o.rotation_degrees);
-    ESP_LOGI("app_ui", "Display started; waiting for LVGL lock");
+    ESP_LOGI("app_ui", "Partial display and touch worker on CPU1; waiting for LVGL lock");
     esp_err_t lock_err = bsp_display_lock(5000);
     if (lock_err != ESP_OK)
     {

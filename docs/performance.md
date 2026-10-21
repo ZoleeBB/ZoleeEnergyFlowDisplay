@@ -8,7 +8,7 @@ A [Waveshare hivatalos példatárának](https://github.com/waveshareteam/ESP32-P
 
 Az [Espressif GUI útmutatója](https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/advanced-development/lcd-application-note/gui-optimization-summary.html) a dekódolási költség és a képkezelés optimalizálását javasolja. A témaképekből az LVGL saját rasterizálója belépéskor a tényleges megjelenítési méretű, alfa csatornás képet készít. Az animáció közben ez már 1:1 méretű kép; az időjárási variánsok első használatukkor készülnek el és újrahasználhatók. A gyorsítótár maximum 64 variáns / 6 MiB. Hibánál vagy a korlát túllépésekor az eredeti PNG-méretezési út működik. Témaváltáskor először törlődnek a régi objektumok, majd a cache-bejegyzések és a képpufferek; az SD-n tárolt PNG-k megmaradnak. A változatlan képforrás beállítását kihagyjuk, mert az LVGL `set_src` művelete újrarajzolást kérne.
 
-A 96 elemű sablon-geometriai tábla CPU által használt adat, nem DMA-puffer. Az ESP-IDF [külső BSS támogatásával](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-guides/external-ram.html) PSRAM-ba kerül. A desktop mérésben mérete 85 248 bájt; a célplatform pontos mérete a firmware linker-térképéből ellenőrizhető. A 32 KiB belső memória-tartalék megmarad, nem növeljük a korábban indulási abortot okozó 64 KiB-ra.
+A 96 elemű sablon-geometriai tábla CPU által használt adat, nem DMA-puffer. Az ESP-IDF [külső BSS támogatásával](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-guides/external-ram.html) PSRAM-ba kerül. A desktop mérésben mérete 234 240 bájt; a célplatform pontos mérete a firmware linker-térképéből ellenőrizhető. A 32 KiB belső memória-tartalék megmarad, nem növeljük a korábban indulási abortot okozó 64 KiB-ra.
 
 Az ESP-Hosted [#144 hibajegye](https://github.com/espressif/esp-hosted-mcu/issues/144) ugyanezt az `sdio_rx_get_buffer` és TX foglalási hibát tárgyalja: az összes szabad heap mellett a DMA-képes memória fragmentációja is számít. A driver buildbeli másolatában egyetlen, statikus, 64 bájtra igazított 1 KiB belső DMA-ablak fogadja a streaming adatot; a teljes stream és a csomagmásolatok PSRAM-ban maradnak. Így a 3–6 KiB-os és nagyobb RX burstökhöz nem kell új összefüggő belső DMA-blokkot találni. A [CMD53 FIFO protokoll](https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/api-reference/protocols/esp_sdio_slave_protocol.html) szerint a cím az adott részolvasás tényleges adathosszát kódolja; a végső blokk kitöltését nem másoljuk a payloadba. PSRAM-foglalási hibánál a FIFO kiürül, az adatot eldobjuk, a következő stream fogadható. Az RX/TX sorok egyenként 8 eleműek a korábbi 20 helyett; ez csökkenti az egyidejű memóriaterhelést, nagy hálózati burstnél visszanyomást/eldobást okozhat.
 
@@ -16,10 +16,12 @@ A PPA gyorsítás továbbra is tiltott. Az adapter 0.6.4 PPA hang workaroundja �
 
 ## v3 Master és Home-képek
 
-A 10.1-es Master a meglévő három panelpuffert `TRIPLE_FULL` módban használja,
-CPU-forgatással, részleges framebuffer-javítás nélkül. A felhasználó 2026-10-21-én
-igazolta a villogás megszűnését és a fogyasztói háttér megjelenését. Ez nem mért
-FPS-adat. A 4B nem forgatott kijelzőjének részleges módját nem változtattuk meg.
+A 10.1-es Master az F14-től újra `TRIPLE_PARTIAL` módban dolgozik, a panel
+meglévő három pufferével és egy 80 000 bájtos PSRAM-részpufferrel. Az összes
+részlet után kész képet ad át, CPU-forgatással és CPU-cache-visszaírással.
+Az F11 teljes újrarajzolása megszüntette a villogást, de az F12/F13 után a
+felhasználó erős akadozást és ritka érintésfelismerést jelzett. A 4B nem
+forgatott kijelzőjének részleges útja változatlan.
 
 Home-belépéskor az előző jelenet globális képcache-e is felszabadul. Az összes
 aktív kép dekódolása még a kész oldal megjelenítése előtt történik, külön
@@ -54,7 +56,8 @@ A belső RAM és PSRAM adatai az allocator által kezelt teljes és szabad heape
 
 ## F12/F13 – visszatérő és indulás utáni navigáció
 
-A villogásmentes `TRIPLE_FULL` mód és a Home elődekódolt képei megmaradnak.
+Az F12/F13 a `TRIPLE_FULL` módot megtartotta; ezt az F14 alább részleges
+rajzolásra cseréli. A Home elődekódolt képei megmaradnak.
 Az F12 33 ms-os animációja és kész frame utáni további 33 ms-os várakozása
 eszközön akadozást okozott; ezt az F13 visszavonja. A refresh ismét 15 ms,
 az animáció 16 ms periódusú, további frame-végi várakozás nélkül. A nehéz
@@ -86,3 +89,57 @@ nulla idő előtti SD-képolvasást követel. Forrás: [adapter 0.6.4](https://g
 Az F12 eszközös visszajelzése sikertelen volt. Az F13 javulását és a tartós
 CPU/FPS/DMA/PSRAM-adatokat újra fizikai panelen kell visszamérni; a host
 ellenőrzés ezt nem helyettesíti.
+
+## F14 – összevetés a mainnel, részleges rajzolás és két CPU-mag
+
+A `main` (`04eef87`) és az F11 előtti `150fde5` részleges frissítést használt,
+a normál animáció 16 ms-os volt. Az F11 `adfa395` ettől `TRIPLE_FULL` módra
+tért át: minden animációs frame az egész 1280×800-as jelenetet újrarajzolta
+és CPU-val elforgatta. Az F13 csak az időzítést állította vissza; a teljes
+rajzolás költsége megmaradt. A felhasználó F13 után is kb. tízből egy húzást,
+akadozást, 82% belső RAM-ot, 55% PSRAM-ot, 28–52% CPU0-t és kb. 1% CPU1-et
+jelzett. Ezek visszajelzett pillanatértékek, nem saját műszeres mérés.
+
+Az F14 a main részleges LVGL-rajzolásához tér vissza, a régi diff-pufferjavítás
+helyett egyszerű CPU-tulajdonlással: az első flush előtt a legutóbb leadott
+kész képből egyszeri `memcpy` készít alapot a szabad hátsó pufferbe. A CPU
+csak a módosult részleteket forgatja rá; az utolsó flush után egyszeri C2M
+write-back, majd teljes kész kép átadása következik. A kijelzett/leadott
+forráspufferre nem írunk, nincs DMA-javítás vagy M2C invalidálás. Az 50 soros
+PSRAM-részpuffer 80 000 bájt; új teljes képpuffer nincs. A PPA tiltott marad.
+A patch csak az adapter buildbeli másolatát érinti, ismeretlen forrásnál leáll.
+
+A GUI/touch adapterfeladat explicit CPU1-en fut, a Loxone worker CPU0-n.
+A két mag megosztja az állapot mutexeit; nincs második LVGL-feladat vagy
+párhuzamos LVGL-objektumkezelés. Az energiaadatok öt másodpercenként jutnak
+az ingestbe; a Home és Slave-jelenlét a meglévő WS-deltát dolgozza fel,
+nem nyit új kapcsolatot. Az [adapter útmutatója](https://docs.espressif.com/projects/esp-iot-solution/en/latest/display/tools/esp_lvgl_adapter.html)
+és az [IDF feladatütemezési leírása](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-reference/system/freertos_idf.html)
+is támogat maghoz rendelt feladatokat. A magváltás önmagában nem csökkenti
+a rajzolási munkát; azt a részleges frissítés csökkenti.
+
+A korábbi desktop teszt DIRECT módja nem fedte le a firmware FULL módjának
+költségét. Most az alap LVGL-próba a firmware-rel azonos 40 000 pixeles
+részpufferrel fut. Azonos jelenetek és 30 animációs tick mellett külön FULL
+összehasonlítás is készül; a flusholt pixelek száma mérhető, nem panel-FPS.
+A buildelt adapter valódi CPU-forgatófüggvényével 480 puffer-újrahasználati
+frame, átfedő/párnázott részletek, teljes jelenetcserék, RGB565/RGB888,
+90°/270°, sikertelen submit és hiányzó szabad puffer vizsgálata fut.
+A kész frame előtt nincs panelátadás; a régi puffer teljesen érintetlen.
+A hiányzó alapmásolatot szándékosan visszaállító hibás változat elbukik.
+Az F14 fizikai elfogadása és az új CPU/FPS/inputkésés visszamérése nyitott.
+
+Azonos RGB565 jelenet, 30 animációs tick, előzetesen befejezett belépési áttűnés:
+
+| Téma | FULL mód flusholt pixelei | PARTIAL mód flusholt pixelei |
+| --- | ---: | ---: |
+| Rendszer | 30 720 000 | 3 633 786 |
+| Élő otthon | 30 720 000 | 314 511 |
+| Energiakör | 10 240 000 | 18 698 |
+| Nap pálya | 30 720 000 | 171 850 |
+
+A Nyugodt otthon statikus jelenete változatlan adatokkal egyik módban sem
+kér új frame-et. A táblázat az LVGL által újrarajzolt/forgatásra leadott pixelt
+számolja; a baseline 2 048 000 bájtos másolatát, cache-visszaírást, panelátadást
+és hálózati munkát nem. Ez ezért nem azonos a teljes CPU- vagy memóriaforgalom
+csökkenésével. A készüléken elért FPS/inputkésés továbbra is visszamérendő.

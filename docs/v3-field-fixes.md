@@ -128,3 +128,19 @@ nélkül vizsgál bal/jobb/felfelé húzást ismételt pontokkal. A 15 ms-os red
 a 90 ms-os lassú frame utáni folytatás és a Home-visszatérési próbák is részei.
 A betöltőkép visszaigazolása és a pufferfelszabadítás nem változott.
 Új SD-csomag nem szükséges. A fizikai elfogadás újra nyitott.
+
+## F14 – mainhez képest megmaradt teljes rajzolási költség
+
+Az F13 fizikai visszajelzése sikertelen: kb. tízből egy húzás működik,
+Home megnyitása nélkül is akadnak az animációk. A fő összehasonlítási eltérés
+mainhez és az F11 előtti állapothoz képest a `TRIPLE_FULL`: minden tick teljes
+jelenetrajzolást/forgatást kért. A részleges `TRIPLE_PARTIAL` mód visszatér,
+a panel csak koherens, kész képet kap. Az új CPU-baseline a régi diff-javítás
+helyett az első részlet előtt egyszer másolja a kész képet a hátsó pufferbe;
+a módosult részek forgatása után, egyszeri write-backkel történik az átadás.
+A GUI/touch CPU1-en, a Loxone worker CPU0-n fut. Nincs új teljes képpuffer,
+kapcsolat vagy párhuzamos LVGL-rajzoló. A Home elődekódolt képei megmaradnak.
+
+A valódi LVGL-próba most a firmware részpufferét használja; külön FULL/PARTIAL
+munkamennyiség-összevetés és a buildelt adapter CPU-pipeline próbája készült.
+A fizikai elfogadás és új magonkénti CPU-/inputmérés még nyitott.

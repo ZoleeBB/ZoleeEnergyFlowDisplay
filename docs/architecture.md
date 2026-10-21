@@ -4,7 +4,7 @@ Az ESP32-P4 firmware közös állapotmodellt használ az MQTT-, HTTP-, közvetle
 
 A konfiguráció SD-s működésben a FAT32 microSD gyökerében található. SD nélküli Slave-nél a `device_boot` NVS-névtér JSON-konfigurációt és tartós szerepjelölőt tárol. A `ble_profile` a párosított master Wi-Fi/OTA profilját őrzi. A helyi naptári statisztikához MQTT/HTTP/Loxone módban NTP, Slave módban a master UTC ideje és helyi UTC-eltolása szükséges. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
 
-A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció kerete 16 ms, a normál teljes képernyős frissítés periódusa 15 ms, kész frame utáni plusz várakozás nélkül, a diagramok frissítése 5 másodperc. A PNG-dekódolás gyorsítótára 10 MiB; a 10.1-es kijelző a három meglévő RGB565 panelpuffert használó `TRIPLE_FULL` módban teljes képkockákat ad át. A 4B saját, nem forgatott kijelzője továbbra is `TRIPLE_PARTIAL` módú. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
+A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms, az energiaanimáció kerete 16 ms, a normál részleges frissítés periódusa 15 ms, kész frame utáni plusz várakozás nélkül, a diagramok frissítése 5 másodperc. A PNG-dekódolás gyorsítótára 10 MiB; a 10.1-es kijelző a három meglévő RGB565 panelpuffert használó `TRIPLE_PARTIAL` módban csak a változásokat rajzolja újra, és kész képeket ad át. A 4B saját, nem forgatott kijelzője továbbra is `TRIPLE_PARTIAL` módú. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
@@ -20,7 +20,7 @@ A beépített nézet és kilenc SD-s sablon ugyanazt az adatmodellt használja. 
 
 Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).
 
-A MIPI LVGL képpufferei PSRAM-ban vannak. A Waveshare BSP 2.0.3 belső RAM-ra rögzített beállítását a `main/app_display.c` regisztrációs linker-wrapper korrigálja. A függőségek eredeti forrásai érintetlenek; a méret és tájolás megmarad. A v3 Master teljes képkockás módja a panel meglévő három pufferét használja.
+A MIPI LVGL képpufferei PSRAM-ban vannak. A Waveshare BSP 2.0.3 belső RAM-ra rögzített beállítását a `main/app_display.c` regisztrációs linker-wrapper korrigálja. A függőségek eredeti forrásai érintetlenek; a méret és tájolás megmarad. A v3 Master a panel meglévő három pufferét és egy 800×50 pixeles, 80 000 bájtos PSRAM-részpuffert használ.
 
 A 4B-n továbbra is használt triple-partial pufferfoglalás is a PSRAM-beállítást követi: a CMake egy kizárólag buildkönyvtárbeli másolatot javít és fordít. Az eredeti managed component változatlan marad; ismeretlen vagy kétértelmű forrásváltozatnál a build megáll.
 
@@ -32,10 +32,13 @@ A kijelző első render/flush eseményeinek egyszeri naplózása a regisztráci�
 
 Az lwIP automatikus SNTP periódusa 10 nap, az alkalmazás saját periódusa legfeljebb 7 nap (alapértelmezésben 6 óra). A 14 napos SDK érték az lwIP `UINT32_MAX/4` időzítőkorlátján kívül esett, ezért az új firmware fordítási őrrel is védi ezt a korlátot. A napi statisztika az első sikeres NTP- vagy Slave esetén BT-időszinkron előtt nem indul el.
 
-A Master teljes képkockás útja kihagyja a részleges back buffer-javítást,
-amely az érintett panelen villanást okozhatott. A 4B részleges útján a build-
-másolat továbbra is CPU-t használ, ha a profil gyorsítása tiltott; így elkerüli
-az egy cache-vonalon kevert CPU/DMA-írást. A CPU→RAM write-back megmarad.
+Az F14 Master CPU-útja minden frame első részlete előtt a legutóbb leadott
+kész képet másolja egy szabad hátsó panelpufferbe. Erre csak a változott
+LVGL-részleteket forgatja; az utolsó részlet után egyszer írja vissza a CPU-
+cache-t és adja át a teljes kész képet. Nincs diff-javítás vagy CPU/DMA által
+közösen írt cache-vonal, és nem módosul az LVGL invalidációs téglalaplistája.
+A 4B nem forgatott részleges útja változatlan. A grafikus/touch feladat CPU1-en,
+a Loxone worker CPU0-n fut; a közös állapotot az eddigi mutexek védik.
 Home-belépéskor az előző nézet és a globális képcache felszabadul. Az aktív
 oldal PNG-i egyszer, megjelenítés előtt dekódolódnak: RGB565 háttér (2 048 000
 bájt), ARGB logó/ikonok és a fogyasztói ikonok szürke másolatai. Dekódolási

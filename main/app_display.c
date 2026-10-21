@@ -1,6 +1,6 @@
 /* A Waveshare BSP MIPI profilját PSRAM-ra irányítjuk, a managed
- * komponensek módosítása nélkül. A teljes képkockás mód a panel három
- * meglévő pufferét használja. A PPA forgatást külön letiltjuk.
+ * komponensek módosítása nélkül. A részleges CPU-rajzolás a panel három
+ * pufferéből kész képeket ad át. A PPA forgatást külön letiltjuk.
  */
 #include "esp_lv_adapter_display.h"
 #include "esp_log.h"
@@ -56,7 +56,7 @@ lv_display_t *__wrap_esp_lv_adapter_register_display(const esp_lv_adapter_displa
              "MIPI LVGL draw buffers use PSRAM (rows=%u)",
              (unsigned)psram_config.profile.buffer_height);
     ESP_LOGI("app_display", "MIPI rotation uses CPU fallback (PPA disabled)");
-    ESP_LOGI("app_display", "Complete-frame rotation; partial framebuffer repair is not used");
+    ESP_LOGI("app_display", "Partial CPU rotation; coherent baseline and completed-frame submission");
     ESP_LOGI("app_display", "LVGL rendering is synchronous (OS_NONE, one draw unit)");
     lv_display_t *display = __real_esp_lv_adapter_register_display(&psram_config);
     if (display)

@@ -624,7 +624,10 @@ esp_err_t app_loxone_start(void)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
     lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
-    if(xTaskCreate(worker,"loxone",12288,NULL,3,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    /* A GUI/touch a CPU1-en fut; a hálózati állapotfeldolgozás CPU0-n marad.
+     * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
+    if (xTaskCreatePinnedToCore(worker, "loxone", 12288, NULL, 3, NULL, 0) != pdPASS)
+        return ESP_ERR_NO_MEM;
     return ESP_OK;
 }
 cJSON *app_loxone_web_state(void)

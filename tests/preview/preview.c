@@ -25,6 +25,10 @@ void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now)
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
+/* A firmware-rel azonos 800×50 pixeles részpuffer: a célképet a flush állítja össze. */
+static uint8_t partial_pixels[800 * 50 * 4];
+static bool full_refresh;
+static uint64_t flushed_pixels;
 static bool rgb565;
 static unsigned frame_flushes;
 static unsigned slow_flush_ms, pointer_reads;
@@ -93,7 +97,7 @@ static void touch_sample(int x,bool pressed){touch_sample_xy(x,400,pressed);}
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
-lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->tear_avoid_mode==ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_FULL);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
+lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->tear_avoid_mode==ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL);assert(cfg->lv_adapter_cfg.task_core_id==1);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
@@ -118,8 +122,18 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
 {
-    (void)area;(void)map;
     frame_flushes++;
+    unsigned width = area->x2 - area->x1 + 1;
+    unsigned height = area->y2 - area->y1 + 1;
+    flushed_pixels += (uint64_t)width * height;
+    if (!full_refresh)
+    {
+        unsigned bpp = rgb565 ? 2 : 4;
+        unsigned stride = lv_display_get_buf_active(disp)->header.stride;
+        for (unsigned y = 0; y < height; y++)
+            memcpy((uint8_t *)pixels + ((area->y1 + y) * 1280 + area->x1) * bpp,
+                   map + y * stride, width * bpp);
+    }
     if (slow_flush_ms)
     {
         ticks += slow_flush_ms * 1000;
@@ -1064,6 +1078,47 @@ static void test_home_background_pixels(void)
         assert(home_buffers[i] && home_images[i].header.cf != LV_COLOR_FORMAT_RAW_ALPHA);
 }
 
+/* Az előző teszt DIRECT desktop módban futott, ezért nem mutatta ki a
+ * firmware FULL módjának teljesképes többletmunkáját. Ugyanazt a jelenetet
+ * és tickeket most a valódi PARTIAL és a korábbi FULL módban is mérjük. */
+static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const char *themes[] = {"builtin", "01-live-home", "05-calm-home", "06-energy-orbit", "09-solar-journey"};
+    sample.sun_position_valid = true;
+    for (unsigned theme = 0; theme < sizeof(themes)/sizeof(themes[0]); theme++)
+    {
+        assert(app_templates_select(themes[theme]) == ESP_OK);
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        /* A témabelépés áttűnése ne takarja el a normál animáció költségét. */
+        for (unsigned tick = 0; tick < 40; tick++)
+        {
+            ticks += 16000;lv_tick_inc(16);lv_timer_handler();
+        }
+        lv_refr_now(display);
+        uint64_t before = flushed_pixels;
+        unsigned before_flushes = frame_flushes;
+        for (unsigned tick = 0; tick < 30; tick++)
+        {
+            ticks += 16000;lv_tick_inc(16);lv_timer_handler();
+        }
+        uint64_t work = flushed_pixels - before;
+        unsigned calls = frame_flushes - before_flushes;
+        bool static_scene = !strcmp(themes[theme], "05-calm-home");
+        if ((!calls || !work) && !static_scene)
+            fprintf(stderr,"No redraw: theme=%s view=%d active=%d dash=%d started=%d phase=%f time=%lld anim=%lld\n",
+                    themes[theme],s_view,template_is_active(),s_dash_created,s_started,
+                    (double)f_pv.phase,(long long)ticks,(long long)s_animation_us);
+        assert((calls && work) || static_scene);
+        if (!theme && !full_refresh)
+            assert(work < (uint64_t)30 * W * H / 2);
+        printf("RENDER_WORK %s %s pixels=%llu flushes=%u equivalent_full_frames=%.2f\n",
+               full_refresh ? "FULL" : "PARTIAL", themes[theme],
+               (unsigned long long)work, calls, (double)work/(W*H));
+    }
+    puts("PASS: actual LVGL animation redraw work measured in production partial and previous full refresh modes");
+}
+
 /* Az IRQ-s touch-adapter két hardveres minta között ugyanazt a pontot
  * adja vissza. A régi sebességküszöb ilyenkor minden alkalommal lenullázta
  * a húzás összegét. Kis lépések és köztes azonos minták is lapozzanak. */
@@ -1355,7 +1410,11 @@ int main(void)
     lv_init();display=lv_display_create(1280,800);
     rgb565 = getenv("ZOLEE_PREVIEW_RGB565") != NULL;
     lv_display_set_color_format(display,rgb565 ? LV_COLOR_FORMAT_RGB565 : LV_COLOR_FORMAT_XRGB8888);
-    lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
+    full_refresh = getenv("ZOLEE_PREVIEW_FULL_REFRESH") != NULL;
+    lv_display_set_buffers(display,
+        full_refresh ? (void *)pixels : (void *)partial_pixels, NULL,
+        full_refresh ? sizeof(pixels) : 800 * 50 * (rgb565 ? 2 : 4),
+        full_refresh ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display,flush);
     assert(app_ui_init(270)==ESP_OK);
     runtime_wifi_connected=false;
@@ -1380,8 +1439,9 @@ int main(void)
     assert(invalidations==0);
     text_color_if_changed(text_probe,c(0xffffff),0);opa_if_changed(text_probe,LV_OPA_COVER,0);
     lv_obj_update_layout(s_screen);lv_refr_now(display);assert(invalidations==0);
+    unsigned changed_flushes=frame_flushes;
     label_text_if_changed(text_probe,"Changed");lv_obj_update_layout(s_screen);lv_refr_now(display);
-    assert(invalidations>0);
+    assert(full_refresh ? frame_flushes>changed_flushes : invalidations>0);
     lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);lv_obj_delete(text_probe);
     puts("PASS: unchanged labels, colours and opacity do not invalidate the screen; changed text still refreshes");
     puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
@@ -1412,7 +1472,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_NAVIGATION_ONLY"))
+    if (getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1427,8 +1487,13 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
-        test_startup_navigation(runtime, sample);
-        test_home_return_navigation(runtime, sample);
+        if (getenv("ZOLEE_RENDER_COST_ONLY"))
+            test_render_work(runtime, sample);
+        else
+        {
+            test_startup_navigation(runtime, sample);
+            test_home_return_navigation(runtime, sample);
+        }
         lv_indev_delete(input);
         clear();template_release_cache();app_templates_view_free(&template_view);
         lv_display_delete(display);lv_deinit();
