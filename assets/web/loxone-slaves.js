@@ -153,7 +153,12 @@ const LoxoneSlaves = (() => {
                     load(row, value);
                     tell(row.status, 'Beállítások tartósan elmentve.');
                 } else tell(row.status, 'Beállítások átvéve, tartós mentés folyamatban…');
-            } else if (!row.dirty) load(row, value);
+            } else if (!row.dirty) {
+                load(row, value);
+                tell(row.status, next.save_error ? 'A Master tartós mentése hibát jelzett.' :
+                    next.saved_revision !== next.revision ? 'Tartós mentés folyamatban…' :
+                    'Beállítások tartósan elmentve.', !!next.save_error);
+            }
             else if (!same(value, row.base)) tell(row.status,
                 'A profil közben másik helyen változott. A saját szerkesztésed megmaradt; ellenőrizd, vagy vesd el.', true);
         }

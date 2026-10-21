@@ -18,7 +18,7 @@ const catalog=[{uuid,name:'<img src=x> Jelenlét',room:'Nappali',category:'Jelen
     {uuid:uuid2,name:'Mozgás',room:'Kert',category:'Jelenlét',state:'value'}];
 const initial=[id,id2,id3].map((id,index)=>({id,name:'Slave '+(index+1),presence_uuid:index?uuid2:uuid,timeout_seconds:30,blank_at_night:false}));
 let state={schema:1,enabled:false,ready:false,revision:4294967295,saved_revision:4294967295,save_error:0,profiles:[]};
-let offline=false, persist=true, reject=false, afterPostOffline=false, lostResponse=false, mutateBeforePost=null;
+let offline=false, persist=true, reject=false, afterPostOffline=false, lostResponse=false, dropBeforePost=false, mutateBeforePost=null;
 const posts=[];
 const sandbox={console,TextEncoder,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
     assert.equal(url,'/api/loxone/slaves');
@@ -27,6 +27,7 @@ const sandbox={console,TextEncoder,document:{getElementById:id=>nodes.get(id),cr
         const body=JSON.parse(options.body);
         assert.equal(options.headers['X-Zolee-Loxone'],'1');
         posts.push(body);
+        if(dropBeforePost)throw Error('Nem továbbított kérés.');
         if(mutateBeforePost){mutateBeforePost();mutateBeforePost=null;}
         if(reject||body.revision!==state.revision)return {ok:false,status:409,text:async()=>'A profil közben változott.'};
         Object.assign(state.profiles.find(value=>value.id===body.id),body.profile);
@@ -69,9 +70,14 @@ const status=(peer=id)=>get('status',peer).textContent;
     assert.equal(posts[0].profile.name,'<script>csak szöveg</script>');assert(!('password' in posts[0]));
     assert(status().includes('tartósan elmentve'));assert(get('save').disabled);
     assert.equal(get('name',id2).value,'Háló <b>kijelző</b>');
+    state.revision++;await refresh();
+    assert(status().includes('folyamatban'));
+    state.save_error=1;await refresh();assert(status().includes('hibát'));
+    state.save_error=0;state.saved_revision=state.revision;await refresh();
+    assert(status().includes('tartósan elmentve'));
     /* Másik peer új revíziója nem veszti el a saját draftot. */
     state.profiles[2].name='Másik böngésző';state.revision++;state.saved_revision=state.revision;
-    await save(id2);assert.equal(posts.length,2);assert.equal(posts[1].revision,2);
+    await save(id2);assert.equal(posts.length,2);assert.equal(posts[1].revision,3);
     assert.equal(get('timeout_seconds',id3).value,'123');
     /* A célprofil közbeni módosítása nem írható felül kattintással. */
     edit('name','Saját név');state.profiles[0].name='Távoli név';state.revision++;state.saved_revision=state.revision;
@@ -111,6 +117,9 @@ const status=(peer=id)=>get('status',peer).textContent;
     /* Elfogadott kérés után offline: a draft az újracsatlakozásig megmarad. */
     edit('name','Offline után');afterPostOffline=true;await save();assert(get('save').disabled);
     assert.equal(get('name').value,'Offline után');afterPostOffline=false;offline=false;await refresh();assert(status().includes('tartósan elmentve'));
+    edit('name','El sem küldött');dropBeforePost=true;await save();
+    assert(status().includes('korábbi beállítást'));assert(!get('save').disabled);
+    dropBeforePost=false;await save();assert(status().includes('tartósan elmentve'));
     /* Eltűnő eszköznél nincs tetszőleges identitásnak küldött mentés. */
     edit('name','Utolsó draft');state.profiles=state.profiles.slice(1);await refresh();
     assert.equal(get('name').value,'Utolsó draft');assert(get('save').disabled);
