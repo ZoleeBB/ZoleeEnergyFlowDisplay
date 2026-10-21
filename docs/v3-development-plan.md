@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. Az energiaasszisztens, az új tématervek és a fizikai ellenőrzés hátravan.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; az új tématervek és a fizikai ellenőrzés hátravan.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -943,7 +943,7 @@ szabály, összevethető éjszakai történet és témánként biztonságos hely
 - Éjszakai eltérés: az előző teljes helyi 00..04 óra összevetése az előző hét
   legalább három, azonos órájának mediánjával. Minden ötperces slot legalább
   270 s igazolt éjszakai mérés, legfeljebb 30 s mintapárból, monoton/falióra
-  egyezéssel. Óravisszalépés/DST-ismétlés/hiány kizár, nem lesz kitalált nulla.
+  egyezéssel. Gyűjtés és lekérés is szinkronizált órához kötött. Óravisszalépés/DST-ismétlés/hiány kizár, nem lesz kitalált nulla.
   Legalább +50% ÉS +100 W órás/élő eltérés; az élő feltétel 60 s tartósságú.
   X után ugyanazon helyi éjszakán nem tér vissza.
 - A meglévő v3 napfájl opcionális night_seconds/night_load_kwh mezőket kap;
@@ -958,16 +958,66 @@ szabály, összevethető éjszakai történet és témánként biztonságos hely
 - Tényleges döntési modell: 440 bájt, fogyasztó-snapshot 1744 bájt. A modell és
   bezárása LVGL-lock alatt; a forráspillanatképek előtte készülnek. A főszimulátor
   is ezt az illesztést használja; a desktop demo nem talál ki valódi ajánlást.
-- A teljes helyi natív/UBSan regresszió sikeres az első integrált változaton;
-  az utolsó módosításokkal ismét fut. Új valós statisztikai integráció/SD/reboot/
+- A teljes helyi natív/UBSan regresszió és a végső forrás GitHub-regressziója sikeres. Új valós statisztikai integráció/SD/reboot/
   medián/legacy/ritka minta/idő-visszalépés teszt; valódi WS->minimális snapshot teszt.
 - A helyi LVGL-fordítás és render a Rendszer és mind a kilenc gyári téma mindkét
   napszakán sikeres; adatdobozokkal való átfedés, X/parancsmentesség, rejtett
   oldalak és widgetmegőrzés ellenőrzött. A minták szintetikusak. A generált képek
   kizárólag tesztkimenetek; új PNG nem kerül a repóba.
 - Részletes szabályok/korlátok: [energy-assistant.md](energy-assistant.md).
-  Firmware/CI/méretellenőrzés feltöltés után rögzítendő. Fizikai paneles próba nincs.
+  A végső forrás összes CI-ellenőrzése sikeres, a méretek alább rögzítve. Fizikai paneles próba nincs.
 
 Nincs PR vagy release. Az energiaasszisztens utáni következő blokk a külön
 jóváhagyandó 05/06 tématerv, a külső témák célzott ellenőrzése, HU/EN minták és
 v3 kiadási/fizikai zárási ellenőrzések. A tartós feltöltési engedély változatlan.
+
+
+A 14. checkpoint ellenőrzött zárása:
+
+- Végső forráscommit: `28dd02397bdfd08e8d979cbe2a335f4d566c1aec`;
+  teljes forrásfa: `b2d39ef697c7860da6c5dff5c8d512008df3d3d0`.
+  A helyi Git-fa a feltöltött fával egyezik; a záró commit csak dokumentáció.
+- A végső forrás összes CI-jobja sikeres:
+  [Master regresszió/LVGL/Chromium/ikonok/csomagok/két firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39563853399),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39563853498),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39563853404).
+- A helyi teljes natív/UBSan csomag a szinkronizáltórát-követelő javítással is
+  sikeres. A valódi statisztikai integrátor a hibás/nem szinkronizált órából nem
+  gyűjt referenciát; a már érvényes referencia lekérése is szinkronizált órát igényel.
+  Az állapotzárat a statisztikai zár megszerzése előtt elengedjük.
+- Tényleges C döntési modell: 440 bájt; minimális 12 fogyasztós snapshot 1744 bájt.
+  Valódi WS-frissítő/nulla/disconnect -> snapshot; statisztikai integráció,
+  NVS helyett a meglévő SD-napfájl, reboot, medián, legacy, ritka mérés,
+  óra-visszalépés és nem szinkronizált óra próbái sikeresek. A közös BLE- és
+  régi energia-/statisztikai regressziók megmaradtak.
+- Valódi LVGL: 20 asszisztenskép (Rendszer + kilenc gyári téma, nappal/éjjel).
+  Adat/óra/időjárás/diagram téglalapjaival nincs átfedés; X nem küld parancsot,
+  külön oldalon/diagnosztikán/Slave módban rejtett, ismételt frissítés megtartja
+  a widgetet. Hosszú név fix egy sorban marad, HU/EN és külső téma helyének
+  hiánya/érvényes/hibás megadása külön ellenőrzött.
+  [Teljes LVGL-képsor CI-artifactja](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39563853399/artifacts/12329017232)
+  (7 napos megőrzés). A minták szintetikusak; a helyi Rendszer/Élő otthon/Nap pálya
+  renderből tényleges képi ellenőrzés is történt. Ez nem hardveres FPS/panelpróba
+  és nem a még el nem készült 05/06 új látványtervek jóváhagyása.
+- Master app: `0x2e6f80` = **3 043 200 bájt**, a 13. checkpointhoz
+  **+9856 bájt**; 8 MiB app-partíción 64% szabad. OTA SHA256:
+  `291b3e325b445b545c3e037bd5e2985d8f75174eac383035b9e2a513bb140453`.
+- 4B app: `0x320820` = **3 278 880 bájt**, **+3008 bájt**;
+  12 MiB app-partíción 74% szabad. OTA SHA256:
+  `febca37efa6926d8e8d21d8bd053051fd03e3b45bd21d496116d2ce6c5a20e5b`.
+  A 4B-n az asszisztens felülete nincs bekötve; a közös statisztikai modul nőtt.
+- Mindkét OTA/USB-csomag és a valós binárisokkal végzett USB dry-run ellenőrzés
+  sikeres. A növekedés új funkció, nem formázás. Nincs bájtraazonossági állítás.
+- Új képfájl, generált header kézi módosítása, új BLE-task, második WS vagy
+  automatikus kapcsolás nincs. A 64 ikon és a 4 796 478 bájtos közös resource ZIP
+  változatlan. A teljes fizikai RAM/DMA/PSRAM/FPS és Miniserver/panel próba hátravan.
+- A záró commit `[skip ci]`, kizárólag leírásokat módosít. Nincs PR vagy release.
+
+A következő folytatás a D07 szerinti külön termékegyeztetés: először az
+`05-calm-home` új látványtervének iránya, majd a terv jóváhagyása, és csak utána
+eszközméretű grafika/implementáció. Felvetett, MÉG NEM ELFOGADOTT irány: meleg,
+otthonos nappalibelső, három nagy főadat (PV, házfogyasztás, SOC), visszafogott
+napi összesítők; asszisztensnek és házérintésnek kijelölt hely. Nem készült új
+05/06 kép és nem változott e két téma elrendezése. Azonosító/sorrend megőrzendő.
+Ezután `06-energy-orbit` külön terv, külső témák célzott végellenőrzése,
+HU/EN minták és a v3 kiadási/fizikai zárási lista. A feltöltési engedély változatlan.

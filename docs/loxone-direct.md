@@ -126,3 +126,18 @@ kell; az újabb profil nem írható felül észrevétlenül.
 
 A párosított profil törlése/bond-kezelése nem része ennek a webes szakasznak.
 Részletes API, tárolási és BLE-szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).
+
+
+## Helyi energiaasszisztens (v3 fejlesztési ág)
+
+A fogyasztónál engedélyezett **Indítás javasolható** és ismert átlagteljesítmény
+mellett a Master címsávjában „Most érdemes…” jelzés jelenhet meg. Pontosan 100%
+akku, legalább két perc elegendő, valódi napelemes többlet és ismert, álló
+fogyasztó kell hozzá. Az akkutöltés elsőbbséget élvez. A jelzés nem kapcsolja a
+gépet; az X becsukja és csendidőt indít. Az éjszakai magasabb alapfogyasztás
+jelzéséhez legalább három, megfelelően mért korábbi éjszaka szükséges.
+
+A jelzés külön helyet használ a Rendszer és a gyári témák címsávjában;
+a fogyasztói/kártyaoldalak és a PIN-pad vezérlőit nem takarja. Csak Master/Loxone
+módban működik. Részletek és a régi napfájlok kezelése:
+[Helyi energiaasszisztens](energy-assistant.md).
