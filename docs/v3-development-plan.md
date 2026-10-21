@@ -31,6 +31,7 @@
 | D13 | A világos Otthon oldal látványterve elfogadva (értékek, kapcsolók és indítógombok). A felhasználó sokféle ikont kér a közös készletbe, a fogyasztói ikonokon túl is. |
 | D14 | A Ház fogyasztói és az Otthon-kártyák külön nappali/éjszakai hátteret kapnak. A világos lábléc Loxone-logó melletti szövegét kontrasztos, egységes panel tegye olvashatóvá. |
 | D15 | Az Otthon több, szerkesztőben hozzáadható és szabadon elnevezhető oldalból álljon. Oldalanként legfeljebb 12 kártya; fejlécben az oldal címe, több oldalnál alul oldalpontok. Jobbra/balra gesztus kizárólag e lapok között váltson, ne az energiatémák között. |
+| D16 | Energiakör: napállás jelölése 00:00–24:00 vízszintes idővonalon, napkelte/napnyugta és aktuális idő jelölővel; a külön látványterv jóváhagyandó. |
 
 ## Követelmények – fogyasztói oldal
 
@@ -1109,3 +1110,36 @@ bemutatása; az elfogadott terv után a 1280×800-as nappali/éjszakai grafika �
 megvalósítás. A 05 hátteret vagy más kártya képét nem szabad újrahasználni.
 Ezután v3 kiadási/fizikai zárási lista. Nincs PR vagy release;
 a folyamatos repófeltöltési engedély változatlanul él.
+
+## Checkpoint 2026-10-21 / 17 – elfogadott 06 irány, napállás-idővonalas látványterv
+
+A felhasználó elfogadta a 16. checkpointban javasolt energiaudvaros irányt,
+és kérte a nap állásának jelölését, akár 00:00–24:00 közötti vízszintes
+idővonalon. Az új követelmény D16-ként bekerült a döntési táblába.
+
+Elkészült a beépített imagegen eszközzel a külön nappali 06 látványjavaslat:
+új, zöld parkosított kert kör alakú burkolattal, középen családi ház,
+külön napelem-, hálózati és akkuponttal. A három ívelt energiaúton mozgó
+pontok jelzik az áramlást; az adatcsoportok és napi összesítők külön felületeken.
+A napi összesítők felett teljes szélességű, vízszintes napállás-idővonal:
+00:00, 06:00, 12:00, 18:00, 24:00 skála, külön éjjeli/nappali szakasz,
+napkelte- és napnyugtajel, az aktuális időnél napjelölő.
+
+A mintaadatok illusztratívak: 14:30, napkelte 07:10, napnyugta 17:45;
+PV 5 kW = ház 1 kW + export 2 kW + akkutöltés 2 kW, SOC 84%.
+A generált kép az elrendezés látványjavaslata, nem firmware-render vagy
+matematikailag garantált skála. A megvalósításban minden jelölő a tényleges
+időadatból, azonos 24 órás skálán, arányosan kerül a helyére. Napkelte/
+napnyugta a meglévő adatforrásból származzon; hiányzó adatnál nem lehet
+kitalált időpont vagy rögzített nappali tartomány. Nem szükséges új külső API.
+A jelölők nem takarhatják egymást; az élő feliratok és energiautak külön
+LVGL-rétegek lesznek, nem a háttérbe égetett adatok.
+
+A felhasználó az irányt már jóváhagyta, de ezt a konkrét új látványtervet még
+nem. Következő lépés a látványterv visszajelzése, majd eszközméretű tiszta
+háttérpár, rétegek, valódi 24 órás skála és HU/EN/nappal-éjjel ellenőrzés.
+Az asszisztensnek és a ház érintési területének is biztonságos hely szükséges.
+Az azonosító/sorrend megmarad. A nagy képi látványtervek nem kerülnek a repóba;
+csak elfogadás után a méretezett, tömörített végleges háttérfájlok.
+E checkpoint dokumentáció, `[skip ci]`; a futtatókód és a firmware változatlan.
+Nincs PR vagy release. A tartós feltöltési engedély él.
