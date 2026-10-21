@@ -9,6 +9,7 @@ const LoxoneHome = (() => {
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
     let revision = 0, saveRevision = 0, currentSection = '';
+    let resourcesInstalled = false, resourcesVersion = 0;
     const domId = (entry, key) => 'home-' + currentSection + '-' + entry.id + '-' + key;
     const controls = [];
 
@@ -76,6 +77,25 @@ const LoxoneHome = (() => {
                 (item.category || '–') + ')' + (control ? ' · vezérlés' : ' · ' + (item.state || 'állapot'))]);
         }
         return choices;
+    }
+    function iconField(parent, entry) {
+        const input = select(parent, 'Ikon', entry, 'icon', icons.map(icon => [icon.id, icon.hu]));
+        if (!resourcesInstalled) return;
+        const preview = create('img');
+        preview.id = domId(entry, 'icon-preview');
+        preview.className = 'home-icon-preview';
+        preview.width = preview.height = 64;
+        preview.loading = 'lazy'; preview.decoding = 'async';
+        const update = () => {
+            preview.hidden = false;
+            preview.alt = (icons.find(icon => icon.id === entry.icon)?.hu || 'Ikon') + ' előnézete';
+            preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + '&v=' + resourcesVersion;
+        };
+        preview.onerror = () => { preview.hidden = true; };
+        const change = input.onchange;
+        input.onchange = () => { change(); update(); };
+        input.parentNode.append(preview);
+        update();
     }
     function source(parent, entry) {
         const wrapper = {id: entry.id, uuid: entry.source?.uuid || ''};
@@ -145,7 +165,7 @@ const LoxoneHome = (() => {
                 box.append(legend);
                 const grid = create('div'); grid.className = 'grid'; box.append(grid);
                 field(grid, 'Név', entry, 'name');
-                select(grid, 'Ikon', entry, 'icon', icons.map(icon => [icon.id, icon.hu]));
+                iconField(grid, entry);
                 if (section === 'consumers') {
                     source(grid, entry);
                     field(grid, 'Átlagos üzemi teljesítmény (kW, opcionális)', entry, 'average_kw', 'number', true);
@@ -240,6 +260,13 @@ const LoxoneHome = (() => {
             if (!response.ok) throw Error(await response.text());
             const state = await response.json();
             const first = !loaded;
+            const previousResources = resourcesInstalled;
+            const previousVersion = resourcesVersion;
+            if (typeof state.resources_installed === 'boolean') {
+                resourcesInstalled = state.resources_installed;
+                resourcesVersion = state.resources_version || 0;
+                get('home-resource-warning').hidden = resourcesInstalled;
+            }
             if (first) {
                 model = {schema: 2, consumers: state.consumers || [], pages: state.pages ||
                     (state.cards?.length ? [{id: 'home', title: 'Otthon', cards: state.cards}] : [])};
@@ -260,7 +287,7 @@ const LoxoneHome = (() => {
                 notify(state.status || (revision > saveRevision ? 'Otthon-beállítások elmentve.' : 'A mentés nem fejeződött be.'), revision <= saveRevision);
             } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 8 elnevezhető oldal, oldalanként 12 kártyával.');
             const nextKey = JSON.stringify(nextCatalog);
-            if (first || nextKey !== catalogKey) {
+            if (first || nextKey !== catalogKey || previousResources !== resourcesInstalled || previousVersion !== resourcesVersion) {
                 catalog = nextCatalog; catalogKey = nextKey; filters(); render();
             }
         } catch (error) {

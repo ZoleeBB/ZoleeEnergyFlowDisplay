@@ -55,6 +55,22 @@ def prepare_selected_template(source, template_id):
     print('Exported actual LVGL previews: ' + template_id)
 
 
+def prepare_home_previews(source):
+    """A közös csomag kis előnézetei a meglévő méretkereten belül maradnak."""
+    folder = ROOT / 'assets/loxone-home/previews'
+    manifest_path = ROOT / 'assets/loxone-home/preview-manifest.json'
+    manifest = []
+    for mode in ('light', 'dark'):
+        target = folder / f'cards-{mode}.png'
+        with Image.open(Path(source) / f'loxone-cards-{mode}.ppm') as frame:
+            image = frame.convert('RGB').resize((400, 250), Image.Resampling.LANCZOS)
+            save_image(image, target, optimize=True)
+        manifest.append({'asset': target.relative_to(ROOT).as_posix(),
+                         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+                         'generator': 'LVGL simulator screenshot, 400x250'})
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+
+
 def main(source):
     source=Path(source);OUT.mkdir(parents=True,exist_ok=True)
     try:font=ImageFont.truetype('DejaVuSans.ttf',16)
@@ -124,8 +140,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', nargs='?', default='.preview-images')
     parser.add_argument('--template', help='Export only this template; leave built-ins unchanged')
+    parser.add_argument('--home-resources', action='store_true', help='Export only the common Home package previews')
     args = parser.parse_args()
-    if args.template:
+    if args.home_resources:
+        prepare_home_previews(args.source)
+    elif args.template:
         prepare_selected_template(args.source, args.template)
     else:
         main(args.source)

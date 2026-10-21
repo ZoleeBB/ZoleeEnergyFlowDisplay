@@ -14,6 +14,7 @@ static unsigned home_card_page, home_first_card, home_card_count;
 static lv_obj_t *home_dots[LX_HOME_MAX_PAGES];
 static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
 static unsigned home_revision, home_resource_generation;
+static unsigned home_load_attempts;
 static TEMPLATE_RAM lx_home_config_t home_config, home_next_config;
 static TEMPLATE_RAM lx_home_values_t home_values, home_next_values;
 static bool home_next_connected, home_next_wait;
@@ -116,34 +117,51 @@ static void home_prepare(bool night)
         {
             home_reset_theme(); home_page = 0;
             home_request_set(0);
+            template_loading_screen();
+            template_waiting_for_load = true;
             bsp_display_unlock();
+            vTaskDelay(pdMS_TO_TICKS(85));
         }
         return;
     }
-    if (home_page == mode && home_card_page == index && home_night == night && home_revision == home_next_revision &&
-        home_resource_generation == resource_generation)
+    bool same_page = home_page == mode && home_card_page == index && home_night == night &&
+                     home_revision == home_next_revision && home_resource_generation == resource_generation;
+    if (same_page && home_ready_to_draw)
         return;
-    if (bsp_display_lock(-1) != ESP_OK) return;
-    home_reset_theme();
-    template_loading_screen();
-    home_page = mode;
-    home_card_page = index;
-    home_first_card = first;
-    home_card_count = count;
-    bsp_display_unlock();
+    if (!same_page)
+    {
+        if (bsp_display_lock(-1) != ESP_OK) return;
+        home_reset_theme();
+        template_loading_screen();
+        home_page = mode;
+        home_card_page = index;
+        home_first_card = first;
+        home_card_count = count;
+        home_night = night;
+        home_revision = home_next_revision;
+        home_resource_generation = resource_generation;
+        home_load_attempts = 0;
+        bsp_display_unlock();
+        /* A feliratnak SD-olvasás és PNG-dekódolás előtt legyen frame-je. */
+        vTaskDelay(pdMS_TO_TICKS(85));
+    }
     const char *icons[12];
     for (unsigned i = 0; i < count; i++)
         icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[first + i].icon;
     bool loaded = app_templates_home_load_for(icons, count, night, requested == 1, &home_assets);
     if (!loaded)
     {
+        /* A pillanatnyilag foglalt SD/katalógus nem hiányzó grafika.
+         * Marad a betöltőkép és azonos kérés; nincs törlés/villogó újraépítés. */
+        if (++home_load_attempts < 15)
+            return;
+        app_events_add(APP_EVENT_WARNING, "A Loxone-oldal grafikai erőforrásai nem tölthetők be.");
         home_request_set(0);
         home_page = 0;
+        template_loading_requested = true;
+        template_waiting_for_load = true;
         return;
     }
-    home_night = night;
-    home_revision = home_next_revision;
-    home_resource_generation = resource_generation;
     for (unsigned i = 0; i < home_assets.asset_count; i++)
     {
         app_template_asset_t *asset = &home_assets.assets[i];

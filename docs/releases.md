@@ -18,22 +18,21 @@ A korábbi **ESP-IDF build** neve **Waveshare 10.1 Master** lett. A workflow
 fájlútvonala, job-azonosítói és a release-ek közös buildre mutató hivatkozásai
 változatlanok. A korábbi futások a régi megjelenítési nevet is mutathatják.
 
-A sikeres **Waveshare 10.1 Master** futás Artifacts részében webes frissítéshez:
+A sikeres futások összesen négy felhasználói artifactot készítenek:
 
-- `master-10.1-ota-<commit>`: kizárólag a 10,1 colos fő kijelző OTA-binárisa és a SHA256SUMS.txt.
-- `slave-4b-ota-<commit>`: kizárólag a 720×720-as Slave OTA-binárisa és a SHA256SUMS.txt.
-- `firmware-packages-<commit>`: változatlan teljes csomag az USB-telepítőkkel; a release-publikáló ezt használja.
+| Artifact | Tartalom | Kiadási felhasználás |
+| --- | --- | --- |
+| `firmware-packages-<commit>` | Master és Slave USB ZIP, mindkét OTA-bináris, build-info és SHA256SUMS | A kézi és az automatikus kiadás ezt tölti le |
+| `template-packages-<commit>` | Kilenc téma és a közös `loxone-home.zip`, előnézetekkel | Külön SD-s telepítés/frissítés |
+| `windows-ui-simulator` | Fő kijelző Windows EXE és szükséges közös SD-erőforrások | Helyi kipróbálás |
+| `windows-slave-4b-simulator` | 4B Slave Windows EXE | Helyi kipróbálás |
 
-Az Actions az artifactot ZIP-ként tölti le. Webes frissítéshez csomagold ki,
-és a megfelelő `-ota.bin` fájlt válaszd ki az eszköz `/update` oldalán.
-A két hardver binárisa nem cserélhető fel. A külön OTA-artifact ugyanazokat
-a binárisbájtokat tartalmazza, mint a teljes csomag, újrafordítás nélkül.
-
-A Chrome biztonsági jelzésének pontos oka a figyelmeztetésből nem állapítható
-meg. A kisebb OTA-artifact nem tartalmaz telepítőszkriptet vagy USB-csomagot,
-de ettől a böngésző vagy a szervezeti szabály még blokkolhatja. A jelzést nem
-tekintjük bizonyítottan téves riasztásnak, és nem módosítunk böngészővédelmet.
-A SHA256SUMS.txt a bináris sértetlenségének ellenőrzésére használható.
+Az Actions az artifactot ZIP-ként tölti le. Webes frissítéshez a közös
+firmware-csomagból a megfelelő `-ota.bin` fájlt válaszd az eszköz `/update`
+oldalán. A két hardver binárisa nem cserélhető fel. A SHA256SUMS.txt segít
+ellenőrizni a sértetlenséget. Külön OTA-másolat, PDB, nagy renderkép-csomag és
+letölthető Linux-szimulátor nem készül. A Linuxos és webes/LVGL regresszió
+ettől változatlanul lefut. A korábbi futások artifactjai megmaradnak.
 
 ## Automatikus kiadás PR-merge után
 

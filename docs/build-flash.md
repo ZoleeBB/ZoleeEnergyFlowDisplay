@@ -61,9 +61,12 @@ A `main` ág pushainál és az oda nyitott PR-eknél ESP-IDF 5.5.4 build fut.
 Sikeres build után artifactként elérhetők:
 
 - `firmware-packages-…`: OTA bináris, teljes USB ZIP, build-info és SHA256SUMS; az USB ZIP tartalmazza a bootloadert, partíciós táblát és flasher_args.json-t is
-- `template-packages-…`: mind a kilenc sablon külön ZIP-je, mentett előnézetekkel
-- `ui-preview-…`: valódi LVGL-kijelzőképek
-- külön Windows-szimulátor artifact
+- `template-packages-…`: mind a kilenc sablon és a közös Loxone Home ZIP, mentett előnézetekkel
+- `windows-ui-simulator`: fő kijelző Windows EXE, közös SD-erőforrásokkal
+- `windows-slave-4b-simulator`: Slave Windows EXE
+
+A külön OTA-másolatok, Linux-szimulátor, PDB és nagy tesztképek feltöltése megszűnt;
+a hozzájuk tartozó regressziós ellenőrzések megmaradtak.
 
 A normál fejlesztői telepítéshez továbbra is az `idf.py flash` használata javasolt, mert automatikusan a megfelelő címekre írja az összes szükséges binárist.
 

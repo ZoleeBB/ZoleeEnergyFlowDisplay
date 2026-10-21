@@ -556,6 +556,9 @@ static lv_obj_t *energy_circle(lv_obj_t *parent,
     lv_obj_remove_flag(outer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *image = asset_image_box(outer, 0, 0, size - 8, size - 16, asset, night);
+    /* Az átlátszó képtartó ne nyelje el a szülő energia-node érintését. */
+    lv_obj_remove_flag(lv_obj_get_parent(image), LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(image, LV_OBJ_FLAG_CLICKABLE);
 
     if (image_out)
     {
@@ -1976,7 +1979,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         return;
     }
     template_apply();
-    if (s_view == VIEW_THEME_LOADING && template_pending.generation == template_view.generation)
+    if (s_view == VIEW_THEME_LOADING && template_waiting_for_load)
         return;
     if (s_diagnostics_requested)
     {

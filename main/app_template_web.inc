@@ -69,6 +69,7 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     const char *filename=dark?"preview-dark.png":"preview-light.png";
     app_template_info_t list[APP_TEMPLATE_MAX];unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,NULL);
     bool known=false;for(unsigned i=1;i<count;i++)if(!strcmp(list[i].id,id))known=true;
+    if(!strcmp(id,APP_HOME_RESOURCE_ID))known=app_templates_home_info(NULL,NULL);
     if(!known)return httpd_resp_send_err(req,HTTPD_404_NOT_FOUND,"Sablon nem található");
     if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD nem elérhető");
     char path[256];FILE *f=NULL;long size=0;
@@ -91,6 +92,49 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     if(ferror(f))result=ESP_FAIL;
     fclose(f);app_storage_unlock();
     return result==ESP_OK?httpd_resp_send_chunk(req,NULL,0):result;
+}
+/* A telepített csomag kiválasztott 96×96-os ikonja, általános fájlböngészés nélkül. */
+static esp_err_t template_home_icon_get(httpd_req_t *req)
+{
+    if (!template_request_authorized(req, false))
+        return ESP_OK;
+    char id[33];
+    if (!template_query_id(req, id) || !strcmp(id, "builtin"))
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen ikonazonosító");
+    if (!app_templates_home_info(NULL, NULL))
+        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "A Loxone Otthon csomag nincs telepítve");
+    if (app_storage_lock() != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "SD nem elérhető");
+    char path[256];
+    snprintf(path, sizeof(path), "%s/loxone-home/icon-%s.png", app_templates_root(), id);
+    FILE *file = fopen(path, "rb");
+    long size = 0;
+    if (file && (fseek(file, 0, SEEK_END) || (size = ftell(file)) <= 0 ||
+                 size > 32768 || fseek(file, 0, SEEK_SET)))
+    {
+        fclose(file);
+        file = NULL;
+    }
+    if (!file)
+    {
+        app_storage_unlock();
+        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Ikon nem található");
+    }
+    httpd_resp_set_type(req, "image/png");
+    httpd_resp_set_hdr(req, "Cache-Control", "private, no-cache");
+    char buffer[1024];
+    size_t count;
+    esp_err_t result = ESP_OK;
+    while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0)
+    {
+        result = httpd_resp_send_chunk(req, buffer, count);
+        if (result != ESP_OK)
+            break;
+    }
+    if (ferror(file)) result = ESP_FAIL;
+    fclose(file);
+    app_storage_unlock();
+    return result == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : result;
 }
 static esp_err_t template_change(httpd_req_t *req){
     if(!template_request_authorized(req,true))return ESP_OK;
@@ -145,6 +189,7 @@ static esp_err_t template_register(httpd_handle_t server){
         {.uri="/api/templates",.method=HTTP_GET,.handler=template_list_get},
         {.uri="/api/templates/manifest",.method=HTTP_GET,.handler=template_manifest_get},
         {.uri="/api/templates/preview",.method=HTTP_GET,.handler=template_preview_get},
+        {.uri="/api/templates/home-icon",.method=HTTP_GET,.handler=template_home_icon_get},
         {.uri="/api/templates/select",.method=HTTP_POST,.handler=template_change},
         {.uri="/api/templates/reorder",.method=HTTP_POST,.handler=template_reorder_post},
         {.uri="/api/templates/delete",.method=HTTP_POST,.handler=template_change},

@@ -5,17 +5,17 @@ class Element {
     constructor(tag) { this.tagName=tag.toUpperCase();this.children=[];this._value='';this.checked=false;this.disabled=false;this.textContent=''; }
     set id(value) { this._id=value;nodes.set(value,this); } get id() { return this._id; }
     set value(value) { this._value=String(value); } get value() { return this._value; }
-    append(child) { this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value; }
+    append(child) { child.parentNode=this;this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value; }
     replaceChildren() { this.children=[];this.value=''; }
 }
-for(const id of ['home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
 const uuid='11223344-5566-7788-99aabbccddeeff00',control='aabbccdd-5566-7788-99aabbccddeeff00';
 const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nappali',category:'Klíma',state:'value',type:'Switch',secured:false},
     {uuid:control,name:'Csak állapot',room:'Kert',category:'Kert',state:'value'}];
-let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:''}, reject=false, offline=false, hold=false;
+let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
 const sandbox={console,TextEncoder,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
     assert.equal(url,'/api/loxone/home');
@@ -36,7 +36,14 @@ const click=id=>nodes.get(id).onclick();
 (async()=>{
     assert(nodes.get('home-save').disabled);
     await sandbox.home.refresh(catalog);assert(!nodes.get('home-save').disabled);
+    assert.equal(nodes.get('home-resource-warning').hidden,false);
     click('home-add-consumer');assert.equal(nodes.get('home-consumers-item-1-icon').children.length,64);
+    assert(!nodes.has('home-consumers-item-1-icon-preview'));
+    state.resources_installed=true;state.resources_version=3;await sandbox.home.refresh(catalog);
+    assert.equal(nodes.get('home-resource-warning').hidden,true);
+    const preview=nodes.get('home-consumers-item-1-icon-preview');assert(preview.src.includes('/api/templates/home-icon?id='));
+    edit('home-consumers-item-1-icon','washing-machine','onchange');assert(preview.src.includes('id=washing-machine&v=3'));
+    assert.equal(preview.width,64);assert.equal(preview.height,64);
     await click('home-save');assert.equal(posts.length,0);assert(nodes.get('home-status').textContent.includes('nevet'));
     edit('home-consumers-item-1-name','Mosógép');edit('home-consumers-item-1-uuid',uuid,'onchange');edit('home-consumers-item-1-scale','.001');
     await click('home-save');assert.equal(posts.length,1);

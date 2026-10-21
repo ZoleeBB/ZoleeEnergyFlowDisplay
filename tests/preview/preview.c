@@ -27,6 +27,19 @@ static lv_display_t *display;
 static uint32_t pixels[1280*800];
 static int64_t ticks;
 static bool sd_ok=true;
+static unsigned home_load_blocked;
+bool __real_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
+                                       bool consumers, app_template_view_t *out);
+bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
+                                       bool consumers, app_template_view_t *out)
+{
+    if (home_load_blocked)
+    {
+        home_load_blocked--;
+        return false;
+    }
+    return __real_app_templates_home_load_for(icons, count, night, consumers, out);
+}
 static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
@@ -1132,6 +1145,11 @@ int main(void)
     pairing_fixture.seconds=0;diagnostics_render(rt);
     assert(lv_color_to_u32(lv_obj_get_style_bg_color(lv_obj_get_parent(s_pair_window_label),0))==0xFF284C68);
     lv_obj_update_layout(s_screen);
+    lv_area_t button_bounds, caption_bounds;
+    lv_obj_get_coords(lv_obj_get_parent(s_pair_window_label),&button_bounds);
+    lv_obj_get_coords(s_pair_window_label,&caption_bounds);
+    assert(abs((button_bounds.x1+button_bounds.x2)-(caption_bounds.x1+caption_bounds.x2))<=2);
+    assert(abs((button_bounds.y1+button_bounds.y2)-(caption_bounds.y1+caption_bounds.y2))<=2);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[0]))==32);
     assert(lv_obj_get_x(lv_obj_get_parent(s_diagnostic_values[1]))==328);
     save_frame("diagnostics-master");
@@ -1244,6 +1262,9 @@ int main(void)
             assert(app_templates_select(list[i].id)==ESP_OK);
             assert(app_templates_has_pending(template_pending.generation));
             assert(template_loading_frame());assert(s_view==VIEW_THEME_LOADING);
+            lv_obj_t *waiting_spinner=lv_obj_get_child(s_screen,1);
+            assert(template_loading_frame());
+            assert(lv_obj_get_child(s_screen,1)==waiting_spinner);
             save_frame("theme-loading");
             template_prepare();
             assert(!app_templates_has_pending(template_pending.generation));
@@ -1359,6 +1380,11 @@ int main(void)
         assert(s_diagnostics_requested);
         touch_sample_xy(1216,56,true);touch_sample_xy(1216,56,false);
         assert(!s_diagnostics_requested);
+        assert(template_loading_requested);
+        assert(template_loading_frame() && s_view == VIEW_THEME_LOADING);
+        save_frame("diagnostics-close-loading");
+        template_prepare();render_runtime(rt,sample,true,31000000);
+        assert(s_view == VIEW_DASHBOARD);
         puts("PASS: portrait touch mapping, theme swipes, diagnostics upward opening, downward gesture exclusion and X-only closing");
         lv_indev_delete(input);
         puts("PASS: 18 template renders, common error/recovery, NightMode and actual LVGL swipe across all 10 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
@@ -1394,11 +1420,29 @@ int main(void)
     const char *home_zip=getenv("ZOLEE_HOME_RESOURCE_ZIP");
     assert(home_zip);
     char home_error[160];assert(app_templates_install(home_zip,home_error)==ESP_OK);
-    assert(app_templates_select("01-live-home")==ESP_OK);template_prepare();
-    render_runtime(rt,sample,true,31000000);assert(!strcmp(template_view.id,"01-live-home"));
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
     lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);
+    assert(app_templates_select("builtin")==ESP_OK);template_prepare();
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    lv_obj_update_layout(s_screen);
+    /* A valódi beágyazott házkép közepe is megnyitja, nem csak a kör széle. */
+    lv_area_t house_bounds;lv_obj_get_coords(s_home_node,&house_bounds);
+    int house_x=(house_bounds.x1+house_bounds.x2)/2,house_y=(house_bounds.y1+house_bounds.y2)/2;
+    touch_sample_xy(house_x,house_y,true);touch_sample_xy(house_x,house_y,false);
+    home_load_blocked=2;
+    assert(home_is_open());home_prepare(false);render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_THEME_LOADING&&!home_ready_to_draw);
+    lv_obj_t *loading_label=lv_obj_get_child(s_screen,0);
+    home_prepare(false);render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_THEME_LOADING&&lv_obj_get_child(s_screen,0)==loading_label);
+    home_prepare(false);render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_HOME&&!strcmp(home_assets.assets[0].name,"consumers-light.png"));
+    home_close(NULL);home_prepare(false);assert(s_view==VIEW_THEME_LOADING);
+    save_frame("consumers-close-loading");
+    template_prepare();render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    assert(app_templates_select("01-live-home")==ESP_OK);template_prepare();
+    render_runtime(rt,sample,true,31000000);assert(!strcmp(template_view.id,"01-live-home"));
     lv_obj_update_layout(s_screen);touch_sample_xy(640,420,true);touch_sample_xy(640,420,false);
     assert(home_is_open());home_prepare(false);render_runtime(rt,sample,true,31000000);
     assert(s_view==VIEW_HOME&&home_page==1&&home_assets.asset_count<=9);
@@ -1411,9 +1455,22 @@ int main(void)
         uint8_t *p=gray->data+y*gray->header.stride+4*x;assert(p[0]==p[1]&&p[1]==p[2]);
     }
     save_frame("loxone-consumers-light");
+    lv_obj_t *stable_background=lv_obj_get_child(s_screen,0);
+    unsigned char *stable_asset=home_assets.assets[0].bytes;
+    invalidations=0;
+    lv_display_add_event_cb(display,count_invalidations,LV_EVENT_INVALIDATE_AREA,&invalidations);
+    for(unsigned i=0;i<100;i++){
+        home_prepare(false);render_runtime(rt,sample,true,31000000);
+        animation_tick(NULL);lv_obj_update_layout(s_screen);
+        assert(s_view==VIEW_HOME&&lv_obj_get_child(s_screen,0)==stable_background);
+        assert(home_assets.assets[0].bytes==stable_asset);
+    }
+    lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);
+    assert(invalidations==0);
     home_prepare(true);render_runtime(rt,sample,true,31000000);save_frame("loxone-consumers-dark");
     lv_obj_update_layout(s_screen);touch_sample_xy(1204,60,true);touch_sample_xy(1204,60,false);
-    assert(!home_is_open());home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
+    assert(!home_is_open());home_prepare(false);assert(s_view==VIEW_THEME_LOADING);
+    template_prepare();render_runtime(rt,sample,true,31000000);
     assert(s_view==VIEW_DASHBOARD&&!strcmp(template_view.id,"01-live-home")&&!home_assets.asset_count);
     lv_obj_update_layout(s_screen);
     touch_sample_xy(640,200,true);touch_sample_xy(640,400,true);touch_sample_xy(640,600,true);touch_sample_xy(640,600,false);
@@ -1490,6 +1547,15 @@ int main(void)
     puts("PASS: actual LVGL titled pages, footer dots, both swipe directions/wrap, empty page, active images only, no command on swipe and correct off-first-page command ID");
     home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
     assert(!home_is_open()&&!home_assets.asset_count&&!strcmp(template_view.id,"01-live-home"));
+    home_request_set(1);home_load_blocked=15;
+    for(unsigned i=0;i<14;i++){
+        home_prepare(false);render_runtime(rt,sample,true,31000000);
+        assert(home_is_open()&&s_view==VIEW_THEME_LOADING&&!home_assets.asset_count);
+    }
+    home_prepare(false);assert(!home_is_open()&&!home_assets.asset_count);
+    assert(template_loading_frame());template_prepare();render_runtime(rt,sample,true,31000000);
+    assert(s_view==VIEW_DASHBOARD);
+    puts("PASS: resource-lock retry preserves one loading screen, bounded permanent failure returns to theme, stable consumers cause no redraw and native house-image touch works");
     app_sim_home_enabled=false;
     lv_indev_delete(home_input);
     clear();template_release_cache();app_templates_view_free(&template_view);

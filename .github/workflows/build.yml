@@ -65,12 +65,6 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_slave_presence_browser.js
-      - uses: actions/upload-artifact@v4
-        with:
-          name: slave-web-editor-${{ inputs.source_sha || github.sha }}
-          retention-days: 7
-          path: out/web-editor/*.png
-          if-no-files-found: error
 
   ui-preview:
     runs-on: ubuntu-latest
@@ -97,13 +91,6 @@ jobs:
           export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
           cd .preview-images
           ../.preview-build/ui_preview
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ui-preview-${{ inputs.source_sha || github.sha }}
-          retention-days: 7
-          path: .preview-images/*.ppm
-          include-hidden-files: true
-          if-no-files-found: error
 
   template-packages:
     runs-on: ubuntu-latest
@@ -188,25 +175,3 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: dist/*
-
-      # Webes OTA-hoz nincs szükség az USB-telepítő Python fájljaira.
-      # A teljes artifact neve változatlan, mert a release workflow-k arra hivatkoznak.
-      - name: Upload Master OTA only
-        uses: actions/upload-artifact@v4
-        with:
-          name: master-10.1-ota-${{ inputs.source_sha || github.sha }}
-          retention-days: 7
-          if-no-files-found: error
-          path: |
-            dist/ZoleeEnergyFlowDisplay-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
-            dist/SHA256SUMS.txt
-
-      - name: Upload Slave OTA only
-        uses: actions/upload-artifact@v4
-        with:
-          name: slave-4b-ota-${{ inputs.source_sha || github.sha }}
-          retention-days: 7
-          if-no-files-found: error
-          path: |
-            dist/ZoleeEnergyFlowDisplay-slave-4b-${{ inputs.release_tag || 'v0.0.0-ci' }}-ota.bin
-            dist/SHA256SUMS.txt

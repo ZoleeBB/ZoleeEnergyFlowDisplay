@@ -48,7 +48,7 @@ function validateManifest(doc,files){
  if(resources){if(doc.id!=='loxone-home'||!Array.isArray(doc.icons)||doc.icons.length!==64||new Set(doc.icons.map(icon=>icon.id)).size!==64||doc.icons.some(icon=>!/^([a-z0-9_-]{1,32})$/.test(icon.id)||icon.file!=='icon-'+icon.id+'.png'||!files.has(icon.file)))throw Error('Hibás Loxone-erőforráskatalógus');}
  if(resources&&(doc.version>=2?(!doc.consumer_backgrounds||doc.consumer_backgrounds.light!=='consumers-light.png'||doc.consumer_backgrounds.dark!=='consumers-dark.png'):doc.consumer_backgrounds!==undefined))throw Error('Hiányzó fogyasztói háttérpár');
  else if(!resources&&(doc.kind!==undefined||doc.id==='loxone-home'))throw Error('Fenntartott erőforrásazonosító');
- const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','solar_disc','solar_arc','label','value','image','weather','bar','gauge','flow','chart'];
+ const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','solar_disc','solar_arc','solar_timeline','label','value','image','weather','bar','gauge','flow','chart'];
  let encoded=0,decoded=0,assets=0;
  for(const [name,data] of files)if(name!=='template.json'){if(++assets>(resources?72:32))throw Error('Túl sok PNG-kép');const info=pngInfo(data);encoded+=data.length;if(['preview-light.png','preview-dark.png'].includes(name)){if(info.w>640||info.h>400)throw Error('Az előnézet legfeljebb 640×400 lehet');}else {decoded+=info.decoded;if(resources){const icon=doc.icons.find(icon=>icon.file===name);if(icon?(info.w!==96||info.h!==96):name==='loxone-logo.png'?(info.w>256||info.h>256):!(doc.version>=2?['background-light.png','background-dark.png','consumers-light.png','consumers-dark.png']:['background-light.png','background-dark.png']).includes(name)||info.w!==1280||info.h!==800)throw Error('Hibás Loxone-erőforráskép');}}}
  if(resources&&files.size!==(doc.version>=2?70:68)+(files.has('preview-light.png')?2:0))throw Error('Hiányzó Loxone-erőforráskép');
@@ -62,6 +62,7 @@ function validateManifest(doc,files){
    if(!types.includes(e.type))throw Error('Nem támogatott elemtípus ('+mode+', #'+(index+1)+'): '+e.type+'. Firmware-frissítés szükséges.');
    if(!['x','y','w','h'].every(k=>Number.isInteger(e[k]))||e.x<0||e.y<0||e.w<1||e.h<1||e.x+e.w>1280||e.y+e.h>800)
     throw Error('Hibás elemhatár ('+mode+', #'+(index+1)+', '+e.type+'): '+e.x+','+e.y+' '+e.w+'×'+e.h);
+   if(e.type==='solar_timeline'&&(e.w<480||e.h<132))throw Error('A napállás idővonal legalább 480×132 legyen');
    if(['value','flow','bar','gauge'].includes(e.type)&&typeof e.source!=='string')throw Error('Hibás adatforrás');
    for(const key of ['color','background','positive_color','negative_color','zero_color','shadow_color'])if(e[key]!==undefined&&!color(e[key]))throw Error('Hibás szín');
    if(e.foreground!==undefined&&(typeof e.foreground!=='boolean'||!['image','pulse'].includes(e.type)))throw Error('Hibás előtérréteg');
@@ -100,7 +101,8 @@ if(typeof document!=='undefined'){
    const title=document.createElement('strong');title.textContent=resource.name;
    const caption=document.createElement('small');caption.textContent='Közös erőforráscsomag · v'+resource.version+' · a Loxone-oldalakhoz';
    const del=document.createElement('button');del.textContent='Törlés';del.onclick=()=>{if(confirm('Törlöd a Loxone-oldalak közös erőforrásait?'))action('/api/templates/delete',resource.id);};
-   info.append(title,caption,del);article.append(info);list.append(article);
+   const holder=document.createElement('div');holder.className='theme-thumb';
+   info.append(title,caption,del);article.append(holder,info);list.append(article);loadThumb(resource,holder);
   }
   for(const [index,t] of data.templates.entries()){
    const article=document.createElement('article');article.className='theme-card';
@@ -132,8 +134,8 @@ if(typeof document!=='undefined'){
    loadThumb(t,holder);
   }
  }
- function lock(value){busy=value;fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
- async function action(path,body){if(busy)return;lock(true);message.textContent='Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
+ function lock(value){busy=value;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=value?'working':'';fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
+ async function action(path,body){if(busy)return;lock(true);message.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
  fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
   try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);
    const next=new Map();try{for(const mode of ['light','dark']){const name=previewName(mode),data=files.get(name);if(data)next.set(name,await createImageBitmap(new Blob([data],{type:'image/png'})));}}catch(e){for(const image of next.values())image.close();throw e;}

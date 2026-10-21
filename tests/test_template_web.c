@@ -32,7 +32,7 @@ static void request(const char *uri,const unsigned char *bytes,size_t size){
  assert(found);
 }
 int main(int argc,char **argv){
- assert(argc==3);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
+ assert(argc==4);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t size=ftell(f);rewind(f);unsigned char *zip=malloc(size);assert(zip&&fread(zip,1,size,f)==size);fclose(f);
  storage_available=false;
  request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_light));
@@ -68,5 +68,15 @@ int main(int argc,char **argv){
  authorized=false;request("/api/templates/validate",zip,size);assert(status==401);authorized=true;
  interrupted=1;request("/api/templates/validate",zip,size);assert(status==500);interrupted=0;
  request("/api/templates/validate",zip,0);assert(status==400);
+ request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==404&&chunk_bytes==0);
+ char error[160];assert(app_templates_install(argv[3],error)==ESP_OK);
+ request("/api/templates/preview?id=loxone-home&mode=light",NULL,0);assert(status==200&&chunk_bytes>0);
+ request("/api/templates/preview?id=loxone-home&mode=dark",NULL,0);assert(status==200&&chunk_bytes>0);
+ request("/api/templates/home-icon?id=washing-machine&v=3",NULL,0);assert(status==200&&chunk_bytes>0&&chunk_bytes<=32768);
+ authorized=false;request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==401&&chunk_bytes==0);authorized=true;
+ request("/api/templates/home-icon?id=../washing-machine",NULL,0);assert(status==400&&chunk_bytes==0);
+ request("/api/templates/home-icon?id=unknown",NULL,0);assert(status==404&&chunk_bytes==0);
+ assert(app_templates_delete("loxone-home",error)==ESP_OK);
+ request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==404&&chunk_bytes==0);
  free(zip);free(response);puts("PASS: real template HTTP preview page, validation without installation, install, safe replacement, preview, auth/header and interrupted upload");return 0;
 }

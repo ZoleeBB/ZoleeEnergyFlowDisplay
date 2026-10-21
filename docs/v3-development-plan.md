@@ -6,11 +6,11 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; az új tématervek és a fizikai ellenőrzés hátravan.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; a 05/06 új megjelenése elfogadott és implementált. A felhasználói próba utáni F01–F10 javításcsomag ellenőrzése és a fizikai zárás folyamatban.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
-- Még nincs PR, nincs release és nincs késznek nyilvánított új funkció.
+- Nincs PR vagy release. Az implementált és szoftveresen ellenőrzött részeket a checkpointok külön jelölik; fizikai megfelelőséget nem állítunk.
 
 ## Elfogadott döntések – felhasználói válaszok
 
@@ -127,16 +127,16 @@
 - [x] Új ág megnyitva a friss főágból.
 - [ ] Releváns források, tesztek, kiadási workflow részletes felmérése.
 - [ ] Következő termékdöntések egyesével tisztázva; a választ e fájlban rögzíteni.
-- [ ] Korlátos konfigurációs/adatmodell, visszafelé kompatibilis parse/mentés, érzékeny adatok védelme.
-- [ ] Fogyasztói és kártyás webes szerkesztők; valódi JS/API-tesztek.
-- [ ] Speciális csomagok/assetkatalógus; pontos képméretek és SD-kezelés.
+- [x] Korlátos konfigurációs/adatmodell, visszafelé kompatibilis parse/mentés, érzékeny adatok védelme.
+- [x] Fogyasztói és kártyás webes szerkesztők; valódi JS/API-tesztek.
+- [x] Speciális csomagok/assetkatalógus; pontos képméretek és SD-kezelés.
 - [ ] Mindkét új oldal és navigáció, frissesség, terhelési mérések.
 - [ ] Pulse/kapcsolók tényleges parancs- és állapotútja.
-- [ ] Energiaasszisztens szabályai és témánkénti pozíciói.
+- [x] Energiaasszisztens szabályai és témánkénti pozíciói.
 - [ ] Diagnosztika X és valós párosításjelzés.
-- [ ] Slave identitás/profil/jelenlét és mindkét hardver/szimulátor támogatása.
-- [ ] 05/06 témák jóváhagyott látványterve és elkészült eszközméretű képei.
-- [ ] Külső témák célzott javítása, ha kis erőforrásból elvégezhető.
+- [x] Slave identitás/profil/jelenlét és mindkét hardver/szimulátor támogatása.
+- [x] 05/06 témák jóváhagyott látványterve és elkészült eszközméretű képei.
+- [x] Külső témák célzott javítása, ha kis erőforrásból elvégezhető.
 - [ ] HU/EN dokumentáció és feliratok, konfigurációs minták.
 - [ ] `python3 tests/run_tests.py`, releváns szimulátor/LVGL render, Master és Slave ESP-IDF build.
 - [ ] Firmware/OTA, belső RAM/DMA és PSRAM keretek ellenőrzése.
@@ -1178,3 +1178,45 @@ sorrendben. A D07 két új témájának megjelenése így elfogadott és impleme
 a forrás csak a CI zárása után tekinthető ellenőrzöttnek. Nincs PR vagy release.
 Ezután a teljes v3 szoftveres zárási lista és a külön fizikai
 RAM/DMA/PSRAM/FPS/Miniserver/panel tesztlista következik. Feltöltési engedély él.
+
+## Checkpoint 2026-10-21 / 19 – fizikai próba után kért javítások
+
+A következő tételek a fejlesztési terv végére kerültek, felhasználói teszt alapján.
+A feltöltési engedély él; PR és kiadás továbbra sem készül a teljes v3 lezárásáig.
+
+- [ ] F01: a Loxone Home ZIP tartalmazzon sablonkezelő-előnézeteket.
+- [ ] F02: telepített közös csomagnál kiválasztott ikon előnézete a szerkesztőben;
+  hiányzó csomagnál piros, legfelül látható működési figyelmeztetés.
+- [ ] F03: a kapcsoló és impulzus tényleges Loxone-vezérlése, megfelelő nyugtával
+  és kapcsolóállapot-visszajelzéssel; bizonytalan kérés automatikus ismétlése nélkül.
+- [ ] F04: Otthon/fogyasztók/diagnosztika bezárásakor látható betöltőképernyő.
+- [ ] F05: fogyasztói nézet villogásának és hiányzó hátterének megszüntetése.
+- [ ] F06: Rendszer téma energiacsillagának házérintése nyissa a fogyasztókat.
+- [ ] F07: diagnosztikai Bluetooth-gomb felirata mindkét tengelyen középen.
+- [ ] F08: betöltési felirat: „Adatok és grafikai elemek betöltése...” (HU/EN).
+- [ ] F09: sablontörlés alatt azonnali, látható webes folyamatjelzés.
+- [ ] F10: Actions-kimenetek és kiadási függőségek teljes auditja; maradjanak a
+  témacsomagok, a két eszköz USB/OTA firmware-csomagja és a Windows szimulátorok.
+  Fölösleges külön OTA-másolat és letölthető Linux-szimulátor ne keletkezzen.
+  A regressziós ellenőrzések és a kiadási folyamat szükséges bemenetei maradjanak.
+
+A fenti hibák javítása és ellenőrzése folyamatban; a fizikai megfigyelések
+lezárásához az új firmware-rel megismételt eszközpróba is szükséges.
+
+
+A 18. checkpoint távoli zárása (`f496b54a11ed7129aa2880e7b6fd5d52cef47f09`):
+Master workflow `39610338353`, minden hat job sikeres; Windows fő szimulátor
+`39610338619` és 4B Linux/Windows szimulátor `39610338457` szintén sikeres.
+Master alkalmazás 3046288 bájt (`0x2e7b90`), 64% szabad a 8 MiB-os app-partíción;
+Slave 3278880 bájt (`0x320820`), 74% szabad a 12 MiB-os partíción.
+Master OTA SHA256 `6c9dac7e8abedc6034276105867ccdad56cc2d40513cd2959ae8f400b2608a67`,
+Slave `1cb34e86c226ea7e2ec8726083c12465ba94db420a95831fbcf35e7c250c6b9a`.
+Ez a 18. checkpoint forrására vonatkozik; a 19. checkpoint új firmware-méretei
+és CI-je külön ellenőrzendők.
+
+A 19. checkpoint implementációja: F01–F10 kódmódosítása elkészült; részletes
+működés, bizonyítékok és megismétlendő fizikai próba:
+[v3-field-fixes.md](v3-field-fixes.md). A teljes natív regresszió sikeres;
+a végső LVGL-futtatás sikeres. Az új távoli firmware/Windows CI zárása folyamatban.
+A villogás fizikai megszűnése és a valós Miniserver-vezérlés továbbra is
+eszközön ellenőrzendő. Ez nem zárható le pusztán szimulátoros eredménnyel.

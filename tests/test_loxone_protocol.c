@@ -177,17 +177,22 @@ static void home_control_test(lx_config_t *energy)
     s_home_commands = xQueueCreate(1, sizeof(home_command_t));
     s_home_live = true; s_home_busy = false; s_command_pending = false;
     s_session_config = energy; mark_response();
+    /* A felhasználó a worker 100 ms-os fogadási várakozása alatt nyom gombot. */
+    int64_t before_receive = esp_timer_get_time();
+    clock_us += 50000;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
-    home_command_poll(esp_timer_get_time());
+    home_command_poll(before_receive);
     assert(home_command_count == 1 && !s_command_pending && strstr(s_command_status, "elküldve"));
     home_command_poll(esp_timer_get_time()); assert(home_command_count == 1);
     card->type = LX_HOME_CARD_SWITCH;
     strcpy(card->source.uuid, "00000000-0000-0000-0000000000000000"); card->source.scale = 1;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) != ESP_OK);
     s_home_values.cards[0] = (lx_home_value_t){.value = 0, .valid = true};
+    before_receive = esp_timer_get_time();
+    clock_us += 50000;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) == ESP_OK);
-    home_command_poll(esp_timer_get_time());
+    home_command_poll(before_receive);
     assert(home_command_count == 2 && s_command_pending && s_home_values.cards[0].value == 0);
     uint8_t packet[24] = {0}; double on = 1; memcpy(packet + 16, &on, sizeof(on));
     assert(update_values(2, packet, sizeof(packet)));

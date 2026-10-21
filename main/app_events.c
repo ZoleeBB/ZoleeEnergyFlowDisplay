@@ -28,6 +28,8 @@ static const char *english_format(const char *format)
         const char *hu;
         const char *en;
     } messages[] = {
+        {"A Loxone-oldal grafikai erőforrásai nem tölthetők be.",
+         "The Loxone page graphics could not be loaded."},
         {"OTA firmware ellenőrzése sikeres; verzió véglegesítve.",
          "OTA verification passed; firmware accepted."},
         {"OTA ellenőrzési időtúllépés; visszaállás az előző firmware-re.",

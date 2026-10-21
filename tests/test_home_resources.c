@@ -13,7 +13,7 @@ int main(int argc, char **argv)
     char error[160];
     assert(app_templates_install(argv[1],error)==ESP_OK);
     app_template_info_t info;
-    assert(app_templates_home_info(&info,&generation)&&info.version==2);
+    assert(app_templates_home_info(&info,&generation)&&info.version==3);
     assert(!strcmp(info.id,"loxone-home"));
     assert(app_templates_list(NULL,APP_TEMPLATE_MAX,NULL)==1);
     assert(app_templates_select("loxone-home")!=ESP_OK);

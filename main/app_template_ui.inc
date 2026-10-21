@@ -21,6 +21,7 @@ static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static bool template_loading_requested;
+static bool template_waiting_for_load;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
@@ -355,7 +356,7 @@ static void template_loading_screen(void){
     bg_color_if_changed(s_screen,c(0x000000),0);
     lv_obj_set_style_bg_grad_dir(s_screen,LV_GRAD_DIR_NONE,0);
     /* A betűkészlet nem tartalmaz minden Unicode jelet: három ASCII pont. */
-    lv_obj_t *label=lbl(s_screen,tr("Téma betöltése...","Loading theme..."),
+    lv_obj_t *label=lbl(s_screen,tr("Adatok és grafikai elemek betöltése...","Loading data and graphics..."),
                          0,339,APP_FONT_28,0xFFFFFF);
     lv_obj_set_width(label,W);
     lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
@@ -377,8 +378,11 @@ static bool template_loading_frame(void){
     if (s_cfg.cardless_slave) return true;
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
     if(bsp_display_lock(-1)!=ESP_OK)return false;
-    template_loading_screen();bsp_display_unlock();
+    /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
+    if(s_view!=VIEW_THEME_LOADING)template_loading_screen();
+    bsp_display_unlock();
     template_loading_requested=false;
+    template_waiting_for_load=app_templates_has_pending(template_pending.generation);
     vTaskDelay(pdMS_TO_TICKS(85));
     return true;
 }
@@ -386,7 +390,7 @@ static void template_prepare(void){
     if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
-    app_templates_load_pending(&template_pending);
+    if(app_templates_load_pending(&template_pending))template_waiting_for_load=false;
 }
 static void template_apply(void){
     if (s_cfg.cardless_slave) return;
@@ -962,6 +966,7 @@ static void diagnostics_close(lv_event_t *event)
 {
     (void)event;
     s_diagnostics_requested = false;
+    template_loading_requested = true;
     if (event) lv_event_stop_bubbling(event);
 }
 
@@ -1008,14 +1013,14 @@ static void diagnostics_render(app_runtime_state_t rt)
             s_pair_window_label = lv_obj_get_child(button, 0);
             lv_obj_set_style_text_font(s_pair_window_label, APP_FONT_14, 0);
             lv_obj_set_style_pad_all(button, 0, 0);
-            lv_obj_set_pos(s_pair_window_label, 24, 9);
-            lv_obj_set_width(s_pair_window_label, 244);
+            lv_obj_set_width(s_pair_window_label, 232);
             lv_obj_set_style_text_align(s_pair_window_label, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_align(s_pair_window_label, LV_ALIGN_CENTER, 0, 0);
             lv_obj_t *icon = lv_label_create(button);
             lv_label_set_text(icon, LV_SYMBOL_BLUETOOTH);
             lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
             lv_obj_set_style_text_color(icon, c(0xFFFFFF), 0);
-            lv_obj_set_pos(icon, 7, 9);
+            lv_obj_align(icon, LV_ALIGN_LEFT_MID, 7, 0);
             lv_obj_add_event_cb(button, pairing_window_clicked, LV_EVENT_CLICKED, NULL);
         }
         for (int i = 0; i < 14; i++)

@@ -6,6 +6,14 @@
 #include "app_loxone.h"
 #include "esp_http_server.h"
 #include "app_slave_presence_service.h"
+#include "app_templates.h"
+static bool home_resources_installed;
+bool app_templates_home_info(app_template_info_t *info, unsigned *generation)
+{
+    if (generation) *generation = 1;
+    if (info) info->version = 3;
+    return home_resources_installed;
+}
 static app_config_t s_config;
 static bool authorized = true, header_ok = true, broken;
 static int status_code, requested, registered;
@@ -189,6 +197,15 @@ int main(void)
     httpd_req_t request={.method=HTTP_GET,.uri="/api/loxone/home"};
     authorized=false;status_code=200;loxone_home_get(&request);assert(status_code==401);
     authorized=true;status_code=200;loxone_home_get(&request);assert(status_code==200&&strstr(response,"consumers")&&!strstr(response,"password"));
+    cJSON *home_state = cJSON_Parse(response);
+    assert(cJSON_IsFalse(cJSON_GetObjectItem(home_state,"resources_installed")));
+    cJSON_Delete(home_state);
+    home_resources_installed = true;
+    loxone_home_get(&request);
+    home_state = cJSON_Parse(response);
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(home_state,"resources_installed")));
+    assert(cJSON_GetObjectItem(home_state,"resources_version")->valueint == 3);
+    cJSON_Delete(home_state);
     slave_tests();
     puts("PASS: actual home HTTP handlers, MQTT/HTTP/Slave exclusion, authorization, header, partial receive, bounds, strict JSON, validation details and async 202");
 }

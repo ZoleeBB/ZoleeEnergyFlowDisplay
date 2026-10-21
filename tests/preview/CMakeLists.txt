@@ -28,3 +28,4 @@ target_include_directories(ui_preview PRIVATE "${APP_ROOT}/simulator/compat" "${
 target_compile_definitions(ui_preview PRIVATE time=host_time APP_TEMPLATE_DESKTOP)
 target_compile_options(ui_preview PRIVATE -Wall -Wextra -Werror -Wno-misleading-indentation -Werror=frame-larger-than=8192)
 target_link_libraries(ui_preview PRIVATE lvgl m z -l:libcjson.so.1)
+target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for")

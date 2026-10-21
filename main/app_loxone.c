@@ -831,6 +831,9 @@ static void home_command_poll(int64_t now)
     {
         char command[96];
         xSemaphoreTake(s_lock, portMAX_DELAY);
+        /* A kérés az üzenetfogadás várakozása közben is érkezhetett.
+         * A ciklus eleji idő ilyenkor régebbi a gombnyomásnál. */
+        now = esp_timer_get_time();
         bool valid = s_home_live && !s_dead && request.revision == s_home_revision &&
                      request.session == s_home_session && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
@@ -858,6 +861,7 @@ static void home_command_poll(int64_t now)
         xSemaphoreGive(s_lock);
         cJSON_Delete(answer);
     }
+    now = esp_timer_get_time();
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (s_command_pending && s_command_deadline)
     {

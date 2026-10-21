@@ -1,5 +1,6 @@
 /* Az app_web.c közös hitelesítésével védett, kizárólag Loxone módban regisztrált útvonalak. */
 #include "app_loxone_page.h"
+#include "app_templates.h"
 static esp_err_t loxone_page(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
@@ -43,6 +44,15 @@ static esp_err_t loxone_home_get(httpd_req_t *req)
     if (!authorize(req))
         return ESP_OK;
     cJSON *root = app_loxone_home_web_state();
+    app_template_info_t resources;
+    unsigned resource_generation = 0;
+    bool installed = app_templates_home_info(&resources, &resource_generation);
+    /* Foglalt katalógusnál nem állítunk tévesen csomaghiányt. */
+    if (root && resource_generation)
+    {
+        cJSON_AddBoolToObject(root, "resources_installed", installed);
+        cJSON_AddNumberToObject(root, "resources_version", installed ? resources.version : 0);
+    }
     char *body = root ? cJSON_PrintUnformatted(root) : NULL;
     cJSON_Delete(root);
     if (!body)

@@ -16,12 +16,13 @@ def home_resource_files():
         raise ValueError('A home csomaghoz pontosan 64 egyedi ikon szükséges')
     document = {
         'schema': 1, 'id': 'loxone-home', 'kind': 'loxone-home-resources',
-        'name': 'Loxone Otthon – közös erőforrások', 'version': 2,
+        'name': 'Loxone Otthon – közös erőforrások', 'version': 3,
         'consumer_backgrounds': {'light': 'consumers-light.png', 'dark': 'consumers-dark.png'},
         'icons': [{'id': icon['id'], 'file': 'icon-' + icon['id'] + '.png'} for icon in icons],
     }
     files = {f'background-{mode}.png': source / 'backgrounds' / f'{mode}.png' for mode in ('light', 'dark')}
     files.update({f'consumers-{mode}.png': source / 'backgrounds' / f'consumers-{mode}.png' for mode in ('light', 'dark')})
+    files.update({f'preview-{mode}.png': source / 'previews' / f'cards-{mode}.png' for mode in ('light', 'dark')})
     files['loxone-logo.png'] = ROOT / 'assets/loxone-logo.png'
     for mode in ('light', 'dark'):
         document[mode] = {
