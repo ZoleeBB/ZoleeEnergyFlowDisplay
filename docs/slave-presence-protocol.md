@@ -1,8 +1,8 @@
 # Slave jelenlétprofil – modell és átviteli szerződés
 
 Állapot: a modell, a Master NVS-háttérmentése, a célzott védett BLE-olvasás,
-a közös Loxone WebSocket és a két panel adaptere be van kötve. A webes
-eszközlista/szerkesztő még hátravan; az újonnan párosított profilban a
+a közös Loxone WebSocket, a két panel adaptere és a Master/Loxone webes
+eszközlista/szerkesztő be van kötve. Az újonnan párosított profilban a
 sötétítés alapból ki van kapcsolva. Fizikai paneles/radiós próba még szükséges.
 
 ## Identitás és jogosultság
@@ -144,6 +144,47 @@ kérés lejárt; késői válasza nem ébreszthet. Amíg az ATT-kérés még fü
 nem indul mellé újabb kérés. Read-hiba nem jelent legacy Mastert. Hibás payload/
 replay nem törölheti a számlálóbázist és nem fiatalíthatja meg az érvényességet.
 
+## Master/Loxone HTTP és webes szerkesztő
+
+A `/loxone` oldalon a Slave-kijelzők külön szakaszban szerepelnek. A helyiség és
+funkció szűrő a meglévő Loxone-katalógust használja. A kiválasztott UUID akkor is
+megmarad, ha a szűrés vagy egy átmenetileg hiányzó katalógus elrejtené. Nincs
+kézzel beírható eszközidentitás vagy automatikus profil-/bond-kiszorítás.
+
+A `GET /api/loxone/slaves` és `POST /api/loxone/slaves` csak Loxone módban
+regisztrált, a meglévő webes hitelesítéssel. A GET `Cache-Control: no-store` mellett
+`schema:1`, `enabled`, `ready`, `revision`, `saved_revision`, `save_error` és
+`profiles` mezőket ad. Minden profil az `id`, `name`, `presence_uuid`,
+`timeout_seconds`, `blank_at_night` mezőket tartalmazza. Futási jelenlétminta,
+számláló, fényerő és hitelesítő adat nem kerül ebbe a válaszba. Kikapcsolt seed
+mellett az eszközlista üres, a POST nem érhető el (503).
+
+A POST kötelező fejléce `X-Zolee-Loxone: 1`, törzse legfeljebb 2048 bájt:
+
+```json
+{"schema":1,"revision":123,"id":"ble-0-060504030201","profile":{"name":"Nappali","presence_uuid":"11223344-5566-7788-99aabbccddeeff00","timeout_seconds":30,"blank_at_night":false}}
+```
+
+A pontos mezőkészlet, szigorú típusok, UTF-8 név, kanonikus UUID és egész timeout
+kötelező. Duplikált/idegen mező, beágyazott NUL, túlméret és JSON utáni szöveg
+elutasítandó (400). Az ID kizárólag a már ismert, hitelesített peer táblájában
+kereshető; a kliens nem adhat új identitáscímet. A nem nulla teljes `uint32_t`
+revíziót lebegőpontos JSON-számból tartományellenőrzés után vesszük át. Az elavult
+revíziót az adapter és az állapotzár alatti szolgáltatás is elutasítja (409).
+A HTTP-task nem végez NimBLE- vagy NVS-műveletet.
+
+A sikeres POST `202 {"accepted":true}`: ez még nem tartós mentés. A web csak akkor
+jelez mentett beállítást, ha visszaolvasva a kívánt profil található, nincs
+`save_error`, és `saved_revision == revision`. A tartós mentési hiba külön látható,
+kézzel és a meglévő háttértaskkal is újrapróbálható. Elveszett POST-válasznál csak
+GET ellenőrzés indul, automatikus újraküldés nincs.
+
+A kétmásodperces frissítés megőrzi a helyi draftokat és a beviteli DOM-elemeket.
+Az ugyanarra a profilra érkező külső változás nem írja felül a szerkesztést, és
+mentés előtt külön ütközést jelez. Másik peer változásánál friss revízióval
+menthető a saját változat. A POST közbeni újabb változást a backend 409-e védi.
+A szerkesztés elvetése a legutóbb visszaolvasott profilt tölti vissza.
+
 ## Ellenőrzés és korlátok
 
 `python3 tests/test_slave_presence.py`: a tényleges C modell és
@@ -154,5 +195,9 @@ A `tests/test_slave_presence_service.py` a valódi NVS-workert és GATT access
 handlert futtatja RTOS/NVS/transport mockokkal, hibainjektálással. A tényleges
 central callbackek tesztje late/replay/timeout/legacy eseteket is futtat.
 A Loxone RSA/AES/HMAC protokollteszt a valódi WS-frissítőtől ellenőrzi az impulzust.
+`tests/test_loxone_home_store.py`: tényleges Slave HTTP-kezelők és valódi profilmodell,
+hitelesítés/mód/korlátok/revízió/hibás JSON és cJSON-allokációs hibák.
+`node tests/test_slave_presence_web.js`: a kiadott JS három eszközzel, draft- és
+DOM-megőrzéssel, ütközéssel, mentési hibával és elveszett válasszal.
 A CI mindkét ESP-IDF firmware-t és a Linux/Windows szimulátorokat is fordítja.
 Ezek nem helyettesítik a fizikai panel/radio/DMA/PSRAM/FPS próbát.

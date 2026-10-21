@@ -12,6 +12,7 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home_store.py')], check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_loxone_home_web.js')], cwd=ROOT, check=True)
+subprocess.run(['node', str(ROOT / 'tests/test_slave_presence_web.js')], cwd=ROOT, check=True)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-transfer-') as directory:
     binary = str(Path(directory) / 'test_ble_stats_transfer')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',

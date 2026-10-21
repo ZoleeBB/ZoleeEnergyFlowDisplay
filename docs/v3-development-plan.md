@@ -848,3 +848,34 @@ A következő folytatás konkrét feladata:
    automatikus profil- vagy kulcskiszorítás nincs.
 4. Ezután energiaasszisztens, külön egyeztetendő 05/06 látványtervek és a v3 végső,
    hardveren is ellenőrzött zárása. A korábbi tartós feltöltési engedély érvényes.
+
+
+## 13. checkpoint – Slave webes eszközlista és profilbeállító
+
+- Master/Loxone módban hitelesített GET/POST `/api/loxone/slaves`, csak a már
+  párosított, ismert stabil identitásokhoz. Szigorú 2048 bájtos kéréskorlát,
+  pontos mezőkészlet, UTF-8/UUID/timeout ellenőrzés és kétlépcsős revízióvédelem.
+  HTTP-taskban nincs NimBLE vagy NVS I/O. Kikapcsolt seed mellett nincs szerkesztés.
+- Külön Slave-szakasz a meglévő Loxone oldalon: legfeljebb három név,
+  helyiség/funkció szerint szűrhető jelenlétforrás, timeout, éjszakai sötétítés.
+  A kiválasztott forrás és a helyi draft katalógus-/háttérfrissítéskor megmarad.
+  A beviteli DOM-elemek nem épülnek újra minden pollingnál.
+- A 202 csak átvétel. A felület visszaolvasott profil és mentett revízió alapján
+  jelez tartós sikert; NVS-hiba, pending és kapcsolatvesztés külön látszik.
+  Elveszett POST-válasznál nincs automatikus újraküldés, csak GET-ellenőrzés.
+  Célprofil külső módosítása ütközés; másik peer változása nem veszti el a draftot.
+- Új valódi HTTP/model UBSan-próbák: három identitás, jogosultság/mód/fejléc,
+  darabolt fogadás, korlátos szigorú JSON, teljes uint32 revízió, 409, 202 és
+  mentett revízió szétválasztása, cJSON-allokációs hibasorozat. A kiadott JS
+  három eszközzel és mentési/kapcsolati hibákkal ellenőrzött.
+- A teljes helyi `python3 tests/run_tests.py` sikeres. A generált webfejlécet
+  a generátor készítette, `--check` és `git diff --check` sikeres. Új kép nem készült.
+- A helyi Chromium letöltése hibás csomagot kapott, a külön felhős böngésző nem
+  éri el a helyi HTTP-szervert. Emiatt külön, verzióhoz kötött Chromium CI-job
+  került be a teljes kiadott HTML/JS asztali/mobil próbájához és képernyőképeihez.
+  A firmware-, szimulátor-, böngésző-CI és méretellenőrzés feltöltés után következik.
+
+Nincs automatikus profil-/bond-kiszorítás vagy webes törlés. Slave NVS-bootcache
+nem készült. A fizikai BLE/panel integráció továbbra is ellenőrzendő; a desktop
+BLE-adapter továbbra is üres. A következő fejlesztési blokk az energiaasszisztens,
+azután a külön jóváhagyandó 05/06 látványterv és a hardveres v3-zárás. Nincs PR/release.

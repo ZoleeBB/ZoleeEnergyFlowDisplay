@@ -28,6 +28,7 @@ async function refresh(){try{
  const next=JSON.stringify(state.catalog||[]);if(next!==catalogSnapshot){catalogSnapshot=next;catalog=(state.catalog||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','hu')||(a.state||'').localeCompare(b.state||'','hu'));filters();options();}
  serverBusy=!!state.busy;buttons();message(feedback||state.status,!!feedback);
  if(typeof LoxoneHome!=='undefined')await LoxoneHome.refresh(catalog,serverBusy);
+ if(typeof LoxoneSlaves!=='undefined')await LoxoneSlaves.refresh(catalog,serverBusy);
  }catch(e){if(!feedback)message('Kapcsolati hiba: '+(e.name==='AbortError'?'Az eszköz nem válaszolt 15 másodpercen belül.':e.message),true);}
 }
 async function submit(action){

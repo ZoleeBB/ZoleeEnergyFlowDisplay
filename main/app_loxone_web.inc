@@ -88,6 +88,8 @@ static esp_err_t loxone_home_post(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"accepted\":true}");
 }
 
+#include "app_slave_presence_web.inc"
+
 static esp_err_t loxone_register(httpd_handle_t server)
 {
     if(s_config.data_recept_mode!=APP_DATA_LOXONE)return ESP_OK;
@@ -97,7 +99,9 @@ static esp_err_t loxone_register(httpd_handle_t server)
         {.uri="/api/loxone/test",.method=HTTP_POST,.handler=loxone_post},
         {.uri="/api/loxone/save",.method=HTTP_POST,.handler=loxone_post},
         {.uri="/api/loxone/home",.method=HTTP_GET,.handler=loxone_home_get},
-        {.uri="/api/loxone/home",.method=HTTP_POST,.handler=loxone_home_post}};
+        {.uri="/api/loxone/home",.method=HTTP_POST,.handler=loxone_home_post},
+        {.uri="/api/loxone/slaves",.method=HTTP_GET,.handler=slave_presence_get},
+        {.uri="/api/loxone/slaves",.method=HTTP_POST,.handler=slave_presence_post}};
     for(unsigned i=0;i<sizeof(routes)/sizeof(routes[0]);i++) {
         esp_err_t e=httpd_register_uri_handler(server,&routes[i]);if(e!=ESP_OK)return e;
     }return ESP_OK;

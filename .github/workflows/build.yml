@@ -47,6 +47,31 @@ jobs:
           node-version: '24'
       - run: python3 tests/run_tests.py
 
+  web-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --prefix /tmp/zolee-web-browser playwright@1.62.1
+          node /tmp/zolee-web-browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Exercise actual web editor in desktop and mobile Chromium
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_slave_presence_browser.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slave-web-editor-${{ inputs.source_sha || github.sha }}
+          retention-days: 7
+          path: out/web-editor/*.png
+          if-no-files-found: error
+
   ui-preview:
     runs-on: ubuntu-latest
     steps:
