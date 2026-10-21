@@ -36,7 +36,8 @@ Az ezt követő oxipng-tömörítés veszteségmentes. A fájl 8 bites RGB marad
 nem indexelt PNG; a meglévő firmware-validátor és dekóder kezeli.
 Nem változik az általános képlimit, a képcache vagy a firmware-erőforráskeret.
 A két háttér összesen 8192000 bájt konzervatív RGBA-dekódolási keretet jelent;
-a teljes téma a meglévő 12 MiB limit alatt marad. A képek SD-s sablonadatok,
+a teljes téma 8847360 bájt (8,44 MiB), a meglévő 12 MiB limit alatt marad.
+A teljes telepítő ZIP mérete 2139830 bájt. A képek SD-s sablonadatok,
 nem új firmware-be ágyazott képek. Fizikai paneles memória/FPS-próba hátravan.
 
 A manifest a tényleges, kicsinyített fájlok SHA256-át tartalmazza. Az előnézetek
@@ -77,3 +78,8 @@ regresszió, a ZIP-telepítő és a csomagellenőrzés is része az ellenőrzés
 A szimulátorképek szintetikus adatokat mutatnak, nem fizikai paneles tesztet.
 
 A 06-energy-orbit áttervezése továbbra is külön látványterv-jóváhagyást igényel.
+
+A forráscommit (`1c6314a9b2edb4054d08e894bbf89286ad81b1bb`) minden GitHub
+ellenőrzése sikeres, a két ESP-IDF firmware és a normál/kézi boot USB dry-run is.
+Mindkét firmware mérete a 14. checkpoint méretével egyezik; ez nem bájtraazonossági
+állítás. Pontos futások, méretek és hash-ek: a fejlesztési terv 15. checkpointja.

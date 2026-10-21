@@ -1044,9 +1044,31 @@ A részletes grafikai specifikáció, méret és ellenőrzés: [calm-home.md](ca
 - A helyi teljes natív/UBSan regresszió sikeres. Az új tényleges LVGL-próba
   HU/EN, nappal/éjjel, 15 kW/100% mellett ellenőrzi a levágásmentes szövegeket.
   Néhány túl alacsony feliratmezőt a próba alapján javítottunk.
-- A végső tömörített képekkel még ismételt LVGL/manifest/ZIP-ellenőrzés,
-  a távoli ág egyetlen konzisztens commitra frissítése és a GitHub CI zárása
-  következik. Ez a bejegyzés ezek sikerét még nem állítja.
+- A végső tömörített képekkel az ismételt teljes natív/UBSan, LVGL,
+  manifest/ZIP és web-generátor ellenőrzés is sikeres. A helyi és távoli
+  forrásfa egyezik: `0d6a3187d92cf3a722523c3a263640ab2a3478ea`.
+- Forráscommit: `1c6314a9b2edb4054d08e894bbf89286ad81b1bb`.
+  Mindhárom workflow minden jobja sikeres:
+  [Master / regresszió / LVGL / Chromium / ikonok / ZIP / két firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39597173636),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39597173671),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39597173684).
+- A teljes téma kódolt képei 1719283 bájtot, a konzervatív RGBA-dekódolás
+  8847360 bájtot (8,44 MiB) igényel a meglévő 12 MiB keretből. Az LVGL
+  méretezett ikonraszterei 188224 bájton maradnak; a háttér natív 1280×800.
+  A telepítő ZIP 2139830 bájt. A közös Loxone-csomag 4796478 bájt, változatlan.
+- Valódi nappali/éjszakai, HU/EN és szélsőértékes LVGL-képek:
+  [CI-artifact](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39597173636/artifacts/12344830221)
+  (7 napos megőrzés). Képi ellenőrzés helyben is történt. A minták szintetikusak.
+- Master firmware: `0x2e6f80` = 3043200 bájt, **+0 bájt** a 14. checkpointhoz;
+  8 MiB app-partíción 64% szabad. OTA SHA256:
+  `0896e9053389f9a25a704023ae02e8e5c2c86a254f48a33ba405a39a8dc34cb4`.
+- 4B firmware: `0x320820` = 3278880 bájt, **+0 bájt**;
+  12 MiB app-partíción 74% szabad. OTA SHA256:
+  `2fc1b2841a826a2d3bd6ddf6ed719cb5fcf08a049cf9b70d967f1bfb808b3d12`.
+  Azonos méretből nincs bináris-bájtraazonossági állítás.
+- Mindkét normál és kézi boot/no-stub USB dry-run a valódi buildkimenetekkel
+  sikeres; a firmware- és külön OTA-artifactok feltöltése sikeres. Nincs fizikai
+  flash vagy panel/FPS/PSRAM-próba. A záró `[skip ci]` commit csak dokumentáció.
 
 Nincs PR vagy release. Következő termékegyeztetés: a `06-energy-orbit` külön
 látványterve. A v3 fizikai RAM/DMA/PSRAM/FPS/Miniserver/panel próbái és a végső

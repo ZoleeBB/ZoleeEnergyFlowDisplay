@@ -9,7 +9,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `02-energy-paths` | Energiautak: széles színes összeköttetések, irányjelző pöttyök |
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
-| `05-calm-home` | Nyugodt otthon: nagy óra, részletes időjárásikonok, három fő adat |
+| `05-calm-home` | Nyugodt otthon: saját nappalibelső nappal/éjjel, három nagy főadat és napi összegzés |
 | `06-energy-orbit` | Energiakör: 160 px-es ikonok, alattuk az adatok, rövid egyenes összeköttetések, áganként két pont és visszafogott középponti fényudvar |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
@@ -318,3 +318,8 @@ A diagnosztikát felfelé húzás nyitja, és saját X gombja zárja.
 
 A teljes v3 még fejlesztés alatt áll; a részletes állapot a
 [folytatási tervben](v3-development-plan.md) követhető.
+
+A Nyugodt otthon v9 saját, jóváhagyott fotóhátteret kapott. Részletek és grafikai
+méretek: [calm-home.md](calm-home.md). Az új megjelenéshez a `05-calm-home.zip`
+csomagot telepítsd újra a webes sablonkezelőben; az azonos azonosítójú sablon
+frissítése megőrzi a témasorrendet. Az OTA a telepített SD-sablont nem cseréli le.
