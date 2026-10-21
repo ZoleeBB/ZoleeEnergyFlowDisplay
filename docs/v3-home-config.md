@@ -209,6 +209,10 @@ fájlokat használnak. A világos/sötét lábléc fedő panelje tartja a kontra
 A teljes csomag dekódolt összes képe legfeljebb 20 MiB lehet (csak speciális
 erőforráscsomagnál); normál témáknál a 12 MiB korlát megmarad. Egyszerre továbbra
 is csak az aktív oldal képei töltődnek be, a 10 MiB LVGL-cache nem nőtt.
+A Home-képek a kész oldal előtt, külön birtokolt pufferbe dekódolódnak:
+RGB565 háttér és ARGB ikon/logó, előre kész szürke fogyasztói ikonokkal.
+A Home-rajzolás már nem használ PNG-dekódolást; hiba esetén a teljes betöltés
+visszavonódik, legfeljebb 15 újrapróbálás után visszatér a témára.
 Régi v1 erőforráscsomag betölthető marad közös háttérrel; a külön fogyasztói
 háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
 A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is

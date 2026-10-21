@@ -150,7 +150,7 @@ A Windows-szimulátorban az SD-csomagokat a futtatható program melletti
 `templates/` könyvtárba másold, majd indítsd újra. Bal/jobb nyíllal lapozz,
 D-vel demóállapotot válts. Vizsgáld meg mindkét témát, hosszú HU/EN címkéket,
 importot/exportot, töltést/leadást, nullát, időjárást és hiba utáni visszatérést.
-Az automatikus LVGL-teszthez lásd `.github/workflows/build.yml` `ui-preview`
+Az automatikus LVGL-teszthez lásd `.github/workflows/ci-shared.yml` `ui-preview`
 jobját; a `tests/preview/preview.c` csomagszámát új referencia-sablon hozzáadásakor
 frissítsd. A renderelt kép a valódi widgetekből készül.
 

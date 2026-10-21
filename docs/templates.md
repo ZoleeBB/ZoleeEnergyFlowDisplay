@@ -53,7 +53,7 @@ Ez nem érinti a hitelesítés nélküli HTTP energiaadat-fogadást.
 A módosító webkérések `X-Zolee-Template: 1` fejlécet igényelnek; a weboldal hozzáadja.
 
 Telepíthető ZIP-ek készítése: `python tools/prepare_templates.py`.
-Eredmény: `dist/templates/*.zip`; a CI `template-packages-…` artifactja is ezeket
+Eredmény: `dist/templates/*.zip`; a CI `zolee-templates-…` artifactja is ezeket
 tartalmazza. Mindegyik ZIP külön tölthető fel. A ZIP gyökerében a `template.json`
 és a PNG-k legyenek, külső csomagkönyvtár vagy alkönyvtár nélkül.
 
@@ -272,7 +272,7 @@ A csomag `version` értékét elrendezés- vagy előnézetváltoztatáskor emeld
 
 ## Automatikus ZIP-csomagolás
 
-A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti
+A GitHub Actions `zolee-templates-<commit>` artifactja a `templates/` alatti
 összes érvényes sablonhoz külön ZIP-et tartalmaz. A `tools/prepare_templates.py`
 a verziókezelt JSON-t és PNG-ket változtatás nélkül csomagolja, hiányzó vagy
 fölösleges képnél megáll. Nem írja újra a már finomhangolt elrendezéseket.

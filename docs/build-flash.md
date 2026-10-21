@@ -60,10 +60,10 @@ A `main` ág pushainál és az oda nyitott PR-eknél ESP-IDF 5.5.4 build fut.
 
 Sikeres build után artifactként elérhetők:
 
-- `firmware-packages-…`: OTA bináris, teljes USB ZIP, build-info és SHA256SUMS; az USB ZIP tartalmazza a bootloadert, partíciós táblát és flasher_args.json-t is
-- `template-packages-…`: mind a kilenc sablon és a közös Loxone Home ZIP, mentett előnézetekkel
-- `windows-ui-simulator`: fő kijelző Windows EXE, közös SD-erőforrásokkal
-- `windows-slave-4b-simulator`: Slave Windows EXE
+- `zolee-firmware-…`: OTA bináris, teljes USB ZIP, build-info és SHA256SUMS; az USB ZIP tartalmazza a bootloadert, partíciós táblát és flasher_args.json-t is
+- `zolee-templates-…`: mind a kilenc sablon és a közös Loxone Home ZIP, mentett előnézetekkel
+- `zolee-simulator-master-windows-<commit>`: fő kijelző Windows EXE, közös SD-erőforrásokkal
+- `zolee-simulator-slave-4b-windows-<commit>`: Slave Windows EXE
 
 A külön OTA-másolatok, Linux-szimulátor, PDB és nagy tesztképek feltöltése megszűnt;
 a hozzájuk tartozó regressziós ellenőrzések megmaradtak.

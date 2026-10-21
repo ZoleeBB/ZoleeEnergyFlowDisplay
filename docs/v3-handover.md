@@ -3,12 +3,15 @@
 A fejlesztési ág: `feature/v3-loxone-home`. Ez fejlesztői tesztverzió,
 nem publikált v3.0.0 kiadás. A szoftveres ellenőrzések eredménye a
 [folytatási tervben](v3-development-plan.md) szerepel, pontos forráscommitonként.
-Az alábbi eszközpróbák eredménye még nincs igazolva.
+A felhasználó 2026-10-21-én igazolta: a villogás megszűnt, a háttér betöltődik,
+a vezérlések és az új témák működnek. Ez a funkcionális panelpróba sikeres;
+a számszerű CPU/FPS/DMA/PSRAM-terhelés és a Slave rádiós jelenlétpróbája külön,
+még nem rögzített mérés. A teljes zárási áttekintés: [v3 ellenőrzés](v3-completion-review.md).
 
 ## Telepítési sorrend
 
-1. A sikeres **Waveshare 10.1 Master** futásból töltsd le a
-   `firmware-packages-<commit>` és `template-packages-<commit>` artifactot.
+1. A sikeres **Zolee | CI - PR és kézi ellenőrzés** vagy **Zolee | Automatikus kiadás - main** futásból töltsd le a
+   `zolee-firmware-<commit>` és `zolee-templates-<commit>` artifactot.
    A két csomag azonos forráscommithoz tartozzon. Az új javításhoz ne használj
    korábbi, zöld futásból származó binárist.
 2. A megfelelő eszköz `/update` oldalán telepítsd a saját OTA-fájlját:
@@ -33,7 +36,7 @@ nem jelenik meg, a két speciális kijelzőoldal nem nyitható meg. A
 szemléltető UUID-it saját Loxone-állapotokra kell cserélni. Nem importálható
 `config.json`-ként. [Részletes formátum és kézi SD-használat](v3-home-config.md).
 
-A panelvillanás F11 javításához az `adfa395` vagy az azt követő forrásból
+Az F12 visszatérési javításhoz az aktuális PR firmware-csomagja szükséges; fizikai elfogadása nyitott. A panelvillanás F11 javításához az `adfa395` vagy az azt követő forrásból
 készült Master firmware kell. A már telepített v3 `loxone-home.zip` ehhez
 változatlanul használható; új grafikai csomag nem része ennek a javításnak.
 A teljes képkockás mód miatt a fényképes témák és az érintés sebességét is
@@ -68,6 +71,7 @@ tesztobjektumot válassz, amelynek egyszeri működése egyértelműen látható
 | F08 | Betöltés magyar és angol nyelven | „Adatok és grafikai elemek betöltése...” / “Loading data and graphics...” |
 | F09 | Nagy téma törlése és a lista későbbi frissítése | Azonnali forgó kör, várakozási jelzés; siker vagy hiba után kezelhető lista |
 | F10 | Az új commit három sikeres Actions-futásának artifactjai | Összesen négy csomag, az alábbi tartalommal |
+| F12 | Fogyasztói és minden Otthon-lap X bezárása; utána azonnal bal/jobb témalapozás és alsó szélről diagnosztika, többször és nappal/éjjel | Minden húzás működik, betöltőkép SD előtt látszik, nincs halmozódó lassulás; CPU/FPS/DMA/PSRAM napló rögzítendő |
 | F11 | 09-es témáról fogyasztók: betöltés, nappal/éjjel, 10–12 elem, nulla fogyasztású TV/klíma; vissza és újra nyitás | Fényképes háttér és minden ikon látszik; nincs kékes villanás; az érintés/lapozás folyamatosan használható |
 
 A négy kimenet: közös firmware-csomag, témacsomagok, fő Windows-szimulátor,
@@ -117,12 +121,11 @@ Az FPS-t a jelenlegi diagnosztika nem méri; a szimulátor FPS-e nem panelméré
 | Master/Slave hardver, P4/C6 firmware, SD típusa | Kitöltendő |
 | HU/EN, nappal/éjjel, profil és beállított időkorlát | Kitöltendő |
 | Indulási és terhelés utáni RAM/PSRAM/DMA/CPU | Kitöltendő |
-| F01–F11 és funkciópróbák eredménye, eltérés | Kitöltendő |
+| F01–F12 és funkciópróbák eredménye, eltérés | Kitöltendő |
 
 ## Kiadási állapot
 
-A fizikai próbák és az új forrás teljes firmware-/csomagellenőrzése nyitott
-átadási pontok. PR csak a vállalt feladatok lezárása után készül. A v3.0.0
+A felhasználó a működő funkciók visszaigazolása után átfogó ellenőrzést és PR-nyitást kért. A számszerű hardveres és külön Slave-próbák státuszát a zárási áttekintés őrzi; nem jelölünk nem mért eredményt igazoltnak. A v3.0.0
 verzióválasztás kizárólag e repó saját `feature/v3-loxone-home` ágának igazolt
 `main` összevonására érvényes; más ág és fork nem kap ilyen főverzió-emelést.
 A szabály és az újrafuttatás tesztelt, de nincs előre létrehozott v3 tag vagy release.
@@ -148,13 +151,13 @@ night-time wake-up uses its own night brightness. The first touch only wakes
 the screen, including movement and release. Old Masters keep legacy brightness.
 
 On physical hardware, verify both control types, all three close/loading paths,
-consumer background and flicker, the built-in house hit area, icon previews,
+consumer background and flicker (confirmed by the user on 2026-10-21), the built-in house hit area, icon previews,
 the missing-package warning, Bluetooth label alignment and delete progress.
 Also test page swipes without commands, reboot persistence, disconnect recovery,
 100 page/theme transitions and sustained Wi-Fi/BLE traffic. Record source SHA,
 board/firmware versions, internal RAM, PSRAM, largest DMA block, CPU and errors.
 Simulator success does not establish physical panel, radio or memory behavior.
-Hardware acceptance remains open. The tested v3.0.0 selection rule applies only
+Functional panel operation is user-confirmed; quantified load and Slave radio/presence acceptance remain unrecorded. The tested v3.0.0 selection rule applies only
 to a verified merge of this repository's own `feature/v3-loxone-home` branch;
 no v3 tag or release has been created.
 

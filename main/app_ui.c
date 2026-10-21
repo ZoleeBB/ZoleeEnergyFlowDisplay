@@ -124,7 +124,7 @@ static bool template_is_active(void);
 static void template_animate(float dt);
 static bool template_heavy_animation(void);
 static unsigned template_catalogue_count(void);
-static void template_gesture(lv_event_t *event);
+static void navigation_bind_inputs(void);
 
 /* A runtime UI kölcsönösen kizáró fő nézetei. */
 typedef enum
@@ -145,6 +145,8 @@ typedef enum
 } runtime_view_t;
 
 static runtime_view_t s_view = VIEW_NONE;
+/* Csak LVGL-lock alatt írjuk/olvassuk, a runtime várakozás közben elengedi. */
+static bool s_loading_frame_presented;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
 static bool home_is_open(void);
 static void assistant_reset_widgets(void);
@@ -258,6 +260,9 @@ static void screen_style(lv_obj_t *o, bool night)
     bg_opa_if_changed(o, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_pad_all(o, 0, 0);
+    /* Fix méretű képernyőn nincs tartalomgörgetés: a scroll-felismerő
+     * elsőbbsége különben még az input szintű gesztust is letiltja. */
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
 }
 /* Közös kártyastílus: háttér, keret, lekerekítés és nappali árnyék. */
 static void card_style(lv_obj_t *o, bool night)
@@ -724,7 +729,6 @@ static void build_dashboard(bool night)
     lv_obj_set_size(s_dash, W, H);
     screen_style(s_dash, night);
     lv_obj_remove_flag(s_dash, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(s_dash, template_gesture, LV_EVENT_GESTURE, NULL);
 
     /*
      * Fejléc: az eredeti látványterv fehér, lekerekített fejlécét tartjuk meg,
@@ -1360,10 +1364,11 @@ static void update_flows(const app_energy_sample_t *s, float dt)
 
 #include "app_ble_pin_ui.inc"
 
-/* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
+/* A teljes képkockás panelhez igazított, 33 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
+    navigation_bind_inputs();
     if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
     if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
@@ -1720,6 +1725,7 @@ static void initial_refresh_report(lv_event_t *event)
 {
     (void)event;
     static bool reported;
+    if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
     if (!reported)
     {
         reported = true;
@@ -1766,9 +1772,12 @@ esp_err_t app_ui_init(uint16_t rotation_degrees)
     }
     s_screen = lv_screen_active();
     lv_display_add_event_cb(disp, initial_refresh_report, LV_EVENT_REFR_READY, NULL);
-    lv_obj_add_event_cb(s_screen, template_gesture, LV_EVENT_GESTURE, NULL);
+    /* A teljes 1280×800-as rajzolásnak legfeljebb 30 FPS a kerete. A touch
+     * saját (15 ms-os) olvasási időzítőjét nem lassítjuk vele együtt. */
+    lv_timer_set_period(lv_display_get_refr_timer(disp), 33);
+    navigation_bind_inputs();
     screen_style(s_screen, false);
-    if (!lv_timer_create(animation_tick, 16, NULL))
+    if (!lv_timer_create(animation_tick, 33, NULL))
     {
         bsp_display_unlock();
         return ESP_ERR_NO_MEM;
@@ -2137,7 +2146,11 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        home_prepare(have ? s.night_mode : home_night);
+        if (!home_prepare(have ? s.night_mode : home_night))
+        {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
         if (!home_is_open()) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {

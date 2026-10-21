@@ -7,7 +7,8 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a te
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
 A v3 fejlesztési ág fogyasztói/Otthon-oldalai, jelenlétprofiljai és új témái:
-[telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md).
+[telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md),
+[követelmények és záró ellenőrzés](docs/v3-completion-review.md).
 
 Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master mód
 `ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.

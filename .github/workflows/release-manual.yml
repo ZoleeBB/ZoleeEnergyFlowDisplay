@@ -1,4 +1,5 @@
-name: Release firmware
+name: Zolee | Kézi kiadás - firmware
+run-name: Zolee | Kézi kiadás | ${{ github.event.release.tag_name }}
 
 on:
   release:
@@ -6,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: release-firmware-${{ github.event.release.id }}
@@ -13,13 +15,17 @@ concurrency:
 
 jobs:
   firmware:
-    uses: ./.github/workflows/build.yml
+    name: Ellenőrzés és verziózott csomagok
+    uses: ./.github/workflows/ci-shared.yml
     with:
+      source_sha: ${{ github.sha }}
       release_tag: ${{ github.event.release.tag_name }}
 
   publish:
+    name: Kiadás | meglévő kézi release mellékletei
     needs: firmware
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -28,7 +34,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/download-artifact@v4
         with:
-          name: firmware-packages-${{ github.sha }}
+          name: zolee-firmware-${{ github.sha }}
           path: dist
       - name: Attach assets to the published release
         env:

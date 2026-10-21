@@ -38,6 +38,6 @@ A firmware kifejezetten ehhez a 10.1 colos panelhez készül. Más Waveshare ESP
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
 
-Az érintési koordináták a fekvő képhez igazodnak: a driver natív Y-tükrözés után X/Y tengelycserét végez. A vízszintes húzás témát vált; felfelé/lefelé húzás a diagnosztikát nyitja/zárja. A 270°-os képforgatást és ezeket az érintési flag-eket együtt kell kezelni.
+Az érintési koordináták a fekvő képhez igazodnak: a driver natív Y-tükrözés után X/Y tengelycserét végez. A vízszintes húzás témát vált; felfelé húzás a diagnosztikát nyitja, a jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-oldalaké. A 270°-os képforgatást és ezeket az érintési flag-eket együtt kell kezelni.
 
 A 270°-os fekvő tájolás a kamera alul elhelyezkedő felszereléséhez igazodik. Az érintés natív Y-tükrözéssel és tengelycserével ugyanazt a tájolást követi.

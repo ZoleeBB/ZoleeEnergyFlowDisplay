@@ -26,6 +26,9 @@ void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now)
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
 static bool rgb565;
+static unsigned frame_flushes;
+static bool require_loading_flush;
+static unsigned loading_flush_baseline;
 /* A panel 16 bites és a desktop 32 bites képpontjait azonos RGB-re bontjuk. */
 static uint32_t pixel_rgb(unsigned index)
 {
@@ -38,12 +41,19 @@ static uint32_t pixel_rgb(unsigned index)
 static int64_t ticks;
 static bool sd_ok=true;
 static unsigned home_load_blocked;
+static unsigned home_resource_reads;
 static int home_corrupt_asset = -1;
 bool __real_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
                                        bool consumers, app_template_view_t *out);
 bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
                                        bool consumers, app_template_view_t *out)
 {
+    home_resource_reads++;
+    if (require_loading_flush)
+    {
+        assert(s_view == VIEW_THEME_LOADING);
+        assert(frame_flushes > loading_flush_baseline);
+    }
     if (home_load_blocked)
     {
         home_load_blocked--;
@@ -105,7 +115,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 
 bool app_storage_is_ok(void){return sd_ok;}
 static void flush(lv_display_t *disp,const lv_area_t *area,uint8_t *map)
-{(void)area;(void)map;lv_display_flush_ready(disp);}
+{(void)area;(void)map;frame_flushes++;lv_display_flush_ready(disp);}
 static void count_invalidations(lv_event_t *event){unsigned *count=lv_event_get_user_data(event);++*count;}
 
 static void save_frame(const char *name)
@@ -1042,6 +1052,120 @@ static void test_home_background_pixels(void)
         assert(home_buffers[i] && home_images[i].header.cf != LV_COLOR_FORMAT_RAW_ALPHA);
 }
 
+/* Valódi pointer-események: a visszatérés utáni navigációt a közvetlen
+ * home_gesture hívások nem fedik le. Az X és a következő húzás közt a
+ * firmware runtime sorrendjével cseréljük le a teljes objektumfát. */
+static void test_home_return_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const char *themes[] = {"builtin", "05-calm-home", "06-energy-orbit", "09-solar-journey"};
+    app_sim_home_reset();
+    navigation_bind_inputs();
+    navigation_bind_inputs();
+    lv_indev_t *input = lv_indev_get_next(NULL);
+    unsigned bound = 0;
+    for (uint32_t i = 0; i < lv_indev_get_event_count(input); i++)
+        if (lv_event_dsc_get_cb(lv_indev_get_event_dsc(input, i)) == template_gesture)
+            bound++;
+    assert(bound == 1);
+    /* Elmaradó refresh-visszajelzésnél egyetlen SD-képolvasás sem indulhat.
+     * A következő runtime kör a meglévő betöltőoldallal helyreállhat. */
+    assert(app_templates_select("builtin") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    lv_display_remove_event_cb_with_user_data(display, initial_refresh_report, NULL);
+    home_request_set(1);
+    unsigned reads = home_resource_reads;
+    assert(!home_prepare(false));
+    assert(home_resource_reads == reads && !home_assets.asset_count);
+    assert(s_view == VIEW_THEME_LOADING && !home_ready_to_draw);
+    lv_display_add_event_cb(display, initial_refresh_report, LV_EVENT_REFR_READY, NULL);
+    assert(home_prepare(false));
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_HOME);
+    home_close(NULL);
+    assert(home_prepare(false));
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    sample.sun_position_valid = true;
+    for (unsigned theme = 0; theme < sizeof(themes) / sizeof(themes[0]); theme++)
+    {
+        for (unsigned page = 1; page <= 2; page++)
+        {
+            sample.night_mode = page % 2;
+            assert(app_templates_select(themes[theme]) == ESP_OK);
+            assert(template_loading_frame());
+            template_prepare();
+            render_runtime(runtime, sample, true, 31000000);
+            home_request_set(page);
+            require_loading_flush = true;
+            loading_flush_baseline = frame_flushes;
+            home_prepare(sample.night_mode);
+            require_loading_flush = false;
+            render_runtime(runtime, sample, true, 31000000);
+            assert(s_view == VIEW_HOME);
+            lv_obj_update_layout(s_screen);
+            touch_sample_xy(1204, 60, true);
+            touch_sample_xy(1204, 60, false);
+            assert(!home_is_open());
+            assert(template_loading_frame());
+            loading_flush_baseline = frame_flushes;
+            home_prepare(sample.night_mode);
+            assert(frame_flushes > loading_flush_baseline);
+            template_prepare();
+            render_runtime(runtime, sample, true, 31000000);
+            assert(s_view == VIEW_DASHBOARD && !strcmp(template_view.id, themes[theme]));
+            assert(!lv_obj_has_flag(s_screen, LV_OBJ_FLAG_SCROLLABLE));
+            /* A visszaálló témára szándékosan olyan érinthető fedőréteg
+             * kerül, amely nem buborékoltat. A navigáció így is működjön. */
+            lv_obj_t *overlay = lv_obj_create(s_screen);
+            lv_obj_remove_style_all(overlay);
+            lv_obj_set_pos(overlay, 0, 0);
+            lv_obj_set_size(overlay, W, H);
+            lv_obj_remove_flag(overlay, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lv_obj_update_layout(s_screen);
+            touch_sample_xy(640, 790, true);
+            touch_sample_xy(640, 600, true);
+            touch_sample_xy(640, 400, true);
+            touch_sample_xy(640, 400, false);
+            if (!s_diagnostics_requested)
+                fprintf(stderr, "Return navigation failed: %s page %u\n", themes[theme], page);
+            assert(s_diagnostics_requested);
+            render_runtime(runtime, sample, true, 31000000);
+            assert(s_view == VIEW_DIAGNOSTICS);
+            lv_obj_update_layout(s_screen);
+            touch_sample_xy(1216, 56, true);
+            touch_sample_xy(1216, 56, false);
+            assert(!s_diagnostics_requested);
+            assert(template_loading_frame());
+            template_prepare();
+            render_runtime(runtime, sample, true, 31000000);
+            for (unsigned direction = 0; direction < 2; direction++)
+            {
+                unsigned generation = template_pending.generation;
+                int start = direction ? 300 : 1000;
+                int end = direction ? 1000 : 300;
+                lv_obj_update_layout(s_screen);
+                touch_sample_xy(start, 400, true);
+                touch_sample_xy((start + end) / 2, 400, true);
+                touch_sample_xy(end, 400, true);
+                touch_sample_xy(end, 400, false);
+                assert(app_templates_has_pending(generation));
+                assert(template_loading_requested);
+                loading_flush_baseline = frame_flushes;
+                assert(template_loading_frame());
+                assert(frame_flushes > loading_flush_baseline);
+                assert(s_view == VIEW_THEME_LOADING);
+                template_prepare();
+                render_runtime(runtime, sample, true, 31000000);
+                assert(s_view == VIEW_DASHBOARD);
+            }
+            assert(!strcmp(template_view.id, themes[theme]));
+        }
+    }
+    puts("PASS: real X close followed by bottom-edge diagnostics and both theme swipes after consumer/Home return on builtin/05/06/09 day/night");
+}
+
 static void test_home_lifecycle(app_runtime_state_t runtime, app_energy_sample_t sample)
 {
     const char *themes[] = {"builtin", "05-calm-home", "06-energy-orbit"};
@@ -1199,6 +1323,27 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
+    if (getenv("ZOLEE_NAVIGATION_ONLY"))
+    {
+        assert(app_templates_init() == ESP_OK);
+        char error[160];
+        assert(app_templates_install(getenv("ZOLEE_HOME_RESOURCE_ZIP"), error) == ESP_OK);
+        config.data_recept_mode = APP_DATA_LOXONE;
+        app_ui_set_config(&config);
+        app_runtime_state_t runtime = {.data_recept_mode = APP_DATA_LOXONE,
+            .wifi_connected = true, .loxone_configured = true, .loxone_connected = true,
+            .has_valid_sample = true, .last_valid_packet_monotonic_us = 31000000};
+        lv_indev_t *input = lv_indev_create();
+        lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_display(input, display);
+        lv_indev_set_read_cb(input, touch_read);
+        navigation_bind_inputs();
+        test_home_return_navigation(runtime, sample);
+        lv_indev_delete(input);
+        clear();template_release_cache();app_templates_view_free(&template_view);
+        lv_display_delete(display);lv_deinit();
+        return 0;
+    }
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
     test_stacked_charts();
     assert(f_pv.phase>0.f);
@@ -1490,7 +1635,7 @@ int main(void)
         assert(!strcmp(template_view.id,"builtin"));
         assert(s_view==VIEW_DASHBOARD);
         assert(!template_is_active());
-        lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_display(input,display);lv_indev_set_read_cb(input,touch_read);
+        lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_display(input,display);lv_indev_set_read_cb(input,touch_read);navigation_bind_inputs();
         unsigned expected_index=0;
         for(unsigned i=1;i<=count;i++){
             lv_obj_update_layout(s_screen);
@@ -1556,7 +1701,7 @@ int main(void)
     char home_error[160];assert(app_templates_install(home_zip,home_error)==ESP_OK);
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
-    lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);
+    lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);navigation_bind_inputs();
     assert(app_templates_select("builtin")==ESP_OK);template_prepare();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     lv_obj_update_layout(s_screen);
@@ -1713,6 +1858,7 @@ int main(void)
         home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
     }
     puts("PASS: corrupt background/icon never displays an incomplete Home page; decoded buffers roll back and retry succeeds");
+    test_home_return_navigation(rt, sample);
     test_home_lifecycle(rt, sample);
     app_sim_home_enabled=false;
     lv_indev_delete(home_input);

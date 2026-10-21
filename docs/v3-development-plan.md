@@ -6,11 +6,11 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; a 05/06 új megjelenése elfogadott és implementált. A felhasználói próba utáni F01–F10 javításcsomag ellenőrzése és a fizikai zárás folyamatban.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; a 05/06 új megjelenése elfogadott és implementált. Az F01–F11 javítások elkészültek. A felhasználó igazolta a villogás megszűnését, a hátteret, a vezérléseket és az új témákat, majd kérte a workflow-optimalizálást, átfogó ellenőrzést és PR-nyitást. A később jelentett visszatérési/terhelési hibát F12 követi. A záró ellenőrzés a 25–26. checkpointban és a v3-completion-review.md fájlban szerepel.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
-- Nincs PR vagy release. Az implementált és szoftveresen ellenőrzött részeket a checkpointok külön jelölik; fizikai megfelelőséget nem állítunk.
+- PR előkészítés a 2026-10-21-i kifejezett kérésre. Egyesítés, tag és release nincs előre elvégezve. Az eszközös funkcionális visszaigazolást és a még nem rögzített számszerű terhelésméréseket külön kezeljük; a régi checkpointok az akkori állapotot őrzik.
 
 ## Elfogadott döntések – felhasználói válaszok
 
@@ -79,7 +79,7 @@
 - Kapcsoló a visszaérkező Loxone-állapotot mutatja; hibás/lejárt állapotnál ne legyen hamis siker.
 - Kapcsolatvesztéskor vezérlés tiltva, felhasználó számára érthető visszajelzéssel.
 - Fentről lefelé húzás nyitja, jobb felső X zárja, korábbi téma visszaáll.
-- Csak legalább egy kártyánál és elérhető SD-s speciális csomagnál nyitható.
+- Legalább egy konfigurált Otthon-oldallal és elérhető SD-s speciális csomaggal nyitható; D15 szerint üres lap is megengedett.
 - Saját színes, otthon hangulatú, jól olvasható hátterek; SD-ről és témakezelővel frissíthetően. A fogyasztói oldal külön háttérpárt használ (D14).
 - Oldalanként legfeljebb 12 kártya, legfeljebb 8 oldalon (D15).
 - Biztonságos, engedélyezett konkrét műveletek; nincs önkényes felhasználói URL/parancs végrehajtás.
@@ -133,7 +133,7 @@
 - [x] Mindkét új oldal és navigáció, frissesség; natív/LVGL ellenőrzések.
 - [ ] Fizikai oldalváltási terhelés és RAM/DMA/PSRAM/FPS-próba.
 - [x] Pulse/kapcsolók parancs- és állapotútja, titkosított protokollteszt.
-- [ ] Kapcsoló és impulzus tényleges Miniserver/panel visszaellenőrzése.
+- [x] A vezérlések működését a felhasználó a fizikai eszközön visszaigazolta; a nyugta/timeout/reconnect eseteket automatizált protokollteszt is vizsgálja.
 - [x] Energiaasszisztens szabályai és témánkénti pozíciói.
 - [x] Diagnosztika X és párosításjelzés implementációja, LVGL-próba.
 - [ ] Párosítási ablak és felirat fizikai panelpróbája.
@@ -141,11 +141,12 @@
 - [x] 05/06 témák jóváhagyott látványterve és elkészült eszközméretű képei.
 - [x] Külső témák célzott javítása, ha kis erőforrásból elvégezhető.
 - [x] HU/EN dokumentáció és feliratok; valódi parserrel ellenőrzött mintaprofil.
-- [ ] `python3 tests/run_tests.py`, releváns szimulátor/LVGL render, Master és Slave ESP-IDF build.
-- [ ] Firmware/OTA, belső RAM/DMA és PSRAM keretek ellenőrzése.
+- [x] Korábbi végső forráson teljes natív/LVGL/ASan/Windows/Linux és mindkét firmware-build sikeres; a workflow-átrendezés végső ellenőrzése a 25. checkpointban külön rögzítendő.
+- [x] Firmware-/OTA-partícióméret, statikus memória-/képkeretek és ASan-hozzáférés/szivárgás ellenőrzése.
+- [ ] Számszerű, tartós fizikai CPU/FPS/belső RAM/DMA/PSRAM-mérés és külön Slave rádiós jelenlétpróba; nincs hozzá új felhasználói mérési napló.
 - [x] Külön hardveres próbalista: [v3-handover.md](v3-handover.md).
 - [x] v3.0.0 kiadási cél saját v3 ág igazolt main összevonására, automatikus köztes kiadás nélkül.
-- [ ] Csak minden vállalt pont kész állapotánál PR. Egyesítés/publikálás nincs előre elvégezve.
+- [ ] A felhasználó által kért átfogó szoftveres/dokumentációs ellenőrzés után PR megnyitása, a nem mért hardveres tételek világos feltüntetésével. Egyesítés/publikálás nincs előre elvégezve.
 
 ## Checkpoint 2026-10-20 / 1
 
@@ -1187,18 +1188,18 @@ RAM/DMA/PSRAM/FPS/Miniserver/panel tesztlista következik. Feltöltési engedél
 A következő tételek a fejlesztési terv végére kerültek, felhasználói teszt alapján.
 A feltöltési engedély él; PR és kiadás továbbra sem készül a teljes v3 lezárásáig.
 
-- [ ] F01: a Loxone Home ZIP tartalmazzon sablonkezelő-előnézeteket.
-- [ ] F02: telepített közös csomagnál kiválasztott ikon előnézete a szerkesztőben;
+- [x] F01: a Loxone Home ZIP tartalmazzon sablonkezelő-előnézeteket.
+- [x] F02: telepített közös csomagnál kiválasztott ikon előnézete a szerkesztőben;
   hiányzó csomagnál piros, legfelül látható működési figyelmeztetés.
-- [ ] F03: a kapcsoló és impulzus tényleges Loxone-vezérlése, megfelelő nyugtával
+- [x] F03: a kapcsoló és impulzus tényleges Loxone-vezérlése, megfelelő nyugtával
   és kapcsolóállapot-visszajelzéssel; bizonytalan kérés automatikus ismétlése nélkül.
-- [ ] F04: Otthon/fogyasztók/diagnosztika bezárásakor látható betöltőképernyő.
-- [ ] F05: fogyasztói nézet villogásának és hiányzó hátterének megszüntetése.
-- [ ] F06: Rendszer téma energiacsillagának házérintése nyissa a fogyasztókat.
-- [ ] F07: diagnosztikai Bluetooth-gomb felirata mindkét tengelyen középen.
-- [ ] F08: betöltési felirat: „Adatok és grafikai elemek betöltése...” (HU/EN).
-- [ ] F09: sablontörlés alatt azonnali, látható webes folyamatjelzés.
-- [ ] F10: Actions-kimenetek és kiadási függőségek teljes auditja; maradjanak a
+- [x] F04: Otthon/fogyasztók/diagnosztika bezárásakor látható betöltőképernyő.
+- [x] F05: fogyasztói nézet villogásának és hiányzó hátterének megszüntetése.
+- [x] F06: Rendszer téma energiacsillagának házérintése nyissa a fogyasztókat.
+- [x] F07: diagnosztikai Bluetooth-gomb felirata mindkét tengelyen középen.
+- [x] F08: betöltési felirat: „Adatok és grafikai elemek betöltése...” (HU/EN).
+- [x] F09: sablontörlés alatt azonnali, látható webes folyamatjelzés.
+- [x] F10: Actions-kimenetek és kiadási függőségek teljes auditja; maradjanak a
   témacsomagok, a két eszköz USB/OTA firmware-csomagja és a Windows szimulátorok.
   Fölösleges külön OTA-másolat és letölthető Linux-szimulátor ne keletkezzen.
   A regressziós ellenőrzések és a kiadási folyamat szükséges bemenetei maradjanak.
@@ -1478,3 +1479,81 @@ nincs bizonyítva. Ez a hiba blokkolja a v3 átadását.
 
 A korábbi feltöltési engedély változatlanul érvényes erre a feature ágra.
 Nincs PR, tag vagy release; a fizikai elfogadás továbbra is nyitott.
+
+## Checkpoint 2026-10-21 / 25 – felhasználói elfogadás és teljes v3-zárás
+
+A felhasználó visszajelzése: „megszűnt a villogás, és a háttér is betöltődik.
+a vezérlések is működnek, az új témák is jók”. A funkcionális F03/F05/F11 és
+05/06 elfogadás rögzítve. Kifejezetten kérte az eredeti terv teljes ellenőrzését,
+a workflow-k optimalizálását/átnevezését, dupla futások és artifactok megszüntetését,
+átfogó ellenőrzést, dokumentáció-ellenőrzést, majd a PR megnyitását.
+
+- Követelményenkénti forrás/teszt megfeleltetés: [v3 zárási áttekintés](v3-completion-review.md).
+  Implementálatlan termékfunkciót az audit nem talált. A három külön Slave-eszköz
+  valós rádiós terhelése, számszerű panel-FPS/DMA/PSRAM-mérés és a párosítási
+  ablak külön fizikai ellenőrzése nincs új mérési naplóval igazolva.
+- Egy közös, kizárólag meghívott build/test folyamat tartalmazza az összes korábbi
+  ellenőrzést, mindkét firmware-t és a két cél szimulátorait. A CI PR/kézi indításra
+  fut; main pushra egy külön, soros ellenőrzés/kiadási belépő hívja ugyanezt.
+  Nincs feature-push + PR párhuzamos másolat, és main merge után nincs külön
+  tesztfirmware-build és ismételt release-build ugyanarra a main változásra.
+- A korábbi két önálló szimulátor-workflow megszűnt; a tesztjeik megmaradtak.
+  Minden job nevében külön cél és feladat szerepel. Négy `zolee-...-<commit>`
+  artifact marad: firmware, témák, Master Windows, Slave 4B Windows.
+  A publikálók ugyanazt az új firmware-artifactnevet használják.
+- A költséges ESP-IDF-buildet a gyorsabb ellenőrzések sikere kapuzza. Sikertelen
+  ellenőrzés nem indít két felesleges firmware-fordítást. PR régi futása megszakad,
+  main merge-ek verzióválasztástól publikálásig sorban állnak. Kiadott merge
+  újrafuttatása nem fordít más bájtokat ugyanahhoz a stabil verzióhoz.
+- Új ellenőrzések: esemény-/jogosultság-/artifact-függőségi szerződés; pontos
+  main-merge felismerés, közvetlen push, PR/kézi indítás, már publikált merge,
+  ütköző/eltérő PR; helyi Markdown-hivatkozások; rögzített, SHA256-ellenőrzött
+  actionlint. A v3.0.0 ág-/repóazonossági és a meglévő kiadási regresszió megmaradt.
+- Dokumentáció javítva: aktuális workflow- és csomagnevek, CI/kiadási események,
+  Master TRIPLE_FULL kontra 4B TRIPLE_PARTIAL, Home elődekódolt RGB565/ARGB képek,
+  diagnosztika X és lefelé húzásos Otthon-navigáció, eszközös visszajelzés.
+- A célzott workflow-/kiadási tesztek és actionlint sikeresek. A teljes helyi
+  regresszió, csomagellenőrzés és a PR pontos forrásán futó új CI végső eredménye
+  még folyamatban. A később bejelentett F12 runtime-hibát a következő checkpoint követi.
+
+Következő lépés: teljes helyi ellenőrzés, feltöltés, PR megnyitása mainre;
+a PR egyetlen új CI-futásának és négy artifactjának ellenőrzése. Egyesítés,
+verziótag és release most nem része a kérésnek.
+
+## Checkpoint 2026-10-21 / 26 – Home utáni navigáció és terhelési keret (F12)
+
+Új felhasználói hiba: Loxone-oldalak X bezárása után a téma bal/jobb húzása
+és az alulról felfelé diagnosztika bizonytalan; olykor hiányzik a betöltőkép,
+és az eszköz lassabbnak tűnik. Ez az előző feladat kiegészítése, nem lezárt
+fizikai elfogadás. A korábbi villogás- és háttérjavítás megmarad.
+
+- A korábbi életcikluspróba közvetlen segédfüggvényeket hívott: nem fedte le
+  a visszatérés utáni valódi touchot. Az új próba 4 témát × 2 oldalról visszatérve
+  tényleges X-et, alsó szélről diagnosztikát, bal/jobb témaváltást és blokkoló
+  fedőelemet használ. Az egyszeri inputkötés és a loading-flush sorrendje is feltétel.
+- A navigáció az input gesztusát kapja meg, az átépült widgetfa buborékolásától
+  függetlenül. A fix képernyő nem scrollolható. PIN/diagnosztika/betöltés alatt
+  nincs témanavigáció; gesztusból nem lehet kapcsolóparancs.
+- A fekete betöltőkép valós flushát az adapter saját feladata végzi; a runtime
+  lock nélkül várja a kész képkockát az SD-/PNG-munka előtt. A korábbi 85 ms várakozás nem garantált frame-et. A szimulátor korábban
+  kihagyta a template_loading_frame lépést; most követi az éles runtime sorrendjét.
+- A normál teljes képkockás refresh/animáció 33 ms keretű, a nehéz görbék 50 ms.
+  A touch olvasása nem lassul. A mozgás a teljes eltelt idővel lép; új teljes
+  képpuffer nincs. Ez ütemezési keret, nem eszközön mért FPS-/CPU-eredmény.
+- A workflow-fájlnevek is egységesek: ci-checks, ci-shared, release-main,
+  release-manual. Négy artifact, két firmware, az összes korábbi ellenőrzés.
+- Helyben a teljes natív regresszió sikeres (62 PASS összegző sor; a C/JS/UBSan,
+  protokoll, OTA és kiadási próbák benne). Az 5 workflow- és 7 CI-útválasztási
+  eset, actionlint, mind a 9 sabloncsomag és 194 helyi dokumentációs hivatkozás
+  ellenőrzése sikeres. A régi objektumszintű gesztuskezelés a blokkoló fedőelemes
+  próbán elbukott; a javított inputszintű változat átmegy.
+- Az ASan memóriacímzés-ellenőrzés mindkét végső futása sikeres: 32 bit és
+  RGB565 külön 100 életciklussal, 400–400 kirajzolt Home-oldallal, valamint az
+  új valódi visszatérési/flush-regresszióval. Helyben a ptrace-környezet miatt
+  detect_leaks=0; a PR-CI detect_leaks=1 beállítással ellenőriz újra.
+- Az ESP-IDF/Windows/Linux, a CI-s szivárgásellenőrzés és a valós USB-csomag
+  végső eredményét a PR követi.
+  Az F12 fizikai reprodukció utáni elfogadás és a számszerű hardverterhelés nyitott.
+
+Folytatás: ellenőrzések befejezése, feltöltés, PR mainre, egyetlen PR-CI és
+négy csomag ellenőrzése. Egyesítés, verziótag és release most nincs kérve.

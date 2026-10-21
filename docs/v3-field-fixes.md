@@ -1,7 +1,8 @@
 # v3 – felhasználói próba utáni javítások
 
-A fejlesztési terv 19. checkpointja, F01–F10. Nincs PR vagy kiadás;
-a fejlesztési ág feltöltése továbbra is engedélyezett.
+A fejlesztési terv F01–F11 javításai elkészültek. A felhasználó 2026-10-21-én
+igazolta a vezérlések, új témák, háttér és villogásjavítás működését, és kérte
+a PR előkészítését. Ezután új, visszatérés utáni navigációs/terhelési hibát jelentett (F12); az új javítás fizikai elfogadása még nyitott. Részletes lezárás: [v3 ellenőrzés](v3-completion-review.md).
 
 ## Változások
 
@@ -43,9 +44,9 @@ a fejlesztési ág feltöltése továbbra is engedélyezett.
 
 ## Actions-csomagok
 
-Négy normál kimenet marad: `firmware-packages-<commit>`,
-`template-packages-<commit>`, `windows-ui-simulator`, `windows-slave-4b-simulator`.
-A közös firmware-artifact neve és a két release workflow hivatkozása változatlan.
+Négy normál kimenet marad: `zolee-firmware-<commit>`,
+`zolee-templates-<commit>`, `zolee-simulator-master-windows-<commit>`, `zolee-simulator-slave-4b-windows-<commit>`.
+Az artifactok és a letöltő kiadási workflow-k együtt kapták meg az egységes neveket.
 Külön OTA-másolat, letölthető Linux-szimulátor, PDB és nagy tesztkép-artifact nincs.
 A regressziós, böngészős és Linuxos/LVGL tesztek megmaradtak. Korábbi távoli
 artifactokat nem törlünk. Részletes tartalom: [releases.md](releases.md).
@@ -82,7 +83,7 @@ próbája nem történt meg ebben a környezetben; a szimuláció ezt nem igazol
 
 A 2026-10-21-i új panelvideó alapján a hiba továbbra is fennállt: a betöltő-
 és fogyasztói oldalon kékes felvillanás, hiányzó fényképes háttér és egyes
-szürke ikonok. Javításjelölt: teljes képkockás, hárompufferes panelátadás;
+szürke ikonok. A végső javítás: teljes képkockás, hárompufferes panelátadás;
 előre ellenőrzött Home-képek, natív RGB565 háttér és előállított szürke ikonok;
 dekóderhiba esetén teljes visszavonás és korlátos újrapróbálás. Új SD-csomag
 nem szükséges ehhez a firmware-javításhoz, a meglévő v3 csomag használható.
@@ -90,4 +91,24 @@ nem szükséges ehhez a firmware-javításhoz, a meglévő v3 csomag használhat
 A háttér tényleges renderelt képpontjait, sérült képek kezelését és ismételt
 nyitás/lapozás/bezárás esetén a pufferfelszabadítást automatizált próba
 ellenőrzi. A panelvillanás megszűnése és a teljes képkockás mód FPS-e csak
-fizikai visszaméréssel fogadható el. A hiba addig nyitott.
+fizikai visszaméréssel fogadható el. A felhasználó az `adfa395` firmware után
+igazolta a villogás megszűnését és a háttér megjelenését: a funkcionális hiba
+lezárva. Számszerű FPS-/memóriamérésről nem adott visszajelzést.
+
+## F12 – Otthon után elvesző navigáció, betöltőkép és terhelés
+
+A gesztus inputszintre került, az újraépülő objektumfa buborékolásától
+függetlenül. A fix képernyők nem görgethetők, az inputhoz egyszer kerül a
+callback. Az adapter saját LVGL-feladatának flush-visszajelzése megelőzi
+az SD-munkát; a runtime a várakozás alatt elengedi a lockot. A desktop runtime
+is követi az éles előkészítési sorrendet. A normál
+Master teljes képkockás rajzolás és animáció kerete 33 ms, a nehéz görbéké
+50 ms; az input eredeti olvasási időzítőjét nem módosítjuk.
+
+A célzott valódi LVGL-próba négy témán, nappal/éjjel, fogyasztói és kártyás oldalról X-szel
+visszatérve ellenőrzi az alsó szélről felhúzott diagnosztikát, mindkét
+energiatéma-irányt, egy gesztust blokkoló fedőelemet, a betöltési flush sorrendjét
+és az egyszeri callbackkötést. Ez a korábbi objektumszintű navigációnál a
+fedőelemen elakad. A teljes 100 ciklusos erőforrás-/ASan-próba megmarad.
+Új grafikai csomag nem kell. A tényleges panel javulása és számszerű terhelése
+külön eszközpróbát igényel; memóriaszivárgást mérés nélkül nem állítunk.

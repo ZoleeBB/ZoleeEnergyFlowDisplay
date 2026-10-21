@@ -1,0 +1,25 @@
+name: Zolee | CI - PR és kézi ellenőrzés
+run-name: >-
+  Zolee | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || 'kézi ellenőrzés' }} | ${{ github.head_ref || github.ref_name }}
+
+# A PR új commitja egyetlen futást indít; nincs párhuzamos feature-push build.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: zolee-ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Ellenőrzés és négy tesztcsomag
+    uses: ./.github/workflows/ci-shared.yml
+    with:
+      source_sha: ${{ github.sha }}
+

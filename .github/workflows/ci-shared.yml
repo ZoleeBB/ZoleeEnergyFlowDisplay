@@ -1,0 +1,290 @@
+name: Zolee | Közös build - tesztek és csomagok
+
+# Csak meghívott folyamat: önmagában sem push, sem PR nem indítja újra.
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_tag:
+        type: string
+        default: ''
+      automatic_release:
+        type: boolean
+        default: false
+    outputs:
+      tag:
+        value: ${{ jobs.prepare.outputs.tag }}
+      publish:
+        value: ${{ jobs.prepare.outputs.publish }}
+      pr:
+        value: ${{ jobs.prepare.outputs.pr }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  home-icons:
+    name: Ikonkészlet | 64 PNG
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - run: python3 -m pip install Pillow
+      - name: Validate complete home icon set and runtime dimensions
+        run: python3 tools/import_home_icons.py --complete
+
+  regression:
+    name: Regresszió | C, JS, protokollok és kiadás
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # A rögzített linter még nem ismeri a GitHub új queue mezőjét; csak ezt
+      # az egy diagnosztikát hagyjuk ki, a sorosítási szerződést saját teszt védi.
+      - name: Validate GitHub Actions syntax with pinned actionlint
+        run: |
+          curl -fsSL --retry 3 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz
+          echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint -ignore 'unexpected key "queue" for "concurrency" section' -color
+      - run: python3 -m pip install -r tests/requirements.txt
+      - run: python3 tests/run_tests.py
+
+  web-editor:
+    name: Web | Chromium desktop és mobil
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --prefix /tmp/zolee-web-browser playwright@1.62.1
+          node /tmp/zolee-web-browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Exercise actual web editor in desktop and mobile Chromium
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_slave_presence_browser.js
+
+  ui-preview:
+    name: Master 10.1 | LVGL és ASan, 32 bit + RGB565
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
+      - uses: actions/checkout@v4
+        with:
+          repository: lvgl/lvgl
+          ref: v9.5.0
+          path: .preview-lvgl
+      - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release -DZOLEE_PREVIEW_ASAN=ON
+      - run: cmake --build .preview-build -j 4
+      - name: Package shared Loxone resources for actual UI tests
+        run: python3 tools/prepare_home_resources.py
+      - name: Render actual LVGL screens
+        timeout-minutes: 12
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+        run: |
+          mkdir -p .preview-images
+          cp -r templates .preview-template-sd
+          export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
+          export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
+          cd .preview-images
+          ../.preview-build/ui_preview
+          ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
+
+  template-packages:
+    name: Sablonok | 9 téma és Loxone-erőforrások
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - run: python3 tools/prepare_templates.py
+      - name: Ensure packaging preserves authored templates
+        run: git diff --exit-code -- templates
+      - name: Verify every template is included in the artifact
+        run: python3 tests/test_template_packages.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zolee-templates-${{ inputs.source_sha }}
+          retention-days: 7
+          overwrite: true
+          path: dist/templates/*.zip
+          if-no-files-found: error
+
+  # Előbb a gyorsabb ellenőrzések futnak. Hibás változás nem indít két
+  # költséges firmware-fordítást; main pushnál ekkorra a merge API is friss.
+  prepare:
+    name: Csomagverzió | ellenőrzött forrás és main merge
+    needs: [home-icons, regression, web-editor, ui-preview, template-packages, simulator-master, simulator-slave]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      publish: ${{ steps.plan.outputs.publish }}
+      pr: ${{ steps.plan.outputs.pr }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Select CI, manual release or verified merged-PR version
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          AUTOMATIC_RELEASE: ${{ inputs.automatic_release }}
+        run: >-
+          python3 tools/release/ci_plan.py --repository "$GITHUB_REPOSITORY"
+          --commit "$SOURCE_SHA" --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF"
+          --tag "$RELEASE_TAG" --automatic "$AUTOMATIC_RELEASE"
+
+  build:
+    name: Firmware | Master 10.1 + Slave 4B, OTA és USB
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    timeout-minutes: 35
+    runs-on: ubuntu-latest
+
+    steps:
+      # A repository aktuális commitjának letöltése.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+
+      - name: Ensure embedded browser pages match current JavaScript
+        run: python3 tools/prepare_web.py --check
+
+      - name: Set exact firmware version
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: python3 tools/release/version.py --tag "$RELEASE_TAG"
+
+      # A projekt rögzített ESP-IDF 5.5.4 verzióval, ESP32-P4 célra fordul.
+      - name: Build with ESP-IDF 5.5.4
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.4
+          target: esp32p4
+          path: '.'
+
+      - name: Package OTA and complete USB installer
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          BUILD_COMMIT: ${{ inputs.source_sha }}
+        run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
+
+      - name: Build Waveshare 4B Slave with the same release version
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.4
+          target: esp32p4
+          path: firmware/slave-waveshare-4b
+
+      - name: Package separate Slave OTA and USB installer
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          BUILD_COMMIT: ${{ inputs.source_sha }}
+        run: >-
+          python3 tools/release/package.py --board slave-4b
+          --build firmware/slave-waveshare-4b/build
+          --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
+
+      - name: Check USB installer against real build outputs
+        run: |
+          python3 -m zipfile -e dist/ZoleeEnergyFlowDisplay-${{ needs.prepare.outputs.tag }}-usb.zip .usb-check
+          python3 -m pip install -r .usb-check/requirements-usb.txt
+          python3 -m esptool version
+          python3 .usb-check/flash.py --port TEST --dry-run
+          python3 .usb-check/flash.py --port TEST --no-stub --manual-boot --dry-run
+          python3 -m zipfile -e dist/ZoleeEnergyFlowDisplay-slave-4b-${{ needs.prepare.outputs.tag }}-usb.zip .usb-check-slave
+          python3 .usb-check-slave/flash.py --port TEST --dry-run
+          python3 .usb-check-slave/flash.py --port TEST --no-stub --manual-boot --dry-run
+
+      - name: Upload firmware packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: zolee-firmware-${{ inputs.source_sha }}
+          retention-days: 7
+          # Félbeszakadt publikálásnál az eredeti bájtoknak meg kell maradniuk.
+          overwrite: false
+          if-no-files-found: error
+          path: dist/*
+
+  simulator-master:
+    name: Master 10.1 | Windows szimulátor
+    timeout-minutes: 20
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - name: Configure MSVC Debug simulator
+        run: cmake -S . -B out/simulator -DZOLEE_SIMULATOR=ON -A x64
+      - name: Build
+        run: cmake --build out/simulator --config Debug --parallel 4
+      - name: Prepare common Loxone resources
+        run: |
+          python tools/prepare_home_resources.py
+          python -m zipfile -e dist/templates/loxone-home.zip out/simulator/simulator/templates/loxone-home
+      - name: Validate demo packets, render, timeout and recovery
+        run: ctest --test-dir out/simulator -C Debug --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zolee-simulator-master-windows-${{ inputs.source_sha }}
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: error
+          path: |
+            out/simulator/simulator/Debug/zolee_simulator.exe
+            out/simulator/simulator/templates/
+
+  simulator-slave:
+    name: Slave 4B | ${{ matrix.os }} szimulátor
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - name: Configure shared firmware UI simulator
+        run: cmake -S firmware/slave-waveshare-4b -B out/slave-4b -DSLAVE_4B_SIMULATOR=ON
+      - run: cmake --build out/slave-4b --config Debug --parallel 4
+      - name: Protocol, render, timeout and touch PIN regression
+        run: ctest --test-dir out/slave-4b -C Debug --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'windows-latest'
+        with:
+          name: zolee-simulator-slave-4b-windows-${{ inputs.source_sha }}
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: error
+          path: |
+            out/slave-4b/simulator/Debug/zolee_slave_4b_simulator.exe

@@ -320,26 +320,52 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     else{fmt_power(out,128,v);return;}
     snprintf(out,128,"%s %s",value,unit);
 }
-static void template_gesture(lv_event_t *event){
-    if (s_pair_pad) return;
-    (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
-    lv_dir_t direction=lv_indev_get_gesture_dir(input);
-    if (home_is_open()) {
+/* Az input kapja a gesztust, nem az újraépülő objektumfa. Így kép,
+ * asszisztens és lezárt buborékolás sem nyelheti el a navigációt. */
+static void template_gesture(lv_event_t *event)
+{
+    (void)event;
+    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME)) return;
+    lv_indev_t *input = lv_indev_active();
+    if (!input) return;
+    lv_dir_t direction = lv_indev_get_gesture_dir(input);
+    if (home_is_open())
         home_gesture(direction);
-        lv_indev_wait_release(input);
-        lv_event_stop_bubbling(event);
+    else if (s_diagnostics_requested)
         return;
+    else if (direction == LV_DIR_TOP)
+        s_diagnostics_requested = true;
+    else if (direction == LV_DIR_BOTTOM)
+        home_cards_requested();
+    else if (!s_cfg.cardless_slave && (direction == LV_DIR_LEFT || direction == LV_DIR_RIGHT))
+    {
+        app_templates_step_available(direction == LV_DIR_LEFT ? 1 : -1,
+                                     s_animation_sample.sun_position_valid);
+        template_loading_requested = true;
     }
-    if(s_diagnostics_requested)return;
-    if(direction==LV_DIR_TOP){
-        s_diagnostics_requested=true;lv_indev_wait_release(input);return;
-    }
-    /* Lefelé húzás az Otthon-oldal számára fenntartva; diagnosztikát nem zár. */
-    if(direction==LV_DIR_BOTTOM){home_cards_requested();lv_indev_wait_release(input);return;}
-    if(!s_cfg.cardless_slave && (direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT)){
-        app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
-        template_loading_requested=true;
-        lv_indev_wait_release(input);
+    else
+        return;
+    /* A gesztusnak indult érintésből nem lehet vezérlőgomb-kattintás. */
+    lv_indev_wait_release(input);
+}
+static void navigation_bind_inputs(void)
+{
+    lv_display_t *display = lv_obj_get_display(s_screen);
+    for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+    {
+        if (lv_indev_get_type(input) != LV_INDEV_TYPE_POINTER || lv_indev_get_display(input) != display)
+            continue;
+        bool bound = false;
+        for (uint32_t i = 0; i < lv_indev_get_event_count(input); i++)
+        {
+            if (lv_event_dsc_get_cb(lv_indev_get_event_dsc(input, i)) == template_gesture)
+            {
+                bound = true;
+                break;
+            }
+        }
+        if (!bound)
+            lv_indev_add_event_cb(input, template_gesture, LV_EVENT_GESTURE, NULL);
     }
 }
 static void template_release_cache(void){
@@ -371,6 +397,34 @@ static void template_loading_screen(void){
     lv_obj_set_style_arc_color(spinner,c(0x63E0A4),LV_PART_INDICATOR);
     lv_obj_remove_flag(spinner,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     s_view=VIEW_THEME_LOADING;
+    s_loading_frame_presented = false;
+    lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
+}
+/* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
+ * a 0.6.4-es adapter az ISR-ből ennek a tasknak küld pufferértesítést.
+ * A runtime másik taskból lv_refr_now-val holtpontot okozhatna. A kész
+ * frame visszajelzésére lock NÉLKÜL várunk, határidő után később próbáljuk újra. */
+static bool template_loading_wait(void)
+{
+    for (unsigned elapsed = 0; elapsed < 1000; elapsed += 10)
+    {
+        if (bsp_display_lock(20) == ESP_OK)
+        {
+#ifdef APP_TEMPLATE_DESKTOP
+            /* Desktopon nincs adapter task; a szimulátor egyetlen szálon fut. */
+            if (!s_loading_frame_presented) lv_refr_now(lv_obj_get_display(s_screen));
+#endif
+            bool ready = s_loading_frame_presented;
+            bsp_display_unlock();
+            if (ready)
+            {
+                vTaskDelay(pdMS_TO_TICKS(85));
+                return true;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    return false;
 }
 /* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
@@ -381,9 +435,9 @@ static bool template_loading_frame(void){
     /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
     if(s_view!=VIEW_THEME_LOADING)template_loading_screen();
     bsp_display_unlock();
+    if (!template_loading_wait()) return false;
     template_loading_requested=false;
     template_waiting_for_load=app_templates_has_pending(template_pending.generation);
-    vTaskDelay(pdMS_TO_TICKS(85));
     return true;
 }
 static void template_prepare(void){
@@ -432,7 +486,7 @@ static void template_build(bool night){
         lv_obj_set_style_bg_grad_dir(s_dash,LV_GRAD_DIR_HOR,0);
     }
     const cJSON *palette=cJSON_GetObjectItem(scene,"palette");
-    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);lv_obj_add_event_cb(s_dash,template_gesture,LV_EVENT_GESTURE,NULL);
+    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
     const cJSON *e;cJSON_ArrayForEach(e,cJSON_GetObjectItem(scene,"elements")){
         template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;
         const char *type=ts(e,"type");int x=tn(e,"x",0),y=tn(e,"y",0),w=tn(e,"w",1),h=tn(e,"h",1);

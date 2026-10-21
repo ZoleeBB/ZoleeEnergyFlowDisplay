@@ -6,6 +6,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_workflows.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_ci_plan.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_documentation.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
     binary = str(Path(directory) / 'test')
     subprocess.run([

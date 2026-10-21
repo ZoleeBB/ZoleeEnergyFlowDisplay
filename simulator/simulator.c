@@ -131,7 +131,10 @@ static void render_step(unsigned elapsed)
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
         app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
-        diagnostics_capture();home_prepare(sample.night_mode);if(!home_is_open())template_prepare();
+        diagnostics_capture();
+        if (!home_is_open() && !template_loading_frame()) return;
+        if (!home_prepare(sample.night_mode)) return;
+        if (!home_is_open()) template_prepare();
         assistant_prepare();
         app_assistant_update(&assistant_state,ticks,&sample,
             have && s_cfg.data_recept_mode==APP_DATA_LOXONE && rt.loxone_connected,

@@ -143,10 +143,10 @@ static bool home_decode_images(void)
     }
     return true;
 }
-static void home_prepare(bool night)
+static bool home_prepare(bool night)
 {
     int requested = home_request_get();
-    if (!requested && !home_page) return;
+    if (!requested && !home_page) return true;
     unsigned resource_generation = 0;
     bool snapshot = s_cfg.data_recept_mode == APP_DATA_LOXONE &&
                     app_loxone_home_snapshot(&home_next_config, &home_next_values,
@@ -157,7 +157,7 @@ static void home_prepare(bool night)
      * foglalt lehet. A már előtöltött oldal ilyenkor megmarad, friss állapottal. */
     if (!resources && !resource_generation && requested && home_page && sd_ok && snapshot &&
         home_next_revision == home_revision)
-        return;
+        return true;
     bool available = snapshot && resources;
     unsigned pages = lx_home_page_count(&home_next_config);
     unsigned index = requested >= 2 ? (unsigned)(requested - 2) : 0;
@@ -173,7 +173,7 @@ static void home_prepare(bool night)
         if (!home_page)
         {
             home_request_set(0);
-            return;
+            return true;
         }
         if (bsp_display_lock(-1) == ESP_OK)
         {
@@ -182,17 +182,17 @@ static void home_prepare(bool night)
             template_loading_screen();
             template_waiting_for_load = true;
             bsp_display_unlock();
-            vTaskDelay(pdMS_TO_TICKS(85));
+            return template_loading_wait();
         }
-        return;
+        return false;
     }
     bool same_page = home_page == mode && home_card_page == index && home_night == night &&
                      home_revision == home_next_revision && home_resource_generation == resource_generation;
     if (same_page && home_ready_to_draw)
-        return;
+        return true;
     if (!same_page)
     {
-        if (bsp_display_lock(-1) != ESP_OK) return;
+        if (bsp_display_lock(-1) != ESP_OK) return false;
         home_reset_theme();
         template_loading_screen();
         home_page = mode;
@@ -204,9 +204,8 @@ static void home_prepare(bool night)
         home_resource_generation = resource_generation;
         home_load_attempts = 0;
         bsp_display_unlock();
-        /* A feliratnak SD-olvasás és PNG-dekódolás előtt legyen frame-je. */
-        vTaskDelay(pdMS_TO_TICKS(85));
     }
+    if (!template_loading_wait()) return false;
     const char *icons[12];
     for (unsigned i = 0; i < count; i++)
         icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[first + i].icon;
@@ -224,7 +223,7 @@ static void home_prepare(bool night)
         if (bsp_display_lock(-1) != ESP_OK)
         {
             app_templates_view_free(&home_assets);
-            return;
+            return true;
         }
         loaded = home_decode_images();
         if (loaded && requested == 1)
@@ -245,15 +244,16 @@ static void home_prepare(bool night)
         /* Foglalt SD vagy sikertelen dekódolás esetén marad a betöltőkép.
          * Háttér nélküli oldal és ismétlődő widget-újraépítés nem jelenhet meg. */
         if (++home_load_attempts < 15)
-            return;
+            return true;
         app_events_add(APP_EVENT_WARNING, "A Loxone-oldal grafikai erőforrásai nem tölthetők be.");
         home_request_set(0);
         home_page = 0;
         template_loading_requested = true;
         template_waiting_for_load = true;
-        return;
+        return true;
     }
     home_ready_to_draw = true;
+    return true;
 }
 static int home_icon_index(const char *id)
 {
