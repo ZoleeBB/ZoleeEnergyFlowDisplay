@@ -6,6 +6,25 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_workflows.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_ci_plan.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_documentation.py')], check=True)
+with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
+    binary = str(Path(directory) / 'test')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/stubs', '-Imain', 'tests/test_energy_assistant.c', 'main/app_energy_assistant.c',
+        '-lm', '-o', binary,
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home_store.py')], check=True)
+subprocess.run(['node', str(ROOT / 'tests/test_loxone_home_web.js')], cwd=ROOT, check=True)
+subprocess.run(['node', str(ROOT / 'tests/test_slave_presence_web.js')], cwd=ROOT, check=True)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-transfer-') as directory:
     binary = str(Path(directory) / 'test_ble_stats_transfer')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
@@ -76,7 +95,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
                     '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
                     '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
-                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c',
+                    'main/app_slave_presence.c', 'main/app_slave_display.c', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
@@ -120,6 +140,7 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_release.py")], check=Tru
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_auto_release.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_home_resources.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
@@ -127,6 +148,7 @@ subprocess.run(['node', str(ROOT/'tests/test_settings_web.js')], cwd=ROOT, check
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_partial.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=True)

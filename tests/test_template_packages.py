@@ -16,6 +16,16 @@ def main():
         if path.is_dir() and (path / 'template.json').is_file()
     }
     actual = {path.stem: path for path in DIST.glob('*.zip')}
+    resources = actual.pop('loxone-home', None)
+    assert resources, 'A közös Loxone-erőforráscsomag hiányzik'
+    with zipfile.ZipFile(resources) as archive:
+        doc = json.loads(archive.read('template.json'))
+        assert doc['kind'] == 'loxone-home-resources' and len(doc['icons']) == 64
+        assert len(archive.namelist()) == 72
+        assert {'preview-light.png','preview-dark.png'} <= set(archive.namelist())
+        assert doc['consumer_backgrounds'] == {'light':'consumers-light.png','dark':'consumers-dark.png'}
+        assert b'prompt' not in archive.read('template.json')
+        assert b'original_sha256' not in archive.read('template.json')
     if not expected or expected.keys() != actual.keys():
         raise AssertionError(
             f'Template archives mismatch: missing={sorted(expected.keys()-actual.keys())}, '

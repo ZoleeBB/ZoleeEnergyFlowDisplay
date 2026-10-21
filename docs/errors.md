@@ -51,7 +51,7 @@ MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendsz
 
 ## Fekete képernyő és újraindulás a kijelző indításakor
 
-A `Display initialized` után következő `alloc partial draw buffer 80000 bytes failed`, majd `bsp_display_start_with_config` assert a belső RAM-ból történő rajzpuffer-foglalás hibája. A 32 MB PSRAM ettől még működhet. A firmware a Waveshare BSP 2.0.3 MIPI regisztrációját PSRAM-pufferre állítja; induláskor `app_display: MIPI LVGL draw buffers use PSRAM` naplósor jelzi ezt. A panel három képpuffere, az 50 soros rajzpuffer és a fekvő tájolás megmarad. A managed component forrásfájljait nem módosítja.
+A `Display initialized` után következő `alloc partial draw buffer 80000 bytes failed`, majd `bsp_display_start_with_config` assert a belső RAM-ból történő rajzpuffer-foglalás hibája. A 32 MB PSRAM ettől még működhet. A firmware a Waveshare BSP 2.0.3 MIPI regisztrációját PSRAM-pufferre állítja; induláskor `app_display: MIPI LVGL draw buffers use PSRAM` naplósor jelzi ezt. A Master a három meglévő panelpuffert teljes képkockás `TRIPLE_FULL` módban használja; külön 50 soros részleges rajzpuffer nincs. A fekvő tájolás megmarad. A managed component forrásfájljait nem módosítja.
 
 A régi firmware a soros konzolon ismétlődően újraindulhat; ehhez a javításhoz az új firmware teljes USB-csomagját kell feltölteni. A telepítő Python-fájljának cseréje önmagában nem változtatja meg a már feltöltött alkalmazást.
 
@@ -91,7 +91,7 @@ A kezdeti Wi-Fi/MQTT kapcsolódás a bootképernyőn marad. A kapcsolatvesztés 
 
 ## Villódzó vagy függőleges csíkokra széteső feliratok
 
-A feliratterületeken és a diagnosztikában is megjelenő képtorzulás nem csak animációs stílushiba lehet. A CPU forgatás és a DMA2D back-buffer javítás megoszthat egy cache-vonalat: az utólagos CPU write-back felülírhat DMA-val visszamásolt szomszédos képpontokat. A firmware CPU forgatás mellett CPU-val javítja a részleges puffert is, megőrzi a kész kép write-backjét és kihagyja az ezen az úton szükségtelen invalidálást. Ezt a `Partial framebuffer repair uses CPU; DMA cache-line mixing disabled` sor jelzi.
+A feliratterületeken és a diagnosztikában is megjelenő képtorzulás nem csak animációs stílushiba lehet. A CPU forgatás és a DMA2D back-buffer javítás megoszthat egy cache-vonalat: az utólagos CPU write-back felülírhat DMA-val visszamásolt szomszédos képpontokat. A korábbi részleges út CPU forgatás mellett CPU-val javítja a részleges puffert is, megőrzi a kész kép write-backjét és kihagyja az ezen az úton szükségtelen invalidálást. Ezt a `Partial framebuffer repair uses CPU; DMA cache-line mixing disabled` sor jelzi. A Master aktuális `TRIPLE_FULL` útja ezt a részleges javítást már nem használja.
 
 A változatlan szövegek, színek és átlátszóságok nem indítanak ismételt újrarajzolást. A forgatás, az animáció sebességképlete és a részleges frissítési mód megmarad. A tényleges villódzás megszűnését és a folyamatosságot a fizikai panelen kell ellenőrizni.
 
@@ -140,3 +140,15 @@ A regresszió a valódi háttértaskot futtatja szimulált várakozással,
 ## Közvetlen Loxone kapcsolat
 
 Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg. A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik; a szükséges állapotok visszaérkezésekor automatikusan folytatódik a kijelzés. A token előzetes megújítása normál esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál a webfelület a konkrét fázist és hibakódot mutatja. [Hibaelhárítás és korlátok](loxone-direct.md).
+
+## Loxone-oldal után eltűnő gesztus vagy betöltőkép
+
+Az F12 javítás az inputhoz köti a gesztust, ezért az újraépített téma képe,
+gombja vagy nem buborékoló fedőeleme nem tudja elnyelni. A fix képernyőn
+nincs scroll-felismerés. A betöltőkép az adapter saját LVGL-feladatában kerül flushra; a runtime lock nélkül vár a képkocka-visszajelzésre az SD-olvasás/dekódolás előtt; a 85 ms-os
+várakozás önmagában nem volt bizonyíték a megjelenésére. Az F13 a fizikai visszaesést okozó 33 ms-os keretet és a kész frame utáni
+plusz várakozást visszavonja: a refresh/animáció ismét 15/16 ms-os. Az IRQ-k
+között ismételt koordináta nem törli a húzás teljes elmozdulását; az 50 px-es
+távolságküszöb megmarad. Az új indulási regresszió minden témán Otthon-nyitás
+nélkül is ellenőriz lassú húzásokat. A tényleges paneles javulás és terhelés
+újra ellenőrizendő.

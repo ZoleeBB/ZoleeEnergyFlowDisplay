@@ -57,3 +57,29 @@ Az ablak pufferelt GDI-rajzolást használ: a háttér és a kijelző képe mem�
 Az **I** billentyű a közös diagnosztikai nézetet nyitja/zárja: balra tömör adatok, jobbra a legfrissebb 15 RAM-naplóesemény. A statisztikai téma demó SOC- és forrásenergia-adatokat, valamint hiányzó napot jelölő heti/havi oszlopdiagramokat is mutat.
 
 Kapcsolódó útmutató: [dokumentáció és első indítás](../README.md).
+
+## Loxone Otthon bemutató (v3 fejlesztési ág)
+
+A firmware két új Master-oldala ugyanazzal az LVGL-kóddal próbálható.
+A GitHub Actions Windows-artifactja már tartalmazza a közös erőforrásokat.
+A kicsomagolt szimulátor könyvtárából:
+
+```powershell
+.\zolee_simulator.exe --home-demo
+```
+
+Fogyasztói oldalról X-szel visszatérhetsz az energiaoldalra; a ház érintése újra
+megnyitja, lefelé húzás az Otthon-kártyákat mutatja. A demó gombjai nem kapcsolnak
+valódi Loxone-eszközt. A valódi hálózati parancsút külön C/protokolltesztekkel fut.
+
+Saját buildhez a repó gyökeréből készítsd el és bontsd a szimulátor másolt SD-jébe:
+
+```powershell
+python tools/prepare_home_resources.py
+python -m zipfile -e dist/templates/loxone-home.zip out/simulator/simulator/templates/loxone-home
+```
+
+A `--home-demo` már három címezett Otthon-lapot mutat: Földszint, Kert és egy üres
+Vendégszoba. Jobbra/balra húzással lapozható; a fejléc és a pontok követik az
+aktuális oldalt. A fogyasztói oldal külön külső háznézetet, az Otthon beltéri
+hátteret használ. Az alsó szöveg mindkettőn fedő, kontrasztos láblécen jelenik meg.

@@ -4,6 +4,7 @@
   "name": "Energiafőkönyv",
   "version": 11,
   "light": {
+    "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
     "background": "#F6F2EA",
     "elements": [
       {
@@ -699,6 +700,7 @@
     }
   },
   "dark": {
+    "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
     "background": "#18292B",
     "elements": [
       {

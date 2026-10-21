@@ -75,7 +75,11 @@ class ReleaseTests(unittest.TestCase):
                      'docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
                      'examples/config.http.sample.json','examples/loxone-energy-http-post.picoc'):
             self.assertTrue((unpack/name).is_file(),name)
-        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),len(list((ROOT/'templates').glob('*/template.json'))))
+        self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),len(list((ROOT/'templates').glob('*/template.json')))+1)
+        home=json.loads((unpack/'sd-card/templates/loxone-home/template.json').read_text())
+        self.assertEqual(len(home['icons']),64)
+        self.assertEqual(home['kind'],'loxone-home-resources')
+        self.assertTrue((unpack/'sd-card/templates/loxone-home/background-dark.png').is_file())
         for descriptor in (ROOT/'templates').glob('*/template.json'):
             for mode in ('light','dark'):
                 relative = f'sd-card/templates/{descriptor.parent.name}/preview-{mode}.png'

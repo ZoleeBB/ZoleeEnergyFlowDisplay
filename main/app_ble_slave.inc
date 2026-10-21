@@ -36,6 +36,8 @@ static void slave_stats_reset(void);
 static void slave_stats_poll(int64_t now);
 static bool slave_stats_busy(void);
 
+#include "app_ble_presence_client.inc"
+
 static void slave_diagnostics(void)
 {
     app_state_set_ble(s_started,
@@ -52,6 +54,7 @@ static void slave_diagnostics(void)
 static void slave_reset(void)
 {
     slave_stats_reset();
+    slave_presence_reset();
     s_master = BLE_HS_CONN_HANDLE_NONE;
     s_connecting = s_slave_ready = false;
     s_service_start = s_service_end = 0;
@@ -284,6 +287,8 @@ static void slave_setup_next(void)
     if (s_setup_packet == 3)
     {
         s_slave_ready = true;
+        if (!s_remote_presence)
+            app_slave_presence_service_legacy();
         s_last_frame_us = esp_timer_get_time();
         app_state_set_slave(true, true, s_master_timeout, false);
         slave_try_frame(s_last_frame_us);
@@ -313,6 +318,9 @@ static int slave_characteristic(uint16_t conn,
     if (error->status == 0)
     {
         const ble_uuid128_t *uuids[] = {&s_energy_uuid, &s_weather_uuid, &s_clock_uuid};
+        if (ble_uuid_cmp(&chr->uuid.u, &s_presence_uuid.u) == 0 &&
+            (chr->properties & BLE_GATT_CHR_PROP_READ))
+            s_remote_presence = chr->val_handle;
         if (ble_uuid_cmp(&chr->uuid.u, &s_profile_uuid.u) == 0 &&
             (chr->properties & BLE_GATT_CHR_PROP_READ))
             s_remote_profile = chr->val_handle;
@@ -485,7 +493,8 @@ static void slave_poll(int64_t now)
 {
     if (s_master != BLE_HS_CONN_HANDLE_NONE)
     {
-        slave_stats_poll(now);
+        if (!s_presence_reading)
+            slave_stats_poll(now);
         if (s_profile_waiting && app_ble_profile_ready())
         {
             s_profile_waiting = false;
@@ -496,7 +505,7 @@ static void slave_poll(int64_t now)
                 slave_setup_next();
             }
         }
-        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && !slave_stats_busy() && now >= s_profile_next_read)
+        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && !s_presence_reading && !slave_stats_busy() && now >= s_profile_next_read)
             slave_read_profile();
         if ((!s_slave_ready && now >= s_setup_deadline_us) ||
             (s_slave_ready &&
@@ -507,6 +516,7 @@ static void slave_poll(int64_t now)
             return;
         }
         slave_try_frame(now);
+        slave_presence_poll(now);
         int8_t rssi;
         if (ble_gap_conn_rssi(s_master, &rssi) == 0)
             s_master_rssi = rssi;

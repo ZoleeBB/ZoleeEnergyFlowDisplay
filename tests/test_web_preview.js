@@ -67,6 +67,11 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
  assert(solarFiles.has('preview-light.png')&&solarFiles.has('preview-dark.png'));
  const legacy=await read(process.argv[2]);const doc=JSON.parse(new TextDecoder().decode(legacy.get('template.json')));
  const oldMetric=sandbox.api.validateManifest(doc,legacy);
+ const timelineDoc=JSON.parse(JSON.stringify(doc));
+ timelineDoc.light.elements.push({type:'solar_timeline',x:0,y:0,w:480,h:132});
+ assert.strictEqual(sandbox.api.validateManifest(timelineDoc,legacy).decoded,oldMetric.decoded);
+ timelineDoc.light.elements.at(-1).w=479;
+ assert.throws(()=>sandbox.api.validateManifest(timelineDoc,legacy));
  const pulseDoc=JSON.parse(JSON.stringify(doc));
  for(const mode of ['light','dark'])pulseDoc[mode].elements.push({type:'pulse',x:614,y:329,w:32,h:32,color:'#FFE36B',foreground:true});
  assert.strictEqual(sandbox.api.validateManifest(pulseDoc,legacy).decoded,oldMetric.decoded);

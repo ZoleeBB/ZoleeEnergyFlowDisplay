@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 project(zolee_ui_preview C CXX)
 set(CMAKE_C_STANDARD 11)
+option(ZOLEE_PREVIEW_ASAN "Check preview memory accesses and leaks" OFF)
+if(ZOLEE_PREVIEW_ASAN)
+    # A teljes LVGL és a tényleges UI is műszerezett; a firmware-buildet nem érinti.
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        message(FATAL_ERROR "ZOLEE_PREVIEW_ASAN requires GCC or Clang")
+    endif()
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -O1 -g1)
+    add_link_options(-fsanitize=address)
+endif()
 get_filename_component(APP_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(LV_BUILD_CONF_PATH "${CMAKE_CURRENT_LIST_DIR}/lv_conf.h" CACHE STRING "" FORCE)
 set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -22,8 +31,22 @@ foreach(PNG IN LISTS PNG_FILES)
     list(APPEND PNG_OBJECTS "${OBJECT}")
 endforeach()
 add_executable(ui_preview preview.c "${APP_ROOT}/main/app_events.c" "${APP_ROOT}/main/app_diagnostics.c" "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
-    "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_OBJECTS})
+    slave_display_input_test.c "${APP_ROOT}/main/app_slave_display.c" "${APP_ROOT}/main/app_slave_display_input.c"
+    "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/main/app_energy_assistant.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_OBJECTS})
 target_include_directories(ui_preview PRIVATE "${APP_ROOT}/simulator/compat" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main" "${CMAKE_BINARY_DIR}")
 target_compile_definitions(ui_preview PRIVATE time=host_time APP_TEMPLATE_DESKTOP)
 target_compile_options(ui_preview PRIVATE -Wall -Wextra -Werror -Wno-misleading-indentation -Werror=frame-larger-than=8192)
+if(ZOLEE_PREVIEW_ASAN)
+    # A teszt main() ASan-védőterületei növelik a host stackkeretét; a
+    # firmware 8192 bájtos korlátját ez nem módosítja. Minden warning aktív.
+    target_compile_options(ui_preview PRIVATE -O3 -Werror=frame-larger-than=16384)
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        # GCC 13 + ASan a flow_t.points első skalártagját tévesen a teljes
+        # tömb határának veszi (4 bájt, valójában 2×8 bájt). A figyelmeztetés
+        # látható marad; a memóriahozzáférést a műszerezett LVGL is ellenőrzi.
+        # Ez kizárólag az opcionális host ASan-build eltérő diagnosztikája.
+        target_compile_options(ui_preview PRIVATE -Wno-error=stringop-overread)
+    endif()
+endif()
 target_link_libraries(ui_preview PRIVATE lvgl m z -l:libcjson.so.1)
+target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for")

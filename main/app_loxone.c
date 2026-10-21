@@ -2,6 +2,8 @@
 #include "app_loxone.h"
 #include "app_loxone_model.h"
 #include "app_loxone_store.h"
+#include "app_loxone_home_store.h"
+#include "app_slave_presence_service.h"
 #include "app_ingest.h"
 #include "app_state.h"
 #include "app_stats.h"
@@ -32,10 +34,39 @@
 #define LX_KEEPALIVE_US 15000000LL
 #define LX_MAX_RX (LX_STRUCTURE_MAX + 1024U)
 typedef struct { int type; size_t length; unsigned char *data; } message_t;
-typedef struct { lx_config_t config; bool save; } request_t;
+typedef struct {
+    lx_config_t config;
+    bool save;
+    lx_home_config_t *home;
+} request_t;
 static SemaphoreHandle_t s_lock;
-static QueueHandle_t s_messages,s_requests;
+static QueueHandle_t s_messages,s_requests,s_home_commands;
 static lx_config_t s_saved;
+/* Az új profil nem duzzasztja a hitelesítési konfiguráció másolatait. */
+static lx_home_config_t *s_home;
+static bool s_home_busy;
+static unsigned s_home_revision;
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+static EXT_RAM_BSS_ATTR lx_home_values_t s_home_values;
+#else
+static lx_home_values_t s_home_values;
+#endif
+static bool s_home_live, s_command_pending;
+static bool s_presence_session_live;
+static unsigned s_home_session;
+static int64_t s_command_deadline, s_home_response;
+static char s_command_status[LX_HOME_ERROR_SIZE];
+typedef struct {
+    char id[LX_HOME_ID_SIZE];
+    lx_home_command_t action;
+    unsigned revision, session;
+    int64_t queued_us;
+} home_command_t;
+static home_command_t s_pending_command;
+static bool update_values(int type, const uint8_t *data, size_t size);
+static void home_command_poll(int64_t now);
+static char s_home_status[LX_HOME_ERROR_SIZE] = "";
 static cJSON *s_catalog;
 static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
 static bool s_busy,s_password;
@@ -136,8 +167,17 @@ static void receive_event(void *arg,esp_event_base_t base,int32_t event,void *da
     s_rx=NULL;s_rx_len=0;s_rx_cap=0;
     if(xQueueSend(s_messages,&m,0)!=pdTRUE){free_message(&m);s_rx_failure=LX_RX_QUEUE_FULL;s_dead=true;}
 }
+static void mark_response(void)
+{
+    s_last_response = esp_timer_get_time();
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_home_response = s_last_response;
+    xSemaphoreGive(s_lock);
+    if (s_presence_session_live)
+        app_slave_presence_service_online(true);
+}
 static bool send_plain(const char *command)
-{return !s_dead&&esp_websocket_client_send_text(s_ws,command,strlen(command),pdMS_TO_TICKS(LX_TIMEOUT_MS))>=0;}
+{return !s_dead&&esp_websocket_client_send_text(s_ws,command,strlen(command),pdMS_TO_TICKS(LX_TIMEOUT_MS))==(int)strlen(command);}
 static bool send_encrypted(const char *command)
 {
     unsigned char salt[8],iv[16];char sh[17];esp_fill_random(salt,sizeof(salt));hex(salt,sizeof(salt),sh);
@@ -154,7 +194,7 @@ static bool send_encrypted(const char *command)
     char *escaped=NULL,*wrapped=NULL;
     if(ok){base[b64]=0;escaped=urlencode((char*)base);if(escaped){wrapped=malloc(strlen(escaped)+16);if(wrapped)sprintf(wrapped,"jdev/sys/enc/%s",escaped);}ok=wrapped&&send_plain(wrapped);}
     if(ok)snprintf(s_salt,sizeof(s_salt),"%s",sh);
-    mbedtls_aes_free(&aes);mbedtls_platform_zeroize(input,padded);free(input);free(cipher);free(base);free(escaped);free(wrapped);return ok;
+    mbedtls_aes_free(&aes);if(input)mbedtls_platform_zeroize(input,padded);free(input);free(cipher);free(base);free(escaped);free(wrapped);return ok;
 }
 static cJSON *reply(const char *command,bool encrypt)
 {
@@ -162,8 +202,8 @@ static cJSON *reply(const char *command,bool encrypt)
     int64_t deadline=esp_timer_get_time()+LX_TIMEOUT_MS*1000LL;
     while(!s_dead&&esp_timer_get_time()<deadline) {
         message_t m;if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))!=pdTRUE)continue;
-        s_last_response=esp_timer_get_time();
-        if(m.type!=0){if(s_session_config&&!lx_values_update(&s_values,s_session_config,m.type,m.data,m.length))s_dead=true;free_message(&m);continue;}
+        mark_response();
+        if(m.type!=0){if(s_session_config&&!update_values(m.type,m.data,m.length))s_dead=true;free_message(&m);continue;}
         cJSON *root=cJSON_ParseWithLength((char*)m.data,m.length);free_message(&m);
         cJSON *ll=cJSON_GetObjectItemCaseSensitive(root,"LL");
         cJSON *code=cJSON_GetObjectItemCaseSensitive(ll,"Code");
@@ -173,7 +213,10 @@ static cJSON *reply(const char *command,bool encrypt)
             int response_code=cJSON_IsNumber(code)?code->valueint:cJSON_IsString(code)?atoi(code->valuestring):0;
             failed(response_code?"A Miniserver elutasította a kérést.":"Érvénytelen Miniserver-válasz.",response_code);
         }
-        cJSON *value=ok?cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(ll,"value"),true):NULL;
+        const cJSON *returned=cJSON_GetObjectItemCaseSensitive(ll,"value");
+        /* A parancsnyugta 200 mellett érték nélkül is érvényes. A kapcsoló
+         * sikerét ettől függetlenül kizárólag a bináris állapot igazolja. */
+        cJSON *value=ok?(returned?cJSON_Duplicate(returned,true):cJSON_CreateNull()):NULL;
         cJSON_Delete(root);return value;
     }failed(s_dead?"A kapcsolat megszakadt.":"12 másodpercen belül nem érkezett válasz.",0);return NULL;
 }
@@ -436,8 +479,23 @@ static bool connect_server(const lx_config_t *cfg)
 }
 static void invalidate(bool configured)
 {
+    s_presence_session_live = false;
+    app_slave_presence_service_online(false);
     app_state_set_loxone(configured,false);app_state_clear_sample();app_stats_break_continuity();
     memset(&s_values,0,sizeof(s_values));
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_home_live = false;
+    s_home_session++;
+    memset(&s_home_values, 0, sizeof(s_home_values));
+    if (s_command_pending)
+        snprintf(s_command_status, sizeof(s_command_status), "%s",
+                 "A kapcsolat megszakadt; a művelet eredménye nem igazolható.");
+    s_command_pending = false;
+    s_command_deadline = 0;
+    home_command_t discarded;
+    if (s_home_commands)
+        while (xQueueReceive(s_home_commands, &discarded, 0) == pdTRUE) {}
+    xSemaphoreGive(s_lock);
 }
 static bool configured(const lx_config_t *cfg)
 {
@@ -445,6 +503,23 @@ static bool configured(const lx_config_t *cfg)
     for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&!cfg->map[i].uuid[0])return false;
     return true;
 }
+/* A memóriabeli profil csak a sikeresen lezárt SD-tranzakció után változik. */
+static void save_home_request(const lx_home_config_t *home)
+{
+    esp_err_t saved = app_loxone_home_store_save(home);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (saved == ESP_OK)
+    {
+        *s_home = *home;
+        s_home_revision++;
+    }
+    snprintf(s_home_status, sizeof(s_home_status), "%s",
+             saved == ESP_OK ? "Otthon-beállítások elmentve." :
+             "Az SD-mentés sikertelen. A korábbi Otthon-beállítások érvényesek.");
+    s_home_busy = false;
+    xSemaphoreGive(s_lock);
+}
+
 static void worker(void *arg)
 {
     (void)arg;
@@ -452,7 +527,16 @@ static void worker(void *arg)
     if(!active){status("Nincs elegendő memória a Loxone klienshez.");vTaskDelete(NULL);return;}
     char token[1024]={0};bool testing=false;unsigned failures=0;
     for(;;) {
+        uint32_t presence_revision = app_slave_presence_service_source_revision();
         if(xQueueReceive(s_requests,&request,0)==pdTRUE) {
+            if (request->home)
+            {
+                save_home_request(request->home);
+                free(request->home);
+                free(request);
+                request = NULL;
+                continue;
+            }
             *active=request->config;testing=!request->save;
             if(request->save) {
                 if(app_loxone_store_save(active)==ESP_OK) {
@@ -475,19 +559,27 @@ static void worker(void *arg)
         if(!token[0]&&!acquire_token(active,token,sizeof(token))) {report_failure("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
         if(!download_catalog_with_fallback(active,token)) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
         if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
+        /* A hitelesítés és a katalógus már sikeres; a kezdő delta az ACK előtt is jöhet. */
+        s_presence_session_live = true;
+        app_slave_presence_service_online(true);
         cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
         xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        s_home_live = true;
+        xSemaphoreGive(s_lock);
         app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
-        s_last_response=esp_timer_get_time();int64_t heartbeat=s_last_response,last_sample=0;
+        mark_response();int64_t heartbeat=s_last_response,last_sample=0;
         failures=0;
-        while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0) {
+        while(!s_dead&&app_wifi_is_connected()&&uxQueueMessagesWaiting(s_requests)==0 &&
+              app_slave_presence_service_source_revision() == presence_revision) {
             message_t m;int64_t now=esp_timer_get_time();
             if(xQueueReceive(s_messages,&m,pdMS_TO_TICKS(100))==pdTRUE) {
-                s_last_response=now;
-                if(!lx_values_update(&s_values,active,m.type,m.data,m.length))s_dead=true;
+                mark_response();
+                if(!update_values(m.type,m.data,m.length))s_dead=true;
                 free_message(&m);
             }
+            home_command_poll(now);
             if(now-heartbeat>=LX_KEEPALIVE_US){if(!send_plain("keepalive"))break;heartbeat=now;}
             if(now-s_last_response>=LX_KEEPALIVE_US*3)break;
             if(now>=s_token_refresh_us) {
@@ -522,9 +614,20 @@ retry:
 esp_err_t app_loxone_start(void)
 {
     s_lock=xSemaphoreCreateMutex();s_messages=xQueueCreate(LX_QUEUE_DEPTH,sizeof(message_t));s_requests=xQueueCreate(1,sizeof(request_t*));
-    if(!s_lock||!s_messages||!s_requests)return ESP_ERR_NO_MEM;
+    s_home_commands = xQueueCreate(1, sizeof(home_command_t));
+    if(!s_lock||!s_messages||!s_requests||!s_home_commands)return ESP_ERR_NO_MEM;
+    s_home = calloc(1, sizeof(*s_home));
+    if (!s_home)
+        return ESP_ERR_NO_MEM;
+    esp_err_t home_load = app_loxone_home_store_load(s_home);
+    if (home_load != ESP_OK && home_load != ESP_ERR_NOT_FOUND)
+        snprintf(s_home_status, sizeof(s_home_status), "%s",
+                 "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
     lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
-    if(xTaskCreate(worker,"loxone",12288,NULL,3,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    /* A GUI/touch a CPU1-en fut; a hálózati állapotfeldolgozás CPU0-n marad.
+     * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
+    if (xTaskCreatePinnedToCore(worker, "loxone", 12288, NULL, 3, NULL, 0) != pdPASS)
+        return ESP_ERR_NO_MEM;
     return ESP_OK;
 }
 cJSON *app_loxone_web_state(void)
@@ -552,10 +655,231 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
     else if(cJSON_IsNull(password)&&strcmp(r->config.host,s_saved.host)==0&&r->config.port==s_saved.port&&r->config.tls==s_saved.tls&&strcmp(r->config.username,s_saved.username)==0)snprintf(r->config.password,sizeof(r->config.password),"%s",s_saved.password);
     else ok=false;
     r->save=save;
-    if(!ok||!r->config.password[0]||s_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
+    if(!ok||!r->config.password[0]||s_busy||s_home_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
     s_busy=true;snprintf(s_status,sizeof(s_status),"%s",save?"Beállítások mentése...":"Kapcsolat tesztelése...");
     if(xQueueSend(s_requests,&r,0)!=pdTRUE){s_busy=false;ok=false;}
     xSemaphoreGive(s_lock);
     if(!ok){mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_FAIL;}
     return ESP_OK;
+}
+
+/* Külön API: a kapcsolat régi mentése nem írja felül az Otthon-profilt,
+ * és ezen az úton sem jelszó, sem tetszőleges parancs nem küldhető. */
+cJSON *app_loxone_home_web_state(void)
+{
+    if (!s_lock || !s_home)
+        return NULL;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    cJSON *root = lx_home_config_json(s_home);
+    if (root)
+    {
+        if (!cJSON_AddBoolToObject(root, "busy", s_home_busy) ||
+            !cJSON_AddNumberToObject(root, "revision", s_home_revision) ||
+            !cJSON_AddStringToObject(root, "status", s_home_status))
+        {
+            cJSON_Delete(root);
+            root = NULL;
+        }
+    }
+    xSemaphoreGive(s_lock);
+    return root;
+}
+
+esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SIZE])
+{
+    if (!s_lock || !s_home)
+        return ESP_ERR_INVALID_STATE;
+    request_t *request = calloc(1, sizeof(*request));
+    lx_home_config_t *home = calloc(1, sizeof(*home));
+    if (!request || !home)
+    {
+        free(request);
+        free(home);
+        return ESP_ERR_NO_MEM;
+    }
+    if (!body || !lx_home_config_parse(body, home, error))
+    {
+        free(request);
+        free(home);
+        return ESP_ERR_INVALID_ARG;
+    }
+    request->home = home;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool accepted = !s_busy && !s_home_busy &&
+                    xQueueSend(s_requests, &request, 0) == pdTRUE;
+    if (accepted)
+    {
+        s_home_busy = true;
+        snprintf(s_home_status, sizeof(s_home_status), "%s", "Otthon-beállítások mentése...");
+    }
+    xSemaphoreGive(s_lock);
+    if (!accepted)
+    {
+        free(home);
+        free(request);
+        snprintf(error, LX_HOME_ERROR_SIZE, "%s", "Várd meg a folyamatban lévő Loxone-műveletet.");
+    }
+    return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+static bool update_values(int type, const uint8_t *data, size_t size)
+{
+    if (!lx_values_update(&s_values, s_session_config, type, data, size))
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);
+    xSemaphoreGive(s_lock);
+    if (ok && type == 2 && s_presence_session_live)
+    {
+        /* Ugyanaz a már ellenőrzött, 24 bájtos numerikus WS-delta: nincs új kapcsolat,
+         * és a két BLE-olvasás közé eső 1->0 él sem veszik el. */
+        for (size_t position = 0; position < size; position += 24)
+        {
+            char uuid[LX_UUID_LEN];
+            lx_uuid_string(data + position, uuid);
+            uint64_t bits = 0;
+            for (unsigned byte = 0; byte < 8; ++byte)
+                bits |= (uint64_t)data[position + 16 + byte] << (8 * byte);
+            double value;
+            memcpy(&value, &bits, sizeof(value));
+            app_slave_presence_service_source(uuid, true, value);
+        }
+    }
+    return ok;
+}
+
+bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values,
+                              unsigned *revision, bool *connected,
+                              bool *command_pending, char message[LX_HOME_ERROR_SIZE])
+{
+    if (!s_lock || !s_home || !config || !values || !revision || !connected ||
+        !command_pending || !message)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    *config = *s_home;
+    *values = s_home_values;
+    char allowed_command[96];
+    for (unsigned i = 0; i < s_home->card_count; i++)
+        values->command_supported[i] = lx_home_command_build(s_home, s_catalog,
+            s_home->cards[i].id, s_home->cards[i].type == LX_HOME_CARD_PULSE ?
+            LX_HOME_COMMAND_PULSE : LX_HOME_COMMAND_ON, allowed_command);
+    *revision = s_home_revision;
+    *connected = s_home_live && !s_dead &&
+                 esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
+    *command_pending = s_command_pending;
+    snprintf(message, LX_HOME_ERROR_SIZE, "%s", s_command_status);
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
+bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
+{
+    if (!out || !s_lock || !s_home)
+        return false;
+    memset(out, 0, sizeof(*out));
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    out->count = s_home->consumer_count;
+    out->revision = s_home_revision;
+    out->session = s_home_session;
+    int64_t elapsed = esp_timer_get_time() - s_home_response;
+    out->connected = s_home_live && !s_dead && elapsed >= 0 && elapsed < LX_KEEPALIVE_US * 3;
+    for (unsigned i = 0; i < out->count && i < LX_HOME_MAX_CONSUMERS; ++i)
+    {
+        const lx_home_consumer_t *source = &s_home->consumers[i];
+        app_assistant_consumer_t *target = &out->consumers[i];
+        snprintf(target->id, sizeof(target->id), "%s", source->id);
+        snprintf(target->name, sizeof(target->name), "%s", source->name);
+        target->eligible = lx_home_consumer_start_kw(source, &target->required_kw);
+        target->measured_kw = s_home_values.consumers[i].value;
+        target->valid = s_home_values.consumers[i].valid;
+    }
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
+esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
+{
+    if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)
+        return ESP_ERR_INVALID_STATE;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    char command[96];
+    bool allowed = s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
+                   esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
+                   lx_home_command_build(s_home, s_catalog, card_id, action, command);
+    for (unsigned i = 0; allowed && i < s_home->card_count; i++)
+    {
+        if (!strcmp(s_home->cards[i].id, card_id) && s_home->cards[i].type == LX_HOME_CARD_SWITCH)
+            allowed = s_home_values.cards[i].valid &&
+                      s_home_values.cards[i].value == (action == LX_HOME_COMMAND_ON ? 0 : 1);
+    }
+    home_command_t request = {.action = action, .revision = s_home_revision, .session = s_home_session, .queued_us = esp_timer_get_time()};
+    snprintf(request.id, sizeof(request.id), "%s", card_id);
+    allowed = allowed && xQueueSend(s_home_commands, &request, 0) == pdTRUE;
+    if (allowed)
+    {
+        s_command_pending = true;
+        s_command_deadline = 0;
+        snprintf(s_command_status, sizeof(s_command_status), "%s", "Kérés küldése...");
+    }
+    xSemaphoreGive(s_lock);
+    return allowed ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+/* Kizárólag a Loxone-worker küldhet a WebSocketre. A kivett parancsot soha
+ * nem tesszük vissza a sorba, akkor sem, ha az eredmény a hálózati hiba miatt bizonytalan. */
+static void home_command_poll(int64_t now)
+{
+    home_command_t request;
+    if (s_home_commands && xQueueReceive(s_home_commands, &request, 0) == pdTRUE)
+    {
+        char command[96];
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        /* A kérés az üzenetfogadás várakozása közben is érkezhetett.
+         * A ciklus eleji idő ilyenkor régebbi a gombnyomásnál. */
+        now = esp_timer_get_time();
+        bool valid = s_home_live && !s_dead && request.revision == s_home_revision &&
+                     request.session == s_home_session && now >= request.queued_us &&
+                     now - request.queued_us <= 2000000LL &&
+                     lx_home_command_build(s_home, s_catalog, request.id, request.action, command);
+        xSemaphoreGive(s_lock);
+        cJSON *answer = valid ? reply(command, true) : NULL;
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        if (!answer)
+        {
+            s_command_pending = false;
+            snprintf(s_command_status, sizeof(s_command_status), "%s",
+                     "A művelet nem igazolható. Ellenőrizd a Loxone állapotát.");
+        }
+        else if (request.action == LX_HOME_COMMAND_PULSE)
+        {
+            s_command_pending = false;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", "Impulzus elküldve.");
+        }
+        else
+        {
+            s_pending_command = request;
+            s_command_deadline = esp_timer_get_time() + 5000000LL;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", "Állapot-visszajelzésre várunk...");
+        }
+        xSemaphoreGive(s_lock);
+        cJSON_Delete(answer);
+    }
+    now = esp_timer_get_time();
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (s_command_pending && s_command_deadline)
+    {
+        bool confirmed = false;
+        for (unsigned i = 0; i < s_home->card_count; i++)
+            if (!strcmp(s_home->cards[i].id, s_pending_command.id) && s_home_values.cards[i].valid &&
+                s_home_values.cards[i].value == (s_pending_command.action == LX_HOME_COMMAND_ON ? 1 : 0))
+                confirmed = true;
+        if (confirmed || now >= s_command_deadline)
+        {
+            s_command_pending = false;
+            s_command_deadline = 0;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", confirmed ?
+                     "Loxone-állapot visszaigazolva." : "Nem érkezett megfelelő Loxone-állapot.");
+        }
+    }
+    xSemaphoreGive(s_lock);
 }

@@ -141,3 +141,7 @@ void app_stats_update_config(const app_statistics_config_t *cfg);
 
 /* Megszakadt adatfolyamon át nem integrálunk energiát. */
 void app_stats_break_continuity(void);
+
+#include "app_energy_assistant.h"
+/* Csak Master/Loxone, 00..04 helyi órák igazolt mérései. Régi fájl nem referencia. */
+bool app_stats_get_night_reference(app_assistant_night_t *out);

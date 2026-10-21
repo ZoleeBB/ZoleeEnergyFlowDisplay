@@ -2,6 +2,8 @@
 #include "slave_4b_ui.h"
 #include "app_boot_config.h"
 #include "app_ble_profile.h"
+#include "app_slave_display_input.h"
+#include "app_slave_presence_service.h"
 #include "app_events.h"
 #include "app_ingest.h"
 #include "app_ota.h"
@@ -18,9 +20,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <time.h>
+#include <stdatomic.h>
 
 static app_config_t config;
 static int last_brightness = -1;
+static app_slave_display_t display_state;
+static app_slave_display_input_t input_gate;
+static atomic_bool boot_complete;
 
 static void refresh(lv_timer_t *timer)
 {
@@ -31,7 +37,7 @@ static void refresh(lv_timer_t *timer)
     app_state_get_runtime(&runtime);
     int64_t now = esp_timer_get_time();
     bool available = app_state_get_sample(&sample) && runtime.slave_connected &&
-                     !app_state_data_timed_out(&runtime, now, config.mqtt.data_timeout_seconds);
+                     !app_state_data_timed_out(&runtime, now, app_config_data_timeout(&config));
     char clock[8] = "--:--";
     if (runtime.time_synced)
     {
@@ -46,7 +52,15 @@ static void refresh(lv_timer_t *timer)
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     slave_4b_ui_pairing(&pairing);
-    int brightness = sample.night_mode ? 25 : 70;
+    /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
+     * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
+    if (available)
+        app_slave_display_night(&display_state, sample.night_mode, now);
+    app_slave_display_keep_visible(&display_state,
+                                   !atomic_load(&boot_complete) || pairing.pin_required ||
+                                   !input_gate.input, now);
+    app_slave_presence_service_apply(&display_state, now);
+    int brightness = (int)app_slave_display_brightness(&display_state, now);
     if (brightness != last_brightness)
     {
         bsp_display_brightness_set(brightness);
@@ -100,12 +114,32 @@ void app_main(void)
     config.cardless_slave = true;
     app_storage_set_cardless();
     ESP_ERROR_CHECK(app_ble_profile_init(&config));
+    /* Régi Masterrel és a célzott, védett profil megérkezéséig nincs sötétítés. */
+    app_slave_display_profile_t display_profile = {
+        .day_brightness = config.display.day_brightness,
+        .night_brightness = config.display.night_brightness,
+        .blank_at_night = false,
+        .presence_timeout_seconds = 30,
+    };
+    ESP_ERROR_CHECK(app_slave_display_init(&display_state, &display_profile,
+                                          esp_timer_get_time()) ? ESP_OK : ESP_ERR_INVALID_ARG);
+    app_slave_display_keep_visible(&display_state, true, esp_timer_get_time());
     app_state_set_data_mode(APP_DATA_SLAVE);
     app_state_set_config_ok(true);
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(app_time_init(&config));
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
+    for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+    {
+        if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+            lv_indev_get_display(input) == lv_display_get_default())
+        {
+            ESP_ERROR_CHECK(app_slave_display_input_bind(&input_gate, input, &display_state,
+                                                         esp_timer_get_time) ? ESP_OK : ESP_FAIL);
+            break;
+        }
+    }
     ESP_ERROR_CHECK(lv_timer_create(refresh, 33, NULL) ? ESP_OK : ESP_ERR_NO_MEM);
     bsp_display_unlock();
     ESP_ERROR_CHECK(app_ble_seed_start(&config));
@@ -127,6 +161,7 @@ void app_main(void)
     ESP_ERROR_CHECK(app_time_start_background_task());
     ESP_ERROR_CHECK(app_ota_start_auto_update(&config));
     app_ble_profile_boot_complete();
+    atomic_store(&boot_complete, true);
     for (;;)
         vTaskDelay(pdMS_TO_TICKS(60000));
 }

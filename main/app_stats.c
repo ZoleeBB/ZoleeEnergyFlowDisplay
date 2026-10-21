@@ -42,6 +42,8 @@ typedef struct {
     char date[11];
     app_energy_totals_t totals;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
+    uint16_t night_seconds[48];
+    double night_load_kwh[48];
     bool valid;
     uint32_t revision;
     uint32_t saved_revision;
@@ -56,7 +58,16 @@ static char s_notified_date[11];
 static void (*s_day_change_callback)(void);
 static day_data_t s_yesterday;
 static app_stats_day_t s_history[APP_STATS_HISTORY_DAYS];
+typedef struct
+{
+    char date[11];
+    double hour_kw[4];
+    bool valid[4];
+} night_history_t;
+static night_history_t s_night_history[7];
+_Static_assert(sizeof(s_night_history) <= 512, "Az éjszakai referencia túl nagy");
 static bool s_have_prev;
+static bool s_prev_time_synced;
 static bool s_task_started;
 static app_energy_sample_t s_prev;
 static int64_t s_last_save_us;
@@ -260,7 +271,8 @@ static day_data_t *day_for(time_t epoch)
 }
 
 /* Ötperces és éjféli határokon is pontosan vágunk; a háttértask sorrendjétől függetlenül. */
-static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current)
+static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current,
+                           bool trusted_night_time)
 {
     int64_t duration=current->received_epoch_s-previous->received_epoch_s;
     if(duration<=0 || duration>s_cfg.statistics.max_integration_gap_seconds)return;
@@ -280,6 +292,20 @@ static void integrate_pair(const app_energy_sample_t *previous,const app_energy_
             app_energy_totals_t energy=energy_between(&a,&b,(next-cursor)/3600.);
             totals_add(&day->totals,&energy);
             totals_add(&day->slots[slot_for((time_t)cursor)].energy,&energy);
+            unsigned slot = (unsigned)slot_for((time_t)cursor);
+            if (trusted_night_time && s_cfg.data_recept_mode == APP_DATA_LOXONE && slot < 48 && duration <= 30 &&
+                previous->night_mode && current->night_mode &&
+                previous->received_monotonic_us > 0 &&
+                current->received_monotonic_us > previous->received_monotonic_us &&
+                fabs((double)(current->received_monotonic_us - previous->received_monotonic_us) -
+                     duration * 1000000.) <= 1000000)
+            {
+                unsigned seconds = day->night_seconds[slot] + (unsigned)(next - cursor);
+                /* Ismételt helyi óra/DST vagy óra-visszalépés nem teljes lefedettség. */
+                day->night_seconds[slot] = seconds > 300 ? 301 : (uint16_t)seconds;
+                if (seconds <= 300)
+                    day->night_load_kwh[slot] += energy.consumption_kwh;
+            }
             day->revision++;
         }
         cursor=next;
@@ -407,6 +433,16 @@ static cJSON *day_to_json(const day_data_t *day)
         cJSON_AddNumberToObject(obj,"soc_count",slot->soc_sample_count);
         cJSON_AddItemToObject(obj, "energy", totals_to_json(&slot->energy));
         cJSON_AddBoolToObject(obj,"chart_gap",slot->chart_gap);
+        if (i < 48 && day->night_seconds[i])
+        {
+            if (!cJSON_AddNumberToObject(obj, "night_seconds", day->night_seconds[i]) ||
+                !cJSON_AddNumberToObject(obj, "night_load_kwh", day->night_load_kwh[i]))
+            {
+                cJSON_Delete(obj);
+                cJSON_Delete(root);
+                return NULL;
+            }
+        }
         cJSON *split=cJSON_AddObjectToObject(obj,"split");
 #define SAVE_SPLIT(field) cJSON_AddNumberToObject(split,#field,slot->split.field)
         SAVE_SPLIT(pv_home); SAVE_SPLIT(pv_export); SAVE_SPLIT(pv_stored);
@@ -479,6 +515,20 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             goto invalid;
         }
 
+        cJSON *night_seconds = cJSON_GetObjectItemCaseSensitive(obj, "night_seconds");
+        cJSON *night_load = cJSON_GetObjectItemCaseSensitive(obj, "night_load_kwh");
+        if (night_seconds || night_load)
+        {
+            if (i >= 48 || !cJSON_IsNumber(night_seconds) || !cJSON_IsNumber(night_load) ||
+                !isfinite(night_seconds->valuedouble) || night_seconds->valuedouble < 1 ||
+                night_seconds->valuedouble > 301 || floor(night_seconds->valuedouble) != night_seconds->valuedouble ||
+                !isfinite(night_load->valuedouble) || night_load->valuedouble < 0 ||
+                night_load->valuedouble > 15 * fmin(300, night_seconds->valuedouble) / 3600. + 1e-6 ||
+                night_load->valuedouble > parsed->slots[i].energy.consumption_kwh + 1e-6)
+                goto invalid;
+            parsed->night_seconds[i] = (uint16_t)night_seconds->valuedouble;
+            parsed->night_load_kwh[i] = night_load->valuedouble;
+        }
         parsed->slots[i].valid = cJSON_IsTrue(valid);
         parsed->slots[i].sample_count = (uint32_t)count->valuedouble;
         parsed->slots[i].pv_kw = (float)pv->valuedouble;
@@ -786,7 +836,52 @@ static bool day_has_any_samples(const day_data_t *day){
     for(int i=0;i<APP_STATS_SLOT_COUNT;i++)if(day->slots[i].valid)return true;
     return false;
 }
+/* A teljes múltbeli napok már meglévő betöltéséből képezzük a kis RAM-cache-t.
+ * UI/asszisztens kérésére nem indul új fájlolvasás. */
+static bool night_hour(const day_data_t *day, unsigned hour, double *kw)
+{
+    unsigned seconds = 0;
+    double energy = 0;
+    if (!day->valid || hour >= 4)
+        return false;
+    for (unsigned i = hour * 12; i < (hour + 1) * 12; ++i)
+    {
+        if (day->night_seconds[i] < 270 || day->night_seconds[i] > 300 || day->slots[i].chart_gap ||
+            !isfinite(day->night_load_kwh[i]) || day->night_load_kwh[i] < 0)
+            return false;
+        seconds += day->night_seconds[i];
+        energy += day->night_load_kwh[i];
+    }
+    *kw = energy * 3600 / seconds;
+    return isfinite(*kw) && *kw >= 0;
+}
+
+static void night_history_put(const day_data_t *day)
+{
+    if (!day->valid)
+        return;
+    unsigned index = 0;
+    for (unsigned i = 0; i < 7; ++i)
+    {
+        if (!strcmp(s_night_history[i].date, day->date))
+        {
+            index = i;
+            goto put_night;
+        }
+        if (strcmp(s_night_history[i].date, s_night_history[index].date) < 0)
+            index = i;
+    }
+    if (strcmp(day->date, s_night_history[index].date) <= 0)
+        return;
+put_night:
+    memset(&s_night_history[index], 0, sizeof(s_night_history[index]));
+    snprintf(s_night_history[index].date, 11, "%s", day->date);
+    for (unsigned hour = 0; hour < 4; ++hour)
+        s_night_history[index].valid[hour] = night_hour(day, hour, &s_night_history[index].hour_kw[hour]);
+}
+
 static void history_put(const day_data_t *day){
+    night_history_put(day);
     if(!day_has_any_samples(day))return;
     unsigned index=0;
     for(unsigned i=0;i<APP_STATS_HISTORY_DAYS;i++){
@@ -907,6 +1002,8 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     }
 
     memset(s_history,0,sizeof(s_history));
+    memset(s_night_history, 0, sizeof(s_night_history));
+    night_history_put(&s_yesterday);
     day_data_t *historical=malloc(sizeof(*historical));
     if(!historical){xSemaphoreGive(s_mutex);return ESP_ERR_NO_MEM;}
     for(int i=2;i<APP_STATS_HISTORY_DAYS;i++){
@@ -935,12 +1032,31 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     }
 
     time_t now = (time_t)sample->received_epoch_s;
+    /* A közös állapot zárját a statisztikai zár ELŐTT elengedjük. */
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
     roll_day(now);
     if(s_have_prev){
-        integrate_pair(&s_prev,sample);
+        if (s_cfg.data_recept_mode == APP_DATA_LOXONE && s_prev.night_mode && sample->night_mode &&
+            (sample->received_epoch_s <= s_prev.received_epoch_s ||
+             sample->received_monotonic_us <= s_prev.received_monotonic_us ||
+             fabs((double)(sample->received_monotonic_us - s_prev.received_monotonic_us) -
+                  (sample->received_epoch_s - s_prev.received_epoch_s) * 1000000.) > 1000000))
+        {
+            /* Óraigazítás/ismételt intervallum után az éjszaka nem megbízható referencia. */
+            day_data_t *affected[] = {day_for((time_t)s_prev.received_epoch_s), day_for(now)};
+            for (unsigned d = 0; d < 2; ++d)
+                if (affected[d])
+                {
+                    for (unsigned i = 0; i < 48; ++i)
+                        affected[d]->night_seconds[i] = 301;
+                    affected[d]->revision++;
+                }
+        }
+        integrate_pair(&s_prev, sample, s_prev_time_synced && runtime.time_synced);
         int64_t gap=sample->received_epoch_s-s_prev.received_epoch_s;
         if(gap>(int64_t)app_config_data_timeout(&s_cfg)){
             /* Az érintett ötperces ablakok kimaradnak; nem lesz kitalált összekötés. */
@@ -961,6 +1077,7 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     }
 
     s_prev = *sample;
+    s_prev_time_synced = runtime.time_synced;
     s_have_prev = true;
 
     xSemaphoreGive(s_mutex);
@@ -1024,6 +1141,58 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
     }
 
     xSemaphoreGive(s_mutex);
+}
+
+bool app_stats_get_night_reference(app_assistant_night_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    if (!s_mutex || s_cfg.data_recept_mode != APP_DATA_LOXONE)
+        return false;
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    if (!runtime.time_synced)
+        return false;
+    time_t now = time(NULL);
+    struct tm local;
+    localtime_r(&now, &local);
+    if (local.tm_hour < 1 || local.tm_hour > 4)
+        return false;
+    out->hour = (unsigned)local.tm_hour - 1;
+    date_for(now, out->date);
+    local.tm_mday -= 7;
+    local.tm_isdst = -1;
+    char oldest[11];
+    date_for(mktime(&local), oldest);
+    double values[7];
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    night_history_put(&s_yesterday);
+    bool current = !strcmp(out->date, s_today.date) && night_hour(&s_today, out->hour, &out->current_kw);
+    for (unsigned i = 0; i < 7; ++i)
+    {
+        const night_history_t *night = &s_night_history[i];
+        if (strcmp(night->date, oldest) >= 0 && strcmp(night->date, out->date) < 0 && night->valid[out->hour])
+            values[out->nights++] = night->hour_kw[out->hour];
+    }
+    xSemaphoreGive(s_mutex);
+    if (!current || out->nights < 3)
+        return false;
+    for (unsigned i = 1; i < out->nights; ++i)
+    {
+        double value = values[i];
+        unsigned j = i;
+        while (j && values[j - 1] > value)
+        {
+            values[j] = values[j - 1];
+            --j;
+        }
+        values[j] = value;
+    }
+    out->baseline_kw = out->nights % 2 ? values[out->nights / 2] :
+                       (values[out->nights / 2 - 1] + values[out->nights / 2]) * .5;
+    out->ready = true;
+    return true;
 }
 
 /* Mindkét megtartott nap konzisztens másolatának mentése. A lassú I/O nem fogja a mérési zárat. */

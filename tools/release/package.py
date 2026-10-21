@@ -5,11 +5,14 @@ import hashlib
 import json
 from pathlib import Path
 import struct
+import sys
 import zipfile
 from version import validate_tag
 from flash_usb import ESPTOOL_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
+from prepare_home_resources import home_resource_files
 
 
 def digest(data):
@@ -93,6 +96,9 @@ def package(build, output, tag, commit, board="main"):
     for path in sorted((ROOT/'templates').glob('*/*')):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()
+    if not slave:
+        for name, data in home_resource_files().items():
+            files['sd-card/templates/loxone-home/' + name] = data
     # The repository keeps templates at its root; the portable installer keeps
     # the same package files under sd-card/. Preserve offline preview links.
     for name in ('README.md', 'docs/templates.md'):

@@ -8,7 +8,8 @@
 #define APP_TEMPLATE_MAX 16
 #define APP_TEMPLATE_ZIP_MAX (8U * 1024U * 1024U)
 /* 1280x800 fotóháttér: egy RGB PNG 2 MiB felett is lehet, a teljes
- * dekódolt képmemória korlátja ettől függetlenül 12 MiB marad. */
+ * dekódolt összes kép normál témánál 12 MiB, speciális Otthon-csomagnál 20 MiB.
+ * A UI-cache változatlan; a speciális csomagból csak az aktív oldal töltődik be. */
 #define APP_TEMPLATE_PNG_MAX (5U * 1024U * 1024U / 2U)
 #define APP_TEMPLATE_ENCODED_MAX (5U * 1024U * 1024U)
 #define APP_TEMPLATE_ROOT APP_SD_MOUNT_POINT "/templates"
@@ -57,3 +58,16 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
 bool app_templates_safe_id(const char *id);
 bool app_templates_safe_asset(const char *path);
 const char *app_templates_root(void);
+
+/* Külön, nem lapozható erőforráscsomag a két Loxone Master-oldalhoz.
+ * Az általános témák 32 képes korlátja nem változik. */
+#define APP_HOME_RESOURCE_ID "loxone-home"
+#define APP_HOME_RESOURCE_KIND "loxone-home-resources"
+#define APP_HOME_RESOURCE_ICONS 64U
+bool app_templates_home_info(app_template_info_t *info, unsigned *generation);
+bool app_templates_home_load(const char *const *icons, unsigned count, bool night,
+                              app_template_view_t *out);
+
+/* A v2 erőforráscsomagból külön fogyasztói háttér; v1 esetén közös fallback. */
+bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
+                                  bool consumers, app_template_view_t *out);

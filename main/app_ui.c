@@ -7,6 +7,8 @@
  */
 #include "app_ui.h"
 #include "app_ble_seed.h"
+#include "app_slave_display_input.h"
+#include "app_slave_presence_service.h"
 #include "app_display_orientation.h"
 #include "app_assets.h"
 #include "app_events.h"
@@ -24,6 +26,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "src/draw/lv_image_decoder_private.h"
 #if LV_USE_OS != LV_OS_NONE || LV_DRAW_SW_DRAW_UNIT_CNT != 1
 #error "Use LV_OS_NONE and one software draw unit; the adapter serializes LVGL with its own mutex"
 #endif
@@ -32,6 +35,11 @@
 #include "app_storage.h"
 #include "app_templates.h"
 #include "app_diagnostics.h"
+#include "app_loxone.h"
+#include "app_loxone_home_layout.h"
+#ifndef _MSC_VER
+#include <stdatomic.h>
+#endif
 
 LV_FONT_DECLARE(app_font_12);
 #define APP_FONT_12 (&app_font_12)
@@ -92,6 +100,9 @@ static lv_obj_t *s_chart2_y_top, *s_chart2_y_mid, *s_chart2_y_bottom;
 
 static lv_obj_t *s_error_pulse;
 static int s_brightness = 50, s_target = 50;
+static app_slave_display_t s_slave_display;
+static app_slave_display_input_t s_slave_input;
+static bool s_slave_display_ready;
 static int64_t s_last_chart_update_us;
 /* A 20 kB-os snapshot a UI modul tulajdona, nem a task vermét terheli. */
 static app_stats_snapshot_t s_stats_snapshot;
@@ -113,7 +124,7 @@ static bool template_is_active(void);
 static void template_animate(float dt);
 static bool template_heavy_animation(void);
 static unsigned template_catalogue_count(void);
-static void template_gesture(lv_event_t *event);
+static void navigation_bind_inputs(void);
 
 /* A runtime UI kölcsönösen kizáró fő nézetei. */
 typedef enum
@@ -122,6 +133,7 @@ typedef enum
     VIEW_DASHBOARD,
     VIEW_THEME_LOADING,
     VIEW_DIAGNOSTICS,
+    VIEW_HOME,
     VIEW_WIFI_ERROR,
     VIEW_MQTT_ERROR,
     VIEW_LOXONE_SETUP,
@@ -133,7 +145,15 @@ typedef enum
 } runtime_view_t;
 
 static runtime_view_t s_view = VIEW_NONE;
+/* Csak LVGL-lock alatt írjuk/olvassuk, a runtime várakozás közben elengedi. */
+static bool s_loading_frame_presented;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
+static bool home_is_open(void);
+static void assistant_reset_widgets(void);
+static void home_cards_requested(void);
+static void home_gesture(lv_dir_t direction);
+static void home_open_clicked(lv_event_t *event);
+static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene);
 static void error_screen(runtime_view_t view, const char *title, const char *detail, bool fatal);
 
 /* Az MQTT adatokból származtatott időjárási ikonállapotok. */
@@ -240,6 +260,9 @@ static void screen_style(lv_obj_t *o, bool night)
     bg_opa_if_changed(o, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_pad_all(o, 0, 0);
+    /* Fix méretű képernyőn nincs tartalomgörgetés: a scroll-felismerő
+     * elsőbbsége különben még az input szintű gesztust is letiltja. */
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
 }
 /* Közös kártyastílus: háttér, keret, lekerekítés és nappali árnyék. */
 static void card_style(lv_obj_t *o, bool night)
@@ -305,6 +328,7 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 /* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
 static void clear(void)
 {
+    assistant_reset_widgets();
     lv_obj_clean(s_screen);
     s_pair_pad = s_pair_mask = s_pair_countdown = s_pair_window_label = NULL;
     memset(s_pair_digits, 0, sizeof(s_pair_digits));
@@ -538,6 +562,9 @@ static lv_obj_t *energy_circle(lv_obj_t *parent,
     lv_obj_remove_flag(outer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *image = asset_image_box(outer, 0, 0, size - 8, size - 16, asset, night);
+    /* Az átlátszó képtartó ne nyelje el a szülő energia-node érintését. */
+    lv_obj_remove_flag(lv_obj_get_parent(image), LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(image, LV_OBJ_FLAG_CLICKABLE);
 
     if (image_out)
     {
@@ -702,7 +729,6 @@ static void build_dashboard(bool night)
     lv_obj_set_size(s_dash, W, H);
     screen_style(s_dash, night);
     lv_obj_remove_flag(s_dash, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(s_dash, template_gesture, LV_EVENT_GESTURE, NULL);
 
     /*
      * Fejléc: az eredeti látványterv fehér, lekerekített fejlécét tartjuk meg,
@@ -880,6 +906,8 @@ static void build_dashboard(bool night)
 
     /* Ház alul. */
     s_home_node = energy_circle(flow, 245, 390, 92, &app_img_home_scene, NULL, night, ORANGE);
+    lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *home_name =
         lbl(flow, tr("Ház", "Home"), 170, 439, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
@@ -1694,8 +1722,9 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
 
 static void initial_refresh_report(lv_event_t *event)
 {
-    (void)event;
     static bool reported;
+    (void)event;
+    if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
     if (!reported)
     {
         reported = true;
@@ -1705,12 +1734,14 @@ static void initial_refresh_report(lv_event_t *event)
 
 /*
  * A kijelzőt a BSP kezdeti konfigurációjában fordítjuk. Futás közben
- * lv_display_set_rotation() MIPI DSI/TRIPLE_PARTIAL mellett nem használható:
+ * lv_display_set_rotation() futó MIPI DSI mellett nem használható:
  * 90 foknál Store access faultot okozhat a háttérben futó frissítés.
  */
 esp_err_t app_ui_init(uint16_t rotation_degrees)
 {
     const app_display_orientation_t o = app_display_orientation_for_rotation(rotation_degrees);
+    /* Csak a módosult részletek rajzolódnak; a buildbeli CPU-pipeline
+     * a panel három pufferéből mindig kész, koherens képet ad át. */
     bsp_display_cfg_t cfg = {.lv_adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG(),
                              .rotation = o.rotation_degrees == 90 ? ESP_LV_ADAPTER_ROTATE_90
                                                                   : ESP_LV_ADAPTER_ROTATE_270,
@@ -1722,13 +1753,15 @@ esp_err_t app_ui_init(uint16_t rotation_degrees)
      * drawing threads. Keep its stack in PSRAM, preserving internal DMA RAM. */
     cfg.lv_adapter_cfg.task_stack_size = 32768;
     cfg.lv_adapter_cfg.stack_in_psram = true;
+    /* A grafika és touch külön magon fusson a Loxone/hálózat mellett. */
+    cfg.lv_adapter_cfg.task_core_id = 1;
     lv_display_t *disp = bsp_display_start_with_config(&cfg);
     if (!disp)
         return ESP_FAIL;
     bsp_display_backlight_on();
     bsp_display_brightness_set(50);
     ESP_LOGI("app_ui", "Display initialized at %u degrees", (unsigned)o.rotation_degrees);
-    ESP_LOGI("app_ui", "Display started; waiting for LVGL lock");
+    ESP_LOGI("app_ui", "Partial display and touch worker on CPU1; waiting for LVGL lock");
     esp_err_t lock_err = bsp_display_lock(5000);
     if (lock_err != ESP_OK)
     {
@@ -1739,7 +1772,10 @@ esp_err_t app_ui_init(uint16_t rotation_degrees)
     }
     s_screen = lv_screen_active();
     lv_display_add_event_cb(disp, initial_refresh_report, LV_EVENT_REFR_READY, NULL);
-    lv_obj_add_event_cb(s_screen, template_gesture, LV_EVENT_GESTURE, NULL);
+    /* A korábban elfogadott 15/16 ms-os ütemezés: a rajzolás idején
+     * felül nem iktatunk be újabb teljes periódusnyi várakozást. */
+    lv_timer_set_period(lv_display_get_refr_timer(disp), 15);
+    navigation_bind_inputs();
     screen_style(s_screen, false);
     if (!lv_timer_create(animation_tick, 16, NULL))
     {
@@ -1773,6 +1809,23 @@ void app_ui_set_config(const app_config_t *cfg)
      * nappali fényerő az indulási képernyőkre is azonnal érvényes.
      */
     bsp_display_brightness_set(s_brightness);
+    if (cfg->data_recept_mode == APP_DATA_SLAVE && bsp_display_lock(-1) == ESP_OK)
+    {
+        /* A védett jelenlétprofil megérkezéséig nincs sötétítés.
+         * Az energia-BLE csomag fényerőmezőjét itt sem használjuk. */
+        app_slave_display_profile_t profile = {
+            .day_brightness = cfg->display.day_brightness,
+            .night_brightness = cfg->display.night_brightness,
+            .blank_at_night = false, .presence_timeout_seconds = 30,
+        };
+        int64_t now = esp_timer_get_time();
+        s_slave_display_ready = s_slave_display_ready
+            ? app_slave_display_profile(&s_slave_display, &profile, now)
+            : app_slave_display_init(&s_slave_display, &profile, now);
+        if (s_slave_display_ready)
+            app_slave_display_keep_visible(&s_slave_display, true, now);
+        bsp_display_unlock();
+    }
 }
 /* Indulási folyamat aktuális lépésének megjelenítése vektoros állapotikonokkal. */
 void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
@@ -1870,6 +1923,8 @@ void app_ui_show_fatal(const char *title, const char *detail)
 /* Folyamatos UI runtime task: kapcsolatállapot, timeout, fényerő és dashboard frissítése. */
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
 #include "app_template_ui.inc"
+#include "app_loxone_home_ui.inc"
+#include "app_energy_assistant_ui.inc"
 #include "app_loxone_logo.h"
 /* Saját Loxone képernyők: a témákhoz nem foglalunk új képcache-t. */
 static void loxone_screen(runtime_view_t view)
@@ -1919,9 +1974,12 @@ static void loxone_screen(runtime_view_t view)
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    template_clock_synced = rt.time_synced;
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     if (pairing.pin_required) return;
+    if (home_render(&s, have && rt.loxone_connected &&
+                    !app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg)))) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
         had_loxone_connection = true;
@@ -1935,7 +1993,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         return;
     }
     template_apply();
-    if (s_view == VIEW_THEME_LOADING && template_pending.generation == template_view.generation)
+    if (s_view == VIEW_THEME_LOADING && template_waiting_for_load)
         return;
     if (s_diagnostics_requested)
     {
@@ -2007,6 +2065,42 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     }
 }
 
+/* Kizárólag a kijelző zárja alatt: az inputkapu ugyanazt az állapotot frissíti. */
+static void slave_display_update(const app_runtime_state_t *state,
+                                  const app_energy_sample_t *sample, bool have, int64_t now)
+{
+    if (s_cfg.data_recept_mode != APP_DATA_SLAVE || !s_slave_display_ready)
+        return;
+    if (!s_slave_input.input)
+    {
+        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+        {
+            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+                lv_indev_get_display(input) == lv_display_get_default())
+            {
+                (void)app_slave_display_input_bind(&s_slave_input, input,
+                                                  &s_slave_display, esp_timer_get_time);
+                break;
+            }
+        }
+    }
+    if (have && state->slave_connected &&
+        !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg)))
+        app_slave_display_night(&s_slave_display, sample->night_mode, now);
+    app_ble_pairing_status_t pairing;
+    app_ble_pairing_status(&pairing);
+    /* Használható érintő nélkül ne lehessen véletlenül felébreszthetetlenül sötét. */
+    app_slave_display_keep_visible(&s_slave_display,
+                                   pairing.pin_required || !s_slave_input.input, now);
+    app_slave_presence_service_apply(&s_slave_display, now);
+    s_target = (int)app_slave_display_brightness(&s_slave_display, now);
+    if (s_brightness != s_target)
+    {
+        s_brightness = s_target;
+        bsp_display_brightness_set(s_brightness);
+    }
+}
+
 static void runtime(void *arg)
 {
     (void)arg;
@@ -2034,7 +2128,7 @@ static void runtime(void *arg)
             }
         }
 
-        if (have)
+        if (have && s_cfg.data_recept_mode != APP_DATA_SLAVE)
         {
             s_target = s.night_mode ? s_cfg.display.night_brightness : s_cfg.display.day_brightness;
             if (s_brightness != s_target)
@@ -2046,16 +2140,27 @@ static void runtime(void *arg)
         }
 
         diagnostics_capture();
+        assistant_prepare();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
-        if (!template_loading_frame())
+        if (!home_is_open() && !template_loading_frame())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        template_prepare();
+        if (!home_prepare(have ? s.night_mode : home_night))
+        {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+        if (!home_is_open()) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {
+            slave_display_update(&rt, &s, have, now);
+            app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
+                have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
+                &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
+            assistant_render();
 
             bsp_display_unlock();
         }

@@ -15,9 +15,17 @@ static struct tm *localtime_r(const time_t *t, struct tm *out)
 #endif
 #include "../main/app_ui.c"
 #include "app_ingest.h"
+#include "home_fixture.h"
 void app_ble_pairing_status(app_ble_pairing_status_t *out){memset(out,0,sizeof(*out));}
 bool app_ble_pairing_submit(uint32_t token,const char *pin){(void)token;(void)pin;return false;}
 void app_ble_pairing_open(void){}
+/* A desktop demó nem indít BLE/NVS szolgáltatást. */
+void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now)
+{
+    (void)display;
+    (void)now;
+}
+
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
@@ -123,7 +131,15 @@ static void render_step(unsigned elapsed)
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
         app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
-        diagnostics_capture();template_prepare();render_runtime(rt,sample,have,ticks);
+        diagnostics_capture();
+        if (!home_is_open() && !template_loading_frame()) return;
+        if (!home_prepare(sample.night_mode)) return;
+        if (!home_is_open()) template_prepare();
+        assistant_prepare();
+        app_assistant_update(&assistant_state,ticks,&sample,
+            have && s_cfg.data_recept_mode==APP_DATA_LOXONE && rt.loxone_connected,
+            &assistant_consumers,&assistant_night);
+        render_runtime(rt,sample,have,ticks);assistant_render();
     }
     lv_timer_handler();
 }
@@ -354,6 +370,11 @@ int main(int argc,char **argv)
     app_templates_init();
     if(argc>1&&!strcmp(argv[1],"--self-test"))app_templates_select("builtin");
     init_demo();int result=0;
+    if(argc>1&&!strcmp(argv[1],"--home-demo")) {
+        config.data_recept_mode=APP_DATA_LOXONE;app_ui_set_config(&config);
+        app_state_set_data_mode(APP_DATA_LOXONE);app_state_set_loxone(true,true);
+        app_sim_home_reset();home_request_set(1);
+    }
     if(argc>1 && strcmp(argv[1],"--self-test")==0){
         result=self_test();
 #ifdef _WIN32

@@ -38,6 +38,9 @@ static app_template_info_t catalogue[APP_TEMPLATE_MAX];
 static unsigned count, generation = 1;
 static char selected[33] = "builtin";
 static bool save_selection;
+static bool home_ready;
+static app_template_info_t home_info;
+static unsigned home_generation = 1;
 const char *app_templates_root(void)
 {
 #ifdef APP_TEMPLATE_DESKTOP
@@ -241,6 +244,7 @@ static bool validate_scene(const cJSON *scene)
                                         "pulse",
                                         "solar_disc",
                                         "solar_arc",
+                                        "solar_timeline",
                                         "label",
                                         "value",
                                         "image",
@@ -324,6 +328,13 @@ static bool validate_scene(const cJSON *scene)
             if (!color(str(palette, keys[i])))
                 return false;
     }
+    const cJSON *hotspot = cJSON_GetObjectItemCaseSensitive(scene, "home_hotspot");
+    if (hotspot && (!cJSON_IsObject(hotspot) || !number(hotspot,"x",0,1279,false) ||
+        !number(hotspot,"y",0,799,false) || !number(hotspot,"w",1,1280,false) ||
+        !number(hotspot,"h",1,800,false) ||
+        cJSON_GetObjectItem(hotspot,"x")->valueint + cJSON_GetObjectItem(hotspot,"w")->valueint > 1280 ||
+        cJSON_GetObjectItem(hotspot,"y")->valueint + cJSON_GetObjectItem(hotspot,"h")->valueint > 800))
+        return false;
     const cJSON *elements = cJSON_GetObjectItemCaseSensitive(scene, "elements");
     if (!cJSON_IsArray(elements) || cJSON_GetArraySize(elements) > 96)
         return false;
@@ -347,6 +358,11 @@ static bool validate_scene(const cJSON *scene)
             cJSON_GetObjectItem(e, "y")->valueint + cJSON_GetObjectItem(e, "h")->valueint > 800)
             return false;
         if (source && !one_of(source, sources))
+            return false;
+        /* A két eseményfeliratnak és az óraskálának is el kell férnie. */
+        if (!strcmp(type, "solar_timeline") &&
+            (cJSON_GetObjectItem(e, "w")->valueint < 480 ||
+             cJSON_GetObjectItem(e, "h")->valueint < 132))
             return false;
         if (cJSON_HasObjectItem(e, "shadow") && (!cJSON_IsBool(cJSON_GetObjectItem(e, "shadow")) ||
                                                  (strcmp(type, "value") && strcmp(type, "label"))))
@@ -470,6 +486,63 @@ static bool validate_scene(const cJSON *scene)
     }
     return true;
 }
+static bool home_package(const cJSON *root)
+{
+    const char *kind = str(root, "kind");
+    return kind && !strcmp(kind, APP_HOME_RESOURCE_KIND);
+}
+static bool home_split_backgrounds(const cJSON *root)
+{
+    const cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "version");
+    return cJSON_IsNumber(version) && version->valueint >= 2;
+}
+static bool home_manifest(const cJSON *root)
+{
+    if (!str(root, "id") || strcmp(str(root, "id"), APP_HOME_RESOURCE_ID))
+        return false;
+    const cJSON *backgrounds = cJSON_GetObjectItemCaseSensitive(root, "consumer_backgrounds");
+    if (home_split_backgrounds(root))
+    {
+        const char *light = str(backgrounds, "light"), *dark = str(backgrounds, "dark");
+        if (!cJSON_IsObject(backgrounds) || !light || !dark ||
+            strcmp(light, "consumers-light.png") || strcmp(dark, "consumers-dark.png"))
+            return false;
+    }
+    else if (backgrounds)
+        return false;
+    const cJSON *icons = cJSON_GetObjectItemCaseSensitive(root, "icons");
+    if (!cJSON_IsArray(icons) || cJSON_GetArraySize(icons) != APP_HOME_RESOURCE_ICONS)
+        return false;
+    const cJSON *icon;
+    cJSON_ArrayForEach(icon, icons)
+    {
+        const char *id = str(icon, "id"), *file = str(icon, "file");
+        if (!app_templates_safe_id(id) || !app_templates_safe_asset(file))
+            return false;
+        char expected[65];
+        snprintf(expected, sizeof(expected), "icon-%s.png", id);
+        if (strcmp(file, expected))
+            return false;
+        for (const cJSON *prior = icons->child; prior != icon; prior = prior->next)
+            if (!strcmp(str(prior, "id"), id))
+                return false;
+    }
+    return true;
+}
+static bool home_asset(const cJSON *root, const char *name, unsigned width, unsigned height)
+{
+    if (!strcmp(name, "background-light.png") || !strcmp(name, "background-dark.png") ||
+        (home_split_backgrounds(root) && (!strcmp(name, "consumers-light.png") || !strcmp(name, "consumers-dark.png"))))
+        return width == 1280 && height == 800;
+    if (!strcmp(name, "loxone-logo.png"))
+        return width <= 256 && height <= 256;
+    const cJSON *icon;
+    cJSON_ArrayForEach(icon, cJSON_GetObjectItemCaseSensitive(root, "icons"))
+        if (!strcmp(str(icon, "file"), name))
+            return width == 96 && height == 96;
+    return false;
+}
+
 bool app_templates_validate(const char *directory, cJSON **document, char error[160])
 {
     char path[256];
@@ -516,6 +589,13 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         cJSON_Delete(root);
         return error_set(error, "Hibás sablonleírás / Invalid template schema");
     }
+    bool resources = home_package(root);
+    if ((resources && !home_manifest(root)) ||
+        (!resources && (cJSON_HasObjectItem(root, "kind") || !strcmp(str(root, "id"), APP_HOME_RESOURCE_ID))))
+    {
+        cJSON_Delete(root);
+        return error_set(error, "Hibás Loxone erőforráscsomag / Invalid home resources");
+    }
     DIR *dir = opendir(directory);
     if (!dir)
     {
@@ -530,7 +610,7 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") ||
             !strcmp(entry->d_name, "template.json"))
             continue;
-        if (!app_templates_safe_asset(entry->d_name) || ++assets > 32)
+        if (!app_templates_safe_asset(entry->d_name) || ++assets > (resources ? 72U : 32U))
         {
             valid = false;
             break;
@@ -553,8 +633,12 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
                 valid = false;
         }
         else
+        {
+            if (resources && !home_asset(root, entry->d_name, w, h))
+                valid = false;
             decoded += (size_t)w * h * 4;
-        if (encoded > APP_TEMPLATE_ENCODED_MAX || decoded > 12 * 1024 * 1024)
+        }
+        if (encoded > APP_TEMPLATE_ENCODED_MAX || decoded > (resources ? 20U : 12U) * 1024 * 1024)
         {
             valid = false;
             break;
@@ -562,7 +646,7 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
     }
     closedir(dir);
     /* Régi SD-csomag: egyik sincs. Új előnézetek: a két üzemmód együtt érkezik. */
-    if (previews == 1)
+    if (previews == 1 || (resources && assets != (home_split_backgrounds(root) ? 69U : 67U) + previews))
         valid = false;
     const char *themes[] = {"light", "dark"};
     for (int t = 0; valid && t < 2; t++)
@@ -651,6 +735,8 @@ static void apply_saved_order(void)
 static void scan(void)
 {
     count = 1;
+    home_ready = false;
+    memset(&home_info, 0, sizeof(home_info));
     snprintf(catalogue[0].id, 33, "builtin");
     snprintf(catalogue[0].name, 81, "Rendszer");
     DIR *dir = opendir(app_templates_root());
@@ -658,7 +744,7 @@ static void scan(void)
         return;
     struct dirent *e;
     char path[256], error[160];
-    while (count < APP_TEMPLATE_MAX && (e = readdir(dir)))
+    while ((e = readdir(dir)))
     {
         if (!app_templates_safe_id(e->d_name))
             continue;
@@ -666,7 +752,14 @@ static void scan(void)
         cJSON *doc = NULL;
         if (!app_templates_validate(path, &doc, error))
             continue;
-        if (!strcmp(str(doc, "id"), e->d_name))
+        if (!strcmp(str(doc, "id"), e->d_name) && home_package(doc))
+        {
+            home_ready = true;
+            snprintf(home_info.id, sizeof(home_info.id), "%s", APP_HOME_RESOURCE_ID);
+            snprintf(home_info.name, sizeof(home_info.name), "%s", str(doc, "name"));
+            home_info.version = cJSON_GetObjectItem(doc, "version")->valueint;
+        }
+        else if (count < APP_TEMPLATE_MAX && !strcmp(str(doc, "id"), e->d_name))
         {
             snprintf(catalogue[count].id, 33, "%.32s", e->d_name);
             snprintf(catalogue[count].name, 81, "%s", str(doc, "name"));
@@ -685,6 +778,7 @@ static void scan(void)
                 catalogue[j] = t;
             }
     apply_saved_order();
+    home_generation++;
 }
 esp_err_t app_templates_init(void)
 {
@@ -1063,7 +1157,7 @@ esp_err_t app_templates_install(const char *zip, char error[160])
     path_join(dest, app_templates_root(), str(doc, "id"));
     struct stat st;
     bool exists = stat(dest, &st) == 0;
-    if (!exists && count >= APP_TEMPLATE_MAX)
+    if (!exists && !home_package(doc) && count >= APP_TEMPLATE_MAX)
     {
         error_set(error, "A sablonlista megtelt");
         goto done;
@@ -1110,7 +1204,7 @@ esp_err_t app_templates_delete(const char *id, char error[160])
     xSemaphoreTake(lock, portMAX_DELAY);
     char path[256];
     path_join(path, app_templates_root(), id);
-    bool found = false;
+    bool found = home_ready && !strcmp(id, APP_HOME_RESOURCE_ID);
     for (unsigned i = 1; i < count; i++)
         if (!strcmp(catalogue[i].id, id))
             found = true;
@@ -1148,7 +1242,7 @@ char *app_templates_manifest_json(const char *id)
     if (!lock || !app_templates_safe_id(id))
         return NULL;
     xSemaphoreTake(lock, portMAX_DELAY);
-    bool found = false;
+    bool found = home_ready && !strcmp(id, APP_HOME_RESOURCE_ID);
     for (unsigned i = 1; i < count; i++)
         if (!strcmp(catalogue[i].id, id))
             found = true;
@@ -1217,13 +1311,14 @@ esp_err_t app_templates_probe(const char *zip, cJSON **report, char error[160])
         status = ESP_ERR_NO_MEM;
         goto done;
     }
-    bool exists = false;
+    bool exists = home_ready && home_package(doc);
     for (unsigned i = 0; i < count; i++)
         if (!strcmp(catalogue[i].id, str(doc, "id")))
             exists = true;
     cJSON_AddBoolToObject(result, "valid", true);
     cJSON_AddBoolToObject(result, "updating", exists);
-    cJSON_AddBoolToObject(result, "installable", exists || count < APP_TEMPLATE_MAX);
+    cJSON_AddBoolToObject(result, "installable", exists || home_package(doc) || count < APP_TEMPLATE_MAX);
+    cJSON_AddBoolToObject(result, "resources", home_package(doc));
     cJSON_AddStringToObject(result, "id", str(doc, "id"));
     cJSON_AddStringToObject(result, "name", str(doc, "name"));
     cJSON_AddNumberToObject(result, "version", cJSON_GetObjectItem(doc, "version")->valueint);
@@ -1232,7 +1327,7 @@ esp_err_t app_templates_probe(const char *zip, cJSON **report, char error[160])
     cJSON_AddStringToObject(result,
                             "message",
                             exists ? "A meglévő téma frissíthető (felülírás biztonsági mentéssel)"
-                            : count >= APP_TEMPLATE_MAX ? "Sablonlista megtelt"
+                            : !home_package(doc) && count >= APP_TEMPLATE_MAX ? "Sablonlista megtelt"
                                                         : "Érvényes, telepíthető sablon");
     *report = result;
     result = NULL;
@@ -1244,4 +1339,85 @@ done:
     STORAGE_GIVE();
     xSemaphoreGive(lock);
     return status;
+}
+
+
+bool app_templates_home_info(app_template_info_t *info, unsigned *version)
+{
+    if (!lock || !xSemaphoreTake(lock, 0))
+        return false;
+    bool ready = home_ready;
+    if (info)
+        *info = home_info;
+    if (version)
+        *version = home_generation;
+    xSemaphoreGive(lock);
+    return ready;
+}
+
+bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
+                                  bool consumers, app_template_view_t *out)
+{
+    if (!out || icon_count > 12 || (!icons && icon_count) || !lock || !xSemaphoreTake(lock, 0))
+        return false;
+    if (!home_ready || !STORAGE_TRY())
+    {
+        xSemaphoreGive(lock);
+        return false;
+    }
+    app_template_view_t *next = calloc(1, sizeof(*next));
+    bool ok = next != NULL;
+    char directory[256], path[256];
+    path_join(directory, app_templates_root(), APP_HOME_RESOURCE_ID);
+    for (unsigned i = 0; ok && i < icon_count + 2; i++)
+    {
+        char filename[65];
+        if (i == 0)
+            snprintf(filename, sizeof(filename), "%s-%s.png",
+                     consumers && home_info.version >= 2 ? "consumers" : "background", night ? "dark" : "light");
+        else if (i == 1)
+            snprintf(filename, sizeof(filename), "loxone-logo.png");
+        else
+        {
+            if (!app_templates_safe_id(icons[i - 2]))
+            {
+                ok = false;
+                break;
+            }
+            snprintf(filename, sizeof(filename), "icon-%s.png", icons[i - 2]);
+        }
+        /* Az ismétlődő ikon egyetlen memóriapéldányon osztozik. */
+        bool present = false;
+        for (unsigned j = 0; j < next->asset_count; j++)
+            if (!strcmp(next->assets[j].name, filename))
+                present = true;
+        if (present)
+            continue;
+        app_template_asset_t *asset = &next->assets[next->asset_count++];
+        snprintf(asset->name, sizeof(asset->name), "%s", filename);
+        path_join(path, directory, filename);
+        asset->bytes = read_file(path, i < 2 ? APP_TEMPLATE_PNG_MAX : 32768, &asset->size);
+        ok = asset->bytes && png_valid(asset->bytes, asset->size, &asset->width, &asset->height);
+        if (ok && i >= 2)
+            ok = asset->width == 96 && asset->height == 96;
+    }
+    if (ok)
+    {
+        snprintf(next->id, sizeof(next->id), "%s", APP_HOME_RESOURCE_ID);
+        next->generation = home_generation;
+        *out = *next;
+    }
+    else if (next)
+        app_templates_view_free(next);
+    free(next);
+    STORAGE_GIVE();
+    xSemaphoreGive(lock);
+    return ok;
+}
+
+/* A korábbi C-hívók az Otthon-hátteret kapják; a régi SD-csomag is betölthető. */
+bool app_templates_home_load(const char *const *icons, unsigned icon_count, bool night,
+                              app_template_view_t *out)
+{
+    return app_templates_home_load_for(icons, icon_count, night, false, out);
 }

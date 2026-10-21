@@ -1,0 +1,54 @@
+name: Zolee | Automatikus kiadás - main
+run-name: Zolee | Main ellenőrzés és kiadás | ${{ github.sha }}
+
+# Egy main pushnak egyetlen ellenőrzés/build útja van. Kiadás csak az ehhez
+# tartozó, API-val igazoltan összevont PR esetén készül; közvetlen pushnál CI.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# A verzióválasztás és publikálás soros: egymást követő merge nem vész el.
+concurrency:
+  group: zolee-release-main
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  verify:
+    name: Main ellenőrzés és verziózott csomagok
+    uses: ./.github/workflows/ci-shared.yml
+    with:
+      source_sha: ${{ github.sha }}
+      automatic_release: true
+
+  publish:
+    name: Kiadás | igazolt main merge
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: zolee-firmware-${{ github.sha }}
+          path: dist
+      - name: Upload complete packages, then publish the release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.verify.outputs.pr }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: >-
+          python3 tools/release/auto_release.py finish
+          --repository "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --commit "$GITHUB_SHA"
+          --tag "$RELEASE_TAG"

@@ -150,7 +150,7 @@ A Windows-szimulátorban az SD-csomagokat a futtatható program melletti
 `templates/` könyvtárba másold, majd indítsd újra. Bal/jobb nyíllal lapozz,
 D-vel demóállapotot válts. Vizsgáld meg mindkét témát, hosszú HU/EN címkéket,
 importot/exportot, töltést/leadást, nullát, időjárást és hiba utáni visszatérést.
-Az automatikus LVGL-teszthez lásd `.github/workflows/build.yml` `ui-preview`
+Az automatikus LVGL-teszthez lásd `.github/workflows/ci-shared.yml` `ui-preview`
 jobját; a `tests/preview/preview.c` csomagszámát új referencia-sablon hozzáadásakor
 frissítsd. A renderelt kép a valódi widgetekből készül.
 
@@ -196,3 +196,64 @@ mutatja a helyben felhasznált/tárolt (zöld) és visszatáplált (sárga) ener
 Az opcionális nap- és akkukapacitás-adatforrások az adat hiányában nem
 mutathatnak kitalált értéket. A grafikai elemek a `09-solar-journey` csomagban vannak;
 a fizikai panelen az olvashatóságot és az animáció folyamatosságát is ellenőrizd.
+
+## Loxone Otthon érintési terület (v3 fejlesztési ág)
+
+A világos és sötét scene külön opcionális `home_hotspot` objektumot kaphat:
+
+```json
+"home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230}
+```
+
+Ez a ház képi helyén átlátszó érintési területet ad. Minden mező egész szám,
+a téglalap teljes egészében a 1280×800 képernyőn belül legyen. Érintéskor kizárólag
+Master Loxone módban, működő SD/közös csomag és legalább egy fogyasztó mellett
+nyílik az oldal. Nem futtathat parancsszöveget, URL-t vagy saját kódot. A gyári
+régi csomagokhoz a firmware kompatibilis ház-/otthonérték-felismerést is ad;
+saját fotóháttérnél mindig az explicit téglalapot add meg.
+
+A `loxone-home` azonosító és `kind=loxone-home-resources` a közös erőforrások számára
+fenntartott. Ez külön, nem lapozható csomag, a `tools/prepare_home_resources.py`
+készíti. A normál témák 32 PNG / 34 ZIP-bejegyzés korlátja változatlan. A fenntartott
+csomag csak a saját, kötött 64 ikonos formátumával használhat nagyobb fájlszámot;
+sem tetszőleges extra erőforrás, sem pluginrendszer nem engedélyezett.
+
+## Hely az energiaasszisztensnek (v3, Master/Loxone)
+
+Egy külső téma `light` és `dark` jelenetében külön megadható:
+
+```json
+"assistant_area": {"x": 332, "y": 16, "w": 465, "h": 72}
+```
+
+Ez a terület javaslat idején kontrasztos, két soros panelt és X-et kap. A téma
+szerzője tartsa szabadon az energiaértékektől, diagramoktól, órától, időjárástól
+és érintési területektől; dekoratív cím átmenetileg helyettesíthető vele.
+Egész pixelek kellenek, minimum 320×46, maximum 1280×100; a teljes téglalap
+maradjon az 1280×800 képernyőn belül. Hibás megadás vagy ismeretlen külső témánál
+hiányzó terület esetén nincs rárajzolás. Nem indít új kapcsolatot, parancsot vagy
+assetbetöltést. A gyári témák korábbi csomagjaihoz saját biztonságos címsávhely
+ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.
+
+A v3 külső témák célzott kompatibilitási áttekintése és a tesztek pontos
+határai: [external-template-review.md](external-template-review.md).
+
+## 24 órás napállás-idővonal
+
+Az új firmware `solar_timeline` elemet is kezel. Példa a világos jelenetben:
+
+```json
+{"type":"solar_timeline","x":8,"y":508,"w":1264,"h":136,
+ "background":"#FFF9EF","color":"#18352B","muted":"#8195B0",
+ "positive_color":"#F3C44F","radius":18,"opacity":250}
+```
+
+Minimum 480×132, teljes egészében képernyőn belül. `color`: feliratok,
+`background`: panel, `muted`: ismert éjszakai szakasz, `positive_color`: nappali
+szakasz; a szokásos radius/opacity használható. Nem szükséges `source`, PNG
+vagy kézzel felvett 00/06/12/18/24 felirat. Az idő és a napkelte/napnyugta
+ugyanarról a 24 órás skáláról kap helyet, a feliratok HU/EN nyelvűek.
+A szinkronizálatlan óra vagy hiányzó napadat nem eredményez kitalált jelölőt.
+Ezt a widgetet is hagyd szabadon az asszisztens és érintőcélok területétől.
+Régebbi firmware nem ismeri az elemtípust; a meglévő típusokat használó
+korábbi sablonok támogatása változatlan. Részletek: [energy-orbit.md](energy-orbit.md).

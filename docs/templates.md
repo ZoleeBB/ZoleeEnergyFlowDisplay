@@ -9,8 +9,8 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `02-energy-paths` | Energiautak: széles színes összeköttetések, irányjelző pöttyök |
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
-| `05-calm-home` | Nyugodt otthon: nagy óra, részletes időjárásikonok, három fő adat |
-| `06-energy-orbit` | Energiakör: 160 px-es ikonok, alattuk az adatok, rövid egyenes összeköttetések, áganként két pont és visszafogott középponti fényudvar |
+| `05-calm-home` | Nyugodt otthon: saját nappalibelső nappal/éjjel, három nagy főadat és napi összegzés |
+| `06-energy-orbit` | Energiakör: saját energiaudvar, három ívelt energiaút, 24 órás napállás-idővonal |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 | `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
@@ -53,7 +53,7 @@ Ez nem érinti a hitelesítés nélküli HTTP energiaadat-fogadást.
 A módosító webkérések `X-Zolee-Template: 1` fejlécet igényelnek; a weboldal hozzáadja.
 
 Telepíthető ZIP-ek készítése: `python tools/prepare_templates.py`.
-Eredmény: `dist/templates/*.zip`; a CI `template-packages-…` artifactja is ezeket
+Eredmény: `dist/templates/*.zip`; a CI `zolee-templates-…` artifactja is ezeket
 tartalmazza. Mindegyik ZIP külön tölthető fel. A ZIP gyökerében a `template.json`
 és a PNG-k legyenek, külső csomagkönyvtár vagy alkönyvtár nélkül.
 
@@ -272,7 +272,7 @@ A csomag `version` értékét elrendezés- vagy előnézetváltoztatáskor emeld
 
 ## Automatikus ZIP-csomagolás
 
-A GitHub Actions `template-packages-<commit>` artifactja a `templates/` alatti
+A GitHub Actions `zolee-templates-<commit>` artifactja a `templates/` alatti
 összes érvényes sablonhoz külön ZIP-et tartalmaz. A `tools/prepare_templates.py`
 a verziókezelt JSON-t és PNG-ket változtatás nélkül csomagolja, hiányzó vagy
 fölösleges képnél megáll. Nem írja újra a már finomhangolt elrendezéseket.
@@ -302,3 +302,31 @@ szimmetrikus keresztet használ; a középső `pulse` elem `foreground: true`
 beállítással a vonalak és a mozgó pontok fölött pulzál mindkét módban.
 Ehhez a v12-es ZIP mellett a `pulse` előtérjelölését támogató firmware is
 frissítendő. Az energiaáramlás közös sebességképlete változatlan.
+
+## Loxone Otthon – közös erőforrások (v3 fejlesztési ág)
+
+A fogyasztói és Otthon-kártyás oldal közös `loxone-home.zip` csomagját ugyanitt,
+a témakezelőben lehet ellenőrizni, telepíteni és frissíteni. A csomag külön
+**közös erőforrásként** jelenik meg; nem választható energiaelrendezés, és nem
+kerül a lapozási sorrendbe. 64 ikont, külön fogyasztói és Otthon nappali/éjszakai háttérpárt (összesen négy képet) és helyi logót ad. A csomag v3-tól két 400×250-es, valódi LVGL-előnézetet is tartalmaz a sablonkezelő számára; a nagy kijelzőképek és a méretkorlátok változatlanok.
+
+A Master teljes USB-csomagjának `sd-card/templates/loxone-home` könyvtárában is
+megtalálható. OTA-frissítésnél az új firmware mellett ezt az SD-csomagot is telepítsd.
+A kártyák a `/loxone` oldalon szerkeszthetők; a kijelzőn a ház érintése a fogyasztókat,
+a lefelé húzás az Otthon-kártyákat nyitja meg. Az Otthon szerkesztőjében legfeljebb 8 oldal nevezhető el, mindegyiken 12 kártyával; jobbra/balra húzás a saját lapok között vált, alul oldalpontokkal. Jobb felső X: vissza az előző témához.
+A diagnosztikát felfelé húzás nyitja, és saját X gombja zárja.
+A közös csomag hiányát a szerkesztő tetején piros figyelmeztetés jelzi;
+telepített csomagnál az ikonválasztók a kiválasztott kis képet is megmutatják.
+A felhasználói próba utáni javítások és a megismétlendő eszközpróba:
+[v3-field-fixes.md](v3-field-fixes.md).
+
+A teljes v3 még fejlesztés alatt áll; a részletes állapot a
+[folytatási tervben](v3-development-plan.md) követhető.
+
+A Nyugodt otthon v9 saját, jóváhagyott fotóhátteret kapott. Részletek és grafikai
+méretek: [calm-home.md](calm-home.md). Az új megjelenéshez a `05-calm-home.zip`
+csomagot telepítsd újra a webes sablonkezelőben; az azonos azonosítójú sablon
+frissítése megőrzi a témasorrendet. Az OTA a telepített SD-sablont nem cseréli le.
+
+Az Energiakör v13 új `solar_timeline` eleméhez az új Master firmware is kell,
+majd a `06-energy-orbit.zip` telepítése. [Részletek](energy-orbit.md).

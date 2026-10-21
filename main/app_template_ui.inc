@@ -21,6 +21,7 @@ static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static bool template_loading_requested;
+static bool template_waiting_for_load;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
@@ -30,6 +31,8 @@ static bool template_heavy_animation(void){
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
 static uint32_t tc(const cJSON *o,const char *key,uint32_t fallback){const char *s=ts(o,key);return s[0]=='#'?(uint32_t)strtoul(s+1,NULL,16):fallback;}
+static bool template_clock_synced;
+#include "app_solar_timeline_ui.inc"
 #if LV_USE_SNAPSHOT
 #define TEMPLATE_RASTER_BUDGET (6U*1024U*1024U)
 typedef struct { unsigned asset;int w,h;lv_draw_buf_t *buffer;lv_image_dsc_t image; } template_raster_t;
@@ -317,18 +320,59 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     else{fmt_power(out,128,v);return;}
     snprintf(out,128,"%s %s",value,unit);
 }
-static void template_gesture(lv_event_t *event){
-    if (s_pair_pad) return;
-    (void)event;lv_indev_t *input=lv_indev_active();if(!input)return;
-    lv_dir_t direction=lv_indev_get_gesture_dir(input);
-    if(direction==LV_DIR_TOP||direction==LV_DIR_BOTTOM){
-        s_diagnostics_requested=direction==LV_DIR_TOP;lv_indev_wait_release(input);return;
+/* Az input kapja a gesztust, nem az újraépülő objektumfa. Így kép,
+ * asszisztens és lezárt buborékolás sem nyelheti el a navigációt. */
+static void template_gesture(lv_event_t *event)
+{
+    (void)event;
+    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME)) return;
+    lv_indev_t *input = lv_indev_active();
+    if (!input) return;
+    lv_dir_t direction = lv_indev_get_gesture_dir(input);
+    if (home_is_open())
+        home_gesture(direction);
+    else if (s_diagnostics_requested)
+        return;
+    else if (direction == LV_DIR_TOP)
+        s_diagnostics_requested = true;
+    else if (direction == LV_DIR_BOTTOM)
+        home_cards_requested();
+    else if (!s_cfg.cardless_slave && (direction == LV_DIR_LEFT || direction == LV_DIR_RIGHT))
+    {
+        app_templates_step_available(direction == LV_DIR_LEFT ? 1 : -1,
+                                     s_animation_sample.sun_position_valid);
+        template_loading_requested = true;
     }
-    if(s_diagnostics_requested)return;
-    if(!s_cfg.cardless_slave && (direction==LV_DIR_LEFT||direction==LV_DIR_RIGHT)){
-        app_templates_step_available(direction==LV_DIR_LEFT?1:-1,s_animation_sample.sun_position_valid);
-        template_loading_requested=true;
-        lv_indev_wait_release(input);
+    else
+        return;
+    /* A gesztusnak indult érintésből nem lehet vezérlőgomb-kattintás. */
+    lv_indev_wait_release(input);
+}
+static void navigation_bind_inputs(void)
+{
+    lv_display_t *display = lv_obj_get_display(s_screen);
+    for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+    {
+        if (lv_indev_get_type(input) != LV_INDEV_TYPE_POINTER || lv_indev_get_display(input) != display)
+            continue;
+        bool bound = false;
+        for (uint32_t i = 0; i < lv_indev_get_event_count(input); i++)
+        {
+            if (lv_event_dsc_get_cb(lv_indev_get_event_dsc(input, i)) == template_gesture)
+            {
+                bound = true;
+                break;
+            }
+        }
+        if (!bound)
+        {
+            /* Az IRQ-k között az adapter a legutóbbi koordinátát ismétli.
+             * Az alap 3 px/minta küszöb az ilyen álló mintáknál törölné
+             * a húzás összegét. A távolságküszöb megmarad (50 px), így
+             * kis remegés nem lapoz, de a lassú húzás sem vész el. */
+            lv_indev_set_gesture_min_velocity(input, 0);
+            lv_indev_add_event_cb(input, template_gesture, LV_EVENT_GESTURE, NULL);
+        }
     }
 }
 static void template_release_cache(void){
@@ -345,7 +389,7 @@ static void template_loading_screen(void){
     bg_color_if_changed(s_screen,c(0x000000),0);
     lv_obj_set_style_bg_grad_dir(s_screen,LV_GRAD_DIR_NONE,0);
     /* A betűkészlet nem tartalmaz minden Unicode jelet: három ASCII pont. */
-    lv_obj_t *label=lbl(s_screen,tr("Téma betöltése...","Loading theme..."),
+    lv_obj_t *label=lbl(s_screen,tr("Adatok és grafikai elemek betöltése...","Loading data and graphics..."),
                          0,339,APP_FONT_28,0xFFFFFF);
     lv_obj_set_width(label,W);
     lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
@@ -360,6 +404,34 @@ static void template_loading_screen(void){
     lv_obj_set_style_arc_color(spinner,c(0x63E0A4),LV_PART_INDICATOR);
     lv_obj_remove_flag(spinner,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     s_view=VIEW_THEME_LOADING;
+    s_loading_frame_presented = false;
+    lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
+}
+/* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
+ * a 0.6.4-es adapter az ISR-ből ennek a tasknak küld pufferértesítést.
+ * A runtime másik taskból lv_refr_now-val holtpontot okozhatna. A kész
+ * frame visszajelzésére lock NÉLKÜL várunk, határidő után később próbáljuk újra. */
+static bool template_loading_wait(void)
+{
+    for (unsigned elapsed = 0; elapsed < 1000; elapsed += 10)
+    {
+        if (bsp_display_lock(20) == ESP_OK)
+        {
+#ifdef APP_TEMPLATE_DESKTOP
+            /* Desktopon nincs adapter task; a szimulátor egyetlen szálon fut. */
+            if (!s_loading_frame_presented) lv_refr_now(lv_obj_get_display(s_screen));
+#endif
+            bool ready = s_loading_frame_presented;
+            bsp_display_unlock();
+            if (ready)
+            {
+                vTaskDelay(pdMS_TO_TICKS(85));
+                return true;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    return false;
 }
 /* Minden kiválasztási út (web, lapozás, aktív csomag frissítése) ugyanitt
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
@@ -367,16 +439,19 @@ static bool template_loading_frame(void){
     if (s_cfg.cardless_slave) return true;
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
     if(bsp_display_lock(-1)!=ESP_OK)return false;
-    template_loading_screen();bsp_display_unlock();
+    /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
+    if(s_view!=VIEW_THEME_LOADING)template_loading_screen();
+    bsp_display_unlock();
+    if (!template_loading_wait()) return false;
     template_loading_requested=false;
-    vTaskDelay(pdMS_TO_TICKS(85));
+    template_waiting_for_load=app_templates_has_pending(template_pending.generation);
     return true;
 }
 static void template_prepare(void){
     if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
-    app_templates_load_pending(&template_pending);
+    if(app_templates_load_pending(&template_pending))template_waiting_for_load=false;
 }
 static void template_apply(void){
     if (s_cfg.cardless_slave) return;
@@ -418,7 +493,7 @@ static void template_build(bool night){
         lv_obj_set_style_bg_grad_dir(s_dash,LV_GRAD_DIR_HOR,0);
     }
     const cJSON *palette=cJSON_GetObjectItem(scene,"palette");
-    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);lv_obj_add_event_cb(s_dash,template_gesture,LV_EVENT_GESTURE,NULL);
+    lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
     const cJSON *e;cJSON_ArrayForEach(e,cJSON_GetObjectItem(scene,"elements")){
         template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;
         const char *type=ts(e,"type");int x=tn(e,"x",0),y=tn(e,"y",0),w=tn(e,"w",1),h=tn(e,"h",1);
@@ -480,6 +555,8 @@ static void template_build(bool night){
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
+        }else if(!strcmp(type,"solar_timeline")){
+            solar_timeline_build(node,night);
         }else if(!strcmp(type,"solar_arc")){
             /* A napút pontosan LVGL-vonalakból áll, kis memóriaigénnyel.
              * A felső és alsó ív külön sablonelem, ezért eltérő színt kaphat. */
@@ -589,6 +666,7 @@ static void template_build(bool night){
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
+    home_bind_hotspot(s_dash, scene);
     s_dash_created=true;s_view=VIEW_DASHBOARD;
     /*
      * A sok nagy PNG-vel és négy animált energiaúttal rajzolt gyári
@@ -676,6 +754,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
+        if(!strcmp(type,"solar_timeline")){
+            solar_timeline_update(node,s);
+            continue;
+        }
         bool visible = (!strcmp(type,"solar_disc") || !strcmp(type,"solar_arc")) ? s->sun_position_valid :
             !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
@@ -941,6 +1023,14 @@ static void diagnostics_capture(void){
     if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
 }
 /* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
+static void diagnostics_close(lv_event_t *event)
+{
+    (void)event;
+    s_diagnostics_requested = false;
+    template_loading_requested = true;
+    if (event) lv_event_stop_bubbling(event);
+}
+
 static void diagnostics_render(app_runtime_state_t rt)
 {
     if (s_view != VIEW_DIAGNOSTICS)
@@ -954,8 +1044,8 @@ static void diagnostics_render(app_runtime_state_t rt)
             APP_FONT_28,
             TEXT_DARK);
         lv_obj_t *hint = lbl(s_screen,
-                             tr("Lefelé húzás: vissza az előző témához",
-                                "Swipe down to return to the selected theme"),
+                             tr("Bezárás a jobb felső X gombbal",
+                                "Close with the X button in the upper right"),
                              32,
                              73,
                              APP_FONT_16,
@@ -983,6 +1073,15 @@ static void diagnostics_render(app_runtime_state_t rt)
             lv_obj_t *button = pairing_button(s_screen, "", 352, 28, 272, 36);
             s_pair_window_label = lv_obj_get_child(button, 0);
             lv_obj_set_style_text_font(s_pair_window_label, APP_FONT_14, 0);
+            lv_obj_set_style_pad_all(button, 0, 0);
+            lv_obj_set_width(s_pair_window_label, 232);
+            lv_obj_set_style_text_align(s_pair_window_label, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_align(s_pair_window_label, LV_ALIGN_CENTER, 0, 0);
+            lv_obj_t *icon = lv_label_create(button);
+            lv_label_set_text(icon, LV_SYMBOL_BLUETOOTH);
+            lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
+            lv_obj_set_style_text_color(icon, c(0xFFFFFF), 0);
+            lv_obj_align(icon, LV_ALIGN_LEFT_MID, 7, 0);
             lv_obj_add_event_cb(button, pairing_window_clicked, LV_EVENT_CLICKED, NULL);
         }
         for (int i = 0; i < 14; i++)
@@ -1033,6 +1132,9 @@ static void diagnostics_render(app_runtime_state_t rt)
             lv_label_set_long_mode(s_diagnostic_log[i], LV_LABEL_LONG_MODE_DOTS);
             lv_obj_add_flag(s_diagnostic_log[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
         }
+        lv_obj_t *close = pairing_button(s_screen, "X", 1192, 32, 48, 48);
+        lv_obj_set_style_radius(close, 24, 0);
+        lv_obj_add_event_cb(close, diagnostics_close, LV_EVENT_CLICKED, NULL);
         s_view = VIEW_DIAGNOSTICS;
     }
     char text[192];
@@ -1141,8 +1243,13 @@ static void diagnostics_render(app_runtime_state_t rt)
         label_text_if_changed(s_diagnostic_values[10], text);
         app_ble_pairing_status_t pairing; app_ble_pairing_status(&pairing);
         snprintf(text, sizeof(text), pairing.seconds ? tr("Párosítás nyitva: %u mp", "Pairing open: %u s")
-                                                    : tr("Párosítás engedélyezése (2 perc)", "Enable pairing (2 min)"), pairing.seconds);
-        if (s_pair_window_label) label_text_if_changed(s_pair_window_label, text);
+                                                    : tr("Új párosítás (2 perc)", "New pairing (2 min)"), pairing.seconds);
+        if (s_pair_window_label)
+        {
+            label_text_if_changed(s_pair_window_label, text);
+            bg_color_if_changed(lv_obj_get_parent(s_pair_window_label),
+                                c(pairing.seconds ? 0x0082FC : 0x284C68), 0);
+        }
     } else {
         label_text_if_changed(s_diagnostic_values[10], rt.ble_enabled ?
             (rt.ble_peer[0] ? rt.ble_peer : tr("Keresés...", "Searching...")) : "-");

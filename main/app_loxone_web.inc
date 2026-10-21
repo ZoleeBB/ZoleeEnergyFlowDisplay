@@ -1,5 +1,6 @@
 /* Az app_web.c közös hitelesítésével védett, kizárólag Loxone módban regisztrált útvonalak. */
 #include "app_loxone_page.h"
+#include "app_templates.h"
 static esp_err_t loxone_page(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
@@ -37,6 +38,68 @@ static esp_err_t loxone_post(httpd_req_t *req)
     httpd_resp_set_status(req,"202 Accepted");httpd_resp_set_type(req,"application/json");
     return httpd_resp_sendstr(req,"{\"accepted\":true}");
 }
+/* A külön, korlátos profil végpontja ugyanazt a hitelesítést használja. */
+static esp_err_t loxone_home_get(httpd_req_t *req)
+{
+    if (!authorize(req))
+        return ESP_OK;
+    cJSON *root = app_loxone_home_web_state();
+    app_template_info_t resources;
+    unsigned resource_generation = 0;
+    bool installed = app_templates_home_info(&resources, &resource_generation);
+    /* Foglalt katalógusnál nem állítunk tévesen csomaghiányt. */
+    if (root && resource_generation)
+    {
+        cJSON_AddBoolToObject(root, "resources_installed", installed);
+        cJSON_AddNumberToObject(root, "resources_version", installed ? resources.version : 0);
+    }
+    char *body = root ? cJSON_PrintUnformatted(root) : NULL;
+    cJSON_Delete(root);
+    if (!body)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Az Otthon-profil nem érhető el.");
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    esp_err_t result = httpd_resp_sendstr(req, body);
+    free(body);
+    return result;
+}
+
+static esp_err_t loxone_home_post(httpd_req_t *req)
+{
+    if (!authorize(req))
+        return ESP_OK;
+    char header[8];
+    if (httpd_req_get_hdr_value_str(req, "X-Zolee-Loxone", header, sizeof(header)) != ESP_OK ||
+        strcmp(header, "1") != 0 || req->content_len < 2 || req->content_len > LX_HOME_JSON_MAX)
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen Otthon-kérés.");
+    char *body = calloc(1, req->content_len + 1);
+    if (!body)
+        return ESP_ERR_NO_MEM;
+    size_t position = 0;
+    while (position < req->content_len)
+    {
+        int count = httpd_req_recv(req, body + position, req->content_len - position);
+        if (count <= 0)
+        {
+            free(body);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "A kérés megszakadt.");
+        }
+        position += (size_t)count;
+    }
+    cJSON *root = lx_home_document_parse(body, req->content_len);
+    free(body);
+    char error[LX_HOME_ERROR_SIZE] = "Az Otthon-profil nem fogadható el.";
+    esp_err_t result = app_loxone_home_request(root, error);
+    cJSON_Delete(root);
+    if (result != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, error);
+    httpd_resp_set_status(req, "202 Accepted");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"accepted\":true}");
+}
+
+#include "app_slave_presence_web.inc"
+
 static esp_err_t loxone_register(httpd_handle_t server)
 {
     if(s_config.data_recept_mode!=APP_DATA_LOXONE)return ESP_OK;
@@ -44,7 +107,11 @@ static esp_err_t loxone_register(httpd_handle_t server)
         {.uri="/loxone",.method=HTTP_GET,.handler=loxone_page},
         {.uri="/api/loxone",.method=HTTP_GET,.handler=loxone_get},
         {.uri="/api/loxone/test",.method=HTTP_POST,.handler=loxone_post},
-        {.uri="/api/loxone/save",.method=HTTP_POST,.handler=loxone_post}};
+        {.uri="/api/loxone/save",.method=HTTP_POST,.handler=loxone_post},
+        {.uri="/api/loxone/home",.method=HTTP_GET,.handler=loxone_home_get},
+        {.uri="/api/loxone/home",.method=HTTP_POST,.handler=loxone_home_post},
+        {.uri="/api/loxone/slaves",.method=HTTP_GET,.handler=slave_presence_get},
+        {.uri="/api/loxone/slaves",.method=HTTP_POST,.handler=slave_presence_post}};
     for(unsigned i=0;i<sizeof(routes)/sizeof(routes[0]);i++) {
         esp_err_t e=httpd_register_uri_handler(server,&routes[i]);if(e!=ESP_OK)return e;
     }return ESP_OK;

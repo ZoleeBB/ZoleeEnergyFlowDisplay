@@ -4,6 +4,7 @@
   "name": "Energiastatisztika",
   "version": 7,
   "light": {
+    "home_hotspot": {"x": 278, "y": 123, "w": 230, "h": 40},
     "background": "#F0F4FA",
     "elements": [
       {
@@ -1100,6 +1101,7 @@
     }
   },
   "dark": {
+    "home_hotspot": {"x": 278, "y": 123, "w": 230, "h": 40},
     "background": "#142737",
     "elements": [
       {

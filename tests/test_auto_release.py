@@ -35,6 +35,67 @@ class AutomaticReleaseTests(unittest.TestCase):
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',43,[{'name':'v2.0.0'}],[]),'v2.0.1')
         with self.assertRaises(ValueError):tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v2.0.0'}],[])
 
+    def test_v3_branch_scope_and_existing_versions(self):
+        repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
+        pr = {'head': {'ref': 'feature/v3-loxone-home', 'repo': {'full_name': repository}}}
+        self.assertEqual(tag_for_merged_pr(repository, 19, [{'name': 'v2.0.4'}], [], pr), 'v3.0.0')
+        self.assertEqual(tag_for_merged_pr(repository, 19, [{'name': 'v3.0.0-rc.1'}], [], pr), 'v3.0.0')
+        for tags, releases in [([{'name': 'v3.0.0'}], []),
+                               ([{'name': 'v4.0.0'}], []),
+                               ([], [{'tag_name': 'legacy', 'name': '3.0.1'}])]:
+            with self.assertRaisesRegex(ValueError, 'Cannot assign v3.0.0'):
+                tag_for_merged_pr(repository, 19, tags, releases, pr)
+        for head in [{}, {'ref': 'feature/v3-loxone-home'},
+                     {'ref': 'feature/v3-loxone-home', 'repo': None},
+                     {'ref': 'feature/v3-loxone-home', 'repo': {'full_name': 'fork/project'}},
+                     {'ref': 'feature/other', 'repo': {'full_name': repository}}]:
+            self.assertEqual(tag_for_merged_pr(repository, 19, [{'name': 'v2.0.4'}], [], {'head': head}), 'v2.0.5')
+        self.assertEqual(tag_for_merged_pr('other/repo', 19, [{'name': 'v2.0.4'}], [], pr), 'v2.0.5')
+
+    def test_v3_prepare_requires_verified_merge_and_does_not_publish(self):
+        repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
+        pr = {'merged': True, 'base': {'ref': 'main', 'repo': {'full_name': repository}},
+              'head': {'ref': 'feature/v3-loxone-home', 'repo': {'full_name': repository}},
+              'merge_commit_sha': self.sha}
+        def call(url, data=None, **kwargs):
+            self.assertIsNone(data)
+            if url.endswith('/pulls/19'):
+                return pr
+            if '/tags?' in url:
+                return [{'name': 'v2.0.4', 'commit': {'sha': 'b' * 40}}]
+            if '/releases?' in url:
+                return []
+            raise AssertionError(url)
+        with patch('auto_release.api', call):
+            self.assertEqual(prepare(repository, 19, self.sha), {'tag': 'v3.0.0', 'needed': 'true'})
+            pr['merged'] = False
+            with self.assertRaises(ValueError):
+                prepare(repository, 19, self.sha)
+            pr['merged'] = True
+            with self.assertRaises(ValueError):
+                prepare(repository, 19, 'c' * 40)
+
+    def test_v3_retry_reuses_owned_tag(self):
+        repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
+        marker = identity(19, self.sha)
+        def call(url, data=None, **kwargs):
+            self.assertIsNone(data)
+            if url.endswith('/pulls/19'):
+                return {'merged': True, 'base': {'ref': 'main', 'repo': {'full_name': repository}},
+                        'head': {'ref': 'feature/v3-loxone-home', 'repo': {'full_name': repository}},
+                        'merge_commit_sha': self.sha}
+            if '/releases?' in url:
+                return []
+            if '/tags?' in url:
+                return [{'name': 'v3.0.0', 'commit': {'sha': self.sha}}]
+            if url.endswith('/git/ref/tags/v3.0.0'):
+                return {'object': {'type': 'tag', 'sha': 'd' * 40}}
+            if url.endswith('/git/tags/' + 'd' * 40):
+                return {'message': marker, 'object': {'type': 'commit', 'sha': self.sha}}
+            raise AssertionError(url)
+        with patch('auto_release.api', call):
+            self.assertEqual(prepare(repository, 19, self.sha), {'tag': 'v3.0.0', 'needed': 'true'})
+
     def test_major_release_only_for_project_pr9(self):
         existing=[{'name':'v0.0.6'}]
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',9,existing,[]),'v1.0.0')

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 import json,os,shutil,struct,subprocess,tempfile,zipfile,zlib
+import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'tools'))
+from prepare_home_resources import package_home_resources
+subprocess.run(['node',str(ROOT/'tests/test_template_manager_web.js')],cwd=ROOT,check=True)
 # A webes JavaScript változtatása ne maradhasson ki a firmware-be égetett headerből.
 subprocess.run([os.sys.executable, str(ROOT/'tools/prepare_web.py'), '--check'], check=True)
 node=shutil.which('node')
@@ -33,7 +37,8 @@ else:
                         '-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
                         'tests/test_template_web.c','main/app_templates.c','main/app_template_zip.c',
                         '-lz','-lm','-l:libcjson.so.1','-o',str(binary)],cwd=ROOT,check=True)
-        subprocess.run([str(binary),str(paths[0]),str(sd)],check=True)
+        home_zip=package_home_resources(Path(directory)/'packages')
+        subprocess.run([str(binary),str(paths[0]),str(sd),str(home_zip)],check=True)
         # Valódi, minden eredeti PNG-t tartalmazó kilencedik sablon a böngészős validátorhoz.
         solar_folder=ROOT/'templates/09-solar-journey'
         solar_zip=Path(directory)/'solar.zip'

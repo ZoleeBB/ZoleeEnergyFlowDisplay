@@ -7,6 +7,22 @@
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
 
+/* A hálózati teszt a valódi jelenléttermelőt használja, RTOS/NVS nélkül. */
+static app_slave_presence_table_t presence_fixture;
+static bool presence_online;
+void app_slave_presence_service_online(bool online)
+{
+    presence_online = online;
+    if (!online)
+        app_slave_presence_invalidate(&presence_fixture);
+}
+void app_slave_presence_service_source(const char *uuid, bool valid, double value)
+{
+    if (presence_online)
+        (void)app_slave_presence_source(&presence_fixture, uuid, valid, value);
+}
+uint32_t app_slave_presence_service_source_revision(void) { return 0; }
+
 typedef struct {unsigned count,head,tail,capacity;size_t item;unsigned char *data;} queue_t;
 QueueHandle_t xQueueCreate(unsigned count,size_t item){queue_t *q=calloc(1,sizeof(*q));assert(q);q->capacity=count;q->item=item;q->data=calloc(count,item);assert(q->data);return q;}
 int xQueueSend(QueueHandle_t handle,const void *item,TickType_t ticks){(void)ticks;queue_t *q=handle;if(q->count==q->capacity)return 0;memcpy(q->data+q->tail*q->item,item,q->item);q->tail=(q->tail+1)%q->capacity;q->count++;return 1;}
@@ -14,6 +30,38 @@ int xQueueReceive(QueueHandle_t handle,void *item,TickType_t ticks){queue_t *q=h
 unsigned uxQueueMessagesWaiting(QueueHandle_t handle){return ((queue_t*)handle)->count;}
 int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout){(void)mutex;(void)timeout;return 1;}
 int xSemaphoreGive(SemaphoreHandle_t mutex){(void)mutex;return 1;}
+static bool home_store_error;
+esp_err_t app_loxone_home_store_save(const lx_home_config_t *home)
+{
+    assert(home);
+    return home_store_error ? ESP_FAIL : ESP_OK;
+}
+static void home_requests(void)
+{
+    s_lock = (void *)1;
+    s_home = calloc(1, sizeof(*s_home)); assert(s_home);
+    s_requests = xQueueCreate(1, sizeof(request_t *));
+    char error[LX_HOME_ERROR_SIZE] = {0};
+    cJSON *empty = cJSON_Parse("{\"schema\":1}"); assert(empty);
+    assert(app_loxone_home_request(empty, error) == ESP_OK && s_home_busy);
+    assert(app_loxone_home_request(empty, error) != ESP_OK);
+    request_t *request = NULL; assert(xQueueReceive(s_requests, &request, 0));
+    save_home_request(request->home); free(request->home); free(request);
+    assert(!s_home_busy && s_home_revision == 1);
+    cJSON *state = app_loxone_home_web_state(); assert(state);
+    assert(!cJSON_GetObjectItemCaseSensitive(state, "password"));
+    assert(cJSON_GetObjectItemCaseSensitive(state, "revision")->valueint == 1);
+    cJSON_Delete(state);
+    home_store_error = true;
+    assert(app_loxone_home_request(empty, error) == ESP_OK);
+    assert(xQueueReceive(s_requests, &request, 0));
+    save_home_request(request->home); free(request->home); free(request);
+    assert(!s_home_busy && s_home_revision == 1 && strstr(s_home_status, "sikertelen"));
+    s_busy = true; assert(app_loxone_home_request(empty, error) != ESP_OK); s_busy = false;
+    cJSON *invalid = cJSON_Parse("{\"schema\":2}");
+    assert(app_loxone_home_request(invalid, error) != ESP_OK);
+    cJSON_Delete(invalid); cJSON_Delete(empty); free(s_home); s_home = NULL;
+}
 static int64_t clock_us;
 int64_t esp_timer_get_time(void){return clock_us+=1000;}
 void esp_fill_random(void *data,size_t n){FILE *f=fopen("/dev/urandom","rb");assert(f&&fread(data,1,n,f)==n);fclose(f);}
@@ -49,7 +97,11 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t h){(void)h;return ESP
 static mbedtls_pk_context server_key;
 static char last_command[4096],previous_salt[17];
 static int catalog_mode;
-static bool reject_refresh;
+static bool reject_refresh, reject_home_command;
+static unsigned home_command_count;
+void app_state_set_loxone(bool configured, bool connected) { (void)configured; (void)connected; }
+void app_state_clear_sample(void) {}
+void app_stats_break_continuity(void) {}
 static const char *catalog_reply="{\"controls\":{\"pv\":{\"name\":\"PV\",\"type\":\"InfoOnlyAnalog\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}";
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 {
@@ -97,6 +149,11 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==2)s_dead=true;
             else if(catalog_mode==0)server_response(catalog_reply);
         }
+        else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
+            assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
+            home_command_count++;
+            server_response(reject_home_command ? "{\"LL\":{\"Code\":403}}" : "{\"LL\":{\"Code\":200}}");
+        }
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0&&reject_refresh)server_response("{\"LL\":{\"Code\":401}}");
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"token\":\"jwt-refreshed-token\"}}}");
         else server_response("{\"LL\":{\"Code\":200,\"value\":\"OK\"}}");
@@ -108,9 +165,142 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
     else server_response("{\"LL\":{\"Code\":401,\"value\":\"denied\"}}");
     return len;
 }
+static void home_control_test(lx_config_t *energy)
+{
+    cJSON *original_catalog = s_catalog;
+    const char *structure = "{\"controls\":{\"aabbccdd-5566-7788-99aabbccddeeff00\":{\"uuidAction\":\"cccccccc-5566-7788-99aabbccddeeff00\",\"type\":\"Switch\",\"isSecured\":false,\"states\":{\"active\":\"00000000-0000-0000-0000000000000000\"}}}}";
+    s_catalog = lx_catalog_parse(structure, strlen(structure));
+    assert(s_catalog);
+    s_home = calloc(1, sizeof(*s_home)); assert(s_home);
+    s_home->card_count = 1;
+    lx_home_card_t *card = &s_home->cards[0];
+    strcpy(card->id, "button"); card->type = LX_HOME_CARD_PULSE;
+    strcpy(card->control_uuid, "aabbccdd-5566-7788-99aabbccddeeff00");
+    s_home_commands = xQueueCreate(1, sizeof(home_command_t));
+    s_home_live = true; s_home_busy = false; s_command_pending = false;
+    s_session_config = energy; mark_response();
+    /* A felhasználó a worker 100 ms-os fogadási várakozása alatt nyom gombot. */
+    int64_t before_receive = esp_timer_get_time();
+    clock_us += 50000;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    home_command_poll(before_receive);
+    assert(home_command_count == 1 && !s_command_pending && strstr(s_command_status, "elküldve"));
+    home_command_poll(esp_timer_get_time()); assert(home_command_count == 1);
+    card->type = LX_HOME_CARD_SWITCH;
+    strcpy(card->source.uuid, "00000000-0000-0000-0000000000000000"); card->source.scale = 1;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) != ESP_OK);
+    s_home_values.cards[0] = (lx_home_value_t){.value = 0, .valid = true};
+    before_receive = esp_timer_get_time();
+    clock_us += 50000;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) == ESP_OK);
+    home_command_poll(before_receive);
+    assert(home_command_count == 2 && s_command_pending && s_home_values.cards[0].value == 0);
+    uint8_t packet[24] = {0}; double on = 1; memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && strstr(s_command_status, "visszaigazolva"));
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_OFF) == ESP_OK);
+    home_command_poll(esp_timer_get_time()); assert(s_command_pending);
+    clock_us += 6000000; home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && strstr(s_command_status, "Nem érkezett"));
+    reject_home_command = true;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_OFF) == ESP_OK);
+    home_command_poll(esp_timer_get_time()); assert(!s_command_pending);
+    unsigned sent = home_command_count; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
+    reject_home_command = false;
+    card->type = LX_HOME_CARD_PULSE;
+    mark_response(); assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    invalidate(true);
+    assert(!s_command_pending && !uxQueueMessagesWaiting(s_home_commands));
+    s_home_live = true; mark_response(); home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
+    /* A másik kapcsolatból származó, illetve túl régi kérés nem hajtható végre. */
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
+    s_home_session++; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent && !s_command_pending);
+    clock_us += 46000000;
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    /* A minimális asszisztens-pillanatkép ugyanazt a valódi WS-értéktárat olvassa. */
+    s_home->consumer_count = 1;
+    lx_home_consumer_t *consumer = &s_home->consumers[0];
+    strcpy(consumer->id, "washer");
+    strcpy(consumer->name, "Mosógép");
+    strcpy(consumer->source.uuid, "00000000-0000-0000-0000000000000000");
+    consumer->source.scale = 1;
+    consumer->average_known = consumer->suggest_start = true;
+    consumer->average_kw = 2;
+    s_home_live = true;
+    mark_response();
+    app_assistant_consumers_t minimal;
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(minimal.count == 1 && minimal.connected && minimal.consumers[0].eligible);
+    assert(!minimal.consumers[0].valid);
+    double idle = 0;
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(minimal.consumers[0].valid && minimal.consumers[0].measured_kw == 0);
+    invalidate(true);
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(!minimal.connected && !minimal.consumers[0].valid);
+    cJSON_Delete(s_catalog); s_catalog = original_catalog;
+    free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
+}
 static char *load(const char *path){FILE *f=fopen(path,"rb");assert(f);fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);char *s=calloc(1,n+1);assert(s&&fread(s,1,n,f)==(size_t)n);fclose(f);return s;}
+static void presence_stream_test(lx_config_t *energy)
+{
+    app_slave_identity_t identity = {0, {1, 2, 3, 4, 5, 6}};
+    assert(app_slave_presence_register(&presence_fixture, &identity, "Jelenlét") == 0);
+    app_slave_presence_profile_t profile = presence_fixture.peers[0].profile;
+    memcpy(profile.presence_uuid, "00000000-0000-0000-0000000000000000", 36);
+    profile.blank_at_night = true;
+    assert(app_slave_presence_update(&presence_fixture, 0, &profile, NULL));
+    s_session_config = energy;
+    uint8_t numeric[24] = {0};
+    double value = 1;
+    memcpy(numeric + 16, &value, sizeof(value));
+    s_presence_session_live = false;
+    presence_online = false;
+    mark_response();
+    assert(!presence_online); /* A bejelentkezés válasza még nem jelenlét. */
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(!presence_fixture.peers[0].valid);
+
+    s_presence_session_live = true;
+    mark_response();
+    assert(presence_online);
+    value = 0;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    app_slave_presence_receiver_t receiver = {0};
+    uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 1, true, wire));
+    assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 0));
+    value = 1;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    value = 0;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(presence_fixture.peers[0].counter == 1 && !presence_fixture.peers[0].active);
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 2, true, wire));
+    assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 1));
+    assert(receiver.pending_pulse);
+    uint32_t counter = presence_fixture.peers[0].counter;
+    assert(!update_values(2, numeric, sizeof(numeric) - 1));
+    assert(presence_fixture.peers[0].counter == counter);
+    value = NAN;
+    memcpy(numeric + 16, &value, sizeof(value));
+    assert(update_values(2, numeric, sizeof(numeric)));
+    assert(!presence_fixture.peers[0].valid);
+    invalidate(true);
+    assert(!presence_online && !s_presence_session_live);
+    s_session_config = NULL;
+}
+
 int main(int argc,char **argv)
 {
+    home_requests();
+
     assert(argc==3);char *private=load(argv[1]);s_public_key=load(argv[2]);
     mbedtls_pk_init(&server_key);
 #if MBEDTLS_VERSION_MAJOR >= 3
@@ -124,6 +314,8 @@ int main(int argc,char **argv)
     assert(acquire_token(&cfg,token,sizeof(token)));assert(strcmp(token,"jwt-test-token")==0);
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
+    home_control_test(&cfg);
+    presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";
     assert(!download_catalog(&catalog_code));assert(strstr(s_failure,"403"));assert(strstr(s_failure,"jogosultság"));

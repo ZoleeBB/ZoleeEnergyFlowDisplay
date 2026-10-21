@@ -8,6 +8,7 @@
 #include "app_ble_protocol.h"
 #include "app_events.h"
 #include "app_ble_profile.h"
+#include "app_slave_presence_service.h"
 
 #define BLE_HS_CONN_HANDLE_NONE 0xffff
 #define BLE_HS_EDONE 14
@@ -117,7 +118,7 @@ typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_
 
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
                            s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
-                           s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}};
+                           s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
 static app_config_t s_config;
 bool app_stats_is_ready(void) { return false; }
 bool app_stats_remote_publish(const app_stats_snapshot_t *snapshot) { (void)snapshot; return true; }
@@ -135,6 +136,24 @@ static unsigned scans, connects, services, characteristics, descriptors, writes,
 static uint16_t requested_value, requested_cccd;
 static int64_t clock_ms;
 static int clock_offset;
+static app_slave_presence_receiver_t presence_receiver;
+static attr_cb presence_callback;
+static void *presence_arg;
+static unsigned presence_resets, presence_legacy;
+bool app_slave_presence_service_receive(const uint8_t *data, size_t size, bool auth)
+{
+    return app_slave_presence_receive(&presence_receiver, data, size, auth, now_us);
+}
+void app_slave_presence_service_disconnected(void)
+{
+    ++presence_resets;
+    app_slave_presence_disconnected(&presence_receiver);
+}
+void app_slave_presence_service_legacy(void)
+{
+    ++presence_legacy;
+    app_slave_presence_legacy(&presence_receiver);
+}
 static bool authenticated = true, profile_ready;
 static unsigned security_requests, profile_reads, profile_submits;
 static bool security_authenticated(uint16_t conn)
@@ -285,9 +304,12 @@ static int ble_gattc_write_flat(
 }
 static int ble_gattc_read(uint16_t conn, uint16_t handle, attr_cb cb, void *arg)
 {
-    (void)cb;
-    (void)arg;
     assert(conn == 7);
+    if (handle == 140)
+    {
+        presence_callback = cb;
+        presence_arg = arg;
+    }
     requested_value = handle;
     ++reads;
     return 0;
@@ -444,6 +466,79 @@ static void notify(unsigned packet)
     slave_gap_event(&event, NULL);
 }
 
+static void presence_client_tests(void)
+{
+    assert(presence_legacy > 0);
+    slave_reset();
+    s_master = 7;
+    s_slave_ready = s_profile_accepted = true;
+    const struct ble_gatt_chr presence = {.uuid = {{1006}}, .def_handle = 139,
+                                           .val_handle = 140,
+                                           .properties = BLE_GATT_CHR_PROP_READ};
+    slave_characteristic(7, &ok, &presence, NULL);
+    assert(s_remote_presence == 140);
+    slave_presence_poll(now_us);
+    assert(s_presence_reading && presence_callback);
+    app_slave_presence_peer_t peer = {
+        .used = true, .identity = {0, {1, 2, 3, 4, 5, 6}}, .revision = 1,
+        .profile = {.name = "Nappali", .timeout_seconds = 30, .blank_at_night = true},
+        .counter = 100, .valid = true,
+    };
+    memcpy(peer.profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
+    struct os_mbuf wire = {.len = APP_SLAVE_PRESENCE_PACKET_SIZE};
+    struct ble_gatt_attr attr = {.om = &wire};
+    assert(app_slave_presence_encode(&peer, 1, true, wire.data));
+    presence_callback(7, &ok, &attr, presence_arg);
+    assert(presence_receiver.baseline && !presence_receiver.pending_pulse);
+    assert(!s_presence_reading);
+    now_us += 1000000;
+    slave_presence_poll(now_us);
+    peer.counter++;
+    assert(app_slave_presence_encode(&peer, 2, true, wire.data));
+    presence_callback(7, &ok, &attr, presence_arg);
+    assert(presence_receiver.pending_pulse && !presence_receiver.active);
+
+    /* Hibás wire nem törli a replay-bázist és nem újít lease-t. */
+    now_us += 1000000;
+    slave_presence_poll(now_us);
+    wire.data[0] = 'X';
+    app_slave_presence_receiver_t saved = presence_receiver;
+    presence_callback(7, &ok, &attr, presence_arg);
+    assert(!memcmp(&saved, &presence_receiver, sizeof(saved)));
+
+    /* Régi callback ugyanazzal a connection handle-lel sem írhat új kapcsolatot. */
+    now_us += 5000000;
+    slave_presence_poll(now_us);
+    attr_cb late = presence_callback;
+    void *late_arg = presence_arg;
+    slave_reset();
+    s_master = 7;
+    s_slave_ready = s_profile_accepted = true;
+    s_remote_presence = 140;
+    slave_presence_poll(now_us);
+    uint32_t generation = s_presence_request;
+    late(7, &ok, &attr, late_arg);
+    assert(s_presence_reading && s_presence_request == generation && !presence_receiver.baseline);
+    assert(app_slave_presence_encode(&peer, 1, true, wire.data));
+    presence_callback(7, &ok, &attr, presence_arg);
+    assert(presence_receiver.baseline && !presence_receiver.pending_pulse);
+
+    now_us += 1000000;
+    slave_presence_poll(now_us);
+    unsigned resets = presence_resets;
+    now_us += 4000000;
+    slave_presence_poll(now_us);
+    assert(s_presence_reading && s_presence_expired && presence_resets == resets + 1);
+    assert(!presence_receiver.baseline);
+    presence_callback(7, &ok, &attr, presence_arg);
+    assert(!s_presence_reading && !presence_receiver.baseline);
+    now_us += 5000000;
+    authenticated = false;
+    slave_presence_poll(now_us);
+    assert(!s_presence_reading && !presence_receiver.baseline);
+    authenticated = true;
+}
+
 int main(void)
 {
     slave_reset();
@@ -520,6 +615,7 @@ int main(void)
     struct ble_gatt_attr invalid_attr = {.om = &invalid_part, .offset = 1};
     slave_profile_read(7, &ok, &invalid_attr, NULL);
     assert(terminations == before_termination + 2);
+    presence_client_tests();
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");
     return 0;

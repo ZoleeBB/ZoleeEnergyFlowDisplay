@@ -32,6 +32,45 @@ def save_image(image,path,**options):
         temporary.unlink(missing_ok=True)
 
 
+def prepare_selected_template(source, template_id):
+    """Egy téma új előnézete a többi téma és a firmware átírása nélkül."""
+    packages = ROOT / 'templates'
+    folder = packages / template_id
+    if folder.parent != packages or not (folder / 'template.json').is_file():
+        raise ValueError('Unknown template: ' + template_id)
+    manifest_path = ROOT / 'assets/template-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    for mode in ('light', 'dark'):
+        target = folder / f'preview-{mode}.png'
+        with Image.open(Path(source) / f'template-{template_id}-{mode}.ppm') as frame:
+            save_image(frame.convert('RGB').resize((480, 300), Image.Resampling.LANCZOS),
+                       target, optimize=True)
+        relative = target.relative_to(ROOT).as_posix()
+        manifest = [item for item in manifest if item['asset'] != relative]
+        manifest.append({'asset': relative,
+                         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+                         'generator': 'LVGL simulator screenshot, 480x300'})
+    manifest.sort(key=lambda item: item['asset'])
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    print('Exported actual LVGL previews: ' + template_id)
+
+
+def prepare_home_previews(source):
+    """A közös csomag kis előnézetei a meglévő méretkereten belül maradnak."""
+    folder = ROOT / 'assets/loxone-home/previews'
+    manifest_path = ROOT / 'assets/loxone-home/preview-manifest.json'
+    manifest = []
+    for mode in ('light', 'dark'):
+        target = folder / f'cards-{mode}.png'
+        with Image.open(Path(source) / f'loxone-cards-{mode}.ppm') as frame:
+            image = frame.convert('RGB').resize((400, 250), Image.Resampling.LANCZOS)
+            save_image(image, target, optimize=True)
+        manifest.append({'asset': target.relative_to(ROOT).as_posix(),
+                         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+                         'generator': 'LVGL simulator screenshot, 400x250'})
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+
+
 def main(source):
     source=Path(source);OUT.mkdir(parents=True,exist_ok=True)
     try:font=ImageFont.truetype('DejaVuSans.ttf',16)
@@ -96,4 +135,16 @@ def main(source):
     print('Exported actual LVGL template previews, own icon sets and curved flow animation')
 
 
-if __name__=='__main__':main(sys.argv[1] if len(sys.argv)>1 else '.preview-images')
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', nargs='?', default='.preview-images')
+    parser.add_argument('--template', help='Export only this template; leave built-ins unchanged')
+    parser.add_argument('--home-resources', action='store_true', help='Export only the common Home package previews')
+    args = parser.parse_args()
+    if args.home_resources:
+        prepare_home_previews(args.source)
+    elif args.template:
+        prepare_selected_template(args.source, args.template)
+    else:
+        main(args.source)

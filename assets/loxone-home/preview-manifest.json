@@ -1,0 +1,12 @@
+[
+  {
+    "asset": "assets/loxone-home/previews/cards-light.png",
+    "sha256": "c20ac73f91b61bcb4c8d42d3bad5c93e332ff011e6696f40e552a7815d497f64",
+    "generator": "LVGL simulator screenshot, 400x250"
+  },
+  {
+    "asset": "assets/loxone-home/previews/cards-dark.png",
+    "sha256": "7214bbb9b8a592f8670145595386507e585a5af0cbe7c2dc73a087ca2e367632",
+    "generator": "LVGL simulator screenshot, 400x250"
+  }
+]
