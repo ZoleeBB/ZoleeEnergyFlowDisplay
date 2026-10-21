@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime bekötve; a jelenlétprofil/BLE/NVS, energiaasszisztens és tématervek hátravan.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. Az energiaasszisztens, az új tématervek és a fizikai ellenőrzés hátravan.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -873,9 +873,56 @@ A következő folytatás konkrét feladata:
 - A helyi Chromium letöltése hibás csomagot kapott, a külön felhős böngésző nem
   éri el a helyi HTTP-szervert. Emiatt külön, verzióhoz kötött Chromium CI-job
   került be a teljes kiadott HTML/JS asztali/mobil próbájához és képernyőképeihez.
-  A firmware-, szimulátor-, böngésző-CI és méretellenőrzés feltöltés után következik.
+  A végső forráson ezek a CI-próbák is sikeresek; részletek alább.
 
 Nincs automatikus profil-/bond-kiszorítás vagy webes törlés. Slave NVS-bootcache
 nem készült. A fizikai BLE/panel integráció továbbra is ellenőrzendő; a desktop
 BLE-adapter továbbra is üres. A következő fejlesztési blokk az energiaasszisztens,
 azután a külön jóváhagyandó 05/06 látványterv és a hardveres v3-zárás. Nincs PR/release.
+
+
+A 13. checkpoint ellenőrzött zárása:
+
+- Végső forráscommit: `a327864bf37c60390cf1437dfec57a9abcfaf6a4`;
+  teljes forrásfa: `b860cbb8f19d90c79832aa4d745a92e770744421`.
+  A helyi fa a feltöltött Git-fával egyezik. A 12. checkpoint utáni módosítás
+  kizárólag kód/web/teszt/dokumentáció; képfájl nem változott.
+- A végső forráscommit összes CI-jobja sikeres:
+  [Master teljes regresszió/LVGL/ikonok/csomagok/Chromium/két firmware](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39553276366),
+  [Windows főszimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39553276425),
+  [4B Linux/Windows szimulátor](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39553276500).
+- A teljes helyi natív tesztcsomag a végső forrással ismét sikeres.
+  A HTTP-próba a tényleges handlereket és modellt használja, a szolgáltatás
+  snapshot/update illesztése mock; a valódi NVS-worker/BLE/WS külön meglévő
+  regresszióban ellenőrzött. Ez nem fizikai HTTP/BLE/panel végponti mérés.
+- A teljes kiadott HTML/JS tényleges Chromiumban: három peer, két háttérfrissítés
+  alatt megmaradó DOM/fókusz/draft, 202 utáni várakozás és későbbi NVS-visszajelzés,
+  szövegként megjelenő HTML-karakterek, asztali és 390 px mobil, vízszintes
+  túllógás és JS-kivétel nélkül. A backend itt teszt-HTTP-szerver.
+  [Asztali/mobil képernyőképek CI-artifactja](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39553276366/artifacts/12324169928)
+  (7 napos megőrzés). A képernyőképek nem kézi vizuális jóváhagyás bizonyítékai.
+- Külső profilváltozásnál a tiszta sor státusza is az aktuális mentett revíziót
+  követi; nem marad korábbi sikerjelzés egy új függő/hibás mentés mellett.
+  El sem küldött, illetve elveszett válaszú kérés külön JS-próbával ellenőrzött.
+  NVS-hiba közben a már átvett profil további javítása is menthető.
+- Master app: `0x2e4900` = **3 033 344 bájt**, a 12. checkpointhoz
+  **+18 496 bájt**; a 8 MiB app-partíción 64% szabad. OTA SHA256:
+  `fa3ecc0f899e34ae09fb7d818736683c2565c046bbe6ea355005f770f66ce1fb`.
+  Az új webes funkció szándékos kód/adat növekedés, nem formázási eltérés.
+- 4B app: `0x31fc60` = **3 275 872 bájt**, méreteltérés **0 bájt**;
+  a 12 MiB app-partíción 74% szabad. OTA SHA256:
+  `725482bc9dc358d804327759b2ef71994ad9d22a3db17561449cdeded92175c0`.
+  A puszta azonos méretből nem állítunk bájtraazonosságot a korábbi binárissal.
+- Mindkét USB/OTA-csomag elkészült, a tényleges binárisokkal végzett telepítő-
+  ellenőrzés sikeres (normál és kézi boot dry-run). Ez nem tényleges panelre írás.
+- Nincs új képfájl, új LVGL-widget, új BLE-task vagy második Loxone socket.
+  HTTP-kérés legfeljebb 2048 bájt; a profilmodell és az NVS-blob változatlan.
+  Teljes hardveres RAM/DMA/PSRAM/FPS/radio-mérés továbbra sem történt.
+- A záró commit csak dokumentációt frissít, `[skip ci]` jelöléssel; az ellenőrzött
+  firmware/web/tesztforrások változatlanok. Nincs PR vagy release.
+
+A következő folytatás: energiaasszisztens minimális, oldaltól független
+fogyasztóállapot-tára és determinisztikus szabályai; 100% SOC, valódi PV-többlet,
+akkukisütésből származó export kizárása, tartósság/tartalék, bezárási-visszavonási
+szabály, összevethető éjszakai történet és témánként biztonságos hely. Ezután az
+05/06 tématervek külön felhasználói jóváhagyása és a fizikai v3-ellenőrzés.

@@ -102,3 +102,27 @@ Forrás: [Communicating with the Miniserver v17](https://www.loxone.com/enen/kb/
 - Valódi LVGL render mind a 18 témaváltozattal, külön Loxone beállító,
   kapcsolódási és kapcsolathiba-képernyő, automatikus visszatérés: sikeres.
 - Valódi Miniserver és fizikai panel: még nincs ellenőrizve.
+
+
+## Slave-kijelzők jelenlétbeállítása (v3 fejlesztési ág)
+
+A Masteren kapcsold be az **Adat seed – master kijelző (BLE)** funkciót, majd a
+Master diagnosztikáján megnyitott párosítási ablakban párosítsd a Slave-et a PIN-nel.
+A Loxone beállító oldal **Slave-kijelzők** szakasza a már ismert, legfeljebb három
+eszközt mutatja. Minden eszköznél saját név, Loxone jelenlétállapot, ébrenléti idő
+(1–86400 másodperc) és éjszakai sötétítés adható meg. A helyiség/funkció szűrő
+segít kiválasztani az állapotot. Üres forrásnál csak érintés ébreszt.
+
+A sötétítés alapból ki van kapcsolva. Nappal a Slave saját nappali fényereje,
+éjjel ébren a saját éjszakai fényereje érvényes. A Master ezeket nem írja felül.
+Az első ébresztő érintés nem nyom meg közben kártyagombot. Az új funkcióhoz a
+Master és a Slave megfelelő v3 firmware-e egyaránt szükséges.
+
+Mentés után várd meg a **Beállítások tartósan elmentve** visszajelzést. Az átvett
+kérés és a folyamatban lévő mentés még nem bizonyít tartós tárolást. Hiba vagy
+kapcsolatvesztés esetén a helyi szerkesztés megmarad. Másik böngésző ugyanazon
+eszközön végzett módosításánál a szerkesztést ellenőrizni, szükség esetén elvetni
+kell; az újabb profil nem írható felül észrevétlenül.
+
+A párosított profil törlése/bond-kezelése nem része ennek a webes szakasznak.
+Részletes API, tárolási és BLE-szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).

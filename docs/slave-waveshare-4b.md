@@ -34,9 +34,11 @@ A Slave másodpercenként olvassa a 20 bájtos opcionális profilt. Rövid impul
 számlálóval, tartós aktív jel szinttel jut át; késői/replay/lejárt válasz nem ébreszt.
 SMP titkosítás/MITM/bond/16 bájtos kulcs kötelező.
 
-Az új profilban a sötétítés **alapból kikapcsolt**; a Master webes eszközlistája,
-profilbeállítója és a mentés hibajelzése még hátravan. Régi Masterrel továbbra is
-a saját folyamatos nappali/éjszakai fényerő érvényes. A fogadott profil disconnect
+Az új profilban a sötétítés **alapból kikapcsolt**. A Master Loxone webes
+beállítójában a már párosított kijelző neve, jelenlétforrása, timeoutja és az
+éjszakai sötétítés kapcsolója szerkeszthető. A felület külön jelzi az átvett,
+függő, hibás és tartósan mentett konfigurációt; a helyi szerkesztés frissítéskor
+megmarad. Régi Masterrel továbbra is a saját folyamatos nappali/éjszakai fényerő érvényes. A fogadott profil disconnect
 alatt memóriában marad; saját fényerőinek korábbi NVS-beállítása nem változik.
 Részletes szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).
 Fizikai paneles próba még szükséges.
