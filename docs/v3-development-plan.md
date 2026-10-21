@@ -125,22 +125,25 @@
 - [x] Főág és #15 állapota ellenőrizve.
 - [x] AGENTS.md és meglévő témaszerzői dokumentáció elolvasva.
 - [x] Új ág megnyitva a friss főágból.
-- [ ] Releváns források, tesztek, kiadási workflow részletes felmérése.
-- [ ] Következő termékdöntések egyesével tisztázva; a választ e fájlban rögzíteni.
+- [x] Releváns források, tesztek, kiadási workflow részletes felmérése.
+- [x] Termékdöntések egyesével tisztázva és D01–D16 alatt rögzítve.
 - [x] Korlátos konfigurációs/adatmodell, visszafelé kompatibilis parse/mentés, érzékeny adatok védelme.
 - [x] Fogyasztói és kártyás webes szerkesztők; valódi JS/API-tesztek.
 - [x] Speciális csomagok/assetkatalógus; pontos képméretek és SD-kezelés.
-- [ ] Mindkét új oldal és navigáció, frissesség, terhelési mérések.
-- [ ] Pulse/kapcsolók tényleges parancs- és állapotútja.
+- [x] Mindkét új oldal és navigáció, frissesség; natív/LVGL ellenőrzések.
+- [ ] Fizikai oldalváltási terhelés és RAM/DMA/PSRAM/FPS-próba.
+- [x] Pulse/kapcsolók parancs- és állapotútja, titkosított protokollteszt.
+- [ ] Kapcsoló és impulzus tényleges Miniserver/panel visszaellenőrzése.
 - [x] Energiaasszisztens szabályai és témánkénti pozíciói.
-- [ ] Diagnosztika X és valós párosításjelzés.
+- [x] Diagnosztika X és párosításjelzés implementációja, LVGL-próba.
+- [ ] Párosítási ablak és felirat fizikai panelpróbája.
 - [x] Slave identitás/profil/jelenlét és mindkét hardver/szimulátor támogatása.
 - [x] 05/06 témák jóváhagyott látványterve és elkészült eszközméretű képei.
 - [x] Külső témák célzott javítása, ha kis erőforrásból elvégezhető.
-- [ ] HU/EN dokumentáció és feliratok, konfigurációs minták.
+- [x] HU/EN dokumentáció és feliratok; valódi parserrel ellenőrzött mintaprofil.
 - [ ] `python3 tests/run_tests.py`, releváns szimulátor/LVGL render, Master és Slave ESP-IDF build.
 - [ ] Firmware/OTA, belső RAM/DMA és PSRAM keretek ellenőrzése.
-- [ ] Hardveres próbákhoz külön lista; szimulációt nem tekintünk fizikai megfelelésnek.
+- [x] Külön hardveres próbalista: [v3-handover.md](v3-handover.md).
 - [ ] v3.0.0 kiadási cél beállítása a tényleges release-folyamat szerint, automatikus köztes kiadás nélkül.
 - [ ] Csak minden vállalt pont kész állapotánál PR. Egyesítés/publikálás nincs előre elvégezve.
 
@@ -1273,3 +1276,45 @@ repó `feature/v3-loxone-home` ágára az előző válaszban megnevezett feltöl
 és a további fejlesztési feltöltésekre is érvényes. A végső PR/kiadás korábbi
 feltételei ettől változatlanok. Következik a kész javítás feltöltése, CI-zárás,
 majd a v3 szoftveres ellenőrzőlista és külön fizikai átadási lista lezárása.
+
+## Checkpoint 2026-10-21 / 21 – feltöltés, HU/EN átadás és ellenőrzött minta
+
+A 20. checkpoint javítása sikeresen felkerült:
+`13ac3b6decb754bcf1d30c709ebf5e0ae36509dc`. A teljes feltöltött forrásfa
+`84e4289cbc0e86494b08f8ee00a69e8ac33ecbc1`, a helyi fával ellenőrzötten egyezik.
+A feltöltési akadály megszűnt; újabb engedélykérés nem szükséges.
+
+A terv következő szoftveres átadási pontjai elkészültek:
+
+- [v3-handover.md](v3-handover.md): helyes firmware/SD-csomag telepítési sorrend,
+  Master/Loxone és Slave képességek, F01–F10 eszközös próba, jelenlét/érintés/
+  újraindítás/asszisztens/05–06 témák és 100 oldalváltás ellenőrzése. HU/EN
+  útmutató, meglévő diagnosztikai mezőkkel kitölthető mérési lista.
+- [loxone-home.sample.json](../examples/loxone-home.sample.json): schema 2,
+  fogyasztó, érték/pulse/kapcsoló, elnevezett és üres oldal; létező ikonkulcsok,
+  szemléltető UUID-k, indításjavaslat alapból kikapcsolva. Külön home-profil,
+  nem `config.json` és nincs hozzá kitalált webes importfunkció.
+- A mintát a tényleges C SD-parser és mentés/visszatöltés ellenőrzi; a teszt
+  a közös natív regresszió része. A teljes helyi regresszió ismét sikeres,
+  beleértve az új dokumentumok/minta offline USB-csomagolását és linkellenőrzését.
+- A régi állapotleírások javítva: a jelenlét/asszisztens/témák implementálva
+  vannak, a fizikai teszt viszont még nincs elvégezve. A README gesztusleírása
+  a tényleges X-es diagnosztikazárást és Loxone Otthon-nyitást követi.
+- E blokk csak dokumentáció, minta, teszt és egy pontosított fejléc-komment.
+  Futási kód, beágyazott weboldal és képfájl nem változott. `[skip ci]`
+  feltöltés; a firmware-javítás pontos forrása a fenti `13ac3b6` marad.
+
+A 13ac3b6 CI-je elindult a GitHub késleltetett megjelenése után:
+
+- Master teljes workflow: `39617644848`; regresszió, valódi LVGL, Chromium,
+  64 ikon és témacsomagok sikeresek. A két firmware és USB-ellenőrzés még fut.
+- Fő Windows-szimulátor: `39617644864`, sikeres.
+- 4B Windows/Linux szimulátor: `39617644697`, mindkettő sikeres.
+- A témacsomag artifactja `12354230136`; a teljes négyes kimenetlista és a
+  firmware-méretek a build végén rögzítendők. A régi zöld bináris nem új javítás.
+
+Következő konkrét lépés: a 13ac3b6 firmware/USB/OTA méret- és artifactellenőrzése,
+majd e checkpoint végére a végső CI-eredmények. Fizikai próba a külön átadási
+listával szükséges; ennek eredményét nem helyettesíti a szimulátor. A v3.0.0
+kiadási szabály a végső PR azonosításához kötött nyitott feladat marad, a jelenlegi
+patch-növelést nem szabad v3-emelésnek tekinteni. PR/tag/release még nem készült.

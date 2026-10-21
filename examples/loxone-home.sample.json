@@ -1,0 +1,63 @@
+{
+  "schema": 2,
+  "consumers": [
+    {
+      "id": "dishwasher",
+      "name": "Mosogatógép",
+      "icon": "dishwasher",
+      "source": {
+        "uuid": "11223344-5566-7788-99aabbccddeeff00",
+        "scale": 0.001
+      },
+      "average_kw": 1.4,
+      "suggest_start": false
+    }
+  ],
+  "pages": [
+    {
+      "id": "ground-floor",
+      "title": "Földszint",
+      "cards": [
+        {
+          "id": "living-temperature",
+          "name": "Nappali hőmérséklet",
+          "icon": "temperature",
+          "type": "value",
+          "source": {
+            "uuid": "11223344-5566-7788-99aabbccddeeff01",
+            "scale": 1,
+            "offset": 0
+          },
+          "unit": "°C",
+          "decimals": 1,
+          "warning_low": 18,
+          "warning_high": 28,
+          "warning_color": "#E66B6B"
+        },
+        {
+          "id": "water-boost",
+          "name": "Melegvíz-rásegítés",
+          "icon": "water-heater",
+          "type": "pulse",
+          "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff00"
+        },
+        {
+          "id": "garden-light",
+          "name": "Kerti világítás",
+          "icon": "lamp",
+          "type": "switch",
+          "control_uuid": "aabbccdd-5566-7788-99aabbccddeeff01",
+          "source": {
+            "uuid": "11223344-5566-7788-99aabbccddeeff02",
+            "scale": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "garden",
+      "title": "Kert",
+      "cards": []
+    }
+  ]
+}

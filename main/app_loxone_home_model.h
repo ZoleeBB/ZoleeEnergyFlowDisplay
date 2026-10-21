@@ -39,7 +39,8 @@ typedef struct
     char icon[LX_HOME_ID_SIZE];
     lx_home_card_type_t type;
     lx_mapping_t source;
-    /* A parancs a control UUID-ra megy; a source.uuid visszajelző állapot. */
+    /* Stabil vezérlőazonosító: a katalógus oldja fel a uuidAction parancscímet.
+     * A source.uuid ettől független visszajelző állapot. */
     char control_uuid[LX_UUID_LEN];
     char unit[LX_HOME_UNIT_SIZE];
     unsigned decimals;

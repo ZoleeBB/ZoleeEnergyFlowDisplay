@@ -5,8 +5,10 @@
 Az `app_loxone_home_model.c` platformfüggetlen konfigurációs modell elkészült.
 A tartós SD-mentés és a meglévő `/loxone` oldal külön fogyasztói/Otthon-szerkesztője
 is elkészült. Az élő értékek, a korlátos parancsküldés és a két Master kijelzőoldal is be van
-kötve, külön SD-erőforráscsomaggal. Ez még nem a teljes v3: Slave-jelenlét,
-energiaasszisztens és a 05/06 témák külön fejlesztési pontok. A teljes feladat és a folytatás: [fejlesztési terv](v3-development-plan.md).
+kötve, külön SD-erőforráscsomaggal. A Slave-jelenlét, az energiaasszisztens és
+a jóváhagyott 05/06 témák is implementálva vannak. A v3 fizikai eszközpróbája
+és végső kiadási ellenőrzése még hátravan. A teljes feladat és a folytatás:
+[fejlesztési terv](v3-development-plan.md), [telepítés és átadás](v3-handover.md).
 
 A modell külön objektum; nem növeli meg a több helyen másolt, jelszót is tartalmazó
 `lx_config_t` hitelesítési konfigurációt. A modellben nincs token vagy jelszó.
@@ -36,6 +38,14 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
 
 ## Formátum
 
+A [letölthető mintaprofil](../examples/loxone-home.sample.json) a valódi
+C-parserrel és mentés/visszatöltéssel ellenőrzött, létező ikonkulcsokat használ.
+Az indításjavaslat alapból kikapcsolt. Az UUID-k szemléltetők: a saját Loxone-
+állapotokat és vezérlőket a `/loxone` szerkesztőben válaszd ki. Ez a fájl
+nem a hálózati `config.json`, és a webes szerkesztőnek nincs JSON-import gombja.
+Kézi SD-s használatnál a kitöltött fájl neve `loxone-home.json`; a módosítás
+után újraindítás szükséges. A webes mentés a javasolt út.
+
 ```json
 {
   "schema": 2,
@@ -49,7 +59,7 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
         "scale": 0.001
       },
       "average_kw": 1.4,
-      "suggest_start": true
+      "suggest_start": false
     }
   ],
   "pages": [
@@ -130,9 +140,12 @@ alakját vizsgálja, a tényleges fájlok meglétét a csomagkezelő fogja ellen
 - Hibás profil, túl sok elem vagy foglalási hiba esetén a korábbi kimenet változatlan.
   A hiba pl. `consumers[2].duplicate_id` alakban mutatja az érintett mezőt.
 
-A hálózati struktúrából készülő katalógus az állapot `uuid` mellett most már
-`control_uuid` mezőt is tartalmaz. Az értékek különbözhetnek; hiányzó vagy
-érvénytelen vezérlőkulcsból nem szabad parancscélt készíteni.
+A hálózati struktúrából készülő katalógus az állapot `uuid` mellett stabil
+`control_uuid` mezőt is tartalmaz. Az eltérő tényleges parancscím az opcionális
+`action_uuid`, a LoxAPP3 `uuidAction` mezőjéből. A mentett profil csak a stabil
+azonosítót tartja; a parancs a friss katalógusból feloldott címre megy.
+Ha a `uuidAction` hiányzik, a korábbi érvényes objektumkulcs használható;
+explicit hibás címnél vezérlés nem engedélyezett, az állapot továbbra is olvasható.
 
 ## Elfogadott fogyasztói elrendezés
 
@@ -198,3 +211,6 @@ erőforráscsomagnál); normál témáknál a 12 MiB korlát megmarad. Egyszerre
 is csak az aktív oldal képei töltődnek be, a 10 MiB LVGL-cache nem nőtt.
 Régi v1 erőforráscsomag betölthető marad közös háttérrel; a külön fogyasztói
 háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
+A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is
+ad. Ezek nem kerülnek az aktív LVGL-képek közé. A webes szerkesztő telepített
+csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan figyelmeztet.

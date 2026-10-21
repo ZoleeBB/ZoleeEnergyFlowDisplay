@@ -206,8 +206,45 @@ static void page_tests(void)
     puts("PASS: 8 named pages / 96 cards, per-page bounds, empty page, unique page/card IDs, migration and schema-2 roundtrip");
 }
 
-int main(void)
+static void sample_test(const char *path)
 {
+    /* A telepítési mintát ugyanaz a szigorú parser olvassa, mint az SD-profilt. */
+    FILE *file = fopen(path, "rb");
+    assert(file && fseek(file, 0, SEEK_END) == 0);
+    long size = ftell(file);
+    assert(size > 0 && size <= LX_HOME_JSON_MAX);
+    rewind(file);
+    char *bytes = malloc((size_t)size + 1);
+    assert(bytes && fread(bytes, 1, size, file) == (size_t)size);
+    assert(fclose(file) == 0);
+    bytes[size] = 0;
+    cJSON *json = lx_home_document_parse(bytes, size);
+    free(bytes);
+    lx_home_config_t *config = calloc(1, sizeof(*config));
+    lx_home_config_t *again = calloc(1, sizeof(*again));
+    char error[LX_HOME_ERROR_SIZE];
+    assert(json && config && again && lx_home_config_parse(json, config, error));
+    assert(config->consumer_count == 1 && config->page_count == 2 && config->card_count == 3);
+    assert(!config->consumers[0].suggest_start && config->consumers[0].average_known);
+    assert(config->pages[1].card_count == 0);
+    assert(config->cards[0].type == LX_HOME_CARD_VALUE);
+    assert(config->cards[1].type == LX_HOME_CARD_PULSE);
+    assert(config->cards[2].type == LX_HOME_CARD_SWITCH);
+    assert(strcmp(config->cards[2].source.uuid, config->cards[2].control_uuid));
+    cJSON *saved = lx_home_config_json(config);
+    assert(saved && lx_home_config_parse(saved, again, error));
+    assert(!memcmp(config, again, sizeof(*config)));
+    cJSON_Delete(saved);
+    cJSON_Delete(json);
+    free(config);
+    free(again);
+    puts("PASS: checked-in home sample through actual SD parser and save/reload, three card types and opt-in disabled");
+}
+
+int main(int argc, char **argv)
+{
+    assert(argc == 2);
+    sample_test(argv[1]);
     char deep[2049]; memset(deep, '[', 1024); memset(deep+1024, ']', 1024); deep[2048] = 0;
     assert(!lx_home_document_parse(deep, 2048));
     assert(!lx_home_document_parse("{} trailing", 11));
