@@ -78,12 +78,14 @@ jobs:
           repository: lvgl/lvgl
           ref: v9.5.0
           path: .preview-lvgl
-      - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release
+      - run: cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release -DZOLEE_PREVIEW_ASAN=ON
       - run: cmake --build .preview-build -j 4
       - name: Package shared Loxone resources for actual UI tests
         run: python3 tools/prepare_home_resources.py
       - name: Render actual LVGL screens
-        timeout-minutes: 2
+        timeout-minutes: 8
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
         run: |
           mkdir -p .preview-images
           cp -r templates .preview-template-sd
@@ -91,6 +93,7 @@ jobs:
           export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
           cd .preview-images
           ../.preview-build/ui_preview
+          ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
 
   template-packages:
     runs-on: ubuntu-latest

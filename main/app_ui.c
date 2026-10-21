@@ -26,6 +26,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "src/draw/lv_image_decoder_private.h"
 #if LV_USE_OS != LV_OS_NONE || LV_DRAW_SW_DRAW_UNIT_CNT != 1
 #error "Use LV_OS_NONE and one software draw unit; the adapter serializes LVGL with its own mutex"
 #endif
@@ -1728,16 +1729,19 @@ static void initial_refresh_report(lv_event_t *event)
 
 /*
  * A kijelzőt a BSP kezdeti konfigurációjában fordítjuk. Futás közben
- * lv_display_set_rotation() MIPI DSI/TRIPLE_PARTIAL mellett nem használható:
+ * lv_display_set_rotation() futó MIPI DSI mellett nem használható:
  * 90 foknál Store access faultot okozhat a háttérben futó frissítés.
  */
 esp_err_t app_ui_init(uint16_t rotation_degrees)
 {
     const app_display_orientation_t o = app_display_orientation_for_rotation(rotation_degrees);
+    /* Teljes kész frame kerül a panelre; nincs forgatott részterületek
+     * közötti framebuffer-javítás és cache-vonalak megosztása. A három
+     * meglévő panelpuffert használjuk, új teljes puffer foglalása nélkül. */
     bsp_display_cfg_t cfg = {.lv_adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG(),
                              .rotation = o.rotation_degrees == 90 ? ESP_LV_ADAPTER_ROTATE_90
                                                                   : ESP_LV_ADAPTER_ROTATE_270,
-                             .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
+                             .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_FULL,
                              .touch_flags = {.swap_xy = o.touch_swap_xy,
                                              .mirror_x = o.touch_mirror_x,
                                              .mirror_y = o.touch_mirror_y}};

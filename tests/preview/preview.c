@@ -25,9 +25,20 @@ void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now)
 
 static lv_display_t *display;
 static uint32_t pixels[1280*800];
+static bool rgb565;
+/* A panel 16 bites és a desktop 32 bites képpontjait azonos RGB-re bontjuk. */
+static uint32_t pixel_rgb(unsigned index)
+{
+    if (!rgb565)
+        return pixels[index] & 0xffffff;
+    uint16_t value = ((const uint16_t *)pixels)[index];
+    unsigned red = (value >> 11) & 31, green = (value >> 5) & 63, blue = value & 31;
+    return (((red << 3) | (red >> 2)) << 16) | (((green << 2) | (green >> 4)) << 8) | ((blue << 3) | (blue >> 2));
+}
 static int64_t ticks;
 static bool sd_ok=true;
 static unsigned home_load_blocked;
+static int home_corrupt_asset = -1;
 bool __real_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
                                        bool consumers, app_template_view_t *out);
 bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
@@ -38,7 +49,15 @@ bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count
         home_load_blocked--;
         return false;
     }
-    return __real_app_templates_home_load_for(icons, count, night, consumers, out);
+    bool ok = __real_app_templates_home_load_for(icons, count, night, consumers, out);
+    if (ok && home_corrupt_asset >= 0)
+    {
+        assert((unsigned)home_corrupt_asset < out->asset_count);
+        app_template_asset_t *asset = &out->assets[home_corrupt_asset];
+        asset->bytes[asset->size / 2] ^= 0x40;
+        home_corrupt_asset = -1;
+    }
+    return ok;
 }
 static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
@@ -62,7 +81,7 @@ static void touch_sample(int x,bool pressed){touch_sample_xy(x,400,pressed);}
 
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
-lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
+lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->tear_avoid_mode==ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_FULL);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
 esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
@@ -75,7 +94,7 @@ bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
 void app_stats_get_period(bool month,app_stats_period_t *out){
     memset(out,0,sizeof(*out));out->count=month?31:7;
-    for(unsigned i=0;i<out->count;i++){
+    for(unsigned i=0;i<out->count&&i<31;i++){
         snprintf(out->days[i].date,11,"2026-10-%02u",i+1);
         out->days[i].valid=i!=2;out->days[i].totals=fixture.totals;
         out->days[i].totals.production_kwh=18+i%7*2;out->days[i].totals.consumption_kwh=24+i%5;
@@ -97,7 +116,7 @@ static void save_frame(const char *name)
     char path[160];snprintf(path,sizeof(path),"%s.ppm",name);
     FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n1280 800\n255\n");
     for(int i=0;i<1280*800;i++){
-        unsigned char rgb[3]={(pixels[i]>>16)&255,(pixels[i]>>8)&255,pixels[i]&255};
+        unsigned char rgb[3]={(pixel_rgb(i)>>16)&255,(pixel_rgb(i)>>8)&255,pixel_rgb(i)&255};
         fwrite(rgb,1,3,f);
     }
     fclose(f);
@@ -784,7 +803,7 @@ static void test_stacked_charts(void)
         int x=area.x1+(area.x2-area.x1)*120/288;
         for(int layer=0;layer<3;layer++){
             int y=area.y2-(area.y2-area.y1)*(2*layer+1)/8;
-            uint32_t pixel=pixels[y*1280+x];
+            uint32_t pixel=pixel_rgb(y*1280+x);
             int dominant=(pixel>>channels[chart][layer])&255;
             int other=(pixel>>(channels[chart][layer]==16?8:16))&255;
             assert(dominant>other+5);
@@ -792,12 +811,12 @@ static void test_stacked_charts(void)
         /* Nincs implicit kontúrkitöltés a rétegek fölött, a hiányzó
          * időablakban vagy a jövőben. Egyik pont sem rácsvonalra esik. */
         int y=area.y2-(area.y2-area.y1)*7/8;
-        assert((pixels[y*1280+x]&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+x)&0xffffff)==0xffffff);
         y=area.y2-(area.y2-area.y1)*3/8;
         int gap_x=area.x1+(area.x2-area.x1)*70/288;
         int future_x=area.x1+(area.x2-area.x1)*230/288;
-        assert((pixels[y*1280+gap_x]&0xffffff)==0xffffff);
-        assert((pixels[y*1280+future_x]&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+gap_x)&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+future_x)&0xffffff)==0xffffff);
     }
     charts(&fixture);
 }
@@ -817,16 +836,16 @@ static void test_signed_and_soc_charts(void){
         int negative_x=area.x1+(area.x2-area.x1)*115/288;
         int gap_x=area.x1+(area.x2-area.x1)*152/288;
         int y=kind==APP_CHART_SOC?area.y2-40:area.y1+70;
-        assert((pixels[y*1280+positive_x]&0xffffff)!=0xffffff);
+        assert((pixel_rgb(y*1280+positive_x)&0xffffff)!=0xffffff);
         if(kind==APP_CHART_BATTERY){
-            uint32_t positive=pixels[y*1280+positive_x],negative=pixels[(area.y1+130)*1280+negative_x];
+            uint32_t positive=pixel_rgb(y*1280+positive_x),negative=pixel_rgb((area.y1+130)*1280+negative_x);
             assert(((positive>>8)&255) > ((negative>>8)&255));
         }
         if(kind!=APP_CHART_SOC){
-            assert((pixels[(area.y1+130)*1280+negative_x]&0xffffff)!=0xffffff);
-            assert((pixels[y*1280+negative_x]&0xffffff)==0xffffff);
+            assert((pixel_rgb((area.y1+130)*1280+negative_x)&0xffffff)!=0xffffff);
+            assert((pixel_rgb(y*1280+negative_x)&0xffffff)==0xffffff);
         }
-        assert((pixels[y*1280+gap_x]&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+gap_x)&0xffffff)==0xffffff);
         lv_obj_delete(chart);
     }
     lv_obj_delete(parent);
@@ -845,18 +864,18 @@ static void test_hourly_chart_grid(void){
     uint32_t reference=0;
     for(int hour=1;hour<24;hour++){
         int x=(int)floorf(area.x1+(area.x2-area.x1)*hour/24.f);
-        uint32_t pixel=pixels[y*1280+x]&0xffffff;
+        uint32_t pixel=pixel_rgb(y*1280+x)&0xffffff;
         if(hour==1)reference=pixel;
         assert(pixel==reference&&pixel!=0xffffff);
-        assert((pixels[y*1280+x-1]&0xffffff)==0xffffff);
-        assert((pixels[y*1280+x+1]&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+x-1)&0xffffff)==0xffffff);
+        assert((pixel_rgb(y*1280+x+1)&0xffffff)==0xffffff);
     }
     /* A középső skálavonal egyetlen, kontrasztos pixelsor. */
     int middle=(int)floorf((area.y1+area.y2)/2.f),x=area.x1+5;
-    assert((pixels[middle*1280+x]&0xffffff)!=0xffffff);
-    assert((pixels[(middle-1)*1280+x]&0xffffff)==0xffffff);
-    assert((pixels[(middle+1)*1280+x]&0xffffff)==0xffffff);
-    assert((pixels[(middle+2)*1280+x]&0xffffff)==0xffffff);
+    assert((pixel_rgb(middle*1280+x)&0xffffff)!=0xffffff);
+    assert((pixel_rgb((middle-1)*1280+x)&0xffffff)==0xffffff);
+    assert((pixel_rgb((middle+1)*1280+x)&0xffffff)==0xffffff);
+    assert((pixel_rgb((middle+2)*1280+x)&0xffffff)==0xffffff);
     lv_obj_delete(parent);
     puts("PASS: identical one-pixel hourly grid lines and stronger horizontal scale lines in rendered pixels");
 }
@@ -992,6 +1011,120 @@ static void test_energy_assistant_ui(const app_energy_sample_t *original)
         update(original, &fixture);
 }
 
+static unsigned widget_count(const lv_obj_t *root)
+{
+    unsigned count = 1;
+    for (unsigned i = 0; i < lv_obj_get_child_count(root); i++)
+        count += widget_count(lv_obj_get_child(root, i));
+    return count;
+}
+
+/* A keretben valóban a dekódolt fényképet látjuk, nem csak egy helyes
+ * fájlnevet vagy egy háttér nélküli, sikeresnek jelzett widgetfát. */
+static void test_home_background_pixels(void)
+{
+    assert(home_buffers[0] && home_images[0].header.cf == LV_COLOR_FORMAT_RGB565);
+    assert(home_buffers[0]->data_size == 1280U * 800U * 2U);
+    unsigned non_white = 0;
+    for (unsigned y = 150; y < 730; y += 53)
+    {
+        uint16_t value = *(uint16_t *)(home_buffers[0]->data + y * home_buffers[0]->header.stride + 10 * 2);
+        unsigned red = value >> 11, green = (value >> 5) & 63, blue = value & 31;
+        unsigned expected = (((red << 3) | (red >> 2)) << 16) |
+                            (((green << 2) | (green >> 4)) << 8) | (blue << 3) | (blue >> 2);
+        unsigned actual = pixel_rgb(y * 1280 + 10);
+        for (unsigned shift = 0; shift <= 16; shift += 8)
+            assert(abs((int)((actual >> shift) & 255) - (int)((expected >> shift) & 255)) <= 1);
+        non_white += actual != 0xffffff;
+    }
+    assert(non_white >= 8);
+    for (unsigned i = 0; i < home_assets.asset_count; i++)
+        assert(home_buffers[i] && home_images[i].header.cf != LV_COLOR_FORMAT_RAW_ALPHA);
+}
+
+static void test_home_lifecycle(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const char *themes[] = {"builtin", "05-calm-home", "06-energy-orbit"};
+    char language[APP_LANGUAGE_MAX];
+    snprintf(language, sizeof(language), "%s", s_cfg.project.language);
+    app_sim_home_reset();
+    unsigned commands = app_sim_home_commands;
+    unsigned page_widgets[4][2][2] = {{{0}}};
+    for (unsigned cycle = 0; cycle < 100; cycle++)
+    {
+        bool night = cycle % 2;
+        unsigned english = (cycle / 2) % 2;
+        const char *theme = themes[(cycle / 4) % 3];
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", english ? "en" : "hu");
+        sample.night_mode = night;
+        assert(app_templates_select(theme) == ESP_OK);
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        assert(s_view == VIEW_DASHBOARD);
+        unsigned baseline_widgets = widget_count(s_screen);
+        unsigned baseline_animations = lv_anim_count_running();
+        /* Egy ciklus: fogyasztók, három Otthon-lap, majd az eredeti téma.
+         * Minden nézetet valóban kirajzolunk: a PNG-dekóder is részt vesz. */
+        home_open_clicked(NULL);
+        for (unsigned page = 0; page < 4; page++)
+        {
+            if (page == 1)
+                home_cards_requested();
+            else if (page > 1)
+                home_gesture(LV_DIR_LEFT);
+            home_prepare(night);
+            render_runtime(runtime, sample, true, 31000000);
+            lv_obj_update_layout(s_screen);
+            lv_refr_now(display);
+            assert(s_view == VIEW_HOME && home_ready_to_draw);
+            test_home_background_pixels();
+            assert(lv_anim_count_running() == 0);
+            assert(home_assets.asset_count >= 2 && home_assets.asset_count <= 14);
+            assert(!template_view.asset_count && !template_pending.asset_count && !template_raster_count);
+            assert(home_page == (page ? 2 : 1));
+            assert(!page || home_card_page == page - 1);
+            const char *background = page ? (night ? "background-dark.png" : "background-light.png")
+                                          : (night ? "consumers-dark.png" : "consumers-light.png");
+            assert(!strcmp(home_assets.assets[0].name, background));
+            unsigned count = widget_count(s_screen);
+            unsigned *expected = &page_widgets[page][night][english];
+            if (!*expected)
+                *expected = count;
+            assert(count == *expected);
+            assert(app_sim_home_commands == commands);
+        }
+        home_close(NULL);
+        home_prepare(night);
+        assert(s_view == VIEW_THEME_LOADING);
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        assert(s_view == VIEW_DASHBOARD && !home_is_open() && !home_page);
+        if (!strcmp(theme, "builtin"))
+            assert(!template_is_active());
+        else
+            assert(template_is_active() && !strcmp(template_view.id, theme));
+        assert(!home_assets.asset_count && !home_ready_to_draw);
+        for (unsigned i = 0; i < sizeof(home_gray_buffers) / sizeof(home_gray_buffers[0]); i++)
+            assert(!home_gray_buffers[i] && !home_buffers[i] && !home_images[i].data);
+        assert(widget_count(s_screen) == baseline_widgets);
+        /* A témaválasztás rövid áttűnése a visszatéréskor már elmaradhat.
+         * Plusz animáció nem maradhat, a köztes Otthon-lapokon egy sem futhat. */
+        assert(lv_anim_count_running() <= baseline_animations);
+        assert(app_sim_home_commands == commands);
+        if ((cycle + 1) % 25 == 0)
+        {
+            printf("Lifecycle progress: %u/100 complete cycles\n", cycle + 1);
+            fflush(stdout);
+        }
+    }
+    snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language);
+    puts("PASS: 100 actual LVGL lifecycle cycles, 400 rendered consumer/Home pages, HU/EN day/night, builtin/05/06 return, stable widgets/animations, released image buffers and no commands");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -1007,7 +1140,8 @@ int main(void)
     setenv("TZ","UTC0",1);tzset();
     struct tm t={.tm_year=126,.tm_mon=9,.tm_mday=5,.tm_hour=14,.tm_min=37};epoch=mktime(&t);
     lv_init();display=lv_display_create(1280,800);
-    lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);
+    rgb565 = getenv("ZOLEE_PREVIEW_RGB565") != NULL;
+    lv_display_set_color_format(display,rgb565 ? LV_COLOR_FORMAT_RGB565 : LV_COLOR_FORMAT_XRGB8888);
     lv_display_set_buffers(display,pixels,NULL,sizeof(pixels),LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(display,flush);
     assert(app_ui_init(270)==ESP_OK);
@@ -1455,6 +1589,7 @@ int main(void)
         uint8_t *p=gray->data+y*gray->header.stride+4*x;assert(p[0]==p[1]&&p[1]==p[2]);
     }
     save_frame("loxone-consumers-light");
+    test_home_background_pixels();
     lv_obj_t *stable_background=lv_obj_get_child(s_screen,0);
     unsigned char *stable_asset=home_assets.assets[0].bytes;
     invalidations=0;
@@ -1556,6 +1691,29 @@ int main(void)
     assert(template_loading_frame());template_prepare();render_runtime(rt,sample,true,31000000);
     assert(s_view==VIEW_DASHBOARD);
     puts("PASS: resource-lock retry preserves one loading screen, bounded permanent failure returns to theme, stable consumers cause no redraw and native house-image touch works");
+    /* Sérült háttérnél és egy később dekódolt ikonnál is visszavonjuk
+     * az egész előtöltést. Az azonos betöltőkép marad, majd jó adattal feláll. */
+    home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
+    for (int corrupt = 0; corrupt <= 2; corrupt += 2)
+    {
+        home_open_clicked(NULL);
+        home_corrupt_asset = corrupt;
+        home_prepare(false);render_runtime(rt,sample,true,31000000);
+        assert(s_view == VIEW_THEME_LOADING && !home_ready_to_draw && !home_assets.asset_count);
+        for (unsigned i = 0; i < 14; i++)
+            assert(!home_buffers[i] && !home_gray_buffers[i]);
+        lv_obj_t *loading = lv_obj_get_child(s_screen, 0);
+        home_load_blocked = 1;
+        home_prepare(false);render_runtime(rt,sample,true,31000000);
+        assert(lv_obj_get_child(s_screen, 0) == loading);
+        home_prepare(false);render_runtime(rt,sample,true,31000000);
+        assert(s_view == VIEW_HOME && home_ready_to_draw);
+        lv_obj_update_layout(s_screen);lv_refr_now(display);
+        test_home_background_pixels();
+        home_close(NULL);home_prepare(false);template_prepare();render_runtime(rt,sample,true,31000000);
+    }
+    puts("PASS: corrupt background/icon never displays an incomplete Home page; decoded buffers roll back and retry succeeds");
+    test_home_lifecycle(rt, sample);
     app_sim_home_enabled=false;
     lv_indev_delete(home_input);
     clear();template_release_cache();app_templates_view_free(&template_view);

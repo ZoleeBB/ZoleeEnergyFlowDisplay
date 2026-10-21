@@ -1,7 +1,6 @@
-/* A Waveshare BSP 2.0.3 a MIPI rajzpuffert belső RAM-ra rögzíti.
- * Az 50 soros RGB565 puffer ezen a panelen 80000 bájt: ez nem fér el
- * a kis belső heapben. A regisztrációt PSRAM-ra irányítjuk, a managed
- * komponensek módosítása nélkül. A PPA forgatást külön letiltjuk.
+/* A Waveshare BSP MIPI profilját PSRAM-ra irányítjuk, a managed
+ * komponensek módosítása nélkül. A teljes képkockás mód a panel három
+ * meglévő pufferét használja. A PPA forgatást külön letiltjuk.
  */
 #include "esp_lv_adapter_display.h"
 #include "esp_log.h"
@@ -57,7 +56,7 @@ lv_display_t *__wrap_esp_lv_adapter_register_display(const esp_lv_adapter_displa
              "MIPI LVGL draw buffers use PSRAM (rows=%u)",
              (unsigned)psram_config.profile.buffer_height);
     ESP_LOGI("app_display", "MIPI rotation uses CPU fallback (PPA disabled)");
-    ESP_LOGI("app_display", "Partial framebuffer repair uses CPU; DMA cache-line mixing disabled");
+    ESP_LOGI("app_display", "Complete-frame rotation; partial framebuffer repair is not used");
     ESP_LOGI("app_display", "LVGL rendering is synchronous (OS_NONE, one draw unit)");
     lv_display_t *display = __real_esp_lv_adapter_register_display(&psram_config);
     if (display)

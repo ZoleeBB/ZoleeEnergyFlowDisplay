@@ -10,6 +10,7 @@ typedef struct {
 #define ESP_LV_ADAPTER_ROTATE_270 270
 #define ESP_LV_ADAPTER_ROTATE_90 90
 #define ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL 0
+#define ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_FULL 1
 lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg);
 esp_err_t bsp_display_lock(int timeout);
 void bsp_display_unlock(void);

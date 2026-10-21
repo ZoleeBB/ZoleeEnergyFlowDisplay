@@ -77,3 +77,17 @@ fogyasztói háttér és villogás (belépés/betöltés/nyugalmi nézet), mindh
 bezárási út, Rendszer-házikonnal megnyitás, Bluetooth-felirat, webes
 ikonválasztás csomaggal és nélküle, lassú sablontörlés. A panel/Miniserver
 próbája nem történt meg ebben a környezetben; a szimuláció ezt nem igazolja.
+
+## F11 – villanó panel és hiányzó fogyasztói háttér
+
+A 2026-10-21-i új panelvideó alapján a hiba továbbra is fennállt: a betöltő-
+és fogyasztói oldalon kékes felvillanás, hiányzó fényképes háttér és egyes
+szürke ikonok. Javításjelölt: teljes képkockás, hárompufferes panelátadás;
+előre ellenőrzött Home-képek, natív RGB565 háttér és előállított szürke ikonok;
+dekóderhiba esetén teljes visszavonás és korlátos újrapróbálás. Új SD-csomag
+nem szükséges ehhez a firmware-javításhoz, a meglévő v3 csomag használható.
+
+A háttér tényleges renderelt képpontjait, sérült képek kezelését és ismételt
+nyitás/lapozás/bezárás esetén a pufferfelszabadítást automatizált próba
+ellenőrzi. A panelvillanás megszűnése és a teljes képkockás mód FPS-e csak
+fizikai visszaméréssel fogadható el. A hiba addig nyitott.

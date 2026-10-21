@@ -22,9 +22,12 @@ static unsigned home_next_revision;
 static char home_status[LX_HOME_ERROR_SIZE], home_next_status[LX_HOME_ERROR_SIZE];
 static app_template_view_t home_assets;
 static lv_image_dsc_t home_images[14];
+static lv_draw_buf_t *home_buffers[14];
 static lv_draw_buf_t *home_gray_buffers[14];
 static lv_image_dsc_t home_gray_images[14];
 static lv_obj_t *home_icons[12], *home_labels[12], *home_buttons[12], *home_switch_knobs[12], *home_message, *home_total;
+
+static const lv_image_dsc_t *home_gray(unsigned index);
 
 static bool home_is_open(void) { return home_request_get() != 0; }
 static void home_close(lv_event_t *event)
@@ -58,9 +61,14 @@ static void home_gesture(lv_dir_t direction)
 }
 static void home_release(void)
 {
-    for (unsigned i = 0; i < home_assets.asset_count; i++)
+    for (unsigned i = 0; i < 14; i++)
     {
         lv_image_cache_drop(&home_images[i]);
+        if (home_buffers[i])
+        {
+            lv_draw_buf_destroy(home_buffers[i]);
+            home_buffers[i] = NULL;
+        }
         if (home_gray_buffers[i])
         {
             lv_image_cache_drop(&home_gray_images[i]);
@@ -79,7 +87,61 @@ static void home_reset_theme(void)
     app_templates_view_free(&template_view);
     app_templates_view_free(&template_pending);
     home_release();
+    /* A beépített téma képei is maradhatnak a globális cache-ben. A PNG
+     * dekóder az új képet még a cache helyfelszabadítása előtt foglalja le. */
+    lv_image_cache_drop(NULL);
     template_node_count = 0;
+}
+/* Kész képpontokból épül az oldal: a rajzolás közben nincs PNG-dekódolás,
+ * cache-kilökés vagy új nagy foglalás. A háttér RGB565-ben pontosan 2 048 000
+ * bájt, az ikonok ARGB8888 alakban őrzik az átlátszóságukat. LVGL-lock alatt. */
+static bool home_decode_images(void)
+{
+    const lv_image_decoder_args_t args = {.no_cache = true};
+    for (unsigned i = 0; i < home_assets.asset_count; i++)
+    {
+        lv_image_decoder_dsc_t decoder;
+        if (lv_image_decoder_open(&decoder, &home_images[i], &args) != LV_RESULT_OK)
+        {
+            ESP_LOGW("app_ui", "Home PNG decode failed: %s", home_assets.assets[i].name);
+            return false;
+        }
+        const lv_draw_buf_t *source = decoder.decoded;
+        bool valid = source && source->header.cf == LV_COLOR_FORMAT_ARGB8888 &&
+                     source->header.w == home_assets.assets[i].width &&
+                     source->header.h == home_assets.assets[i].height;
+        lv_draw_buf_t *buffer = NULL;
+        if (valid && i == 0)
+        {
+            buffer = lv_draw_buf_create(source->header.w, source->header.h,
+                                        LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+            if (buffer)
+            {
+                for (unsigned y = 0; y < source->header.h; y++)
+                {
+                    const uint8_t *row = source->data + y * source->header.stride;
+                    uint16_t *out = (uint16_t *)(buffer->data + y * buffer->header.stride);
+                    for (unsigned x = 0; x < source->header.w; x++)
+                    {
+                        const uint8_t *pixel = row + 4 * x;
+                        out[x] = (uint16_t)(((pixel[2] & 0xf8U) << 8) |
+                                            ((pixel[1] & 0xfcU) << 3) | (pixel[0] >> 3));
+                    }
+                }
+            }
+        }
+        else if (valid)
+            buffer = lv_draw_buf_dup(source);
+        lv_image_decoder_close(&decoder);
+        if (!buffer)
+        {
+            ESP_LOGW("app_ui", "Home image buffer unavailable: %s", home_assets.assets[i].name);
+            return false;
+        }
+        home_buffers[i] = buffer;
+        lv_draw_buf_to_image(buffer, &home_images[i]);
+    }
+    return true;
 }
 static void home_prepare(bool night)
 {
@@ -149,10 +211,39 @@ static void home_prepare(bool night)
     for (unsigned i = 0; i < count; i++)
         icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[first + i].icon;
     bool loaded = app_templates_home_load_for(icons, count, night, requested == 1, &home_assets);
+    if (loaded)
+    {
+        for (unsigned i = 0; i < home_assets.asset_count; i++)
+        {
+            app_template_asset_t *asset = &home_assets.assets[i];
+            home_images[i] = (lv_image_dsc_t){
+                .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+                           .w = asset->width, .h = asset->height},
+                .data = asset->bytes, .data_size = asset->size};
+        }
+        if (bsp_display_lock(-1) != ESP_OK)
+        {
+            app_templates_view_free(&home_assets);
+            return;
+        }
+        loaded = home_decode_images();
+        if (loaded && requested == 1)
+        {
+            for (unsigned i = 2; loaded && i < home_assets.asset_count; i++)
+            {
+                loaded = home_gray(i) != NULL;
+                if (!loaded)
+                    ESP_LOGW("app_ui", "Home grayscale buffer unavailable: %s", home_assets.assets[i].name);
+            }
+        }
+        if (!loaded)
+            home_release();
+        bsp_display_unlock();
+    }
     if (!loaded)
     {
-        /* A pillanatnyilag foglalt SD/katalógus nem hiányzó grafika.
-         * Marad a betöltőkép és azonos kérés; nincs törlés/villogó újraépítés. */
+        /* Foglalt SD vagy sikertelen dekódolás esetén marad a betöltőkép.
+         * Háttér nélküli oldal és ismétlődő widget-újraépítés nem jelenhet meg. */
         if (++home_load_attempts < 15)
             return;
         app_events_add(APP_EVENT_WARNING, "A Loxone-oldal grafikai erőforrásai nem tölthetők be.");
@@ -161,14 +252,6 @@ static void home_prepare(bool night)
         template_loading_requested = true;
         template_waiting_for_load = true;
         return;
-    }
-    for (unsigned i = 0; i < home_assets.asset_count; i++)
-    {
-        app_template_asset_t *asset = &home_assets.assets[i];
-        home_images[i] = (lv_image_dsc_t){
-            .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW_ALPHA,
-                       .w = asset->width, .h = asset->height},
-            .data = asset->bytes, .data_size = asset->size};
     }
     home_ready_to_draw = true;
 }
@@ -182,13 +265,9 @@ static int home_icon_index(const char *id)
 static const lv_image_dsc_t *home_gray(unsigned index)
 {
     if (home_gray_buffers[index]) return &home_gray_images[index];
-    /* A valódi deszaturálás csak egy 96×96-os ARGB-példányt készít; a szürke
-     * recolor-réteg önmagában nem változtatná fekete-fehérré a színes ikont. */
-    lv_obj_t *root = lv_obj_create(NULL);
-    lv_obj_remove_style_all(root); lv_obj_set_size(root, 96, 96);
-    lv_obj_t *image = lv_image_create(root); lv_image_set_src(image, &home_images[index]);
-    lv_draw_buf_t *buffer = lv_snapshot_take(root, LV_COLOR_FORMAT_ARGB8888);
-    lv_obj_delete(root);
+    /* Az eredeti, már ellenőrzött ARGB képpontokat másoljuk. Nem készül
+     * ideiglenes LVGL-képernyő, és nincs új PNG-dekódolás a render alatt. */
+    lv_draw_buf_t *buffer = lv_draw_buf_dup(home_buffers[index]);
     if (!buffer) return NULL;
     for (unsigned y = 0; y < 96; y++)
     {
@@ -237,6 +316,7 @@ static void home_build(void)
     clear(); screen_style(s_screen, home_night);
     lv_obj_t *background = lv_image_create(s_screen);
     lv_image_set_src(background, &home_images[0]);
+    lv_obj_set_pos(background, 0, 0);
     lv_obj_remove_flag(background, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *header = shape(s_screen, 24, 20, 1232, 80, home_night ? 0x17242B : 0xF8FBF4, 24);
     bg_opa_if_changed(header, home_night ? 242 : 244, 0);

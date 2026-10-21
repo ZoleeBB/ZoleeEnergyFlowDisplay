@@ -1391,3 +1391,68 @@ Folytatáskor ehhez a forráshoz kell keresni a három workflow-t, nem a
   F03/F05 és a [teljes átadási lista](v3-handover.md) visszamérése.
   Következő automatizált lépés: a 150fde5 pontos forráshoz megjelenő három
   workflow ellenőrzése és a végső eredmény rögzítése. Nincs PR/tag/release.
+
+## Checkpoint 2026-10-21 / 23 – ismételt UI-erőforrás próba
+
+A felhasználó a fejlesztési csomag folytatását kérte. A távoli fej `64a4aabc`,
+a helyi forrásfa ezzel egyezett; a 77f9534/150fde5 végső CI-je továbbra sem
+látható. A tervben új termékfunkció már nem maradt, ezért a hiányzó terhelési
+ellenőrzés szoftveres része következik, fizikai megfelelőségi állítás nélkül.
+
+- A tényleges LVGL-preview 100 teljes ciklust jár be: fogyasztók, három
+  Otthon-oldal, vissza az eredeti Rendszer/05/06 témára. Összesen 400 tényleges
+  PNG-dekódolással renderelt külön oldal, HU/EN és nappali/éjszakai változatban.
+- Ellenőrzött: változatlan objektumszám azonos oldalon, nincs háttérben maradó
+  témaerőforrás, bezáráskor felszabaduló képek/szürke ikonok, nincs rejtett
+  animáció az Otthon-nézetben és nincs kéretlen vezérlési parancs.
+- Az első próba a kiválasztás rövid témáttűnését is a visszatérő oldal kötelező
+  animációjának tekintette. Ez hibás tesztelvárás volt: az egyszeri áttűnés
+  elmaradhat. A javított próba az Otthon-lapokon nulla animációt, visszatéréskor
+  pedig többletanimáció hiányát követeli meg. Firmware-kód nem módosult.
+- Opcionális AddressSanitizer build a teljes LVGL és a valós UI kódjával;
+  a meglévő CI ui-preview job ezt fogja futtatni szivárgásellenőrzéssel.
+  Nem keletkezik új artifact vagy firmware-be épített mérőmodul.
+- A normál 32 bites és RGB565 render 100 ciklusa sikeres. A folytatás közben
+  érkezett panelvideó miatt a 24. checkpoint fizikai hibajavítása elsőbbséget kapott.
+
+A fizikai DMA/PSRAM/FPS, valódi Miniserver-vezérlés és Slave-rádiós próba
+továbbra is a külön átadási listán marad. PR/tag/release nincs.
+
+## Checkpoint 2026-10-21 / 24 – panelvillanás és hiányzó Home-háttér
+
+A felhasználó új videója (`IMG_9430.mp4`) szerint a fogyasztói oldal továbbra
+is villan, a fényképes háttér és egyes nulla fogyasztású ikonok hiányoznak.
+A kékes villanás a betöltőképen is látható. A szimulátoros widgetstabilitás
+nem igazolta a korábbi javítás fizikai megfelelőségét; az ok panelen még
+nincs bizonyítva. Ez a hiba blokkolja a v3 átadását.
+
+- Master: `TRIPLE_FULL` mód a forgatott `TRIPLE_PARTIAL` helyett. A három
+  meglévő 800×1280 RGB565 panelpufferből dolgozik; nincs részleges frame-ek
+  közötti framebuffer-javítás. A PPA továbbra is letiltott, a forgatás CPU-s.
+  A több teljes képkocka nagyobb CPU-/PSRAM-sávszélességet kérhet; FPS-t és
+  érintésválaszt valódi eszközön kell visszamérni.
+- Home-belépéskor a felszabadított nézet után a globális képcache is ürül.
+  Korábban a beépített képek maradhattak benne, miközben a PNG-dekóder az
+  új képhez már a cache-kilökés előtt kért nagy memóriaterületet.
+- Minden aktív PNG a megjelenítés előtt, LVGL-lock alatt dekódolódik, cache
+  nélkül. A háttér külön RGB565 pufferben 2 048 000 bájt; a logó és ikonok
+  ARGB8888 pufferben élnek. Rajzoláskor nem fut PNG-dekódolás. A fogyasztói
+  ikonok szürke példányai is előre készülnek, ideiglenes LVGL-képernyő nélkül.
+- Dekóder-/foglalási hiba visszavonja az egész előtöltést: ugyanaz a betöltőkép
+  marad, majd a meglévő korlátos újrapróbálás működik. Hiányos, háttér nélküli
+  oldalt nem jelöl késznek. A soros log a hibás fájl nevét is tartalmazza.
+- Új próba: szándékosan sérült háttér és később dekódolt ikon, teljes puffer-
+  visszavonás, stabil betöltőkép, sikeres újrapróbálás. A háttérből származó
+  tényleges képpontokat is összeveti a renderelt frame-mel.
+- A teljes UI-próba 32 biten és a panel RGB565 formátumában fut. Mindkettő
+  100 teljes ciklusban 400 Home/fogyasztói oldalt renderel, nyelv- és napszak-
+  váltással, eredeti téma-visszatéréssel, bufferfelszabadítás-ellenőrzéssel.
+- Helyi natív regresszió: 61 PASS, kilépési kód 0. Az első ASan-render
+  100 ciklusa lefutott hozzáférési hiba nélkül; a helyi ptrace környezetben
+  a LeakSanitizer a kilépéskor saját támogatási hibával leállt. A helyi
+  ismétlés ezért `detect_leaks=0`, a GitHub CI továbbra is `detect_leaks=1`.
+  A két végső helyi ASan-formátum, feltöltés, pontos firmware-build/méret
+  és CI eredménye még folyamatban. Fizikai javulást nem állítunk.
+
+A korábbi feltöltési engedély változatlanul érvényes erre a feature ágra.
+Nincs PR, tag vagy release; a fizikai elfogadás továbbra is nyitott.
