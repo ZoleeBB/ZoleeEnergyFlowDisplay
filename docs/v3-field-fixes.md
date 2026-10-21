@@ -101,9 +101,8 @@ A gesztus inputszintre került, az újraépülő objektumfa buborékolásától
 függetlenül. A fix képernyők nem görgethetők, az inputhoz egyszer kerül a
 callback. Az adapter saját LVGL-feladatának flush-visszajelzése megelőzi
 az SD-munkát; a runtime a várakozás alatt elengedi a lockot. A desktop runtime
-is követi az éles előkészítési sorrendet. A normál
-Master teljes képkockás rajzolás és animáció kerete 33 ms, a nehéz görbéké
-50 ms; az input eredeti olvasási időzítőjét nem módosítjuk.
+is követi az éles előkészítési sorrendet. A nehéz görbék 50 ms-os kerete megmarad; a normál frissítés végső
+ütemezését az alábbi F13 írja le.
 
 A célzott valódi LVGL-próba négy témán, nappal/éjjel, fogyasztói és kártyás oldalról X-szel
 visszatérve ellenőrzi az alsó szélről felhúzott diagnosztikát, mindkét
@@ -112,3 +111,20 @@ energiatéma-irányt, egy gesztust blokkoló fedőelemet, a betöltési flush so
 fedőelemen elakad. A teljes 100 ciklusos erőforrás-/ASan-próba megmarad.
 Új grafikai csomag nem kell. A tényleges panel javulása és számszerű terhelése
 külön eszközpróbát igényel; memóriaszivárgást mérés nélkül nem állítunk.
+
+## F13 – minden témán akadó animáció és indulástól elvesző húzás
+
+A felhasználó az F12 után Home-nyitás nélkül is akadozó animációt és szinte
+működésképtelen húzást jelzett. A 33 ms-os normál animációt és a kész frame
+utáni újabb 33 ms várakozást visszavontuk: a korábban elfogadott 15/16 ms-os
+refresh/animáció tér vissza. Az animációból kikerült az inputcallbackek
+ismételt keresése. A teljes képkockás villogásjavítás megmarad.
+
+A gyári touch-adapter két IRQ között az utolsó koordinátát ismétli. Az LVGL
+alap sebességküszöbe ennél törli a húzás összegét. A küszöb nulla, az 50 px-es
+távolságfeltétel megmarad. A célzott próba a javítás előtt már a beépített
+első balra húzásán elbukott; az új változat mind a tíz témán, Home megnyitása
+nélkül vizsgál bal/jobb/felfelé húzást ismételt pontokkal. A 15 ms-os redraw,
+a 90 ms-os lassú frame utáni folytatás és a Home-visszatérési próbák is részei.
+A betöltőkép visszaigazolása és a pufferfelszabadítás nem változott.
+Új SD-csomag nem szükséges. A fizikai elfogadás újra nyitott.

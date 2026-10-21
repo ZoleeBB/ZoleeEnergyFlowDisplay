@@ -52,33 +52,37 @@ A kijelző és a webes diagnosztika magonként jelzi a CPU becsült foglaltság�
 
 A belső RAM és PSRAM adatai az allocator által kezelt teljes és szabad heapet jelentik; a sáv a foglalt arányt mutatja. A belső RAM-nál a legnagyobb DMA-blokk is megmarad. Az SD telítettségét a háttérben legfeljebb percenként frissítjük; a diagnosztika csak a gyorsítótárból olvas, LVGL-zár alatt nincs FAT-vizsgálat. SD-hibánál a sáv rejtett. A kezdeti FAT-szabadhelyszámítás nagy kártyán időigényes lehet, de nem a megjelenítőtask végzi.
 
-## F12 – teljes képkockák ütemezése és visszatérő navigáció
+## F12/F13 – visszatérő és indulás utáni navigáció
 
-A villogásmentes `TRIPLE_FULL` mód megmarad. A normál refresh és animáció
-33 ms-os (kb. 30 FPS) keretet kap a korábbi 15/16 ms helyett; ez a kért
-képkockák számát korlátozza, nem állít mért CPU-gyorsulást vagy elért FPS-t.
-A nehéz görbék továbbra is 50 ms-os keretűek, a mozgás a teljes eltelt idővel
-lép. A touch olvasási időzítője változatlan. Nem foglalunk új teljes panelpuffert.
-A betöltőkép egyszeri, visszaigazolt flusha megelőzi az SD-/PNG-munkát.
+A villogásmentes `TRIPLE_FULL` mód és a Home elődekódolt képei megmaradnak.
+Az F12 33 ms-os animációja és kész frame utáni további 33 ms-os várakozása
+eszközön akadozást okozott; ezt az F13 visszavonja. A refresh ismét 15 ms,
+az animáció 16 ms periódusú, további frame-végi várakozás nélkül. A nehéz
+görbék 50 ms-os kerete és a teljes eltelt idővel számolt mozgás megmarad.
+Ez kért ütemezés, nem eszközön mért FPS vagy CPU-gyorsulás. Új puffer nincs.
 
-A visszatérési regresszió valódi X-érintést, alsó szélről induló diagnosztikát,
-mindkét témalapozási irányt és nem buborékoló fedőelemet próbál. Az inputkötés
-nem sokszorozódhat. A 100 ciklusos memória/objektumélettartam-próba és a két
-színformátumú ASan-próba megmarad. A gazdaoldali eredmény nem helyettesíti
-a panelen mért inputkésést, CPU/FPS/DMA/PSRAM-idősorokat.
+A touch-adapter IRQ-k között az utolsó koordinátát ismétli. Az LVGL alap
+3 px/minta sebességküszöbe minden ilyen mintánál törli a húzás összegét,
+ezért a lassú vagy szaggatott mintavételű húzás elvész. A navigációhoz a
+sebességküszöb nulla, az 50 px-es elmozdulásküszöb megmarad. A mozdulat
+nem követel egyenletes mintasebességet, a kis remegés nem lapoz. Az
+inputkötést egyszer végezzük, az animációs tick már nem járja be a callbackeket.
 
-Az adapter 0.6.4 pontos forrásának ellenőrzése alapján a pufferre váró flush
-FreeRTOS taskértesítést használ. Ezért a firmware nem hív `lv_refr_now`-t az
-UI runtime másik taskjából: a saját LVGL-worker frissít, `LV_EVENT_REFR_READY`
-jelzi a kész képkockát. Határidőn túli visszajelzésnél nincs képbetöltés, a
-következő kör a meglévő loading oldallal próbálja újra. A headless próba a
-refresh-visszajelzés kihagyását és helyreállását is injektálja, nulla idő előtti
-SD-képolvasást megkövetelve. Forrás: [adapter 0.6.4](https://github.com/espressif/esp-iot-solution/tree/5d75f3f0dc499d9ed4b69284a3741187c2b75a70/components/display/tools/esp_lvgl_adapter).
+Az új regresszió Otthon-nyitás nélkül mind a tíz témán balra/jobbra/felfelé
+húz, 8 px-es lépésekkel és minden lépés között ismételt koordinátával.
+A javítás előtti firmware UI-kódja már a beépített téma első húzásán elbukott.
+A próba ellenőrzi a 15 ms utáni redraw-t, illetve 90 ms-os flush után az
+esedékes rajzolás és inputolvasás folytatódását külön várakozás nélkül.
+A valódi X utáni visszatérési és a 100 ciklusos memória-/objektumélettartam-
+próba, valamint mindkét színformátum ASan-ellenőrzése megmarad.
 
-A 33 ms-ot a kész képkocka végétől mérjük, nem a rajzolás kezdetétől.
-90 ms-os rajzolásnál a puszta periódus már lejárt volna, ezért azonnal újabb
-rajzolás következne. A kész frame eseménye újraindítja a refresh időzítőjét;
-a köztes touch-időzítő futva marad. A valódi LVGL-regresszió 90 ms-os flush-t
-injektál: 16 ms múlva inputolvasást, nulla új képkockát, majd 34 ms után új
-képkockát követel meg. A kezdetétől mért ütemezés ezen a próbán elbukik.
-Ez felső frissítési korlát és garantált időrés, nem mért panel-FPS vagy CPU-adat.
+Az adapter 0.6.4 pufferre váró flusha FreeRTOS taskértesítést használ.
+Ezért a firmware nem hív `lv_refr_now`-t az UI runtime másik taskjából:
+a saját LVGL-worker frissít, `LV_EVENT_REFR_READY` jelzi a kész képkockát.
+Határidőn túli visszajelzésnél nincs képbetöltés; a következő kör a meglévő
+loading oldallal próbálkozik. A kihagyott/helyreálló visszajelzés próbája
+nulla idő előtti SD-képolvasást követel. Forrás: [adapter 0.6.4](https://github.com/espressif/esp-iot-solution/tree/5d75f3f0dc499d9ed4b69284a3741187c2b75a70/components/display/tools/esp_lvgl_adapter).
+
+Az F12 eszközös visszajelzése sikertelen volt. Az F13 javulását és a tartós
+CPU/FPS/DMA/PSRAM-adatokat újra fizikai panelen kell visszamérni; a host
+ellenőrzés ezt nem helyettesíti.

@@ -1575,3 +1575,26 @@ A kiegészítés 32 bites és RGB565 célzott LVGL/ASan-próbája ellenőrzi a k
 inputolvasást, a túl korai redraw hiányát és a későbbi redraw folytatódását.
 A PR új forrásának teljes CI-je és méret-/OTA-/USB-ellenőrzése a PR-ben követhető.
 Az eszközös F12-elfogadás és a számszerű terhelési napló továbbra is nyitott.
+
+## Checkpoint 2026-10-21 / 28 – indulástól akadások, ismételt touchpontok (F13)
+
+A felhasználó az F12 (`bb3ce6c`) után minden témán akadozást és szinte
+működésképtelen húzást jelzett, Home-nyitás nélkül. A 26–27. checkpoint
+automatizált sikere nem jelentett fizikai elfogadást; a 33 ms-os normál
+animáció és kész frame utáni extra 33 ms-os várakozás visszavonva.
+A refresh/animáció visszatért a korábban elfogadott 15/16 ms-hoz; a nehéz
+50 ms-os görbekeret megmarad. Nincs per-frame inputcallback-keresés.
+
+A touch-adapter IRQ-k között ismétli a koordinátát; az LVGL alap 3 px/minta
+sebességküszöbe ilyenkor törli a húzás összegét. A sebességküszöb nulla,
+az 50 px-es távolságfeltétel változatlan. Az új próba a régi kódon már a
+beépített téma első lassú húzásán elbukott. Home-nyitás nélkül mind a tíz
+témán bal/jobb/felfelé húz, lépésenként ismételt pontokkal; ellenőrzi a
+15 ms-os redraw-t és a 90 ms-os flush utáni késleltetés nélküli folytatást.
+A Home-visszatérés, a loading-frame visszajelzése, a 100 ciklusos életciklus
+és az ASan mindkét formátumban továbbra is ellenőrzendő. A teljes képkockás
+villogásjavítás, elődekódolt Home-háttér és egységes CI megmarad.
+
+Az aktuális eredmények a #16 PR-ben követhetők. Új SD-erőforrás nem kell.
+A fizikai F13-elfogadás és a számszerű terhelésmérés nyitott; nincs merge,
+verziótag vagy release.

@@ -167,3 +167,11 @@ check the loading screen and day/night pages with 10–12 consumers, including
 zero-power TV/AC icons, then close and reopen. The photo and every icon must
 remain visible without cyan flashes. Check touch responsiveness and animated
 photo themes under Wi-Fi/BLE traffic with the complete-frame display mode.
+
+F13 follow-up: the user rejected the F12 firmware (`bb3ce6c`) because all
+themes stuttered and swipes failed even before opening Home. The new firmware
+restores 15/16 ms refresh/animation without a post-frame cooldown and preserves
+swipe displacement across cached touch coordinates. Verify slow and fast swipes
+in both theme directions and upward diagnostics immediately after boot, then
+repeat after Home closes. Existing v3 SD resources remain valid. Physical F13
+acceptance and quantitative performance measurements are still pending.

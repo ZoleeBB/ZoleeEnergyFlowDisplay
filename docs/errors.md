@@ -146,6 +146,9 @@ Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik m
 Az F12 javítás az inputhoz köti a gesztust, ezért az újraépített téma képe,
 gombja vagy nem buborékoló fedőeleme nem tudja elnyelni. A fix képernyőn
 nincs scroll-felismerés. A betöltőkép az adapter saját LVGL-feladatában kerül flushra; a runtime lock nélkül vár a képkocka-visszajelzésre az SD-olvasás/dekódolás előtt; a 85 ms-os
-várakozás önmagában nem volt bizonyíték a megjelenésére. A normál teljes
-képernyős frissítés/animáció 33 ms-os keretet kap, az input saját időzítője
-változatlan. A tényleges paneles javulás és terhelés újra ellenőrizendő.
+várakozás önmagában nem volt bizonyíték a megjelenésére. Az F13 a fizikai visszaesést okozó 33 ms-os keretet és a kész frame utáni
+plusz várakozást visszavonja: a refresh/animáció ismét 15/16 ms-os. Az IRQ-k
+között ismételt koordináta nem törli a húzás teljes elmozdulását; az 50 px-es
+távolságküszöb megmarad. Az új indulási regresszió minden témán Otthon-nyitás
+nélkül is ellenőriz lassú húzásokat. A tényleges paneles javulás és terhelés
+újra ellenőrizendő.

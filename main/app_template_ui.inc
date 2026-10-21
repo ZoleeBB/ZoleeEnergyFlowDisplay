@@ -365,7 +365,14 @@ static void navigation_bind_inputs(void)
             }
         }
         if (!bound)
+        {
+            /* Az IRQ-k között az adapter a legutóbbi koordinátát ismétli.
+             * Az alap 3 px/minta küszöb az ilyen álló mintáknál törölné
+             * a húzás összegét. A távolságküszöb megmarad (50 px), így
+             * kis remegés nem lapoz, de a lassú húzás sem vész el. */
+            lv_indev_set_gesture_min_velocity(input, 0);
             lv_indev_add_event_cb(input, template_gesture, LV_EVENT_GESTURE, NULL);
+        }
     }
 }
 static void template_release_cache(void){

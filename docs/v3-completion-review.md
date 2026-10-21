@@ -1,9 +1,9 @@
 # v3 – követelmény- és záró ellenőrzés
 
 Dátum: 2026-10-21. Alap: az [eredeti fejlesztési terv](v3-development-plan.md)
-D01–D16 döntései és a későbbi F01–F12 javítások. A felhasználó az `adfa395`
+D01–D16 döntései és a későbbi F01–F13 javítások. A felhasználó az `adfa395`
 firmware után igazolta a villogás megszűnését, a háttér megjelenését, a vezérlések
-és az új témák működését, majd kérte az ellenőrzést és a PR megnyitását. Ezután F12-ként új, Home bezárása utáni navigációs/terhelési hibát jelzett; a javítás fizikai ellenőrzése még nyitott.
+és az új témák működését, majd kérte az ellenőrzést és a PR megnyitását. Ezután F12-ként új, Home bezárása utáni navigációs/terhelési hibát jelzett; az F12 után pedig minden témán indulástól akadozást és elvesző húzást jelentett (F13). Az F13 fizikai ellenőrzése nyitott.
 
 ## Követelmények és bizonyítékok
 
@@ -23,7 +23,8 @@ firmware után igazolta a villogás megszűnését, a háttér megjelenését, a
 | D14: külön hátterek és olvasható lábléc | Fogyasztói/Otthon nappali/éjszakai képpár, fedő láblécpanel | Valódi render, a háttér képpontjainak összevetése, fizikai háttér-visszaigazolás |
 | D15: elnevezhető több oldal | Schema 2: legfeljebb 8×12 kártya, schema 1 migráció, üres oldal, cím/pontok, saját vízszintes lapozás | Parser/mentés/JS, mindkét swipe-irány és körbefordulás; lapozás nem küld parancsot |
 | D16: Energiakör napállás-idővonal | 00:00–24:00, napkelte/napnyugta, aktuális idő és érvényes napadatok | Tényleges LVGL/JSON/webes elemvalidálás, szélsőértékek és éjszakai mód |
-| F12: visszatérés utáni navigáció és betöltés | Inputszintű, egyszer kötött gesztus; nem görgethető képernyő; valós loading-flush SD előtt; 33 ms refresh, változatlan touch időzítő | Valódi X, alsó szélről diagnosztika, két témairány, blokkoló fedőelem, flush-sorrend, két színformátum; fizikai ellenőrzés nyitott |
+| F12: visszatérés utáni navigáció és betöltés | Inputszintű, egyszer kötött gesztus; nem görgethető képernyő; valós loading-flush SD előtt; változatlan touch időzítő | Valódi X, alsó szélről diagnosztika, két témairány, blokkoló fedőelem, flush-sorrend, két színformátum; fizikai ellenőrzés nyitott |
+| F13: indulástól akadozó témák és elvesző húzás | 15/16 ms refresh/animáció, frame-végi plusz várakozás nélkül; az ismételt touchpont nem törli a húzást, 50 px küszöb | Mind a tíz téma Home nélkül, lassú bal/jobb/felfelé húzás; javítás előtt reprodukált hiba, 15 ms redraw és 90 ms-os flush; fizikai elfogadás nyitott |
 | Diagnosztika, navigáció és párosításjelzés | Jobb felső X; lefelé húzás az Otthoné; tényleges párosítási ablakhoz kötött kék gomb és BT-ikon | LVGL X/gesztus/PIN/eseményterjedés és feliratközép-próbák |
 | Külső témák és visszafelé kompatibilitás | Deklaratív elemek, korlátos ZIP/PNG/JSON, `home_hotspot`, `assistant_area`; régi csomagok támogatottak | `test_templates.py`, C/JS validátorok, külső témák tényleges LVGL-próbái |
 
@@ -31,7 +32,7 @@ Nem találtunk implementálatlan, elfogadott v3 termékfunkciót. A fenti teszte
 külön megkülönböztetik a szintetikus bemenetet és a tényleges C/JS/LVGL-kódot;
 a szimulátor nem helyettesíti a rádiós vagy paneles terhelésmérést.
 
-## F01–F12 és dokumentáció
+## F01–F13 és dokumentáció
 
 F01/F02: csomagelőnézet, kiválasztott ikon és hiányzó csomag jelzése.
 F03: friss worker-idő és a stabil objektumazonosítótól külön feloldott `uuidAction`.
@@ -55,13 +56,13 @@ Loxone Home-formátum, kiadási út és [átadási lista](v3-handover.md) közö
   Master/Slave ESP-IDF 5.5.4, Windows/Linux, Chromium, natív/UBSan, két ASan-render.
 - Master app: 3 051 264 bájt, 8 MiB partíción 64% szabad. Slave: 3 278 992 bájt,
   12 MiB partíción 74% szabad. Az OTA/USB eredet és minden SHA256 ellenőrzött.
-- A lezárás az F12 runtime-javítást, a workflow-kat, a kiadási útválasztót,
+- A lezárás az F12/F13 runtime-javítást, a workflow-kat, a kiadási útválasztót,
   regressziókat és leírásokat is érinti. Új grafikai csomag nem szükséges.
   Helyi teljes natív regresszió, actionlint, 9 sabloncsomag és 194 helyi
   dokumentációs link sikeres; ASan 32 bit/RGB565 külön 100 életciklussal és
   400–400 Home-oldallal sikeres. A helyi ASan hozzáférést vizsgál; a PR-CI
   detect_leaks=1 értékkel szivárgást is ellenőriz. Részletek: 26. checkpoint.
-- A korábbi funkcionális panelpróba sikeres volt; az új F12 panelpróba nyitott. Tartós, számszerű CPU/FPS/
+- A korábbi funkcionális panelpróba sikeres volt; az F12 panelpróba sikertelen lett, az F13 panelpróba nyitott. Tartós, számszerű CPU/FPS/
   belső RAM/DMA/PSRAM-mérés, három Slave egyidejű rádiós terhelése és a párosítási
   ablak külön panelmérése nincs friss mérési naplóval igazolva.
 - A PR megnyitása kifejezett felhasználói kérés. Egyesítés, v3 tag vagy release

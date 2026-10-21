@@ -1364,11 +1364,10 @@ static void update_flows(const app_energy_sample_t *s, float dt)
 
 #include "app_ble_pin_ui.inc"
 
-/* A teljes képkockás panelhez igazított, 33 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
+/* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
-    navigation_bind_inputs();
     if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
     if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
@@ -1724,10 +1723,7 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
 static void initial_refresh_report(lv_event_t *event)
 {
     static bool reported;
-    /* A keretet a kész képkockától mérjük. Ha a rajzolás önmagában több
-     * mint 33 ms, a kezdetétől mért periódus folyamatos újrarajzolást és
-     * akadályozná az érintések olvasását. A kész frame után is maradjon idő rá. */
-    lv_timer_reset(lv_display_get_refr_timer(lv_event_get_target(event)));
+    (void)event;
     if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
     if (!reported)
     {
@@ -1775,12 +1771,12 @@ esp_err_t app_ui_init(uint16_t rotation_degrees)
     }
     s_screen = lv_screen_active();
     lv_display_add_event_cb(disp, initial_refresh_report, LV_EVENT_REFR_READY, NULL);
-    /* A teljes 1280×800-as rajzolásnak legfeljebb 30 FPS a kerete. A touch
-     * saját (15 ms-os) olvasási időzítőjét nem lassítjuk vele együtt. */
-    lv_timer_set_period(lv_display_get_refr_timer(disp), 33);
+    /* A korábban elfogadott 15/16 ms-os ütemezés: a rajzolás idején
+     * felül nem iktatunk be újabb teljes periódusnyi várakozást. */
+    lv_timer_set_period(lv_display_get_refr_timer(disp), 15);
     navigation_bind_inputs();
     screen_style(s_screen, false);
-    if (!lv_timer_create(animation_tick, 33, NULL))
+    if (!lv_timer_create(animation_tick, 16, NULL))
     {
         bsp_display_unlock();
         return ESP_ERR_NO_MEM;

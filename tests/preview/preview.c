@@ -1064,6 +1064,64 @@ static void test_home_background_pixels(void)
         assert(home_buffers[i] && home_images[i].header.cf != LV_COLOR_FORMAT_RAW_ALPHA);
 }
 
+/* Az IRQ-s touch-adapter két hardveres minta között ugyanazt a pontot
+ * adja vissza. A régi sebességküszöb ilyenkor minden alkalommal lenullázta
+ * a húzás összegét. Kis lépések és köztes azonos minták is lapozzanak. */
+static void slow_swipe(int x, int y, int dx, int dy)
+{
+    touch_sample_xy(x, y, true);
+    for (int step = 1; step <= 8; step++)
+    {
+        touch_sample_xy(x + step * dx, y + step * dy, true);
+        touch_sample_xy(x + step * dx, y + step * dy, true);
+    }
+    touch_sample_xy(x + 8 * dx, y + 8 * dy, false);
+}
+
+static void test_startup_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    app_template_info_t themes[16];
+    char active[33];
+    unsigned count = app_templates_list(themes, 16, active);
+    assert(count == 10 && !home_is_open());
+    unsigned resource_reads = home_resource_reads;
+    sample.sun_position_valid = true;
+    for (unsigned theme = 0; theme < count; theme++)
+    {
+        assert(app_templates_select(themes[theme].id) == ESP_OK);
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        for (unsigned direction = 0; direction < 2; direction++)
+        {
+            unsigned generation = template_pending.generation;
+            lv_obj_update_layout(s_screen);
+            slow_swipe(640, 400, direction ? 8 : -8, 0);
+            if (!app_templates_has_pending(generation))
+                fprintf(stderr, "Startup slow swipe failed: %s direction %u\n", themes[theme].id, direction);
+            assert(app_templates_has_pending(generation) && template_loading_requested);
+            assert(template_loading_frame());
+            template_prepare();
+            render_runtime(runtime, sample, true, 31000000);
+        }
+        assert(!strcmp(template_view.id, themes[theme].id));
+        lv_obj_update_layout(s_screen);
+        slow_swipe(640, 790, 0, -8);
+        assert(s_diagnostics_requested);
+        render_runtime(runtime, sample, true, 31000000);
+        assert(s_view == VIEW_DIAGNOSTICS);
+        lv_obj_update_layout(s_screen);
+        touch_sample_xy(1216, 56, true);
+        touch_sample_xy(1216, 56, false);
+        assert(!s_diagnostics_requested);
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        assert(!home_is_open() && home_resource_reads == resource_reads);
+    }
+    puts("PASS: startup slow left/right/up swipes on all 10 themes with repeated cached touch samples, without opening Home");
+}
+
 /* Valódi pointer-események: a visszatérés utáni navigációt a közvetlen
  * home_gesture hívások nem fedik le. Az X és a következő húzás közt a
  * firmware runtime sorrendjével cseréljük le a teljes objektumfát. */
@@ -1085,9 +1143,14 @@ static void test_home_return_navigation(app_runtime_state_t runtime, app_energy_
     assert(template_loading_frame());
     template_prepare();
     render_runtime(runtime, sample, true, 31000000);
-    /* A panel rajzolása lassabb lehet, mint a névleges periódus. A végén
-     * újrakezdett 33 ms biztosítson időt a touchnak; a render kezdetétől
-     * mért 33 ms ilyenkor azonnal újabb teljes képet indítana. */
+    /* A 90 ms-os rajzolás után a következő esedékes kép és az input is
+     * fusson le újabb 33 ms-os várakozás nélkül. */
+    lv_timer_t *refresh = lv_display_get_refr_timer(display);
+    lv_timer_reset(refresh);
+    unsigned cadence_frames = frame_flushes;
+    lv_obj_invalidate(s_screen);
+    ticks += 15000;lv_tick_inc(15);lv_timer_handler();
+    assert(frame_flushes > cadence_frames);
     slow_flush_ms = 90;
     lv_obj_invalidate(s_screen);
     lv_timer_ready(lv_display_get_refr_timer(display));
@@ -1095,12 +1158,10 @@ static void test_home_return_navigation(app_runtime_state_t runtime, app_energy_
     unsigned frames = frame_flushes;
     unsigned reads_after_frame = pointer_reads;
     lv_obj_invalidate(s_screen);
-    ticks += 16000;lv_tick_inc(16);lv_timer_handler();
+    lv_timer_handler();
     assert(pointer_reads > reads_after_frame);
-    assert(frame_flushes == frames);
-    ticks += 18000;lv_tick_inc(18);lv_timer_handler();
     assert(frame_flushes > frames);
-    puts("PASS: simulated 90 ms frame leaves a 33 ms redraw cooldown with intervening pointer polling");
+    puts("PASS: simulated 90 ms frame resumes due rendering and pointer polling without an added frame cooldown");
     lv_display_remove_event_cb_with_user_data(display, initial_refresh_report, NULL);
     home_request_set(1);
     unsigned reads = home_resource_reads;
@@ -1366,6 +1427,7 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
+        test_startup_navigation(runtime, sample);
         test_home_return_navigation(runtime, sample);
         lv_indev_delete(input);
         clear();template_release_cache();app_templates_view_free(&template_view);
@@ -1730,6 +1792,7 @@ int main(void)
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
     lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);navigation_bind_inputs();
+    test_startup_navigation(rt, sample);
     assert(app_templates_select("builtin")==ESP_OK);template_prepare();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
     lv_obj_update_layout(s_screen);
