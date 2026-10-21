@@ -1369,3 +1369,25 @@ A 22. checkpoint feltöltése sikeres: végső forrás
 A 77f9534 futásai a GitHub API-ban még nem jelentek meg; zárásuk függőben.
 Folytatáskor ehhez a forráshoz kell keresni a három workflow-t, nem a
 13ac3b6 korábbi zöld ellenőrzését kell újként rögzíteni.
+
+Átadási állapot a kör végén:
+
+- A `77f9534` forráshoz a megismételt lekérdezésekben workflow/check-suite/
+  check-run sem jelent meg. A folytatási terv külön, normál Contents API-s
+  feltöltése `150fde5cb9202e04a2ea052ff65869a0b1cbdc0e` alatt is megtörtént;
+  ehhez sem látható még új futás. Az ok nem igazolt. A végső új CI-t nem
+  jelöljük sikeresnek, és a már sikeres régi futást nem indítjuk újra úgy,
+  mintha az az új forrást ellenőrizné.
+- A készüléken tesztelhető javított firmware és témák a pontosan igazolt
+  `13ac3b6` forráshoz tartoznak:
+  [Master/Slave firmware és témacsomagok](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39617644848).
+  Mindkét alkalmazás és a teljes forrás runtime-ja azóta változatlan; a
+  firmware-fejlécben csak a parancsazonosító magyarázó kommentje pontosodott.
+  A későbbi eltérés átadási dokumentáció, minta, teszt és kiadási Python-szabály.
+- A teljes natív regresszió a mintával együtt, valamint az új kiadási szabály
+  11 és a kiadási csomagolás 6 helyi tesztje sikeres. A végső CI és a fizikai
+  próba ettől külön nyitott pont, a kiadási szabály nem került éles végrehajtásra.
+- Következő eszközös lépés: a fenti firmware + új `loxone-home.zip` telepítése,
+  F03/F05 és a [teljes átadási lista](v3-handover.md) visszamérése.
+  Következő automatizált lépés: a 150fde5 pontos forráshoz megjelenő három
+  workflow ellenőrzése és a végső eredmény rögzítése. Nincs PR/tag/release.
