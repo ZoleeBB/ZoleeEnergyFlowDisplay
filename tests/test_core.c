@@ -457,6 +457,89 @@ static void test_cardless_stats(void)
     assert(!snapshot.remote_available);
     tests++;
 }
+static void test_assistant_night_history(void)
+{
+    reset(instant("2026-10-14", 0, 0, 0));
+    cfg.data_recept_mode = APP_DATA_LOXONE;
+    for (unsigned day = 14; day <= 17; ++day)
+    {
+        char date[11];
+        snprintf(date, sizeof(date), "2026-10-%02u", day);
+        time_t midnight = instant(date, 0, 0, 0);
+        clock_at(midnight);
+        assert(app_stats_init(&cfg) == ESP_OK);
+        app_assistant_night_t reference;
+        assert(!app_stats_get_night_reference(&reference));
+        double power = day == 14 ? .2 : day == 15 ? .3 : day == 16 ? .1 : .5;
+        for (unsigned second = 0; second <= 3600; second += 10)
+        {
+            fake_epoch = midnight + second;
+            fake_us = INT64_C(1000000) + (fake_epoch - instant("2026-10-14", 0, 0, 0)) * 1000000;
+            app_energy_sample_t value = sample(fake_epoch, power, power, 0);
+            value.night_mode = true;
+            app_stats_process_sample(&value);
+        }
+        assert(app_stats_save_now() == ESP_OK);
+        if (day == 17)
+        {
+            assert(app_stats_get_night_reference(&reference));
+            assert(reference.ready && reference.nights == 3 && reference.hour == 0);
+            near(reference.current_kw, .5);
+            near(reference.baseline_kw, .2);
+            assert(app_stats_init(&cfg) == ESP_OK);
+            assert(app_stats_get_night_reference(&reference));
+            near(reference.baseline_kw, .2);
+        }
+    }
+    cJSON *document = read_json("2026-10-17");
+    cJSON *slot = cJSON_GetArrayItem(cJSON_GetObjectItem(document, "slots"), 0);
+    assert(cJSON_GetObjectItem(slot, "night_seconds")->valuedouble == 300);
+    near(cJSON_GetObjectItem(slot, "night_load_kwh")->valuedouble, .5 / 12);
+    /* Régi fájlok lefedettség nélkül energiát őriznek, referenciát nem találnak ki. */
+    cJSON_DeleteItemFromObjectCaseSensitive(slot, "night_seconds");
+    cJSON_DeleteItemFromObjectCaseSensitive(slot, "night_load_kwh");
+    write_json("2026-10-17", document);
+    cJSON_Delete(document);
+    unlink(APP_SD_MOUNT_POINT "/stats/2026-10-17.json.bak");
+    assert(app_stats_init(&cfg) == ESP_OK);
+    app_assistant_night_t reference;
+    assert(!app_stats_get_night_reference(&reference));
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.consumption_kwh, .5);
+    /* Hiányos mérés, nappali adat és >30 s interpoláció nem teljes éjszaka. */
+    reset(instant("2026-10-18", 0, 0, 0));
+    cfg.data_recept_mode = APP_DATA_LOXONE;
+    assert(app_stats_init(&cfg) == ESP_OK);
+    time_t start = fake_epoch;
+    for (unsigned second = 0; second <= 3600; second += 60)
+    {
+        fake_epoch = start + second;
+        fake_us = INT64_C(1000000) + second * INT64_C(1000000);
+        app_energy_sample_t value = sample(fake_epoch, .5, .5, 0);
+        value.night_mode = true;
+        app_stats_process_sample(&value);
+    }
+    assert(app_stats_save_now() == ESP_OK);
+    document = read_json("2026-10-18");
+    slot = cJSON_GetArrayItem(cJSON_GetObjectItem(document, "slots"), 0);
+    assert(!cJSON_GetObjectItem(slot, "night_seconds"));
+    cJSON_Delete(document);
+    assert(!app_stats_get_night_reference(&reference));
+    /* Óra-visszalépés nem gyárthatja újra ugyanazt a lefedettséget. */
+    fake_epoch -= 60;
+    fake_us += 1000000;
+    app_energy_sample_t backwards = sample(fake_epoch, .5, .5, 0);
+    backwards.night_mode = true;
+    app_stats_process_sample(&backwards);
+    assert(app_stats_save_now() == ESP_OK);
+    document = read_json("2026-10-18");
+    slot = cJSON_GetArrayItem(cJSON_GetObjectItem(document, "slots"), 0);
+    assert(cJSON_GetObjectItem(slot, "night_seconds")->valuedouble == 301);
+    cJSON_Delete(document);
+    puts("PASS: actual night integration/SD roundtrip/reboot, three matched hours, median, legacy without invented coverage and sparse-night rejection");
+    tests++;
+}
+
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -475,6 +558,7 @@ int main(void){
     app_state_clear_sample();app_energy_sample_t stale;assert(!app_state_get_sample(&stale));
     app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
     tests++;
+    test_assistant_night_history();
     test_cardless_stats();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

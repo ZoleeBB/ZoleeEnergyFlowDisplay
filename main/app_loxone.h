@@ -17,3 +17,7 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
                               unsigned *revision, bool *connected,
                               bool *command_pending, char status[LX_HOME_ERROR_SIZE]);
 esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action);
+
+#include "app_energy_assistant.h"
+/* A teljes kártyakonfiguráció helyett legfeljebb 12 kis fogyasztóbejegyzés. */
+bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);

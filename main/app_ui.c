@@ -146,6 +146,7 @@ typedef enum
 static runtime_view_t s_view = VIEW_NONE;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
 static bool home_is_open(void);
+static void assistant_reset_widgets(void);
 static void home_cards_requested(void);
 static void home_gesture(lv_dir_t direction);
 static void home_open_clicked(lv_event_t *event);
@@ -321,6 +322,7 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 /* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
 static void clear(void)
 {
+    assistant_reset_widgets();
     lv_obj_clean(s_screen);
     s_pair_pad = s_pair_mask = s_pair_countdown = s_pair_window_label = NULL;
     memset(s_pair_digits, 0, sizeof(s_pair_digits));
@@ -1906,6 +1908,7 @@ void app_ui_show_fatal(const char *title, const char *detail)
 /* Az állapotválasztás közös a készülék és a tényleges LVGL render-teszt számára. */
 #include "app_template_ui.inc"
 #include "app_loxone_home_ui.inc"
+#include "app_energy_assistant_ui.inc"
 #include "app_loxone_logo.h"
 /* Saját Loxone képernyők: a témákhoz nem foglalunk új képcache-t. */
 static void loxone_screen(runtime_view_t view)
@@ -2119,6 +2122,7 @@ static void runtime(void *arg)
         }
 
         diagnostics_capture();
+        assistant_prepare();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
         if (!home_is_open() && !template_loading_frame())
         {
@@ -2130,7 +2134,11 @@ static void runtime(void *arg)
         if (bsp_display_lock(-1) == ESP_OK)
         {
             slave_display_update(&rt, &s, have, now);
+            app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
+                have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
+                &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
+            assistant_render();
 
             bsp_display_unlock();
         }

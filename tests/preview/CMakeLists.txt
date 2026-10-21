@@ -23,7 +23,7 @@ foreach(PNG IN LISTS PNG_FILES)
 endforeach()
 add_executable(ui_preview preview.c "${APP_ROOT}/main/app_events.c" "${APP_ROOT}/main/app_diagnostics.c" "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
     slave_display_input_test.c "${APP_ROOT}/main/app_slave_display.c" "${APP_ROOT}/main/app_slave_display_input.c"
-    "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_OBJECTS})
+    "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/main/app_energy_assistant.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_OBJECTS})
 target_include_directories(ui_preview PRIVATE "${APP_ROOT}/simulator/compat" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main" "${CMAKE_BINARY_DIR}")
 target_compile_definitions(ui_preview PRIVATE time=host_time APP_TEMPLATE_DESKTOP)
 target_compile_options(ui_preview PRIVATE -Wall -Wextra -Werror -Wno-misleading-indentation -Werror=frame-larger-than=8192)

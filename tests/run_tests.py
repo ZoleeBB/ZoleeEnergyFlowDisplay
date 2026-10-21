@@ -6,6 +6,15 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
+    binary = str(Path(directory) / 'test')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/stubs', '-Imain', 'tests/test_energy_assistant.c', 'main/app_energy_assistant.c',
+        '-lm', '-o', binary,
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)

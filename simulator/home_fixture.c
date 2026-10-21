@@ -77,3 +77,33 @@ esp_err_t app_loxone_home_command(const char *id,lx_home_command_t action)
     snprintf(app_sim_home_last_id,sizeof(app_sim_home_last_id),"%s",id);
     app_sim_home_commands++;app_sim_home_last_action=action;app_sim_home_pending=true;return ESP_OK;
 }
+
+/* A desktop bemutató nem szimulál csendben valódi energiaajánlást.
+ * A render-teszt külön, explicit szintetikus bemenettel lépteti a modellt. */
+bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    if (!app_sim_home_enabled)
+        return false;
+    out->count = app_sim_home_config.consumer_count;
+    out->revision = out->session = 1;
+    out->connected = app_sim_home_connected;
+    for (unsigned i = 0; i < out->count && i < LX_HOME_MAX_CONSUMERS; ++i)
+    {
+        const lx_home_consumer_t *source = &app_sim_home_config.consumers[i];
+        app_assistant_consumer_t *target = &out->consumers[i];
+        snprintf(target->id, sizeof(target->id), "%s", source->id);
+        snprintf(target->name, sizeof(target->name), "%s", source->name);
+        target->eligible = source->suggest_start && source->average_known && source->average_kw > 0;
+        target->required_kw = source->average_kw;
+        target->measured_kw = app_sim_home_values.consumers[i].value;
+        target->valid = app_sim_home_values.consumers[i].valid;
+    }
+    return true;
+}
+
+bool app_stats_get_night_reference(app_assistant_night_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    return false;
+}

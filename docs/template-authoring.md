@@ -217,3 +217,20 @@ fenntartott. Ez külön, nem lapozható csomag, a `tools/prepare_home_resources.
 készíti. A normál témák 32 PNG / 34 ZIP-bejegyzés korlátja változatlan. A fenntartott
 csomag csak a saját, kötött 64 ikonos formátumával használhat nagyobb fájlszámot;
 sem tetszőleges extra erőforrás, sem pluginrendszer nem engedélyezett.
+
+## Hely az energiaasszisztensnek (v3, Master/Loxone)
+
+Egy külső téma `light` és `dark` jelenetében külön megadható:
+
+```json
+"assistant_area": {"x": 332, "y": 16, "w": 465, "h": 72}
+```
+
+Ez a terület javaslat idején kontrasztos, két soros panelt és X-et kap. A téma
+szerzője tartsa szabadon az energiaértékektől, diagramoktól, órától, időjárástól
+és érintési területektől; dekoratív cím átmenetileg helyettesíthető vele.
+Egész pixelek kellenek, minimum 320×46, maximum 1280×100; a teljes téglalap
+maradjon az 1280×800 képernyőn belül. Hibás megadás vagy ismeretlen külső témánál
+hiányzó terület esetén nincs rárajzolás. Nem indít új kapcsolatot, parancsot vagy
+assetbetöltést. A gyári témák korábbi csomagjaihoz saját biztonságos címsávhely
+ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.

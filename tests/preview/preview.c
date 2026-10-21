@@ -793,6 +793,137 @@ static void test_hourly_chart_grid(void){
     puts("PASS: identical one-pixel hourly grid lines and stronger horizontal scale lines in rendered pixels");
 }
 
+static void test_energy_assistant_ui(const app_energy_sample_t *original)
+{
+    bool night = original->night_mode;
+    int64_t original_ticks = ticks;
+    app_data_mode_t original_mode = s_cfg.data_recept_mode;
+    s_cfg.data_recept_mode = APP_DATA_LOXONE;
+    app_sim_home_reset();
+    app_sim_home_config.consumers[1].suggest_start = true;
+    app_sim_home_config.consumers[1].average_known = true;
+    app_sim_home_config.consumers[1].average_kw = 1.5;
+    assistant_prepare();
+    assert(assistant_consumers.count == 7 && assistant_consumers.consumers[1].eligible);
+    memset(&assistant_state, 0, sizeof(assistant_state));
+    app_energy_sample_t value = *original;
+    value.power_pv_kw = 5;
+    value.power_full_kw = 1;
+    value.power_grid_kw = -4;
+    value.power_bat_kw = 0;
+    value.soc_bat_pct = 100;
+    value.status = 1;
+    if (night)
+    {
+        value.power_full_kw = .5;
+        value.power_pv_kw = 0;
+        value.power_grid_kw = .5;
+        assistant_night = (app_assistant_night_t){.ready=true, .nights=3,
+            .current_kw=.5, .baseline_kw=.2};
+        strcpy(assistant_night.date, "2026-10-21");
+    }
+    int64_t first = ticks + 1000000;
+    for (int64_t time = first; time <= first + 120000000; time += 5000000)
+    {
+        value.received_monotonic_us = time;
+        app_assistant_update(&assistant_state, time, &value, true, &assistant_consumers, &assistant_night);
+    }
+    assert(assistant_state.result.kind == (night ? APP_ASSISTANT_NIGHT : APP_ASSISTANT_SOLAR));
+    if (template_is_active())
+        template_update(&value, &fixture);
+    else
+        update(&value, &fixture);
+    assistant_render();
+    assert(assistant_box && !lv_obj_has_flag(assistant_box, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_update_layout(s_screen);
+    int x, y, width, height;
+    assert(assistant_area(&x, &y, &width, &height));
+    assert(lv_obj_get_x(assistant_box) == x && lv_obj_get_y(assistant_box) == y);
+    assert(x >= 0 && y >= 0 && x + width <= W && y + height <= H);
+    if (template_is_active())
+    {
+        const cJSON *scene = cJSON_GetObjectItem(template_view.document, night ? "dark" : "light");
+        const cJSON *element;
+        cJSON_ArrayForEach(element, cJSON_GetObjectItem(scene, "elements"))
+        {
+            const char *type = ts(element, "type");
+            if (strcmp(type, "value") && strcmp(type, "weather") && strcmp(type, "bar") &&
+                strcmp(type, "chart") && strcmp(type, "gauge"))
+                continue;
+            int ex = tn(element, "x", 0), ey = tn(element, "y", 0);
+            int ew = tn(element, "w", 0), eh = tn(element, "h", 0);
+            assert(x + width <= ex || ex + ew <= x || y + height <= ey || ey + eh <= y);
+        }
+    }
+    assert(lv_obj_get_width(assistant_title) == width - 62);
+    assert(strstr(lv_label_get_text(assistant_title), night ? "éjszakai" : "Mosógép"));
+    char file[96];
+    snprintf(file, sizeof(file), "assistant-%s-%s", template_is_active() ? template_view.id : "builtin",
+             night ? "dark" : "light");
+    save_frame(file);
+    if (!night)
+    {
+        char name[LX_HOME_NAME_SIZE];
+        snprintf(name, sizeof(name), "%s", assistant_state.result.name);
+        memset(assistant_state.result.name, 'M', LX_HOME_NAME_SIZE - 1);
+        assistant_state.result.name[LX_HOME_NAME_SIZE - 1] = 0;
+        assistant_render();
+        lv_obj_update_layout(s_screen);
+        assert(lv_obj_get_height(assistant_title) == 20 && lv_obj_get_height(assistant_detail) == 16);
+        snprintf(assistant_state.result.name, sizeof(assistant_state.result.name), "%s", name);
+        char language[sizeof(s_cfg.project.language)];
+        snprintf(language, sizeof(language), "%s", s_cfg.project.language);
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "en");
+        assistant_render();
+        assert(strstr(lv_label_get_text(assistant_title), "Good time"));
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language);
+    }
+    if (template_is_active() && !strcmp(template_view.id, "02-energy-paths") && !night)
+    {
+        char identity[sizeof(template_view.id)];
+        snprintf(identity, sizeof(identity), "%s", template_view.id);
+        snprintf(template_view.id, sizeof(template_view.id), "external-test");
+        assert(!assistant_area(&x, &y, &width, &height));
+        cJSON *scene = cJSON_GetObjectItem(template_view.document, "light");
+        cJSON *area = cJSON_Parse("{\"x\":332,\"y\":16,\"w\":465,\"h\":72}");
+        assert(cJSON_AddItemToObject(scene, "assistant_area", area));
+        assert(assistant_area(&x, &y, &width, &height));
+        cJSON_SetNumberValue(cJSON_GetObjectItem(area, "x"), 1200);
+        assert(!assistant_area(&x, &y, &width, &height));
+        cJSON_DeleteItemFromObjectCaseSensitive(scene, "assistant_area");
+        snprintf(template_view.id, sizeof(template_view.id), "%s", identity);
+    }
+    lv_obj_t *box = assistant_box;
+    assistant_render();
+    assert(assistant_box == box); /* Nincs új widget minden frissítésnél. */
+    s_diagnostics_requested = true;
+    assistant_render();
+    assert(lv_obj_has_flag(assistant_box, LV_OBJ_FLAG_HIDDEN));
+    s_diagnostics_requested = false;
+    home_request_set(2);
+    assistant_render();
+    assert(lv_obj_has_flag(assistant_box, LV_OBJ_FLAG_HIDDEN));
+    home_request_set(0);
+    assistant_render();
+    unsigned commands = app_sim_home_commands;
+    ticks = first + 120000000;
+    lv_obj_send_event(lv_obj_get_child(assistant_box, 2), LV_EVENT_CLICKED, NULL);
+    assert(assistant_state.result.kind == APP_ASSISTANT_NONE);
+    assert(lv_obj_has_flag(assistant_box, LV_OBJ_FLAG_HIDDEN));
+    assert(app_sim_home_commands == commands);
+    s_cfg.data_recept_mode = APP_DATA_SLAVE;
+    assistant_render();
+    assert(lv_obj_has_flag(assistant_box, LV_OBJ_FLAG_HIDDEN));
+    s_cfg.data_recept_mode = original_mode;
+    memset(&assistant_state, 0, sizeof(assistant_state));
+    app_sim_home_enabled = false;
+    ticks = original_ticks + 256000;
+    if (template_is_active())
+        template_update(original, &fixture);
+    else
+        update(original, &fixture);
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -1135,6 +1266,7 @@ int main(void)
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);
                 }
+                test_energy_assistant_ui(&sample);
                 rt.wifi_connected=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_WIFI_ERROR);
                 rt.wifi_connected=true;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
                 assert(!strcmp(template_view.id,list[i].id));assert(s_last_night==(bool)night);
@@ -1186,6 +1318,7 @@ int main(void)
         builtin_sample.has_sun_radiation=!night;
         build_dashboard(night);s_last_night=night;update(&builtin_sample,&fixture);
         save_frame(night?"builtin-dark":"builtin-light");
+        test_energy_assistant_ui(&builtin_sample);
     }
     clear();
     memset(&template_pending,0,sizeof(template_pending));memset(&template_view,0,sizeof(template_view));

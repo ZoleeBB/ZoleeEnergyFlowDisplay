@@ -769,6 +769,31 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
     return true;
 }
 
+bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
+{
+    if (!out || !s_lock || !s_home)
+        return false;
+    memset(out, 0, sizeof(*out));
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    out->count = s_home->consumer_count;
+    out->revision = s_home_revision;
+    out->session = s_home_session;
+    int64_t elapsed = esp_timer_get_time() - s_home_response;
+    out->connected = s_home_live && !s_dead && elapsed >= 0 && elapsed < LX_KEEPALIVE_US * 3;
+    for (unsigned i = 0; i < out->count && i < LX_HOME_MAX_CONSUMERS; ++i)
+    {
+        const lx_home_consumer_t *source = &s_home->consumers[i];
+        app_assistant_consumer_t *target = &out->consumers[i];
+        snprintf(target->id, sizeof(target->id), "%s", source->id);
+        snprintf(target->name, sizeof(target->name), "%s", source->name);
+        target->eligible = lx_home_consumer_start_kw(source, &target->required_kw);
+        target->measured_kw = s_home_values.consumers[i].value;
+        target->valid = s_home_values.consumers[i].valid;
+    }
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
 esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
 {
     if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)

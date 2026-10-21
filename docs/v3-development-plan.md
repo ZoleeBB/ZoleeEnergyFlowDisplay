@@ -926,3 +926,48 @@ fogyasztóállapot-tára és determinisztikus szabályai; 100% SOC, valódi PV-t
 akkukisütésből származó export kizárása, tartósság/tartalék, bezárási-visszavonási
 szabály, összevethető éjszakai történet és témánként biztonságos hely. Ezután az
 05/06 tématervek külön felhasználói jóváhagyása és a fizikai v3-ellenőrzés.
+
+
+## 14. checkpoint – helyi energiaasszisztens
+
+- Master/Loxone, kizárólag szöveges javaslat; nincs automatikus kapcsolás.
+  A meglévő WS-deltatárból legfeljebb 12 minimális fogyasztóbejegyzés jön,
+  nyitott fogyasztói oldal vagy háttérben tartott ikon/widget nélkül.
+- PV-javaslat: pontosan 100% SOC, nappali normál üzem, nincs akkukisütés,
+  ismert nulla fogyasztás, engedélyezett és ismert átlagigény. A mért export és
+  PV−ház−akkutöltés minimuma legalább az igény + max(20%, 100 W) legyen 120 s-ig.
+  Invalid/stale/reconnect/revízió/időhiba új minősítést igényel; megszűnéskor eltűnik.
+- X után 30 perc csend. Ugyanaz a fogyasztó csak igazolt, legalább 10 perces
+  feltételhiány után kerül új epizódba; ismeretlen adat nem igazolja a hiányt.
+  A bezárás RAM-állapot, reboot után nincs tartós csendidő.
+- Éjszakai eltérés: az előző teljes helyi 00..04 óra összevetése az előző hét
+  legalább három, azonos órájának mediánjával. Minden ötperces slot legalább
+  270 s igazolt éjszakai mérés, legfeljebb 30 s mintapárból, monoton/falióra
+  egyezéssel. Óravisszalépés/DST-ismétlés/hiány kizár, nem lesz kitalált nulla.
+  Legalább +50% ÉS +100 W órás/élő eltérés; az élő feltétel 60 s tartósságú.
+  X után ugyanazon helyi éjszakán nem tér vissza.
+- A meglévő v3 napfájl opcionális night_seconds/night_load_kwh mezőket kap;
+  régi energiaadat megmarad, lefedettség nélküli fájl nem referencia.
+  Két naphoz összesen 960 bájt új adat és legfeljebb 512 bájt referenciacache;
+  nincs UI-s SD I/O, új teljes napmásolat vagy BLE-wire-változás.
+- Gyári témánként a dekoratív címsáv ad helyet, külön kontrasztos panellel és
+  44 px X-szel. Fontos adat/diagram/óra/időjárás/házérintés nem fedhető.
+  Speciális oldalon, diagnosztikán és PIN-padnál rejtett. Külső témánál opcionális,
+  geometriailag ellenőrzött assistant_area; ismeretlen területre nincs rárajzolás.
+  HU/EN felirat, 1 kW alatt W, felette tizedes kW. A Rendszer alapelrendezése megmarad.
+- Tényleges döntési modell: 440 bájt, fogyasztó-snapshot 1744 bájt. A modell és
+  bezárása LVGL-lock alatt; a forráspillanatképek előtte készülnek. A főszimulátor
+  is ezt az illesztést használja; a desktop demo nem talál ki valódi ajánlást.
+- A teljes helyi natív/UBSan regresszió sikeres az első integrált változaton;
+  az utolsó módosításokkal ismét fut. Új valós statisztikai integráció/SD/reboot/
+  medián/legacy/ritka minta/idő-visszalépés teszt; valódi WS->minimális snapshot teszt.
+- A helyi LVGL-fordítás és render a Rendszer és mind a kilenc gyári téma mindkét
+  napszakán sikeres; adatdobozokkal való átfedés, X/parancsmentesség, rejtett
+  oldalak és widgetmegőrzés ellenőrzött. A minták szintetikusak. A generált képek
+  kizárólag tesztkimenetek; új PNG nem kerül a repóba.
+- Részletes szabályok/korlátok: [energy-assistant.md](energy-assistant.md).
+  Firmware/CI/méretellenőrzés feltöltés után rögzítendő. Fizikai paneles próba nincs.
+
+Nincs PR vagy release. Az energiaasszisztens utáni következő blokk a külön
+jóváhagyandó 05/06 tématerv, a külső témák célzott ellenőrzése, HU/EN minták és
+v3 kiadási/fizikai zárási ellenőrzések. A tartós feltöltési engedély változatlan.

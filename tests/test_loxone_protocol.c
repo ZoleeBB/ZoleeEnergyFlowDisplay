@@ -212,6 +212,29 @@ static void home_control_test(lx_config_t *energy)
     s_home_session++; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent && !s_command_pending);
     clock_us += 46000000;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    /* A minimális asszisztens-pillanatkép ugyanazt a valódi WS-értéktárat olvassa. */
+    s_home->consumer_count = 1;
+    lx_home_consumer_t *consumer = &s_home->consumers[0];
+    strcpy(consumer->id, "washer");
+    strcpy(consumer->name, "Mosógép");
+    strcpy(consumer->source.uuid, "00000000-0000-0000-0000000000000000");
+    consumer->source.scale = 1;
+    consumer->average_known = consumer->suggest_start = true;
+    consumer->average_kw = 2;
+    s_home_live = true;
+    mark_response();
+    app_assistant_consumers_t minimal;
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(minimal.count == 1 && minimal.connected && minimal.consumers[0].eligible);
+    assert(!minimal.consumers[0].valid);
+    double idle = 0;
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(minimal.consumers[0].valid && minimal.consumers[0].measured_kw == 0);
+    invalidate(true);
+    assert(app_loxone_assistant_snapshot(&minimal));
+    assert(!minimal.connected && !minimal.consumers[0].valid);
     cJSON_Delete(s_catalog); s_catalog = original_catalog;
     free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
 }
