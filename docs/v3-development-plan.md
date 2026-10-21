@@ -1143,3 +1143,38 @@ Az azonosító/sorrend megmarad. A nagy képi látványtervek nem kerülnek a re
 csak elfogadás után a méretezett, tömörített végleges háttérfájlok.
 E checkpoint dokumentáció, `[skip ci]`; a futtatókód és a firmware változatlan.
 Nincs PR vagy release. A tartós feltöltési engedély él.
+
+## Checkpoint 2026-10-21 / 18 – elfogadott Energiakör és élő napállás-idővonal
+
+A felhasználó elfogadta a 17. checkpoint konkrét látványtervét. Az
+`06-energy-orbit` v13 megvalósítása elkészült: új, saját nappali/éjszakai
+energiaudvar, világító éjszakai házablakok, három élő görbe energiaút, nagy
+adatok, töltés/leadás, napi összesítők, külön házérintés és fejléc-asszisztens.
+A háttérben nincs beégetett felirat/energiaút. Azonosító és sorrend megmaradt.
+Részletek: [energy-orbit.md](energy-orbit.md).
+
+- Új deklaratív `solar_timeline`, 00:00–24:00, mindhárom esemény ugyanazon
+  időarányos skálán. A jelenlegi idő csak szinkronizált helyi órából; érvényes
+  napkelte/napnyugta nélkül nincs arany sáv, kitalált esemény vagy nap/hold ikon.
+  Nincs új adatforrás/task/kapcsolat/SD-kép. A meglévő widgetmezőket használja.
+- Két 1280×800-as RGB565-színeket megőrző RGB háttér: 921894 és 711746 bájt.
+  A nagy generált források nincsenek a repóban. A 05 és a közös Loxone képei
+  változatlanok, a nem használt 06 akkukép kikerült.
+- Valódi LVGL: minden helyi perc, éjfél, pontos napkelte/napnyugta,
+  nap/hold-váltás, hiányzó/érvénytelen napadat és ismeretlen/nem szinkronizált
+  óra, rövid nappali címkeütközés, HU/EN 15 kW és 100% próbák sikeresek.
+  Tényleges animációval mindkét előjelirány és az asszisztens helye ellenőrzött.
+- A natív teljes regresszió első futásán egy korábbi BLE-statisztikai CRC-próba
+  tíz másodperces időhatára lejárt. Az ismételt teljes csomag sikeres;
+  BLE-kód nem változott. A távoli CI-t is meg kell várni a végső záráshoz.
+- Az új elem külső, nem gyári ID-jű csomagban is telepíthető, a túl keskeny/
+  alacsony/kilógó változatot a C-validátor elutasítja. Régi elemek és gyári
+  kompatibilitási ágak megmaradtak; Rendszer nézet nem lett áttervezve.
+- A végső forrás ismételt LVGL/manifest/ZIP ellenőrzése, feltöltése, teljes CI,
+  a két firmware és OTA/USB méreteinek rögzítése még folyamatban.
+
+Az új megjelenéshez az új firmware és a 06 ZIP egyaránt szükséges, ebben a
+sorrendben. A D07 két új témájának megjelenése így elfogadott és implementált;
+a forrás csak a CI zárása után tekinthető ellenőrzöttnek. Nincs PR vagy release.
+Ezután a teljes v3 szoftveres zárási lista és a külön fizikai
+RAM/DMA/PSRAM/FPS/Miniserver/panel tesztlista következik. Feltöltési engedély él.

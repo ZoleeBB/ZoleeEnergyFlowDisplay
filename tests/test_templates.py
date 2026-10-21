@@ -231,6 +231,16 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         element[field]=value;bad['light']['elements']=[element]
         assert lib.app_templates_install(os.fsencode(archive('bad-schema',bad)),error)!=0,(field,error.value)
     # Curve controls are validated before the runtime samples them.
+    # Külső sablon is használhat idővonalat, de olvashatatlanul keskeny/alacsony nem lehet.
+    timeline = copy.deepcopy(doc)
+    timeline['id'] = 'external-timeline'
+    timeline['light']['elements'] = [dict(type='solar_timeline', x=0, y=0, w=480, h=132)]
+    assert lib.app_templates_install(os.fsencode(archive('timeline', timeline)), error) == 0, error.value
+    assert lib.app_templates_delete(b'external-timeline', error) == 0
+    for field, value in [('w', 479), ('h', 131), ('x', 801), ('y', 669)]:
+        invalid = copy.deepcopy(timeline)
+        invalid['light']['elements'][0][field] = value
+        assert lib.app_templates_install(os.fsencode(archive('bad-timeline', invalid)), error) != 0
     flow=dict(type='flow',source='grid',x=0,y=0,w=200,h=200,curve='bezier',
               points=[dict(x=0,y=0),dict(x=100,y=0),dict(x=100,y=199),dict(x=199,y=199)])
     curved=copy.deepcopy(doc);curved['id']='curved';curved['light']['elements']=[flow]

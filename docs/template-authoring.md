@@ -237,3 +237,23 @@ ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.
 
 A v3 külső témák célzott kompatibilitási áttekintése és a tesztek pontos
 határai: [external-template-review.md](external-template-review.md).
+
+## 24 órás napállás-idővonal
+
+Az új firmware `solar_timeline` elemet is kezel. Példa a világos jelenetben:
+
+```json
+{"type":"solar_timeline","x":8,"y":508,"w":1264,"h":136,
+ "background":"#FFF9EF","color":"#18352B","muted":"#8195B0",
+ "positive_color":"#F3C44F","radius":18,"opacity":250}
+```
+
+Minimum 480×132, teljes egészében képernyőn belül. `color`: feliratok,
+`background`: panel, `muted`: ismert éjszakai szakasz, `positive_color`: nappali
+szakasz; a szokásos radius/opacity használható. Nem szükséges `source`, PNG
+vagy kézzel felvett 00/06/12/18/24 felirat. Az idő és a napkelte/napnyugta
+ugyanarról a 24 órás skáláról kap helyet, a feliratok HU/EN nyelvűek.
+A szinkronizálatlan óra vagy hiányzó napadat nem eredményez kitalált jelölőt.
+Ezt a widgetet is hagyd szabadon az asszisztens és érintőcélok területétől.
+Régebbi firmware nem ismeri az elemtípust; a meglévő típusokat használó
+korábbi sablonok támogatása változatlan. Részletek: [energy-orbit.md](energy-orbit.md).

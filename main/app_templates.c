@@ -244,6 +244,7 @@ static bool validate_scene(const cJSON *scene)
                                         "pulse",
                                         "solar_disc",
                                         "solar_arc",
+                                        "solar_timeline",
                                         "label",
                                         "value",
                                         "image",
@@ -357,6 +358,11 @@ static bool validate_scene(const cJSON *scene)
             cJSON_GetObjectItem(e, "y")->valueint + cJSON_GetObjectItem(e, "h")->valueint > 800)
             return false;
         if (source && !one_of(source, sources))
+            return false;
+        /* A két eseményfeliratnak és az óraskálának is el kell férnie. */
+        if (!strcmp(type, "solar_timeline") &&
+            (cJSON_GetObjectItem(e, "w")->valueint < 480 ||
+             cJSON_GetObjectItem(e, "h")->valueint < 132))
             return false;
         if (cJSON_HasObjectItem(e, "shadow") && (!cJSON_IsBool(cJSON_GetObjectItem(e, "shadow")) ||
                                                  (strcmp(type, "value") && strcmp(type, "label"))))

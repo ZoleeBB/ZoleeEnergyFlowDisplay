@@ -337,11 +337,9 @@
     "original_sha256": "5872c11a3b0f8f4aa1b2847b6aefa08b721bf655a59408921210bfc3064df8ff"
   },
   {
-    "asset": "templates/06-energy-orbit/flow_battery.png",
-    "sha256": "73a3ad8559b76e4c0439e6b10ff07f4682ff415b9775738957af00ef49594bd5",
-    "generator": "built-in image_gen",
-    "prompt": "Use case: product-mockup. Single realistic detailed residential energy storage battery cabinet, white and charcoal metallic enclosure with small green status indicator, subtle isometric view, polished energy monitor icon, centered with ample transparent padding, no text, no circular badge.",
-    "original_sha256": "448b6da7e67a9e5f527ac78e2203462b90a092ae2248e6b7a49f25bbeb34360d"
+    "asset": "templates/06-energy-orbit/day.png",
+    "sha256": "116e723d4809bcf1eb0b21f9c44132c4855b73d8f9799500a433af7cbb407e83",
+    "generator": "Built-in imagegen, approved original energy courtyard; 1280x800 RGB PNG, RGB565-preserving reduction and lossless oxipng"
   },
   {
     "asset": "templates/06-energy-orbit/flow_grid.png",
@@ -365,13 +363,18 @@
     "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
   },
   {
+    "asset": "templates/06-energy-orbit/night.png",
+    "sha256": "6abae61614ea6195947bd264d0e8e59468d61ebda0fe80e1d4d9e5e9372b936b",
+    "generator": "Built-in imagegen, approved original energy courtyard; 1280x800 RGB PNG, RGB565-preserving reduction and lossless oxipng"
+  },
+  {
     "asset": "templates/06-energy-orbit/preview-dark.png",
-    "sha256": "d6b3b3c4d4c254cd326e0ecf38532496f488cbd72e6775525fc105b2ced399d5",
+    "sha256": "054ecdd2dc82f2930a13ba326f0e64e43a8e2d4bca6c0e738aa7dee11ce5dc77",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/06-energy-orbit/preview-light.png",
-    "sha256": "efd227ef9ff0199644bac7c817becf09141c1fb68a6980cf1fae027ebe4b1477",
+    "sha256": "49c45077fe318def3d0bc5503e79baf91280705e3176f1062875379aa9132946",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

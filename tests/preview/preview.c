@@ -223,7 +223,7 @@ static void test_theme_readability(void){
             for(int d=0;d<4;d++)assert(lv_obj_get_index(hub->obj)>lv_obj_get_index(flow->dots[d]));
         }
     }
-    if(!strcmp(id,"06-energy-orbit")){
+    if(!strcmp(id,"06-energy-orbit") && tn(template_view.document,"version",0)<13){
         app_energy_sample_t saved=s_animation_sample,active=saved;
         active.power_pv_kw=4;active.power_grid_kw=1;active.power_bat_kw=1;active.power_full_kw=6;
         template_update(&active,&fixture);template_animate(.02f);
@@ -327,6 +327,8 @@ static void test_calm_dashboard(const app_energy_sample_t *original)
     template_update(original, &fixture);
     puts("PASS: calm home live values, HU/EN labels and 15kW/100% bounds fit actual LVGL fonts");
 }
+
+#include "orbit_test.inc"
 
 static void test_solar_dashboard(const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -901,7 +903,7 @@ static void test_energy_assistant_ui(const app_energy_sample_t *original)
         {
             const char *type = ts(element, "type");
             if (strcmp(type, "value") && strcmp(type, "weather") && strcmp(type, "bar") &&
-                strcmp(type, "chart") && strcmp(type, "gauge"))
+                strcmp(type, "chart") && strcmp(type, "gauge") && strcmp(type, "solar_timeline"))
                 continue;
             int ex = tn(element, "x", 0), ey = tn(element, "y", 0);
             int ew = tn(element, "w", 0), eh = tn(element, "h", 0);
@@ -1262,7 +1264,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

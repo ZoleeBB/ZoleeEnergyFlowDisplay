@@ -10,7 +10,7 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `03-instruments` | Műszerfal: négy teljesítménymérő, töltöttségjelző |
 | `04-daily-balance` | Napi mérleg: két nagy, háromrétegű napi diagram |
 | `05-calm-home` | Nyugodt otthon: saját nappalibelső nappal/éjjel, három nagy főadat és napi összegzés |
-| `06-energy-orbit` | Energiakör: 160 px-es ikonok, alattuk az adatok, rövid egyenes összeköttetések, áganként két pont és visszafogott középponti fényudvar |
+| `06-energy-orbit` | Energiakör: saját energiaudvar, három ívelt energiaút, 24 órás napállás-idővonal |
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 | `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
@@ -323,3 +323,6 @@ A Nyugodt otthon v9 saját, jóváhagyott fotóhátteret kapott. Részletek és 
 méretek: [calm-home.md](calm-home.md). Az új megjelenéshez a `05-calm-home.zip`
 csomagot telepítsd újra a webes sablonkezelőben; az azonos azonosítójú sablon
 frissítése megőrzi a témasorrendet. Az OTA a telepített SD-sablont nem cseréli le.
+
+Az Energiakör v13 új `solar_timeline` eleméhez az új Master firmware is kell,
+majd a `06-energy-orbit.zip` telepítése. [Részletek](energy-orbit.md).

@@ -30,6 +30,8 @@ static bool template_heavy_animation(void){
 static const char *ts(const cJSON *o,const char *key){const char *v=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o,key));return v?v:"";}
 static int tn(const cJSON *o,const char *key,int fallback){const cJSON *v=cJSON_GetObjectItemCaseSensitive(o,key);return cJSON_IsNumber(v)?v->valueint:fallback;}
 static uint32_t tc(const cJSON *o,const char *key,uint32_t fallback){const char *s=ts(o,key);return s[0]=='#'?(uint32_t)strtoul(s+1,NULL,16):fallback;}
+static bool template_clock_synced;
+#include "app_solar_timeline_ui.inc"
 #if LV_USE_SNAPSHOT
 #define TEMPLATE_RASTER_BUDGET (6U*1024U*1024U)
 typedef struct { unsigned asset;int w,h;lv_draw_buf_t *buffer;lv_image_dsc_t image; } template_raster_t;
@@ -488,6 +490,8 @@ static void template_build(bool night){
                 lv_obj_remove_flag(node->dots[i],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_add_flag(node->dots[i],LV_OBJ_FLAG_GESTURE_BUBBLE|LV_OBJ_FLAG_HIDDEN);
             }
+        }else if(!strcmp(type,"solar_timeline")){
+            solar_timeline_build(node,night);
         }else if(!strcmp(type,"solar_arc")){
             /* A napút pontosan LVGL-vonalakból áll, kis memóriaigénnyel.
              * A felső és alsó ív külön sablonelem, ezért eltérő színt kaphat. */
@@ -685,6 +689,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
         template_node_t *node=&template_nodes[i];const cJSON *e=node->spec;const char *type=ts(e,"type"),*source=ts(e,"source");
+        if(!strcmp(type,"solar_timeline")){
+            solar_timeline_update(node,s);
+            continue;
+        }
         bool visible = (!strcmp(type,"solar_disc") || !strcmp(type,"solar_arc")) ? s->sun_position_valid :
             !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :

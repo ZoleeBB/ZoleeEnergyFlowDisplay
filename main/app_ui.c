@@ -1958,6 +1958,7 @@ static void loxone_screen(runtime_view_t view)
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    template_clock_synced = rt.time_synced;
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     if (pairing.pin_required) return;
