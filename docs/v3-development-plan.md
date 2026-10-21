@@ -1451,8 +1451,30 @@ nincs bizonyítva. Ez a hiba blokkolja a v3 átadását.
   100 ciklusa lefutott hozzáférési hiba nélkül; a helyi ptrace környezetben
   a LeakSanitizer a kilépéskor saját támogatási hibával leállt. A helyi
   ismétlés ezért `detect_leaks=0`, a GitHub CI továbbra is `detect_leaks=1`.
-  A két végső helyi ASan-formátum, feltöltés, pontos firmware-build/méret
-  és CI eredménye még folyamatban. Fizikai javulást nem állítunk.
+  Mindkét végső helyi ASan-formátum sikeres (32 bit: 160,3 s; RGB565:
+  202,1 s). A GitHub CI mindkét formátumban sikeres `detect_leaks=1` mellett
+  is: nincs jelzett memóriahozzáférési hiba vagy szivárgás.
+- Feltöltött forrás: `adfa39567f6fb114d9af8fd2a428adf61e00b733`, forrásfa:
+  `f6392faa3801a8a399d4e47dc036a64afb6ba131`. Mindhárom workflow sikeres:
+  [Master 39626263569](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39626263569),
+  [Windows 39626263389](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39626263389),
+  [Slave 39626263662](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/39626263662).
+  A webes Chromium-, natív regressziós, ikon-, csomag-, mindkét ASan-render,
+  Windows és Linux Slave-próbák is sikeresek.
+- Valós ESP-IDF 5.5.4 build: Master app `0x2e8f00` = 3 051 264 bájt,
+  +640 bájt a 13ac3b6 forráshoz képest; a 8 MiB partíció 64%-a szabad.
+  Slave app `0x320890` = 3 278 992 bájt, mérete változatlan, 12 MiB-ból 74%
+  szabad. Mindkét bootloader `0x5ec0` bájt. Ez méretadat, nem binárisazonosság.
+- Master OTA SHA256: `4e0ca5ed319d3ed4fe528aa567228b290d052bbc723645b09e4d2cf70eefaf18`.
+  Slave OTA SHA256: `eebdc3b9f9f02397fb496a514ae522ebd1f876895b896b7337f863d9a9817180`.
+  A valós buildkimenetekből készített USB-csomagokat a CI ellenőrizte.
+  A letöltött firmware artifact hét fájlt tartalmaz; mind a hat SHA256SUMS
+  egyezik, mindkét USB ZIP négy flash-képe egyezik a saját build-metaadatával,
+  és mindkét build-info a fenti pontos forráscommitot jelöli.
+- Artifactok: firmware `12357867643`, témák `12356737656`, Windows fő UI
+  `12357151822`, Windows 4B `12358150629`; összesen továbbra is négy csomag.
+  Az F11 firmware-javításhoz a meglévő v3 Home grafikai csomag használható.
+  A fizikai panelen javulást nem állítunk; F11 és a teljes átadási lista nyitott.
 
 A korábbi feltöltési engedély változatlanul érvényes erre a feature ágra.
 Nincs PR, tag vagy release; a fizikai elfogadás továbbra is nyitott.

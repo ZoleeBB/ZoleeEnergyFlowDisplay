@@ -33,6 +33,12 @@ nem jelenik meg, a két speciális kijelzőoldal nem nyitható meg. A
 szemléltető UUID-it saját Loxone-állapotokra kell cserélni. Nem importálható
 `config.json`-ként. [Részletes formátum és kézi SD-használat](v3-home-config.md).
 
+A panelvillanás F11 javításához az `adfa395` vagy az azt követő forrásból
+készült Master firmware kell. A már telepített v3 `loxone-home.zip` ehhez
+változatlanul használható; új grafikai csomag nem része ennek a javításnak.
+A teljes képkockás mód miatt a fényképes témák és az érintés sebességét is
+ellenőrizd, tartós Wi-Fi/BLE forgalom mellett.
+
 ## Melyik eszközön mi működik?
 
 | Funkció | Master, Loxone | Master, HTTP/MQTT | 10.1/4B Slave |
@@ -62,6 +68,7 @@ tesztobjektumot válassz, amelynek egyszeri működése egyértelműen látható
 | F08 | Betöltés magyar és angol nyelven | „Adatok és grafikai elemek betöltése...” / “Loading data and graphics...” |
 | F09 | Nagy téma törlése és a lista későbbi frissítése | Azonnali forgó kör, várakozási jelzés; siker vagy hiba után kezelhető lista |
 | F10 | Az új commit három sikeres Actions-futásának artifactjai | Összesen négy csomag, az alábbi tartalommal |
+| F11 | 09-es témáról fogyasztók: betöltés, nappal/éjjel, 10–12 elem, nulla fogyasztású TV/klíma; vissza és újra nyitás | Fényképes háttér és minden ikon látszik; nincs kékes villanás; az érintés/lapozás folyamatosan használható |
 
 A négy kimenet: közös firmware-csomag, témacsomagok, fő Windows-szimulátor,
 4B Windows-szimulátor. Külön OTA-másolat és letölthető Linux-szimulátor nincs.
@@ -110,7 +117,7 @@ Az FPS-t a jelenlegi diagnosztika nem méri; a szimulátor FPS-e nem panelméré
 | Master/Slave hardver, P4/C6 firmware, SD típusa | Kitöltendő |
 | HU/EN, nappal/éjjel, profil és beállított időkorlát | Kitöltendő |
 | Indulási és terhelés utáni RAM/PSRAM/DMA/CPU | Kitöltendő |
-| F01–F10 és funkciópróbák eredménye, eltérés | Kitöltendő |
+| F01–F11 és funkciópróbák eredménye, eltérés | Kitöltendő |
 
 ## Kiadási állapot
 
@@ -150,3 +157,10 @@ Simulator success does not establish physical panel, radio or memory behavior.
 Hardware acceptance remains open. The tested v3.0.0 selection rule applies only
 to a verified merge of this repository's own `feature/v3-loxone-home` branch;
 no v3 tag or release has been created.
+
+F11 panel follow-up: use Master firmware from `adfa395` or a later source.
+The existing v3 Home resource ZIP remains valid. From theme 09, open consumers,
+check the loading screen and day/night pages with 10–12 consumers, including
+zero-power TV/AC icons, then close and reopen. The photo and every icon must
+remain visible without cyan flashes. Check touch responsiveness and animated
+photo themes under Wi-Fi/BLE traffic with the complete-frame display mode.
