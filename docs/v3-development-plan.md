@@ -1361,3 +1361,11 @@ ezt követően a forráság nevét és saját repóját is ellenőrzi.
 Következő lépés: feltöltés, a végső CI és a négy artifact ellenőrzése, majd
 az eszközös lista visszajelzése. A v3 kiadási cél implementálva, fizikai
 RAM/DMA/PSRAM/FPS/Miniserver/panel elfogadás továbbra is nyitott. PR még nincs.
+
+A 22. checkpoint feltöltése sikeres: végső forrás
+`77f95345a959f37fe2e7e69b52e6d8f318ac1056`, helyivel egyező teljes Git-fa
+`c89000f61a0fd0e2f30116f842efecfd323d8ffe`. A köztes átadási checkpoint
+`9c6c85a744726684d06279a30c090270fab11a4e` (`[skip ci]`).
+A 77f9534 futásai a GitHub API-ban még nem jelentek meg; zárásuk függőben.
+Folytatáskor ehhez a forráshoz kell keresni a három workflow-t, nem a
+13ac3b6 korábbi zöld ellenőrzését kell újként rögzíteni.
