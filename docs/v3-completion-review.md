@@ -1,9 +1,9 @@
 # v3 – követelmény- és záró ellenőrzés
 
 Dátum: 2026-10-21. Alap: az [eredeti fejlesztési terv](v3-development-plan.md)
-D01–D16 döntései és a későbbi F01–F14 javítások. A felhasználó az `adfa395`
+D01–D16 döntései és a későbbi F01–F15 javítások. A felhasználó az `adfa395`
 firmware után igazolta a villogás megszűnését, a háttér megjelenését, a vezérlések
-és az új témák működését, majd kérte az ellenőrzést és a PR megnyitását. Ezután F12-ként új, Home bezárása utáni navigációs/terhelési hibát jelzett; az F12 után pedig minden témán indulástól akadozást és elvesző húzást jelentett (F13). Az F13 fizikai próbája sikertelen: ritka húzás, akadozás, CPU0 28–52%, CPU1 kb. 1%. Az F14 a main részleges frissítéséhez tér vissza, koherens kész frame-ekkel és külön grafikus CPU-maggal; fizikai ellenőrzése nyitott.
+és az új témák működését, majd kérte az ellenőrzést és a PR megnyitását. Ezután F12-ként új, Home bezárása utáni navigációs/terhelési hibát jelzett; az F12 után pedig minden témán indulástól akadozást és elvesző húzást jelentett (F13). Az F13 fizikai próbája sikertelen: ritka húzás, akadozás, CPU0 28–52%, CPU1 kb. 1%. Az F14 a main részleges frissítéséhez tér vissza, koherens kész frame-ekkel és külön grafikus CPU-maggal. A felhasználó a `b0a62d9` után igazolta az akadásmentességet, az érintést, animációt és Loxone-oldalakat; az F15 az 1 W alatti fogyasztói zajt és a PowerFull fejlécet kezeli.
 
 ## Követelmények és bizonyítékok
 
@@ -25,7 +25,8 @@ firmware után igazolta a villogás megszűnését, a háttér megjelenését, a
 | D16: Energiakör napállás-idővonal | 00:00–24:00, napkelte/napnyugta, aktuális idő és érvényes napadatok | Tényleges LVGL/JSON/webes elemvalidálás, szélsőértékek és éjszakai mód |
 | F12: visszatérés utáni navigáció és betöltés | Inputszintű, egyszer kötött gesztus; nem görgethető képernyő; valós loading-flush SD előtt; változatlan touch időzítő | Valódi X, alsó szélről diagnosztika, két témairány, blokkoló fedőelem, flush-sorrend, két színformátum; fizikai ellenőrzés nyitott |
 | F13: indulástól akadozó témák és elvesző húzás | 15/16 ms refresh/animáció, frame-végi plusz várakozás nélkül; az ismételt touchpont nem törli a húzást, 50 px küszöb | Mind a tíz téma Home nélkül, lassú bal/jobb/felfelé húzás; javítás előtt reprodukált hiba, 15 ms redraw és 90 ms-os flush; fizikai elfogadás nyitott |
-| F14: teljes rajzolási költség, érintés és CPU-elosztás | TRIPLE_PARTIAL, CPU-baseline minden új frame előtt, egyszeri kész-frame átadás; GUI/touch CPU1, Loxone worker CPU0 | Valódi részpufferes LVGL, FULL/PARTIAL pixelmunka-összevetés; 480 frame puffer/stride/forgatás/hibainjektálás a buildelt adapterrel; fizikai elfogadás nyitott |
+| F14: teljes rajzolási költség, érintés és CPU-elosztás | TRIPLE_PARTIAL, CPU-baseline minden új frame előtt, egyszeri kész-frame átadás; GUI/touch CPU1, Loxone worker CPU0 | Valódi részpufferes LVGL, FULL/PARTIAL pixelmunka-összevetés; 480 frame puffer/stride/forgatás/hibainjektálás a buildelt adapterrel; a felhasználó készüléken elfogadta |
+| F15: fogyasztói mérési zaj és teljes ház fejléc | 1 W alatt 0 W/szürke ikon, 1 W-tól aktív; pontosított cím, friss PowerFull fejléc W/kW-ban | Valódi LVGL nappal/éjjel: határérték, szöveg/ikon/szín, független élő házmérés, hiányzó/elavult/offline adat |
 | Diagnosztika, navigáció és párosításjelzés | Jobb felső X; lefelé húzás az Otthoné; tényleges párosítási ablakhoz kötött kék gomb és BT-ikon | LVGL X/gesztus/PIN/eseményterjedés és feliratközép-próbák |
 | Külső témák és visszafelé kompatibilitás | Deklaratív elemek, korlátos ZIP/PNG/JSON, `home_hotspot`, `assistant_area`; régi csomagok támogatottak | `test_templates.py`, C/JS validátorok, külső témák tényleges LVGL-próbái |
 
@@ -33,7 +34,7 @@ Nem találtunk implementálatlan, elfogadott v3 termékfunkciót. A fenti teszte
 külön megkülönböztetik a szintetikus bemenetet és a tényleges C/JS/LVGL-kódot;
 a szimulátor nem helyettesíti a rádiós vagy paneles terhelésmérést.
 
-## F01–F14 és dokumentáció
+## F01–F15 és dokumentáció
 
 F01/F02: csomagelőnézet, kiválasztott ikon és hiányzó csomag jelzése.
 F03: friss worker-idő és a stabil objektumazonosítótól külön feloldott `uuidAction`.
@@ -63,7 +64,7 @@ Loxone Home-formátum, kiadási út és [átadási lista](v3-handover.md) közö
   dokumentációs link sikeres; ASan 32 bit/RGB565 külön 100 életciklussal és
   400–400 Home-oldallal sikeres. A helyi ASan hozzáférést vizsgál; a PR-CI
   detect_leaks=1 értékkel szivárgást is ellenőriz. Részletek: 26. checkpoint.
-- A korábbi funkcionális panelpróba sikeres volt; az F12 panelpróba sikertelen lett, az F13 panelpróba is sikertelen lett, az F14 panelpróba nyitott. Tartós, számszerű CPU/FPS/
+- A korábbi funkcionális panelpróba sikeres volt; az F12 panelpróba sikertelen lett, az F13 panelpróba is sikertelen lett, az F14 panelpróbát a felhasználó elfogadta. Tartós, számszerű CPU/FPS/
   belső RAM/DMA/PSRAM-mérés, három Slave egyidejű rádiós terhelése és a párosítási
   ablak külön panelmérése nincs friss mérési naplóval igazolva.
 - A PR megnyitása kifejezett felhasználói kérés. Egyesítés, v3 tag vagy release

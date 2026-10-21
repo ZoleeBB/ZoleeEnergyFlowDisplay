@@ -1978,7 +1978,8 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     if (pairing.pin_required) return;
-    if (home_render()) return;
+    if (home_render(&s, have && rt.loxone_connected &&
+                    !app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg)))) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
         had_loxone_connection = true;

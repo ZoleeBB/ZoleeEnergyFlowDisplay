@@ -143,4 +143,16 @@ kapcsolat vagy párhuzamos LVGL-rajzoló. A Home elődekódolt képei megmaradna
 
 A valódi LVGL-próba most a firmware részpufferét használja; külön FULL/PARTIAL
 munkamennyiség-összevetés és a buildelt adapter CPU-pipeline próbája készült.
-A fizikai elfogadás és új magonkénti CPU-/inputmérés még nyitott.
+A felhasználó az F14 működését elfogadta; új számszerű magonkénti CPU-/inputmérés nincs.
+
+## F15 – fogyasztói mérési zaj, külön mért tételek és teljes házfogyasztás
+
+A felhasználó az F14 (`b0a62d9`) után igazolta az akadásmentességet, a
+működő érintéseket/animációkat és Loxone-oldalakat. A fogyasztói képernyőn
+1 W alatt a helyi megjelenített érték 0 W, az ikon és az érték szürke;
+pontosan 1 W már aktív. Az oldal címe „Ház külön mért fogyasztói”, a fejléc
+„A ház teljes fogyasztása” alatt a friss PowerFull adatot mutatja W/kW-ban.
+Hiányzó/elavult/offline házfogyasztásnál „Nincs adat” jelenik meg.
+A nyers Loxone-adat és a kapcsolóparancs nem módosul. A valódi LVGL-próba
+nappal/éjjel ellenőrzi a küszöb alatti/egyenlő/feletti értéket, szöveget,
+ikont és színt, a független PowerFull fejlécet, a frissítést és a hiányzó adatot.

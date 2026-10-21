@@ -6,7 +6,7 @@
 - Kiinduló főág: `04eef87d1210356db334fa6790715521d4a31e38` (2026-10-20).
 - A #15 Slave/OTA PR már egyesítve; a meglévő javítások megőrzendők.
 - Cél: dokumentált, tesztelt v3.0.0; PR kizárólag az összes vállalt fejlesztés elkészülte után.
-- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; a 05/06 új megjelenése elfogadott és implementált. Az F01–F11 javítások elkészültek. A felhasználó igazolta a villogás megszűnését, a hátteret, a vezérléseket és az új témákat, majd kérte a workflow-optimalizálást, átfogó ellenőrzést és PR-nyitást. A később jelentett visszatérési/terhelési hibát F12 követi. A záró ellenőrzés a 25–26. checkpointban és a v3-completion-review.md fájlban szerepel.
+- Állapot: konfiguráció/SD/webes szerkesztő, közös erőforráscsomag, külön fogyasztói háttér, lapozható/címezhető Otthon-oldalak és korlátos vezérlés elkészült. A közös Slave érintéskapu/fényerő-runtime, a jelenlétprofil/BLE/NVS adatút és a webes Slave-beállító bekötve. A helyi energiaasszisztens és az igazolt éjszakai referencia bekötve; a 05/06 új megjelenése elfogadott és implementált. Az F01–F11 javítások elkészültek. A felhasználó igazolta a villogás megszűnését, a hátteret, a vezérléseket és az új témákat, majd kérte a workflow-optimalizálást, átfogó ellenőrzést és PR-nyitást. A későbbi F12/F13 visszaesést az F14 javította; a felhasználó a `b0a62d9` után igazolta az akadásmentes animációt, működő érintéseket és Loxone-oldalakat. A mostani F15 a fogyasztói 1 W-os zajküszöböt, pontosabb címet és PowerFull fejlécet adja hozzá. A záró ellenőrzés a 25–26. checkpointban és a v3-completion-review.md fájlban szerepel.
 - Folytatáskor először olvasd végig ezt a fájlt, az AGENTS.md-t és a git diffet.
 - A felhasználó bizonytalan termékdöntéseit egyesével kell megkérdezni.
 - Minden checkpointnál frissítendő: kész feladatok, tesztek és korlátaik, nyitott kérdés, következő konkrét lépés.
@@ -1624,3 +1624,21 @@ utakat fed le; a firmware-CI a tényleges upstream CPU-forgatót is futtatja.
 Új grafikai csomag nem kell. A végső CI, méret, OTA/USB és ASan eredmények a
 #16 PR-ben követhetők. Fizikai F14-elfogadás és számszerű visszamérés nyitott;
 merge, tag és release nincs.
+
+## Checkpoint 2026-10-21 / 30 – F14 elfogadva, fogyasztói zaj és fejléc (F15)
+
+A felhasználó az F14 (`b0a62d9`) készülékes működését elfogadta: nincs akadás,
+működnek az érintések, az animációk és a Loxone-képernyők. Számszerű új CPU/FPS
+adatot nem adott; a tartós mérési és külön Slave-próbák nyitottak maradnak.
+
+Az új fogyasztói UI-kérés: 1 W-nál kisebb érvényes készülékfogyasztás 0 W-ként,
+szürke kikapcsolt ikonként jelenjen meg; pontosan 1 W aktív. Kiegészítésként
+az oldal címe „Ház külön mért fogyasztói”, és a fejléc „A ház teljes fogyasztása”
+felirat alatt a friss PowerFull adatot mutatja W/kW-ban. A külön mért tételek
+összegzését ez a teljes házmérés váltja fel. Hiányzó/elavult/offline PowerFull
+esetén „Nincs adat” látható. A nyers Loxone-értékek és parancsküldés megmaradnak.
+
+A célzott valódi LVGL-próba nappal/éjjel küszöb alatti/egyenlő/feletti zajt,
+ikont, feliratot/színt, különböző teljes házértéket, W/kW váltást és hiányzó
+adatot ellenőriz. A végleges natív/ASan/firmware és OTA/USB eredmények a #16
+PR-ben követhetők. Új SD-csomag nem kell; merge, tag és release nincs.

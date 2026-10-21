@@ -36,6 +36,13 @@ A készüléken csak Master és közvetlen Loxone módban érhető el.
   támogatott. Védett és más típusú objektum tiltott; ilyen funkcióhoz Loxone-ban
   megfelelő virtuális nyomógomb/kapcsoló párosítható.
 
+A fogyasztói képernyő címe „Ház külön mért fogyasztói”. Az érvényes,
+1 W-nál kisebb készülékfogyasztás 0 W-ként és szürke, kikapcsolt ikonként
+jelenik meg; pontosan 1 W már aktív. A fejléc „A ház teljes fogyasztása”
+felirat alatt a friss PowerFull értéket mutatja, W/kW formázással. Hiányzó,
+elavult vagy megszakadt adatkapcsolatnál „Nincs adat” látszik. Az egyedi
+fogyasztók hiányzó értékei nem helyettesítik a teljes ház mérését.
+
 ## Formátum
 
 A [letölthető mintaprofil](../examples/loxone-home.sample.json) a valódi

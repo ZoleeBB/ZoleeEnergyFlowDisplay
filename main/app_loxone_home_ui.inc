@@ -321,13 +321,22 @@ static void home_build(void)
     lv_obj_t *header = shape(s_screen, 24, 20, 1232, 80, home_night ? 0x17242B : 0xF8FBF4, 24);
     bg_opa_if_changed(header, home_night ? 242 : 244, 0);
     const char *page_title = home_config.page_count ? home_config.pages[home_card_page].title : tr("Otthon", "Home");
-    lv_obj_t *page_heading = lbl(header, home_page == 1 ? tr("Ház fogyasztói", "Home consumers") : page_title,
+    lv_obj_t *page_heading = lbl(header, home_page == 1 ? tr("Ház külön mért fogyasztói", "Separately metered home consumers") : page_title,
                                  28, 10, APP_FONT_28, home_night ? 0xF2F7F6 : 0x071B32);
     lv_obj_set_width(page_heading, home_page == 1 ? 700 : 1080);
     lv_label_set_long_mode(page_heading, LV_LABEL_LONG_MODE_DOTS);
     lbl(header, home_page == 1 ? tr("Pillanatnyi fogyasztás", "Live consumption") :
         tr("Állapotok és vezérlés", "Status and controls"), 28, 46, APP_FONT_16, home_night ? 0xC0CDCE : 0x50615F);
-    home_total = lbl(header, "", 780, 28, APP_FONT_22, home_night ? 0x67DFD5 : 0x006C6C);
+    if (home_page == 1)
+    {
+        lv_obj_t *caption = lbl(header, tr("A ház teljes fogyasztása", "Total home consumption"),
+                               780, 10, APP_FONT_16, home_night ? 0xC0CDCE : 0x50615F);
+        lv_obj_set_width(caption, 350);
+        lv_label_set_long_mode(caption, LV_LABEL_LONG_MODE_DOTS);
+    }
+    home_total = lbl(header, "", 780, home_page == 1 ? 36 : 28,
+                     APP_FONT_22, home_night ? 0x67DFD5 : 0x006C6C);
+    lv_obj_set_width(home_total, 350);
     lv_obj_t *close = pairing_button(s_screen, "X", 1174, 32, 60, 56);
     lv_obj_add_flag(close, LV_OBJ_FLAG_GESTURE_BUBBLE);
     bg_color_if_changed(close, c(0x007D7D), 0);
@@ -435,7 +444,7 @@ static const char *home_feedback(void)
         if (!strcmp(home_status,messages[i][0])) return messages[i][1];
     return home_status;
 }
-static bool home_render(void)
+static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
 {
     if (!home_is_open()) return false;
     if (!home_ready_to_draw) return true;
@@ -444,11 +453,14 @@ static bool home_render(void)
     snprintf(home_status, sizeof(home_status), "%s", home_next_status);
     if (s_view != VIEW_HOME) home_build();
     unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
-    double total = 0; bool complete = home_connected;
     for (unsigned i = 0; i < count; i++)
     {
         unsigned index = home_first_card + i;
         lx_home_value_t value = home_page == 1 ? home_values.consumers[i] : home_values.cards[index];
+        /* A fogyasztói mérés kW-os: az 1 W alatti zaj a feliratban,
+         * ikonállapotban is nulla legyen. */
+        if (home_page == 1 && value.valid && value.value < .001)
+            value.value = 0;
         const lx_home_card_t *card = &home_config.cards[index];
         char text[128], number[96];
         if (home_page == 2 && card->type == LX_HOME_CARD_PULSE)
@@ -456,11 +468,9 @@ static bool home_render(void)
         else if (!home_connected || !value.valid)
         {
             snprintf(text, sizeof(text), "%s", tr("Nincs adat", "No data"));
-            complete = false;
         }
         else if (home_page == 1)
         {
-            total += value.value;
             if (value.value < 1) snprintf(text, sizeof(text), "%.0f W", value.value * 1000);
             else { fmt_dec(number, sizeof(number), value.value, 2); snprintf(text, sizeof(text), "%s kW", number); }
         }
@@ -512,12 +522,15 @@ static bool home_render(void)
             }
         }
     }
-    char text[128] = "", number[32];
+    char text[128] = "";
     if (home_page == 1)
     {
-        fmt_dec(number, sizeof(number), total, 2);
-        snprintf(text, sizeof(text), complete ? tr("Összesen %s kW", "Total %s kW") :
-                 tr("Összesen: nincs teljes adat", "Total: incomplete data"), number);
+        /* A fejléc a teljes ház PowerFull értékét mutatja, a külön
+         * mért fogyasztók zajszűrt megjelenítésétől függetlenül. */
+        if (home_connected && sample_valid && isfinite(sample->power_full_kw))
+            fmt_power(text, sizeof(text), sample->power_full_kw);
+        else
+            snprintf(text, sizeof(text), "%s", tr("Nincs adat", "No data"));
     }
     label_text_if_changed(home_total, text);
     label_text_if_changed(home_message, !home_connected ? tr("Nincs Loxone-kapcsolat; a vezérlés tiltva.", "No Loxone connection; controls disabled.") :

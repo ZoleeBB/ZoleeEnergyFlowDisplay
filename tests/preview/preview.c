@@ -1078,6 +1078,73 @@ static void test_home_background_pixels(void)
         assert(home_buffers[i] && home_images[i].header.cf != LV_COLOR_FORMAT_RAW_ALPHA);
 }
 
+/* A fogyasztói zajküszöb a feliratot és az ikont együtt érintse;
+ * a fejléc a külön mért tételektől független teljes házfogyasztást mutassa. */
+static void test_consumer_noise(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    lx_home_values_t saved = app_sim_home_values;
+    bool connected = app_sim_home_connected;
+    unsigned commands = app_sim_home_commands;
+    double saved_house_power = sample.power_full_kw;
+    sample.power_full_kw = 2.4;
+    const double power[] = {0, .0001, .0005, .0009, .000999, .001, .001001, .002};
+    for (unsigned night = 0; night < 2; night++)
+    {
+        sample.night_mode = night;
+        for (unsigned i = 0; i < app_sim_home_config.consumer_count; i++)
+            app_sim_home_values.consumers[i] = (lx_home_value_t){.valid=true, .value=.000999};
+        assert(home_prepare(night));
+        render_runtime(runtime, sample, true, 31000000);
+        assert(!strcmp(lv_label_get_text(home_total), hu() ? "2,4 kW" : "2.4 kW"));
+        lv_obj_t *header = lv_obj_get_parent(home_total);
+        assert(!strcmp(lv_label_get_text(lv_obj_get_child(header, 0)),
+                       tr("Ház külön mért fogyasztói", "Separately metered home consumers")));
+        assert(!strcmp(lv_label_get_text(lv_obj_get_child(header, 2)),
+                       tr("A ház teljes fogyasztása", "Total home consumption")));
+        int icon = home_icon_index(app_sim_home_config.consumers[0].icon);
+        assert(icon >= 0 && home_gray_buffers[icon]);
+        for (unsigned n = 0; n < sizeof(power)/sizeof(power[0]); n++)
+        {
+            app_sim_home_values.consumers[0].value = power[n];
+            assert(home_prepare(night));
+            render_runtime(runtime, sample, true, 31000000);
+            bool off = n < 5;
+            const char *text = off ? "0 W" : n == 7 ? "2 W" : "1 W";
+            assert(!strcmp(lv_label_get_text(home_labels[0]), text));
+            assert(lv_image_get_src(home_icons[0]) == (off ? &home_gray_images[icon] : &home_images[icon]));
+            assert((lv_color_to_u32(lv_obj_get_style_text_color(home_labels[0], 0)) & 0xffffffU) ==
+                   (off ? (night ? 0x9DABACU : 0x687474U) : (night ? 0x68E0D5U : 0x006B69U)));
+            assert(app_sim_home_values.consumers[0].value == power[n]);
+        }
+        app_sim_home_values.consumers[0].valid = false;
+        assert(home_prepare(night));
+        render_runtime(runtime, sample, true, 31000000);
+        assert(!strcmp(lv_label_get_text(home_labels[0]), tr("Nincs adat", "No data")));
+        assert(!strcmp(lv_label_get_text(home_total), hu() ? "2,4 kW" : "2.4 kW"));
+        sample.power_full_kw = .084;
+        render_runtime(runtime, sample, true, 31000000);
+        assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        render_runtime(runtime, sample, false, 31000000);
+        assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
+        render_runtime(runtime, sample, true, 3601000000LL);
+        assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
+        app_sim_home_connected = false;
+        assert(home_prepare(night));
+        render_runtime(runtime, sample, true, 31000000);
+        assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
+        app_sim_home_connected = connected;
+        sample.power_full_kw = 2.4;
+    }
+    app_sim_home_values = saved;
+    app_sim_home_connected = connected;
+    sample.power_full_kw = saved_house_power;
+    assert(home_prepare(false));
+    sample.night_mode = false;
+    render_runtime(runtime, sample, true, 31000000);
+    assert(app_sim_home_commands == commands);
+    puts("PASS: consumer sub-1W noise is 0W/off/gray, exact 1W active, title and independent live PowerFull header, W/kW/missing/offline, day/night and unchanged commands");
+}
+
 /* Az előző teszt DIRECT desktop módban futott, ezért nem mutatta ki a
  * firmware FULL módjának teljesképes többletmunkáját. Ugyanazt a jelenetet
  * és tickeket most a valódi PARTIAL és a korábbi FULL módban is mérjük. */
@@ -1472,7 +1539,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY"))
+    if (getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1487,7 +1554,17 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
-        if (getenv("ZOLEE_RENDER_COST_ONLY"))
+        if (getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
+        {
+            app_sim_home_reset();
+            home_request_set(1);
+            assert(home_prepare(false));
+            render_runtime(runtime, sample, true, 31000000);
+            test_consumer_noise(runtime, sample);
+            home_close(NULL);
+            assert(home_prepare(false));
+        }
+        else if (getenv("ZOLEE_RENDER_COST_ONLY"))
             test_render_work(runtime, sample);
         else
         {
@@ -1889,6 +1966,7 @@ int main(void)
     for(unsigned y=0;y<96;y++)for(unsigned x=0;x<96;x++){
         uint8_t *p=gray->data+y*gray->header.stride+4*x;assert(p[0]==p[1]&&p[1]==p[2]);
     }
+    test_consumer_noise(rt, sample);
     save_frame("loxone-consumers-light");
     test_home_background_pixels();
     lv_obj_t *stable_background=lv_obj_get_child(s_screen,0);

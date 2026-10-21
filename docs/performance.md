@@ -127,7 +127,7 @@ frame, átfedő/párnázott részletek, teljes jelenetcserék, RGB565/RGB888,
 90°/270°, sikertelen submit és hiányzó szabad puffer vizsgálata fut.
 A kész frame előtt nincs panelátadás; a régi puffer teljesen érintetlen.
 A hiányzó alapmásolatot szándékosan visszaállító hibás változat elbukik.
-Az F14 fizikai elfogadása és az új CPU/FPS/inputkésés visszamérése nyitott.
+A felhasználó az F14 (`b0a62d9`) után igazolta az akadásmentes animációt, a működő érintést és Loxone-oldalakat. Számszerű új CPU/FPS/inputkésés-mérést nem közölt.
 
 Azonos RGB565 jelenet, 30 animációs tick, előzetesen befejezett belépési áttűnés:
 

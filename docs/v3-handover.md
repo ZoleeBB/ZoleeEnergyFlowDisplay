@@ -183,4 +183,10 @@ partial-refresh firmware with coherent complete-frame submission, GUI/touch on
 CPU1 and Loxone worker on CPU0. Record both core loads and slow/fast swipes before
 and after Home. Also verify cyan flicker, day/night backgrounds, transitions,
 controls and continued recovery after Wi-Fi loss. Existing SD resources remain
-valid; physical F14 acceptance is pending.
+valid. The user accepted F14 (`b0a62d9`): smooth animations, working touch and
+Loxone screens; quantitative measurements remain unrecorded.
+
+F15 consumer polish: below 1 W, individual consumer tiles show 0 W with the gray
+off icon; exactly 1 W remains active. The screen is titled “Ház külön mért
+fogyasztói”, and “A ház teljes fogyasztása” shows fresh PowerFull in W/kW.
+Missing/stale/offline house data shows “Nincs adat”. Existing SD resources remain valid.
