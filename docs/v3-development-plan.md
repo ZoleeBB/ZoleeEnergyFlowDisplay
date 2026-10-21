@@ -144,7 +144,7 @@
 - [ ] `python3 tests/run_tests.py`, releváns szimulátor/LVGL render, Master és Slave ESP-IDF build.
 - [ ] Firmware/OTA, belső RAM/DMA és PSRAM keretek ellenőrzése.
 - [x] Külön hardveres próbalista: [v3-handover.md](v3-handover.md).
-- [ ] v3.0.0 kiadási cél beállítása a tényleges release-folyamat szerint, automatikus köztes kiadás nélkül.
+- [x] v3.0.0 kiadási cél saját v3 ág igazolt main összevonására, automatikus köztes kiadás nélkül.
 - [ ] Csak minden vállalt pont kész állapotánál PR. Egyesítés/publikálás nincs előre elvégezve.
 
 ## Checkpoint 2026-10-20 / 1
@@ -1318,3 +1318,46 @@ majd e checkpoint végére a végső CI-eredmények. Fizikai próba a külön á
 listával szükséges; ennek eredményét nem helyettesíti a szimulátor. A v3.0.0
 kiadási szabály a végső PR azonosításához kötött nyitott feladat marad, a jelenlegi
 patch-növelést nem szabad v3-emelésnek tekinteni. PR/tag/release még nem készült.
+
+A 20–21. checkpoint firmware-javításának igazolt zárása, `13ac3b6`:
+
+- Master workflow `39617644848` minden jobja, a fő Windows-szimulátor és a
+  4B mindkét szimulátorjobja sikeres. Mindkét ESP-IDF firmware, OTA/USB-csomag
+  és a valódi buildkimeneteken végzett USB dry-run is sikeres.
+- Master app `0x2e8c80` = 3 050 624 bájt, a 18. checkpointhoz +4336 bájt;
+  64% szabad. Slave `0x320890` = 3 278 992 bájt, +112 bájt; 74% szabad.
+  A bootloader mindkét célon `0x5ec0` bájt. A partíciók nem változtak.
+- OTA SHA256: Master `88aa4868eb1e3e6cacdab6e7bea5a82e00d193bd5c2c6b8498feacce912d67d8`,
+  Slave `693a35fbbf72d3edb0063cd0020870eef043f5d0d59ad75288b2b9fb7d38b6b1`.
+- A három futás összesen pontosan négy artifactot adott:
+  firmware `12353913036`, témák `12354230136`, Windows fő `12353846713`,
+  Windows 4B `12352524612`. A közös firmware-artifact hét fájlból áll:
+  két USB, két OTA, két build-info és SHA256SUMS. Nincs külön OTA-artifact,
+  Linux/PDB/renderképcsomag. Az F10 kimenetkonszolidáció ténylegesen ellenőrzött.
+- A közös Loxone ZIP 5 098 184 bájt, 72 bejegyzés, v3; a 05 ZIP 2 139 830,
+  a 06 ZIP 2 135 228 bájt. Az F01–F09 implementáció és szoftvertesztek sikeresek;
+  a fizikai villogás/Miniserver próba továbbra sem állítható késznek.
+
+## Checkpoint 2026-10-21 / 22 – v3.0.0 kiadási cél előkészítése
+
+A végső PR száma még nem ismert. A tervben engedett, megfelelően szűkített
+alternatíva elkészült: a verzióválasztó csak a saját
+`ZoleeBB/ZoleeEnergyFlowDisplay` repó `feature/v3-loxone-home` forráságából,
+igazoltan `main` ágba összevont PR-hoz választ egyszeri v3.0.0 verziót.
+A `prepare` előbb igazolja a merge állapotot, célrepót/ágat és merge SHA-t;
+ezt követően a forráság nevét és saját repóját is ellenőrzi.
+
+- Más ág/repó, azonos nevű forkág vagy hiányzó forrásmeta nem kap v3-emelést.
+- Meglévő stabil v3.0.0 vagy újabb verzió nem írható felül. A saját korábbi
+  taggel lefoglalt, félbeszakadt kiadás ugyanazon verzión folytatható.
+- A régi v1/v2 kivételek és más PR-ok patch-növelése változatlan.
+  A verzió előkészítése továbbra is csak olvasás; tag/draft/publikálás kizárólag
+  az ellenőrzések után, az igazolt main merge kiadási munkájában történhet.
+- A kiadási szabály 11 célzott tesztje és a csomagoló/publikáló 6 tesztje
+  helyben sikeres. Valódi GitHub release vagy tag nem készült.
+- Firmware-futtatókód/kép nem változott. A végső forrás és a friss átadási
+  dokumentáció új CI-futással ellenőrizendő; a 13ac3b6 eredménye külön fent.
+
+Következő lépés: feltöltés, a végső CI és a négy artifact ellenőrzése, majd
+az eszközös lista visszajelzése. A v3 kiadási cél implementálva, fizikai
+RAM/DMA/PSRAM/FPS/Miniserver/panel elfogadás továbbra is nyitott. PR még nincs.

@@ -115,10 +115,10 @@ Az FPS-t a jelenlegi diagnosztika nem méri; a szimulátor FPS-e nem panelméré
 ## Kiadási állapot
 
 A fizikai próbák és az új forrás teljes firmware-/csomagellenőrzése nyitott
-átadási pontok. PR csak a vállalt feladatok lezárása után készül. A végső PR-nál
-kell a v3.0.0 verzióválasztási szabályt is a tényleges kiadási folyamathoz kötni;
-a jelenlegi automatikus szabály pusztán egy új PR összevonásakor patch-verziót
-növelne. Nincs előre létrehozott v3 tag vagy release.
+átadási pontok. PR csak a vállalt feladatok lezárása után készül. A v3.0.0
+verzióválasztás kizárólag e repó saját `feature/v3-loxone-home` ágának igazolt
+`main` összevonására érvényes; más ág és fork nem kap ilyen főverzió-emelést.
+A szabály és az újrafuttatás tesztelt, de nincs előre létrehozott v3 tag vagy release.
 
 ## English quick start and acceptance
 
@@ -147,4 +147,6 @@ Also test page swipes without commands, reboot persistence, disconnect recovery,
 100 page/theme transitions and sustained Wi-Fi/BLE traffic. Record source SHA,
 board/firmware versions, internal RAM, PSRAM, largest DMA block, CPU and errors.
 Simulator success does not establish physical panel, radio or memory behavior.
-Hardware acceptance and the final v3 release-version rule remain open.
+Hardware acceptance remains open. The tested v3.0.0 selection rule applies only
+to a verified merge of this repository's own `feature/v3-loxone-home` branch;
+no v3 tag or release has been created.

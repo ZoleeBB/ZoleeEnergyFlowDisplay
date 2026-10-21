@@ -36,6 +36,15 @@ ettől változatlanul lefut. A korábbi futások artifactjai megmaradnak.
 
 ## Automatikus kiadás PR-merge után
 
+A v3 fejlesztés egyszeri célverziója **v3.0.0**. Ezt kizárólag a
+`ZoleeBB/ZoleeEnergyFlowDisplay` repó saját `feature/v3-loxone-home` ágából,
+igazoltan a `main` ágba összevont PR kapja. Az API-val a tényleges összevonást,
+a merge SHA-t, a célrepót és a forráság saját repóját is ellenőrizzük. Egy
+azonos nevű forkág vagy egy PR-cím nem elég. Meglévő stabil v3.0.0 vagy újabb
+kiadást a szabály nem ír felül; a saját korábbi félbeszakadt kiadás foglalt
+verzióját újrafuttatáskor megtartja. A v3 után más ágról érkező PR ismét a
+szokásos patch-verziót növeli. Fejlesztési feltöltés nem készít taget vagy release-t.
+
 A `Release merged PR` workflow a `main` ágra **ténylegesen összevont** PR lezárásakor indul. A puszta jóváhagyás, a merge nélküli bezárás vagy a közvetlen main push nem készít kiadást.
 
 A folyamat automatikusan növeli a javítóverziót: `v1.2.3 → v1.2.4`. A létező stabil verziótagek és release-ek közül a számszerűen legnagyobbat veszi alapul; prerelease és `v0.0.0-ci` nem számít bele. A régi `Prod` tagű, `0.0.1` című kiadást is felismeri. Korábbi verzió nélkül `v0.0.1`-gyel indul. A [#12 PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/12) main ágra egyesítve egyszeri **v2.0.0** kiadást kap. Pusztán a PR lezárása egyesítés nélkül nem indít release-t. Már létező v2.0.0 vagy újabb verziót nem ír felül. Ezt követően a normál javítóverzió-növelés folytatódik: v2.0.1, v2.0.2. Más minor/major verzió kézzel kiadott új stabil taggel emelhető, például `v1.0.0`; utána `v1.0.1` következik.
