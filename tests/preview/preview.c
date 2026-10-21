@@ -275,6 +275,59 @@ static void test_theme_readability(void){
     }
 }
 
+/* A fotóhátterű új téma HU/EN szövegei a felső mérési határnál se vágódjanak le.
+ * A tényleges LVGL-fontméretet és az élő frissítés eredményét vizsgáljuk. */
+static void test_calm_dashboard(const app_energy_sample_t *original)
+{
+    if (strcmp(template_view.id, "05-calm-home"))
+        return;
+    char language[sizeof(s_cfg.project.language)];
+    snprintf(language, sizeof(language), "%s", s_cfg.project.language);
+    app_energy_sample_t sample = *original;
+    sample.power_pv_kw = sample.power_full_kw = 15;
+    sample.soc_bat_pct = 100;
+    sample.status = 2;
+    for (unsigned english = 0; english < 2; ++english)
+    {
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", english ? "en" : "hu");
+        template_build(sample.night_mode);
+        template_update(&sample, &fixture);
+        lv_obj_update_layout(s_screen);
+        unsigned main_values = 0;
+        for (unsigned i = 0; i < template_node_count; ++i)
+        {
+            template_node_t *node = &template_nodes[i];
+            const char *type = ts(node->spec, "type");
+            if (strcmp(type, "value") && strcmp(type, "label"))
+                continue;
+            lv_point_t size;
+            lv_text_get_size(&size, lv_label_get_text(node->obj),
+                             lv_obj_get_style_text_font(node->obj, 0), 0, 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            assert(size.x <= lv_obj_get_width(node->obj));
+            assert(size.y <= lv_obj_get_height(node->obj));
+            const char *source = ts(node->spec, "source");
+            if (!strcmp(type, "value") &&
+                (!strcmp(source, "pv") || !strcmp(source, "home") || !strcmp(source, "soc")))
+            {
+                char expected[128];
+                template_text(expected, source, &sample, &fixture);
+                assert(!strcmp(lv_label_get_text(node->obj), expected));
+                ++main_values;
+            }
+        }
+        assert(main_values == 3);
+        char frame[80];
+        snprintf(frame, sizeof(frame), "calm-limits-%s-%s", english ? "en" : "hu",
+                 sample.night_mode ? "dark" : "light");
+        save_frame(frame);
+    }
+    snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language);
+    template_build(original->night_mode);
+    template_update(original, &fixture);
+    puts("PASS: calm home live values, HU/EN labels and 15kW/100% bounds fit actual LVGL fonts");
+}
+
 static void test_solar_dashboard(const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
     template_node_t *disc=NULL,*bar=NULL,*grid=NULL,*production=NULL,*comparison=NULL;
@@ -1209,7 +1262,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

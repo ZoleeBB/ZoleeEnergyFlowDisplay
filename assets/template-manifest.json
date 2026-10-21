@@ -247,6 +247,11 @@
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
+    "asset": "templates/05-calm-home/day.png",
+    "sha256": "f235d0566f68c762ac2f71cd62b66fb6f9532812004d207e79c329f34ee84473",
+    "generator": "Built-in imagegen; approved original calm living room; 1280x800 RGB PNG, RGB565-preserving channel reduction, lossless oxipng"
+  },
+  {
     "asset": "templates/05-calm-home/flow_battery.png",
     "sha256": "73a3ad8559b76e4c0439e6b10ff07f4682ff415b9775738957af00ef49594bd5",
     "generator": "built-in image_gen",
@@ -275,13 +280,18 @@
     "original_sha256": "3ddfca48700839dd0b1eb5abe44e50ab60cd431f67f27a6037ad3b2188227160"
   },
   {
+    "asset": "templates/05-calm-home/night.png",
+    "sha256": "2201cb6f5ba1253f0f31bed77c9c97e33da94d4de106203886da993021d11c79",
+    "generator": "Built-in imagegen; approved original calm living room; 1280x800 RGB PNG, RGB565-preserving channel reduction, lossless oxipng"
+  },
+  {
     "asset": "templates/05-calm-home/preview-dark.png",
-    "sha256": "cc88af3f81df02d75dbc19b55d9bb91c40b03061ade90285657a4127cf6a8626",
+    "sha256": "a2ca4113bcb5dce5ec32cca4850b14f9e0760ee0dc5c4127f19f9dc0e65e888c",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/05-calm-home/preview-light.png",
-    "sha256": "dcb4fb343ab068dcc2a7684595f2cb18c51c6cb8cc39c0814845ff829767fbb2",
+    "sha256": "2ccf3882b91d41e3c41364f58a02b2df633f9a77148ca93bcfbe3150cd0adc01",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

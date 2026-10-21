@@ -1021,3 +1021,33 @@ napi összesítők; asszisztensnek és házérintésnek kijelölt hely. Nem kés
 05/06 kép és nem változott e két téma elrendezése. Azonosító/sorrend megőrzendő.
 Ezután `06-energy-orbit` külön terv, külső témák célzott végellenőrzése,
 HU/EN minták és a v3 kiadási/fizikai zárási lista. A feltöltési engedély változatlan.
+
+## Checkpoint 2026-10-21 / 15 – jóváhagyott Nyugodt otthon új téma
+
+A 14. checkpoint végén még felvetett 05-irányt és az új, külön generált
+nappalihátteret a felhasználó elfogadta, és engedélyezte a megvalósítást.
+Az `05-calm-home` v9 elkészült a jóváhagyott berendezéssel; azonosító és sorrend
+megmaradt. Három nagy élő főadat, diszkrét napi összegzés, HU/EN felirat,
+kijelölt asszisztenshely és külön Otthon érintőgomb. A háttér más kártyán nem
+szerepel, az Otthon/fogyasztói oldalak közös erőforráscsomagja nem változik.
+A részletes grafikai specifikáció, méret és ellenőrzés: [calm-home.md](calm-home.md).
+
+- A két háttér valóban 1280×800, 8 bites RGB PNG; 871224 és 720798 bájt.
+  A nagy eredetik és a régi látványterv nem kerülnek a repóba.
+- A kezdeti 1,79/1,57 MB PNG-k kódolt feltöltésekor a felhasználó
+  `Invalid conversation body` hibát jelzett. RGB565-egyezést megőrző csatorna-
+  redukció és veszteségmentes oxipng után a két háttér blobfeltöltése sikeres.
+  A kisebb méret nem csökkenti a felbontást és nem változtatja a kijelző színeit.
+- Nincs új firmware-be ágyazott kép, módosított C futtatókód vagy keretemelés.
+  A témát az SD-s ZIP-csomag telepítésével/frissítésével kapja meg a kijelző;
+  az OTA önmagában nem írja felül a telepített sablont.
+- A helyi teljes natív/UBSan regresszió sikeres. Az új tényleges LVGL-próba
+  HU/EN, nappal/éjjel, 15 kW/100% mellett ellenőrzi a levágásmentes szövegeket.
+  Néhány túl alacsony feliratmezőt a próba alapján javítottunk.
+- A végső tömörített képekkel még ismételt LVGL/manifest/ZIP-ellenőrzés,
+  a távoli ág egyetlen konzisztens commitra frissítése és a GitHub CI zárása
+  következik. Ez a bejegyzés ezek sikerét még nem állítja.
+
+Nincs PR vagy release. Következő termékegyeztetés: a `06-energy-orbit` külön
+látványterve. A v3 fizikai RAM/DMA/PSRAM/FPS/Miniserver/panel próbái és a végső
+kiadási ellenőrzőlista továbbra is hátravannak. A folyamatos feltöltési engedély él.
