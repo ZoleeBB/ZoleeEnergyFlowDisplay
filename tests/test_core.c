@@ -459,6 +459,7 @@ static void test_cardless_stats(void)
 }
 static void test_assistant_night_history(void)
 {
+    app_state_set_time_synced(true);
     reset(instant("2026-10-14", 0, 0, 0));
     cfg.data_recept_mode = APP_DATA_LOXONE;
     for (unsigned day = 14; day <= 17; ++day)
@@ -486,6 +487,9 @@ static void test_assistant_night_history(void)
             assert(reference.ready && reference.nights == 3 && reference.hour == 0);
             near(reference.current_kw, .5);
             near(reference.baseline_kw, .2);
+            app_state_set_time_synced(false);
+            assert(!app_stats_get_night_reference(&reference));
+            app_state_set_time_synced(true);
             assert(app_stats_init(&cfg) == ESP_OK);
             assert(app_stats_get_night_reference(&reference));
             near(reference.baseline_kw, .2);
@@ -536,6 +540,26 @@ static void test_assistant_night_history(void)
     slot = cJSON_GetArrayItem(cJSON_GetObjectItem(document, "slots"), 0);
     assert(cJSON_GetObjectItem(slot, "night_seconds")->valuedouble == 301);
     cJSON_Delete(document);
+    /* Érvényesnek látszó dátum, de még nem szinkronizált óra sem gyűjt referenciát. */
+    reset(instant("2026-10-19", 0, 0, 0));
+    cfg.data_recept_mode = APP_DATA_LOXONE;
+    assert(app_stats_init(&cfg) == ESP_OK);
+    app_state_set_time_synced(false);
+    start = fake_epoch;
+    for (unsigned second = 0; second <= 3600; second += 10)
+    {
+        fake_epoch = start + second;
+        fake_us = INT64_C(1000000) + second * INT64_C(1000000);
+        app_energy_sample_t value = sample(fake_epoch, .5, .5, 0);
+        value.night_mode = true;
+        app_stats_process_sample(&value);
+    }
+    assert(app_stats_save_now() == ESP_OK);
+    document = read_json("2026-10-19");
+    slot = cJSON_GetArrayItem(cJSON_GetObjectItem(document, "slots"), 0);
+    assert(!cJSON_GetObjectItem(slot, "night_seconds"));
+    cJSON_Delete(document);
+    app_state_set_time_synced(true);
     puts("PASS: actual night integration/SD roundtrip/reboot, three matched hours, median, legacy without invented coverage and sparse-night rejection");
     tests++;
 }

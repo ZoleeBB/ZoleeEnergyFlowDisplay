@@ -42,6 +42,7 @@ A korábbi helyi 00:00–04:00 óraablakokból képzett, igazolt referencia szü
 
 - Az előző teljes helyi óra mind a 12 ötperces slotjában legalább 270, legfeljebb
   300 másodperc tényleges, éjszakainak jelzett, folytonos mérés kell.
+- A referencia gyűjtéséhez és lekéréséhez szinkronizált óra szükséges.
 - Lefedettség csak legfeljebb 30 másodperces, monoton idővel összhangban levő
   szomszédos mintapárokból keletkezik. Saját éjszakai energiaösszeg tartozik hozzá.
 - Azonos helyi órára az előző hét legalább három érvényes éjszakája szükséges;
@@ -86,7 +87,7 @@ fut; a szolgáltatás-pillanatképek a grafikus lock előtt készülnek.
 - `tests/test_energy_assistant.c`: tényleges szabálymodell UBSan-nal, előjelek,
   tartalék, invalid/stale/reconnect/revízió/idő, bezárás és éjszakai jelzés.
 - `tests/test_core.c`: tényleges éjszakai integráció, SD-mentés, reboot, medián,
-  régi/hiányos adatok és idő-visszalépés.
+  régi/hiányos adatok, nem szinkronizált óra és idő-visszalépés.
 - `tests/test_loxone_protocol.c`: tényleges WS-frissítőből érkező minimális
   asszisztens-pillanatkép, valódi nulla és disconnect invalidálás.
 - `tests/preview/preview.c`: tényleges LVGL a Rendszer és mind a kilenc gyári

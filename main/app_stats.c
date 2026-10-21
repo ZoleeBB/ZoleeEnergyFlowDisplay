@@ -67,6 +67,7 @@ typedef struct
 static night_history_t s_night_history[7];
 _Static_assert(sizeof(s_night_history) <= 512, "Az éjszakai referencia túl nagy");
 static bool s_have_prev;
+static bool s_prev_time_synced;
 static bool s_task_started;
 static app_energy_sample_t s_prev;
 static int64_t s_last_save_us;
@@ -270,7 +271,8 @@ static day_data_t *day_for(time_t epoch)
 }
 
 /* Ötperces és éjféli határokon is pontosan vágunk; a háttértask sorrendjétől függetlenül. */
-static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current)
+static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current,
+                           bool trusted_night_time)
 {
     int64_t duration=current->received_epoch_s-previous->received_epoch_s;
     if(duration<=0 || duration>s_cfg.statistics.max_integration_gap_seconds)return;
@@ -291,7 +293,7 @@ static void integrate_pair(const app_energy_sample_t *previous,const app_energy_
             totals_add(&day->totals,&energy);
             totals_add(&day->slots[slot_for((time_t)cursor)].energy,&energy);
             unsigned slot = (unsigned)slot_for((time_t)cursor);
-            if (s_cfg.data_recept_mode == APP_DATA_LOXONE && slot < 48 && duration <= 30 &&
+            if (trusted_night_time && s_cfg.data_recept_mode == APP_DATA_LOXONE && slot < 48 && duration <= 30 &&
                 previous->night_mode && current->night_mode &&
                 previous->received_monotonic_us > 0 &&
                 current->received_monotonic_us > previous->received_monotonic_us &&
@@ -1030,6 +1032,9 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     }
 
     time_t now = (time_t)sample->received_epoch_s;
+    /* A közös állapot zárját a statisztikai zár ELŐTT elengedjük. */
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
@@ -1051,7 +1056,7 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
                     affected[d]->revision++;
                 }
         }
-        integrate_pair(&s_prev,sample);
+        integrate_pair(&s_prev, sample, s_prev_time_synced && runtime.time_synced);
         int64_t gap=sample->received_epoch_s-s_prev.received_epoch_s;
         if(gap>(int64_t)app_config_data_timeout(&s_cfg)){
             /* Az érintett ötperces ablakok kimaradnak; nem lesz kitalált összekötés. */
@@ -1072,6 +1077,7 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     }
 
     s_prev = *sample;
+    s_prev_time_synced = runtime.time_synced;
     s_have_prev = true;
 
     xSemaphoreGive(s_mutex);
@@ -1143,6 +1149,10 @@ bool app_stats_get_night_reference(app_assistant_night_t *out)
         return false;
     memset(out, 0, sizeof(*out));
     if (!s_mutex || s_cfg.data_recept_mode != APP_DATA_LOXONE)
+        return false;
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    if (!runtime.time_synced)
         return false;
     time_t now = time(NULL);
     struct tm local;
