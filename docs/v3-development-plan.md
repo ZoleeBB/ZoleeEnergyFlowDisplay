@@ -1073,3 +1073,39 @@ A részletes grafikai specifikáció, méret és ellenőrzés: [calm-home.md](ca
 Nincs PR vagy release. Következő termékegyeztetés: a `06-energy-orbit` külön
 látványterve. A v3 fizikai RAM/DMA/PSRAM/FPS/Miniserver/panel próbái és a végső
 kiadási ellenőrzőlista továbbra is hátravannak. A folyamatos feltöltési engedély él.
+
+## Checkpoint 2026-10-21 / 16 – külső témák áttekintése, 06 irányjavaslat
+
+A felhasználó a 15. checkpoint sikeres feltöltése után kérte a fejlesztési
+csomag folytatását. A külső témák kis ráfordítású ellenőrzése elkészült:
+[external-template-review.md](external-template-review.md).
+
+- Nincs általános gyári ID-engedélylista; a deklaratív elemek és források,
+  fájlnevek, JSON/PNG/ZIP és memóriakeretek továbbra is ellenőrzöttek.
+- A meglévő gyári kompatibilitási ágak és a v3 Otthon/asszisztens kapui
+  áttekintve; az opcionális hibás asszisztenshely a UI-ban rejtve marad,
+  nem új telepítési követelmény. Érvényes régi csomagok támogatása megmarad.
+- Friss `python3 tests/test_templates.py`: sikeres. A 15. checkpoint
+  teljes LVGL/firmware/Windows/Linux CI-je változatlan futtatókódra vonatkozik.
+- E checkpoint kizárólag dokumentáció; nincs új firmware-kód vagy képfájl,
+  ezért nincs újrafordítás vagy új méretnövekedési állítás. Feltöltés `[skip ci]`.
+
+A D07 előírása: „Két új vizuális terv a kedvelt Rendszer, Nap pálya és Élő otthon
+alapján; generálás/implementálás előtt egyeztetés.” A 05 már elfogadott és kész;
+a 06 iránya még külön felhasználói választ vár.
+
+Javaslat az Energiakör új irányára, MÉG NEM ELFOGADVA: felülnézetes/enyhén
+izometrikus, parkosított energiaudvar, középen modern családi ház, körívben
+elhelyezett napelem-, akkumulátor- és hálózati pontokkal. A házhoz vezető
+ívelt, színes energiautakon mozgó pontok; a megszokott import/export és
+töltés/leadás irány/szín megőrzése. Nagy élő teljesítményadatok az eszközök
+mellett, akkumulátornál SOC; alul diszkrét napi összesítők. Saját, új háttér:
+nappal világos zöld kert, éjjel mélykék környezet és világító házablakok.
+Külön biztonságos asszisztenshely, a ház érintése nyitja a fogyasztói oldalt.
+Azonosító és sorrend változatlan. Nincs még generált 06 kép vagy elrendezésmódosítás.
+
+Következő lépés: a fenti irány egyeztetése, majd egy önálló 06 látványterv
+bemutatása; az elfogadott terv után a 1280×800-as nappali/éjszakai grafika és a
+megvalósítás. A 05 hátteret vagy más kártya képét nem szabad újrahasználni.
+Ezután v3 kiadási/fizikai zárási lista. Nincs PR vagy release;
+a folyamatos repófeltöltési engedély változatlanul él.

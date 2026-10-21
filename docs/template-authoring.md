@@ -234,3 +234,6 @@ maradjon az 1280×800 képernyőn belül. Hibás megadás vagy ismeretlen küls�
 hiányzó terület esetén nincs rárajzolás. Nem indít új kapcsolatot, parancsot vagy
 assetbetöltést. A gyári témák korábbi csomagjaihoz saját biztonságos címsávhely
 ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.
+
+A v3 külső témák célzott kompatibilitási áttekintése és a tesztek pontos
+határai: [external-template-review.md](external-template-review.md).
