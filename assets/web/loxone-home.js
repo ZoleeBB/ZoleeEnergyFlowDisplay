@@ -70,6 +70,7 @@ const LoxoneHome = (() => {
                 (category && JSON.stringify(item.category || '') !== category)) continue;
             if (control && !(item.secured === false && (item.type === 'Switch' ||
                 (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;
+            if (control && item.action_uuid === '') continue;
             const uuid = control ? item.control_uuid : item.uuid;
             if (!uuid || seen.has(uuid)) continue;
             seen.add(uuid);

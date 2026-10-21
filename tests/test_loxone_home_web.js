@@ -14,7 +14,9 @@ for(const id of ['home-resource-warning','home-pages','home-add-page','home-edit
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
 const uuid='11223344-5566-7788-99aabbccddeeff00',control='aabbccdd-5566-7788-99aabbccddeeff00';
 const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nappali',category:'Klíma',state:'value',type:'Switch',secured:false},
-    {uuid:control,name:'Csak állapot',room:'Kert',category:'Kert',state:'value'}];
+    {uuid:control,name:'Csak állapot',room:'Kert',category:'Kert',state:'value'},
+    {uuid,control_uuid:'dddddddd-5566-7788-99aabbccddeeff00',action_uuid:'cccccccc-5566-7788-99aabbccddeeff00',name:'Külön parancscím',type:'Switch',secured:false},
+    {uuid,control_uuid:'eeeeeeee-5566-7788-99aabbccddeeff00',action_uuid:'',name:'Hibás parancscím',type:'Switch',secured:false}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
 const sandbox={console,TextEncoder,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
@@ -65,6 +67,10 @@ const click=id=>nodes.get(id).onclick();
     assert(!target.children.some(node=>node.value===uuid));
     edit('home-room','','onchange');
     assert(nodes.get('home-cards-item-1-control_uuid').children.some(node=>node.value===control));
+    const targets=nodes.get('home-cards-item-1-control_uuid').children.map(node=>node.value);
+    assert(targets.includes('dddddddd-5566-7788-99aabbccddeeff00'));
+    assert(!targets.includes('cccccccc-5566-7788-99aabbccddeeff00'));
+    assert(!targets.includes('eeeeeeee-5566-7788-99aabbccddeeff00'));
     edit('home-cards-item-1-name','Kapunyitás');edit('home-cards-item-1-control_uuid',control,'onchange');
     await click('home-save');assert.equal(posts.length,2);assert.equal(posts[1].pages[0].cards[0].type,'pulse');
     assert.equal(posts[1].pages[0].cards[0].control_uuid,control);assert.equal(posts[1].consumers[0].name,'Még nincs mentve');

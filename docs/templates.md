@@ -308,13 +308,17 @@ frissítendő. Az energiaáramlás közös sebességképlete változatlan.
 A fogyasztói és Otthon-kártyás oldal közös `loxone-home.zip` csomagját ugyanitt,
 a témakezelőben lehet ellenőrizni, telepíteni és frissíteni. A csomag külön
 **közös erőforrásként** jelenik meg; nem választható energiaelrendezés, és nem
-kerül a lapozási sorrendbe. 64 ikont, külön fogyasztói és Otthon nappali/éjszakai háttérpárt (összesen négy képet) és helyi logót ad.
+kerül a lapozási sorrendbe. 64 ikont, külön fogyasztói és Otthon nappali/éjszakai háttérpárt (összesen négy képet) és helyi logót ad. A csomag v3-tól két 400×250-es, valódi LVGL-előnézetet is tartalmaz a sablonkezelő számára; a nagy kijelzőképek és a méretkorlátok változatlanok.
 
 A Master teljes USB-csomagjának `sd-card/templates/loxone-home` könyvtárában is
 megtalálható. OTA-frissítésnél az új firmware mellett ezt az SD-csomagot is telepítsd.
 A kártyák a `/loxone` oldalon szerkeszthetők; a kijelzőn a ház érintése a fogyasztókat,
 a lefelé húzás az Otthon-kártyákat nyitja meg. Az Otthon szerkesztőjében legfeljebb 8 oldal nevezhető el, mindegyiken 12 kártyával; jobbra/balra húzás a saját lapok között vált, alul oldalpontokkal. Jobb felső X: vissza az előző témához.
 A diagnosztikát felfelé húzás nyitja, és saját X gombja zárja.
+A közös csomag hiányát a szerkesztő tetején piros figyelmeztetés jelzi;
+telepített csomagnál az ikonválasztók a kiválasztott kis képet is megmutatják.
+A felhasználói próba utáni javítások és a megismétlendő eszközpróba:
+[v3-field-fixes.md](v3-field-fixes.md).
 
 A teljes v3 még fejlesztés alatt áll; a részletes állapot a
 [folytatási tervben](v3-development-plan.md) követhető.

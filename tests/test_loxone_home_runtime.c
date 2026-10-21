@@ -10,8 +10,75 @@ static void value(uint8_t out[24], double number)
     uint64_t bits; memcpy(&bits, &number, 8);
     for (unsigned i = 0; i < 8; i++) out[16+i] = bits >> (8*i);
 }
+
+static void action_target_test(void)
+{
+    const char *identity = "aabbccdd-5566-7788-99aabbccddeeff00";
+    const char *action = "cccccccc-5566-7788-99aabbccddeeff00";
+    const char *state = "00000000-0000-0000-0000000000000000";
+    /* A régi párosítás változatlan marad; csak a dróton küldött cím változik.
+     * Hibás explicit címnél állapot olvasható, parancs nem küldhető. */
+    const char *variants[] = {NULL, "\"aabbccdd-5566-7788-99aabbccddeeff00\"",
+        "\"cccccccc-5566-7788-99aabbccddeeff00\"", "\"\"", "\"bad/On\"", "42", "null"};
+    static lx_home_config_t config;
+    config.card_count = 1;
+    lx_home_card_t *card = &config.cards[0];
+    strcpy(card->id, "saved-switch");
+    strcpy(card->source.uuid, state);
+    for (unsigned alias = 0; alias < 2; alias++)
+    {
+        for (unsigned i = 0; i < sizeof(variants) / sizeof(variants[0]); i++)
+        {
+            cJSON *root = cJSON_CreateObject();
+            cJSON *controls = cJSON_AddObjectToObject(root, "controls");
+            cJSON *control = cJSON_AddObjectToObject(controls, alias ? "named-object" : identity);
+            cJSON_AddStringToObject(control, "type", "Switch");
+            cJSON_AddBoolToObject(control, "isSecured", false);
+            cJSON *states = cJSON_AddObjectToObject(control, "states");
+            cJSON_AddStringToObject(states, "active", state);
+            if (variants[i])
+                assert(cJSON_AddItemToObject(control, "uuidAction", cJSON_Parse(variants[i])));
+            char *json = cJSON_PrintUnformatted(root);
+            assert(json);
+            cJSON *catalog = lx_catalog_parse(json, strlen(json));
+            cJSON_free(json);
+            assert(catalog && cJSON_GetArraySize(catalog) == 1);
+            cJSON *entry = cJSON_GetArrayItem(catalog, 0);
+            const char *target = i == 2 ? action : identity;
+            bool allowed = i < 3 && (!alias || i > 0);
+            const char *saved = !alias ? identity : allowed ? target : "";
+            assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "control_uuid")), saved));
+            assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "uuid")), state));
+            strcpy(card->control_uuid, saved);
+            const lx_home_command_t commands[] = {LX_HOME_COMMAND_ON, LX_HOME_COMMAND_OFF, LX_HOME_COMMAND_PULSE};
+            const char *verbs[] = {"On", "Off", "pulse"};
+            for (unsigned j = 0; j < 3; j++)
+            {
+                card->type = j == 2 ? LX_HOME_CARD_PULSE : LX_HOME_CARD_SWITCH;
+                char command[96] = "unchanged", expected[96];
+                assert(lx_home_command_build(&config, catalog, card->id, commands[j], command) == allowed);
+                snprintf(expected, sizeof(expected), "jdev/sps/io/%s/%s", target, verbs[j]);
+                assert(!strcmp(command, allowed ? expected : "unchanged"));
+            }
+            cJSON_Delete(catalog);
+            cJSON_DeleteItemFromObject(control, "states");
+            json = cJSON_PrintUnformatted(root);
+            assert(json);
+            catalog = lx_catalog_parse(json, strlen(json));
+            cJSON_free(json);
+            assert(catalog && cJSON_GetArraySize(catalog) == (allowed ? 1 : 0));
+            card->type = LX_HOME_CARD_PULSE;
+            char command[96];
+            assert(lx_home_command_build(&config, catalog, card->id, LX_HOME_COMMAND_PULSE, command) == allowed);
+            cJSON_Delete(catalog);
+            cJSON_Delete(root);
+        }
+    }
+}
+
 int main(void)
 {
+    action_target_test();
     static lx_home_config_t config; lx_home_values_t values = {0};
     config.consumer_count = 1; config.card_count = 2;
     strcpy(config.consumers[0].source.uuid,"00000000-0000-0000-0000000000000000");

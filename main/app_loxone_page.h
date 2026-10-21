@@ -349,6 +349,7 @@ static const char app_loxone_page[] =
 "                (category && JSON.stringify(item.category || '') !== category)) continue;\n"
 "            if (control && !(item.secured === false && (item.type === 'Switch' ||\n"
 "                (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;\n"
+"            if (control && item.action_uuid === '') continue;\n"
 "            const uuid = control ? item.control_uuid : item.uuid;\n"
 "            if (!uuid || seen.has(uuid)) continue;\n"
 "            seen.add(uuid);\n"

@@ -267,6 +267,15 @@ cJSON *lx_values_payload(const lx_values_t *v, const lx_config_t *cfg)
     }
     return root;
 }
+
+static const char *control_action_uuid(const cJSON *control)
+{
+    const cJSON *action = cJSON_GetObjectItemCaseSensitive(control, "uuidAction");
+    if (action)
+        return cJSON_IsString(action) && lx_uuid_valid(action->valuestring) ? action->valuestring : "";
+    return lx_uuid_valid(control->string) ? control->string : "";
+}
+
 static bool catalog_entry(cJSON *out, const cJSON *control, const cJSON *state,
                            const cJSON *rooms, const cJSON *cats, bool secured)
 {
@@ -275,14 +284,20 @@ static bool catalog_entry(cJSON *out, const cJSON *control, const cJSON *state,
     cJSON *item = cJSON_CreateObject();
     if (!item)
         return false;
+    const char *action = control_action_uuid(control);
+    /* A mentett objektumazonosító maradjon stabil. Csak eltérő parancscélnál
+     * kell plusz mező; hibás explicit uuidAction nem eshet vissza a kulcsra. */
+    const char *identity = lx_uuid_valid(control->string) ? control->string : action;
     bool ok = cJSON_AddStringToObject(item, "uuid", state ? state->valuestring : "") &&
-              cJSON_AddStringToObject(item, "control_uuid", lx_uuid_valid(control->string) ? control->string : "") &&
+              cJSON_AddStringToObject(item, "control_uuid", identity) &&
               cJSON_AddStringToObject(item, "name", str(control, "name")) &&
               cJSON_AddStringToObject(item, "type", str(control, "type")) &&
               cJSON_AddBoolToObject(item, "secured", secured) &&
               cJSON_AddStringToObject(item, "state", state && state->string ? state->string : "") &&
               cJSON_AddStringToObject(item, "room", str(cJSON_GetObjectItemCaseSensitive(rooms, str(control, "room")), "name")) &&
               cJSON_AddStringToObject(item, "category", str(cJSON_GetObjectItemCaseSensitive(cats, str(control, "cat")), "name"));
+    if (ok && strcmp(identity, action))
+        ok = cJSON_AddStringToObject(item, "action_uuid", action) != NULL;
     if (ok && cJSON_AddItemToArray(out, item))
         return true;
     cJSON_Delete(item);
@@ -310,7 +325,7 @@ static bool catalog_controls(
         }
         /* Állapot nélküli pillanatnyi gomb is párosítható parancscélként.
          * Üres állapot-UUID-ja nem kerülhet a mérési legördülőkbe. */
-        if ((unsigned)cJSON_GetArraySize(out) == before && lx_uuid_valid(control->string) &&
+        if ((unsigned)cJSON_GetArraySize(out) == before && control_action_uuid(control)[0] &&
             !catalog_entry(out, control, NULL, rooms, cats, secured))
             return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");

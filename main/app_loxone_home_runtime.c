@@ -78,9 +78,13 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
     cJSON_ArrayForEach(item, catalog)
     {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(item, "control_uuid");
+        const cJSON *action_target = cJSON_GetObjectItemCaseSensitive(item, "action_uuid");
+        if (!action_target)
+            action_target = target;
         const char *type = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(item, "type"));
         const cJSON *secured = cJSON_GetObjectItemCaseSensitive(item, "secured");
         if (!cJSON_IsString(target) || strcmp(target->valuestring, card->control_uuid) ||
+            !cJSON_IsString(action_target) || !lx_uuid_valid(action_target->valuestring) ||
             !cJSON_IsBool(secured) ||
             !lx_home_control_supported(type, cJSON_IsTrue(secured), action == LX_HOME_COMMAND_PULSE))
             continue;
@@ -93,7 +97,7 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
         }
         const char *command = action == LX_HOME_COMMAND_PULSE ? "pulse" :
                               action == LX_HOME_COMMAND_ON ? "On" : "Off";
-        snprintf(out, 96, "jdev/sps/io/%s/%s", card->control_uuid, command);
+        snprintf(out, 96, "jdev/sps/io/%s/%s", action_target->valuestring, command);
         return true;
     }
     return false;

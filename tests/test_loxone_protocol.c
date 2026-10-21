@@ -150,6 +150,7 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==0)server_response(catalog_reply);
         }
         else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
+            assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
             home_command_count++;
             server_response(reject_home_command ? "{\"LL\":{\"Code\":403}}" : "{\"LL\":{\"Code\":200}}");
         }
@@ -167,7 +168,8 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
 static void home_control_test(lx_config_t *energy)
 {
     cJSON *original_catalog = s_catalog;
-    s_catalog = cJSON_Parse("[{\"uuid\":\"00000000-0000-0000-0000000000000000\",\"control_uuid\":\"aabbccdd-5566-7788-99aabbccddeeff00\",\"type\":\"Switch\",\"state\":\"active\",\"secured\":false}]");
+    const char *structure = "{\"controls\":{\"aabbccdd-5566-7788-99aabbccddeeff00\":{\"uuidAction\":\"cccccccc-5566-7788-99aabbccddeeff00\",\"type\":\"Switch\",\"isSecured\":false,\"states\":{\"active\":\"00000000-0000-0000-0000000000000000\"}}}}";
+    s_catalog = lx_catalog_parse(structure, strlen(structure));
     assert(s_catalog);
     s_home = calloc(1, sizeof(*s_home)); assert(s_home);
     s_home->card_count = 1;

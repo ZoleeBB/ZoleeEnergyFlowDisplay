@@ -1220,3 +1220,56 @@ működés, bizonyítékok és megismétlendő fizikai próba:
 a végső LVGL-futtatás sikeres. Az új távoli firmware/Windows CI zárása folyamatban.
 A villogás fizikai megszűnése és a valós Miniserver-vezérlés továbbra is
 eszközön ellenőrzendő. Ez nem zárható le pusztán szimulátoros eredménnyel.
+
+## Checkpoint 2026-10-21 / 20 – megszakítás után, külön Loxone-parancscím
+
+A `655f16636a3c102eac5ec5e9f04cba5d89e82caa` utáni helyi módosítások
+megőrizve és átnézve. Új képfájl nincs, az előző feltöltés méretezett
+előnézetei megmaradnak. A vezérlés második hibájának javítása:
+
+- A LoxAPP3 `uuidAction` mezője határozza meg a tényleges parancscímet.
+  A mentett `control_uuid` azonosító stabil marad; a worker a katalógusból
+  oldja fel a címet, a kártyákat nem kell újrapárosítani.
+- Hiányzó `uuidAction` esetén a korábbi UUID objektumkulcs támogatott.
+  Explicit hibás/üres/numerikus/null címnél nincs visszaesés a kulcsra;
+  az állapotok olvashatók maradnak, de vezérlés nem engedélyezett.
+- A webes vezérlésválasztó kihagyja a hibás című objektumokat. A külön
+  állapot- és vezérlési párosítás, védett objektumok kizárása és az egyszeri
+  impulzus küldése megmarad.
+- Célzott natív katalógus–parancs próba és valódi szerkesztő-JS sikeres;
+  a protokollteszt már a titkosított WS-be küldött külön címet is vizsgálja.
+- A teljes helyi `python3 tests/run_tests.py` regresszió, a végső valódi
+  LVGL-futtatás, a webes fejlécgenerátor ellenőrzése és a diff-ellenőrzés sikeres.
+  A tesztfüggőségek a meglévő `test-deps` könyvtárból használhatók
+  `CPATH`/`LIBRARY_PATH` beállítással; a firmware ESP-IDF-je helyben nem elérhető.
+- A 655f166 forráshoz a távoli Actions API még nem adott vissza új futást.
+  Ezért a 18. checkpoint zöld firmware-eredménye nem vonatkozik a javításokra.
+
+Feltöltési akadály: a GitHub `create_tree` műveletét az automatikus
+jóváhagyásellenőrzés elutasította. Indoka szerint a forrás és dokumentáció
+pontos távoli célra feltöltéséhez nem látott megbízható felhasználói engedélyt.
+Ebben a körben sem fa, sem commit, sem ágmódosítás nem került fel;
+nem próbálkozunk más feltöltési útvonallal. A távoli fej továbbra is `655f166`.
+Az új forrás teljes firmware-buildje és pontos mérete ezért nem igazolt.
+
+A teljes natív regresszió és a valódi LVGL-render sikeres. A megmaradó négy
+artifact workflow-hivatkozásai, a két release bemenete és a csomagolók útjai
+áttekintve; az új workflow-k tényleges artifactlistája csak feltöltés után
+ellenőrizhető. A forrás és a folytatási állapot a külön helyi
+`checkpoint/v3-action-target-20261021` ágra kerül; a másik munkafában lévő
+eredeti fejlesztési ág változatlan marad.
+
+Következő lépés: az automatikus elutasítás miatt a felhasználó kifejezett
+megerősítése a `ZoleeBB/ZoleeEnergyFlowDisplay` repó `feature/v3-loxone-home`
+ágára feltöltéshez. Utána e javítás feltöltése, majd a pontos új forrás SHA-hoz
+tartozó Master/Slave firmware, Windows szimulátorok és négy artifact ellenőrzése.
+Fizikai Miniserver/panel próba továbbra is szükséges a 19. checkpoint listája
+szerint. Nincs PR vagy kiadás; a folyamatos feltöltési engedély él.
+
+A feltöltési akadály feloldása: a felhasználó 2026-10-21-én kifejezetten
+megerősítette: „igen engedélyezem a feltöltést minden alkalommal. HA megvagy
+vele folytasd a fejlesztési tervet”. Ez a `ZoleeBB/ZoleeEnergyFlowDisplay`
+repó `feature/v3-loxone-home` ágára az előző válaszban megnevezett feltöltésre
+és a további fejlesztési feltöltésekre is érvényes. A végső PR/kiadás korábbi
+feltételei ettől változatlanok. Következik a kész javítás feltöltése, CI-zárás,
+majd a v3 szoftveres ellenőrzőlista és külön fizikai átadási lista lezárása.

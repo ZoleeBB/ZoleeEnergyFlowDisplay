@@ -20,6 +20,11 @@ a fejlesztési ág feltöltése továbbra is engedélyezett.
   időpontjához képest jövőbelinek számított, ezért küldés nélkül kieshetett.
   A kapcsoló sikerét továbbra is bináris állapot-visszajelzés igazolja;
   az impulzust nem ismételjük automatikusan. A jogosultsági és célobjektum-kapuk maradnak.
+- A vezérlési objektum stabil azonosítója külön marad a `uuidAction`
+  parancscímtől. Az eltérő cím a friss katalógusból oldódik fel, így a már
+  mentett kártyákat nem kell újrapárosítani. Ha nincs `uuidAction`, a korábbi
+  érvényes objektumkulcs használható; explicit hibás címnél nincs visszaesés.
+  A szerkesztő az ilyen objektumot csak állapotforrásként kínálja fel.
 - Otthon/fogyasztók bezárása után a régi objektumok felszabadítását látható
   betöltőkép követi, még az SD-olvasás előtt. Diagnosztika után a már RAM-ban
   lévő téma is visszaépülhet a betöltőkép után, nem ragad rajta.
@@ -53,6 +58,10 @@ az elutasítást és az ismétlés hiányát. A valódi HTTP/JS-tesztek ellenőr
 a csomaghiányt, telepített ikonokat, hitelesítést, útvonalakat, törlési várakozást,
 hibából visszaállást és a szerkesztés megőrzését. A C és a webes csomagvalidátor
 az új előnézetes és a régi csomagot is elfogadja, a hibás változatokat elutasítja.
+A katalógus–parancs teszt az eltérő/azonos/hiányzó `uuidAction` címet,
+érvénytelen karakterláncot, üres/numerikus/null címet, állapot nélküli gombot
+és nem UUID objektumkulcsot is vizsgál. A titkosított protokollteszt a
+ténylegesen küldött BE/KI/impulzus parancs címét ellenőrzi.
 
 Valódi LVGL-tesztek: beágyazott házkép érintése, két sikertelen betöltési
 próba után helyreállás ugyanazzal a betöltőobjektummal, tartós hiba utáni
