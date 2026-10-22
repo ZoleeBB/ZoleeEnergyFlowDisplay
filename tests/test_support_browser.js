@@ -26,7 +26,7 @@ page = literals(diagnostics.split('return app_web_send_page(req,', 1)[1].rsplit(
 pages.append(['diagnostics', page.replace('<!--APP_SUPPORT-->', render_card(config, 'hu'))])
 root = source.split('"<!doctype html><html lang=', 1)[1].split('HTTPD_RESP_USE_STRLEN);', 1)[0]
 page = literals('"<!doctype html><html lang=' + root)
-pages.append(['root', page + '<h1>Zolee Energy Flow Display</h1><div class="card">Eszközinformáció</div>' + render_card(config, 'hu') + '</body></html>'])
+pages.append(['root', page + render_card(config, 'hu') + '<h1>Zolee Energy Flow Display</h1><div class="card">Eszközinformáció</div>' + '</body></html>'])
 print(json.dumps(pages))
 `], {encoding: 'utf8'});
 assert.equal(fixtures.status, 0, fixtures.stderr);
@@ -48,7 +48,10 @@ assert.equal(fixtures.status, 0, fixtures.stderr);
                 const card = page.locator('#development-support');
                 assert.equal(await card.count(), 1, name);
                 assert.equal(await card.isVisible(), true, name);
-                await card.scrollIntoViewIfNeeded();
+                const initialBounds = await card.boundingBox();
+                const heading = await page.locator('h1').first().boundingBox();
+                assert(initialBounds.y >= 0 && initialBounds.y + initialBounds.height <= 900, name + ': support is not in the initial viewport');
+                assert(heading.y >= initialBounds.y + initialBounds.height, name + ': support must precede page content');
                 assert.equal(await card.locator('a').count(), 2, name);
                 const bounds = await card.boundingBox();
                 assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, name + ': card overflows viewport');

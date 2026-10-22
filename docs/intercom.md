@@ -76,3 +76,43 @@ kaputelefon JPEG-formátuma és a teljes rendszer együttes terhelése hardveres
 
 Az ESP-IDF firmware-build, a bináris-/OTA-méret és a valós kaputelefon együttes
 hardveres ellenőrzése szükséges a kiadás előtt.
+
+## Kétirányú hang – vizsgálat, megvalósítás nélkül
+
+A vizsgálat dátuma: 2026-10-22. Az MJPEG-videócím csak képet ad; a beszédhez
+külön, kétirányú médiakapcsolat kell. A jelenlegi firmware nem nyit hangkapcsolatot.
+
+Két lehetséges irányt találtunk:
+
+- **WebRTC:** a Loxone a Gen2 Intercom és az alkalmazás közti kommunikációhoz
+  WebRTC-t dokumentál. Az Espressif ESP-WebRTC keretrendszer támogatja az
+  ESP32-P4-et, a kétirányú médiafolyamot és egyedi jelzésprotokoll illesztését.
+  Ettől a Loxone-kompatibilis hívásfelépítés még külön fejlesztést és próbát igényel.
+- **Közvetlen SIP/RTP:** a nem hivatalos `markuslaube/loxone-intercom2` projekt
+  `sip-directbridge` modulja kifejezetten Gen2 kétirányú hangot valósít meg.
+  Az átnézett `c4269fa49d5eee2bb7f5d80366f27269b7088d3b` változat kódja
+  TCP 5060-on hívja a `sip:smarthome@<intercom-ip>` címet, G.711 PCMU/PCMA
+  kodeket és `sendrecv` SDP-t használ. A szerző szerint a kaputelefon ezen az
+  útvonalon nem kér hitelesítést; ez nem általunk ellenőrzött, gyártó által
+  garantált API, és firmware-verziótól is függhet. A projekt köztes gépen fut,
+  de a közvetlen SIP-végpont működése esetén a kijelző saját SIP/RTP kliense
+  elvileg kiválthatja ezt a köztes hanghidat.
+
+A Waveshare P4 LCD-X gyártói példái tartalmaznak I2S hangbemenetet és
+hangkimenetet. Az adott kijelző hardverváltozatán ellenőrizni kell a mikrofon,
+codec és erősítő bekötését, a visszhangkioltást, valamint az egyidejű videó,
+Loxone-kapcsolat és duplex hang erőforrásigényét. A mentett Loxone-jelszóval
+működő MJPEG önmagában nem igazolja a hangkapcsolat hitelesítését.
+
+Következtetés: műszakilag ígéretes, konkrét megoldási út létezik, de a felhasználó
+100484 készülékén még nincs igazolt kétirányú próba. Következő vizsgálati lépés
+helyi PC-ről egy rövid, kézzel indított SIP-hívás lenne; csak sikeres próba után
+érdemes a kijelző hangkezelését fejleszteni. A hanghívás felépítésekor külön
+ellenőrizendő, hogy a csengetésállapot és a Loxone alkalmazás hívása hogyan változik.
+
+Források:
+
+- [Loxone Intercom – technikai adatok](https://www.loxone.com/enus/products/intercom/technical/)
+- [Espressif ESP-WebRTC](https://www.espressif.com/en/solutions/multimedia-solutions/esp-webrtc)
+- [Waveshare LCD-X – I2S példa](https://docs.waveshare.com/ESP32-P4-WIFI6-Touch-LCD-X/ESP-IDF)
+- [Gen2 SIP-híd forrása és dokumentációja](https://github.com/markuslaube/loxone-intercom2/tree/c4269fa49d5eee2bb7f5d80366f27269b7088d3b/sip-directbridge)

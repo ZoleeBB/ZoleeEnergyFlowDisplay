@@ -71,6 +71,15 @@ for bad in ({}, {**empty, 'typo': ''}, [], None):
     else:
         raise AssertionError('Invalid support configuration accepted')
 
+# A generált oldalak forrásában is a főcím elé kerüljön a támogatás.
+for name in ('settings', 'loxone', 'template-manager'):
+    page = (ROOT / 'assets/web' / f'{name}.html').read_text()
+    assert page.count('<!--APP_SUPPORT-->') == 1
+    assert page.index('<!--APP_SUPPORT-->') < page.index('<h1>')
+source = (ROOT / 'main/app_web.c').read_text()
+root_handler = source.split('static esp_err_t root_handler(', 1)[1].split('static esp_err_t update_get(', 1)[0]
+assert root_handler.index('app_web_send_support(req, s_hu)') < root_handler.index('sendf(req, "<h1>')
+
 subprocess.run([sys.executable, 'tools/prepare_web.py', '--check'], cwd=ROOT, check=True)
 for configured, config in ((0, empty), (1, enabled)):
     with tempfile.TemporaryDirectory(prefix='zolee-support-') as temporary:

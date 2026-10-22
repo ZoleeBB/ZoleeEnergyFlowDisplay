@@ -45,7 +45,7 @@ esp_err_t httpd_resp_sendstr(httpd_req_t *req, const char *data)
 
 int main(void)
 {
-    const char page[] = "<html><body><form>Settings</form><!--APP_SUPPORT--></body></html>";
+    const char page[] = "<html><body><!--APP_SUPPORT--><form>Settings</form></body></html>";
     const char *cards[] = {app_support_card_en, app_support_card_hu};
     for (int hu = 0; hu < 2; hu++) {
         reset_response();
@@ -55,6 +55,7 @@ int main(void)
 #if SUPPORT_ENABLED
         assert(endings == 1 && calls == 4 && direct_sends == 0);
         assert(strstr(response, cards[hu]));
+        assert(strstr(response, cards[hu]) < strstr(response, "<form>"));
         assert(!strstr(response, "<!--APP_SUPPORT-->"));
         assert(strstr(response, hu ? "A fejlesztés támogatása" : "Support development"));
         assert(strstr(response, "https://revolut.me/supporttest"));

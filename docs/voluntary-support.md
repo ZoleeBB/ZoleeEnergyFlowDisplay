@@ -9,7 +9,7 @@ jogosultság. Nincs próbaidő, aktiválás vagy támogatói állapot a kijelző
 A helyi webfelület főoldalán (`/`), a beállításoknál (`/settings`), a
 sablonkezelőben (`/templates`), a Loxone-beállításoknál (`/loxone`), a
 firmware-frissítésnél (`/update`) és a diagnosztikán (`/diagnostics`) ugyanaz
-a visszafogott támogatási kártya jelenik meg a lap alján. A meglévő hozzáférési
+a visszafogott támogatási kártya jelenik meg a lap tetején. A meglévő hozzáférési
 és adatfogadásimód-korlátok változatlanok. A magyar/angol oldalakon a megfelelő
 nyelvű szöveg jelenik meg; a jelenleg magyar szerkesztőoldalak magyar kártyát kapnak.
 
