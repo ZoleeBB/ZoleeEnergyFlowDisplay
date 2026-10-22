@@ -1616,12 +1616,16 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
     {
         stxt = tr("Szigetüzem", "Island mode");
     }
+    else if (s->status == 5)
+    {
+        stxt = tr("Hálózat újra elérhető", "Grid available again");
+    }
     else
     {
         stxt = tr("Hiba", "Error");
     }
 
-    uint32_t status_color = s->status == 1 ? GREEN
+    uint32_t status_color = (s->status == 1 || s->status == 5) ? GREEN
                           : s->status == 2 ? ORANGE
                           : s->status == 3 ? BLUE
                                            : RED;
@@ -1630,6 +1634,7 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
         s->status == 1   ? tr("Minden rendben", "Everything is OK")
         : s->status == 2 ? tr("Feltöltés és szinten tartás", "Charge and hold at 100%")
         : s->status == 3 ? tr("Hálózatról leválasztva", "Disconnected from grid")
+        : s->status == 5 ? tr("A hálózati feszültség visszatért", "Grid voltage has returned")
                          : tr("Rendszerhiba", "System error");
 
     fit_text(s_status, stxt, 205, APP_FONT_16);
@@ -1642,6 +1647,7 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
     const lv_image_dsc_t *status_asset = s->status == 1 ? &app_img_status_normal
                                        : s->status == 2 ? &app_img_status_prepare
                                        : s->status == 3 ? &app_img_status_island
+                                       : s->status == 5 ? &app_img_status_grid_restored
                                                         : &app_img_status_error;
 
     lv_image_set_src(s_status_icon, status_asset);

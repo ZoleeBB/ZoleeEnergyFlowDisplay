@@ -218,7 +218,7 @@ A protokoll verziója jelenleg **1**; ismeretlen verziót a slave ne értelmezze
 |---|---|---|
 | 0 | u8 | Protokollverzió: 1 |
 | 1 | u8 | Flag: bit0 van minta, bit1 lejárt/nincs adat, bit2 éjszakai mód |
-| 2 | u8 | Status: 1 normál, 2 felkészülés, 3 szigetüzem, 4 hiba |
+| 2 | u8 | Status: 1 normál, 2 felkészülés, 3 szigetüzem, 4 hiba, 5 hálózat újra elérhető |
 | 3 | u8 | Aktuális nappali/éjszakai fényerő, % |
 | 4 | i16 | PowerGrid, W; pozitív vételezés, negatív visszatáplálás |
 | 6 | i16 | PowerBat, W; pozitív kisütés, negatív töltés |

@@ -27,7 +27,7 @@ Csak az egyiket kell a választott `DataReceptMode` szerint a Program blokkba m�
 | I7 | WindSpeed | Szélsebesség km/h |
 | I8 | HasSunRadiation | 0 vagy 1 |
 | I9 | HasPrecipitation | 0 vagy 1 |
-| I10 | Status | 1..4 |
+| I10 | Status | 1..5 |
 | I11 | NightMode | 0 vagy 1 |
 | I12 | BatteryTemperature | Akkumulátor hőmérséklete °C |
 | I13 | WeatherPresent | Időjárási jelenlétmaszk, 0–15 (nem külön JSON mező) |
@@ -41,6 +41,7 @@ A JSON a Program blokk **Txt1** kimenetére kerül 5 másodpercenként. MQTT mó
 - 2: Felkészülés áramszünetre
 - 3: Szigetüzem
 - 4: Hiba
+- 5: Hálózat újra elérhető
 
 ## MQTT topic
 

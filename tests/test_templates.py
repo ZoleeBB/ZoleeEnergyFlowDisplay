@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
                     e.get('background')==band['outline_color']]
         assert len(separators)==7
         assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
-        assert len(elements)==94
+        assert len(elements)==95
         power=next(e for e in elements if e.get('type')=='value' and e.get('source')=='battery')
         assert power['font']==12 and power['x']==1093 and power['w']==51
         assert power['positive_color']!=power['negative_color']
@@ -230,6 +230,20 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)
         element[field]=value;bad['light']['elements']=[element]
         assert lib.app_templates_install(os.fsencode(archive('bad-schema',bad)),error)!=0,(field,error.value)
+    # A normál üzemben rejtett státusz csak logikai kapcsolót és státuszforrást fogad el.
+    alert = copy.deepcopy(doc)
+    alert['id'] = 'status-alert'
+    alert['light']['elements'] = [dict(type='value', source='status', x=31, y=100,
+        w=400, h=36, font=28, hide_when_normal=True, status_bubble=True, text_shadow=True,
+        shadow_color='#FFFFFF', shadow_offset=1, shadow_opacity=200)]
+    assert lib.app_templates_install(os.fsencode(archive('status-alert', alert)), error) == 0, error.value
+    assert lib.app_templates_delete(b'status-alert', error) == 0
+    for changes in ({'hide_when_normal': 'true'}, {'source': 'pv'},
+                    {'type': 'label', 'text': 'Status'}, {'status_bubble': 'true'},
+                    {'x': 0}, {'y': 0}, {'x': 880}, {'y': 765}):
+        invalid = copy.deepcopy(alert)
+        invalid['light']['elements'][0].update(changes)
+        assert lib.app_templates_install(os.fsencode(archive('bad-status-alert', invalid)), error) != 0
     # Curve controls are validated before the runtime samples them.
     # Külső sablon is használhat idővonalat, de olvashatatlanul keskeny/alacsony nem lehet.
     timeline = copy.deepcopy(doc)

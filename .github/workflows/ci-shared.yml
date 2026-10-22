@@ -64,7 +64,9 @@ jobs:
   web-editor:
     name: Web | Chromium desktop és mobil
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # A rendszerfüggőségek lassú Ubuntu-tükörről is letölthetők legyenek;
+    # a korábbi 10 perc már a telepítés végén elfogyott.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,9 +75,15 @@ jobs:
         with:
           node-version: '24'
       - name: Install pinned browser test runtime
-        run: |
-          npm install --prefix /tmp/zolee-web-browser playwright@1.62.1
-          node /tmp/zolee-web-browser/node_modules/playwright/cli.js install --with-deps chromium
+        timeout-minutes: 2
+        run: npm install --prefix /tmp/zolee-web-browser playwright@1.62.1
+      - name: Install Chromium system dependencies
+        timeout-minutes: 15
+        run: node /tmp/zolee-web-browser/node_modules/playwright/cli.js install-deps chromium
+      # Mindkét teszt headless módban fut; teljes Chrome nem szükséges.
+      - name: Install Chromium headless shell
+        timeout-minutes: 5
+        run: node /tmp/zolee-web-browser/node_modules/playwright/cli.js install --only-shell chromium
       - name: Exercise actual web editor in desktop and mobile Chromium
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules

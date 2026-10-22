@@ -10,7 +10,7 @@
 LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
-    const cJSON *spec;lv_obj_t *obj,*detail,*dots[4],*axis[3];
+    const cJSON *spec;lv_obj_t *obj,*detail,*bubble,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
     lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase,charge_phase[2];int gauge_target;bool gauge_initialized;bool legacy_battery_corner;unsigned battery_branches;
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
@@ -300,7 +300,15 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     }
     if(!strcmp(source,"clock")){strftime(out,128,"%H:%M",&tmv);return;}
     if(!strcmp(source,"date")){strftime(out,128,hu()?"%Y.%m.%d.":"%Y-%m-%d",&tmv);return;}
-    if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
+    if (!strcmp(source, "status")) {
+        const char *text = s->status == 1 ? tr("Normál működés", "Normal operation")
+                         : s->status == 2 ? tr("Felkészülés áramszünetre", "Preparing for outage")
+                         : s->status == 3 ? tr("Szigetüzem", "Island mode")
+                         : s->status == 5 ? tr("Hálózat újra elérhető", "Grid available again")
+                                          : tr("Rendszerhiba", "System error");
+        snprintf(out, 128, "%s", text);
+        return;
+    }
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
     double v=template_value(source,s,st);
@@ -518,6 +526,21 @@ static void template_build(bool night){
            !cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow")))
             text=night?0xE66B6B:0xFF1744;
         if(!strcmp(type,"label")||!strcmp(type,"value")){
+            if (cJSON_IsTrue(cJSON_GetObjectItem(e, "status_bubble")))
+            {
+                /* A háttér az árnyék alá kerül; mindhárom réteg együtt rejthető. */
+                node->bubble = lv_obj_create(s_dash);
+                lv_obj_remove_style_all(node->bubble);
+                lv_obj_set_pos(node->bubble, x - 12, y - 8);
+                lv_obj_set_size(node->bubble, w + 24, h + 16);
+                lv_obj_set_style_radius(node->bubble, 16, 0);
+                lv_obj_set_style_bg_color(node->bubble,
+                    c(tc(e, "background", night ? 0x13283B : 0xFFFFFF)), 0);
+                lv_obj_set_style_bg_opa(node->bubble, tn(e, "opacity", 245), 0);
+                lv_obj_set_style_border_width(node->bubble, 1, 0);
+                lv_obj_remove_flag(node->bubble, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+                lv_obj_add_flag(node->bubble, LV_OBJ_FLAG_GESTURE_BUBBLE);
+            }
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"text_shadow"))){
                 int offset=tn(e,"shadow_offset",1);
                 node->detail=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",
@@ -662,6 +685,17 @@ static void template_build(bool night){
         const char *type=ts(node->spec,"type");
         if((!strcmp(type,"image")||!strcmp(type,"pulse"))&&cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"foreground")))lv_obj_move_foreground(node->obj);
     }
+    /* A mozgó napkorong és az energiautak nem fedhetik el az állapotjelzést. */
+    for (unsigned j = 0; j < template_node_count; j++)
+    {
+        template_node_t *node = &template_nodes[j];
+        if (!node->bubble)
+            continue;
+        lv_obj_move_foreground(node->bubble);
+        if (node->detail)
+            lv_obj_move_foreground(node->detail);
+        lv_obj_move_foreground(node->obj);
+    }
     unsigned n=template_view.catalogue_count;
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
@@ -766,8 +800,12 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
             (!strcmp(source,"weather_label")) ? weather_available(s) :
             (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
+        /* A figyelmeztető státusz és az árnyéka normál üzemben együtt tűnjön el. */
+        if (!strcmp(source, "status") && cJSON_IsTrue(cJSON_GetObjectItem(e, "hide_when_normal")))
+            visible = s->status != 1;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
+        if(node->bubble)weather_visibility(node->bubble,visible);
         if(!visible)continue;
         double value=template_value(source,s,stats);node->power=value;
         if(!strcmp(type,"solar_disc")){
@@ -929,6 +967,23 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                     style_color_if_changed(node->dots[d],LV_STYLE_SHADOW_COLOR,c(color),0);
                 }
             }
+        }
+        /* A visszatérő hálózat pozitív jelzés; a külön árnyékréteg saját színe marad. */
+        if (!strcmp(type, "value") && !strcmp(source, "status") &&
+            !cJSON_IsTrue(cJSON_GetObjectItem(e, "shadow")))
+            text_color_if_changed(node->obj, c(s->status == 5 ? tc(e, "positive_color", GREEN) :
+                                  tc(e, "color", s->night_mode ? TEXT_DARK : TEXT_LIGHT)), 0);
+        if (node->bubble)
+        {
+            border_color_if_changed(node->bubble, c(s->status == 5 ?
+                tc(e, "positive_color", GREEN) : tc(e, "color", RED)), 0);
+            /* A buborék a szöveghez igazodik, nem takar ki feleslegesen a képből. */
+            lv_point_t size;
+            lv_text_get_size(&size, lv_label_get_text(node->obj),
+                lv_obj_get_style_text_font(node->obj, 0), 0, 0, 1280, LV_TEXT_FLAG_NONE);
+            int width = (size.x < tn(e, "w", 1) ? size.x : tn(e, "w", 1)) + 24;
+            if (lv_obj_get_width(node->bubble) != width)
+                lv_obj_set_width(node->bubble, width);
         }
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;

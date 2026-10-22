@@ -14,6 +14,7 @@ set(app_png_files
     "assets/png/metric_leaf.png"
     "assets/png/mqtt_off.png"
     "assets/png/status_error.png"
+    "assets/png/status_grid_restored.png"
     "assets/png/status_island.png"
     "assets/png/status_normal.png"
     "assets/png/status_prepare.png"

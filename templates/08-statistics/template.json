@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "08-statistics",
   "name": "Energiastatisztika",
-  "version": 7,
+  "version": 8,
   "light": {
     "home_hotspot": {"x": 278, "y": 123, "w": 230, "h": 40},
     "background": "#F0F4FA",
@@ -1090,6 +1090,21 @@
         "text_en": "Week/month: production / consumption / import · today partial · source shares estimated",
         "font": 12,
         "color": "#657A75"
+      },
+      {
+        "type": "value",
+        "x": 32,
+        "y": 2,
+        "w": 300,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "gradient": "#D9F0E6",
@@ -2187,6 +2202,21 @@
         "text_en": "Week/month: production / consumption / import · today partial · source shares estimated",
         "font": 12,
         "color": "#A2B5BE"
+      },
+      {
+        "type": "value",
+        "x": 32,
+        "y": 2,
+        "w": 300,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "gradient": "#22394A",

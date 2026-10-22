@@ -33,6 +33,7 @@ extern const lv_image_dsc_t app_img_status_normal;
 extern const lv_image_dsc_t app_img_status_prepare;
 extern const lv_image_dsc_t app_img_status_island;
 extern const lv_image_dsc_t app_img_status_error;
+extern const lv_image_dsc_t app_img_status_grid_restored;
 
 extern const lv_image_dsc_t app_img_wifi_off;
 extern const lv_image_dsc_t app_img_mqtt_off;

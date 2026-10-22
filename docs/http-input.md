@@ -41,7 +41,7 @@ A bemenetek száma összesen **14**, de ez `I1`–`I13` és `T1`, nem `I1`–`I1
 | I7 | WindSpeed | km/h |
 | I8 | HasSunRadiation | 0/1 |
 | I9 | HasPrecipitation | 0/1 |
-| I10 | Status | 1: normál; 2: felkészülés; 3: szigetüzem; 4: hiba |
+| I10 | Status | 1: normál; 2: felkészülés; 3: szigetüzem; 4: hiba; 5: hálózat újra elérhető |
 | I11 | NightMode | 0/1 |
 | I12 | BatteryTemperature | °C |
 | I13 | WeatherPresent | 0–15, időjárási jelenlétmaszk |

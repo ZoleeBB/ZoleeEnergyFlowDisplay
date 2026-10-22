@@ -246,6 +246,19 @@ static void test_payload(void){
         bool optional=j>=5 && j<=8;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
         cJSON_free(text);cJSON_Delete(d);
     }
+    /* Mind az öt egész státusz fogadható; a határon kívüli/tört érték atomi hibát ad. */
+    const double states[] = {1, 2, 3, 4, 5, 0, 6, 4.5, 5.5};
+    for (unsigned i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
+        cJSON *state = cJSON_Parse(payload);
+        cJSON_SetNumberValue(cJSON_GetObjectItem(state, "Status"), states[i]);
+        char *text = cJSON_PrintUnformatted(state);
+        result.status = 99;
+        bool valid = i < 5;
+        assert((app_payload_parse(text, strlen(text), &result, error, sizeof(error)) == ESP_OK) == valid);
+        assert(result.status == (valid ? (int)states[i] : 99));
+        cJSON_free(text);
+        cJSON_Delete(state);
+    }
     const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","BatteryTemperature","WindSpeed"};
     double bad[]={101,1.5,2,-.051,-36,81,-1};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){

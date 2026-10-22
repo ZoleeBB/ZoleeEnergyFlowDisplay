@@ -27,7 +27,7 @@ A firmware nem használ payload timestampet és nem próbálja a retained üzene
 | WindSpeed | 0 .. 150 km/h | szélsebesség |
 | HasSunRadiation | 0 vagy 1 | napsugárzás állapot |
 | HasPrecipitation | 0 vagy 1 | csapadék állapot |
-| Status | 1 .. 4 | rendszerállapot |
+| Status | 1 .. 5 | rendszerállapot |
 | NightMode | 0 vagy 1 | nappali / éjszakai mód |
 | BatteryTemperature | -20 .. +80 °C | akkumulátor hőmérséklet |
 
@@ -43,6 +43,22 @@ A négy időjárási mező null kivételétől eltekintve, ha bármely kötelez�
 - 2: Felkészülés áramszünetre
 - 3: Szigetüzem
 - 4: Hiba
+- 5: Hálózat újra elérhető
+
+Az 5-ös státusz a hálózati feszültség visszatérését jelzi; nem rendszerhiba és
+nem azonos az 1-es normál üzemmel. Minden téma megjeleníti, a Rendszer téma
+új, villanyoszlopot, villámot és zöld pipát ábrázoló ikonnal. A Nap pálya
+28 px-es zöld feliratot és 1 px-es fehér árnyékot használ, nappal és éjjel
+kontrasztos, lekerekített buborékban (Nap pálya v21); az 1-es állapotban
+a felirat, árnyék és buborék együtt rejtve marad.
+A Napi mérleg, Energiafőkönyv és Energiastatisztika friss témacsomagja
+szintén mutatja a nem normál állapotokat. Más témák meglévő állapotmezője
+firmware-frissítés után az új szöveget mutatja.
+
+HTTP, MQTT és közvetlen Loxone módban ugyanaz az 1–5 egész tartomány érvényes.
+A Master–Slave BLE v1 csomagmérete változatlan; az 5-ös érték küldése előtt
+mind a Master, mind a Slave firmware-ét frissíteni kell, mert a korábbi
+fogadók csak az 1–4 tartományt fogadják el.
 
 Szigetüzemben a fő energiaábra a hálózatot leválasztottnak mutatja, de a statisztika továbbra is a tényleges PowerGrid mérési értéket használja.
 

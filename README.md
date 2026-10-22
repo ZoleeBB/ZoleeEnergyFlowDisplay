@@ -27,6 +27,8 @@ a master Wi-Fi-jét és automatikusfrissítés-kapcsolóját. A kétoszlopos dia
 a BT-szerepet, címeket, kapcsolatot, jelerősséget, masterként a kapcsolódó slave-ek
 számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablaka itt nyitható meg.
 
+Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
+
 ## v3.0.0 újdonságai
 
 A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb változásai és részletes leírása:

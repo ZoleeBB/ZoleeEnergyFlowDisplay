@@ -104,6 +104,18 @@ a használt mértékegységeket tartalmazó betűkészletek. `align`: `left` vag
 A szöveges címkék HU/EN karakterkészletet használnak. A `text_en` hiányában a
 `text` jelenik meg angol nyelvi beállításnál is.
 
+A `value` típusú, `source: "status"` elem `hide_when_normal: true` beállítással
+normál üzemben (`Status = 1`) a szövegárnyékával együtt rejtve marad.
+`status_bubble: true` esetén lekerekített háttérbuborék is megjelenik, amely
+normál üzemben szintén eltűnik. A buborék a szöveghez képest oldalanként
+12 px, felül/alul 8 px helyet használ, ezért ennyi helyet kell hagyni a
+kijelző szélétől. A `background` és `opacity` a hátterét szabályozza;
+az 5-ös státusz betű- és keretszíne a `positive_color` (alapérték: zöld),
+a többi státuszé a `color`. A mező csak `value` / `status` elemhez használható.
+Eltérő státusznál az aktuális, nyelvi beállítás szerinti állapotot mutatja.
+A `text_shadow`, `shadow_color`, `shadow_offset` (0–4 px) és
+`shadow_opacity` (0–255) mezőkkel a szöveg kisméretű árnyéka állítható.
+
 Adatkapcsolatok:
 
 - `pv`, `home`, `grid`, `battery`: pillanatnyi kW, a kijelzés abszolút értékű,

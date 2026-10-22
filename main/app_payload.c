@@ -261,9 +261,9 @@ esp_err_t app_payload_parse(
     }
     sample.has_precipitation = sample.precipitation_valid && integer_value == 1;
 
-    if (!integer_in_range(fields[F_STATUS], 1, 4, &sample.status))
+    if (!integer_in_range(fields[F_STATUS], 1, 5, &sample.status))
     {
-        fail(error, error_len, "Csak 1..4 megengedett", s_names[F_STATUS]);
+        fail(error, error_len, "Csak 1..5 megengedett", s_names[F_STATUS]);
         goto invalid;
     }
 

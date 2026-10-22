@@ -69,7 +69,7 @@ int main(void)
     assert(state.result.kind == APP_ASSISTANT_SOLAR && !strcmp(state.result.id, "consumer-1"));
 
     /* Export, 100% SOC és PV önmagában kevés: akkuból exportálni nem PV-többlet. */
-    for (unsigned scenario = 0; scenario < 14; ++scenario)
+    for (unsigned scenario = 0; scenario < 15; ++scenario)
     {
         reset();
         switch (scenario)
@@ -88,6 +88,7 @@ int main(void)
             case 11: consumers.connected = false; break;
             case 12: consumers.count = LX_HOME_MAX_CONSUMERS + 1; break;
             case 13: sample.power_grid_kw = NAN; break;
+            case 14: sample.status = 5; break;
         }
         step(300);
         assert(state.result.kind == APP_ASSISTANT_NONE);

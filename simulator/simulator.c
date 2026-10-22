@@ -227,8 +227,8 @@ static int self_test(void)
             if(!lv_color_eq(lv_obj_get_style_text_color(s_wind_speed,0),c(tone(expected,night!=0))))return 18;
             if((lv_obj_get_style_text_font(s_wind_speed,0)==APP_FONT_WIND_BOLD_16)!=(winds[i]>35))return 19;
         }
-        const uint32_t accents[]={GREEN,ORANGE,BLUE,RED};
-        for(int status=1;status<=4;status++){
+        const uint32_t accents[]={GREEN,ORANGE,BLUE,RED,GREEN};
+        for(int status=1;status<=5;status++){
             app_energy_sample_t sample;app_state_get_sample(&sample);sample.status=status;
             app_state_set_sample(&sample);render_step(200);
             if(lv_obj_get_style_border_width(s_status_card,0)!=0)return 20;

@@ -205,5 +205,12 @@
     "name": "metric_grid_export",
     "source": "metric_grid_export.png",
     "origin": "imagegen: blue pylon left, house right; orange arrow toward house for import, green arrow toward pylon for export; transparent glossy dashboard icon"
+  },
+  {
+    "name": "status_grid_restored",
+    "source": "status_grid_restored.png",
+    "origin": "imagegen-2026-10-22",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent standalone status PNG icon for a home energy monitor, matching the reference icon's softly rounded clean 2.5D forms, subtle polished dimensional shading and restrained glossy highlights. Primary request: electricity grid voltage has returned, grid power available again. Subject: a recognizable steel blue electricity transmission pylon, a vivid green check mark at the lower right, and a small golden yellow lightning bolt centrally in front of the pylon to unmistakably show live electrical voltage. Single coherent simple pictogram, front view, legible at 42 pixels. Centered square canvas, even transparent margins, artwork fills about 78% of canvas. Actual transparent alpha background. No text, letters, numbers, frame, badge, circle, enclosing ring, panel, scenery, shadow beneath the icon, watermark or checkerboard. Reference image is stylistic guidance only; create a new pylon subject, do not include the house, battery or disconnected plug from the reference.",
+    "colors": 256
   }
 ]

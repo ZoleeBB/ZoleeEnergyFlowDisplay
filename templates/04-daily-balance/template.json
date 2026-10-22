@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 7,
+  "version": 8,
   "light": {
     "home_hotspot": {"x": 32, "y": 370, "w": 95, "h": 85},
     "background": "#E5F1ED",
@@ -354,6 +354,21 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
+      },
+      {
+        "type": "value",
+        "x": 338,
+        "y": 90,
+        "w": 460,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "palette": {
@@ -714,6 +729,21 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
+      },
+      {
+        "type": "value",
+        "x": 338,
+        "y": 90,
+        "w": 460,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "palette": {

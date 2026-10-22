@@ -51,6 +51,16 @@ static void test_http(void){
     request(HTTP_POST,"{}",2,"application/json",400);
     app_state_get_runtime(&rt);assert(!rt.has_valid_sample);
     request(HTTP_POST,payload,strlen(payload),"Application/JSON; charset=utf-8",200);
+    cJSON *restored = cJSON_Parse(payload);
+    cJSON_SetNumberValue(cJSON_GetObjectItem(restored, "Status"), 5);
+    char *restored_text = cJSON_PrintUnformatted(restored);
+    request(HTTP_POST, restored_text, strlen(restored_text), "application/json", 200);
+    app_energy_sample_t restored_sample;
+    app_state_get_sample(&restored_sample);
+    assert(restored_sample.status == 5);
+    cJSON_free(restored_text);
+    cJSON_Delete(restored);
+    request(HTTP_POST,payload,strlen(payload),"application/json",200);
     app_energy_sample_t s;assert(app_state_get_sample(&s));near(s.power_bat_kw,-2);
     int64_t accepted=s.received_monotonic_us;
     char error[160];assert(app_ingest_process(APP_DATA_MQTT,payload,strlen(payload),error,sizeof(error))==ESP_ERR_INVALID_STATE);

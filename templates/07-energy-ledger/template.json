@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 11,
+  "version": 12,
   "light": {
     "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
     "background": "#F6F2EA",
@@ -690,6 +690,21 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 40
+      },
+      {
+        "type": "value",
+        "x": 338,
+        "y": 90,
+        "w": 460,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#FFFFFF",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "palette": {
@@ -1386,6 +1401,21 @@
         "text_shadow": true,
         "shadow_offset": 1,
         "shadow_opacity": 100
+      },
+      {
+        "type": "value",
+        "x": 338,
+        "y": 90,
+        "w": 460,
+        "h": 22,
+        "font": 16,
+        "source": "status",
+        "hide_when_normal": true,
+        "color": "#E53935",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_offset": 1,
+        "shadow_opacity": 180
       }
     ],
     "palette": {

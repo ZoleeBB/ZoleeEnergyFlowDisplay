@@ -6,6 +6,7 @@ is preserved in assets/source. The approved 4x2 icon sheet is separated by cell;
 transparent padding is normalized and the artwork is uniformly downsampled.
 """
 import json
+import argparse
 import re
 import shutil
 import subprocess
@@ -22,6 +23,12 @@ def main():
         raise SystemExit('ImageMagick is required')
     OUTPUT.mkdir(parents=True, exist_ok=True)
     entries = json.loads((SOURCE / 'manifest.json').read_text())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--only', nargs='+', choices=[entry['name'] for entry in entries])
+    selected = parser.parse_args().only
+    if selected:
+        # Új ikon importálásakor a korábban jóváhagyott képek bájtjai változatlanok maradnak.
+        entries = [entry for entry in entries if entry['name'] in selected]
     with tempfile.TemporaryDirectory() as directory:
         cell = Path(directory) / 'cell.png'
         for entry in entries:
@@ -37,7 +44,14 @@ def main():
             # Retain antialiased edge pixels around the measured solid content.
             left,top=max(0,x-8),max(0,y-8)
             geometry=f'{w+x-left+8}x{h+y-top+8}+{left}+{top}'
-            subprocess.run([convert,str(cell),'-crop',geometry,'+repage','-filter','Lanczos','-resize','112x112','-gravity','center','-background','none','-extent','128x128','-strip','PNG32:'+str(OUTPUT / (entry['name']+'.png'))],check=True)
+            args = [convert, str(cell), '-crop', geometry, '+repage', '-filter', 'Lanczos',
+                    '-resize', '112x112', '-gravity', 'center', '-background', 'none',
+                    '-extent', '128x128']
+            # Csak a kijelölt új ikon színkészletét csökkentjük; az RGBA alfa megmarad.
+            if 'colors' in entry:
+                args += ['-colors', str(entry['colors'])]
+            subprocess.run(args + ['-strip', 'PNG32:' + str(OUTPUT / (entry['name'] + '.png'))],
+                           check=True)
     print(f'Prepared {len(entries)} transparent 128x128 PNG assets')
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@
 // I7  WindSpeed          [km/h]
 // I8  HasSunRadiation    [0/1]
 // I9  HasPrecipitation   [0/1]
-// I10 Status             [1..4]
+// I10 Status             [1..5]
 // I11 NightMode          [0/1]
 // I12 BatteryTemperature [C]
 // I13 WeatherPresent     [0..15] jelenlétmaszk: I6=1, I7=2, I8=4, I9=8
