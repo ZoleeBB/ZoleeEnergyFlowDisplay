@@ -1,0 +1,71 @@
+# Önkéntes fejlesztői támogatás
+
+A program használata ingyenes. Minden funkció, téma és kiadott frissítés
+támogatás nélkül is elérhető. A befizetésért nem jár külön szolgáltatás vagy
+jogosultság. Nincs próbaidő, aktiválás vagy támogatói állapot a kijelzőn.
+
+## Megjelenés
+
+A helyi webfelület főoldalán (`/`), a beállításoknál (`/settings`), a
+sablonkezelőben (`/templates`), a Loxone-beállításoknál (`/loxone`), a
+firmware-frissítésnél (`/update`) és a diagnosztikán (`/diagnostics`) ugyanaz
+a visszafogott támogatási kártya jelenik meg a lap alján. A meglévő hozzáférési
+és adatfogadásimód-korlátok változatlanok. A magyar/angol oldalakon a megfelelő
+nyelvű szöveg jelenik meg; a jelenleg magyar szerkesztőoldalak magyar kártyát kapnak.
+
+A kártya a két engedélyezett szolgáltatóhoz vezethet:
+
+- **Revolut.me:** általános profilhivatkozás, előre meghatározott összeg nélkül.
+- **Ko-fi:** egyszeri, önkéntes támogatási oldal. A Ko-fi Free beállítást a
+  szolgáltatónál kell választani; ezt a firmware nem tudja ellenőrizni vagy átállítani.
+
+A fizetés kizárólag a külső szolgáltató oldalán történik. A hivatkozás új lapon
+nyílik meg, a helyi eszköz URL-jének továbbadása és az eredeti oldal elérése nélkül.
+A weboldal megnyitása nem tölt le külső képet, szkriptet vagy fizetési widgetet.
+Nincs háttérben futó fizetésellenőrzés, támogatói adatbázis vagy pénzügyi titok
+a firmware-ben. A kijelzőn nincs támogatási felirat vagy működésbeli különbség.
+
+Az azonos 10.1-es firmware Master és Slave módban is ezt a webfelületet használja.
+A külön 720×720-as 4B firmware jelenleg nem tartalmazza ezt az adminisztrációs
+webkiszolgálót; a változás nem vezet be oda új hálózati szolgáltatást.
+
+## A projektgazda hivatkozásai
+
+A címek egyetlen központi fájlban állíthatók be:
+[assets/support-links.json](../assets/support-links.json).
+
+```json
+{
+  "revolut_me_url": "",
+  "ko_fi_url": ""
+}
+```
+
+A két üres érték szándékos: a projektgazda saját, ellenőrzött támogatási címei
+még nincsenek megadva. Csak ténylegesen megadott címhez készül gomb. Ha mindkét
+cím üres, az egész kártya rejtve marad, hibás vagy más fiókjára mutató link nélkül.
+
+Csak `https://revolut.me/` és `https://ko-fi.com/` alatti, egyetlen profilnevet
+tartalmazó cím fogadható el, lekérdezés, összeg és fragment nélkül. A hivatkozások
+nyilvános projektadatok, nem a végfelhasználó `config.json` beállításai.
+
+A címek megadása után:
+
+```sh
+python3 tools/prepare_web.py
+python3 tools/prepare_web.py --check
+python3 tests/test_support_web.py
+```
+
+A generátor készíti a `main/app_support_links.h` fájlt és a meglévő weboldalak
+beágyazott fejléceit; ezeket kézzel nem szabad szerkeszteni. A statikus kártyát
+a kiszolgáló másolás és új heapfoglalás nélkül illeszti az oldalba.
+Új linkhez új firmware-kiadás szükséges; az SD-s témacsomagok változatlanok.
+
+## Pénzfogadás előtti teendők
+
+A választott szolgáltató fiókfeltételeinek és a magyar adózási, illetve
+bizonylatolási követelményeknek külön meg kell felelni. A „támogatás” elnevezés
+és a Ko-fi Free csomag nem jelent automatikus adómentességet.
+Személyes Revolut.me-fiók nyilvános fejlesztői támogatásra történő
+használhatóságát a projektgazdának a szolgáltatóval kell tisztáznia.

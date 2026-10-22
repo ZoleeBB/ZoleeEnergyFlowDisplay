@@ -1,3 +1,4 @@
+#include "app_support_web.h"
 /*
  * A webes beállítási felület ugyanazt a hitelesítést használja, mint az OTA.
  * A jelszavakat a GET soha nem szolgáltatja ki; a JSON null változatlanul
@@ -79,7 +80,7 @@ static esp_err_t settings_page(httpd_req_t *req)
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
-    return httpd_resp_sendstr(req,app_settings_page);
+    return app_web_send_page(req,app_settings_page,true);
 }
 static esp_err_t settings_get(httpd_req_t *req)
 {

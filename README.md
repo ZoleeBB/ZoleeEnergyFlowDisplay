@@ -80,6 +80,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 
 ## Dokumentáció
 
+- [Önkéntes fejlesztői támogatás – Revolut.me és Ko-fi, kizárólag a webfelületen](docs/voluntary-support.md)
 - [Hardver](docs/hardware.md)
 - [Konfiguráció](docs/configuration.md)
 - [JSON és MQTT](docs/mqtt.md)

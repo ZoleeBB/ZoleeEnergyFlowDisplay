@@ -83,6 +83,11 @@ def package(build, output, tag, commit, board="main"):
     files['config.sample.json'] = (ROOT / 'config.sample.json').read_bytes()
     files['assets/loxone-logo.png'] = (ROOT / 'assets/loxone-logo.png').read_bytes()
     files['assets/template-manifest.json'] = (ROOT / 'assets/template-manifest.json').read_bytes()
+    # A README és a támogatási útmutató helyi hivatkozásai az USB-csomagban is éljenek.
+    for name in ('AGENTS.md', 'assets/support-links.json', 'assets/loxone-home/README.md'):
+        files[name] = (ROOT / name).read_bytes()
+    for path in sorted((ROOT / 'assets/loxone-home/previews').glob('*.png')):
+        files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for folder in ('docs', 'examples'):
         for path in sorted((ROOT / folder).rglob('*')):
             if path.is_file():

@@ -19,7 +19,19 @@ esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *r)
 esp_err_t httpd_resp_set_status(httpd_req_t *r,const char *s){(void)r;status=atoi(s);return ESP_OK;}
 esp_err_t httpd_resp_set_type(httpd_req_t *r,const char *s){(void)r;(void)s;return ESP_OK;}
 esp_err_t httpd_resp_set_hdr(httpd_req_t *r,const char *k,const char *v){(void)r;if(!strcmp(k,"Cache-Control"))snprintf(cache_control,sizeof(cache_control),"%s",v);return ESP_OK;}
-esp_err_t httpd_resp_send_chunk(httpd_req_t *r,const char *s,int n){(void)r;(void)s;assert(n>=0);chunk_bytes+=(size_t)n;return ESP_OK;}
+esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
+{
+    (void)req;
+    assert(size >= 0);
+    if (data && size > 0) {
+        response = realloc(response, chunk_bytes + (size_t)size + 1);
+        assert(response);
+        memcpy(response + chunk_bytes, data, (size_t)size);
+        chunk_bytes += (size_t)size;
+        response[chunk_bytes] = 0;
+    }
+    return ESP_OK;
+}
 esp_err_t httpd_resp_sendstr(httpd_req_t *r,const char *s){(void)r;free(response);response=strdup(s);assert(response);return ESP_OK;}
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int s,const char *text){status=s;return httpd_resp_sendstr(r,text);}
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *k,char *out,size_t n){(void)r;(void)k;snprintf(out,n,"%s",header?"1":"");return ESP_OK;}

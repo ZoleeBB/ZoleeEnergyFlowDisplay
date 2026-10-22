@@ -11,6 +11,7 @@
  * a HTTP Basic Auth hitelesítést használja.
  */
 #include "app_web.h"
+#include "app_support_web.h"
 #include "app_http.h"
 #include "app_loxone.h"
 #include "app_templates.h"
@@ -544,6 +545,10 @@ static esp_err_t root_handler(httpd_req_t *req)
         "}"
         "</script>",HTTPD_RESP_USE_STRLEN);
 
+    if (app_web_send_support(req, s_hu) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
     /* A chunked HTTP választ nulla hosszú chunk zárja le. */
     if (httpd_resp_send_chunk(
             req,
@@ -591,7 +596,7 @@ static esp_err_t update_get(httpd_req_t *req)
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware feltöltése: \"+n+'%';if(n===100)s.textContent=\"Feltöltve. Firmware ellenőrzése az eszközön…\";}};"
         "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Frissítési hiba: \"+x.responseText;}};"
-        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
+        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script><!--APP_SUPPORT--></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
@@ -622,10 +627,10 @@ static esp_err_t update_get(httpd_req_t *req)
         "const x=new XMLHttpRequest();x.open('POST','/update');x.setRequestHeader('Content-Type','application/octet-stream');"
         "x.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);p.value=n;s.textContent=\"Firmware upload: \"+n+'%';if(n===100)s.textContent=\"Uploaded. Verifying firmware on device…\";}};"
         "x.onload=()=>{if(x.status>=200&&x.status<300){p.value=100;reconnectAfterOta();}else{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Firmware update failed: \"+x.responseText;}};"
-        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script></body></html>";
+        "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Connection lost. Check whether the new firmware started.\";};x.send(f);}</script><!--APP_SUPPORT--></body></html>";
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
-    return httpd_resp_send(req,s_hu?page_hu:page_en,HTTPD_RESP_USE_STRLEN);
+    return app_web_send_page(req, s_hu ? page_hu : page_en, s_hu);
 }
 
 /* Késleltetett reboot task, hogy a HTTP válasz még ki tudjon menni. */
@@ -877,7 +882,7 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
 static esp_err_t diagnostics_page(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
-    return httpd_resp_sendstr(req,"<!doctype html><html><meta charset='utf-8'><title>Diagnostics</title>"
+    return app_web_send_page(req,"<!doctype html><html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Diagnostics</title>"
         "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style>"
         "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
         "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
@@ -885,7 +890,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
         "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':v;if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
-        "refresh();setInterval(refresh,3000);</script></html>");
+        "refresh();setInterval(refresh,3000);</script><!--APP_SUPPORT--></html>", s_hu);
 }
 
 /* mDNS és HTTP szerver egyszeri inicializálása, majd a végpontok regisztrálása. */
