@@ -87,6 +87,24 @@ class WorkflowContractTests(unittest.TestCase):
                     self.assertIn(name, ['release-main.yml', 'release-manual.yml'])
                     self.assertEqual(job_id, 'publish')
 
+    def test_browser_installation_has_room_for_slow_system_packages(self):
+        job = self.shared['jobs']['web-editor']
+        steps = {step.get('name'): step for step in job['steps']}
+        runtime = steps['Install pinned browser test runtime']
+        dependencies = steps['Install Chromium system dependencies']
+        browser = steps['Install Chromium headless shell']
+        # Az időkeretek után maradjon idő checkout-ra és a két valódi tesztre is.
+        install_budget = sum(int(step['timeout-minutes'])
+                             for step in (runtime, dependencies, browser))
+        self.assertGreaterEqual(int(job['timeout-minutes']), install_budget + 3)
+        self.assertIn('playwright@1.62.1', runtime['run'])
+        self.assertIn('install-deps chromium', dependencies['run'])
+        self.assertIn('install --only-shell chromium', browser['run'])
+        scripts = [step.get('run', '') for step in job['steps']]
+        self.assertIn('node tests/test_slave_presence_browser.js', scripts)
+        self.assertIn('node tests/test_support_browser.js', scripts)
+        self.assertFalse(any('continue-on-error' in step for step in job['steps']))
+
 
 if __name__ == '__main__':
     unittest.main()
