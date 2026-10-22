@@ -406,7 +406,7 @@ static void test_solar_status(const app_energy_sample_t *original)
     for (unsigned i = 0; i < template_node_count; i++)
         if (!strcmp(ts(template_nodes[i].spec, "source"), "status"))
             status = &template_nodes[i];
-    assert(status && status->detail);
+    assert(status && status->detail && status->bubble);
     app_energy_sample_t sample = *original;
     const char *expected[] = {"", "", "Felkészülés áramszünetre", "Szigetüzem", "Rendszerhiba", "Hálózat újra elérhető"};
     /* Mindkét jelenetben minden figyelmeztetés után külön visszatérünk normálba. */
@@ -415,18 +415,32 @@ static void test_solar_status(const app_energy_sample_t *original)
         template_update(&sample, &fixture);
         assert(!lv_obj_has_flag(status->obj, LV_OBJ_FLAG_HIDDEN));
         assert(!lv_obj_has_flag(status->detail, LV_OBJ_FLAG_HIDDEN));
+        assert(!lv_obj_has_flag(status->bubble, LV_OBJ_FLAG_HIDDEN));
         assert(!strcmp(lv_label_get_text(status->obj), expected[state]));
         assert(!strcmp(lv_label_get_text(status->detail), expected[state]));
-        assert(lv_color_eq(lv_obj_get_style_text_color(status->obj, 0), c(state == 5 ? GREEN : 0xE53935)));
+        uint32_t color = state == 5 ? tc(status->spec, "positive_color", GREEN) : tc(status->spec, "color", RED);
+        assert(lv_color_eq(lv_obj_get_style_text_color(status->obj, 0), c(color)));
+        assert(lv_color_eq(lv_obj_get_style_border_color(status->bubble, 0), c(color)));
+        assert(lv_color_eq(lv_obj_get_style_bg_color(status->bubble, 0),
+                           c(original->night_mode ? 0x13283B : 0xFFFFFF)));
+        assert(lv_obj_get_style_bg_opa(status->bubble, 0) == 245);
+        assert(lv_obj_get_style_radius(status->bubble, 0) == 16);
+        assert(lv_obj_get_style_text_font(status->obj, 0) == APP_FONT_28);
         assert(lv_color_eq(lv_obj_get_style_text_color(status->detail, 0), c(0xFFFFFF)));
         lv_obj_update_layout(s_dash);
-        assert(lv_obj_get_x(status->obj) == 31 && lv_obj_get_y(status->obj) == 100);
-        assert(lv_obj_get_x(status->detail) == 32 && lv_obj_get_y(status->detail) == 101);
+        assert(lv_obj_get_x(status->obj) == 40 && lv_obj_get_y(status->obj) == 108);
+        assert(lv_obj_get_x(status->detail) == 41 && lv_obj_get_y(status->detail) == 109);
+        assert(lv_obj_get_x(status->bubble) == 28 && lv_obj_get_y(status->bubble) == 100);
+        assert(lv_obj_get_height(status->bubble) == 52);
+        assert(!lv_obj_has_flag(status->bubble, LV_OBJ_FLAG_CLICKABLE));
         lv_point_t size;
         lv_text_get_size(&size, expected[state], lv_obj_get_style_text_font(status->obj, 0),
                          0, 0, 1280, LV_TEXT_FLAG_NONE);
         assert(size.x <= lv_obj_get_width(status->obj));
         assert(size.y <= lv_obj_get_height(status->obj));
+        assert(lv_obj_get_width(status->bubble) == size.x + 24);
+        assert(lv_obj_get_index(status->bubble) < lv_obj_get_index(status->detail));
+        assert(lv_obj_get_index(status->detail) < lv_obj_get_index(status->obj));
         char frame[80];
         snprintf(frame, sizeof(frame), "solar-status-%d-%s", state,
                  original->night_mode ? "dark" : "light");
@@ -435,9 +449,10 @@ static void test_solar_status(const app_energy_sample_t *original)
         template_update(&sample, &fixture);
         assert(lv_obj_has_flag(status->obj, LV_OBJ_FLAG_HIDDEN));
         assert(lv_obj_has_flag(status->detail, LV_OBJ_FLAG_HIDDEN));
+        assert(lv_obj_has_flag(status->bubble, LV_OBJ_FLAG_HIDDEN));
     }
     template_update(original, &fixture);
-    puts("PASS: solar status text and white shadow, all alerts and normal recovery");
+    puts("PASS: solar status 28px text, contrasting bubble and white shadow, all alerts and normal recovery");
 }
 
 static void test_template_grid_restored(const app_energy_sample_t *original)
@@ -459,7 +474,7 @@ static void test_template_grid_restored(const app_energy_sample_t *original)
             assert(!strcmp(lv_label_get_text(node->obj), expected));
             bool shadow = cJSON_IsTrue(cJSON_GetObjectItem(node->spec, "shadow"));
             assert(lv_color_eq(lv_obj_get_style_text_color(node->obj, 0),
-                               c(shadow ? tc(node->spec, "color", 0) : GREEN)));
+                               c(shadow ? tc(node->spec, "color", 0) : tc(node->spec, "positive_color", GREEN))));
             if (node->detail) {
                 assert(!lv_obj_has_flag(node->detail, LV_OBJ_FLAG_HIDDEN));
                 assert(!strcmp(lv_label_get_text(node->detail), expected));

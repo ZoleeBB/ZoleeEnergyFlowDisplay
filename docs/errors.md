@@ -39,6 +39,15 @@ A képernyőn piros `SD-kártya hiba` figyelmeztetés jelenik meg. A firmware 1 
 
 Ez nem kommunikációs hiba. A dashboard a helyén marad, a rendszerállapot kártya erős piros jelzést kap.
 
+## Status = 5
+
+**Hálózat újra elérhető**: a hálózati feszültség visszatért. HTTP, MQTT,
+közvetlen Loxone és Master–Slave módban is érvényes állapot; nem kommunikációs
+hiba, és önmagában nem vált újracsatlakozási képernyőre. A Nap pálya v21
+nagyobb, zöld felirattal és nappali/éjszakai kontrasztos buborékkal jelzi.
+Az 5-ös érték használata előtt minden fogadó firmware-ét frissíteni kell:
+[státuszok és verziókompatibilitás](mqtt.md#status).
+
 ## Watchdog
 
 A firmware task watchdogot használ. A soros logban a reset oka is megjelenik, és a helyi információs weboldalon is lekérdezhető.

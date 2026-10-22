@@ -2,9 +2,14 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 20,
+  "version": 21,
   "light": {
-    "home_hotspot": {"x": 970, "y": 310, "w": 245, "h": 220},
+    "home_hotspot": {
+      "x": 970,
+      "y": 310,
+      "w": 245,
+      "h": 220
+    },
     "background": "#E2EDF7",
     "palette": {
       "pv": "#28C87C",
@@ -45,18 +50,22 @@
       },
       {
         "type": "value",
-        "x": 31,
-        "y": 100,
-        "w": 440,
-        "h": 28,
-        "font": 20,
+        "x": 40,
+        "y": 108,
+        "w": 400,
+        "h": 36,
+        "font": 28,
         "source": "status",
         "hide_when_normal": true,
-        "color": "#E53935",
+        "color": "#C62828",
         "text_shadow": true,
         "shadow_color": "#FFFFFF",
         "shadow_offset": 1,
-        "shadow_opacity": 200
+        "shadow_opacity": 110,
+        "status_bubble": true,
+        "background": "#FFFFFF",
+        "opacity": 245,
+        "positive_color": "#168249"
       },
       {
         "type": "value",
@@ -1261,7 +1270,12 @@
     ]
   },
   "dark": {
-    "home_hotspot": {"x": 970, "y": 310, "w": 245, "h": 220},
+    "home_hotspot": {
+      "x": 970,
+      "y": 310,
+      "w": 245,
+      "h": 220
+    },
     "background": "#061D36",
     "palette": {
       "pv": "#28C87C",
@@ -1302,18 +1316,22 @@
       },
       {
         "type": "value",
-        "x": 31,
-        "y": 100,
-        "w": 440,
-        "h": 28,
-        "font": 20,
+        "x": 40,
+        "y": 108,
+        "w": 400,
+        "h": 36,
+        "font": 28,
         "source": "status",
         "hide_when_normal": true,
-        "color": "#E53935",
+        "color": "#FF8A80",
         "text_shadow": true,
         "shadow_color": "#FFFFFF",
         "shadow_offset": 1,
-        "shadow_opacity": 200
+        "shadow_opacity": 110,
+        "status_bubble": true,
+        "background": "#13283B",
+        "opacity": 245,
+        "positive_color": "#6BEBA5"
       },
       {
         "type": "value",

@@ -1,4 +1,4 @@
-# Nap pálya – aktuális működés (v20)
+# Nap pálya – aktuális működés (v21)
 
 A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
 a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
@@ -7,13 +7,18 @@ Mindkét jelenet 1280×800 px-es; a kártyák geometriája azonos.
 ## Üzemállapot
 
 A bal felső cím és a „Tiszta energia. Zöldebb holnap.” felirat alatt,
-31×100 px kezdőponttal látszik az üzemállapot, ha eltér a normál működéstől.
-Nappal és éjjel egyaránt piros, 20 px-es szöveg, 1 px-es fehér árnyékkal:
+40×108 px kezdőponttal látszik az üzemállapot, ha eltér a normál működéstől.
+Nappal és éjjel egyaránt 28 px-es szöveg, 1 px-es fehér árnyékkal,
+szövegszélességhez igazodó, legfeljebb 424×52 px-es, lekerekített buborékban.
+A jelzés a mozgó grafika fölött marad. A háttér nappal közel fedő fehér,
+éjjel sötétkék; a színes keret és a felirat jól elkülönül tőle.
+A figyelmeztetések pirosak:
 **Felkészülés áramszünetre**, **Szigetüzem** vagy **Rendszerhiba**.
-Az 5-ös állapot **Hálózat újra elérhető** felirata zöld; a fehér árnyék változatlan.
-Normál állapotban (`Status = 1`) sem a szöveg, sem az árnyéka nem jelenik meg;
+Az 5-ös állapot **Hálózat újra elérhető** felirata nappal sötétzöld, éjjel
+világoszöld; a fehér árnyék megmarad.
+Normál állapotban (`Status = 1`) sem a szöveg, sem az árnyéka, sem a buborék nem jelenik meg;
 adatfrissítéskor azonnal követi az állapotváltást. Az angol felület angol státuszt mutat.
-Ehhez a v20-as témacsomag és a `hide_when_normal` mezőt támogató firmware szükséges.
+Ehhez a v21-es témacsomag és a `status_bubble` mezőt támogató firmware szükséges.
 
 ## Napjárás és sugárzás
 

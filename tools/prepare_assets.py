@@ -44,7 +44,14 @@ def main():
             # Retain antialiased edge pixels around the measured solid content.
             left,top=max(0,x-8),max(0,y-8)
             geometry=f'{w+x-left+8}x{h+y-top+8}+{left}+{top}'
-            subprocess.run([convert,str(cell),'-crop',geometry,'+repage','-filter','Lanczos','-resize','112x112','-gravity','center','-background','none','-extent','128x128','-strip','PNG32:'+str(OUTPUT / (entry['name']+'.png'))],check=True)
+            args = [convert, str(cell), '-crop', geometry, '+repage', '-filter', 'Lanczos',
+                    '-resize', '112x112', '-gravity', 'center', '-background', 'none',
+                    '-extent', '128x128']
+            # Csak a kijelölt új ikon színkészletét csökkentjük; az RGBA alfa megmarad.
+            if 'colors' in entry:
+                args += ['-colors', str(entry['colors'])]
+            subprocess.run(args + ['-strip', 'PNG32:' + str(OUTPUT / (entry['name'] + '.png'))],
+                           check=True)
     print(f'Prepared {len(entries)} transparent 128x128 PNG assets')
 
 if __name__ == '__main__':

@@ -234,12 +234,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     alert = copy.deepcopy(doc)
     alert['id'] = 'status-alert'
     alert['light']['elements'] = [dict(type='value', source='status', x=31, y=100,
-        w=440, h=28, font=20, hide_when_normal=True, text_shadow=True,
+        w=400, h=36, font=28, hide_when_normal=True, status_bubble=True, text_shadow=True,
         shadow_color='#FFFFFF', shadow_offset=1, shadow_opacity=200)]
     assert lib.app_templates_install(os.fsencode(archive('status-alert', alert)), error) == 0, error.value
     assert lib.app_templates_delete(b'status-alert', error) == 0
     for changes in ({'hide_when_normal': 'true'}, {'source': 'pv'},
-                    {'type': 'label', 'text': 'Status'}):
+                    {'type': 'label', 'text': 'Status'}, {'status_bubble': 'true'},
+                    {'x': 0}, {'y': 0}, {'x': 880}, {'y': 765}):
         invalid = copy.deepcopy(alert)
         invalid['light']['elements'][0].update(changes)
         assert lib.app_templates_install(os.fsencode(archive('bad-status-alert', invalid)), error) != 0

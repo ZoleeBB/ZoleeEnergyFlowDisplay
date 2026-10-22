@@ -48,7 +48,9 @@ A négy időjárási mező null kivételétől eltekintve, ha bármely kötelez�
 Az 5-ös státusz a hálózati feszültség visszatérését jelzi; nem rendszerhiba és
 nem azonos az 1-es normál üzemmel. Minden téma megjeleníti, a Rendszer téma
 új, villanyoszlopot, villámot és zöld pipát ábrázoló ikonnal. A Nap pálya
-zöld feliratot és 1 px-es fehér árnyékot használ; az 1-es állapot rejtve marad.
+28 px-es zöld feliratot és 1 px-es fehér árnyékot használ, nappal és éjjel
+kontrasztos, lekerekített buborékban (Nap pálya v21); az 1-es állapotban
+a felirat, árnyék és buborék együtt rejtve marad.
 A Napi mérleg, Energiafőkönyv és Energiastatisztika friss témacsomagja
 szintén mutatja a nem normál állapotokat. Más témák meglévő állapotmezője
 firmware-frissítés után az új szöveget mutatja.
