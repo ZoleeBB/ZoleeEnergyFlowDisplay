@@ -22,7 +22,7 @@ static int local_bind(int fd, const struct sockaddr *source, socklen_t size)
 
 static atomic_bool ring = true;
 static int reads, writes, mic_opens, mic_closes, speaker_closes;
-static bool fail_microphone, muted;
+static bool fail_microphone, muted, speaker_audio;
 
 void vTaskDelay(unsigned delay)
 {
@@ -80,6 +80,10 @@ int esp_codec_dev_set_out_mute(esp_codec_dev_handle_t handle, bool mute)
 {
     (void)handle; muted = mute; return 0;
 }
+int esp_codec_dev_set_in_mute(esp_codec_dev_handle_t handle, bool mute)
+{
+    (void)mute; assert(handle == (void *)2); return 0;
+}
 int esp_codec_dev_set_in_gain(esp_codec_dev_handle_t handle, float gain)
 {
     (void)handle; assert(gain <= 24.0f); return 0;
@@ -95,6 +99,9 @@ int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
     assert(handle == (void *)1 && size == AUDIO_FRAME * 4 && data && !muted);
+    for (int i = 0; i < size / 2; i++) {
+        if (abs(((int16_t *)data)[i]) > 100) speaker_audio = true;
+    }
     writes++;
     /* Az explicit csengetésvég az aktív mikrofont is leállítja. */
     if (writes == 5) atomic_store(&ring, false);
@@ -121,7 +128,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
     return true;
 }
 
-typedef struct { int listener, media, mode; bool ack, bye, cancelled, sent_bye; unsigned packets; } fake_door_t;
+typedef struct { int listener, media, sip, mode; bool ack, bye, cancelled, sent_bye; unsigned packets; } fake_door_t;
 static void receive_sip(int fd, intercom_sip_buffer_t *buffer)
 {
     while (intercom_sip_size(buffer->data, buffer->used) == 0) {
@@ -202,7 +209,19 @@ static void *fake_door(void *argument)
             assert(abs(intercom_g711_decode(packet[12], 0) - 4000) < 200);
             door->packets++;
         }
-        if (!door->mode && door->ack) {
+        if (door->mode == 4 && door->packets >= 2 && !door->sent_bye) {
+            char bye[2048];
+            snprintf(bye, sizeof(bye),
+                     "BYE sip:display@127.0.0.1:5060 SIP/2.0\r\nVia: SIP/2.0/UDP 127.0.0.2;branch=z9hG4bKdoor\r\n"
+                     "From: %s;tag=door\r\nTo: %s\r\nCall-ID: %s\r\nCSeq: 3 BYE\r\nContent-Length: 0\r\n\r\n",
+                     to, from, id);
+            struct sockaddr_in sip_destination = destination;
+            sip_destination.sin_port = htons(5060);
+            assert(sendto(door->sip, bye, strlen(bye), 0, (struct sockaddr *)&sip_destination,
+                          sizeof(sip_destination)) == (int)strlen(bye));
+            door->sent_bye = true;
+        }
+        if ((!door->mode || door->mode == 4) && door->ack) {
             int16_t samples[160];
             for (unsigned i = 0; i < 160; i++) samples[i] = 2000;
             uint8_t packet[172];
@@ -218,7 +237,7 @@ static void *fake_door(void *argument)
 int main(void)
 {
     assert(app_intercom_audio_start() == ESP_OK);
-    for (int mode = 0; mode < 4; mode++) {
+    for (int mode = 0; mode < 5; mode++) {
         fake_door_t door = {.mode=mode};
         door.listener = socket(AF_INET, SOCK_STREAM, 0);
         int reuse = 1;
@@ -230,6 +249,8 @@ int main(void)
         door.media = socket(AF_INET, SOCK_DGRAM, 0);
         address.sin_port = 0;
         assert(bind(door.media, (struct sockaddr *)&address, sizeof(address)) == 0);
+        door.sip = socket(AF_INET, SOCK_DGRAM, 0);
+        assert(bind(door.sip, (struct sockaddr *)&address, sizeof(address)) == 0);
         atomic_store(&ring, true);
         s_running = false; s_requested = false;
         assert(app_intercom_audio_request(true, 6) == ESP_ERR_INVALID_STATE);
@@ -238,6 +259,7 @@ int main(void)
         s_running = true;
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
         fail_microphone = mode == 3;
+        speaker_audio = false;
         pthread_t thread;
         assert(pthread_create(&thread, NULL, fake_door, &door) == 0);
         audio_call_t *call = calloc(1, sizeof(*call));
@@ -249,17 +271,20 @@ int main(void)
         close_call(call);
         free(call);
         pthread_join(thread, NULL);
-        close(door.media); close(door.listener);
+        close(door.media); close(door.listener); close(door.sip);
         assert(door.ack);
         if (!mode) {
-            assert(door.packets && writes == 5 && reads == 5);
+            assert(door.packets && writes == 5 && reads == 5 && speaker_audio);
             assert(mic_opens == 1 && mic_closes == 1 && speaker_closes == 1 && muted);
             assert(door.bye);
+        } else if (mode == 4) {
+            assert(door.sent_bye && !door.bye && reads && writes && writes < 5);
+            assert(mic_opens == 1 && mic_closes == 1 && speaker_closes == 1 && muted);
         } else {
             assert(!mic_opens && !reads && !writes);
             assert(mode == 2 || door.bye);
             if (mode == 1) assert(door.cancelled);
-            if (mode == 3) assert(speaker_closes == 1 && muted);
+            if (mode == 3) assert(speaker_closes == 1 && mic_closes == 1 && muted);
         }
     }
     puts("PASS: real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup and repeated calls");

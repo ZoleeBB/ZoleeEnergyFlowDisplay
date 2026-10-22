@@ -148,5 +148,5 @@ módban működik. Részletek és a régi napfájlok kezelése:
 
 ## Kaputelefon
 
-A Master MJPEG-élőképének, a csengetésállapotnak és az opcionális kapunyitónak
-a beállítása: [Loxone kaputelefon](intercom.md).
+A Master MJPEG-élőképének, a csengetésállapotnak, az opcionális kapunyitónak és
+a kézzel indítható kétirányú hangkapcsolatnak a beállítása: [Loxone kaputelefon](intercom.md).

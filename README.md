@@ -32,7 +32,8 @@ Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott 
 ## Kaputelefon
 
 Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
-opcionális, nagy kapunyitó nyomógombbal. A beállítások és a működési korlátok:
+opcionális, nagy kapunyitó nyomógombbal és külön gombbal indítható kétirányú
+hangkapcsolattal. A beállítások és a működési korlátok:
 [Kaputelefon konfigurációja](docs/intercom.md).
 
 ## v3.0.0 újdonságai

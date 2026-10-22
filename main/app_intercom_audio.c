@@ -328,6 +328,9 @@ static bool handle_message(audio_call_t *call, char *message, int tcp, const str
     if (status < 200) {
         return true;
     }
+    if (call->established && status == 200) {
+        return sip_request(call, "ACK", 1, false);
+    }
     if (!intercom_sip_header(message, "To", call->to, sizeof(call->to))) {
         return false;
     }
@@ -430,36 +433,45 @@ static bool pump_signaling(audio_call_t *call)
 
 static bool open_hardware(audio_call_t *call)
 {
-    /* A BSP ugyanazt az I2C-buszt használja, mint az érintőpanel. Nem telepítünk másikat.
+    /* Előbb a DSP és a pufferek készülnek el: memóriahiba ne kapcsoljon mikrofont.
      * A két ADC-csatornát Philips sztereó keretben olvassuk, az első a beszédmikrofon. */
+    call->aec = aec_create(AUDIO_RATE, 4, 1, AEC_MODE_FD_LOW_COST);
+    if (!call->aec || aec_get_chunksize(call->aec) != AUDIO_FRAME) {
+        return false;
+    }
+    call->buffers = heap_caps_aligned_calloc(16, AUDIO_FRAME * 8, sizeof(int16_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!call->buffers || !wanted(call->epoch, call->revision)) {
+        return false;
+    }
+    /* A BSP ugyanazt az I2C-buszt használja, mint az érintőpanel. */
     if (bsp_i2c_init() != ESP_OK || bsp_audio_init(NULL) != ESP_OK) {
         return false;
     }
     if (!s_speaker) {
         s_speaker = bsp_audio_codec_speaker_init();
     }
-    if (!s_microphone) {
-        s_microphone = bsp_audio_codec_microphone_init();
-    }
-    if (!s_speaker || !s_microphone) {
+    if (!s_speaker) {
         return false;
     }
     esp_codec_dev_sample_info_t format = {.sample_rate = AUDIO_RATE, .channel = 2, .bits_per_sample = 16};
-    call->aec = aec_create(AUDIO_RATE, 4, 1, AEC_MODE_FD_LOW_COST);
-    if (!call->aec || aec_get_chunksize(call->aec) != AUDIO_FRAME) {
-        return false;
-    }
-    call->buffers = heap_caps_aligned_calloc(16, AUDIO_FRAME * 8, sizeof(int16_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!call->buffers || esp_codec_dev_open(s_speaker, &format) != ESP_CODEC_DEV_OK) {
-        return false;
-    }
+    /* A codec_dev egy sikertelen open alatt is engedélyezhetett adatillesztést.
+     * Ezért a próbálkozás előtt jelöljük a kötelező close-t, nem csak siker után. */
     call->speaker_open = true;
-    if (esp_codec_dev_set_out_vol(s_speaker, 55) != ESP_CODEC_DEV_OK ||
-        esp_codec_dev_open(s_microphone, &format) != ESP_CODEC_DEV_OK) {
+    if (esp_codec_dev_open(s_speaker, &format) != ESP_CODEC_DEV_OK ||
+        esp_codec_dev_set_out_vol(s_speaker, 55) != ESP_CODEC_DEV_OK ||
+        !wanted(call->epoch, call->revision)) {
+        return false;
+    }
+    if (!s_microphone) {
+        s_microphone = bsp_audio_codec_microphone_init();
+    }
+    if (!s_microphone) {
         return false;
     }
     call->microphone_open = true;
-    if (esp_codec_dev_set_out_mute(s_speaker, false) != ESP_CODEC_DEV_OK) {
+    if (esp_codec_dev_open(s_microphone, &format) != ESP_CODEC_DEV_OK ||
+        esp_codec_dev_set_in_mute(s_microphone, false) != ESP_CODEC_DEV_OK ||
+        esp_codec_dev_set_out_mute(s_speaker, false) != ESP_CODEC_DEV_OK) {
         return false;
     }
     return esp_codec_dev_set_in_gain(s_microphone, 24.0f) == ESP_CODEC_DEV_OK;
@@ -479,7 +491,13 @@ static void media_session(audio_call_t *call)
     publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "Beszélgetés folyamatban");
     /* A lejátszás és felvétel azonos I2S-órán fut. A hálózati csomagokból
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
-    while (wanted(call->epoch, call->revision) && pump_signaling(call)) {
+    while (wanted(call->epoch, call->revision)) {
+        if (!pump_signaling(call)) {
+            if (!call->ended) {
+                publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon hangkapcsolata megszakadt.");
+            }
+            break;
+        }
         for (unsigned i = 0; i < 16; i++) {
             struct sockaddr_in source;
             socklen_t length = sizeof(source);
@@ -500,8 +518,11 @@ static void media_session(audio_call_t *call)
         for (unsigned i = 0; i < AUDIO_FRAME; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
-        if (esp_codec_dev_read(s_microphone, capture, AUDIO_FRAME * 4) != ESP_CODEC_DEV_OK ||
-            !wanted(call->epoch, call->revision)) {
+        if (esp_codec_dev_read(s_microphone, capture, AUDIO_FRAME * 4) != ESP_CODEC_DEV_OK) {
+            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző mikrofonja nem ad hangot.");
+            break;
+        }
+        if (!wanted(call->epoch, call->revision)) {
             break;
         }
         for (unsigned i = 0; i < AUDIO_FRAME; i++) {
@@ -515,6 +536,9 @@ static void media_session(audio_call_t *call)
         }
         for (unsigned i = 0; i < AUDIO_FRAME; i++) {
             reference[i] = speaker[i * 2];
+        }
+        if (!wanted(call->epoch, call->revision)) {
+            break;
         }
         /* 16 kHz AEC -> 8 kHz G.711; a 32 ms-os DSP-keretből 20 ms-os RTP-csomagok készülnek. */
         for (unsigned i = 0; i < AUDIO_FRAME; i += 2) {
@@ -537,6 +561,7 @@ static void close_call(audio_call_t *call)
 {
     /* Előbb a mikrofon és az erősítő áll le, csak utána történik hálózati bontás. */
     if (call->microphone_open) {
+        esp_codec_dev_set_in_mute(s_microphone, true);
         esp_codec_dev_close(s_microphone);
     }
     if (call->speaker_open) {
