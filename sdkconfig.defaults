@@ -26,6 +26,8 @@ CONFIG_ESP_TASK_WDT_INIT=y
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=60
 CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y
 CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y
+# A hiányzó/hibás hangkodek visszatérési hibát adjon, ne abortálja a kijelzőt.
+# CONFIG_BSP_ERROR_CHECK is not set
 CONFIG_BSP_LCD_TYPE_800_1280_10_1_INCH=y
 CONFIG_BSP_LCD_COLOR_FORMAT_RGB565=y
 CONFIG_BSP_LCD_DPI_BUFFER_NUMS=3
@@ -60,6 +62,8 @@ CONFIG_FATFS_FS_LOCK=4
 # 10 nap: hosszabb az alkalmazás legfeljebb 7 napos kézi periódusánál,
 # de kisebb az lwIP sys_timeout UINT32_MAX/4 (~12,4 nap) korlátjánál.
 # A korábbi 14 nap SNTP induláskor/szinkronkor assertet és rebootot okozott.
+# A web, Loxone WS, MJPEG, mDNS és a külön SIP/RTP socketek közös kerete.
+CONFIG_LWIP_MAX_SOCKETS=24
 CONFIG_LWIP_SNTP_UPDATE_DELAY=864000000
 
 # A korábbi vektoros rajzolási konfiguráció kompatibilitásból megmarad.
