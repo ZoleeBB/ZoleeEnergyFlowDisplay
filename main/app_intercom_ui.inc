@@ -98,7 +98,8 @@ static void intercom_render(void)
         lv_obj_add_event_cb(intercom_gate, intercom_open_gate, LV_EVENT_CLICKED, NULL);
         lv_obj_t *title = lv_label_create(intercom_gate);
         /* A hosszabb, egyedi felirat sem lóghat túl az érinthető gombon. */
-        lv_obj_set_size(title, 432, 72);
+        lv_obj_set_size(title, 432, LV_SIZE_CONTENT);
+        lv_obj_set_style_max_height(title, 72, 0);
         lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(title);
