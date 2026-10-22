@@ -71,6 +71,8 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 | Energiafőkönyv | ![Nappal](templates/07-energy-ledger/preview-light.png) | ![Éjjel](templates/07-energy-ledger/preview-dark.png) |
 | Energiastatisztika | ![Nappal](templates/08-statistics/preview-light.png) | ![Éjjel](templates/08-statistics/preview-dark.png) |
 | Nap pálya | ![Nappal](templates/09-solar-journey/preview-light.png) | ![Éjjel](templates/09-solar-journey/preview-dark.png) |
+| Loxone – Ház külön mért fogyasztói | ![Fogyasztók nappal](assets/loxone-home/previews/consumers-light.png) | ![Fogyasztók éjjel](assets/loxone-home/previews/consumers-dark.png) |
+| Loxone – Otthon-kártyák | ![Otthon-kártyák nappal](assets/loxone-home/previews/cards-light.png) | ![Otthon-kártyák éjjel](assets/loxone-home/previews/cards-dark.png) |
 
 A webes sablonkezelő a csomagok `preview-light.png` / `preview-dark.png` képeit mutatja; régi csomagnál üres keret marad, amíg a témát ZIP-ből frissíted.
 
