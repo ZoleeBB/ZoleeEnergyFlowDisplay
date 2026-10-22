@@ -3,11 +3,14 @@
 import json
 import sys
 from pathlib import Path
+from prepare_support import prepare_support
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = sys.argv[1:] == ['--check']
 if sys.argv[1:] and not CHECK:
     sys.exit('Usage: python3 tools/prepare_web.py [--check]')
+
+prepare_support(check=CHECK)
 
 
 def embed(html, js, placeholder, name, header):

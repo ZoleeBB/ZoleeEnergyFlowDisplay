@@ -1,3 +1,4 @@
+#include "app_support_web.h"
 /* Az app_web.c közös hitelesítésével védett, kizárólag Loxone módban regisztrált útvonalak. */
 #include "app_loxone_page.h"
 #include "app_templates.h"
@@ -5,7 +6,7 @@ static esp_err_t loxone_page(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");httpd_resp_set_hdr(req,"Cache-Control","no-store");
-    return httpd_resp_sendstr(req,app_loxone_page);
+    return app_web_send_page(req,app_loxone_page,true);
 }
 static esp_err_t loxone_get(httpd_req_t *req)
 {

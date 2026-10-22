@@ -1,3 +1,4 @@
+#include "app_support_web.h"
 #include "app_template_page.h"
 #include "app_builtin_previews.h"
 /* Az OTA szerver része: ugyanaz a hitelesítés, nincs külön vagy nyilvános admin végpont. */
@@ -13,7 +14,7 @@ static esp_err_t template_page(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
-    return httpd_resp_sendstr(req,template_manager_page);
+    return app_web_send_page(req,template_manager_page,true);
 }
 static esp_err_t template_list_get(httpd_req_t *req){
     if(!template_request_authorized(req,false))return ESP_OK;

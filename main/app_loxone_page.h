@@ -643,4 +643,4 @@ static const char app_loxone_page[] =
 "}\n"
 "$('tls').addEventListener('change',()=>{if($('tls').checked&&$('port').value==='80')$('port').value='443';else if(!$('tls').checked&&$('port').value==='443')$('port').value='80';});\n"
 "$('room-filter').addEventListener('change',options);$('category-filter').addEventListener('change',options);$('test').onclick=()=>submit('test');$('save').onclick=()=>submit('save');refresh();setInterval(refresh,2000);\n"
-"</script></html>\n";
+"</script><!--APP_SUPPORT--></html>\n";

@@ -80,6 +80,10 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_slave_presence_browser.js
+      - name: Check voluntary support cards on desktop and mobile
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_support_browser.js
 
   ui-preview:
     name: Master 10.1 | LVGL és ASan, 32 bit + RGB565

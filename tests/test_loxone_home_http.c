@@ -25,6 +25,19 @@ esp_err_t httpd_resp_set_type(httpd_req_t *r,const char *s) { (void)r;(void)s;re
 esp_err_t httpd_resp_set_hdr(httpd_req_t *r,const char *k,const char *v) { (void)r;assert(!strcmp(k,"Cache-Control")&&!strcmp(v,"no-store"));return ESP_OK; }
 esp_err_t httpd_resp_set_status(httpd_req_t *r,const char *s) { (void)r;assert(sscanf(s,"%d",&status_code)==1);return ESP_OK; }
 esp_err_t httpd_resp_sendstr(httpd_req_t *r,const char *s) { (void)r;snprintf(response,sizeof(response),"%s",s);return ESP_OK; }
+esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
+{
+    (void)req;
+    assert(size >= 0);
+    if (data && size > 0) {
+        size_t used = strlen(response);
+        size_t count = (size_t)size;
+        if (count > sizeof(response) - used - 1) count = sizeof(response) - used - 1;
+        memcpy(response + used, data, count);
+        response[used + count] = 0;
+    }
+    return ESP_OK;
+}
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
 int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }

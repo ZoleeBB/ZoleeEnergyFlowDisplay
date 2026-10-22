@@ -159,4 +159,4 @@ static const char template_manager_page[] =
 " install.onclick=async()=>{if(selected&&verified===selected){const file=selected;const updating=install.textContent.includes('frissítése');if(updating&&!confirm('A meglévő téma új csomaggal frissül. Folytatod?'))return;verified=null;await action('/api/templates/install',file);lock(false);}};\n"
 " refresh().catch(()=>message.textContent='A sablonlista nem olvasható');\n"
 "}\n"
-"</script></html>\n";
+"</script><!--APP_SUPPORT--></html>\n";

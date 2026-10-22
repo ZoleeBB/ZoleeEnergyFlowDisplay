@@ -108,4 +108,4 @@ static const char app_settings_page[] =
 "});\n"
 "async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.textContent='Loxone beállítások';document.body.prepend(a);}}catch{}}\n"
 "loxoneLink();load();\n"
-"</script></body></html>\n";
+"</script><!--APP_SUPPORT--></body></html>\n";
