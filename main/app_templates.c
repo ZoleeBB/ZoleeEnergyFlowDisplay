@@ -382,6 +382,10 @@ static bool validate_scene(const cJSON *scene)
             (!cJSON_IsBool(cJSON_GetObjectItem(e, "text_shadow")) ||
              (strcmp(type, "value") && strcmp(type, "label"))))
             return false;
+        if (cJSON_HasObjectItem(e, "hide_when_normal") &&
+            (!cJSON_IsBool(cJSON_GetObjectItem(e, "hide_when_normal")) ||
+             strcmp(type, "value") || !source || strcmp(source, "status")))
+            return false;
         if (!number(e, "glow", 0, 24, true) || !number(e, "shadow_offset", 0, 4, true) ||
             !number(e, "shadow_opacity", 0, 255, true))
             return false;

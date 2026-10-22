@@ -43,9 +43,10 @@ int main(void)
         assert(!cJSON_GetObjectItemCaseSensitive(payload,"SunAzimuth"));cJSON_Delete(payload);
     }
     /* A Loxone négy száma a valódi, közös feldolgozón át kerül a témák mintájába. */
-    const double energy[8]={1,-1,2,2,50,1,0,25};for(int i=0;i<8;i++)v.value[i]=energy[i];
+    const double energy[8]={1,-1,2,2,50,5,0,25};for(int i=0;i<8;i++)v.value[i]=energy[i];
     payload=lx_values_payload(&v,&cfg);char *json=cJSON_PrintUnformatted(payload);app_energy_sample_t sample;char error[128];
     assert(app_payload_parse(json,strlen(json),&sample,error,sizeof(error))==ESP_OK);
+    assert(sample.status == 5);
     assert(sample.sun_position_valid&&sample.sun_azimuth_deg==132&&sample.sun_altitude_deg==38.5);
     assert(sample.sunrise_minute==420&&sample.sunset_minute==1077);free(json);cJSON_Delete(payload);
     cJSON *config=lx_config_json(&cfg);assert(config);lx_config_t parsed;

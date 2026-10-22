@@ -300,7 +300,15 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     }
     if(!strcmp(source,"clock")){strftime(out,128,"%H:%M",&tmv);return;}
     if(!strcmp(source,"date")){strftime(out,128,hu()?"%Y.%m.%d.":"%Y-%m-%d",&tmv);return;}
-    if(!strcmp(source,"status")){snprintf(out,128,"%s",s->status==1?tr("Normál működés","Normal operation"):s->status==2?tr("Felkészülés áramszünetre","Preparing for outage"):s->status==3?tr("Szigetüzem","Island mode"):tr("Rendszerhiba","System error"));return;}
+    if (!strcmp(source, "status")) {
+        const char *text = s->status == 1 ? tr("Normál működés", "Normal operation")
+                         : s->status == 2 ? tr("Felkészülés áramszünetre", "Preparing for outage")
+                         : s->status == 3 ? tr("Szigetüzem", "Island mode")
+                         : s->status == 5 ? tr("Hálózat újra elérhető", "Grid available again")
+                                          : tr("Rendszerhiba", "System error");
+        snprintf(out, 128, "%s", text);
+        return;
+    }
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
     if(!strcmp(source,"battery_direction")){snprintf(out,128,"%s",s->power_bat_kw<0?tr("Töltés","Charging"):s->power_bat_kw>0?tr("Leadás","Discharging"):tr("Készenlét","Idle"));return;}
     double v=template_value(source,s,st);
@@ -766,6 +774,9 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
             (!strcmp(source,"weather_label")) ? weather_available(s) :
             (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
+        /* A figyelmeztető státusz és az árnyéka normál üzemben együtt tűnjön el. */
+        if (!strcmp(source, "status") && cJSON_IsTrue(cJSON_GetObjectItem(e, "hide_when_normal")))
+            visible = s->status != 1;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(!visible)continue;
@@ -930,6 +941,11 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 }
             }
         }
+        /* A visszatérő hálózat pozitív jelzés; a külön árnyékréteg saját színe marad. */
+        if (!strcmp(type, "value") && !strcmp(source, "status") &&
+            !cJSON_IsTrue(cJSON_GetObjectItem(e, "shadow")))
+            text_color_if_changed(node->obj, c(s->status == 5 ? GREEN :
+                                  tc(e, "color", s->night_mode ? TEXT_DARK : TEXT_LIGHT)), 0);
         if(!strcmp(type,"value")&&!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(!strcmp(source,"wind")||!strcmp(source,"battery_temp"))){
             int warn=!strcmp(source,"wind")?35:40;
             text_color_if_changed(node->obj,c(value>50?RED:value>warn?ORANGE:tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);

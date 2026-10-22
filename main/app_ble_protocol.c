@@ -109,7 +109,7 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
     if (fabs(next.power_grid_kw) > 15 || fabs(next.power_bat_kw) > 15 || next.power_pv_kw < 0 ||
         next.power_pv_kw > 15 || next.power_full_kw < 0 || next.power_full_kw > 15 ||
         next.soc_bat_pct > 100 || next.battery_temperature_c < -20 ||
-        next.battery_temperature_c > 80 || next.status < 1 || next.status > 4 || energy[3] < 1 ||
+        next.battery_temperature_c > 80 || next.status < 1 || next.status > 5 || energy[3] < 1 ||
         energy[3] > 100 ||
         (next.temperature_valid && (next.temperature_c < -35 || next.temperature_c > 50)) ||
         (next.wind_speed_valid && next.wind_speed_kmh > 150) ||

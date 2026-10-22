@@ -125,6 +125,19 @@ int main(void)
     assert(decoded.wind_speed_valid && decoded.wind_speed_kmh == 0);
     assert(decoded.received_monotonic_us == 6000000 && decoded.received_epoch_s == 1800000000);
     app_energy_sample_t original = decoded;
+    /* Az új érték változatlan BLE v1 csomagban, minden régi státusszal együtt átvihető. */
+    for (int status = 1; status <= 5; status++) {
+        energy[2] = status;
+        assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK);
+        assert(decoded.status == status);
+    }
+    for (int status = 0; status <= 6; status += 6) {
+        energy[2] = status;
+        assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_ERR_INVALID_ARG);
+        assert(decoded.status == 5);
+    }
+    energy[2] = original.status;
+    decoded = original;
     weather[18]++;
     assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) ==
            ESP_ERR_INVALID_ARG);

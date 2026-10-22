@@ -398,6 +398,96 @@ static void test_calm_dashboard(const app_energy_sample_t *original)
 
 #include "orbit_test.inc"
 
+static void test_solar_status(const app_energy_sample_t *original)
+{
+    if (strcmp(template_view.id, "09-solar-journey"))
+        return;
+    template_node_t *status = NULL;
+    for (unsigned i = 0; i < template_node_count; i++)
+        if (!strcmp(ts(template_nodes[i].spec, "source"), "status"))
+            status = &template_nodes[i];
+    assert(status && status->detail);
+    app_energy_sample_t sample = *original;
+    const char *expected[] = {"", "", "Felkészülés áramszünetre", "Szigetüzem", "Rendszerhiba", "Hálózat újra elérhető"};
+    /* Mindkét jelenetben minden figyelmeztetés után külön visszatérünk normálba. */
+    for (int state = 2; state <= 5; state++) {
+        sample.status = state;
+        template_update(&sample, &fixture);
+        assert(!lv_obj_has_flag(status->obj, LV_OBJ_FLAG_HIDDEN));
+        assert(!lv_obj_has_flag(status->detail, LV_OBJ_FLAG_HIDDEN));
+        assert(!strcmp(lv_label_get_text(status->obj), expected[state]));
+        assert(!strcmp(lv_label_get_text(status->detail), expected[state]));
+        assert(lv_color_eq(lv_obj_get_style_text_color(status->obj, 0), c(state == 5 ? GREEN : 0xE53935)));
+        assert(lv_color_eq(lv_obj_get_style_text_color(status->detail, 0), c(0xFFFFFF)));
+        lv_obj_update_layout(s_dash);
+        assert(lv_obj_get_x(status->obj) == 31 && lv_obj_get_y(status->obj) == 100);
+        assert(lv_obj_get_x(status->detail) == 32 && lv_obj_get_y(status->detail) == 101);
+        lv_point_t size;
+        lv_text_get_size(&size, expected[state], lv_obj_get_style_text_font(status->obj, 0),
+                         0, 0, 1280, LV_TEXT_FLAG_NONE);
+        assert(size.x <= lv_obj_get_width(status->obj));
+        assert(size.y <= lv_obj_get_height(status->obj));
+        char frame[80];
+        snprintf(frame, sizeof(frame), "solar-status-%d-%s", state,
+                 original->night_mode ? "dark" : "light");
+        save_frame(frame);
+        sample.status = 1;
+        template_update(&sample, &fixture);
+        assert(lv_obj_has_flag(status->obj, LV_OBJ_FLAG_HIDDEN));
+        assert(lv_obj_has_flag(status->detail, LV_OBJ_FLAG_HIDDEN));
+    }
+    template_update(original, &fixture);
+    puts("PASS: solar status text and white shadow, all alerts and normal recovery");
+}
+
+static void test_template_grid_restored(const app_energy_sample_t *original)
+{
+    char language[sizeof(s_cfg.project.language)];
+    snprintf(language, sizeof(language), "%s", s_cfg.project.language);
+    app_energy_sample_t sample = *original;
+    sample.status = 5;
+    for (int english = 0; english < 2; english++) {
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", english ? "en" : "hu");
+        const char *expected = english ? "Grid available again" : "Hálózat újra elérhető";
+        template_update(&sample, &fixture);
+        bool found = false;
+        for (unsigned i = 0; i < template_node_count; i++) {
+            template_node_t *node = &template_nodes[i];
+            if (strcmp(ts(node->spec, "source"), "status"))
+                continue;
+            assert(!lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN));
+            assert(!strcmp(lv_label_get_text(node->obj), expected));
+            bool shadow = cJSON_IsTrue(cJSON_GetObjectItem(node->spec, "shadow"));
+            assert(lv_color_eq(lv_obj_get_style_text_color(node->obj, 0),
+                               c(shadow ? tc(node->spec, "color", 0) : GREEN)));
+            if (node->detail) {
+                assert(!lv_obj_has_flag(node->detail, LV_OBJ_FLAG_HIDDEN));
+                assert(!strcmp(lv_label_get_text(node->detail), expected));
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->detail, 0),
+                                   c(tc(node->spec, "shadow_color", 0))));
+            }
+            if (shadow)
+                continue;
+            found = true;
+            lv_point_t size;
+            lv_text_get_size(&size, expected, lv_obj_get_style_text_font(node->obj, 0),
+                             0, 0, 1280, LV_TEXT_FLAG_NONE);
+            assert(size.x <= tn(node->spec, "w", 0));
+            assert(size.y <= tn(node->spec, "h", 0));
+        }
+        assert(found);
+        if (!english) {
+            char frame[100];
+            snprintf(frame, sizeof(frame), "grid-restored-%s-%s", template_view.id,
+                     sample.night_mode ? "dark" : "light");
+            save_frame(frame);
+        }
+    }
+    snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language);
+    template_update(original, &fixture);
+    puts("PASS: grid restored in every theme, HU/EN fits, green text and intact shadow");
+}
+
 static void test_solar_dashboard(const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
     template_node_t *disc=NULL,*bar=NULL,*grid=NULL,*production=NULL,*comparison=NULL;
@@ -759,6 +849,9 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
         for(unsigned i=0;i<template_node_count;i++){
             template_node_t *n=&template_nodes[i];const char *source=ts(n->spec,"source");
             const char *type=ts(n->spec,"type");
+            /* A státusz láthatóságát a külön állapotváltási teszt ellenőrzi. */
+            if (!strcmp(source, "status"))
+                continue;
             bool sun_source=!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
                 !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction");
             bool capacity_source=!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||
@@ -1796,7 +1889,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){
@@ -1910,6 +2003,17 @@ int main(void)
         builtin_sample.has_sun_radiation=!night;
         build_dashboard(night);s_last_night=night;update(&builtin_sample,&fixture);
         save_frame(night?"builtin-dark":"builtin-light");
+        builtin_sample.status = 5;
+        update(&builtin_sample, &fixture);
+        assert(!strcmp(lv_label_get_text(s_status), "Hálózat újra elérhető"));
+        assert(lv_image_get_src(s_status_icon) == &app_img_status_grid_restored);
+        assert(lv_color_eq(lv_obj_get_style_text_color(s_status, 0), c(tone(GREEN, night))));
+        save_frame(night ? "grid-restored-builtin-dark" : "grid-restored-builtin-light");
+        builtin_sample.status = 4;
+        update(&builtin_sample, &fixture);
+        assert(lv_image_get_src(s_status_icon) == &app_img_status_error);
+        builtin_sample.status = 1;
+        update(&builtin_sample, &fixture);
         test_energy_assistant_ui(&builtin_sample);
     }
     clear();

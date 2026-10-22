@@ -29,7 +29,7 @@ A lista két legördülővel, helyiség és funkció (Loxone-kategória) szerint
 a két feltétel egyszerre érvényes. A lista neve elöl áll: `Név (Helyiség / Funkció) · állapot`.
 A korábbi párosítás szűrés közben is megmarad; a mentett kulcs az állapot UUID-ja.
 Számok átalakítása: `érték * scale + offset`. W → kW: 0.001; előjelváltás: −1;
-digitális invertálás: scale=−1, offset=1. A Status a kijelző 1–4 kódját követi.
+digitális invertálás: scale=−1, offset=1. A Status a kijelző 1–5 kódját követi.
 A hálózati és akku-előjeleket a meglévő [adatprotokoll](mqtt.md) szerint kell beállítani.
 
 ## Külön SD-konfiguráció és eszközkulcs

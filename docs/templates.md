@@ -104,6 +104,12 @@ a használt mértékegységeket tartalmazó betűkészletek. `align`: `left` vag
 A szöveges címkék HU/EN karakterkészletet használnak. A `text_en` hiányában a
 `text` jelenik meg angol nyelvi beállításnál is.
 
+A `value` típusú, `source: "status"` elem `hide_when_normal: true` beállítással
+normál üzemben (`Status = 1`) a szövegárnyékával együtt rejtve marad.
+Eltérő státusznál az aktuális, nyelvi beállítás szerinti állapotot mutatja.
+A `text_shadow`, `shadow_color`, `shadow_offset` (0–4 px) és
+`shadow_opacity` (0–255) mezőkkel a szöveg kisméretű árnyéka állítható.
+
 Adatkapcsolatok:
 
 - `pv`, `home`, `grid`, `battery`: pillanatnyi kW, a kijelzés abszolút értékű,

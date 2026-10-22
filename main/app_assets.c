@@ -43,6 +43,7 @@ PNG_IMAGE(app_img_status_normal, status_normal_png, APP_PNG_STATUS_NORMAL_SIZE);
 PNG_IMAGE(app_img_status_prepare, status_prepare_png, APP_PNG_STATUS_PREPARE_SIZE);
 PNG_IMAGE(app_img_status_island, status_island_png, APP_PNG_STATUS_ISLAND_SIZE);
 PNG_IMAGE(app_img_status_error, status_error_png, APP_PNG_STATUS_ERROR_SIZE);
+PNG_IMAGE(app_img_status_grid_restored, status_grid_restored_png, APP_PNG_STATUS_GRID_RESTORED_SIZE);
 PNG_IMAGE(app_img_mqtt_off, mqtt_off_png, APP_PNG_MQTT_OFF_SIZE);
 PNG_IMAGE(app_img_waiting_data, waiting_data_png, APP_PNG_WAITING_DATA_SIZE);
 PNG_IMAGE(app_img_timeout, timeout_png, APP_PNG_TIMEOUT_SIZE);
