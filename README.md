@@ -6,10 +6,6 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a te
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
-A v3 fejlesztési ág fogyasztói/Otthon-oldalai, jelenlétprofiljai és új témái:
-[telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md),
-[követelmények és záró ellenőrzés](docs/v3-completion-review.md).
-
 Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master mód
 `ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
 Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](docs/ble-data-seed.md).
@@ -28,6 +24,23 @@ A slave az első csatlakozáskor érintős PIN-padot mutat, majd titkosítva át
 a master Wi-Fi-jét és automatikusfrissítés-kapcsolóját. A kétoszlopos diagnosztika
 a BT-szerepet, címeket, kapcsolatot, jelerősséget, masterként a kapcsolódó slave-ek
 számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablaka itt nyitható meg.
+
+## v3.0.0 újdonságai
+
+A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb változásai és részletes leírása:
+
+| Funkció | Működés és dokumentáció |
+| --- | --- |
+| Ház külön mért fogyasztói | Legfeljebb 12 fogyasztó, 64 választható ikon és külön nappali/éjszakai háttér. Az 1 W alatti érték 0 W és kikapcsolt állapot; a fejléc a teljes ház `PowerFull` mérését mutatja. [Beállítás és mintaprofil](docs/v3-home-config.md). |
+| Lapozható Otthon-oldalak | Legfeljebb 8 elnevezhető oldal, oldalanként 12 érték-, kapcsoló- vagy pillanatnyi gombkártya. Webes szerkesztés a `/loxone` oldalon, állapot-visszajelzéshez kötött kapcsolás. [Kártyák, vezérlés és navigáció](docs/v3-home-config.md). |
+| Helyi energiaasszisztens | Külön engedélyezhető indításjavaslat 100%-os akkunál és legalább kétperces elegendő napelemes többletnél; magasabb éjszakai fogyasztás jelzése mért referencia alapján. A jelzés nem kapcsol fogyasztót. [Feltételek és működés](docs/energy-assistant.md). |
+| Slave-jelenlét és saját fényerő | Nappal saját nappali fényerő; engedélyezett éjszakai sötétítésnél jelenlét vagy érintés ébreszt a saját éjszakai fényerőre, időkorlát után újra sötétít. Az első teljes érintés csak ébreszt. [Felhasználói beállítás](docs/loxone-direct.md), [profil és BLE-protokoll](docs/slave-presence-protocol.md). |
+| Megújult témák | Új nappali/éjszakai megjelenés: [Nyugodt otthon](docs/calm-home.md) és [Energiakör](docs/energy-orbit.md); utóbbiban 00:00–24:00 napállás-idővonal. |
+| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI és négy kiadási csomag. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
+
+A fogyasztói/Otthon-oldalak és az energiaasszisztens **csak Masteren, közvetlen Loxone módban** érhetők el. A kijelzőoldalakhoz működő SD és telepített `loxone-home.zip` szükséges. A Slave jelenlétfunkciójához a Master és a Slave megfelelő firmware-e is kell.
+
+**Frissítési sorrend:** előbb a megfelelő firmware-ek, majd a Master `/templates` oldalán a `loxone-home.zip`, `05-calm-home.zip` és `06-energy-orbit.zip` csomagok. Az OTA önmagában nem frissíti az SD-s témákat. [Telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md). Az átadási és ellenőrzési jegyzetek a fejlesztéskori állapotokat és a még nem rögzített készülékes méréseket is őrzik.
 
 ## Első indítás
 
@@ -70,11 +83,17 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [JSON és MQTT](docs/mqtt.md)
 - [HTTP adatfogadás](docs/http-input.md)
 - [Közvetlen Loxone kapcsolat](docs/loxone-direct.md)
+- [Loxone fogyasztók és lapozható Otthon-kártyák – beállítás és mintaprofil](docs/v3-home-config.md)
+- [Helyi energiaasszisztens – napelemes indításjavaslat és éjszakai fogyasztás](docs/energy-assistant.md)
+- [Slave-jelenlétprofil, éjszakai sötétítés és BLE-protokoll](docs/slave-presence-protocol.md)
 - [Loxone mintaprogramok](docs/loxone.md)
 - [SD-kártya](docs/sd-card.md)
 - [BLE master/Slave, PIN-es párosítás és SD nélküli működés](docs/ble-data-seed.md)
 - [Kilenc választható téma](docs/templates.md)
+- [Nyugodt otthon – megújult nappali/éjszakai téma](docs/calm-home.md)
+- [Energiakör – megújult téma és 24 órás napállás-idővonal](docs/energy-orbit.md)
 - [Saját sablon készítése](docs/template-authoring.md)
+- [Külső témák kompatibilitási ellenőrzése](docs/external-template-review.md)
 - [Statisztika és számítások](docs/statistics.md)
 - [Webfelület és OTA, kapcsolható automatikus éjféli GitHub-frissítés](docs/ota.md)
 - [Hibakezelés](docs/errors.md)
@@ -86,6 +105,10 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Master/Slave átadási és lezárási jegyzet](docs/master-slave-handover.md)
 - [Waveshare 4B Slave – 720×720-as firmware és szimulátor](docs/slave-waveshare-4b.md) (külön alkalmazás, falra vagy asztali tartóra)
 - [Képek és licencek](docs/assets.md)
+- [v3 telepítési és eszközös átadási lista (HU/EN)](docs/v3-handover.md)
+- [v3 követelmény- és záró ellenőrzés](docs/v3-completion-review.md)
+- [v3 felhasználói próba utáni javítások](docs/v3-field-fixes.md)
+- [v3 fejlesztési és folytatási terv – döntések és ellenőrzési napló](docs/v3-development-plan.md)
 
 ## Fejlesztői ellenőrzés
 
