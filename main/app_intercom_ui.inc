@@ -73,7 +73,7 @@ static void intercom_render(void)
         intercom_last_press = 0;
         intercom_front = intercom_prepared;
         intercom_prepared = NULL;
-        strcpy(intercom_video_status, tr("Kapcsolódás a kamerához…", "Connecting to camera…"));
+        strcpy(intercom_video_status, tr("Kapcsolódás a kamerához...", "Connecting to camera..."));
         intercom_overlay = lv_obj_create(lv_layer_top());
         lv_obj_remove_style_all(intercom_overlay);
         lv_obj_set_size(intercom_overlay, W, H);
@@ -107,7 +107,7 @@ static void intercom_render(void)
     {
         intercom_revision = intercom_next.revision;
         lv_obj_add_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
-        strcpy(intercom_video_status, tr("Kapcsolódás a kamerához…", "Connecting to camera…"));
+        strcpy(intercom_video_status, tr("Kapcsolódás a kamerához...", "Connecting to camera..."));
     }
     bool gate = intercom_next.config.gate.control_uuid[0] != 0;
     intercom_has_gate = gate;
@@ -123,8 +123,8 @@ static void intercom_render(void)
     else
         lv_obj_add_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN);
     const char *message = !intercom_front ? tr("Nincs elég memória a kameraképhez.", "Not enough memory for video.") :
-        !intercom_next.connected ? tr("A Loxone-kapcsolat megszakadt. A csengetés végére várunk…",
-                                    "Loxone disconnected. Waiting for ringing to end…") :
+        !intercom_next.connected ? tr("A Loxone-kapcsolat megszakadt. A csengetés végére várunk...",
+                                    "Loxone disconnected. Waiting for ringing to end...") :
         intercom_last_press && esp_timer_get_time() - intercom_last_press < 3000000LL &&
             intercom_next.status[0] ? intercom_next.status : intercom_video_status;
     lv_label_set_text(intercom_message, message);

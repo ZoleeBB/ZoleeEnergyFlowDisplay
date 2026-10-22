@@ -67,7 +67,7 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
     if (jpeg_decoder_process(video->decoder, &format, jpeg, (uint32_t)size,
             video->pixels, (uint32_t)video->pixels_capacity, &written) != ESP_OK)
     {
-        app_intercom_ui_status("A kamerakép dekódolása sikertelen. Új képre várunk…", video->revision);
+        app_intercom_ui_status("A kamerakép dekódolása sikertelen. Új képre várunk...", video->revision);
         return;
     }
     /* YUV444 esetén a JPEG MCU nyolc, YUV422/420 esetén tizenhat pixel széles. */
@@ -115,7 +115,7 @@ static void video_session(const app_intercom_snapshot_t *state)
     http = esp_http_client_init(&options);
     if (!http || esp_http_client_open(http, 0) != ESP_OK)
     {
-        app_intercom_ui_status("A kamera nem érhető el. Újracsatlakozás…", state->revision);
+        app_intercom_ui_status("A kamera nem érhető el. Újracsatlakozás...", state->revision);
         goto done;
     }
     (void)esp_http_client_fetch_headers(http);
@@ -124,7 +124,7 @@ static void video_session(const app_intercom_snapshot_t *state)
     {
         app_intercom_ui_status(code == 401 || code == 403 ?
             "A kamera elutasította a Loxone-fiókot. Ellenőrizd a jogosultságokat." :
-            "A kamera nem adott videófolyamot. Újracsatlakozás…", state->revision);
+            "A kamera nem adott videófolyamot. Újracsatlakozás...", state->revision);
         goto done;
     }
     uint8_t chunk[4096];
@@ -141,7 +141,7 @@ static void video_session(const app_intercom_snapshot_t *state)
         vTaskDelay(1);
     }
     if (still_ringing(state->revision))
-        app_intercom_ui_status("A videó megszakadt. Újracsatlakozás…", state->revision);
+        app_intercom_ui_status("A videó megszakadt. Újracsatlakozás...", state->revision);
 done:
     if (http)
     {
