@@ -1,6 +1,7 @@
 /* A kamera külön HTTP-kapcsolat, de ugyanazt a mentett Loxone-fiókot használja.
  * Sem hálózati várakozás, sem JPEG-dekódolás nem történik LVGL-lock alatt. */
 #include "app_intercom.h"
+#include "app_intercom_audio.h"
 #include "app_intercom_stream.h"
 #include "app_loxone.h"
 #include "driver/jpeg_decode.h"
@@ -174,6 +175,8 @@ static void worker(void *arg)
 
 esp_err_t app_intercom_start(void)
 {
-    return xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) == pdPASS ?
-        ESP_OK : ESP_ERR_NO_MEM;
+    if (xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
+    return app_intercom_audio_start();
 }

@@ -2,20 +2,35 @@
  * téma-/hibaoldalváltás és a gesztus nem zárhatja be a csengetés közben. */
 #if defined(ESP_PLATFORM) || defined(APP_TEMPLATE_DESKTOP)
 #include "app_intercom.h"
+#include "app_intercom_audio.h"
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #endif
 
 #define INTERCOM_FRONT_SIZE (1280U * 720U * 2U)
 static lv_obj_t *intercom_overlay, *intercom_image, *intercom_message, *intercom_gate;
+static lv_obj_t *intercom_audio, *intercom_audio_message;
 static uint8_t *intercom_front;
 static uint8_t *intercom_prepared;
 static lv_image_dsc_t intercom_descriptor;
 static app_intercom_snapshot_t intercom_next;
 static unsigned intercom_revision;
-static bool intercom_has_gate;
 static char intercom_video_status[LX_HOME_ERROR_SIZE];
 static int64_t intercom_last_press;
+
+static void intercom_toggle_audio(lv_event_t *event)
+{
+    lv_event_stop_bubbling(event);
+    app_intercom_audio_status_t audio;
+    app_intercom_audio_snapshot(&audio);
+    bool active = audio.state == APP_INTERCOM_AUDIO_CONNECTING ||
+                  audio.state == APP_INTERCOM_AUDIO_ACTIVE;
+    if (app_intercom_audio_request(!active, intercom_revision) != ESP_OK) {
+        lv_label_set_text(intercom_audio_message,
+                          tr("A hang nem indítható. Ellenőrizd a kapcsolatot.",
+                             "Cannot start audio. Check the connection."));
+    }
+}
 
 static void intercom_open_gate(lv_event_t *event)
 {
@@ -55,10 +70,12 @@ static void intercom_render(void)
 {
     if (!intercom_next.ringing)
     {
+        (void)app_intercom_audio_request(false, intercom_revision);
         if (intercom_overlay)
         {
             lv_obj_delete(intercom_overlay);
             intercom_overlay = intercom_image = intercom_message = intercom_gate = NULL;
+            intercom_audio = intercom_audio_message = NULL;
         }
         lv_image_cache_drop(&intercom_descriptor);
         free(intercom_front);
@@ -87,6 +104,22 @@ static void intercom_render(void)
         intercom_message = lbl(intercom_overlay, "", 24, 14, APP_FONT_20, 0xffffff);
         lv_obj_set_width(intercom_message, W - 48);
         lv_label_set_long_mode(intercom_message, LV_LABEL_LONG_WRAP);
+        intercom_audio_message = lbl(intercom_overlay, "", 24, 54, APP_FONT_20, 0xffffff);
+        lv_obj_set_width(intercom_audio_message, W - 48);
+        lv_label_set_long_mode(intercom_audio_message, LV_LABEL_LONG_WRAP);
+        intercom_audio = lv_button_create(intercom_overlay);
+        lv_obj_set_size(intercom_audio, 480, 92);
+        lv_obj_set_style_bg_color(intercom_audio, c(0x246696), 0);
+        lv_obj_set_style_radius(intercom_audio, 20, 0);
+        lv_obj_set_style_text_font(intercom_audio, APP_FONT_28, 0);
+        lv_obj_set_style_text_color(intercom_audio, lv_color_white(), 0);
+        lv_obj_remove_flag(intercom_audio, LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_event_cb(intercom_audio, intercom_toggle_audio, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *audio_title = lv_label_create(intercom_audio);
+        lv_obj_set_width(audio_title, 432);
+        lv_label_set_long_mode(audio_title, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(audio_title, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_center(audio_title);
         intercom_gate = lv_button_create(intercom_overlay);
         lv_obj_set_size(intercom_gate, 480, 92);
         lv_obj_align(intercom_gate, LV_ALIGN_BOTTOM_MID, 0, -20);
@@ -111,12 +144,32 @@ static void intercom_render(void)
     }
     if (intercom_revision != intercom_next.revision)
     {
+        (void)app_intercom_audio_request(false, intercom_revision);
         intercom_revision = intercom_next.revision;
         lv_obj_add_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
         strcpy(intercom_video_status, tr("Kapcsolódás a kamerához...", "Connecting to camera..."));
     }
     bool gate = intercom_next.config.gate.control_uuid[0] != 0;
-    intercom_has_gate = gate;
+    lv_obj_align(intercom_gate, LV_ALIGN_BOTTOM_MID, -250, -20);
+    lv_obj_align(intercom_audio, LV_ALIGN_BOTTOM_MID, gate ? 250 : 0, -20);
+    app_intercom_audio_status_t audio;
+    app_intercom_audio_snapshot(&audio);
+    bool talking = audio.state == APP_INTERCOM_AUDIO_ACTIVE;
+    bool connecting = audio.state == APP_INTERCOM_AUDIO_CONNECTING;
+    bool stopping = audio.state == APP_INTERCOM_AUDIO_STOPPING;
+    lv_label_set_text(lv_obj_get_child(intercom_audio, 0),
+                      talking ? tr("Beszélgetés vége", "End conversation") :
+                      connecting ? tr("Kapcsolódás megszakítása", "Cancel connection") :
+                      stopping ? tr("Hang leállítása...", "Stopping audio...") :
+                      tr("Beszélgetés", "Start conversation"));
+    lv_obj_set_style_bg_color(intercom_audio, c(talking || connecting ? 0xa53030 : 0x246696), 0);
+    if (stopping || (!intercom_next.connected && !talking && !connecting)) {
+        lv_obj_add_state(intercom_audio, LV_STATE_DISABLED);
+    } else {
+        lv_obj_remove_state(intercom_audio, LV_STATE_DISABLED);
+    }
+    lv_label_set_text(intercom_audio_message,
+                      audio.revision == intercom_revision ? audio.message : "");
     if (gate)
     {
         lv_obj_remove_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN);
@@ -137,6 +190,8 @@ static void intercom_render(void)
     /* A kapunyitó mindig a videó fölött marad; nincs bezáró gomb vagy időzítő. */
     lv_obj_move_foreground(intercom_message);
     lv_obj_move_foreground(intercom_gate);
+    lv_obj_move_foreground(intercom_audio);
+    lv_obj_move_foreground(intercom_audio_message);
 }
 
 bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned height,
@@ -158,13 +213,13 @@ bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned heigh
             .data_size = width * height * 2U, .data = intercom_front,
         };
         lv_image_set_src(intercom_image, &intercom_descriptor);
-        unsigned available_height = intercom_has_gate ? H - 172 : H - 68;
+        unsigned available_height = H - 204;
         unsigned scale_x = W * 256U / width;
         unsigned scale_y = available_height * 256U / height;
         unsigned scale = scale_x < scale_y ? scale_x : scale_y;
         lv_image_set_scale(intercom_image, scale);
         lv_obj_align(intercom_image, LV_ALIGN_CENTER, 0,
-                     intercom_has_gate ? -36 : 20);
+                     -24);
         lv_obj_remove_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
         lv_obj_invalidate(intercom_image);
         intercom_video_status[0] = 0;

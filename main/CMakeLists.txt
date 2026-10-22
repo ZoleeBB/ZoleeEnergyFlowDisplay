@@ -74,6 +74,8 @@ idf_component_register(
         "app_loxone.c"
         "app_intercom.c"
         "app_intercom_stream.c"
+        "app_intercom_audio.c"
+        "app_intercom_audio_protocol.c"
         "app_loxone_model.c"
         "app_loxone_home_model.c"
         "app_loxone_home_store.c"

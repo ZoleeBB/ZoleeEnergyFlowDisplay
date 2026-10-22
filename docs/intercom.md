@@ -35,7 +35,8 @@ használd. Átirányítást nem követünk, így más cél nem kaphatja meg a hi
 - Ismeretlen, hibás, más UUID-hez tartozó állapot vagy kapcsolatvesztés nem nulla.
   A nézet ilyenkor megmarad, és szükség esetén hibajelzést mutat.
 - Kapunyitó cél nélkül nem jelenik meg gomb. Konfigurált célnál a videó alján
-  egy 480×92 képpontos, nagy **Kapunyitás** gomb jelenik meg az egyedi felirattal.
+  egy 480×92 képpontos, nagy **Kapunyitás** gomb jelenik meg az egyedi felirattal,
+  a külön hangindító gomb mellett.
 - A gomb érintésenként egy `pulse` parancsot ad a közös Loxone-kapcsolaton.
   Hosszú nyomás nem ismétel, kapcsolatvesztéskor nincs későbbi automatikus újraküldés.
   A kapunyitás **nem zárja be** a kameraképet. Offline vagy nem támogatott célnál
@@ -77,42 +78,66 @@ kaputelefon JPEG-formátuma és a teljes rendszer együttes terhelése hardveres
 Az ESP-IDF firmware-build, a bináris-/OTA-méret és a valós kaputelefon együttes
 hardveres ellenőrzése szükséges a kiadás előtt.
 
-## Kétirányú hang – vizsgálat, megvalósítás nélkül
+## Kétirányú beszélgetés
 
-A vizsgálat dátuma: 2026-10-22. Az MJPEG-videócím csak képet ad; a beszédhez
-külön, kétirányú médiakapcsolat kell. A jelenlegi firmware nem nyit hangkapcsolatot.
+A videó alatt a **Beszélgetés** gomb külön, kézi érintésre indítja a hanghívást.
+Kapunyitó konfiguráció esetén a két nagy gomb egymás mellett jelenik meg;
+kapunyitó nélkül csak a hanggomb látszik, középen. Nincs automatikus belehallgatás:
+a mikrofon csak sikeresen felépült SIP-hívásnál kapcsol be.
 
-Két lehetséges irányt találtunk:
+- Kapcsolódás közben a gomb **Kapcsolódás megszakítása** felirattal megszakítható.
+- Aktív hívásnál a **Beszélgetés vége** gomb leállítja a mikrofont és a hangszórót,
+  és bontja a hívást. A videó ettől megmarad.
+- A csengetés **0 / false** értéke automatikusan leállítja a hangot és bezárja a videót.
+- Loxone-kapcsolatvesztés vagy a kaputelefon beállításainak cseréje leállítja a
+  hangkapcsolatot. Sikertelen hívás után nincs automatikus újrahívás.
+- Hálózati, SIP- vagy hanghardverhiba szöveges visszajelzést ad. Tíz másodpercnyi
+  bejövő RTP-hang hiánya megszakítja a beszélgetést.
 
-- **WebRTC:** a Loxone a Gen2 Intercom és az alkalmazás közti kommunikációhoz
-  WebRTC-t dokumentál. Az Espressif ESP-WebRTC keretrendszer támogatja az
-  ESP32-P4-et, a kétirányú médiafolyamot és egyedi jelzésprotokoll illesztését.
-  Ettől a Loxone-kompatibilis hívásfelépítés még külön fejlesztést és próbát igényel.
-- **Közvetlen SIP/RTP:** a nem hivatalos `markuslaube/loxone-intercom2` projekt
-  `sip-directbridge` modulja kifejezetten Gen2 kétirányú hangot valósít meg.
-  Az átnézett `c4269fa49d5eee2bb7f5d80366f27269b7088d3b` változat kódja
-  TCP 5060-on hívja a `sip:smarthome@<intercom-ip>` címet, G.711 PCMU/PCMA
-  kodeket és `sendrecv` SDP-t használ. A szerző szerint a kaputelefon ezen az
-  útvonalon nem kér hitelesítést; ez nem általunk ellenőrzött, gyártó által
-  garantált API, és firmware-verziótól is függhet. A projekt köztes gépen fut,
-  de a közvetlen SIP-végpont működése esetén a kijelző saját SIP/RTP kliense
-  elvileg kiválthatja ezt a köztes hanghidat.
+A hang célpontját a beállított MJPEG-cím gépnevéből/IP-címéből vesszük; nincs
+külön szükséges mező. A hívás a **Loxone Intercom Gen2 közvetlen SIP/TCP 5060**
+végpontját (`sip:smarthome@<intercom-ip>:5060`) használja, **G.711 PCMU/PCMA,
+8 kHz, 20 ms RTP/UDP** hanggal. A SIP-válaszban kapott médiacímnek ugyanahhoz az
+IPv4-címhez kell tartoznia, mint a kaputelefonnak. A kijelző csak a készüléktől
+fogad hangot; más állomás nem indíthat mikrofonfelvételt. A kamera továbbra is a
+mentett Loxone-fiókkal hitelesít. A használt közvetlen Gen2 SIP-végpont nem kér
+külön SIP-fiókot; elutasítás esetén a kijelző hibát mutat, nem próbál más fiókot.
 
-A Waveshare P4 LCD-X gyártói példái tartalmaznak I2S hangbemenetet és
-hangkimenetet. Az adott kijelző hardverváltozatán ellenőrizni kell a mikrofon,
-codec és erősítő bekötését, a visszhangkioltást, valamint az egyidejű videó,
-Loxone-kapcsolat és duplex hang erőforrásigényét. A mentett Loxone-jelszóval
-működő MJPEG önmagában nem igazolja a hangkapcsolat hitelesítését.
+Ez a SIP-elérés nem hivatalos Gen2 interfész; a `markuslaube/loxone-intercom2`
+projektben dokumentált közvetlen kapcsolat alapján készült, saját C megvalósítással.
+Csak helyi, megbízható hálózatra való: a SIP/RTP útvonal titkosítatlan, nem szabad
+5060-as vagy RTP-portot internetre továbbítani. Nem igényel Docker-, NAS-,
+FritzBox- vagy SIP-szervert. SIP-hangot nem támogató firmware-nél a videó tovább
+működik, de a beszélgetés nem épül fel. A Loxone alkalmazás WebRTC-hívásával való
+párhuzamos használat viselkedését a tényleges készüléken kell ellenőrizni.
 
-Következtetés: műszakilag ígéretes, konkrét megoldási út létezik, de a felhasználó
-100484 készülékén még nincs igazolt kétirányú próba. Következő vizsgálati lépés
-helyi PC-ről egy rövid, kézzel indított SIP-hívás lenne; csak sikeres próba után
-érdemes a kijelző hangkezelését fejleszteni. A hanghívás felépítésekor külön
-ellenőrizendő, hogy a csengetésállapot és a Loxone alkalmazás hívása hogyan változik.
+A kijelző a rögzített Waveshare BSP ES8311 hangkimenetét és ES7210 mikrofonját
+használja közös, 16 kHz-es I2S-órán. Az első mikrofoncsatorna hangja az Espressif
+**ESP-SR 2.6.0 AEC_MODE_FD_LOW_COST** visszhangkioltóján halad át; a referencia
+a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
+Alap hangerő 55%, mikrofonerősítés 24 dB. A visszhangkioltó és a mintapufferek
+csak aktív beszélgetés alatt élnek. A BSP I2S-illesztése és kodekeszközei az első
+hívás után megmaradnak, de a mikrofon ADC és a hangszóró erősítője zárva van.
+A hang külön CPU0-feladatban fut; nem tart LVGL-lockot vagy Loxone-lockot I/O alatt.
+
+A valódi hardveres próba szükséges: a felhasználó 100484 készülékének SIP-támogatása,
+a pontos kijelzőváltozat mikrofonbekötése, hangerő, visszhang, hangkésés és a
+párhuzamos videó/Loxone/Wi-Fi terhelés helyi szimulációval nem igazolható.
+
+### Hangtesztek
+
+`python3 tests/test_intercom_audio.py` a tényleges SIP/SDP/RTP/G.711 kódot
+ASan/UBSan alatt ellenőrzi: töredezett TCP-üzenetek, hibás hosszak, idegen
+médiacím, egyirányú vagy nem támogatott SDP, kodekhatárok, RTP-időbélyeg
+átfordulása, csomagvesztés és sérült fejléc. Helyi TCP/UDP kaputelefon-másolat
+mellett a valódi session-kód oda-vissza hangot küld/fogad, ACK/BYE bontást,
+CANCEL/200 versenyt, elutasított hívást, hanghardverhibát és ismételt hívásokat
+ellenőriz; az I2S és az AEC hardver ebben a tesztben helyettesített.
+A szimulátor a tényleges LVGL kétgombos elrendezést, kézi indítást/leállítást,
+hosszú nyomás ismétlésének tiltását és a csengetésvég bontását is ellenőrzi.
 
 Források:
 
-- [Loxone Intercom – technikai adatok](https://www.loxone.com/enus/products/intercom/technical/)
-- [Espressif ESP-WebRTC](https://www.espressif.com/en/solutions/multimedia-solutions/esp-webrtc)
-- [Waveshare LCD-X – I2S példa](https://docs.waveshare.com/ESP32-P4-WIFI6-Touch-LCD-X/ESP-IDF)
-- [Gen2 SIP-híd forrása és dokumentációja](https://github.com/markuslaube/loxone-intercom2/tree/c4269fa49d5eee2bb7f5d80366f27269b7088d3b/sip-directbridge)
+- [Gen2 SIP-híd dokumentáció és forrás](https://github.com/markuslaube/loxone-intercom2/tree/c4269fa49d5eee2bb7f5d80366f27269b7088d3b/sip-directbridge)
+- [Espressif ESP-SR visszhangkioltás](https://docs.espressif.com/projects/esp-sr/en/latest/esp32p4/acoustic_echo_cancellation/README.html)
+- [Rögzített Waveshare BSP 2.0.3 forrás](https://github.com/waveshareteam/Waveshare-ESP32-components/tree/0694fdb9fa7751cc2719a9d1927de70547b89ba0/bsp/esp32_p4_wifi6_touch_lcd_x)

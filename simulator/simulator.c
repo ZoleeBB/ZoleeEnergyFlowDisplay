@@ -276,6 +276,16 @@ static int intercom_self_test(void)
     app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
     render_step(200);
     if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
+    if (!intercom_audio || lv_obj_has_state(intercom_audio, LV_STATE_DISABLED)) return 49;
+    if (app_sim_audio_starts || app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE) return 50;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    render_step(200);
+    if (app_sim_audio_starts != 1 || app_sim_audio.state != APP_INTERCOM_AUDIO_CONNECTING) return 51;
+    lv_obj_send_event(intercom_audio, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
+    if (app_sim_audio_starts != 1) return 52;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    render_step(200);
+    if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 1) return 53;
     uint8_t frame[16*16*2];
     for (unsigned i=0;i<sizeof(frame);i+=2) { frame[i]=0;frame[i+1]=0xf8; }
     if (!app_intercom_ui_frame(frame,16,16,32,1)) return 41;
@@ -286,6 +296,10 @@ static int intercom_self_test(void)
     app_sim_intercom.gate_supported=true;
     render_step(200);
     if (lv_obj_has_flag(intercom_gate,LV_OBJ_FLAG_HIDDEN) || lv_obj_has_state(intercom_gate,LV_STATE_DISABLED)) return 43;
+    lv_obj_update_layout(intercom_overlay);
+    if (lv_obj_get_x(intercom_gate) + lv_obj_get_width(intercom_gate) >= lv_obj_get_x(intercom_audio)) return 54;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    app_sim_audio.state = APP_INTERCOM_AUDIO_ACTIVE;
     app_sim_home_reset();
     unsigned sent=app_sim_home_commands;
     ticks+=2000000;
@@ -302,6 +316,7 @@ static int intercom_self_test(void)
     app_sim_intercom.ringing=false;
     render_step(200);
     if (intercom_overlay || intercom_front || intercom_prepared) return 48;
+    if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 2) return 55;
     puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close and released image buffer");
     return 0;
 }
