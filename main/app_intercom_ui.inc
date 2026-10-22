@@ -93,9 +93,14 @@ static void intercom_render(void)
         lv_obj_set_style_bg_color(intercom_gate, c(0x347c27), 0);
         lv_obj_set_style_radius(intercom_gate, 20, 0);
         lv_obj_set_style_text_font(intercom_gate, APP_FONT_28, 0);
+        lv_obj_set_style_text_color(intercom_gate, lv_color_white(), 0);
         lv_obj_remove_flag(intercom_gate, LV_OBJ_FLAG_GESTURE_BUBBLE);
         lv_obj_add_event_cb(intercom_gate, intercom_open_gate, LV_EVENT_CLICKED, NULL);
         lv_obj_t *title = lv_label_create(intercom_gate);
+        /* A hosszabb, egyedi felirat sem lóghat túl az érinthető gombon. */
+        lv_obj_set_size(title, 432, 72);
+        lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(title);
     }
     if (!intercom_front && intercom_prepared)
