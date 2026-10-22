@@ -36,14 +36,15 @@ A címek egyetlen központi fájlban állíthatók be:
 
 ```json
 {
-  "revolut_me_url": "",
-  "ko_fi_url": ""
+  "revolut_me_url": "https://revolut.me/zoleebb",
+  "ko_fi_url": "https://ko-fi.com/E1H8299KGN"
 }
 ```
 
-A két üres érték szándékos: a projektgazda saját, ellenőrzött támogatási címei
-még nincsenek megadva. Csak ténylegesen megadott címhez készül gomb. Ha mindkét
-cím üres, az egész kártya rejtve marad, hibás vagy más fiókjára mutató link nélkül.
+A projektgazda által megadott két címhez a webfelületen saját, zöld hivatkozásgomb
+készül. A Ko-fi JavaScript-widgetjének betöltése nem szükséges; a README-ben a
+Ko-fi hivatalos GitHub-gombja mutat ugyanerre a profilra. Egy cím kiürítésével
+az adott gomb elrejthető; ha mindkét cím üres, az egész kártya rejtve marad.
 
 Csak `https://revolut.me/` és `https://ko-fi.com/` alatti, egyetlen profilnevet
 tartalmazó cím fogadható el, lekérdezés, összeg és fragment nélkül. A hivatkozások
