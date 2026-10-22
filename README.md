@@ -62,6 +62,8 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
 | Rendszer (beépített) | ![Nappal](assets/previews/builtin-light.png) | ![Éjjel](assets/previews/builtin-dark.png) |
+| Loxone – Ház külön mért fogyasztói | ![Fogyasztók nappal](assets/loxone-home/previews/consumers-light.png) | ![Fogyasztók éjjel](assets/loxone-home/previews/consumers-dark.png) |
+| Loxone – Otthon-kártyák | ![Otthon-kártyák nappal](assets/loxone-home/previews/cards-light.png) | ![Otthon-kártyák éjjel](assets/loxone-home/previews/cards-dark.png) |
 | Élő otthon | ![Nappal](templates/01-live-home/preview-light.png) | ![Éjjel](templates/01-live-home/preview-dark.png) |
 | Energiautak | ![Nappal](templates/02-energy-paths/preview-light.png) | ![Éjjel](templates/02-energy-paths/preview-dark.png) |
 | Műszerfal | ![Nappal](templates/03-instruments/preview-light.png) | ![Éjjel](templates/03-instruments/preview-dark.png) |
@@ -71,8 +73,6 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 | Energiafőkönyv | ![Nappal](templates/07-energy-ledger/preview-light.png) | ![Éjjel](templates/07-energy-ledger/preview-dark.png) |
 | Energiastatisztika | ![Nappal](templates/08-statistics/preview-light.png) | ![Éjjel](templates/08-statistics/preview-dark.png) |
 | Nap pálya | ![Nappal](templates/09-solar-journey/preview-light.png) | ![Éjjel](templates/09-solar-journey/preview-dark.png) |
-| Loxone – Ház külön mért fogyasztói | ![Fogyasztók nappal](assets/loxone-home/previews/consumers-light.png) | ![Fogyasztók éjjel](assets/loxone-home/previews/consumers-dark.png) |
-| Loxone – Otthon-kártyák | ![Otthon-kártyák nappal](assets/loxone-home/previews/cards-light.png) | ![Otthon-kártyák éjjel](assets/loxone-home/previews/cards-dark.png) |
 
 A webes sablonkezelő a csomagok `preview-light.png` / `preview-dark.png` képeit mutatja; régi csomagnál üres keret marad, amíg a témát ZIP-ből frissíted.
 
@@ -94,19 +94,26 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Kilenc választható téma](docs/templates.md)
 - [Nyugodt otthon – megújult nappali/éjszakai téma](docs/calm-home.md)
 - [Energiakör – megújult téma és 24 órás napállás-idővonal](docs/energy-orbit.md)
+- [Nap pálya – működés, energiautak és ellenőrzés](docs/solar-journey-acceptance.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Külső témák kompatibilitási ellenőrzése](docs/external-template-review.md)
 - [Statisztika és számítások](docs/statistics.md)
 - [Webfelület és OTA, kapcsolható automatikus éjféli GitHub-frissítés](docs/ota.md)
+- [Automatikus OTA-frissítés diagnosztikája, kézi próba és memória](docs/automatic-update-diagnostics.md)
 - [Hibakezelés](docs/errors.md)
 - [Fordítás és flash](docs/build-flash.md)
 - [USB telepítés](docs/usb-install.md)
 - [Windows szimulátor](docs/simulator.md)
 - [Automatikus kiadás](docs/releases.md)
 - [Felépítés](docs/architecture.md)
+- [Memória- és képfrissítési optimalizálás](docs/performance.md)
+- [Fejlesztői instrukciók](AGENTS.md)
 - [Master/Slave átadási és lezárási jegyzet](docs/master-slave-handover.md)
 - [Waveshare 4B Slave – 720×720-as firmware és szimulátor](docs/slave-waveshare-4b.md) (külön alkalmazás, falra vagy asztali tartóra)
+- [Waveshare 4B Slave – firmware fordítása, működése és hardveres átvétele](firmware/slave-waveshare-4b/README.md)
+- [Waveshare 4B Slave – megjelenési rétegek és geometria](firmware/slave-waveshare-4b/design/README.md)
 - [Képek és licencek](docs/assets.md)
+- [Loxone Otthon – közös ikonkészlet, hátterek és SD-erőforráscsomag](assets/loxone-home/README.md)
 - [v3 telepítési és eszközös átadási lista (HU/EN)](docs/v3-handover.md)
 - [v3 követelmény- és záró ellenőrzés](docs/v3-completion-review.md)
 - [v3 felhasználói próba utáni javítások](docs/v3-field-fixes.md)
@@ -114,7 +121,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 
 ## Fejlesztői ellenőrzés
 
-A firmware-források egységes, jól olvasható tagolására és magyar nyelvű kommentelésére vonatkozó kötelező szabályokat a fejlesztői instrukciók (`AGENTS.md`) tartalmazzák. A kódformázás nem érintheti a beágyazott erőforrásokat és nem növelheti problémásan a firmware méretét.
+A firmware-források egységes, jól olvasható tagolására és magyar nyelvű kommentelésére vonatkozó kötelező szabályokat a [fejlesztői instrukciók](AGENTS.md) tartalmazzák. A kódformázás nem érintheti a beágyazott erőforrásokat és nem növelheti problémásan a firmware méretét.
 
 A hosttesztekhez C-fordító, Node.js, valamint a cJSON, zlib és mbedTLS
 fejlesztői csomagjai szükségesek. A Python-függőséget a használt környezetbe
