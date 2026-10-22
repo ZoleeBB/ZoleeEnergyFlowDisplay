@@ -173,6 +173,43 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
     return true;
 }
 
+static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
+{
+    if (!entry)
+        return true;
+    const cJSON *enabled = cJSON_GetObjectItemCaseSensitive(entry, "enabled");
+    if (!cJSON_IsObject(entry) || !cJSON_IsBool(enabled))
+        return fail(error, "intercom", 0, "enabled");
+    out->enabled = cJSON_IsTrue(enabled);
+    const char *url = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "stream_url"));
+    if (url && url[0])
+    {
+        /* A hitelesítést kizárólag a mentett integráció adja; URL-be tett
+         * jelszó, átirányítás és más protokoll nem része a konfigurációnak. */
+        if (!text(entry, "stream_url", out->stream_url, sizeof(out->stream_url)) ||
+            strncmp(url, "http://", 7) || !url[7] || strchr(url, '@') ||
+            strchr(url, '#') || strchr(url, '\\') || strchr(url, ' '))
+            return fail(error, "intercom", 0, "stream_url");
+        const char *path = strchr(url + 7, '/');
+        const char *query = strchr(url + 7, '?');
+        if (!path || path == url + 7 || path[1] == 0 || (query && query < path))
+            return fail(error, "intercom", 0, "stream_url");
+    }
+    const char *bell = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "bell_uuid"));
+    if (bell && bell[0] && !uuid(entry, "bell_uuid", out->bell_uuid))
+        return fail(error, "intercom", 0, "bell_uuid");
+    if (out->enabled && (!out->stream_url[0] || !out->bell_uuid[0]))
+        return fail(error, "intercom", 0, "stream_url/bell_uuid");
+    const cJSON *gate = cJSON_GetObjectItemCaseSensitive(entry, "gate");
+    if (gate && !cJSON_IsNull(gate))
+    {
+        if (!card(gate, &out->gate, 0, error) || out->gate.type != LX_HOME_CARD_PULSE ||
+            strcmp(out->gate.id, LX_INTERCOM_GATE_ID))
+            return fail(error, "intercom", 0, "gate");
+    }
+    return true;
+}
+
 static bool parse_cards(const cJSON *array, lx_home_config_t *next, char *error)
 {
     if (!array)
@@ -187,6 +224,8 @@ static bool parse_cards(const cJSON *array, lx_home_config_t *next, char *error)
         unsigned index = next->card_count + i;
         if (!card(cJSON_GetArrayItem(array, (int)i), &next->cards[index], index, error))
             return false;
+        if (!strcmp(next->cards[index].id, LX_INTERCOM_GATE_ID))
+            return fail(error, "cards", index, "reserved_id");
         /* A parancssor oldalváltás közben is ugyanarra az egyedi kártyára mutat. */
         for (unsigned j = 0; j < index; j++)
             if (!strcmp(next->cards[index].id, next->cards[j].id))
@@ -273,6 +312,8 @@ bool lx_home_config_parse(const cJSON *root, lx_home_config_t *out,
         }
     }
     if (ok)
+        ok = intercom(cJSON_GetObjectItemCaseSensitive(root, "intercom"), &next->intercom, error);
+    if (ok)
         *out = *next;
     free(next);
     return ok;
@@ -352,6 +393,17 @@ cJSON *lx_home_config_json(const lx_home_config_t *config)
     cJSON *root = cJSON_CreateObject();
     if (!root || !cJSON_AddNumberToObject(root, "schema", 2))
         goto failed;
+    cJSON *door = cJSON_AddObjectToObject(root, "intercom");
+    if (!door || !cJSON_AddBoolToObject(door, "enabled", config->intercom.enabled) ||
+        !cJSON_AddStringToObject(door, "stream_url", config->intercom.stream_url) ||
+        !cJSON_AddStringToObject(door, "bell_uuid", config->intercom.bell_uuid))
+        goto failed;
+    cJSON *gate = config->intercom.gate.control_uuid[0] ? card_json(&config->intercom.gate) : cJSON_CreateNull();
+    if (!gate || !cJSON_AddItemToObject(door, "gate", gate))
+    {
+        cJSON_Delete(gate);
+        goto failed;
+    }
     cJSON *consumers = cJSON_AddArrayToObject(root, "consumers");
     if (!consumers)
         goto failed;

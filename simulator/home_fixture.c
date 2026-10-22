@@ -107,3 +107,11 @@ bool app_stats_get_night_reference(app_assistant_night_t *out)
     memset(out, 0, sizeof(*out));
     return false;
 }
+
+/* A valódi felugró nézet tesztelhető hálózat és hardveres JPEG nélkül. */
+app_intercom_snapshot_t app_sim_intercom;
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
+{
+    *out = app_sim_intercom;
+    return true;
+}

@@ -29,6 +29,12 @@ számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablak
 
 Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
 
+## Kaputelefon
+
+Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
+opcionális, nagy kapunyitó nyomógombbal. A beállítások és a működési korlátok:
+[Kaputelefon konfigurációja](docs/intercom.md).
+
 ## v3.0.0 újdonságai
 
 A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb változásai és részletes leírása:

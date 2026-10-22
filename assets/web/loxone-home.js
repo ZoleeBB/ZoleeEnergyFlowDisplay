@@ -3,7 +3,7 @@ const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
     const get = id => document.getElementById(id);
-    let model = {schema: 2, consumers: [], pages: []};
+    let model = {schema: 2, consumers: [], pages: [], intercom: {enabled: false, stream_url: '', bell_uuid: '', gate: null}};
     let selectedPage = 0;
     const activeCards = () => model.pages[selectedPage]?.cards || [];
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
@@ -17,6 +17,8 @@ const LoxoneHome = (() => {
         const node = get('home-status');
         node.textContent = text;
         node.className = error ? 'feedback-error' : '';
+        const doorStatus = get('intercom-status');
+        if (doorStatus) { doorStatus.textContent = text; doorStatus.className = node.className; }
     }
     function create(tag, text) {
         const node = document.createElement(tag);
@@ -27,6 +29,7 @@ const LoxoneHome = (() => {
     function buttons() {
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
+        if (get('intercom-save')) get('intercom-save').disabled = busy();
         get('home-add-consumer').disabled = busy() || model.consumers.length >= 12;
         get('home-add-card').disabled = busy() || !model.pages.length || activeCards().length >= 12;
         get('home-add-page').disabled = busy() || model.pages.length >= 8;
@@ -37,7 +40,7 @@ const LoxoneHome = (() => {
         if (type === 'checkbox') input.checked = !!entry[key];
         else input.value = entry[key] ?? '';
         if (type === 'number') input.step = 'any';
-        if (type === 'text') input.maxLength = ['name', 'title'].includes(key) ? 80 : key === 'unit' ? 16 : 36;
+        if (type === 'text') input.maxLength = ['name', 'title'].includes(key) ? 80 : key === 'unit' ? 16 : key === 'stream_url' ? 256 : 36;
         input.id = domId(entry, key);
         input.oninput = input.onchange = () => {
             entry[key] = type === 'checkbox' ? input.checked : type === 'number' ?
@@ -155,8 +158,33 @@ const LoxoneHome = (() => {
         model.pages.push({id: 'page-' + serial, title: 'Új oldal', cards: []});
         selectedPage = model.pages.length - 1; render();
     }
+    function renderIntercom() {
+        const target = get('intercom-config');
+        if (!target) return;
+        target.replaceChildren(); currentSection = 'intercom';
+        const door = model.intercom;
+        const enabled = field(target, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox');
+        enabled.id = 'intercom-enabled';
+        const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
+        url.id = 'intercom-stream-url'; url.placeholder = 'http://192.168.1.50/mjpg/video.mjpg';
+        const bell = select(target, 'Csengetés folyamatban – Loxone állapot', door, 'bell_uuid', stateChoices());
+        bell.id = 'intercom-bell';
+        const gate = select(target, 'Kapunyitás – vezérelhető Loxone objektum (opcionális)',
+            {id: 'gate', control_uuid: door.gate?.control_uuid || ''}, 'control_uuid', stateChoices(true, true));
+        gate.id = 'intercom-gate';
+        gate.onchange = () => {
+            door.gate = gate.value ? {id: 'intercom-gate', name: door.gate?.name || 'Kapunyitás',
+                icon: 'door', type: 'pulse', control_uuid: gate.value} : null;
+            render();
+        };
+        if (door.gate) {
+            const title = field(target, 'Kapunyitó gomb felirata', door.gate, 'name');
+            title.id = 'intercom-gate-name';
+        }
+    }
     function render() {
         controls.length = 0;
+        renderIntercom();
         renderPages();
         for (const section of ['consumers', 'cards']) {
             currentSection = section;
@@ -229,6 +257,20 @@ const LoxoneHome = (() => {
     }
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
     function validate() {
+        const door = model.intercom;
+        if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
+            return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';
+        if (door.stream_url) {
+            try {
+                const url = new URL(door.stream_url);
+                if (url.protocol !== 'http:' || url.username || url.password || url.hash ||
+                    !url.hostname || url.pathname === '/' || /[\s\\]/.test(door.stream_url) ||
+                    new TextEncoder().encode(door.stream_url).length > 256) throw Error();
+            } catch (_) { return 'Kaputelefon: érvényes HTTP videócím kell, beágyazott felhasználónév és jelszó nélkül.'; }
+        }
+        if (door.gate && (!uuidValid(door.gate.control_uuid) || !door.gate.name.trim() ||
+            /[\x00-\x1f\x7f]/.test(door.gate.name) || new TextEncoder().encode(door.gate.name).length > 80))
+            return 'Kaputelefon: válassz kapunyitó objektumot és adj legfeljebb 80 bájtos gombfeliratot.';
         for (const section of ['consumers', 'cards']) for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
             const title = entry.name || 'Névtelen elem';
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
@@ -269,7 +311,7 @@ const LoxoneHome = (() => {
                 get('home-resource-warning').hidden = resourcesInstalled;
             }
             if (first) {
-                model = {schema: 2, consumers: state.consumers || [], pages: state.pages ||
+                model = {schema: 2, intercom: state.intercom || {enabled: false, stream_url: '', bell_uuid: '', gate: null}, consumers: state.consumers || [], pages: state.pages ||
                     (state.cards?.length ? [{id: 'home', title: 'Otthon', cards: state.cards}] : [])};
                 for (const entry of model.pages.flatMap(page => page.cards)) {
                     entry.source ||= {uuid: '', scale: 1, offset: 0};
@@ -314,6 +356,7 @@ const LoxoneHome = (() => {
         get('home-add-page').onclick = addPage;
         get('home-add-card').onclick = () => add('cards');
         get('home-save').onclick = save;
+        if (get('intercom-save')) get('intercom-save').onclick = save;
         get('home-room').onchange = get('home-category').onchange = render;
         buttons();
     }

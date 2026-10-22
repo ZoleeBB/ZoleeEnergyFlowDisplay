@@ -145,3 +145,8 @@ A jelzés külön helyet használ a Rendszer és a gyári témák címsávjában
 a fogyasztói/kártyaoldalak és a PIN-pad vezérlőit nem takarja. Csak Master/Loxone
 módban működik. Részletek és a régi napfájlok kezelése:
 [Helyi energiaasszisztens](energy-assistant.md).
+
+## Kaputelefon
+
+A Master MJPEG-élőképének, a csengetésállapotnak és az opcionális kapunyitónak
+a beállítása: [Loxone kaputelefon](intercom.md).

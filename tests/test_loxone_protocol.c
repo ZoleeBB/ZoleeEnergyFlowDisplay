@@ -242,6 +242,34 @@ static void home_control_test(lx_config_t *energy)
     invalidate(true);
     assert(app_loxone_assistant_snapshot(&minimal));
     assert(!minimal.connected && !minimal.consumers[0].valid);
+    /* A csengetés reteszét nem törli a kapunyitás vagy a kapcsolatvesztés. */
+    s_home->intercom.enabled = true;
+    strcpy(s_home->intercom.bell_uuid, "00000000-0000-0000-0000000000000000");
+    s_home->intercom.gate = *card;
+    strcpy(s_home->intercom.gate.id, LX_INTERCOM_GATE_ID);
+    s_home->intercom.gate.type = LX_HOME_CARD_PULSE;
+    s_home_live = true; s_dead = false; mark_response();
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    app_intercom_snapshot_t door;
+    assert(app_loxone_intercom_snapshot(&door) && door.ringing && door.gate_supported);
+    unsigned generation = door.revision;
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    sent = home_command_count;
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == sent + 1 && s_intercom_ringing && !s_command_pending);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == sent + 1 && !s_intercom_ringing && !s_command_pending);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    invalidate(true);
+    assert(app_loxone_intercom_snapshot(&door) && door.ringing && !door.connected && door.revision != generation);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    s_intercom_ringing = false;
     cJSON_Delete(s_catalog); s_catalog = original_catalog;
     free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
 }

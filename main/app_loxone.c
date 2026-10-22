@@ -1,5 +1,6 @@
 /* Korlátos, egy kapcsolatos Loxone kliens. A UI és HTTP feladat nem vár hálózatra. */
 #include "app_loxone.h"
+#include "app_intercom.h"
 #include "app_loxone_model.h"
 #include "app_loxone_store.h"
 #include "app_loxone_home_store.h"
@@ -53,6 +54,9 @@ static EXT_RAM_BSS_ATTR lx_home_values_t s_home_values;
 static lx_home_values_t s_home_values;
 #endif
 static bool s_home_live, s_command_pending;
+/* Kapcsolatvesztés nem 0 állapot: a már megnyitott kaputelefon megmarad. */
+static bool s_intercom_ringing;
+static unsigned s_intercom_generation;
 static bool s_presence_session_live;
 static unsigned s_home_session;
 static int64_t s_command_deadline, s_home_response;
@@ -510,8 +514,12 @@ static void save_home_request(const lx_home_config_t *home)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (saved == ESP_OK)
     {
+        bool same_bell = !strcmp(s_home->intercom.bell_uuid, home->intercom.bell_uuid);
         *s_home = *home;
+        if (!same_bell || !home->intercom.enabled)
+            s_intercom_ringing = false;
         s_home_revision++;
+        s_intercom_generation++;
     }
     snprintf(s_home_status, sizeof(s_home_status), "%s",
              saved == ESP_OK ? "Otthon-beállítások elmentve." :
@@ -540,7 +548,7 @@ static void worker(void *arg)
             *active=request->config;testing=!request->save;
             if(request->save) {
                 if(app_loxone_store_save(active)==ESP_OK) {
-                    xSemaphoreTake(s_lock,portMAX_DELAY);s_saved=*active;s_password=true;xSemaphoreGive(s_lock);
+                    xSemaphoreTake(s_lock,portMAX_DELAY);s_saved=*active;s_password=true;s_intercom_generation++;xSemaphoreGive(s_lock);
                     status("Beállítások elmentve. Kapcsolódás...");
                 }else {status("Az SD-mentés sikertelen. A korábbi beállítások maradtak érvényben.");*active=s_saved;}
             }
@@ -628,7 +636,7 @@ esp_err_t app_loxone_start(void)
      * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
     if (xTaskCreatePinnedToCore(worker, "loxone", 12288, NULL, 3, NULL, 0) != pdPASS)
         return ESP_ERR_NO_MEM;
-    return ESP_OK;
+    return app_intercom_start();
 }
 cJSON *app_loxone_web_state(void)
 {
@@ -728,6 +736,13 @@ static bool update_values(int type, const uint8_t *data, size_t size)
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);
+    if (ok && s_home)
+    {
+        bool was_ringing = s_intercom_ringing;
+        ok = lx_intercom_bell_update(&s_intercom_ringing, &s_home->intercom, type, data, size);
+        if (was_ringing != s_intercom_ringing)
+            s_intercom_generation++;
+    }
     xSemaphoreGive(s_lock);
     if (ok && type == 2 && s_presence_session_live)
     {
@@ -803,7 +818,8 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
         return ESP_ERR_INVALID_STATE;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     char command[96];
-    bool allowed = s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
+    bool door = !strcmp(card_id, LX_INTERCOM_GATE_ID);
+    bool allowed = (!door || s_intercom_ringing) && s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
                    lx_home_command_build(s_home, s_catalog, card_id, action, command);
     for (unsigned i = 0; allowed && i < s_home->card_count; i++)
@@ -837,7 +853,8 @@ static void home_command_poll(int64_t now)
         /* A kérés az üzenetfogadás várakozása közben is érkezhetett.
          * A ciklus eleji idő ilyenkor régebbi a gombnyomásnál. */
         now = esp_timer_get_time();
-        bool valid = s_home_live && !s_dead && request.revision == s_home_revision &&
+        bool door = !strcmp(request.id, LX_INTERCOM_GATE_ID);
+        bool valid = (!door || s_intercom_ringing) && s_home_live && !s_dead && request.revision == s_home_revision &&
                      request.session == s_home_session && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
                      lx_home_command_build(s_home, s_catalog, request.id, request.action, command);
@@ -882,4 +899,36 @@ static void home_command_poll(int64_t now)
         }
     }
     xSemaphoreGive(s_lock);
+}
+
+/* Kis pillanatkép, a teljes Otthon-katalógus másolása és hálózati várakozás nélkül. */
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
+{
+    if (!out || !s_lock || !s_home)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    out->config = s_home->intercom;
+    out->ringing = s_intercom_ringing && out->config.enabled;
+    out->connected = s_home_live && !s_dead &&
+        esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
+    out->revision = s_intercom_generation;
+    char command[96];
+    out->gate_supported = lx_home_command_build(s_home, s_catalog, LX_INTERCOM_GATE_ID,
+                                                LX_HOME_COMMAND_PULSE, command);
+    out->command_pending = s_command_pending;
+    snprintf(out->status, sizeof(out->status), "%s", s_command_status);
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
+bool app_loxone_intercom_credentials(char username[96], char password[LX_PASSWORD_MAX])
+{
+    if (!s_lock || !username || !password)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    snprintf(username, 96, "%s", s_saved.username);
+    snprintf(password, LX_PASSWORD_MAX, "%s", s_saved.password);
+    bool valid = username[0] && password[0];
+    xSemaphoreGive(s_lock);
+    return valid;
 }

@@ -131,6 +131,13 @@ static void render_step(unsigned elapsed)
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
         app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
+        if (intercom_prepare())
+        {
+            intercom_render();
+            lv_timer_handler();
+            return;
+        }
+        intercom_render();
         diagnostics_capture();
         if (!home_is_open() && !template_loading_frame()) return;
         if (!home_prepare(sample.night_mode)) return;
@@ -262,6 +269,43 @@ static int self_test(void)
     fclose(f);printf("PASS: %u demo packets, all scenes, validation, timeout, recovery, animation.\n",packets);
     return 0;
 }
+static int intercom_self_test(void)
+{
+    config.data_recept_mode = APP_DATA_LOXONE;
+    app_ui_set_config(&config);
+    app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
+    render_step(200);
+    if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
+    uint8_t frame[16*16*2];
+    for (unsigned i=0;i<sizeof(frame);i+=2) { frame[i]=0;frame[i+1]=0xf8; }
+    if (!app_intercom_ui_frame(frame,16,16,32,1)) return 41;
+    if (app_intercom_ui_frame(frame,16,16,32,0)) return 42;
+    lv_obj_t *original = intercom_overlay;
+    strcpy(app_sim_intercom.config.gate.control_uuid, "11223344-5566-7788-99aabbccddeeff00");
+    strcpy(app_sim_intercom.config.gate.name, "Kapunyitás");
+    app_sim_intercom.gate_supported=true;
+    render_step(200);
+    if (lv_obj_has_flag(intercom_gate,LV_OBJ_FLAG_HIDDEN) || lv_obj_has_state(intercom_gate,LV_STATE_DISABLED)) return 43;
+    app_sim_home_reset();
+    unsigned sent=app_sim_home_commands;
+    ticks+=2000000;
+    lv_obj_send_event(intercom_gate,LV_EVENT_CLICKED,NULL);
+    if (app_sim_home_commands!=sent+1 || intercom_overlay!=original || !app_sim_intercom.ringing) return 44;
+    lv_obj_send_event(intercom_gate,LV_EVENT_LONG_PRESSED_REPEAT,NULL);
+    if (app_sim_home_commands!=sent+1) return 45;
+    app_sim_intercom.connected=false;
+    render_step(200);
+    if (intercom_overlay!=original || !lv_obj_has_state(intercom_gate,LV_STATE_DISABLED)) return 46;
+    app_intercom_ui_status("A videó megszakadt.",1);
+    render_step(200);
+    if (intercom_overlay!=original) return 47;
+    app_sim_intercom.ringing=false;
+    render_step(200);
+    if (intercom_overlay || intercom_front || intercom_prepared) return 48;
+    puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close and released image buffer");
+    return 0;
+}
+
 #ifdef _WIN32
 /* A teljes ablak memóriában készül el; csak a kész kép kerül a képernyőre.
  * A GDI puffer csak méretváltáskor foglalódik újra. */
@@ -375,7 +419,8 @@ int main(int argc,char **argv)
         app_state_set_data_mode(APP_DATA_LOXONE);app_state_set_loxone(true,true);
         app_sim_home_reset();home_request_set(1);
     }
-    if(argc>1 && strcmp(argv[1],"--self-test")==0){
+    if(argc>1 && strcmp(argv[1],"--intercom-test")==0) result=intercom_self_test();
+    else if(argc>1 && strcmp(argv[1],"--self-test")==0){
         result=self_test();
 #ifdef _WIN32
         if(result==0)result=paint_self_test();

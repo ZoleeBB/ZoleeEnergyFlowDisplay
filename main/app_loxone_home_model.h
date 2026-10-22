@@ -59,8 +59,21 @@ typedef struct
     unsigned card_count;
 } lx_home_page_t;
 
+#define LX_INTERCOM_GATE_ID "intercom-gate"
+#define LX_INTERCOM_URL_SIZE 257
+
 typedef struct
 {
+    bool enabled;
+    char stream_url[LX_INTERCOM_URL_SIZE];
+    char bell_uuid[LX_UUID_LEN];
+    /* Ugyanaz a pillanatnyi kártya és parancscél, mint az Otthon-oldalon. */
+    lx_home_card_t gate;
+} lx_intercom_config_t;
+
+typedef struct
+{
+    lx_intercom_config_t intercom;
     unsigned consumer_count;
     unsigned card_count;
     unsigned page_count;

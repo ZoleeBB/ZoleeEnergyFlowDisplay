@@ -23,6 +23,7 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], c
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home_store.py')], check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_loxone_home_web.js')], cwd=ROOT, check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_slave_presence_web.js')], cwd=ROOT, check=True)
