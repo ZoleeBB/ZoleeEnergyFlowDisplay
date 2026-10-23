@@ -9,6 +9,10 @@ typedef struct {
     bool disable_auto_redirect;
 } esp_http_client_config_t;
 #define HTTP_AUTH_TYPE_BASIC 1
+#define HTTP_AUTH_TYPE_NONE 0
+#define ESP_ERR_HTTP_EAGAIN 0x7007
+esp_err_t esp_http_client_add_auth(esp_http_client_handle_t);
+esp_err_t esp_http_client_clear_response_buffer(esp_http_client_handle_t);
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *);
 esp_err_t esp_http_client_open(esp_http_client_handle_t, int);
 int64_t esp_http_client_fetch_headers(esp_http_client_handle_t);

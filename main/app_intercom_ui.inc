@@ -16,6 +16,19 @@ static lv_image_dsc_t intercom_descriptor;
 static app_intercom_snapshot_t intercom_next;
 static unsigned intercom_revision;
 static char intercom_video_status[LX_HOME_ERROR_SIZE];
+/* A rövid háttérállapot nem veszhet el egy elfoglalt LVGL-lock miatt.
+ * A videófeladat csak ebbe a postaládába ír; a UI saját lock alatt veszi át. */
+static char intercom_pending_status[LX_HOME_ERROR_SIZE];
+static unsigned intercom_pending_revision;
+static bool intercom_pending;
+#ifdef ESP_PLATFORM
+static portMUX_TYPE intercom_status_lock = portMUX_INITIALIZER_UNLOCKED;
+#define INTERCOM_STATUS_LOCK() portENTER_CRITICAL(&intercom_status_lock)
+#define INTERCOM_STATUS_UNLOCK() portEXIT_CRITICAL(&intercom_status_lock)
+#else
+#define INTERCOM_STATUS_LOCK() ((void)0)
+#define INTERCOM_STATUS_UNLOCK() ((void)0)
+#endif
 static int64_t intercom_last_press;
 
 static void intercom_toggle_audio(lv_event_t *event)
@@ -163,6 +176,14 @@ static void intercom_render(void)
         lv_obj_add_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
         strcpy(intercom_video_status, tr("Kapcsolódás a kamerához...", "Connecting to camera..."));
     }
+    INTERCOM_STATUS_LOCK();
+    if (intercom_pending) {
+        if (intercom_pending_revision == intercom_revision) {
+            memcpy(intercom_video_status, intercom_pending_status, sizeof(intercom_video_status));
+        }
+        intercom_pending = false;
+    }
+    INTERCOM_STATUS_UNLOCK();
     bool gate = intercom_next.config.gate.control_uuid[0] != 0;
     lv_obj_align(intercom_gate, LV_ALIGN_BOTTOM_MID, -250, -20);
     lv_obj_align(intercom_audio, LV_ALIGN_BOTTOM_MID, gate ? 250 : 0, -20);
@@ -237,6 +258,9 @@ bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned heigh
         lv_obj_remove_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
         lv_obj_invalidate(intercom_image);
         intercom_video_status[0] = 0;
+        INTERCOM_STATUS_LOCK();
+        if (intercom_pending_revision == revision) intercom_pending = false;
+        INTERCOM_STATUS_UNLOCK();
     }
     bsp_display_unlock();
     return accepted;
@@ -244,12 +268,15 @@ bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned heigh
 
 void app_intercom_ui_status(const char *message, unsigned revision)
 {
-    if (bsp_display_lock(100) != ESP_OK)
-        return;
-    if (intercom_overlay && revision == intercom_revision)
-        snprintf(intercom_video_status, sizeof(intercom_video_status), "%s", message);
-    bsp_display_unlock();
+    INTERCOM_STATUS_LOCK();
+    snprintf(intercom_pending_status, sizeof(intercom_pending_status), "%s", message ? message : "");
+    intercom_pending_revision = revision;
+    intercom_pending = true;
+    INTERCOM_STATUS_UNLOCK();
 }
+#undef INTERCOM_STATUS_LOCK
+#undef INTERCOM_STATUS_UNLOCK
+
 #else
 static bool intercom_prepare(void) { return false; }
 static void intercom_render(void) {}

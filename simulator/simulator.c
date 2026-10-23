@@ -275,7 +275,12 @@ static int intercom_self_test(void)
     app_ui_set_config(&config);
     if (intercom_needs_cleanup()) return 56;
     app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
+    app_intercom_ui_status("Kamera HTTP 401 teszt", 1);
     render_step(200);
+    if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 57;
+    app_intercom_ui_status("Régi hívás hibája", 0);
+    render_step(200);
+    if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 58;
     if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
     if (!intercom_audio || lv_obj_has_state(intercom_audio, LV_STATE_DISABLED)) return 49;
     if (app_sim_audio_starts || app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE) return 50;

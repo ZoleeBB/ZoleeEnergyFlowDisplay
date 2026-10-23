@@ -25,7 +25,7 @@
 
 #define SIP_PORT 5060
 #define AUDIO_RATE 16000
-#define AUDIO_FRAME 512
+#define AUDIO_FRAME_MAX 1024
 static const char *TAG = "intercom_audio";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_requested, s_running, s_started;
@@ -122,6 +122,8 @@ typedef struct {
     intercom_jitter_t jitter;
     aec_handle_t *aec;
     int16_t *buffers;
+    unsigned frame_samples;
+    char hardware_error[128];
     bool speaker_open, microphone_open;
 } audio_call_t;
 
@@ -450,57 +452,94 @@ static bool pump_signaling(audio_call_t *call)
     return !call->ended;
 }
 
+/* Minden lépés saját hibát ad; a DSP-hiba nem hangszóróhibaként jelenik meg. */
+static bool hardware_check(audio_call_t *call, const char *stage, int result)
+{
+    if (result == ESP_OK) {
+        return true;
+    }
+    snprintf(call->hardware_error, sizeof(call->hardware_error), "%s (%d)", stage, result);
+    ESP_LOGW(TAG, "%s", call->hardware_error);
+    return false;
+}
+
 static bool open_hardware(audio_call_t *call)
 {
-    /* Előbb a DSP és a pufferek készülnek el: memóriahiba ne kapcsoljon mikrofont.
-     * A két ADC-csatornát Philips sztereó keretben olvassuk, az első a beszédmikrofon. */
-    call->aec = aec_create(AUDIO_RATE, 4, 1, AEC_MODE_FD_LOW_COST);
-    if (!call->aec || aec_get_chunksize(call->aec) != AUDIO_FRAME) {
+    /* A DSP és a mintapufferek PSRAM-ban élnek. A DMA saját belső puffereit
+     * az I2S driver foglalja; a DSP nem fogyaszthatja el előlük a belső RAM-ot. */
+    aec_config_t aec_config = {
+        .mic_num = 1, .ref_num = 1, .out_num = 1,
+        .filter_length = 4, .sample_rate = AUDIO_RATE,
+        .caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+        .mode = AEC_MODE_FD_LOW_COST,
+        .nlp_level = AEC_NLP_LEVEL_AGGR,
+    };
+    call->aec = aec_create_from_config(&aec_config);
+    if (!hardware_check(call, "Visszhangszűrő memória", call->aec ? ESP_OK : ESP_ERR_NO_MEM)) {
         return false;
     }
-    call->buffers = heap_caps_aligned_calloc(16, AUDIO_FRAME * 8, sizeof(int16_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!call->buffers || !wanted(call->epoch, call->revision)) {
+    int frame = aec_get_chunksize(call->aec);
+    /* A kerethosszt az algoritmus adja meg, nem a SIP csomagmérete.
+     * Páros és 16 bájtra igazított csatornapufferek szükségesek a DSP-hez. */
+    if (!hardware_check(call, "Visszhangszűrő keretméret",
+                        frame > 0 && frame <= AUDIO_FRAME_MAX && frame % 8 == 0 ? ESP_OK : ESP_ERR_INVALID_SIZE)) {
         return false;
     }
-    /* A BSP ugyanazt az I2C-buszt használja, mint az érintőpanel. */
-    if (bsp_i2c_init() != ESP_OK || bsp_audio_init(NULL) != ESP_OK) {
+    call->frame_samples = (unsigned)frame;
+    call->buffers = heap_caps_aligned_calloc(16, frame * 8, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!hardware_check(call, "Hangpuffer memória", call->buffers ? ESP_OK : ESP_ERR_NO_MEM) ||
+        !wanted(call->epoch, call->revision)) {
         return false;
     }
+    /* A BSP alapértéke 22050 Hz mono. Közös órajelen, kezdettől 16 kHz
+     * Philips sztereó kell az ES8311 és a kétcsatornás ES7210 számára. */
+    const i2s_std_config_t i2s = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = {
+            .mclk = BSP_I2S_MCLK, .bclk = BSP_I2S_SCLK, .ws = BSP_I2S_LCLK,
+            .dout = BSP_I2S_DOUT, .din = BSP_I2S_DSIN,
+        },
+    };
+    if (!hardware_check(call, "Hang I2C indítás", bsp_i2c_init()) ||
+        !hardware_check(call, "Hang I2S indítás", bsp_audio_init(&i2s))) {
+        return false;
+    }
+    /* A gyártói duplex mintához hasonlóan mindkét kodek elkészül,
+     * mielőtt megnyitnánk a közös adatillesztést. */
     if (!s_speaker) {
         s_speaker = bsp_audio_codec_speaker_init();
     }
-    if (!s_speaker) {
-        return false;
-    }
-    esp_codec_dev_sample_info_t format = {.sample_rate = AUDIO_RATE, .channel = 2, .bits_per_sample = 16};
-    /* A codec_dev egy sikertelen open alatt is engedélyezhetett adatillesztést.
-     * Ezért a próbálkozás előtt jelöljük a kötelező close-t, nem csak siker után. */
-    call->speaker_open = true;
-    if (esp_codec_dev_open(s_speaker, &format) != ESP_CODEC_DEV_OK ||
-        esp_codec_dev_set_out_vol(s_speaker, 55) != ESP_CODEC_DEV_OK ||
-        !wanted(call->epoch, call->revision)) {
+    if (!hardware_check(call, "ES8311 hangszóró inicializálás", s_speaker ? ESP_OK : ESP_FAIL)) {
         return false;
     }
     if (!s_microphone) {
         s_microphone = bsp_audio_codec_microphone_init();
     }
-    if (!s_microphone) {
+    if (!hardware_check(call, "ES7210 mikrofon inicializálás", s_microphone ? ESP_OK : ESP_FAIL)) {
+        return false;
+    }
+    esp_codec_dev_sample_info_t format = {.sample_rate = AUDIO_RATE, .channel = 2, .bits_per_sample = 16};
+    /* Sikertelen open után is bezárjuk az esetleg engedélyezett adatillesztést. */
+    call->speaker_open = true;
+    if (!hardware_check(call, "Hangszóró megnyitás", esp_codec_dev_open(s_speaker, &format)) ||
+        !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, 55)) ||
+        !wanted(call->epoch, call->revision)) {
         return false;
     }
     call->microphone_open = true;
-    if (esp_codec_dev_open(s_microphone, &format) != ESP_CODEC_DEV_OK ||
-        esp_codec_dev_set_in_mute(s_microphone, false) != ESP_CODEC_DEV_OK ||
-        esp_codec_dev_set_out_mute(s_speaker, false) != ESP_CODEC_DEV_OK) {
-        return false;
-    }
-    return esp_codec_dev_set_in_gain(s_microphone, 24.0f) == ESP_CODEC_DEV_OK;
+    return hardware_check(call, "Mikrofon megnyitás", esp_codec_dev_open(s_microphone, &format)) &&
+        hardware_check(call, "Mikrofon feloldás", esp_codec_dev_set_in_mute(s_microphone, false)) &&
+        hardware_check(call, "Hangszóró feloldás", esp_codec_dev_set_out_mute(s_speaker, false)) &&
+        hardware_check(call, "Mikrofon erősítés", esp_codec_dev_set_in_gain(s_microphone, 24.0f));
 }
 
 static void media_session(audio_call_t *call)
 {
-    int16_t *speaker = call->buffers, *capture = speaker + AUDIO_FRAME * 2;
-    int16_t *reference = capture + AUDIO_FRAME * 2, *microphone = reference + AUDIO_FRAME;
-    int16_t *clean = microphone + AUDIO_FRAME, *remote = clean + AUDIO_FRAME;
+    const unsigned frame = call->frame_samples;
+    int16_t *speaker = call->buffers, *capture = speaker + frame * 2;
+    int16_t *reference = capture + frame * 2, *microphone = reference + frame;
+    int16_t *clean = microphone + frame, *remote = clean + frame;
     int16_t transmit[160];
     size_t fill = 0;
     uint8_t packet[1200];
@@ -533,34 +572,34 @@ static void media_session(audio_call_t *call)
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "Nem érkezik hang a kaputelefontól. Próbáld újra.");
             break;
         }
-        intercom_jitter_read(&call->jitter, remote, AUDIO_FRAME / 2);
-        for (unsigned i = 0; i < AUDIO_FRAME; i++) {
+        intercom_jitter_read(&call->jitter, remote, frame / 2);
+        for (unsigned i = 0; i < frame; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
-        if (esp_codec_dev_read(s_microphone, capture, AUDIO_FRAME * 4) != ESP_CODEC_DEV_OK) {
+        if (esp_codec_dev_read(s_microphone, capture, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző mikrofonja nem ad hangot.");
             break;
         }
         if (!wanted(call->epoch, call->revision)) {
             break;
         }
-        for (unsigned i = 0; i < AUDIO_FRAME; i++) {
+        for (unsigned i = 0; i < frame; i++) {
             microphone[i] = capture[i * 2];
         }
         /* A referencia az előzőleg kiküldött hang; új mintát csak feldolgozás után írunk bele. */
         aec_process(call->aec, microphone, reference, clean);
-        if (esp_codec_dev_write(s_speaker, speaker, AUDIO_FRAME * 4) != ESP_CODEC_DEV_OK) {
+        if (esp_codec_dev_write(s_speaker, speaker, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző hangkimenete nem érhető el.");
             break;
         }
-        for (unsigned i = 0; i < AUDIO_FRAME; i++) {
+        for (unsigned i = 0; i < frame; i++) {
             reference[i] = speaker[i * 2];
         }
         if (!wanted(call->epoch, call->revision)) {
             break;
         }
-        /* 16 kHz AEC -> 8 kHz G.711; a 32 ms-os DSP-keretből 20 ms-os RTP-csomagok készülnek. */
-        for (unsigned i = 0; i < AUDIO_FRAME; i += 2) {
+        /* 16 kHz AEC -> 8 kHz G.711; a DSP-keretből 20 ms-os RTP-csomagok készülnek. */
+        for (unsigned i = 0; i < frame; i += 2) {
             transmit[fill++] = (int16_t)(((int)clean[i] + clean[i + 1]) / 2);
             if (fill == INTERCOM_RTP_SAMPLES) {
                 size_t length = intercom_rtp_encode(packet, sequence++, timestamp, ssrc, call->payload, transmit);
@@ -637,7 +676,7 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
         return;
     }
     if (!open_hardware(call)) {
-        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző mikrofonja vagy hangszórója nem indítható.");
+        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
         return;
     }
     media_session(call);

@@ -8,6 +8,8 @@
 #include "esp_http_client.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
+#include "esp_log.h"
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mbedtls/platform_util.h"
@@ -16,6 +18,8 @@
 
 static portMUX_TYPE s_video_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_ready, s_video_running;
+static int64_t s_next_attempt;
+static const char *TAG = "intercom_video";
 
 #define VIDEO_WIDTH 1280U
 #define VIDEO_HEIGHT 720U
@@ -27,11 +31,13 @@ typedef struct
     size_t pixels_capacity;
     unsigned revision;
     int64_t last_frame;
+    unsigned jpeg_frames;
 } video_decode_t;
 
 static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
 {
     video_decode_t *video = context;
+    video->jpeg_frames++;
     int64_t now = esp_timer_get_time();
     /* A hálózatot folyamatosan ürítjük, de legfeljebb 10 fps-t rajzolunk.
      * Így nincs késleltetést okozó, felhalmozódó képkockasor. */
@@ -77,8 +83,10 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
     /* YUV444 esetén a JPEG MCU nyolc, YUV422/420 esetén tizenhat pixel széles. */
     if (info.sample_method == JPEG_DOWN_SAMPLING_YUV444)
         stride = (info.width + 7U) & ~7U;
-    if (written < stride * info.height * 2U)
+    if (written < stride * info.height * 2U) {
+        app_intercom_ui_status("Hiányos dekódolt kamerakép.", video->revision);
         return;
+    }
     if (app_intercom_ui_frame(video->pixels, info.width, info.height, stride * 2U, video->revision))
         video->last_frame = now;
 }
@@ -92,8 +100,10 @@ static bool still_ringing(unsigned revision)
 static void video_session(const app_intercom_snapshot_t *state)
 {
     char username[96] = {0}, password[LX_PASSWORD_MAX] = {0};
-    if (!app_loxone_intercom_credentials(username, password))
-        return;
+    if (!app_loxone_intercom_credentials(username, password)) {
+        app_intercom_ui_status("Hiányzó Loxone felhasználónév vagy jelszó.", state->revision);
+        goto credentials_done;
+    }
     video_decode_t video = {.revision = state->revision};
     const jpeg_decode_engine_cfg_t engine = {.timeout_ms = 100};
     size_t input_capacity = 0;
@@ -110,42 +120,82 @@ static void video_session(const app_intercom_snapshot_t *state)
         .url = state->config.stream_url,
         .username = username,
         .password = password,
-        .auth_type = HTTP_AUTH_TYPE_BASIC,
+        .auth_type = HTTP_AUTH_TYPE_NONE,
         .timeout_ms = 1500,
         .buffer_size = 4096,
         /* Más címre nem továbbítjuk a hitelesítési adatot. */
         .disable_auto_redirect = true,
     };
     http = esp_http_client_init(&options);
-    if (!http || esp_http_client_open(http, 0) != ESP_OK)
-    {
-        app_intercom_ui_status("A kamera nem érhető el. Újracsatlakozás...", state->revision);
+    if (!http) {
+        app_intercom_ui_status("Nincs elég memória a kamera HTTP-kapcsolatához.", state->revision);
         goto done;
     }
-    (void)esp_http_client_fetch_headers(http);
-    int code = esp_http_client_get_status_code(http);
-    if (code != 200)
-    {
-        app_intercom_ui_status(code == 401 || code == 403 ?
-            "A kamera elutasította a Loxone-fiókot. Ellenőrizd a jogosultságokat." :
-            "A kamera nem adott videófolyamot. Újracsatlakozás...", state->revision);
+    /* Az open/fetch/read streaming API nem végzi el a perform automatikus
+     * 401 ismétlését. Egyszer követjük a kamera Basic/Digest kihívását,
+     * azonos címen; átirányításkor sosem küldünk tovább jelszót. */
+    int code = 0;
+    for (unsigned attempt = 0; attempt < 2; attempt++) {
+        app_intercom_ui_status("Kamera HTTP-kapcsolat indítása...", state->revision);
+        esp_err_t error = esp_http_client_open(http, 0);
+        if (error != ESP_OK) {
+            char message[128];
+            snprintf(message, sizeof(message), "Kamera HTTP-kapcsolati hiba (%d). Újrapróbálás...", error);
+            app_intercom_ui_status(message, state->revision);
+            goto done;
+        }
+        if (esp_http_client_fetch_headers(http) < 0) {
+            app_intercom_ui_status("A kamera nem küldött HTTP-fejlécet. Újrapróbálás...", state->revision);
+            goto done;
+        }
+        code = esp_http_client_get_status_code(http);
+        ESP_LOGI(TAG, "Camera HTTP status=%d attempt=%u", code, attempt + 1);
+        if (code != 401 || attempt != 0) {
+            break;
+        }
+        if (esp_http_client_add_auth(http) != ESP_OK) {
+            app_intercom_ui_status("A kamera hitelesítési módja nem támogatott.", state->revision);
+            goto done;
+        }
+        esp_http_client_close(http);
+        esp_http_client_clear_response_buffer(http);
+        if (!still_ringing(state->revision)) {
+            goto done;
+        }
+    }
+    if (code != 200) {
+        char message[128];
+        snprintf(message, sizeof(message), "Kamera HTTP %d. %s", code,
+                 code == 401 || code == 403 ? "Ellenőrizd a Loxone-fiók jogosultságát." : "Nem érkezett videófolyam.");
+        app_intercom_ui_status(message, state->revision);
         goto done;
     }
+    app_intercom_ui_status("Kamera elérhető, az első MJPEG-képkockára várunk...", state->revision);
     uint8_t chunk[4096];
     int64_t started = esp_timer_get_time();
+    size_t received = 0;
     while (still_ringing(state->revision))
     {
         int count = esp_http_client_read(http, (char *)chunk, sizeof(chunk));
+        if (count == -ESP_ERR_HTTP_EAGAIN && esp_timer_get_time() - started < 10000000LL) {
+            continue;
+        }
         if (count <= 0)
             break;
+        received += (size_t)count;
         app_intercom_stream_feed(&stream, chunk, (size_t)count, decode_frame, &video);
         if (esp_timer_get_time() - (video.last_frame ? video.last_frame : started) > 10000000LL)
             break;
         /* A stream nem veheti el a CPU0-t a közös Loxone-kapcsolattól. */
         vTaskDelay(1);
     }
-    if (still_ringing(state->revision))
-        app_intercom_ui_status("A videó megszakadt. Újracsatlakozás...", state->revision);
+    ESP_LOGI(TAG, "Camera bytes=%u JPEG=%u displayed=%d", (unsigned)received,
+             video.jpeg_frames, video.last_frame != 0);
+    if (still_ringing(state->revision) && (video.last_frame || !video.jpeg_frames)) {
+        app_intercom_ui_status(video.last_frame ? "A videó megszakadt. Újracsatlakozás..." :
+            received ? "Nem érkezett teljes MJPEG-kép (max. 256 KiB/kép). Újrapróbálás..." :
+                       "A kamera nem küld videóadatot. Újrapróbálás...", state->revision);
+    }
 done:
     if (http)
     {
@@ -155,6 +205,7 @@ done:
     if (video.decoder) jpeg_del_decoder_engine(video.decoder);
     free(video.pixels);
     free(input);
+credentials_done:
     mbedtls_platform_zeroize(password, sizeof(password));
     mbedtls_platform_zeroize(username, sizeof(username));
 }
@@ -184,8 +235,9 @@ static void worker(void *arg)
 /* Nem marad meg a 12 KiB belső task-stack két csengetés között. */
 void app_intercom_poll(void)
 {
+    int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&s_video_lock);
-    bool available = s_ready && !s_video_running;
+    bool available = s_ready && !s_video_running && now >= s_next_attempt;
     if (available) {
         s_video_running = true;
     }
@@ -196,7 +248,12 @@ void app_intercom_poll(void)
     if (xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) != pdPASS) {
         portENTER_CRITICAL(&s_video_lock);
         s_video_running = false;
+        s_next_attempt = now + 2000000;
         portEXIT_CRITICAL(&s_video_lock);
+        app_intercom_snapshot_t state;
+        if (app_loxone_intercom_snapshot(&state)) {
+            app_intercom_ui_status("Nincs elég belső memória a videófeladathoz. Újrapróbálás...", state.revision);
+        }
     }
 }
 

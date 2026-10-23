@@ -22,7 +22,9 @@ A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
 5. Mentsd el a kaputelefon és Otthon beállításait a közös mentőgombbal.
 
 Külön kamerafiók nincs: a videókapcsolat automatikusan a **mentett Loxone integráció
-felhasználónevét és jelszavát** használja HTTP Basic hitelesítéssel. A fióknak a
+felhasználónevét és jelszavát** használja a kamera HTTP Basic vagy Digest kihívása alapján. A streaming
+API-nál a 401-es választ egyszer, azonos címen hitelesítve megismételjük;
+a korábbi válasz pufferét az új kérés előtt töröljük. A fióknak a
 kaputelefon közvetlen videóeléréséhez is megfelelő jogosultság kell. A jelszó nem
 kerül a videócímbe, az Otthon JSON-ba vagy a webes állapotválaszba; továbbra is a
 meglévő titkosított Loxone-tároló kezeli. A HTTP videót helyi, megbízható hálózaton
@@ -44,7 +46,11 @@ használd. Átirányítást nem követünk, így más cél nem kaphatja meg a hi
   A kapunyitás **nem zárja be** a kameraképet. Offline vagy nem támogatott célnál
   a gomb letiltott; a parancsot a worker ismét ellenőrzi elküldés előtt.
 - Videóhiba esetén a háttérfeladat újrapróbálkozik. Hibás kamerahitelesítésről,
-  memóriahiányról és nem támogatott képről felirat tájékoztat.
+  memóriahiányról és nem támogatott képről felirat tájékoztat. A kamera HTTP
+  állapota, az első teljes MJPEG-képkockára várakozás és az adat nélküli
+  kapcsolat külön jelzést kap. A státusz postaládába kerül, így egy elfoglalt
+  LVGL-lock vagy a nézet létrehozásával versenyző indítás nem veszítheti el.
+  A soros napló HTTP-kódot, fogadott bájt- és képkockaszámot mutat, jelszót nem.
 
 ## Erőforrások és korlátok
 
@@ -116,11 +122,16 @@ működik, de a beszélgetés nem épül fel. A Loxone alkalmazás WebRTC-hívá
 párhuzamos használat viselkedését a tényleges készüléken kell ellenőrizni.
 
 A kijelző a rögzített Waveshare BSP ES8311 hangkimenetét és ES7210 mikrofonját
-használja közös, 16 kHz-es I2S-órán. Az első mikrofoncsatorna hangja az Espressif
+használja közös, kezdettől 16 kHz-es, 16 bites Philips sztereó I2S-órán.
+Mindkét kodek inicializálása megelőzi a hangfolyam megnyitását. Az első mikrofoncsatorna hangja az Espressif
 **ESP-SR 2.6.0 AEC_MODE_FD_LOW_COST** visszhangkioltóján halad át; a referencia
 a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
 Alap hangerő 55%, mikrofonerősítés 24 dB. A visszhangkioltó és a mintapufferek
-csak aktív beszélgetés alatt élnek. A BSP I2S-illesztése és kodekeszközei az első
+csak aktív beszélgetés alatt, PSRAM-ban élnek. Az AEC által visszaadott
+keretméretet használjuk (nem feltételezünk fix 512 mintát); a csatornapufferek
+16 bájtra igazítottak. Az I2S saját DMA-puffereit továbbra is a driver kezeli.
+Sikertelen indulásnál a pontos lépés és hibakód látható: például
+„Visszhangszűrő memória”, „Hang I2S indítás” vagy „Mikrofon megnyitás”. A BSP I2S-illesztése és kodekeszközei az első
 hívás után megmaradnak, de a mikrofon ADC és a hangszóró erősítője zárva van.
 A hang külön CPU0-feladatban fut; nem tart LVGL-lockot vagy Loxone-lockot I/O alatt.
 Ez a feladat is csak kézi indításkor jön létre, és bontáskor a 16 KiB-os belső
@@ -140,7 +151,10 @@ médiacím, egyirányú vagy nem támogatott SDP, kodekhatárok, RTP-időbélyeg
 átfordulása, csomagvesztés és sérült fejléc. Helyi TCP/UDP kaputelefon-másolat
 mellett a valódi session-kód oda-vissza hangot küld/fogad, ACK/BYE bontást,
 CANCEL/200 versenyt, elutasított hívást, hanghardverhibát és ismételt hívásokat
-ellenőriz; az I2S és az AEC hardver ebben a tesztben helyettesített.
+ellenőriz, 256/512/1024 mintás AEC-kerettel; az I2S és az AEC hardver ebben
+a tesztben helyettesített. A videóteszt a valódi keretezőn át, darabolt MIME/JPEG
+adatokból eljut a képkocka átadásáig; ellenőrzi a 401-es hitelesítési ismétlést,
+a válaszpuffer törlését, az elutasított/átirányított és hiányos HTTP-válaszokat is.
 A szimulátor a tényleges LVGL kétgombos elrendezést, kézi indítást/leállítást,
 hosszú nyomás ismétlésének tiltását és a csengetésvég bontását is ellenőrzi.
 
@@ -149,3 +163,14 @@ Források:
 - [Gen2 SIP-híd dokumentáció és forrás](https://github.com/markuslaube/loxone-intercom2/tree/c4269fa49d5eee2bb7f5d80366f27269b7088d3b/sip-directbridge)
 - [Espressif ESP-SR visszhangkioltás](https://docs.espressif.com/projects/esp-sr/en/latest/esp32p4/acoustic_echo_cancellation/README.html)
 - [Rögzített Waveshare BSP 2.0.3 forrás](https://github.com/waveshareteam/Waveshare-ESP32-components/tree/0694fdb9fa7751cc2719a9d1927de70547b89ba0/bsp/esp32_p4_wifi6_touch_lcd_x)
+
+### Gyártói mintával összevetett képút
+
+A [Waveshare 10_mp4_player minta](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X/tree/main/examples/esp-idf/10_mp4_player)
+konténert bont, hardveresen JPEG-képkockákat dekódol, majd RGB-puffereket ad át a
+kijelzőnek. Az MJPEG eleve egymást követő JPEG-képekből áll, itt nincs MP4-konténer.
+A közös pont a P4 JPEG-dekóder és az RGB565 képút; a kaputelefon az LVGL-en át adja
+át a kész képkockát, hogy a forgatás, gombok és feliratok ugyanabban a rétegben maradjanak.
+Nem indítunk második LCD-drivert és nem rajzolunk az LVGL-lel párhuzamosan közvetlenül a panelre.
+A duplex hang indítási sorrendjét a [Waveshare LVGL minta](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X/tree/main/examples/esp-idf/08_lvgl_demo_v9)
+kodekkezelésével vetettük össze.

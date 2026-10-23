@@ -25,6 +25,8 @@ static int reads, writes, mic_opens, mic_closes, speaker_closes;
 static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
+static unsigned test_frame = 256;
+static bool fail_aec;
 
 void vTaskDelay(unsigned delay)
 {
@@ -57,14 +59,22 @@ uint32_t esp_random(void)
 }
 void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps)
 {
-    (void)caps;
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     void *memory = NULL;
     if (posix_memalign(&memory, alignment, count * size) != 0) return NULL;
     memset(memory, 0, count * size);
     return memory;
 }
 esp_err_t bsp_i2c_init(void) { return ESP_OK; }
-esp_err_t bsp_audio_init(const void *configuration) { (void)configuration; return ESP_OK; }
+esp_err_t bsp_audio_init(const void *configuration)
+{
+    const i2s_std_config_t *config = configuration;
+    assert(config && config->clk_cfg.sample_rate == 16000);
+    assert(config->slot_cfg.bits == 16 && config->slot_cfg.mode == 2);
+    assert(config->gpio_cfg.mclk == 13 && config->gpio_cfg.bclk == 12 &&
+           config->gpio_cfg.ws == 10 && config->gpio_cfg.dout == 9 && config->gpio_cfg.din == 11);
+    return ESP_OK;
+}
 esp_codec_dev_handle_t bsp_audio_codec_speaker_init(void) { return (void *)1; }
 esp_codec_dev_handle_t bsp_audio_codec_microphone_init(void) { return (void *)2; }
 int esp_codec_dev_open(esp_codec_dev_handle_t handle, esp_codec_dev_sample_info_t *format)
@@ -99,7 +109,7 @@ int esp_codec_dev_set_in_gain(esp_codec_dev_handle_t handle, float gain)
 }
 int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)2 && size == AUDIO_FRAME * 4);
+    assert(handle == (void *)2 && size == (int)test_frame * 4);
     for (int i = 0; i < size / 2; i++) ((int16_t *)data)[i] = 4000;
     reads++;
     vTaskDelay(32);
@@ -107,7 +117,7 @@ int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 }
 int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)1 && size == AUDIO_FRAME * 4 && data && !muted);
+    assert(handle == (void *)1 && size == (int)test_frame * 4 && data && !muted);
     for (int i = 0; i < size / 2; i++) {
         if (abs(((int16_t *)data)[i]) > 100) speaker_audio = true;
     }
@@ -116,18 +126,21 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
     if (writes == 5) atomic_store(&ring, false);
     return 0;
 }
-aec_handle_t *aec_create(int rate, int filter, int channels, int mode)
+aec_handle_t *aec_create_from_config(aec_config_t *config)
 {
-    assert(rate == 16000 && filter == 4 && channels == 1 && mode == AEC_MODE_FD_LOW_COST);
+    assert(config->sample_rate == 16000 && config->filter_length == 4 &&
+           config->mic_num == 1 && config->ref_num == 1 && config->out_num == 1 &&
+           config->mode == AEC_MODE_FD_LOW_COST && config->nlp_level == AEC_NLP_LEVEL_AGGR && config->caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (fail_aec) return NULL;
     aec_handle_t *handle = calloc(1, sizeof(*handle));
-    if (handle) handle->frame_size = AUDIO_FRAME;
+    if (handle) handle->frame_size = test_frame;
     return handle;
 }
 int aec_get_chunksize(aec_handle_t *aec) { return aec->frame_size; }
 void aec_process(aec_handle_t *aec, int16_t *input, int16_t *reference, int16_t *output)
 {
     assert(aec && input && reference && output);
-    memcpy(output, input, AUDIO_FRAME * 2);
+    memcpy(output, input, test_frame * 2);
 }
 void aec_destroy(aec_handle_t *aec) { free(aec); }
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
@@ -251,6 +264,9 @@ int main(void)
     assert(app_intercom_audio_request(true, 7) == ESP_ERR_NO_MEM);
     assert(!s_running && !s_requested && s_status.state == APP_INTERCOM_AUDIO_ERROR);
     task_failure = false;
+    /* Az algoritmus keretmérete eltérhet; mindhárommal végigfut a tényleges RTP-út. */
+    for (unsigned variant = 0; variant < 3; variant++) {
+    test_frame = 256U << variant;
     for (int mode = 0; mode < 5; mode++) {
         fake_door_t door = {.mode=mode};
         door.listener = socket(AF_INET, SOCK_STREAM, 0);
@@ -295,6 +311,21 @@ int main(void)
             if (mode == 3) assert(speaker_closes == 1 && mic_closes == 1 && muted);
         }
     }
-    puts("PASS: real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup and repeated calls");
+    }
+    atomic_store(&ring, true);
+    assert(app_intercom_audio_request(true, 7) == ESP_OK);
+    audio_call_t *failure = calloc(1, sizeof(*failure));
+    assert(failure);
+    failure->epoch = s_epoch;
+    failure->revision = 7;
+    fail_aec = true;
+    assert(!open_hardware(failure) && strstr(failure->hardware_error, "Visszhangszűrő memória"));
+    fail_aec = false;
+    test_frame = 0;
+    assert(!open_hardware(failure) && strstr(failure->hardware_error, "keretméret"));
+    aec_destroy(failure->aec);
+    free(failure);
+    s_running = s_requested = false;
+    puts("PASS: real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup, PSRAM DSP, explicit stereo I2S, 256/512/1024-sample AEC and repeated calls");
     return 0;
 }
