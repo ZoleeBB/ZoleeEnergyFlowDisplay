@@ -64,10 +64,10 @@ nem fogyasztja az I2S/Wi-Fi szűk belső DMA-memóriáját. A videó külön,
 alacsonyabb prioritású CPU0-feladatban érkezik, nem blokkolja a
 Loxone állapotfolyamot. A JPEG-dekódolást az ESP32-P4 hardvere végzi; legfeljebb
 10 képkockát jelenítünk meg másodpercenként. Az adatfolyamot folyamatosan ürítjük,
-nincs felhalmozódó videósor. Egy tömörített képkocka legfeljebb 256 KiB, a kép
-legfeljebb 1280×720, baseline színes JPEG legyen. A videópufferek csak csengetéskor
+nincs felhalmozódó videósor. Egy tömörített képkocka legfeljebb 2 MiB, a kép
+legfeljebb 1280×720, baseline színes vagy szürkeárnyalatos JPEG legyen. A videópufferek csak csengetéskor
 foglalódnak: a megjelenített RGB565 kép kb. 1,76 MiB PSRAM, a dekóder eredménye
-legfeljebb ugyanennyi, továbbá 256 KiB a tömörített keret. A megjelenített képet
+legfeljebb ugyanennyi, továbbá 2 MiB a tömörített keret. A megjelenített képet
 és a dekóder kimenetét külön puffer őrzi, így a rajzolás nem olvas éppen átírt képet.
 
 A konfiguráció a meglévő `loxone-home.json` profil opcionális `intercom` objektuma,
@@ -129,7 +129,7 @@ párhuzamos használat viselkedését a tényleges készüléken kell ellenőriz
 A kijelző a rögzített Waveshare BSP ES8311 hangkimenetét és ES7210 mikrofonját
 használja közös, kezdettől 16 kHz-es, 16 bites Philips sztereó I2S-órán.
 Mindkét kodek inicializálása megelőzi a hangfolyam megnyitását. Az első mikrofoncsatorna hangja az Espressif
-**ESP-SR 2.6.0 AEC_MODE_FD_LOW_COST** visszhangkioltóján halad át; a referencia
+**ESP-SR 2.6.0 AEC_MODE_VOIP_LOW_COST** visszhangkioltóján halad át; a referencia
 a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
 Alap hangerő 55%, mikrofonerősítés 24 dB. A visszhangkioltó és a mintapufferek
 csak aktív beszélgetés alatt, PSRAM-ban élnek. Az AEC által visszaadott
@@ -216,7 +216,7 @@ nem torlódnak össze a kamera/DSP puffereivel. Ezután a meglévő betöltőké
 Kapunyitás vagy videóhiba nem indítja el a visszatöltést; a csengetésállapotnak
 kell megszűnnie. Ez helyért cserébe egy visszatöltési időt jelent a hívás végén.
 
-A videó indítási hibája elkülöníti a 256 KiB-os PSRAM-bemenet foglalási hibáját
+A videó indítási hibája elkülöníti a 2 MiB-os PSRAM-bemenet foglalási hibáját
 a JPEG-engine hibájától. A dekóder indítási hibakódja mellett a szabad belső
 DMA-memória és a legnagyobb összefüggő blokk is megjelenik. A korábbi közös
 „nincs elég memória” felirat önmagában nem bizonyította a JPEG-hiba típusát.
@@ -261,3 +261,22 @@ ES7210, olvasás, feldolgozás, lejátszás, bontás vagy felszabadítás). A je
 ír SD-t/NVS-t és nem tartalmaz hitelesítési adatot. A fizikai újraindulás pontos
 oka csak a készülék naplójából igazolható; a javítás a bizonyítottan abortáló
 önfelszabadítási ágat és a fölösleges veremterhelést szünteti meg.
+
+
+### AEC-pánik és teljes képkockára várakozás
+
+A készülékről érkezett `AEC feldolgozás (reset=4)` napló a feldolgozóhívás
+alatti pánikot jelzi; önmagában nem mondja meg a CPU-kivétel pontos okát.
+A hang az FD/FFT útvonal helyett az Espressif VoIP AEC-útvonalát használja,
+továbbra is 16 kHz-es PCM-mel és kétirányú SIP/RTP-hívással. Az AEC külső
+handle-je mellett a belső feldolgozó létezését is ellenőrizzük; hiányánál
+memóriahiba jelenik meg feldolgozóhívás helyett. A pontos készülékes eredmény
+újabb próbát igényel.
+
+A JPEG-keret felső határa 2 MiB lett. Teljes kép előtt a képernyő jelzi a
+beérkezett KiB-ot, a JPEG-képkezdések és az eldobott túlméretes képek számát.
+A gyári P4 dekóder a szürke JPEG-et GRAY kimenetre olvassa; ezt ugyanabban
+a képpufferben, hátulról RGB565-re bővítjük. A 8 pixeles szürke MCU-sorlépés és
+a 16 pixeles RGB-puffer eltérő kitöltését külön teszt ellenőrzi. Nem kell új
+SD-erőforráscsomag. A keretező valós, beágyazott színes/szürke JPEG-ekkel és
+256 KiB fölé növelt, érvényes APP-metaadatokkal is tesztelt, külső képletöltés nélkül.

@@ -8,7 +8,7 @@ static jmp_buf worker_exit;
 static unsigned creates, deletes, sessions, decoders, audio_initializations;
 static bool ringing, create_failure;
 static bool credentials = true;
-static bool audio_busy, fail_input, fail_decoder;
+static bool audio_busy, fail_input, fail_decoder, gray_picture;
 static unsigned scenario, requests, auths, cleared, displayed, offset;
 static int64_t now = 1000000;
 static char last_status[256];
@@ -77,14 +77,26 @@ void app_intercom_ui_status(const char *message, unsigned revision)
 }
 bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned height, unsigned stride, unsigned revision)
 {
-    assert(pixels && width == 640 && height == 480 && stride == 1280 && revision == 1);
+    assert(pixels && revision == 1);
+    if (gray_picture) {
+        assert(width == 641 && height == 479 && stride == 656 * 2);
+        for (unsigned y = 0; y < height; y++) {
+            for (unsigned x = 0; x < width; x++) {
+                unsigned gray = (x + y * 3) & 255U;
+                uint16_t rgb = (uint16_t)(((gray & 0xf8U) << 8) | ((gray & 0xfcU) << 3) | (gray >> 3));
+                assert(pixels[y * stride + x * 2] == (uint8_t)rgb);
+                assert(pixels[y * stride + x * 2 + 1] == (uint8_t)(rgb >> 8));
+            }
+        }
+    } else assert(width == 640 && height == 480 && stride == 1280);
     displayed++;
     return true;
 }
 esp_err_t jpeg_decoder_get_info(const uint8_t *data, uint32_t size, jpeg_decode_picture_info_t *info)
 {
     assert(data[0] == 0xff && size == 9);
-    *info = (jpeg_decode_picture_info_t){.width=640, .height=480, .sample_method=JPEG_DOWN_SAMPLING_YUV444};
+    *info = gray_picture ? (jpeg_decode_picture_info_t){.width=641, .height=479, .sample_method=JPEG_DOWN_SAMPLING_GRAY} :
+        (jpeg_decode_picture_info_t){.width=640, .height=480, .sample_method=JPEG_DOWN_SAMPLING_YUV444};
     return ESP_OK;
 }
 void *jpeg_alloc_decoder_mem(size_t size, const jpeg_decode_memory_alloc_cfg_t *configuration, size_t *capacity)
@@ -111,8 +123,16 @@ esp_err_t jpeg_decoder_process(jpeg_decoder_handle_t handle, const jpeg_decode_c
     const uint8_t *input, uint32_t size, uint8_t *pixels, uint32_t capacity, uint32_t *written)
 {
     assert(handle && configuration && input && size == 9 && pixels && capacity >= 640 * 480 * 2);
-    memset(pixels, 0x55, 640 * 480 * 2);
-    *written = 640 * 480 * 2;
+    if (gray_picture) {
+        assert(configuration->output_format == JPEG_DECODE_OUT_FORMAT_GRAY && capacity >= 648 * 480);
+        for (unsigned y = 0; y < 480; y++)
+            for (unsigned x = 0; x < 648; x++) pixels[y * 648 + x] = (uint8_t)(x + y * 3);
+        *written = 648 * 480;
+    } else {
+        assert(configuration->output_format == JPEG_DECODE_OUT_FORMAT_RGB565);
+        memset(pixels, 0x55, 640 * 480 * 2);
+        *written = 640 * 480 * 2;
+    }
     return ESP_OK;
 }
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *configuration)
@@ -225,11 +245,17 @@ int main(void)
     credentials = true;
     fail_input = true;
     video_session(&state);
-    assert(strstr(last_status, "256 KiB PSRAM"));
+    assert(strstr(last_status, "2 MiB PSRAM"));
     fail_input = false;
     fail_decoder = true;
     video_session(&state);
     assert(strstr(last_status, "JPEG-dekóder") && strstr(last_status, "2048 B") && strstr(last_status, "1024 B"));
-    puts("PASS: preemptive Basic with separate credentials, auth-method diagnostics, external deletion without cleanup task, actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
+    fail_decoder = false;
+    scenario = 0; gray_picture = true; ringing = true;
+    unsigned previous_displayed = displayed;
+    strcpy(state.config.stream_url, "http://192.168.2.21/mjpg/video.mjpg");
+    video_session(&state);
+    assert(displayed == previous_displayed + 1 && !decoders);
+    puts("PASS: padded grayscale JPEG to RGB565 in-place,  preemptive Basic with separate credentials, auth-method diagnostics, external deletion without cleanup task, actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
     return 0;
 }

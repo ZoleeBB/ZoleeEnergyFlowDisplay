@@ -28,7 +28,7 @@ static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
 static unsigned test_frame = 256;
-static bool fail_aec;
+static bool fail_aec, fail_aec_inner;
 
 void vTaskDelay(unsigned delay)
 {
@@ -146,10 +146,13 @@ aec_handle_t *aec_create_from_config(aec_config_t *config)
 {
     assert(config->sample_rate == 16000 && config->filter_length == 4 &&
            config->mic_num == 1 && config->ref_num == 1 && config->out_num == 1 &&
-           config->mode == AEC_MODE_FD_LOW_COST && config->nlp_level == AEC_NLP_LEVEL_AGGR && config->caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+           config->mode == AEC_MODE_VOIP_LOW_COST && config->nlp_level == AEC_NLP_LEVEL_AGGR && config->caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (fail_aec) return NULL;
     aec_handle_t *handle = calloc(1, sizeof(*handle));
-    if (handle) handle->frame_size = test_frame;
+    if (handle) {
+        handle->frame_size = test_frame;
+        handle->aec_handle = fail_aec_inner ? NULL : (void *)1;
+    }
     return handle;
 }
 int aec_get_chunksize(aec_handle_t *aec) { return aec->frame_size; }
@@ -341,6 +344,10 @@ int main(void)
     fail_aec = true;
     assert(!open_hardware(failure) && strstr(failure->hardware_error, "Visszhangszűrő memória"));
     fail_aec = false;
+    fail_aec_inner = true;
+    assert(!open_hardware(failure) && strstr(failure->hardware_error, "Visszhangszűrő memória"));
+    aec_destroy(failure->aec); failure->aec = NULL;
+    fail_aec_inner = false;
     test_frame = 0;
     assert(!open_hardware(failure) && strstr(failure->hardware_error, "keretméret"));
     aec_destroy(failure->aec);

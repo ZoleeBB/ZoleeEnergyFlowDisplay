@@ -57,11 +57,19 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
     if (now - video->last_frame < 100000)
         return;
     jpeg_decode_picture_info_t info = {0};
-    if (jpeg_decoder_get_info(jpeg, (uint32_t)size, &info) != ESP_OK ||
-        !info.width || !info.height || info.width > VIDEO_WIDTH || info.height > VIDEO_HEIGHT ||
-        info.sample_method == JPEG_DOWN_SAMPLING_GRAY)
+    esp_err_t info_error = jpeg_decoder_get_info(jpeg, (uint32_t)size, &info);
+    if (info_error != ESP_OK) {
+        char message[128];
+        snprintf(message, sizeof(message), "JPEG-fejléc hiba (%d, %u bájt).", info_error, (unsigned)size);
+        app_intercom_ui_status(message, video->revision);
+        return;
+    }
+    if (!info.width || !info.height || info.width > VIDEO_WIDTH || info.height > VIDEO_HEIGHT)
     {
-        app_intercom_ui_status("Nem támogatott kamerakép. Legfeljebb 1280×720 JPEG szükséges.", video->revision);
+        char message[128];
+        snprintf(message, sizeof(message), "Kamerakép: %u×%u. Legfeljebb 1280×720 JPEG szükséges.",
+                 (unsigned)info.width, (unsigned)info.height);
+        app_intercom_ui_status(message, video->revision);
         return;
     }
     /* A P4 dekóder a sorokat és a magasságot 16 képpontra egészítheti ki.
@@ -80,18 +88,44 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
             return;
         }
     }
+    bool grayscale = info.sample_method == JPEG_DOWN_SAMPLING_GRAY;
     const jpeg_decode_cfg_t format = {
-        .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
+        .output_format = grayscale ? JPEG_DECODE_OUT_FORMAT_GRAY : JPEG_DECODE_OUT_FORMAT_RGB565,
         /* Az LVGL RGB565 little-endian bájtsorrendet vár. A driver RGB
          * opciója big-endian kimenetet jelent, ezért itt BGR szükséges. */
         .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR,
     };
     uint32_t written = 0;
-    if (jpeg_decoder_process(video->decoder, &format, jpeg, (uint32_t)size,
-            video->pixels, (uint32_t)video->pixels_capacity, &written) != ESP_OK)
+    esp_err_t decode_error = jpeg_decoder_process(video->decoder, &format, jpeg, (uint32_t)size,
+            video->pixels, (uint32_t)video->pixels_capacity, &written);
+    if (decode_error != ESP_OK)
     {
-        app_intercom_ui_status("A kamerakép dekódolása sikertelen. Új képre várunk...", video->revision);
+        char message[160];
+        snprintf(message, sizeof(message), "JPEG-dekódolás hiba (%d): %u×%u, %u bájt, mód=%u.",
+                 decode_error, (unsigned)info.width, (unsigned)info.height, (unsigned)size,
+                 (unsigned)info.sample_method);
+        app_intercom_ui_status(message, video->revision);
         return;
+    }
+    if (grayscale) {
+        /* A P4 a szürke JPEG-et GRAY kimenetre dekódolja, 8 pixeles MCU-val.
+         * Hátulról bővítünk ugyanebben a kétszeres méretű pufferben RGB565-re,
+         * így még egy teljes kamerakép foglalása nélkül jelenik meg az éjjeli kép. */
+        unsigned gray_stride = (info.width + 7U) & ~7U;
+        if (written < gray_stride * info.height) {
+            app_intercom_ui_status("Hiányos szürke kamerakép.", video->revision);
+            return;
+        }
+        for (unsigned y = info.height; y-- > 0;) {
+            for (unsigned x = info.width; x-- > 0;) {
+                unsigned gray = video->pixels[y * gray_stride + x];
+                uint16_t rgb = (uint16_t)(((gray & 0xf8U) << 8) | ((gray & 0xfcU) << 3) | (gray >> 3));
+                size_t offset = (y * stride + x) * 2U;
+                video->pixels[offset] = (uint8_t)rgb;
+                video->pixels[offset + 1] = (uint8_t)(rgb >> 8);
+            }
+        }
+        written = stride * info.height * 2U;
     }
     /* YUV444 esetén a JPEG MCU nyolc, YUV422/420 esetén tizenhat pixel széles. */
     if (info.sample_method == JPEG_DOWN_SAMPLING_YUV444)
@@ -100,8 +134,11 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
         app_intercom_ui_status("Hiányos dekódolt kamerakép.", video->revision);
         return;
     }
-    if (app_intercom_ui_frame(video->pixels, info.width, info.height, stride * 2U, video->revision))
+    if (app_intercom_ui_frame(video->pixels, info.width, info.height, stride * 2U, video->revision)) {
         video->last_frame = now;
+    } else if (!video->last_frame) {
+        app_intercom_ui_status("A kamerakép kész, a kijelző még nem vette át. Új képpel próbáljuk...", video->revision);
+    }
 }
 
 static bool still_ringing(unsigned revision)
@@ -124,7 +161,7 @@ static void video_session(const app_intercom_snapshot_t *state)
     uint8_t *input = jpeg_alloc_decoder_mem(APP_INTERCOM_JPEG_MAX, &input_memory, &input_capacity);
     esp_http_client_handle_t http = NULL;
     if (!input) {
-        app_intercom_ui_status("Nincs 256 KiB PSRAM a tömörített kameraképhez.", state->revision);
+        app_intercom_ui_status("Nincs 2 MiB PSRAM a tömörített kameraképhez.", state->revision);
         goto done;
     }
     esp_err_t decoder_error = jpeg_new_decoder_engine(&engine, &video.decoder);
@@ -202,9 +239,19 @@ static void video_session(const app_intercom_snapshot_t *state)
     app_intercom_ui_status("Kamera elérhető, az első MJPEG-képkockára várunk...", state->revision);
     uint8_t chunk[4096];
     int64_t started = esp_timer_get_time();
+    int64_t last_progress = started;
     size_t received = 0;
     while (still_ringing(state->revision))
     {
+        int64_t now = esp_timer_get_time();
+        if (!video.jpeg_frames && now - last_progress >= 1000000LL) {
+            char message[160];
+            snprintf(message, sizeof(message),
+                     "MJPEG: %u KiB adat, %u képkezdés, %u túlméretes kép. Első teljes képre várunk...",
+                     (unsigned)(received / 1024U), stream.frame_starts, stream.oversized_frames);
+            app_intercom_ui_status(message, state->revision);
+            last_progress = now;
+        }
         int count = esp_http_client_read(http, (char *)chunk, sizeof(chunk));
         if (count == -ESP_ERR_HTTP_EAGAIN && esp_timer_get_time() - started < 10000000LL) {
             continue;
@@ -218,11 +265,11 @@ static void video_session(const app_intercom_snapshot_t *state)
         /* A stream nem veheti el a CPU0-t a közös Loxone-kapcsolattól. */
         vTaskDelay(1);
     }
-    ESP_LOGI(TAG, "Camera bytes=%u JPEG=%u displayed=%d", (unsigned)received,
-             video.jpeg_frames, video.last_frame != 0);
+    ESP_LOGI(TAG, "Camera bytes=%u JPEG=%u starts=%u oversized=%u displayed=%d", (unsigned)received,
+             video.jpeg_frames, stream.frame_starts, stream.oversized_frames, video.last_frame != 0);
     if (still_ringing(state->revision) && (video.last_frame || !video.jpeg_frames)) {
         app_intercom_ui_status(video.last_frame ? "A videó megszakadt. Újracsatlakozás..." :
-            received ? "Nem érkezett teljes MJPEG-kép (max. 256 KiB/kép). Újrapróbálás..." :
+            received ? "Nem érkezett teljes MJPEG-kép (max. 2 MiB/kép). Újrapróbálás..." :
                        "A kamera nem küld videóadatot. Újrapróbálás...", state->revision);
     }
 done:

@@ -592,12 +592,14 @@ static bool open_hardware(audio_call_t *call)
         .mic_num = 1, .ref_num = 1, .out_num = 1,
         .filter_length = 4, .sample_rate = AUDIO_RATE,
         .caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
-        .mode = AEC_MODE_FD_LOW_COST,
+        /* A készüléken az FD/FFT feldolgozás pánikot okozott. A SIP-híváshoz
+         * a gyártó VoIP AEC-je használható ugyanúgy 16 kHz-es PCM-mel. */
+        .mode = AEC_MODE_VOIP_LOW_COST,
         .nlp_level = AEC_NLP_LEVEL_AGGR,
     };
     audio_checkpoint(AUDIO_STAGE_AEC);
     call->aec = aec_create_from_config(&aec_config);
-    if (!hardware_check(call, "Visszhangszűrő memória", call->aec ? ESP_OK : ESP_ERR_NO_MEM)) {
+    if (!hardware_check(call, "Visszhangszűrő memória", call->aec && call->aec->aec_handle ? ESP_OK : ESP_ERR_NO_MEM)) {
         return false;
     }
     int frame = aec_get_chunksize(call->aec);
@@ -607,6 +609,7 @@ static bool open_hardware(audio_call_t *call)
                         frame > 0 && frame <= AUDIO_FRAME_MAX && frame % 8 == 0 ? ESP_OK : ESP_ERR_INVALID_SIZE)) {
         return false;
     }
+    ESP_LOGI(TAG, "AEC VoIP: rate=%u frame=%d", AUDIO_RATE, frame);
     call->frame_samples = (unsigned)frame;
     call->buffers = heap_caps_aligned_calloc(16, frame * 8, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!hardware_check(call, "Hangpuffer memória", call->buffers ? ESP_OK : ESP_ERR_NO_MEM) ||

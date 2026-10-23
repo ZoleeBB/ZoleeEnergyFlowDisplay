@@ -13,6 +13,7 @@ void app_intercom_stream_feed(app_intercom_stream_t *s, const uint8_t *data,
         unsigned byte = data[i];
         if (s->state >= MARKER && s->used >= s->capacity)
         {
+            s->oversized_frames++;
             s->used = 0;
             s->state = SEEK;
         }
@@ -26,6 +27,7 @@ void app_intercom_stream_feed(app_intercom_stream_t *s, const uint8_t *data,
             case SOI:
                 if (byte == 0xd8)
                 {
+                    s->frame_starts++;
                     s->buffer[0] = 0xff;
                     s->buffer[1] = 0xd8;
                     s->used = 2;
@@ -57,6 +59,7 @@ void app_intercom_stream_feed(app_intercom_stream_t *s, const uint8_t *data,
                 }
                 else if (byte == 0xd8)
                 {
+                    s->frame_starts++;
                     s->buffer[0] = 0xff;
                     s->buffer[1] = 0xd8;
                     s->used = 2;
