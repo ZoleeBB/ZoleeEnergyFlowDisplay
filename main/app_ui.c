@@ -2159,7 +2159,7 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
-        if (bsp_display_lock(-1) == ESP_OK)
+        if (intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
         {
             intercom_render();
             bsp_display_unlock();

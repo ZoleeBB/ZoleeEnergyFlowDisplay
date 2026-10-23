@@ -66,7 +66,7 @@ int main(void)
     data[0] = 0; assert(lx_intercom_bell_update(&ringing,&config,2,data,24) && !ringing);
     static lx_home_config_t home, reloaded;
     const char *json = "{\"schema\":2,\"pages\":[],\"intercom\":{\"enabled\":true,"
-        "\"stream_url\":\"http://192.168.1.50/mjpg/video.mjpg\","
+        "\"stream_url\":\"http://192.168.2.21/mjpg/video.mjpg\","
         "\"bell_uuid\":\"00000000-0000-0000-0000000000000000\","
         "\"gate\":{\"id\":\"intercom-gate\",\"name\":\"Kapunyitás\",\"icon\":\"door\","
         "\"type\":\"pulse\",\"control_uuid\":\"11223344-5566-7788-99aabbccddeeff00\"}}}";

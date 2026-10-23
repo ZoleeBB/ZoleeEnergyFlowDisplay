@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static portMUX_TYPE s_video_lock = portMUX_INITIALIZER_UNLOCKED;
+static bool s_ready, s_video_running;
+
 #define VIDEO_WIDTH 1280U
 #define VIDEO_HEIGHT 720U
 
@@ -162,8 +165,9 @@ static void worker(void *arg)
     for (;;)
     {
         app_intercom_snapshot_t state = {0};
-        if (app_loxone_intercom_snapshot(&state) && state.ringing)
-            video_session(&state);
+        if (!app_loxone_intercom_snapshot(&state) || !state.ringing)
+            break;
+        video_session(&state);
         /* Hiba esetén is megszakítható, legfeljebb két másodperces újrapróbálás. */
         for (unsigned i = 0; i < 10; ++i)
         {
@@ -171,12 +175,35 @@ static void worker(void *arg)
             if (!still_ringing(state.revision)) break;
         }
     }
+    portENTER_CRITICAL(&s_video_lock);
+    s_video_running = false;
+    portEXIT_CRITICAL(&s_video_lock);
+    vTaskDelete(NULL);
+}
+
+/* Nem marad meg a 12 KiB belső task-stack két csengetés között. */
+void app_intercom_poll(void)
+{
+    portENTER_CRITICAL(&s_video_lock);
+    bool available = s_ready && !s_video_running;
+    if (available) {
+        s_video_running = true;
+    }
+    portEXIT_CRITICAL(&s_video_lock);
+    if (!available) {
+        return;
+    }
+    if (xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) != pdPASS) {
+        portENTER_CRITICAL(&s_video_lock);
+        s_video_running = false;
+        portEXIT_CRITICAL(&s_video_lock);
+    }
 }
 
 esp_err_t app_intercom_start(void)
 {
-    if (xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) != pdPASS) {
-        return ESP_ERR_NO_MEM;
-    }
+    /* Induláskor nincs kamera-/hangfeladat és nincs I/O. A UI csak csengetéskor
+     * indít videófeladatot, a hangfeladatot pedig kizárólag a beszélgetés gomb. */
+    s_ready = true;
     return app_intercom_audio_start();
 }

@@ -19,3 +19,10 @@ with tempfile.TemporaryDirectory(prefix='intercom-audio-') as directory:
         '-Itests/audio_stubs', '-Itests/stubs', '-Imain', 'tests/test_intercom_audio_session.c',
         'main/app_intercom_audio_protocol.c', '-pthread', '-o', session], cwd=ROOT, check=True)
     subprocess.run([session], check=True, timeout=25, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})
+
+    video = str(Path(directory) / 'video')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
+        '-Itests/audio_stubs', '-Itests/stubs', '-Imain', 'tests/test_intercom_video_lifecycle.c',
+        'main/app_intercom_stream.c', '-pthread', '-o', video], cwd=ROOT, check=True)
+    subprocess.run([video], check=True, timeout=10, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})

@@ -258,15 +258,21 @@ const LoxoneHome = (() => {
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
     function validate() {
         const door = model.intercom;
+        door.stream_url = (door.stream_url || '').trim();
         if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
             return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';
         if (door.stream_url) {
-            try {
-                const url = new URL(door.stream_url);
-                if (url.protocol !== 'http:' || url.username || url.password || url.hash ||
-                    !url.hostname || url.pathname === '/' || /[\s\\]/.test(door.stream_url) ||
-                    new TextEncoder().encode(door.stream_url).length > 256) throw Error();
-            } catch (_) { return 'Kaputelefon: érvényes HTTP videócím kell, beágyazott felhasználónév és jelszó nélkül.'; }
+            let url;
+            try { url = new URL(door.stream_url); }
+            catch (_) { return 'Kaputelefon: érvénytelen videócím. Példa: http://192.168.2.21/mjpg/video.mjpg'; }
+            if (url.protocol !== 'http:') return 'Kaputelefon: a videócím http:// kezdetű legyen.';
+            if (url.username || url.password) return 'Kaputelefon: a felhasználónevet és jelszót ne írd a videócímbe.';
+            if (!url.hostname || url.pathname === '/' || url.hash || /[\s\\]/.test(door.stream_url))
+                return 'Kaputelefon: teljes HTTP videócím kell, belső szóköz, fordított perjel és # nélkül.';
+            if (new TextEncoder().encode(url.href).length > 256)
+                return 'Kaputelefon: a videócím legfeljebb 256 bájt lehet.';
+            door.stream_url = url.href;
+            if (get('intercom-stream-url')) get('intercom-stream-url').value = door.stream_url;
         }
         if (door.gate && (!uuidValid(door.gate.control_uuid) || !door.gate.name.trim() ||
             /[\x00-\x1f\x7f]/.test(door.gate.name) || new TextEncoder().encode(door.gate.name).length > 80))
@@ -339,7 +345,10 @@ const LoxoneHome = (() => {
     }
     async function save() {
         if (busy()) return;
-        const error = validate(); if (error) { notify(error, true); return; }
+        let error;
+        try { error = validate(); }
+        catch (failure) { notify('A böngésző nem tudta ellenőrizni a beállításokat: ' + failure.message, true); return; }
+        if (error) { notify(error, true); return; }
         pending = true; buttons(); notify('Otthon-beállítások mentése…');
         saveRevision = revision;
         try {

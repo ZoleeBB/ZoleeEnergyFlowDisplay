@@ -22,6 +22,8 @@ static int local_bind(int fd, const struct sockaddr *source, socklen_t size)
 
 static atomic_bool ring = true;
 static int reads, writes, mic_opens, mic_closes, speaker_closes;
+static unsigned tasks_created, tasks_deleted;
+static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
 
 void vTaskDelay(unsigned delay)
@@ -33,7 +35,14 @@ int xTaskCreatePinnedToCore(void (*worker)(void *), const char *name, unsigned s
                            void *argument, unsigned priority, void *handle, unsigned core)
 {
     (void)worker; (void)name; (void)stack; (void)argument; (void)priority; (void)handle; (void)core;
+    if (task_failure) return 0;
+    tasks_created++;
     return pdPASS;
+}
+void vTaskDelete(void *task)
+{
+    assert(!task);
+    tasks_deleted++;
 }
 int64_t esp_timer_get_time(void)
 {
@@ -237,6 +246,11 @@ static void *fake_door(void *argument)
 int main(void)
 {
     assert(app_intercom_audio_start() == ESP_OK);
+    assert(tasks_created == 0 && !s_running);
+    task_failure = true;
+    assert(app_intercom_audio_request(true, 7) == ESP_ERR_NO_MEM);
+    assert(!s_running && !s_requested && s_status.state == APP_INTERCOM_AUDIO_ERROR);
+    task_failure = false;
     for (int mode = 0; mode < 5; mode++) {
         fake_door_t door = {.mode=mode};
         door.listener = socket(AF_INET, SOCK_STREAM, 0);
@@ -255,21 +269,15 @@ int main(void)
         s_running = false; s_requested = false;
         assert(app_intercom_audio_request(true, 6) == ESP_ERR_INVALID_STATE);
         assert(app_intercom_audio_request(true, 7) == ESP_OK);
-        unsigned epoch = s_epoch;
-        s_running = true;
+        assert(s_running);
+        assert(app_intercom_audio_request(true, 7) == ESP_ERR_INVALID_STATE);
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
         fail_microphone = mode == 3;
         speaker_audio = false;
         pthread_t thread;
         assert(pthread_create(&thread, NULL, fake_door, &door) == 0);
-        audio_call_t *call = calloc(1, sizeof(*call));
-        call->tcp = call->udp = call->listener = call->incoming = call->rtp = -1;
-        call->epoch = epoch; call->revision = 7;
-        app_intercom_snapshot_t snapshot;
-        assert(app_loxone_intercom_snapshot(&snapshot));
-        run_call(call, &snapshot);
-        close_call(call);
-        free(call);
+        audio_worker(NULL);
+        assert(!s_running && !s_requested && tasks_created == tasks_deleted);
         pthread_join(thread, NULL);
         close(door.media); close(door.listener); close(door.sip);
         assert(door.ack);

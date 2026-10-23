@@ -32,6 +32,7 @@ static bool s_requested, s_running, s_started;
 static unsigned s_epoch, s_revision;
 static app_intercom_audio_status_t s_status;
 static esp_codec_dev_handle_t s_speaker, s_microphone;
+static void audio_worker(void *argument);
 
 static void publish(unsigned epoch, app_intercom_audio_state_t state, const char *message)
 {
@@ -70,13 +71,30 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
         s_epoch++;
         s_revision = revision;
         s_requested = enabled;
+        if (enabled) {
+            s_running = true;
+        }
         s_status = (app_intercom_audio_status_t){
             .state = enabled ? APP_INTERCOM_AUDIO_CONNECTING :
                      s_running ? APP_INTERCOM_AUDIO_STOPPING : APP_INTERCOM_AUDIO_IDLE,
             .revision = revision,
         };
     }
+    unsigned epoch = s_epoch;
     portEXIT_CRITICAL(&s_lock);
+    if (enabled && xTaskCreatePinnedToCore(audio_worker, "intercom_audio", 16384, NULL, 4, NULL, 0) != pdPASS) {
+        portENTER_CRITICAL(&s_lock);
+        s_running = false;
+        s_requested = false;
+        if (s_epoch == epoch) {
+            s_status.state = APP_INTERCOM_AUDIO_ERROR;
+            snprintf(s_status.message, sizeof(s_status.message), "%s", "Nincs elég belső memória a hang indításához.");
+        } else if (s_status.state == APP_INTERCOM_AUDIO_STOPPING) {
+            s_status.state = APP_INTERCOM_AUDIO_IDLE;
+        }
+        portEXIT_CRITICAL(&s_lock);
+        return ESP_ERR_NO_MEM;
+    }
     return ESP_OK;
 }
 
@@ -628,50 +646,44 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
 static void audio_worker(void *argument)
 {
     (void)argument;
-    for (;;) {
-        portENTER_CRITICAL(&s_lock);
-        bool requested = s_requested;
-        unsigned epoch = s_epoch, revision = s_revision;
-        s_running = requested;
-        portEXIT_CRITICAL(&s_lock);
-        if (requested) {
-            audio_call_t *call = calloc(1, sizeof(*call));
-            app_intercom_snapshot_t snapshot;
-            if (call) {
-                call->tcp = call->udp = call->listener = call->incoming = call->rtp = -1;
-                call->epoch = epoch;
-                call->revision = revision;
-                if (wanted(epoch, revision) && app_loxone_intercom_snapshot(&snapshot)) {
-                    run_call(call, &snapshot);
-                }
-                close_call(call);
-                free(call);
-            } else {
-                publish(epoch, APP_INTERCOM_AUDIO_ERROR, "Nincs elég memória a hangkapcsolathoz.");
+    portENTER_CRITICAL(&s_lock);
+    bool requested = s_requested;
+    unsigned epoch = s_epoch, revision = s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    if (requested) {
+        audio_call_t *call = calloc(1, sizeof(*call));
+        app_intercom_snapshot_t snapshot;
+        if (call) {
+            call->tcp = call->udp = call->listener = call->incoming = call->rtp = -1;
+            call->epoch = epoch;
+            call->revision = revision;
+            if (wanted(epoch, revision) && app_loxone_intercom_snapshot(&snapshot)) {
+                run_call(call, &snapshot);
             }
-            portENTER_CRITICAL(&s_lock);
-            s_running = false;
-            if (s_epoch == epoch) {
-                s_requested = false;
-            }
-            if (s_status.state != APP_INTERCOM_AUDIO_ERROR) {
-                s_status.state = APP_INTERCOM_AUDIO_IDLE;
-                s_status.message[0] = 0;
-            }
-            portEXIT_CRITICAL(&s_lock);
+            close_call(call);
+            free(call);
+        } else {
+            publish(epoch, APP_INTERCOM_AUDIO_ERROR, "Nincs elég memória a hangkapcsolathoz.");
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
     }
+    portENTER_CRITICAL(&s_lock);
+    s_running = false;
+    if (s_epoch == epoch) {
+        s_requested = false;
+    }
+    if (s_status.state != APP_INTERCOM_AUDIO_ERROR) {
+        s_status.state = APP_INTERCOM_AUDIO_IDLE;
+        s_status.message[0] = 0;
+    }
+    portEXIT_CRITICAL(&s_lock);
+    /* A FreeRTOS az idle feladatban visszaadja a 16 KiB belső stacket is. */
+    vTaskDelete(NULL);
 }
 
 esp_err_t app_intercom_audio_start(void)
 {
-    if (s_started) {
-        return ESP_OK;
-    }
-    if (xTaskCreatePinnedToCore(audio_worker, "intercom_audio", 16384, NULL, 4, NULL, 0) != pdPASS) {
-        return ESP_ERR_NO_MEM;
-    }
+    portENTER_CRITICAL(&s_lock);
     s_started = true;
+    portEXIT_CRITICAL(&s_lock);
     return ESP_OK;
 }

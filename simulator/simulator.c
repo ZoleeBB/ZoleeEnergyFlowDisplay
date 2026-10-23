@@ -273,6 +273,7 @@ static int intercom_self_test(void)
 {
     config.data_recept_mode = APP_DATA_LOXONE;
     app_ui_set_config(&config);
+    if (intercom_needs_cleanup()) return 56;
     app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
     render_step(200);
     if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
@@ -315,7 +316,7 @@ static int intercom_self_test(void)
     if (intercom_overlay!=original) return 47;
     app_sim_intercom.ringing=false;
     render_step(200);
-    if (intercom_overlay || intercom_front || intercom_prepared) return 48;
+    if (intercom_overlay || intercom_front || intercom_prepared || intercom_needs_cleanup()) return 48;
     if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 2) return 55;
     puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close and released image buffer");
     return 0;

@@ -55,6 +55,10 @@ static bool intercom_prepare(void)
     if (s_cfg.data_recept_mode != APP_DATA_LOXONE ||
         !app_loxone_intercom_snapshot(&intercom_next))
         return false;
+#ifdef ESP_PLATFORM
+    if (intercom_next.ringing)
+        app_intercom_poll();
+#endif
     if (intercom_next.ringing && !intercom_front && !intercom_prepared)
     {
 #ifdef ESP_PLATFORM
@@ -66,10 +70,20 @@ static bool intercom_prepare(void)
     return intercom_next.ringing;
 }
 
+/* Ezeket a mutatókat kizárólag a runtime hozza létre/szabadítja fel.
+ * Üresjáratban ezért LVGL-lock kérése nélkül is kihagyható a takarítás. */
+static bool intercom_needs_cleanup(void)
+{
+    return intercom_overlay || intercom_front || intercom_prepared;
+}
+
 static void intercom_render(void)
 {
     if (!intercom_next.ringing)
     {
+        /* Üresjáratban a háttér képcache-éhez és az audiovezérléshez sem nyúlunk. */
+        if (!intercom_overlay && !intercom_front && !intercom_prepared)
+            return;
         (void)app_intercom_audio_request(false, intercom_revision);
         if (intercom_overlay)
         {
@@ -239,4 +253,5 @@ void app_intercom_ui_status(const char *message, unsigned revision)
 #else
 static bool intercom_prepare(void) { return false; }
 static void intercom_render(void) {}
+static bool intercom_needs_cleanup(void) { return false; }
 #endif

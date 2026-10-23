@@ -4,6 +4,8 @@ A Loxone adatfogadási módban működő Master a kaputelefon közvetlen HTTP/MJ
 élőképét jeleníti meg. A Loxone 100484 Intercom White helyi videócímét a felhasználó
 böngészőben kipróbálta: `/mjpg/video.mjpg`. Más készüléknél kompatibilis MJPEG-cím kell.
 A funkció alapértelmezetten ki van kapcsolva, a Slave kijelzőkre nem továbbít videót.
+A webes mentés a bemásolt videócím körüli szóközöket eltávolítja; a belső szóköz,
+jelszó az URL-ben, HTTPS vagy hiányzó videóútvonal továbbra is hibát jelez.
 
 ## Beállítás
 
@@ -46,7 +48,9 @@ használd. Átirányítást nem követünk, így más cél nem kaphatja meg a hi
 
 ## Erőforrások és korlátok
 
-A videó külön, alacsonyabb prioritású CPU0-feladatban érkezik, nem blokkolja a
+A videófeladat kizárólag csengetéskor jön létre, és a csengetés végén megszűnik.
+A 12 KiB-os belső stack nem marad foglalva két hívás között. A videó külön,
+alacsonyabb prioritású CPU0-feladatban érkezik, nem blokkolja a
 Loxone állapotfolyamot. A JPEG-dekódolást az ESP32-P4 hardvere végzi; legfeljebb
 10 képkockát jelenítünk meg másodpercenként. Az adatfolyamot folyamatosan ürítjük,
 nincs felhalmozódó videósor. Egy tömörített képkocka legfeljebb 256 KiB, a kép
@@ -119,6 +123,10 @@ Alap hangerő 55%, mikrofonerősítés 24 dB. A visszhangkioltó és a mintapuff
 csak aktív beszélgetés alatt élnek. A BSP I2S-illesztése és kodekeszközei az első
 hívás után megmaradnak, de a mikrofon ADC és a hangszóró erősítője zárva van.
 A hang külön CPU0-feladatban fut; nem tart LVGL-lockot vagy Loxone-lockot I/O alatt.
+Ez a feladat is csak kézi indításkor jön létre, és bontáskor a 16 KiB-os belső
+stackjével együtt megszűnik. Így üresjáratban összesen 28 KiB belső stackmemória
+felszabadul az előző megvalósításhoz képest. Ha nincs kaputelefonnézet vagy videópuffer,
+a UI a kaputelefon miatt nem kér grafikus lockot és nem invalidál képcache-t.
 
 A valódi hardveres próba szükséges: a felhasználó 100484 készülékének SIP-támogatása,
 a pontos kijelzőváltozat mikrofonbekötése, hangerő, visszhang, hangkésés és a
