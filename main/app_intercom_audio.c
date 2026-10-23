@@ -198,6 +198,7 @@ typedef struct {
     uint8_t payload, formats;
     uint16_t receive_port;
     unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
+    unsigned cycle_peak_ms;
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
     char reply[INTERCOM_SIP_MAX + 1];
@@ -701,6 +702,7 @@ static void media_session(audio_call_t *call)
     /* A lejátszás és felvétel azonos I2S-órán fut. A hálózati csomagokból
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
     while (wanted(call->epoch, call->revision)) {
+        int64_t cycle_started = esp_timer_get_time();
         if (!pump_signaling(call)) {
             if (!call->ended) {
                 publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon hangkapcsolata megszakadt.");
@@ -719,17 +721,19 @@ static void media_session(audio_call_t *call)
             }
         }
         if (esp_timer_get_time() - last_packet > 10000000LL) {
-            char message[128];
-            snprintf(message, sizeof(message), "Nincs fogadható hang. RX:%u jó:%u forrás:%u kodek:%u RTP:%u TX:%u",
+            char message[160];
+            snprintf(message, sizeof(message), "Hanghiba RX:%u jó:%u F:%u K:%u H:%u S:%u L:%u A:%u R:%u TX:%u",
                      call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
-                     call->rx_format_rejected, call->rx_invalid, call->tx_packets);
+                     call->rx_format_rejected, call->jitter.malformed, call->jitter.wrong_ssrc,
+                     call->jitter.late_packets, call->jitter.ahead_packets, call->jitter.resyncs, call->tx_packets);
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, message);
             break;
         }
         if (esp_timer_get_time() - last_status >= 1000000LL) {
             char message[128];
-            snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u, fogadóport:%u",
-                     call->rx_packets, call->rx_accepted, call->tx_packets, call->rtp_port);
+            snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms",
+                     call->rx_packets, call->rx_accepted, call->tx_packets, call->jitter.resyncs,
+                     call->cycle_peak_ms, frame * 1000U / AUDIO_RATE);
             publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, message);
             last_status = esp_timer_get_time();
         }
@@ -777,6 +781,8 @@ static void media_session(audio_call_t *call)
             }
         }
         vTaskDelay(1);
+        unsigned cycle_ms = (unsigned)((esp_timer_get_time() - cycle_started) / 1000);
+        if (cycle_ms > call->cycle_peak_ms) call->cycle_peak_ms = cycle_ms;
     }
     ESP_LOGI(TAG, "RTP totals: rx=%u accepted=%u peer=%u format=%u invalid=%u tx=%u",
              call->rx_packets, call->rx_accepted, call->rx_peer_rejected,

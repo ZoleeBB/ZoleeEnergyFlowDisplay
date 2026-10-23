@@ -5,8 +5,67 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void jitter_recovery(void)
+{
+    intercom_jitter_t *jitter = calloc(1, sizeof(*jitter));
+    assert(jitter);
+    uint8_t packet[172];
+    int16_t samples[160], output[256];
+    for (unsigned i = 0; i < 160; i++) samples[i] = 3000;
+    /* Típusonként harminc másodpercnyi hálózati hang, eltérő lejátszási órával.
+     * A régi kód néhány tucat jó csomag után minden továbbit eldobott. */
+    const unsigned reads[] = {128, 160, 192};
+    for (unsigned mode = 0; mode < 3; mode++) {
+        memset(jitter, 0, sizeof(*jitter));
+        unsigned accepted = 0, audible = 0, tail_audible = 0;
+        for (unsigned i = 0; i < 1500; i++) {
+            intercom_rtp_encode(packet, (uint16_t)(65000 + i), 0xffff0000U + i * 160U, 44, 0, samples);
+            accepted += intercom_rtp_receive(jitter, packet, sizeof(packet), 0);
+            intercom_jitter_read(jitter, output, reads[mode]);
+            for (unsigned j = 0; j < reads[mode]; j++) {
+                audible += output[j] > 2000;
+                if (i >= 1400) tail_audible += output[j] > 2000;
+            }
+        }
+        assert(accepted > 1400 && audible > 120000 && tail_audible > 8000);
+        if (mode != 1) assert(jitter->resyncs > 0);
+        else assert(!jitter->resyncs);
+    }
+    /* Csak a csomag régi elejét vágjuk le, az új végét le lehet játszani. */
+    memset(jitter, 0, sizeof(*jitter));
+    intercom_rtp_encode(packet, 1, 1000, 44, 0, samples);
+    assert(intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    jitter->next = 1080;
+    assert(intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    jitter->priming = 0;
+    intercom_jitter_read(jitter, output, 80);
+    for (unsigned i = 0; i < 80; i++) assert(output[i] > 2000);
+    /* Két előreszaladt csomag kell; a régi sorszám, rossz SSRC és hibás
+     * fejléc nem szinkronizálhat. A sorszám 65535 -> 0 átfordulása érvényes. */
+    memset(jitter, 0, sizeof(*jitter));
+    intercom_rtp_encode(packet, 65534, 0, 44, 0, samples);
+    assert(intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    intercom_rtp_encode(packet, 65535, 10000, 44, 0, samples);
+    assert(!intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    assert(!jitter->resyncs && jitter->next == 0);
+    intercom_rtp_encode(packet, 0, 10160, 45, 0, samples);
+    assert(!intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    assert(jitter->wrong_ssrc == 1 && !jitter->resyncs);
+    intercom_rtp_encode(packet, 0, 10160, 44, 0, samples);
+    assert(intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    assert(jitter->resyncs == 1 && jitter->next == 10160);
+    intercom_rtp_encode(packet, 65534, 0, 44, 0, samples);
+    assert(!intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    assert(!intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+    assert(jitter->resyncs == 1 && jitter->next == 10160);
+    assert(!intercom_rtp_receive(jitter, packet, 4, 0) && jitter->malformed == 1);
+    free(jitter);
+    puts("PASS: 30s slow/fast playout recovery, partial late packet, two-packet resync, sequence/timestamp wrap, stale/foreign/malformed rejection");
+}
+
 int main(void)
 {
+    jitter_recovery();
     const char *message = "SIP/2.0 200 OK\r\nCall-ID: test\r\nContent-Length: 4\r\n\r\ntest";
     for (size_t i = 0; i < strlen(message); i++) {
         assert(intercom_sip_size(message, i) == 0);

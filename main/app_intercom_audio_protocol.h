@@ -30,8 +30,11 @@ typedef struct {
     uint32_t tags[INTERCOM_JITTER_SAMPLES];
     uint8_t valid[INTERCOM_JITTER_SAMPLES];
     uint32_t next, ssrc;
+    uint32_t candidate_end;
+    uint16_t newest_sequence, candidate_sequence;
+    unsigned malformed, wrong_ssrc, late_packets, ahead_packets, resyncs;
     unsigned priming;
-    bool initialized, playing;
+    bool initialized, playing, candidate;
 } intercom_jitter_t;
 /* Forrásellenőrzés a socketnél; itt RTP-határ, típus, SSRC és időbélyeg ellenőrzés. */
 bool intercom_rtp_receive(intercom_jitter_t *jitter, const uint8_t *packet,

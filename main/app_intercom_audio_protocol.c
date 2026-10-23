@@ -288,40 +288,69 @@ size_t intercom_rtp_encode(uint8_t *packet, uint16_t sequence, uint32_t timestam
     return 172;
 }
 
+static bool malformed_rtp(intercom_jitter_t *jitter)
+{
+    jitter->malformed++;
+    return false;
+}
+
+/* Elcsúszott lejátszási órát csak két új, sorban érkező és összefüggő
+ * időbélyegű csomag igazíthat helyre. Régi/duplikált csomag és más SSRC nem.
+ * A megerősítés az RFC 3550 A.1 kétcsomagos visszaállási elvét követi. */
+static bool resync_rtp(intercom_jitter_t *jitter, uint16_t sequence, uint32_t timestamp, size_t count)
+{
+    if ((int16_t)(sequence - jitter->newest_sequence) <= 0) {
+        return false;
+    }
+    bool confirmed = jitter->candidate && sequence == (uint16_t)(jitter->candidate_sequence + 1) &&
+                     timestamp == jitter->candidate_end;
+    jitter->candidate = true;
+    jitter->candidate_sequence = sequence;
+    jitter->candidate_end = timestamp + (uint32_t)count;
+    if (!confirmed) {
+        return false;
+    }
+    memset(jitter->valid, 0, sizeof(jitter->valid));
+    jitter->next = timestamp;
+    jitter->priming = 2;
+    jitter->resyncs++;
+    return true;
+}
+
 bool intercom_rtp_receive(intercom_jitter_t *jitter, const uint8_t *packet, size_t size, uint8_t payload)
 {
     if (size < 12 || packet[0] >> 6 != 2 || (packet[1] & 127) != payload) {
-        return false;
+        return malformed_rtp(jitter);
     }
     size_t offset = 12 + (packet[0] & 15) * 4;
     if (offset > size) {
-        return false;
+        return malformed_rtp(jitter);
     }
     if (packet[0] & 0x10) {
         if (size - offset < 4) {
-            return false;
+            return malformed_rtp(jitter);
         }
         size_t extension = 4 + (((size_t)packet[offset + 2] << 8) | packet[offset + 3]) * 4;
         if (extension > size - offset) {
-            return false;
+            return malformed_rtp(jitter);
         }
         offset += extension;
     }
     if (packet[0] & 0x20) {
         unsigned padding = packet[size - 1];
         if (!padding || padding > size - offset) {
-            return false;
+            return malformed_rtp(jitter);
         }
         size -= padding;
     }
     size_t count = size - offset;
     if (!count || count > 960) {
-        return false;
+        return malformed_rtp(jitter);
     }
     uint32_t timestamp = read32(packet + 4), ssrc = read32(packet + 8);
-    if (jitter->initialized && (ssrc != jitter->ssrc ||
-        (int32_t)(timestamp - jitter->next) < 0 ||
-        (uint32_t)(timestamp - jitter->next) + count > INTERCOM_JITTER_SAMPLES)) {
+    uint16_t sequence = (uint16_t)(((unsigned)packet[2] << 8) | packet[3]);
+    if (jitter->initialized && ssrc != jitter->ssrc) {
+        jitter->wrong_ssrc++;
         return false;
     }
     if (!jitter->initialized) {
@@ -329,6 +358,27 @@ bool intercom_rtp_receive(intercom_jitter_t *jitter, const uint8_t *packet, size
         jitter->ssrc = ssrc;
         jitter->next = timestamp;
         jitter->priming = 2;
+        jitter->newest_sequence = sequence;
+    }
+    int32_t distance = (int32_t)(timestamp - jitter->next);
+    /* A részben késő csomag használható végét nem dobjuk el a régi elejével. */
+    if (distance < 0 && (uint32_t)(-((int64_t)distance)) < count) {
+        size_t skip = (size_t)(-((int64_t)distance));
+        offset += skip;
+        count -= skip;
+        timestamp = jitter->next;
+        distance = 0;
+    }
+    if (distance < 0 || (uint64_t)(uint32_t)distance + count > INTERCOM_JITTER_SAMPLES) {
+        if (distance < 0) jitter->late_packets++;
+        else jitter->ahead_packets++;
+        if (!resync_rtp(jitter, sequence, timestamp, count)) {
+            return false;
+        }
+    }
+    jitter->candidate = false;
+    if ((int16_t)(sequence - jitter->newest_sequence) > 0) {
+        jitter->newest_sequence = sequence;
     }
     for (size_t i = 0; i < count; i++) {
         uint32_t time = timestamp + (uint32_t)i;

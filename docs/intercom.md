@@ -315,3 +315,35 @@ fogadóportot. A tíz másodperces időtúllépés külön megadja az idegen for
 nem tárgyalt kodek és hibás/késői RTP miatt elutasított csomagok számát is.
 A gyártói/nyilvános referenciák és a natív hardverhelyettesítő tesztek nem
 helyettesítik a fizikai kaputelefonnal és kijelzővel végzett közös próbát.
+
+### Helyreállás a hang lejátszási órájának elcsúszása után
+
+A készülékes visszajelzés szerint a videó már működik. A hangnál 549 fogadott
+csomagból 45 volt elfogadott, 504 RTP-hibás; a forrás- és kodekelutasítás nulla.
+Ez igazolja az adatérkezést, de a korábbi összesített RTP-számláló nem különíti el
+az SSRC-, fejléc- és időbélyegproblémát. A kódban ettől függetlenül reprodukálható
+hiba volt: a 256 ms-os jitterablakból kieső adatfolyam tartósan kieshetett,
+mert a lejátszási mutató soha nem igazodott az új csomagokhoz.
+
+A fogadó azonos IP/port/SSRC mellett két új, egymást követő sorszámú és
+összefüggő időbélyegű csomaggal állítja helyre az elcsúszott lejátszási pozíciót.
+Az első ablakon kívüli csomag még nem állítja át a puffert. A megerősítés
+az [RFC 3550 A.1](https://www.rfc-editor.org/rfc/rfc3550#appendix-A.1)
+kétcsomagos visszaállási elvéből indul ki; ez alkalmazásoldali jitterkezelés,
+nem a teljes RFC-s referenciaimplementáció átvétele. Régi/duplikált sorszám,
+hibás csomag vagy eltérő SSRC nem szinkronizálhat. Az elavult mintajelölők
+törlődnek; nincs új heapfoglalás és a puffer mérete változatlan. A részben
+elkésett csomag még fel nem használt végét a fogadó megtartja.
+
+A diagnosztika külön számolja a fejléc (`H`), SSRC (`S`), teljesen késő (`L`)
+és ablak elé kerülő (`A`) csomagokat, valamint az újraszinkronizálásokat (`R`).
+`F` a forrás-, `K` a kodekelutasítás; az L/A számláló a helyreállításban részt
+vevő csomagokat is számolja. Aktív hívásnál a legnagyobb feldolgozási ciklusidő
+és az AEC-keret hangideje is látszik (`ciklus: mért/elvárt ms`), hogy a tényleges
+I2S/AEC-terhelés elkülöníthető legyen a hálózati hibától.
+
+A natív teszt 30 másodpercnyi hangot vezet át eltérő, ±20%-os lejátszási
+óraütemmel, és megköveteli a hang folytatását. Vizsgálja a részben késő csomagot,
+a kétcsomagos helyreállást, a sorszám-/időbélyeg-átfordulást és a régi/idegen/
+hibás csomagok elutasítását. A készüléken a javulást és a kétirányú hang minőségét
+újabb próbával kell ellenőrizni; a videó működő foglalási útvonala nem változik.
