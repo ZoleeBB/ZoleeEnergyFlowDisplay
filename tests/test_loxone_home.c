@@ -292,7 +292,7 @@ int main(int argc, char **argv)
     assert(serialized && lx_home_config_parse(serialized, roundtrip, error));
     assert(!memcmp(config, roundtrip, sizeof(*config)));
     char *encoded = cJSON_PrintUnformatted(serialized);
-    assert(encoded && !strstr(encoded, "password") && !strstr(encoded, "token"));
+    assert(encoded && !strstr(encoded, "\"video_password\"") && !strstr(encoded, "\"password\"") && !strstr(encoded, "token"));
     free(encoded);
     cJSON_Delete(serialized);
 

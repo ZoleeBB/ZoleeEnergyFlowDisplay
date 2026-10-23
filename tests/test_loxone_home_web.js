@@ -26,7 +26,7 @@ const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id
         if(reject)return {ok:false,text:async()=>'Az SD-kártya nem írható.'};
         assert.equal(options.headers['X-Zolee-Loxone'],'1');posts.push(JSON.parse(options.body));
         state.busy=hold;
-        if(!hold){state={...state,...JSON.parse(options.body),revision:state.revision+1,status:'Otthon-beállítások elmentve.'};}
+        if(!hold){state={...state,...JSON.parse(options.body),revision:state.revision+1,status:'Otthon-beállítások elmentve.'};state.intercom.has_video_password=true;delete state.intercom.video_password;}
         return {ok:true};
     }
     return {ok:true,json:async()=>structuredClone(state)};
@@ -42,6 +42,8 @@ const click=id=>nodes.get(id).onclick();
     const enabled=nodes.get('intercom-enabled'); enabled.checked=true;enabled.onchange();
     await click('intercom-save');assert.equal(posts.length,0);
     edit('intercom-stream-url',' \u00a0http://192.168.2.21/mjpg/video.mjpg\u00a0 ');
+    edit('intercom-video-username','admin');
+    edit('intercom-video-password','Camera-secret');
     edit('intercom-bell',uuid,'onchange');
     edit('intercom-gate',control,'onchange');
     edit('intercom-gate-name','Kapu nyitása');
@@ -144,5 +146,5 @@ const click=id=>nodes.get(id).onclick();
     for(let i=0;i<9;i++)click('home-add-page');
     assert(nodes.get('home-add-page').disabled);assert.equal(nodes.get('home-page-select').children.length,8);
     click('home-remove-page');assert(!nodes.get('home-add-page').disabled);
-    console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, no secret submission or background edit loss');
+    console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

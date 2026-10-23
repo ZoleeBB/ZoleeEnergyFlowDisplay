@@ -184,7 +184,7 @@ static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
     const char *url = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "stream_url"));
     if (url && url[0])
     {
-        /* A hitelesítést kizárólag a mentett integráció adja; URL-be tett
+        /* A hitelesítést a külön mentett videós adatok adják; URL-be tett
          * jelszó, átirányítás és más protokoll nem része a konfigurációnak. */
         if (!text(entry, "stream_url", out->stream_url, sizeof(out->stream_url)) ||
             strncmp(url, "http://", 7) || !url[7] || strchr(url, '@') ||
@@ -195,6 +195,10 @@ static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
         if (!path || path == url + 7 || path[1] == 0 || (query && query < path))
             return fail(error, "intercom", 0, "stream_url");
     }
+    const cJSON *username = cJSON_GetObjectItemCaseSensitive(entry, "video_username");
+    if (username && (!cJSON_IsString(username) ||
+        (username->valuestring[0] && !text(entry, "video_username", out->video_username, sizeof(out->video_username)))))
+        return fail(error, "intercom", 0, "video_username");
     const char *bell = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "bell_uuid"));
     if (bell && bell[0] && !uuid(entry, "bell_uuid", out->bell_uuid))
         return fail(error, "intercom", 0, "bell_uuid");
@@ -396,6 +400,8 @@ cJSON *lx_home_config_json(const lx_home_config_t *config)
     cJSON *door = cJSON_AddObjectToObject(root, "intercom");
     if (!door || !cJSON_AddBoolToObject(door, "enabled", config->intercom.enabled) ||
         !cJSON_AddStringToObject(door, "stream_url", config->intercom.stream_url) ||
+        !cJSON_AddStringToObject(door, "video_username", config->intercom.video_username) ||
+        !cJSON_AddBoolToObject(door, "has_video_password", config->intercom.video_password[0] != 0) ||
         !cJSON_AddStringToObject(door, "bell_uuid", config->intercom.bell_uuid))
         goto failed;
     cJSON *gate = config->intercom.gate.control_uuid[0] ? card_json(&config->intercom.gate) : cJSON_CreateNull();
@@ -512,4 +518,23 @@ cJSON *lx_home_document_parse(const char *body, size_t size)
     if (depth || quoted)
         return NULL;
     return cJSON_ParseWithLengthOpts(body, size + 1, NULL, true);
+}
+
+bool lx_intercom_credentials_update(lx_intercom_config_t *next,
+                                    const lx_intercom_config_t *saved,
+                                    const cJSON *entry)
+{
+    memset(next->video_password, 0, sizeof(next->video_password));
+    const cJSON *password = cJSON_GetObjectItemCaseSensitive(entry, "video_password");
+    if (password && !cJSON_IsNull(password) && !cJSON_IsString(password))
+        return false;
+    if (cJSON_IsString(password) && password->valuestring[0]) {
+        if (strlen(password->valuestring) >= sizeof(next->video_password))
+            return false;
+        strcpy(next->video_password, password->valuestring);
+    } else if (!strcmp(next->stream_url, saved->stream_url) &&
+               !strcmp(next->video_username, saved->video_username)) {
+        memcpy(next->video_password, saved->video_password, sizeof(next->video_password));
+    }
+    return !next->enabled || (next->video_username[0] && next->video_password[0]);
 }

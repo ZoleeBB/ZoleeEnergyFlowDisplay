@@ -27,7 +27,7 @@ typedef struct
 } app_intercom_snapshot_t;
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out);
 /* Kizárólag a helyi videófeladatnak, a webes válaszba soha nem kerül jelszó. */
-bool app_loxone_intercom_credentials(char username[96], char password[LX_PASSWORD_MAX]);
+bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX]);
 
 #include "app_energy_assistant.h"
 /* A teljes kártyakonfiguráció helyett legfeljebb 12 kis fogyasztóbejegyzés. */

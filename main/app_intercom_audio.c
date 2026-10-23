@@ -474,8 +474,48 @@ static bool hardware_check(audio_call_t *call, const char *stage, int result)
     return false;
 }
 
+/* A BSP hibás részleges inicializálás után nem nullázza a statikus csatornákat.
+ * Egyszer próbáljuk: ismételt hívás nem használhat felszabadított BSP-handlet. */
+static bool s_i2s_attempted;
+static esp_err_t s_i2s_result;
+static char s_i2s_error[128];
+
+static esp_err_t prepare_i2s(void)
+{
+    if (s_i2s_attempted)
+        return s_i2s_result;
+    s_i2s_attempted = true;
+    /* A BSP alapértéke 22050 Hz mono. Közös órajelen, kezdettől 16 kHz
+     * Philips sztereó kell az ES8311 és a kétcsatornás ES7210 számára. */
+    const i2s_std_config_t i2s = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = {
+            .mclk = BSP_I2S_MCLK, .bclk = BSP_I2S_SCLK, .ws = BSP_I2S_LCLK,
+            .dout = BSP_I2S_DOUT, .din = BSP_I2S_DSIN,
+        },
+    };
+    s_i2s_result = bsp_audio_init(&i2s);
+    snprintf(s_i2s_error, sizeof(s_i2s_error),
+             "Hang I2S indítás (%d). DMA: %u B szabad, %u B legnagyobb blokk.%s",
+             s_i2s_result,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+             s_i2s_result == ESP_OK ? "" : " Újraindítás szükséges.");
+    if (s_i2s_result != ESP_OK)
+        ESP_LOGW(TAG, "%s", s_i2s_error);
+    return s_i2s_result;
+}
+
 static bool open_hardware(audio_call_t *call)
 {
+    /* Az I2S belső DMA-területe előbb készül el, mint a DSP és a hálózati hangpufferek. */
+    if (!hardware_check(call, "Hang I2C indítás", bsp_i2c_init()))
+        return false;
+    if (prepare_i2s() != ESP_OK) {
+        snprintf(call->hardware_error, sizeof(call->hardware_error), "%s", s_i2s_error);
+        return false;
+    }
     /* A DSP és a mintapufferek PSRAM-ban élnek. A DMA saját belső puffereit
      * az I2S driver foglalja; a DSP nem fogyaszthatja el előlük a belső RAM-ot. */
     aec_config_t aec_config = {
@@ -500,20 +540,6 @@ static bool open_hardware(audio_call_t *call)
     call->buffers = heap_caps_aligned_calloc(16, frame * 8, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!hardware_check(call, "Hangpuffer memória", call->buffers ? ESP_OK : ESP_ERR_NO_MEM) ||
         !wanted(call->epoch, call->revision)) {
-        return false;
-    }
-    /* A BSP alapértéke 22050 Hz mono. Közös órajelen, kezdettől 16 kHz
-     * Philips sztereó kell az ES8311 és a kétcsatornás ES7210 számára. */
-    const i2s_std_config_t i2s = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
-        .gpio_cfg = {
-            .mclk = BSP_I2S_MCLK, .bclk = BSP_I2S_SCLK, .ws = BSP_I2S_LCLK,
-            .dout = BSP_I2S_DOUT, .din = BSP_I2S_DSIN,
-        },
-    };
-    if (!hardware_check(call, "Hang I2C indítás", bsp_i2c_init()) ||
-        !hardware_check(call, "Hang I2S indítás", bsp_audio_init(&i2s))) {
         return false;
     }
     /* A gyártói duplex mintához hasonlóan mindkét kodek elkészül,
@@ -732,6 +758,12 @@ static void audio_worker(void *argument)
 
 esp_err_t app_intercom_audio_start(void)
 {
+    /* A már engedélyezett kaputelefonnál bootkor foglaljuk a 3 840 bájt DMA-t,
+     * a kamera és AEC előtt. A kodek/mikrofon és a hívás csak gombnyomáskor nyílik meg.
+     * A videó működését egy audiohiba nem akadályozhatja meg. */
+    app_intercom_snapshot_t state;
+    if (app_loxone_intercom_snapshot(&state) && state.config.enabled)
+        (void)prepare_i2s();
     portENTER_CRITICAL(&s_lock);
     s_started = true;
     portEXIT_CRITICAL(&s_lock);

@@ -68,14 +68,19 @@ void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsi
     return memory;
 }
 esp_err_t bsp_i2c_init(void) { return ESP_OK; }
+static int i2s_inits;
+static bool fail_i2s;
+size_t heap_caps_get_free_size(unsigned caps) { (void)caps; return 8192; }
+size_t heap_caps_get_largest_free_block(unsigned caps) { (void)caps; return 4096; }
 esp_err_t bsp_audio_init(const void *configuration)
 {
+    i2s_inits++;
     const i2s_std_config_t *config = configuration;
     assert(config && config->clk_cfg.sample_rate == 16000);
     assert(config->slot_cfg.bits == 16 && config->slot_cfg.mode == 2);
     assert(config->gpio_cfg.mclk == 13 && config->gpio_cfg.bclk == 12 &&
            config->gpio_cfg.ws == 10 && config->gpio_cfg.dout == 9 && config->gpio_cfg.din == 11);
-    return ESP_OK;
+    return fail_i2s ? ESP_ERR_NO_MEM : ESP_OK;
 }
 esp_codec_dev_handle_t bsp_audio_codec_speaker_init(void) { return (void *)1; }
 esp_codec_dev_handle_t bsp_audio_codec_microphone_init(void) { return (void *)2; }
@@ -148,6 +153,7 @@ void aec_destroy(aec_handle_t *aec) { free(aec); }
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
     *out = (app_intercom_snapshot_t){.ringing=atomic_load(&ring),.connected=true,.revision=7};
+    out->config.enabled = true;
     strcpy(out->config.stream_url, "http://127.0.0.2/mjpg/video.mjpg");
     return true;
 }
@@ -261,6 +267,7 @@ static void *fake_door(void *argument)
 int main(void)
 {
     assert(app_intercom_audio_start() == ESP_OK);
+    assert(i2s_inits == 1 && mic_opens == 0);
     assert(tasks_created == 0 && !s_running && !app_intercom_audio_busy());
     task_failure = true;
     assert(app_intercom_audio_request(true, 7) == ESP_ERR_NO_MEM);
@@ -328,6 +335,15 @@ int main(void)
     aec_destroy(failure->aec);
     free(failure);
     s_running = s_requested = false;
+    assert(i2s_inits == 1);
+    /* Részleges BSP-hiba után soha nem használjuk újra a törölt csatornákat. */
+    s_i2s_attempted = false;
+    fail_i2s = true;
+    audio_call_t *failed_i2s = calloc(1, sizeof(*failed_i2s));
+    assert(failed_i2s && !open_hardware(failed_i2s));
+    assert(strstr(failed_i2s->hardware_error, "DMA: 8192 B szabad, 4096 B") && i2s_inits == 2);
+    assert(!open_hardware(failed_i2s) && i2s_inits == 2);
+    free(failed_i2s);
     puts("PASS: real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup, PSRAM DSP, explicit stereo I2S, 256/512/1024-sample AEC and repeated calls");
     return 0;
 }

@@ -43,7 +43,9 @@ const catalog = [
                         const value = route.request().postDataJSON();
                         assert.equal(route.request().headers()['x-zolee-loxone'], '1');
                         posts.push(value);
-                        home = {...home, ...value, revision:home.revision + 1, status:'Elmentve.'};
+                        home = {...home, ...structuredClone(value), revision:home.revision + 1, status:'Elmentve.'};
+                        home.intercom.has_video_password = true;
+                        delete home.intercom.video_password;
                         body = {accepted:true};
                     } else body = home;
                 } else if (url.pathname === '/api/loxone/slaves') {
@@ -62,11 +64,16 @@ const catalog = [
             await page.locator('#intercom-enabled').waitFor();
             await page.locator('#intercom-enabled').check();
             await page.locator('#intercom-stream-url').fill(' \u00a0http://192.168.2.21/mjpg/video.mjpg\u00a0 ');
+            await page.locator('#intercom-video-username').fill('admin');
+            await page.locator('#intercom-video-password').fill('Separate-camera-secret');
             await page.locator('#intercom-bell').selectOption(bell);
             await page.locator('#intercom-gate').selectOption(gate);
             await page.locator('#intercom-save').click();
             await page.waitForFunction(() => document.querySelector('#intercom-status').textContent.includes('Elmentve'));
             assert.equal(posts.length, 1);
+            assert.equal(posts[0].intercom.video_username, 'admin');
+            assert.equal(posts[0].intercom.video_password, 'Separate-camera-secret');
+            assert.equal(await page.locator('#intercom-video-password').inputValue(), '');
             assert.equal(posts[0].intercom.stream_url, 'http://192.168.2.21/mjpg/video.mjpg');
             assert.equal(posts[0].intercom.bell_uuid, bell);
             assert.equal(posts[0].intercom.gate.control_uuid, gate);
@@ -75,6 +82,7 @@ const catalog = [
             await page.locator('#intercom-save').click();
             await page.waitForFunction(() => !document.querySelector('#intercom-save').disabled);
             assert.equal(posts.length, 2);
+            assert.equal(posts[1].intercom.video_password, '');
             for (const url of ['https://192.168.2.21/mjpg/video.mjpg', 'http://user:password@192.168.2.21/mjpg/video.mjpg',
                                'http://192.168.2.21/a b', 'http://192.168.2.21/']) {
                 await page.locator('#intercom-stream-url').fill(url);

@@ -11,9 +11,9 @@ with tempfile.TemporaryDirectory(prefix='loxone-home-store-') as directory:
     subprocess.run([
         os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
         '-Werror=frame-larger-than=8192', '-fsanitize=undefined', '-fno-sanitize-recover=all',
-        '-Itests/stubs', '-Imain', f'-DAPP_SD_MOUNT_POINT="{directory}"',
+        '-Itests/loxone_stubs', '-Itests/stubs', '-Imain', f'-DAPP_SD_MOUNT_POINT="{directory}"',
         'tests/test_loxone_home_store.c', 'main/app_loxone_home_store.c',
-        'main/app_loxone_home_model.c', 'main/app_loxone_model.c', '-l:libcjson.so.1', '-lm',
+        'main/app_loxone_home_model.c', 'main/app_loxone_model.c', 'main/app_loxone_store.c', '-lmbedcrypto', '-l:libcjson.so.1', '-lm',
         '-Wl,--wrap=rename', '-Wl,--wrap=fsync', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=15)

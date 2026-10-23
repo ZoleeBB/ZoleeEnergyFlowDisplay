@@ -82,15 +82,21 @@ static esp_err_t loxone_home_post(httpd_req_t *req)
         int count = httpd_req_recv(req, body + position, req->content_len - position);
         if (count <= 0)
         {
+            memset(body, 0, req->content_len);
             free(body);
             return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "A kérés megszakadt.");
         }
         position += (size_t)count;
     }
     cJSON *root = lx_home_document_parse(body, req->content_len);
+    memset(body, 0, req->content_len);
     free(body);
     char error[LX_HOME_ERROR_SIZE] = "Az Otthon-profil nem fogadható el.";
     esp_err_t result = app_loxone_home_request(root, error);
+    cJSON *password = cJSON_GetObjectItemCaseSensitive(
+        cJSON_GetObjectItemCaseSensitive(root, "intercom"), "video_password");
+    if (cJSON_IsString(password))
+        memset(password->valuestring, 0, strlen(password->valuestring));
     cJSON_Delete(root);
     if (result != ESP_OK)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, error);

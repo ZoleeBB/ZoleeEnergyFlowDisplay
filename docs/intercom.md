@@ -21,14 +21,18 @@ A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
    mint az Otthon pillanatnyi gombjánál. A visszajelző állapot UUID-je nem parancscél.
 5. Mentsd el a kaputelefon és Otthon beállításait a közös mentőgombbal.
 
-Külön kamerafiók nincs: a videókapcsolat automatikusan a **mentett Loxone integráció
-felhasználónevét és jelszavát** használja a kamera HTTP Basic vagy Digest kihívása alapján. A streaming
-API-nál a 401-es választ egyszer, azonos címen hitelesítve megismételjük;
-a korábbi válasz pufferét az új kérés előtt töröljük. A fióknak a
-kaputelefon közvetlen videóeléréséhez is megfelelő jogosultság kell. A jelszó nem
-kerül a videócímbe, az Otthon JSON-ba vagy a webes állapotválaszba; továbbra is a
-meglévő titkosított Loxone-tároló kezeli. A HTTP videót helyi, megbízható hálózaton
-használd. Átirányítást nem követünk, így más cél nem kaphatja meg a hitelesítést.
+A videókapcsolat a **külön megadott videós felhasználónevet és jelszót** használja
+HTTP Basic vagy Digest kihívás alapján. A tesztelt kaputelefonnál csak admin
+felhasználóval működik a stream; az integrációs fióknak adott kaputelefon-jogosultság
+nem elegendő. Az integráció bejelentkezése változatlan marad. A korábban beállított
+kaputelefonhoz egyszer meg kell adni az új mezőket. Üres jelszómező azonos kameracím
+és felhasználónév mellett megtartja a mentett jelszót. Új címhez vagy fiókhoz újra kell adni.
+A jelszó a `loxone-home.json` fájlban AES-256-GCM titkosítva, eszközkulcshoz,
+kameracímhez és felhasználóhoz kötve tárolódik; a webes állapotválasz csak
+`has_video_password` jelzőt küld. A videócím és a publikus UI-pillanatkép nem kap
+jelszót. A 401-es választ egyszer, azonos címen hitelesítve megismételjük;
+a korábbi válasz pufferét az új kérés előtt töröljük. A HTTP videót helyi,
+megbízható hálózaton használd. Átirányítást nem követünk.
 
 ## Megjelenés és működés
 
@@ -110,8 +114,8 @@ külön szükséges mező. A hívás a **Loxone Intercom Gen2 közvetlen SIP/TCP
 végpontját (`sip:smarthome@<intercom-ip>:5060`) használja, **G.711 PCMU/PCMA,
 8 kHz, 20 ms RTP/UDP** hanggal. A SIP-válaszban kapott médiacímnek ugyanahhoz az
 IPv4-címhez kell tartoznia, mint a kaputelefonnak. A kijelző csak a készüléktől
-fogad hangot; más állomás nem indíthat mikrofonfelvételt. A kamera továbbra is a
-mentett Loxone-fiókkal hitelesít. A használt közvetlen Gen2 SIP-végpont nem kér
+fogad hangot; más állomás nem indíthat mikrofonfelvételt. A kamera a külön
+mentett videós fiókkal hitelesít. A használt közvetlen Gen2 SIP-végpont nem kér
 külön SIP-fiókot; elutasítás esetén a kijelző hibát mutat, nem próbál más fiókot.
 
 Ez a SIP-elérés nem hivatalos Gen2 interfész; a `markuslaube/loxone-intercom2`
@@ -219,3 +223,16 @@ DMA-memória és a legnagyobb összefüggő blokk is megjelenik. A korábbi köz
 A szimulátor valódi Nap pálya téma felszabadítását és változatlan kiválasztással
 való visszatöltését ellenőrzi; a natív teszt a tényleges I2S linker-wrappereket
 és a teljes médiabontást jelző API-kat is vizsgálja.
+
+
+### I2S előfoglalás és diagnosztika
+
+Engedélyezett kaputelefonnál a 16 kHz-es duplex I2S adatillesztő már induláskor
+lefoglalja a korlátos belső DMA-puffereket, a videó és AEC előtt. Mikrofon-kodek
+és hanghívás továbbra is kizárólag a Beszélgetés gomb után nyílik meg.
+Újonnan engedélyezett kaputelefonnál az első híváskor, a DSP előtt inicializálunk;
+az induláskori előfoglaláshoz egy újraindítás szükséges. Sikertelen I2S-indításnál
+a szabad belső DMA-memória és a legnagyobb blokk is megjelenik. A BSP 2.0.3
+részleges hiba után törölt csatornahandle-t hagyhat maga után, ezért azt nem
+próbáljuk újra használni: a felirat újraindítást kér. A valós hardveres siker
+külön kipróbálást igényel.

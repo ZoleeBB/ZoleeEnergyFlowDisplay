@@ -1,4 +1,4 @@
-/* Jelszómentes Otthon-szerkesztő. A háttérfrissítés nem írja felül a szerkesztést. */
+/* Külön videós hitelesítés az Otthon-szerkesztőben. A háttérfrissítés nem írja felül a szerkesztést. */
 const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
@@ -167,6 +167,11 @@ const LoxoneHome = (() => {
         enabled.id = 'intercom-enabled';
         const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
         url.id = 'intercom-stream-url'; url.placeholder = 'http://192.168.1.50/mjpg/video.mjpg';
+        const username = field(target, 'Videó felhasználóneve (admin)', door, 'video_username');
+        username.id = 'intercom-video-username'; username.maxLength = 95; username.autocomplete = 'off';
+        const password = field(target, 'Videó jelszava', door, 'video_password', 'password');
+        password.id = 'intercom-video-password'; password.maxLength = 127; password.autocomplete = 'new-password';
+        password.placeholder = door.has_video_password ? 'Mentett jelszó / üresen változatlan' : 'Admin felhasználó jelszava';
         const bell = select(target, 'Csengetés folyamatban – Loxone állapot', door, 'bell_uuid', stateChoices());
         bell.id = 'intercom-bell';
         const gate = select(target, 'Kapunyitás – vezérelhető Loxone objektum (opcionális)',
@@ -261,6 +266,11 @@ const LoxoneHome = (() => {
         door.stream_url = (door.stream_url || '').trim();
         if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
             return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';
+        if (new TextEncoder().encode(door.video_username || '').length > 95 ||
+            new TextEncoder().encode(door.video_password || '').length > 127)
+            return 'Kaputelefon: a felhasználónév legfeljebb 95, a jelszó 127 bájt lehet.';
+        if (door.enabled && (!door.video_username || (!door.video_password && !door.has_video_password)))
+            return 'Kaputelefon: add meg az admin videós felhasználónevét és jelszavát.';
         if (door.stream_url) {
             let url;
             try { url = new URL(door.stream_url); }
@@ -333,6 +343,11 @@ const LoxoneHome = (() => {
             revision = state.revision; remoteBusy = !!state.busy;
             if (waiting && !remoteBusy) {
                 waiting = false;
+                if (revision > saveRevision) {
+                    model.intercom.has_video_password = !!state.intercom?.has_video_password;
+                    model.intercom.video_password = '';
+                    if (get('intercom-video-password')) get('intercom-video-password').value = '';
+                }
                 notify(state.status || (revision > saveRevision ? 'Otthon-beállítások elmentve.' : 'A mentés nem fejeződött be.'), revision <= saveRevision);
             } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 8 elnevezhető oldal, oldalanként 12 kártyával.');
             const nextKey = JSON.stringify(nextCatalog);

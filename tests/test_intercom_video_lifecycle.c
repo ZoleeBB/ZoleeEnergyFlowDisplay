@@ -55,8 +55,9 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *state)
     strcpy(state->config.stream_url, "http://192.168.2.21/mjpg/video.mjpg");
     return true;
 }
-bool app_loxone_intercom_credentials(char username[96], char password[LX_PASSWORD_MAX])
+bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX])
 {
+    assert(revision == 1);
     strcpy(username, "test");
     strcpy(password, "test");
     return credentials;
@@ -196,7 +197,7 @@ int main(void)
     credentials = false;
     app_intercom_snapshot_t state = {.revision=1};
     video_session(&state);
-    assert(strstr(last_status, "Hiányzó Loxone"));
+    assert(strstr(last_status, "Hiányzó videós"));
     assert(app_intercom_idle());
     audio_busy = true;
     assert(!app_intercom_idle());

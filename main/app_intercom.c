@@ -1,4 +1,4 @@
-/* A kamera külön HTTP-kapcsolat, de ugyanazt a mentett Loxone-fiókot használja.
+/* A kamera külön HTTP-kapcsolat, saját mentett videós fiókkal.
  * Sem hálózati várakozás, sem JPEG-dekódolás nem történik LVGL-lock alatt. */
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
@@ -102,8 +102,8 @@ static bool still_ringing(unsigned revision)
 static void video_session(const app_intercom_snapshot_t *state)
 {
     char username[96] = {0}, password[LX_PASSWORD_MAX] = {0};
-    if (!app_loxone_intercom_credentials(username, password)) {
-        app_intercom_ui_status("Hiányzó Loxone felhasználónév vagy jelszó.", state->revision);
+    if (!app_loxone_intercom_credentials(state->revision, username, password)) {
+        app_intercom_ui_status("Hiányzó videós felhasználónév vagy jelszó.", state->revision);
         goto credentials_done;
     }
     video_decode_t video = {.revision = state->revision};
@@ -278,7 +278,7 @@ bool app_intercom_idle(void)
 
 esp_err_t app_intercom_start(void)
 {
-    /* Induláskor nincs kamera-/hangfeladat és nincs I/O. A UI csak csengetéskor
+    /* Induláskor nincs kamera-/hangfeladat; az engedélyezett hang DMA-ja előre foglalódik. A UI csak csengetéskor
      * indít videófeladatot, a hangfeladatot pedig kizárólag a beszélgetés gomb. */
     s_ready = true;
     return app_intercom_audio_start();

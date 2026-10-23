@@ -66,6 +66,9 @@ typedef struct
 {
     bool enabled;
     char stream_url[LX_INTERCOM_URL_SIZE];
+    char video_username[96];
+    /* Csak RAM-ban él; a publikus JSON és UI-pillanatkép nem tartalmazza. */
+    char video_password[LX_PASSWORD_MAX];
     char bell_uuid[LX_UUID_LEN];
     /* Ugyanaz a pillanatnyi kártya és parancscél, mint az Otthon-oldalon. */
     lx_home_card_t gate;
@@ -119,3 +122,8 @@ bool lx_home_consumer_start_kw(const lx_home_consumer_t *consumer, double *kw);
 /* Korlátos JSON-beolvasás a hálózati/SD-s belépési pontoknak. A túl mély
  * dokumentumot még a rekurzív cJSON-parser előtt elutasítjuk. body[size] terminátor szükséges; hívó szabadítja. */
 cJSON *lx_home_document_parse(const char *body, size_t size);
+
+/* Üres/hiányzó jelszó csak azonos kamerához és felhasználóhoz tartható meg. */
+bool lx_intercom_credentials_update(lx_intercom_config_t *next,
+                                    const lx_intercom_config_t *saved,
+                                    const cJSON *entry);

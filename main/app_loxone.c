@@ -540,6 +540,7 @@ static void worker(void *arg)
             if (request->home)
             {
                 save_home_request(request->home);
+                mbedtls_platform_zeroize(request->home, sizeof(*request->home));
                 free(request->home);
                 free(request);
                 request = NULL;
@@ -713,7 +714,9 @@ esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SI
     }
     request->home = home;
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool accepted = !s_busy && !s_home_busy &&
+    bool credentials_ok = lx_intercom_credentials_update(&home->intercom, &s_home->intercom,
+        cJSON_GetObjectItemCaseSensitive(body, "intercom"));
+    bool accepted = credentials_ok && !s_busy && !s_home_busy &&
                     xQueueSend(s_requests, &request, 0) == pdTRUE;
     if (accepted)
     {
@@ -723,9 +726,11 @@ esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SI
     xSemaphoreGive(s_lock);
     if (!accepted)
     {
+        mbedtls_platform_zeroize(home, sizeof(*home));
         free(home);
         free(request);
-        snprintf(error, LX_HOME_ERROR_SIZE, "%s", "Várd meg a folyamatban lévő Loxone-műveletet.");
+        snprintf(error, LX_HOME_ERROR_SIZE, "%s", credentials_ok ? "Várd meg a folyamatban lévő Loxone-műveletet." :
+                 "Add meg a videó felhasználónevét és jelszavát. Új kamerához vagy felhasználóhoz új jelszó kell.");
     }
     return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
@@ -908,6 +913,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     out->config = s_home->intercom;
+    mbedtls_platform_zeroize(out->config.video_password, sizeof(out->config.video_password));
     out->ringing = s_intercom_ringing && out->config.enabled;
     out->connected = s_home_live && !s_dead &&
         esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
@@ -921,13 +927,17 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
     return true;
 }
 
-bool app_loxone_intercom_credentials(char username[96], char password[LX_PASSWORD_MAX])
+bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX])
 {
-    if (!s_lock || !username || !password)
+    if (!s_lock || !s_home || !username || !password)
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    snprintf(username, 96, "%s", s_saved.username);
-    snprintf(password, LX_PASSWORD_MAX, "%s", s_saved.password);
+    if (revision != s_intercom_generation) {
+        xSemaphoreGive(s_lock);
+        return false;
+    }
+    snprintf(username, 96, "%s", s_home->intercom.video_username);
+    snprintf(password, LX_PASSWORD_MAX, "%s", s_home->intercom.video_password);
     bool valid = username[0] && password[0];
     xSemaphoreGive(s_lock);
     return valid;

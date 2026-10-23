@@ -84,10 +84,11 @@ static size_t aad(const lx_config_t *cfg, char *out, size_t n)
                     (unsigned)cfg->tls,
                     cfg->username);
 }
-static bool crypt_password(lx_config_t *cfg, cJSON *root, bool encrypt)
+bool app_loxone_secret_crypt(char password[LX_PASSWORD_MAX], const char *associated,
+                             cJSON *root, bool encrypt)
 {
     unsigned char key[32] = {0}, nonce[12] = {0}, tag[16] = {0}, cipher[LX_PASSWORD_MAX] = {0};
-    char encoded[LX_PASSWORD_MAX * 2 + 1], nonce_hex[25], tag_hex[33], associated[256];
+    char encoded[LX_PASSWORD_MAX * 2 + 1], nonce_hex[25], tag_hex[33];
     bool ok = false;
     mbedtls_gcm_context ctx;
     mbedtls_gcm_init(&ctx);
@@ -95,12 +96,12 @@ static bool crypt_password(lx_config_t *cfg, cJSON *root, bool encrypt)
         goto done;
     if (mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, key, 256) != 0)
         goto done;
-    size_t a = aad(cfg, associated, sizeof(associated));
-    if (a >= sizeof(associated))
+    size_t a = strlen(associated);
+    if (a > 512)
         goto done;
     if (encrypt)
     {
-        size_t n = strlen(cfg->password);
+        size_t n = strlen(password);
         if (!n || n >= LX_PASSWORD_MAX)
             goto done;
         esp_fill_random(nonce, sizeof(nonce));
@@ -111,7 +112,7 @@ static bool crypt_password(lx_config_t *cfg, cJSON *root, bool encrypt)
                                       sizeof(nonce),
                                       (unsigned char *)associated,
                                       a,
-                                      (unsigned char *)cfg->password,
+                                      (unsigned char *)password,
                                       cipher,
                                       sizeof(tag),
                                       tag) != 0)
@@ -151,19 +152,26 @@ static bool crypt_password(lx_config_t *cfg, cJSON *root, bool encrypt)
                                      tag,
                                      sizeof(tag),
                                      cipher,
-                                     (unsigned char *)cfg->password) != 0)
+                                     (unsigned char *)password) != 0)
             goto done;
-        cfg->password[n] = 0;
+        password[n] = 0;
         ok = true;
     }
 done:
     if (!ok)
-        mbedtls_platform_zeroize(cfg->password, sizeof(cfg->password));
+        mbedtls_platform_zeroize(password, LX_PASSWORD_MAX);
     mbedtls_gcm_free(&ctx);
     mbedtls_platform_zeroize(key, sizeof(key));
     mbedtls_platform_zeroize(cipher, sizeof(cipher));
     mbedtls_platform_zeroize(encoded, sizeof(encoded));
     return ok;
+}
+static bool crypt_password(lx_config_t *cfg, cJSON *root, bool encrypt)
+{
+    char associated[256];
+    if (aad(cfg, associated, sizeof(associated)) >= sizeof(associated))
+        return false;
+    return app_loxone_secret_crypt(cfg->password, associated, root, encrypt);
 }
 esp_err_t app_loxone_store_load(lx_config_t *out)
 {

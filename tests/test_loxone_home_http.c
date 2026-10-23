@@ -116,7 +116,7 @@ static void slave_tests(void)
     assert(cJSON_GetObjectItemCaseSensitive(json,"revision")->valuedouble == UINT32_MAX);
     assert(cJSON_GetObjectItemCaseSensitive(json,"saved_revision")->valuedouble == 123);
     assert(cJSON_GetObjectItemCaseSensitive(json,"save_error")->valuedouble == ESP_FAIL);
-    assert(!strstr(response,"password") && !strstr(response,"counter") && !strstr(response,"address"));
+    assert(!strstr(response,"\"video_password\"") && !strstr(response,"\"password\"") && !strstr(response,"counter") && !strstr(response,"address"));
     cJSON_Delete(json);
     authorized = false;
     slave_get(); assert(status_code == 401);
@@ -209,7 +209,7 @@ int main(void)
     post(large);assert(status_code==400&&requested==before);free(large);
     httpd_req_t request={.method=HTTP_GET,.uri="/api/loxone/home"};
     authorized=false;status_code=200;loxone_home_get(&request);assert(status_code==401);
-    authorized=true;status_code=200;loxone_home_get(&request);assert(status_code==200&&strstr(response,"consumers")&&!strstr(response,"password"));
+    authorized=true;status_code=200;loxone_home_get(&request);assert(status_code==200&&strstr(response,"consumers")&&!strstr(response,"\"video_password\"") && !strstr(response,"\"password\""));
     cJSON *home_state = cJSON_Parse(response);
     assert(cJSON_IsFalse(cJSON_GetObjectItem(home_state,"resources_installed")));
     cJSON_Delete(home_state);
