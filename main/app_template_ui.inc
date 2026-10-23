@@ -247,8 +247,14 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 #undef V
     return 0;
 }
+#include "app_battery_diagnostics_ui.inc"
+
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
+    if (!strncmp(source, "battery_diag_", 13)) {
+        template_battery_text(out, source, s, st);
+        return;
+    }
     if(!strcmp(source,"weather_label")){
         static const char *const hu_weather[]={"Derült égbolt","Változóan felhős","Felhős","Eső","Havazás","Éjszaka"};
         static const char *const en_weather[]={"Sunny","Partly cloudy","Cloudy","Rain","Snow","Night"};

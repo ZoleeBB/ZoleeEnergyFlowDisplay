@@ -1,0 +1,1078 @@
+{
+  "schema": 1,
+  "id": "10-battery-diagnostics",
+  "name": "Akku diagnosztika",
+  "version": 1,
+  "light": {
+    "background": "#E3F0F8",
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-day.png"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 14,
+        "w": 800,
+        "h": 80,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "box",
+        "x": 1007,
+        "y": 14,
+        "w": 243,
+        "h": 80,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 30,
+        "y": 22,
+        "w": 700,
+        "h": 40,
+        "text": "Akku diagnosztika",
+        "text_en": "Battery diagnostics",
+        "font": 28,
+        "color": "#183950"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 67,
+        "w": 750,
+        "h": 26,
+        "text": "Mért energia · SOC · kapacitásbecslés",
+        "text_en": "Measured energy · SOC · capacity estimate",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 1030,
+        "y": 25,
+        "w": 210,
+        "h": 36,
+        "source": "clock",
+        "font": 28,
+        "color": "#183950"
+      },
+      {
+        "type": "value",
+        "x": 1030,
+        "y": 63,
+        "w": 210,
+        "h": 26,
+        "source": "date",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 111,
+        "w": 411,
+        "h": 62,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 43,
+        "y": 122,
+        "w": 195,
+        "h": 26,
+        "text": "Névleges kapacitás",
+        "text_en": "Nominal capacity",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 254,
+        "y": 121,
+        "w": 175,
+        "h": 36,
+        "source": "battery_capacity",
+        "font": 28,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 480,
+        "y": 96,
+        "w": 770,
+        "h": 24,
+        "source": "status",
+        "font": 16,
+        "color": "#E18F42",
+        "hide_when_normal": true,
+        "status_bubble": true,
+        "background": "#F4FAFE",
+        "opacity": 245
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 122,
+        "w": 770,
+        "h": 136,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 503,
+        "y": 136,
+        "w": 700,
+        "h": 26,
+        "text": "Becsült kivehető kapacitás",
+        "text_en": "Estimated usable discharge capacity",
+        "font": 20,
+        "color": "#183950"
+      },
+      {
+        "type": "value",
+        "x": 503,
+        "y": 166,
+        "w": 370,
+        "h": 60,
+        "source": "battery_diag_capacity",
+        "font": 48,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 1040,
+        "y": 176,
+        "w": 200,
+        "h": 36,
+        "source": "battery_diag_capacity_pct",
+        "font": 28,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 503,
+        "y": 226,
+        "w": 725,
+        "h": 26,
+        "source": "battery_diag_assessment",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 274,
+        "w": 375,
+        "h": 126,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 500,
+        "y": 286,
+        "w": 335,
+        "h": 26,
+        "text": "Ma betöltött energia",
+        "text_en": "Energy charged today",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 314,
+        "w": 335,
+        "h": 36,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 364,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_day_charge_pct",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 875,
+        "y": 274,
+        "w": 375,
+        "h": 126,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 895,
+        "y": 286,
+        "w": 335,
+        "h": 26,
+        "text": "Ma kivett energia",
+        "text_en": "Energy discharged today",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 314,
+        "w": 335,
+        "h": 36,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#236FA7"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 364,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_day_discharge_pct",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 416,
+        "w": 375,
+        "h": 123,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 500,
+        "y": 428,
+        "w": 340,
+        "h": 26,
+        "text": "Töltési energia / SOC",
+        "text_en": "Charge energy / SOC",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 455,
+        "w": 335,
+        "h": 36,
+        "source": "battery_diag_charge_pct",
+        "font": 28,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 505,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_charge_detail",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 875,
+        "y": 416,
+        "w": 375,
+        "h": 123,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 895,
+        "y": 428,
+        "w": 340,
+        "h": 26,
+        "text": "Leadott energia / SOC",
+        "text_en": "Discharge energy / SOC",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 455,
+        "w": 335,
+        "h": 36,
+        "source": "battery_diag_discharge_pct",
+        "font": 28,
+        "color": "#236FA7"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 505,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_discharge_detail",
+        "font": 16,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 497,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Párosított hatásfok",
+        "text_en": "Matched round-trip efficiency",
+        "font": 12,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 497,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_efficiency_pct",
+        "font": 28,
+        "color": "#087D69"
+      },
+      {
+        "type": "box",
+        "x": 741,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 758,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Pillanatnyi C-ráta",
+        "text_en": "Current C-rate",
+        "font": 12,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 758,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_c_rate",
+        "font": 28,
+        "color": "#236FA7"
+      },
+      {
+        "type": "box",
+        "x": 1002,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 1019,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Megfigyelt ciklusok",
+        "text_en": "Observed equivalent cycles",
+        "font": 12,
+        "color": "#506F83"
+      },
+      {
+        "type": "value",
+        "x": 1019,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_cycles",
+        "font": 28,
+        "color": "#91600C"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 665,
+        "w": 770,
+        "h": 91,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 675,
+        "w": 730,
+        "h": 26,
+        "source": "battery_diag_measurement",
+        "font": 16,
+        "color": "#183950"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 703,
+        "w": 730,
+        "h": 26,
+        "source": "battery_diag_soc_error",
+        "font": 16,
+        "color": "#236FA7"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 732,
+        "w": 730,
+        "h": 20,
+        "source": "battery_diag_evidence",
+        "font": 12,
+        "color": "#506F83"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 625,
+        "w": 411,
+        "h": 131,
+        "background": "#F4FAFE",
+        "radius": 18,
+        "opacity": 230
+      },
+      {
+        "type": "label",
+        "x": 43,
+        "y": 636,
+        "w": 370,
+        "h": 26,
+        "text": "Élő akkumulátor",
+        "text_en": "Live battery",
+        "font": 16,
+        "color": "#183950"
+      },
+      {
+        "type": "value",
+        "x": 43,
+        "y": 661,
+        "w": 205,
+        "h": 60,
+        "source": "soc",
+        "font": 48,
+        "color": "#087D69"
+      },
+      {
+        "type": "value",
+        "x": 270,
+        "y": 664,
+        "w": 150,
+        "h": 26,
+        "source": "battery",
+        "font": 20,
+        "color": "#236FA7"
+      },
+      {
+        "type": "value",
+        "x": 270,
+        "y": 705,
+        "w": 150,
+        "h": 26,
+        "source": "battery_temp",
+        "font": 20,
+        "color": "#183950"
+      },
+      {
+        "type": "bar",
+        "x": 44,
+        "y": 732,
+        "w": 200,
+        "h": 8,
+        "source": "soc",
+        "max": 100,
+        "color": "#087D69",
+        "background": "#C2D4DC"
+      }
+    ],
+    "assistant_area": {
+      "x": 24,
+      "y": 185,
+      "w": 411,
+      "h": 58
+    }
+  },
+  "dark": {
+    "background": "#031122",
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "background-night.png"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 14,
+        "w": 800,
+        "h": 80,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "box",
+        "x": 1007,
+        "y": 14,
+        "w": 243,
+        "h": 80,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 30,
+        "y": 22,
+        "w": 700,
+        "h": 40,
+        "text": "Akku diagnosztika",
+        "text_en": "Battery diagnostics",
+        "font": 28,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "label",
+        "x": 32,
+        "y": 67,
+        "w": 750,
+        "h": 26,
+        "text": "Mért energia · SOC · kapacitásbecslés",
+        "text_en": "Measured energy · SOC · capacity estimate",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 1030,
+        "y": 25,
+        "w": 210,
+        "h": 36,
+        "source": "clock",
+        "font": 28,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "value",
+        "x": 1030,
+        "y": 63,
+        "w": 210,
+        "h": 26,
+        "source": "date",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 111,
+        "w": 411,
+        "h": 62,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 43,
+        "y": 122,
+        "w": 195,
+        "h": 26,
+        "text": "Névleges kapacitás",
+        "text_en": "Nominal capacity",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 254,
+        "y": 121,
+        "w": 175,
+        "h": 36,
+        "source": "battery_capacity",
+        "font": 28,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 480,
+        "y": 96,
+        "w": 770,
+        "h": 24,
+        "source": "status",
+        "font": 16,
+        "color": "#E18F42",
+        "hide_when_normal": true,
+        "status_bubble": true,
+        "background": "#0E263B",
+        "opacity": 245
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 122,
+        "w": 770,
+        "h": 136,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 503,
+        "y": 136,
+        "w": 700,
+        "h": 26,
+        "text": "Becsült kivehető kapacitás",
+        "text_en": "Estimated usable discharge capacity",
+        "font": 20,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "value",
+        "x": 503,
+        "y": 166,
+        "w": 370,
+        "h": 60,
+        "source": "battery_diag_capacity",
+        "font": 48,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 1040,
+        "y": 176,
+        "w": 200,
+        "h": 36,
+        "source": "battery_diag_capacity_pct",
+        "font": 28,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 503,
+        "y": 226,
+        "w": 725,
+        "h": 26,
+        "source": "battery_diag_assessment",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 274,
+        "w": 375,
+        "h": 126,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 500,
+        "y": 286,
+        "w": 335,
+        "h": 26,
+        "text": "Ma betöltött energia",
+        "text_en": "Energy charged today",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 314,
+        "w": 335,
+        "h": 36,
+        "source": "charge_today",
+        "font": 28,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 364,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_day_charge_pct",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 875,
+        "y": 274,
+        "w": 375,
+        "h": 126,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 895,
+        "y": 286,
+        "w": 335,
+        "h": 26,
+        "text": "Ma kivett energia",
+        "text_en": "Energy discharged today",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 314,
+        "w": 335,
+        "h": 36,
+        "source": "discharge_today",
+        "font": 28,
+        "color": "#77BFFF"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 364,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_day_discharge_pct",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 416,
+        "w": 375,
+        "h": 123,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 500,
+        "y": 428,
+        "w": 340,
+        "h": 26,
+        "text": "Töltési energia / SOC",
+        "text_en": "Charge energy / SOC",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 455,
+        "w": 335,
+        "h": 36,
+        "source": "battery_diag_charge_pct",
+        "font": 28,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 505,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_charge_detail",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 875,
+        "y": 416,
+        "w": 375,
+        "h": 123,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 895,
+        "y": 428,
+        "w": 340,
+        "h": 26,
+        "text": "Leadott energia / SOC",
+        "text_en": "Discharge energy / SOC",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 455,
+        "w": 335,
+        "h": 36,
+        "source": "battery_diag_discharge_pct",
+        "font": 28,
+        "color": "#77BFFF"
+      },
+      {
+        "type": "value",
+        "x": 895,
+        "y": 505,
+        "w": 340,
+        "h": 26,
+        "source": "battery_diag_discharge_detail",
+        "font": 16,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 497,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Párosított hatásfok",
+        "text_en": "Matched round-trip efficiency",
+        "font": 12,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 497,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_efficiency_pct",
+        "font": 28,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "box",
+        "x": 741,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 758,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Pillanatnyi C-ráta",
+        "text_en": "Current C-rate",
+        "font": 12,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 758,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_c_rate",
+        "font": 28,
+        "color": "#77BFFF"
+      },
+      {
+        "type": "box",
+        "x": 1002,
+        "y": 555,
+        "w": 248,
+        "h": 94,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 1019,
+        "y": 566,
+        "w": 220,
+        "h": 26,
+        "text": "Megfigyelt ciklusok",
+        "text_en": "Observed equivalent cycles",
+        "font": 12,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "value",
+        "x": 1019,
+        "y": 598,
+        "w": 220,
+        "h": 36,
+        "source": "battery_diag_cycles",
+        "font": 28,
+        "color": "#F3C677"
+      },
+      {
+        "type": "box",
+        "x": 480,
+        "y": 665,
+        "w": 770,
+        "h": 91,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 675,
+        "w": 730,
+        "h": 26,
+        "source": "battery_diag_measurement",
+        "font": 16,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 703,
+        "w": 730,
+        "h": 26,
+        "source": "battery_diag_soc_error",
+        "font": 16,
+        "color": "#77BFFF"
+      },
+      {
+        "type": "value",
+        "x": 500,
+        "y": 732,
+        "w": 730,
+        "h": 20,
+        "source": "battery_diag_evidence",
+        "font": 12,
+        "color": "#8CA7BF"
+      },
+      {
+        "type": "box",
+        "x": 24,
+        "y": 625,
+        "w": 411,
+        "h": 131,
+        "background": "#0E263B",
+        "radius": 18,
+        "opacity": 238
+      },
+      {
+        "type": "label",
+        "x": 43,
+        "y": 636,
+        "w": 370,
+        "h": 26,
+        "text": "Élő akkumulátor",
+        "text_en": "Live battery",
+        "font": 16,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "value",
+        "x": 43,
+        "y": 661,
+        "w": 205,
+        "h": 60,
+        "source": "soc",
+        "font": 48,
+        "color": "#56E2BC"
+      },
+      {
+        "type": "value",
+        "x": 270,
+        "y": 664,
+        "w": 150,
+        "h": 26,
+        "source": "battery",
+        "font": 20,
+        "color": "#77BFFF"
+      },
+      {
+        "type": "value",
+        "x": 270,
+        "y": 705,
+        "w": 150,
+        "h": 26,
+        "source": "battery_temp",
+        "font": 20,
+        "color": "#E7F2FF"
+      },
+      {
+        "type": "bar",
+        "x": 44,
+        "y": 732,
+        "w": 200,
+        "h": 8,
+        "source": "soc",
+        "max": 100,
+        "color": "#56E2BC",
+        "background": "#214258"
+      }
+    ],
+    "assistant_area": {
+      "x": 24,
+      "y": 185,
+      "w": 411,
+      "h": 58
+    }
+  }
+}

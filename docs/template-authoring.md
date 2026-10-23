@@ -14,7 +14,7 @@ A könyvtár neve és a JSON `id` mezője egyezzen. A `name` megjelenített név
 
 ## 2. Saját vizuális világ és ikonok
 
-Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A kilenc mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
+Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A tíz mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
 sablonba. Részletes, kis méretben is felismerhető, keret nélküli képeket készíts;
 a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
@@ -160,7 +160,7 @@ A webes kezelés és a memóriakorlátok részletei: [templates.md](templates.md
 
 ## Ellenőrzött referencia
 
-A kilenc csomag 18 témáját, mind a tíz nézeten át vezető érintési lapozást,
+A tíz csomag 20 témáját, mind a tizenegy nézeten át vezető érintési lapozást,
 a közös hiba utáni visszatérést és mind a hat saját időjárásállapotot a headless
 LVGL-teszt ellenőrzi. Az energiautaknál külön vizsgálja a vonal/pont pályaazonosságát,
 a pozitív és negatív irányt, a nullát és a 7/15 kW sebességegyezést.

@@ -54,3 +54,11 @@ slotokban integrált `pv_home_kwh`, `pv_stored_kwh` és `pv_export_kwh`
 értékeket óránként összegzi. Az oszlop alsó zöld része helyi felhasználás és
 tárolás; a sárga felső rész a hálózatba visszatáplálás. A hiányzó adatok nem
 becsült napenergia-termelési értékek.
+
+## Akku diagnosztika
+
+A folytonos mintákból futó kapacitásbecslés és párosított energiahatásfok a
+[tizedik téma leírásában](battery-diagnostics.md) szerepel. A normál napi energia
+és a diagnosztikai szakaszok külön értelmezendők: napi betöltés/névleges arányból
+nem következik akkumulátorromlás. A diagnosztikai előzmény a meglévő atomi napi
+SD-mentés opcionális blokkja, az aktuális szakasz boot után újrakezdődik.

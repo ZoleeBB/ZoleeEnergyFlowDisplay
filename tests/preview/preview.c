@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
 #include "../../simulator/home_fixture.h"
+#include "../../simulator/battery_fixture.h"
 #include "src/draw/lv_draw_vector_private.h"
 void app_test_slave_display_input(lv_display_t *display);
 static app_ble_pairing_status_t pairing_fixture;
@@ -1313,7 +1314,7 @@ static void test_startup_navigation(app_runtime_state_t runtime, app_energy_samp
     app_template_info_t themes[16];
     char active[33];
     unsigned count = app_templates_list(themes, 16, active);
-    assert(count == 10 && !home_is_open());
+    assert(count == 11 && !home_is_open());
     unsigned resource_reads = home_resource_reads;
     sample.sun_position_valid = true;
     for (unsigned theme = 0; theme < count; theme++)
@@ -1716,6 +1717,7 @@ int main(void)
     rt.wifi_connected=false;
     render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_WIFI_ERROR);
     rt.wifi_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
+    app_battery_fixture(&fixture.battery, config.energy.battery_capacity_kwh, epoch);
     s_stats_snapshot=fixture;app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);save_frame("http-recovered-hu");
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
@@ -1873,7 +1875,7 @@ int main(void)
     if(getenv("ZOLEE_TEMPLATE_ROOT")){
         assert(app_templates_init()==ESP_OK);
         app_template_info_t list[APP_TEMPLATE_MAX];char active[33];
-        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==10);
+        unsigned count=app_templates_list(list,APP_TEMPLATE_MAX,active);assert(count==11);
         sample.power_pv_kw=7;sample.power_bat_kw=-2.5;sample.power_grid_kw=-2.4;sample.power_full_kw=2.1;
         sample.soc_bat_pct=74;sample.status=1;sample.temperature_c=-6;sample.has_sun_radiation=true;
         snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
@@ -1956,6 +1958,31 @@ int main(void)
                     sample.soc_bat_pct=74;s_animation_sample=sample;
                     template_update(&sample,&fixture);template_animate(.05f);
                 }
+                if (!strcmp(list[i].id, "10-battery-diagnostics")) {
+                    char text[128];
+                    assert(fixture.battery.capacity_valid && fixture.battery.discharge_runs == 3);
+                    template_text(text, "battery_diag_capacity_pct", &sample, &fixture);
+                    assert(strstr(text, "92"));
+                    app_stats_snapshot_t *empty = calloc(1, sizeof(*empty));
+                    assert(empty);
+                    template_text(text, "battery_diag_capacity", &sample, empty);
+                    assert(!strcmp(text, "--"));
+                    template_update(&sample, empty);
+                    char missing[100];
+                    snprintf(missing, sizeof(missing), "battery-diagnostics-empty-%s", night ? "dark" : "light");
+                    save_frame(missing);
+                    double saved_nominal = s_cfg.energy.battery_capacity_kwh;
+                    s_cfg.energy.battery_capacity_kwh = 0;
+                    template_text(text, "battery_diag_assessment", &sample, empty);
+                    assert(strstr(text, "névleges"));
+                    s_cfg.energy.battery_capacity_kwh = saved_nominal;
+                    free(empty);
+                    sample.soc_bat_pct = 60;
+                    sample.power_bat_kw = 2.76;
+                    sample.battery_temperature_c = 29;
+                    s_animation_sample = sample;
+                    template_update(&sample, &fixture);
+                }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
                 sample=preview_saved;s_animation_sample=sample;
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
@@ -2006,7 +2033,7 @@ int main(void)
         assert(s_view == VIEW_DASHBOARD);
         puts("PASS: portrait touch mapping, theme swipes, diagnostics upward opening, downward gesture exclusion and X-only closing");
         lv_indev_delete(input);
-        puts("PASS: 18 template renders, common error/recovery, NightMode and actual LVGL swipe across all 10 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
+        puts("PASS: 20 template renders, common error/recovery, NightMode and actual LVGL swipe across all 11 layouts; Bezier drawing/dot agreement, zero/reverse/7kW speed cap; six package weather states");
     }
     clear();template_release_cache();app_templates_view_free(&template_view);
     /* A firmware-be kerülő apró előnézetek ugyanebből a rajzolóból készülnek. */
