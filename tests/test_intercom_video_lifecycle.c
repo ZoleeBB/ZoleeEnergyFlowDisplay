@@ -1,5 +1,7 @@
 /* Az igazi videómodul feladata nem foglalhat stacket csengetés nélkül. */
 #include <assert.h>
+#include <setjmp.h>
+static jmp_buf worker_exit;
 #include <stdio.h>
 #include <string.h>
 #include "../main/app_intercom.c"
@@ -28,18 +30,24 @@ int xTaskCreatePinnedToCoreWithCaps(void (*task)(void *), const char *name, unsi
 {
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     (void)argument;
-    (void)handle;
+    assert(handle);
     assert(!strcmp(name, "intercom_video") && stack == 12288 && priority == 2 && core == 0);
     if (create_failure) {
         return 0;
     }
     scheduled = task;
+    *(TaskHandle_t *)handle = (void *)1;
     creates++;
     return pdPASS;
 }
-void vTaskDeleteWithCaps(void *task)
+void vTaskSuspend(TaskHandle_t task)
 {
     assert(!task);
+    longjmp(worker_exit, 1);
+}
+void vTaskDeleteWithCaps(void *task)
+{
+    assert(task == (void *)1);
     deletes++;
 }
 void vTaskDelay(unsigned ticks) { (void)ticks; }
@@ -110,7 +118,8 @@ esp_err_t jpeg_decoder_process(jpeg_decoder_handle_t handle, const jpeg_decode_c
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *configuration)
 {
     assert(!strcmp(configuration->url, "http://192.168.2.21/mjpg/video.mjpg"));
-    assert(configuration->disable_auto_redirect && configuration->auth_type == HTTP_AUTH_TYPE_NONE);
+    assert(configuration->disable_auto_redirect && configuration->auth_type == HTTP_AUTH_TYPE_BASIC);
+    assert(!strcmp(configuration->username, "test") && !strcmp(configuration->password, "test"));
     sessions++;
     requests = offset = 0;
     return (void *)1;
@@ -126,6 +135,12 @@ int64_t esp_http_client_fetch_headers(esp_http_client_handle_t handle)
     (void)handle;
     if (scenario == 4) { ringing = false; return -1; }
     return 0;
+}
+esp_err_t esp_http_client_get_header(esp_http_client_handle_t handle, const char *name, char **value)
+{
+    assert(handle && !strcmp(name, "Authorization"));
+    *value = "Basic dGVzdDp0ZXN0";
+    return ESP_OK;
 }
 int esp_http_client_get_status_code(esp_http_client_handle_t handle)
 {
@@ -168,7 +183,9 @@ int main(void)
         app_intercom_poll();
         app_intercom_poll();
         assert(creates == i + 1 && s_video_running);
-        scheduled(NULL);
+        if (!setjmp(worker_exit)) scheduled(NULL);
+        assert(s_video_running && s_video_task.finished);
+        assert(app_intercom_idle());
         assert(!s_video_running && deletes == creates && !decoders);
     }
     create_failure = true;
@@ -178,20 +195,23 @@ int main(void)
     create_failure = false;
     now += 2000000;
     app_intercom_poll();
-    scheduled(NULL);
+    if (!setjmp(worker_exit)) scheduled(NULL);
+    assert(app_intercom_idle());
     assert(!s_video_running && creates == 4 && deletes == 4 && sessions == 4 && !decoders);
     assert(displayed == 4);
     for (scenario = 1; scenario <= 4; scenario++) {
         ringing = true;
         unsigned before = displayed, previous_auths = auths;
         app_intercom_poll();
-        scheduled(NULL);
+        if (!setjmp(worker_exit)) scheduled(NULL);
+        assert(s_video_running && s_video_task.finished);
+        assert(app_intercom_idle());
         assert(!s_video_running && !decoders);
         if (scenario == 1) {
             assert(requests == 2 && auths == previous_auths + 1 && displayed == before + 1 && cleared);
         } else {
             assert(requests <= 2 && displayed == before && last_status[0]);
-            if (scenario == 2) assert(requests == 2 && strstr(last_status, "401"));
+            if (scenario == 2) assert(requests == 2 && strstr(last_status, "401 (Basic)") && strstr(last_status, "videós admin"));
         }
     }
     credentials = false;
@@ -210,6 +230,6 @@ int main(void)
     fail_decoder = true;
     video_session(&state);
     assert(strstr(last_status, "JPEG-dekóder") && strstr(last_status, "2048 B") && strstr(last_status, "1024 B"));
-    puts("PASS: actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
+    puts("PASS: preemptive Basic with separate credentials, auth-method diagnostics, external deletion without cleanup task, actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
     return 0;
 }

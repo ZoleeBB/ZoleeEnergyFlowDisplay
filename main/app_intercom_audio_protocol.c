@@ -17,31 +17,38 @@ static bool copy_value(char *out, size_t capacity, const char *value, size_t len
     return true;
 }
 
-bool intercom_sip_header(const char *message, const char *name, char *out, size_t size)
+/* Hossz szerint járjuk be a fejléceket: nincs 6 KiB-os veremmásolat a SIP
+ * méretellenőrzés minden hívásakor, és nem olvasunk túl a kapott TCP-részleten. */
+static bool sip_header_span(const char *message, size_t length, const char *name, char *out, size_t size)
 {
-    const char *line = strstr(message, "\r\n");
-    size_t key = strlen(name);
-    bool found = false;
-    while (line && line[2] && line[2] != '\r') {
-        line += 2;
-        const char *end = strstr(line, "\r\n");
-        if (!end) {
+    size_t position = 0, key = strlen(name);
+    bool first = true, found = false;
+    while (position < length) {
+        size_t end = position;
+        while (end + 1 < length && (message[end] != '\r' || message[end + 1] != '\n'))
+            end++;
+        if (end + 1 >= length)
             return false;
-        }
-        if ((size_t)(end - line) > key && !strncasecmp(line, name, key) && line[key] == ':') {
+        if (end == position)
+            return found;
+        const char *line = message + position;
+        if (!first && end - position > key && !strncasecmp(line, name, key) && line[key] == ':') {
             const char *value = line + key + 1;
-            while (value < end && (*value == ' ' || *value == '\t')) {
+            while (value < message + end && (*value == ' ' || *value == '\t'))
                 value++;
-            }
-            /* Dupla tranzakcióazonosító vagy Content-Length nem fogadható el. */
-            if (found || !copy_value(out, size, value, (size_t)(end - value))) {
+            if (found || !copy_value(out, size, value, (size_t)(message + end - value)))
                 return false;
-            }
             found = true;
         }
-        line = end;
+        first = false;
+        position = end + 2;
     }
     return found;
+}
+
+bool intercom_sip_header(const char *message, const char *name, char *out, size_t size)
+{
+    return sip_header_span(message, strlen(message), name, out, size);
 }
 
 int intercom_sip_size(const char *data, size_t size)
@@ -59,12 +66,9 @@ int intercom_sip_size(const char *data, size_t size)
     if (!header) {
         return size == INTERCOM_SIP_MAX ? -1 : 0;
     }
-    char text[INTERCOM_SIP_MAX + 1];
-    memcpy(text, data, header);
-    text[header] = 0;
     char value[24];
     /* TCP-n a hosszt mindig meg kell adni, az üres törzshöz is. */
-    if (!intercom_sip_header(text, "Content-Length", value, sizeof(value)) || !value[0]) {
+    if (!sip_header_span(data, header, "Content-Length", value, sizeof(value)) || !value[0]) {
         return -1;
     }
     size_t body = 0;

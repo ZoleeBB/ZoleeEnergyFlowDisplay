@@ -22,7 +22,7 @@ A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
 5. Mentsd el a kaputelefon és Otthon beállításait a közös mentőgombbal.
 
 A videókapcsolat a **külön megadott videós felhasználónevet és jelszót** használja
-HTTP Basic vagy Digest kihívás alapján. A tesztelt kaputelefonnál csak admin
+Az első kérés már Basic Authorization fejlécet küld; a 401-es Digest kihívás is kezelhető. A tesztelt kaputelefonnál csak admin
 felhasználóval működik a stream; az integrációs fióknak adott kaputelefon-jogosultság
 nem elegendő. Az integráció bejelentkezése változatlan marad. A korábban beállított
 kaputelefonhoz egyszer meg kell adni az új mezőket. Üres jelszómező azonos kameracím
@@ -236,3 +236,28 @@ a szabad belső DMA-memória és a legnagyobb blokk is megjelenik. A BSP 2.0.3
 részleges hiba után törölt csatornahandle-t hagyhat maga után, ezért azt nem
 próbáljuk újra használni: a felirat újraindítást kér. A valós hardveres siker
 külön kipróbálást igényel.
+
+
+### HTTP 401 és hang közbeni újraindulás
+
+A Gen2 kamera már az első kérésben megkapja a külön videós fiók Basic
+Authorization fejlécét. 401 esetén egyetlen Basic/Digest ismétlés marad;
+átirányítás továbbra sem kap hitelesítést. A hibaüzenet jelzi a tényleges kérés
+hitelesítési módját, és a külön videós admin adatok ellenőrzésére kér. Jelszó,
+Authorization-tartalom vagy kódolt hitelesítés nem kerül a naplóba.
+
+Az IDF 5.5.4 `vTaskDeleteWithCaps(NULL)` belső RAM-os takarítófeladatot hoz
+létre, sikertelen foglalásnál abortál. A kész hang-/videóworker most felfüggeszti
+magát; a meglévő UI-feladat törli a konkrét handle-t, új memóriafoglalás nélkül.
+A rendszer csak a valódi törlés után jelzi, hogy a média teljesen leállt, és
+utána indulhat új worker vagy témavisszatöltés. A SIP méretellenőrzése nem másolja
+veremre a teljes, legfeljebb 6 KiB-os fejlécet; a parser külön fordítási tesztje
+legfeljebb 1 KiB-os függvényenkénti veremkeretet enged.
+
+A hang utolsó műveletének sorszáma RTC RAM-ban marad. Váratlan újraindulás után
+a webes főoldal eseménynaplója `Hangkapcsolat közbeni újraindulás` bejegyzésben
+mutatja a lépést és a reset okának kódját (feladatindítás, SIP, I2S, AEC, ES8311,
+ES7210, olvasás, feldolgozás, lejátszás, bontás vagy felszabadítás). A jelző nem
+ír SD-t/NVS-t és nem tartalmaz hitelesítési adatot. A fizikai újraindulás pontos
+oka csak a készülék naplójából igazolható; a javítás a bizonyítottan abortáló
+önfelszabadítási ágat és a fölösleges veremterhelést szünteti meg.

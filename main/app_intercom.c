@@ -3,6 +3,7 @@
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
 #include "app_intercom_stream.h"
+#include "app_intercom_task.h"
 #include "app_loxone.h"
 #include "driver/jpeg_decode.h"
 #include "esp_http_client.h"
@@ -20,6 +21,16 @@
 
 static portMUX_TYPE s_video_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_ready, s_video_running;
+static app_intercom_task_t s_video_task = APP_INTERCOM_TASK_INITIALIZER;
+
+static void reap_video(void)
+{
+    if (app_intercom_task_reap(&s_video_task)) {
+        portENTER_CRITICAL(&s_video_lock);
+        s_video_running = false;
+        portEXIT_CRITICAL(&s_video_lock);
+    }
+}
 static int64_t s_next_attempt;
 static const char *TAG = "intercom_video";
 
@@ -130,7 +141,9 @@ static void video_session(const app_intercom_snapshot_t *state)
         .url = state->config.stream_url,
         .username = username,
         .password = password,
-        .auth_type = HTTP_AUTH_TYPE_NONE,
+        /* A Gen2 közvetlen videója Basic Authorization fejlécet várhat már
+         * az első kérésben. 401 esetén a Digest kihívás továbbra is kezelhető. */
+        .auth_type = HTTP_AUTH_TYPE_BASIC,
         .timeout_ms = 1500,
         .buffer_size = 4096,
         /* Más címre nem továbbítjuk a hitelesítési adatot. */
@@ -145,6 +158,7 @@ static void video_session(const app_intercom_snapshot_t *state)
      * 401 ismétlését. Egyszer követjük a kamera Basic/Digest kihívását,
      * azonos címen; átirányításkor sosem küldünk tovább jelszót. */
     int code = 0;
+    const char *authentication = "hiányzó Authorization";
     for (unsigned attempt = 0; attempt < 2; attempt++) {
         app_intercom_ui_status("Kamera HTTP-kapcsolat indítása...", state->revision);
         esp_err_t error = esp_http_client_open(http, 0);
@@ -154,12 +168,17 @@ static void video_session(const app_intercom_snapshot_t *state)
             app_intercom_ui_status(message, state->revision);
             goto done;
         }
+        char *authorization = NULL;
+        if (esp_http_client_get_header(http, "Authorization", &authorization) == ESP_OK && authorization) {
+            authentication = !strncmp(authorization, "Basic ", 6) ? "Basic" :
+                             !strncmp(authorization, "Digest ", 7) ? "Digest" : "ismeretlen Authorization";
+        }
         if (esp_http_client_fetch_headers(http) < 0) {
             app_intercom_ui_status("A kamera nem küldött HTTP-fejlécet. Újrapróbálás...", state->revision);
             goto done;
         }
         code = esp_http_client_get_status_code(http);
-        ESP_LOGI(TAG, "Camera HTTP status=%d attempt=%u", code, attempt + 1);
+        ESP_LOGI(TAG, "Camera HTTP status=%d attempt=%u authentication=%s", code, attempt + 1, authentication);
         if (code != 401 || attempt != 0) {
             break;
         }
@@ -175,8 +194,8 @@ static void video_session(const app_intercom_snapshot_t *state)
     }
     if (code != 200) {
         char message[128];
-        snprintf(message, sizeof(message), "Kamera HTTP %d. %s", code,
-                 code == 401 || code == 403 ? "Ellenőrizd a Loxone-fiók jogosultságát." : "Nem érkezett videófolyam.");
+        snprintf(message, sizeof(message), "Kamera HTTP %d (%s). %s", code, authentication,
+                 code == 401 || code == 403 ? "Ellenőrizd a külön videós admin adatokat." : "Nem érkezett videófolyam.");
         app_intercom_ui_status(message, state->revision);
         goto done;
     }
@@ -236,15 +255,13 @@ static void worker(void *arg)
             if (!still_ringing(state.revision)) break;
         }
     }
-    portENTER_CRITICAL(&s_video_lock);
-    s_video_running = false;
-    portEXIT_CRITICAL(&s_video_lock);
-    vTaskDeleteWithCaps(NULL);
+    app_intercom_task_finish(&s_video_task);
 }
 
 /* A 12 KiB stack PSRAM-ban él, és két csengetés között felszabadul. */
 void app_intercom_poll(void)
 {
+    reap_video();
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&s_video_lock);
     bool available = s_ready && !s_video_running && now >= s_next_attempt;
@@ -255,7 +272,8 @@ void app_intercom_poll(void)
     if (!available) {
         return;
     }
-    if (xTaskCreatePinnedToCoreWithCaps(worker, "intercom_video", 12288, NULL, 2, NULL, 0,
+    TaskHandle_t handle = NULL;
+    if (xTaskCreatePinnedToCoreWithCaps(worker, "intercom_video", 12288, NULL, 2, &handle, 0,
             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_video_lock);
         s_video_running = false;
@@ -265,11 +283,14 @@ void app_intercom_poll(void)
         if (app_loxone_intercom_snapshot(&state)) {
             app_intercom_ui_status("Nincs elég memória a videófeladathoz. Újrapróbálás...", state.revision);
         }
+    } else {
+        app_intercom_task_created(&s_video_task, handle);
     }
 }
 
 bool app_intercom_idle(void)
 {
+    reap_video();
     portENTER_CRITICAL(&s_video_lock);
     bool running = s_video_running;
     portEXIT_CRITICAL(&s_video_lock);

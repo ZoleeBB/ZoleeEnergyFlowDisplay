@@ -5,3 +5,6 @@ int xTaskCreatePinnedToCore(void (*worker)(void *), const char *name, unsigned s
                            void *argument, unsigned priority, void *handle, unsigned core);
 
 void vTaskDelete(void *task);
+
+typedef void *TaskHandle_t;
+void vTaskSuspend(TaskHandle_t task);

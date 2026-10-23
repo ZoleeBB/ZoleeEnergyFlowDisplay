@@ -3,6 +3,7 @@
  * A mikrofon csak a sikeres SIP-válasz után nyílik meg, és minden kilépési ágon bezár. */
 #include "app_intercom_audio.h"
 #include "app_intercom_audio_protocol.h"
+#include "app_intercom_task.h"
 #include "app_loxone.h"
 #include "bsp/esp-bsp.h"
 #include "esp_codec_dev.h"
@@ -31,10 +32,69 @@
 static const char *TAG = "intercom_audio";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_requested, s_running, s_started;
+static app_intercom_task_t s_audio_task = APP_INTERCOM_TASK_INITIALIZER;
 static unsigned s_epoch, s_revision;
 static app_intercom_audio_status_t s_status;
 static esp_codec_dev_handle_t s_speaker, s_microphone;
 static void audio_worker(void *argument);
+
+/* Újraindulás után is megmaradó, titkot nem tartalmazó hangművelet-jelző.
+ * Nincs NVS/SD-írás; a videóhibák nem fedhetik el a hang crash helyét. */
+typedef enum {
+    AUDIO_STAGE_NONE, AUDIO_STAGE_START, AUDIO_STAGE_SIP, AUDIO_STAGE_I2S, AUDIO_STAGE_AEC,
+    AUDIO_STAGE_SPEAKER, AUDIO_STAGE_MICROPHONE, AUDIO_STAGE_CAPTURE,
+    AUDIO_STAGE_PROCESS, AUDIO_STAGE_PLAYBACK, AUDIO_STAGE_CLOSE, AUDIO_STAGE_REAP,
+    AUDIO_STAGE_COUNT
+} audio_stage_t;
+
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#include "esp_system.h"
+#include "app_events.h"
+static RTC_NOINIT_ATTR volatile struct {
+    uint32_t magic;
+    uint32_t stage;
+    uint32_t inverse;
+} s_checkpoint;
+
+static void audio_checkpoint(audio_stage_t stage)
+{
+    s_checkpoint.magic = 0;
+    s_checkpoint.stage = stage;
+    s_checkpoint.inverse = ~(uint32_t)stage;
+    s_checkpoint.magic = 0x49434155U;
+}
+
+static void report_audio_reset(void)
+{
+    static const char *const names[AUDIO_STAGE_COUNT] = {
+        "nincs", "hangfeladat indítása", "SIP hívás", "I2S indítás", "AEC visszhangszűrő",
+        "ES8311 hangszóró", "ES7210 mikrofon", "mikrofon olvasása",
+        "AEC feldolgozás", "hang lejátszása", "hang bontása", "feladat felszabadítása"
+    };
+    esp_reset_reason_t reason = esp_reset_reason();
+    uint32_t stage = s_checkpoint.stage;
+    if (s_checkpoint.magic == 0x49434155U && stage > AUDIO_STAGE_NONE && stage < AUDIO_STAGE_COUNT &&
+        s_checkpoint.inverse == ~stage && reason != ESP_RST_POWERON && reason != ESP_RST_SW) {
+        app_events_add(APP_EVENT_ERROR, "Hangkapcsolat közbeni újraindulás: %s (reset=%d).", names[stage], reason);
+        ESP_LOGW(TAG, "Previous audio reset: stage=%s reason=%d", names[stage], reason);
+    }
+    audio_checkpoint(AUDIO_STAGE_NONE);
+}
+#else
+static void audio_checkpoint(audio_stage_t stage) { (void)stage; }
+static void report_audio_reset(void) {}
+#endif
+
+static void reap_audio(void)
+{
+    if (app_intercom_task_reap(&s_audio_task)) {
+        audio_checkpoint(AUDIO_STAGE_NONE);
+        portENTER_CRITICAL(&s_lock);
+        s_running = false;
+        portEXIT_CRITICAL(&s_lock);
+    }
+}
 
 static void publish(unsigned epoch, app_intercom_audio_state_t state, const char *message)
 {
@@ -49,6 +109,7 @@ static void publish(unsigned epoch, app_intercom_audio_state_t state, const char
 
 bool app_intercom_audio_busy(void)
 {
+    reap_audio();
     portENTER_CRITICAL(&s_lock);
     bool busy = s_running;
     portEXIT_CRITICAL(&s_lock);
@@ -57,6 +118,7 @@ bool app_intercom_audio_busy(void)
 
 void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 {
+    reap_audio();
     if (!out) {
         return;
     }
@@ -67,6 +129,7 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 
 esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
 {
+    reap_audio();
     app_intercom_snapshot_t current;
     if (enabled && (!app_loxone_intercom_snapshot(&current) || !current.ringing ||
                     !current.connected || current.revision != revision)) {
@@ -92,7 +155,10 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
     }
     unsigned epoch = s_epoch;
     portEXIT_CRITICAL(&s_lock);
-    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 4, NULL, 0,
+    if (enabled)
+        audio_checkpoint(AUDIO_STAGE_START);
+    TaskHandle_t handle = NULL;
+    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 4, &handle, 0,
             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_lock);
         s_running = false;
@@ -104,8 +170,11 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
             s_status.state = APP_INTERCOM_AUDIO_IDLE;
         }
         portEXIT_CRITICAL(&s_lock);
+        audio_checkpoint(AUDIO_STAGE_NONE);
         return ESP_ERR_NO_MEM;
     }
+    if (enabled)
+        app_intercom_task_created(&s_audio_task, handle);
     return ESP_OK;
 }
 
@@ -495,6 +564,7 @@ static esp_err_t prepare_i2s(void)
             .dout = BSP_I2S_DOUT, .din = BSP_I2S_DSIN,
         },
     };
+    audio_checkpoint(AUDIO_STAGE_I2S);
     s_i2s_result = bsp_audio_init(&i2s);
     snprintf(s_i2s_error, sizeof(s_i2s_error),
              "Hang I2S indítás (%d). DMA: %u B szabad, %u B legnagyobb blokk.%s",
@@ -525,6 +595,7 @@ static bool open_hardware(audio_call_t *call)
         .mode = AEC_MODE_FD_LOW_COST,
         .nlp_level = AEC_NLP_LEVEL_AGGR,
     };
+    audio_checkpoint(AUDIO_STAGE_AEC);
     call->aec = aec_create_from_config(&aec_config);
     if (!hardware_check(call, "Visszhangszűrő memória", call->aec ? ESP_OK : ESP_ERR_NO_MEM)) {
         return false;
@@ -545,12 +616,14 @@ static bool open_hardware(audio_call_t *call)
     /* A gyártói duplex mintához hasonlóan mindkét kodek elkészül,
      * mielőtt megnyitnánk a közös adatillesztést. */
     if (!s_speaker) {
+        audio_checkpoint(AUDIO_STAGE_SPEAKER);
         s_speaker = bsp_audio_codec_speaker_init();
     }
     if (!hardware_check(call, "ES8311 hangszóró inicializálás", s_speaker ? ESP_OK : ESP_FAIL)) {
         return false;
     }
     if (!s_microphone) {
+        audio_checkpoint(AUDIO_STAGE_MICROPHONE);
         s_microphone = bsp_audio_codec_microphone_init();
     }
     if (!hardware_check(call, "ES7210 mikrofon inicializálás", s_microphone ? ESP_OK : ESP_FAIL)) {
@@ -558,12 +631,14 @@ static bool open_hardware(audio_call_t *call)
     }
     esp_codec_dev_sample_info_t format = {.sample_rate = AUDIO_RATE, .channel = 2, .bits_per_sample = 16};
     /* Sikertelen open után is bezárjuk az esetleg engedélyezett adatillesztést. */
+    audio_checkpoint(AUDIO_STAGE_SPEAKER);
     call->speaker_open = true;
     if (!hardware_check(call, "Hangszóró megnyitás", esp_codec_dev_open(s_speaker, &format)) ||
         !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, 55)) ||
         !wanted(call->epoch, call->revision)) {
         return false;
     }
+    audio_checkpoint(AUDIO_STAGE_MICROPHONE);
     call->microphone_open = true;
     return hardware_check(call, "Mikrofon megnyitás", esp_codec_dev_open(s_microphone, &format)) &&
         hardware_check(call, "Mikrofon feloldás", esp_codec_dev_set_in_mute(s_microphone, false)) &&
@@ -613,6 +688,7 @@ static void media_session(audio_call_t *call)
         for (unsigned i = 0; i < frame; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
+        audio_checkpoint(AUDIO_STAGE_CAPTURE);
         if (esp_codec_dev_read(s_microphone, capture, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző mikrofonja nem ad hangot.");
             break;
@@ -624,7 +700,9 @@ static void media_session(audio_call_t *call)
             microphone[i] = capture[i * 2];
         }
         /* A referencia az előzőleg kiküldött hang; új mintát csak feldolgozás után írunk bele. */
+        audio_checkpoint(AUDIO_STAGE_PROCESS);
         aec_process(call->aec, microphone, reference, clean);
+        audio_checkpoint(AUDIO_STAGE_PLAYBACK);
         if (esp_codec_dev_write(s_speaker, speaker, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző hangkimenete nem érhető el.");
             break;
@@ -654,6 +732,7 @@ static void media_session(audio_call_t *call)
 
 static void close_call(audio_call_t *call)
 {
+    audio_checkpoint(AUDIO_STAGE_CLOSE);
     /* Előbb a mikrofon és az erősítő áll le, csak utána történik hálózati bontás. */
     if (call->microphone_open) {
         esp_codec_dev_set_in_mute(s_microphone, true);
@@ -689,6 +768,7 @@ static void close_call(audio_call_t *call)
 
 static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot)
 {
+    audio_checkpoint(AUDIO_STAGE_SIP);
     char host[128];
     if (!intercom_audio_host(snapshot->config.stream_url, host, sizeof(host)) || !connect_peer(call, host)) {
         publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon SIP-hangkapcsolata nem érhető el (TCP 5060).");
@@ -743,7 +823,6 @@ static void audio_worker(void *argument)
         }
     }
     portENTER_CRITICAL(&s_lock);
-    s_running = false;
     if (s_epoch == epoch) {
         s_requested = false;
     }
@@ -752,18 +831,20 @@ static void audio_worker(void *argument)
         s_status.message[0] = 0;
     }
     portEXIT_CRITICAL(&s_lock);
-    /* A WithCaps párja a PSRAM-stacket és a belső TCB-t is felszabadítja. */
-    vTaskDeleteWithCaps(NULL);
+    audio_checkpoint(AUDIO_STAGE_REAP);
+    app_intercom_task_finish(&s_audio_task);
 }
 
 esp_err_t app_intercom_audio_start(void)
 {
+    report_audio_reset();
     /* A már engedélyezett kaputelefonnál bootkor foglaljuk a 3 840 bájt DMA-t,
      * a kamera és AEC előtt. A kodek/mikrofon és a hívás csak gombnyomáskor nyílik meg.
      * A videó működését egy audiohiba nem akadályozhatja meg. */
     app_intercom_snapshot_t state;
     if (app_loxone_intercom_snapshot(&state) && state.config.enabled)
         (void)prepare_i2s();
+    audio_checkpoint(AUDIO_STAGE_NONE);
     portENTER_CRITICAL(&s_lock);
     s_started = true;
     portEXIT_CRITICAL(&s_lock);

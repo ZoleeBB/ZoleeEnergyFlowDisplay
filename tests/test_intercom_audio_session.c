@@ -1,5 +1,7 @@
 /* A valódi audio worker helyi TCP/UDP kaputelefonnal; csak az I2S/AEC hardver hamis. */
 #include <assert.h>
+#include <setjmp.h>
+static jmp_buf worker_exit;
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/socket.h>
@@ -38,14 +40,21 @@ int xTaskCreatePinnedToCoreWithCaps(void (*worker)(void *), const char *name, un
 {
     assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 && priority == 4 && core == 0);
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    (void)argument; (void)handle;
+    (void)argument;
+    assert(handle);
     if (task_failure) return 0;
+    *(TaskHandle_t *)handle = (void *)1;
     tasks_created++;
     return pdPASS;
 }
-void vTaskDeleteWithCaps(void *task)
+void vTaskSuspend(TaskHandle_t task)
 {
     assert(!task);
+    longjmp(worker_exit, 1);
+}
+void vTaskDeleteWithCaps(void *task)
+{
+    assert(task == (void *)1);
     tasks_deleted++;
 }
 int64_t esp_timer_get_time(void)
@@ -301,7 +310,9 @@ int main(void)
         speaker_audio = false;
         pthread_t thread;
         assert(pthread_create(&thread, NULL, fake_door, &door) == 0);
-        audio_worker(NULL);
+        if (!setjmp(worker_exit)) audio_worker(NULL);
+        assert(s_running && s_audio_task.finished);
+        assert(!app_intercom_audio_busy());
         assert(!s_running && !app_intercom_audio_busy() && !s_requested && tasks_created == tasks_deleted);
         pthread_join(thread, NULL);
         close(door.media); close(door.listener); close(door.sip);
@@ -344,6 +355,6 @@ int main(void)
     assert(strstr(failed_i2s->hardware_error, "DMA: 8192 B szabad, 4096 B") && i2s_inits == 2);
     assert(!open_hardware(failed_i2s) && i2s_inits == 2);
     free(failed_i2s);
-    puts("PASS: real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup, PSRAM DSP, explicit stereo I2S, 256/512/1024-sample AEC and repeated calls");
+    puts("PASS: deferred external WithCaps deletion with no self-delete allocation, real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup, PSRAM DSP, explicit stereo I2S, 256/512/1024-sample AEC and repeated calls");
     return 0;
 }

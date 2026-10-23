@@ -26,6 +26,10 @@ with tempfile.TemporaryDirectory(prefix='intercom-audio-') as directory:
         else:
             assert compiled.returncode != 0 and 'Intercom requires' in compiled.stderr, absent
     print('PASS: firmware enables Basic/Digest and external stacks; actual compile guard rejects every missing capability')
+    # A hálózati parser kis veremkerete nem függhet a 6 KiB-os SIP limitjétől.
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=1024', '-Imain', '-c', 'main/app_intercom_audio_protocol.c',
+        '-o', str(Path(directory) / 'protocol-stack.o')], cwd=ROOT, check=True)
     binary = str(Path(directory) / 'test')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
         '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
