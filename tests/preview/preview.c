@@ -1569,6 +1569,38 @@ static void test_home_lifecycle(app_runtime_state_t runtime, app_energy_sample_t
     puts("PASS: 100 actual LVGL lifecycle cycles, 400 rendered consumer/Home pages, HU/EN day/night, builtin/05/06 return, stable widgets/animations, released image buffers and no commands");
 }
 
+static void test_intercom_volume(void)
+{
+    intercom_next = (app_intercom_snapshot_t){.ringing=true, .connected=true, .revision=17};
+    app_sim_audio = (app_intercom_audio_status_t){.revision=17};
+    intercom_render();
+    assert(lv_obj_has_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN));
+    app_sim_audio.state = APP_INTERCOM_AUDIO_ACTIVE;
+    intercom_render();
+    assert(!lv_obj_has_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN));
+    lv_slider_set_value(intercom_volume_slider, 90, LV_ANIM_OFF);
+    lv_obj_send_event(intercom_volume_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    assert(app_intercom_audio_get_volume() == 90);
+    lv_obj_send_event(lv_obj_get_child(intercom_volume_panel, 3), LV_EVENT_CLICKED, NULL);
+    lv_obj_send_event(lv_obj_get_child(intercom_volume_panel, 3), LV_EVENT_CLICKED, NULL);
+    assert(app_intercom_audio_get_volume() == 100);
+    intercom_render();
+    lv_obj_update_layout(intercom_overlay);
+    assert(lv_obj_get_y(intercom_volume_panel) + lv_obj_get_height(intercom_volume_panel) <
+           lv_obj_get_y(intercom_audio));
+    save_frame("intercom-volume-active");
+    lv_slider_set_value(intercom_volume_slider, 0, LV_ANIM_OFF);
+    lv_obj_send_event(intercom_volume_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    assert(app_intercom_audio_get_volume() == 0);
+    app_sim_audio.state = APP_INTERCOM_AUDIO_STOPPING;
+    intercom_render();
+    assert(lv_obj_has_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN));
+    intercom_next.ringing = false;
+    intercom_render();
+    assert(!intercom_volume_panel && !intercom_volume_slider && !intercom_volume_label);
+    puts("PASS: actual LVGL volume slider, buttons, clamping, active-only visibility, layout and cleanup");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -1629,6 +1661,12 @@ int main(void)
     config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
+    test_intercom_volume();
+    if (getenv("ZOLEE_INTERCOM_VOLUME_ONLY")) {
+        lv_display_delete(display);
+        lv_deinit();
+        return 0;
+    }
     fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};

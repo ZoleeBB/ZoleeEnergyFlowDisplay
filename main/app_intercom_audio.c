@@ -35,6 +35,8 @@ static bool s_requested, s_running, s_started;
 static app_intercom_task_t s_audio_task = APP_INTERCOM_TASK_INITIALIZER;
 static unsigned s_epoch, s_revision;
 static app_intercom_audio_status_t s_status;
+/* Hívások között megmarad, újraindítás után a korábbi 55%-ról indul. */
+static unsigned s_volume = 55;
 static esp_codec_dev_handle_t s_speaker, s_microphone;
 static void audio_worker(void *argument);
 
@@ -127,6 +129,28 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
     portEXIT_CRITICAL(&s_lock);
 }
 
+unsigned app_intercom_audio_get_volume(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    unsigned volume = s_volume;
+    portEXIT_CRITICAL(&s_lock);
+    return volume;
+}
+
+esp_err_t app_intercom_audio_set_volume(unsigned percent, unsigned revision)
+{
+    if (percent > 100) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&s_lock);
+    bool active = s_requested && s_status.state == APP_INTERCOM_AUDIO_ACTIVE && s_revision == revision;
+    if (active) {
+        s_volume = percent;
+    }
+    portEXIT_CRITICAL(&s_lock);
+    return active ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
 esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
 {
     reap_audio();
@@ -199,6 +223,7 @@ typedef struct {
     uint16_t receive_port;
     unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
     unsigned cycle_peak_ms;
+    unsigned volume;
     uint16_t signal_peak[4];
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
@@ -642,8 +667,9 @@ static bool open_hardware(audio_call_t *call)
     /* Sikertelen open után is bezárjuk az esetleg engedélyezett adatillesztést. */
     audio_checkpoint(AUDIO_STAGE_SPEAKER);
     call->speaker_open = true;
+    call->volume = app_intercom_audio_get_volume();
     if (!hardware_check(call, "Hangszóró megnyitás", esp_codec_dev_open(s_speaker, &format)) ||
-        !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, 55)) ||
+        !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, (int)call->volume)) ||
         !wanted(call->epoch, call->revision)) {
         return false;
     }
@@ -651,7 +677,7 @@ static bool open_hardware(audio_call_t *call)
     call->microphone_open = true;
     return hardware_check(call, "Mikrofon megnyitás", esp_codec_dev_open(s_microphone, &format)) &&
         hardware_check(call, "Mikrofon feloldás", esp_codec_dev_set_in_mute(s_microphone, false)) &&
-        hardware_check(call, "Hangszóró feloldás", esp_codec_dev_set_out_mute(s_speaker, false)) &&
+        hardware_check(call, "Hangszóró feloldás", esp_codec_dev_set_out_mute(s_speaker, call->volume == 0)) &&
         hardware_check(call, "Mikrofon erősítés", esp_codec_dev_set_in_gain(s_microphone, 24.0f));
 }
 
@@ -718,6 +744,16 @@ static void media_session(audio_call_t *call)
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
     while (wanted(call->epoch, call->revision)) {
         int64_t cycle_started = esp_timer_get_time();
+        unsigned volume = app_intercom_audio_get_volume();
+        if (volume != call->volume) {
+            /* I2C-művelet kizárólag itt, LVGL-lock és kritikus szakasz nélkül. */
+            if (!hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, (int)volume)) ||
+                !hardware_check(call, "Hangszóró némítás", esp_codec_dev_set_out_mute(s_speaker, volume == 0))) {
+                publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
+                break;
+            }
+            call->volume = volume;
+        }
         if (!pump_signaling(call)) {
             if (!call->ended) {
                 publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon hangkapcsolata megszakadt.");

@@ -120,6 +120,19 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 #include "app_intercom_audio.h"
 app_intercom_audio_status_t app_sim_audio;
 unsigned app_sim_audio_starts, app_sim_audio_stops;
+static unsigned app_sim_audio_volume = 55;
+unsigned app_intercom_audio_get_volume(void)
+{
+    return app_sim_audio_volume;
+}
+esp_err_t app_intercom_audio_set_volume(unsigned percent, unsigned revision)
+{
+    if (percent > 100) return ESP_ERR_INVALID_ARG;
+    if (app_sim_audio.state != APP_INTERCOM_AUDIO_ACTIVE || app_sim_audio.revision != revision)
+        return ESP_ERR_INVALID_STATE;
+    app_sim_audio_volume = percent;
+    return ESP_OK;
+}
 esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
 {
     if (enabled) {

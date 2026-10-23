@@ -10,6 +10,7 @@
 #define INTERCOM_FRONT_SIZE (1280U * 720U * 2U)
 static lv_obj_t *intercom_overlay, *intercom_image, *intercom_message, *intercom_gate;
 static lv_obj_t *intercom_audio, *intercom_audio_message;
+static lv_obj_t *intercom_volume_panel, *intercom_volume_slider, *intercom_volume_label;
 static uint8_t *intercom_front;
 static uint8_t *intercom_prepared;
 static lv_image_dsc_t intercom_descriptor;
@@ -31,6 +32,18 @@ static portMUX_TYPE intercom_status_lock = portMUX_INITIALIZER_UNLOCKED;
 #endif
 static int64_t intercom_last_press;
 static bool intercom_background_suspended;
+
+static void intercom_change_volume(lv_event_t *event)
+{
+    lv_event_stop_bubbling(event);
+    int volume = lv_slider_get_value(intercom_volume_slider);
+    if (lv_event_get_code(event) == LV_EVENT_CLICKED) {
+        volume = (int)app_intercom_audio_get_volume() + (int)(intptr_t)lv_event_get_user_data(event);
+    }
+    if (volume < 0) volume = 0;
+    if (volume > 100) volume = 100;
+    (void)app_intercom_audio_set_volume((unsigned)volume, intercom_revision);
+}
 
 static void intercom_toggle_audio(lv_event_t *event)
 {
@@ -139,6 +152,7 @@ static void intercom_render(void)
             lv_obj_delete(intercom_overlay);
             intercom_overlay = intercom_image = intercom_message = intercom_gate = NULL;
             intercom_audio = intercom_audio_message = NULL;
+            intercom_volume_panel = intercom_volume_slider = intercom_volume_label = NULL;
         }
         lv_image_cache_drop(&intercom_descriptor);
         free(intercom_front);
@@ -199,6 +213,39 @@ static void intercom_render(void)
         lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(title);
+        intercom_volume_panel = lv_obj_create(intercom_overlay);
+        lv_obj_remove_style_all(intercom_volume_panel);
+        lv_obj_set_size(intercom_volume_panel, 980, 92);
+        lv_obj_align(intercom_volume_panel, LV_ALIGN_BOTTOM_MID, 0, -132);
+        lv_obj_set_style_bg_color(intercom_volume_panel, c(0x182735), 0);
+        lv_obj_set_style_bg_opa(intercom_volume_panel, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(intercom_volume_panel, 20, 0);
+        lv_obj_remove_flag(intercom_volume_panel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN);
+        intercom_volume_label = lbl(intercom_volume_panel, "", 24, 30, APP_FONT_22, 0xffffff);
+        intercom_volume_slider = lv_slider_create(intercom_volume_panel);
+        lv_obj_set_pos(intercom_volume_slider, 330, 38);
+        lv_obj_set_size(intercom_volume_slider, 500, 16);
+        lv_slider_set_range(intercom_volume_slider, 0, 100);
+        lv_obj_set_ext_click_area(intercom_volume_slider, 24);
+        lv_obj_set_style_bg_color(intercom_volume_slider, c(0x42b8ef), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(intercom_volume_slider, lv_color_white(), LV_PART_KNOB);
+        lv_obj_remove_flag(intercom_volume_slider, LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_event_cb(intercom_volume_slider, intercom_change_volume, LV_EVENT_VALUE_CHANGED, NULL);
+        for (unsigned i = 0; i < 2; i++) {
+            lv_obj_t *button = lv_button_create(intercom_volume_panel);
+            lv_obj_set_pos(button, i ? 866 : 234, 14);
+            lv_obj_set_size(button, 64, 64);
+            lv_obj_set_style_bg_color(button, c(0x246696), 0);
+            lv_obj_set_style_text_font(button, APP_FONT_28, 0);
+            lv_obj_set_style_text_color(button, lv_color_white(), 0);
+            lv_obj_remove_flag(button, LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lv_obj_add_event_cb(button, intercom_change_volume, LV_EVENT_CLICKED,
+                                (void *)(intptr_t)(i ? 10 : -10));
+            lv_obj_t *sign = lv_label_create(button);
+            lv_label_set_text(sign, i ? "+" : "-");
+            lv_obj_center(sign);
+        }
     }
     if (!intercom_front && intercom_prepared)
     {
@@ -226,6 +273,17 @@ static void intercom_render(void)
     app_intercom_audio_status_t audio;
     app_intercom_audio_snapshot(&audio);
     bool talking = audio.state == APP_INTERCOM_AUDIO_ACTIVE;
+    if (talking && audio.revision == intercom_revision) {
+        unsigned volume = app_intercom_audio_get_volume();
+        lv_obj_remove_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text_fmt(intercom_volume_label, "%s %u%%", tr("Hangerő", "Volume"), volume);
+        /* A frissítés nem rángathatja vissza az éppen húzott fogantyút. */
+        if (!lv_obj_has_state(intercom_volume_slider, LV_STATE_PRESSED)) {
+            lv_slider_set_value(intercom_volume_slider, (int32_t)volume, LV_ANIM_OFF);
+        }
+    } else {
+        lv_obj_add_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN);
+    }
     bool connecting = audio.state == APP_INTERCOM_AUDIO_CONNECTING;
     bool stopping = audio.state == APP_INTERCOM_AUDIO_STOPPING;
     lv_label_set_text(lv_obj_get_child(intercom_audio, 0),
@@ -263,6 +321,7 @@ static void intercom_render(void)
     lv_obj_move_foreground(intercom_gate);
     lv_obj_move_foreground(intercom_audio);
     lv_obj_move_foreground(intercom_audio_message);
+    lv_obj_move_foreground(intercom_volume_panel);
 }
 
 bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned height,

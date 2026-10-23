@@ -21,6 +21,9 @@ esp_err_t app_intercom_audio_start(void);
 /* Csak helyi érintés indít hívást; false megszakítja a folyamatban lévő felépítést is. */
 esp_err_t app_intercom_audio_request(bool enabled, unsigned revision);
 void app_intercom_audio_snapshot(app_intercom_audio_status_t *out);
+/* Csak az aktív hívás módosítható; a kodeket a hangfeladat állítja, nem a UI. */
+esp_err_t app_intercom_audio_set_volume(unsigned percent, unsigned revision);
+unsigned app_intercom_audio_get_volume(void);
 
 /* A hibastátusz mellett is tarthat még a kodek/socket takarítása. */
 bool app_intercom_audio_busy(void);

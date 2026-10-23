@@ -131,7 +131,14 @@ használja közös, kezdettől 16 kHz-es, 16 bites Philips sztereó I2S-órán.
 Mindkét kodek inicializálása megelőzi a hangfolyam megnyitását. Az első mikrofoncsatorna hangja az Espressif
 **ESP-SR 2.6.0 AEC_MODE_VOIP_LOW_COST** visszhangkioltóján halad át; a referencia
 a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
-Alap hangerő 55%, mikrofonerősítés 24 dB. A visszhangkioltó és a mintapufferek
+Alap hangerő 55%, mikrofonerősítés 24 dB. Aktív beszélgetés alatt a videó fölött
+0–100%-os **Hangerő** csúszka és nagy −/+ gombok jelennek meg (10%-os lépések).
+Ez kizárólag a kijelző hangszóróját állítja, a kinti kaputelefonét nem.
+A 0% némít, magasabb érték feloldja a némítást; a felvétel közben is működik.
+A hangerő hívások között megmarad, újraindításkor 55%-ról indul. A UI csak
+kérelmet ad át, a kodeket a hangfeladat állítja LVGL-lock nélkül. Sikertelen
+kodekállítás hanghibát jelez. A hangerő növelése önmagában nem igazolja a
+bejövő hang fizikai lejátszását. A visszhangkioltó és a mintapufferek
 csak aktív beszélgetés alatt, PSRAM-ban élnek. Az AEC által visszaadott
 keretméretet használjuk (nem feltételezünk fix 512 mintát); a csatornapufferek
 16 bájtra igazítottak. Az I2S saját DMA-puffereit továbbra is a driver kezeli.

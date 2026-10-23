@@ -27,6 +27,8 @@ static int reads, writes, mic_opens, mic_closes, speaker_closes;
 static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
+static bool test_volume_changes;
+static int device_volume;
 static unsigned test_frame = 256;
 static bool fail_aec, fail_aec_inner;
 
@@ -109,7 +111,9 @@ int esp_codec_dev_close(esp_codec_dev_handle_t handle)
 }
 int esp_codec_dev_set_out_vol(esp_codec_dev_handle_t handle, int volume)
 {
-    (void)handle; assert(volume > 0 && volume <= 60); return 0;
+    assert(handle == (void *)1 && volume >= 0 && volume <= 100);
+    device_volume = volume;
+    return 0;
 }
 int esp_codec_dev_set_out_mute(esp_codec_dev_handle_t handle, bool mute)
 {
@@ -128,12 +132,24 @@ int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
     assert(handle == (void *)2 && size == (int)test_frame * 4);
     for (int i = 0; i < size / 2; i++) ((int16_t *)data)[i] = 4000;
     reads++;
+    if (test_volume_changes) {
+        assert(app_intercom_audio_set_volume(101, 7) == ESP_ERR_INVALID_ARG);
+        assert(app_intercom_audio_set_volume(80, 6) == ESP_ERR_INVALID_STATE);
+        if (reads == 1) assert(app_intercom_audio_set_volume(83, 7) == ESP_OK);
+        if (reads == 2) assert(app_intercom_audio_set_volume(0, 7) == ESP_OK);
+        if (reads == 3) assert(app_intercom_audio_set_volume(100, 7) == ESP_OK);
+    }
     vTaskDelay(32);
     return 0;
 }
 int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)1 && size == (int)test_frame * 4 && data && !muted);
+    assert(handle == (void *)1 && size == (int)test_frame * 4 && data);
+    assert(muted == (device_volume == 0));
+    if (test_volume_changes) {
+        const int expected[] = {55, 83, 0, 100, 100};
+        assert(device_volume == expected[writes]);
+    }
     for (int i = 0; i < size / 2; i++) {
         if (abs(((int16_t *)data)[i]) > 100) speaker_audio = true;
     }
@@ -292,6 +308,8 @@ int main(void)
     assert(peak == 100);
 
     assert(app_intercom_audio_start() == ESP_OK);
+    assert(app_intercom_audio_get_volume() == 55);
+    assert(app_intercom_audio_set_volume(70, 7) == ESP_ERR_INVALID_STATE);
     assert(i2s_inits == 1 && mic_opens == 0);
     assert(tasks_created == 0 && !s_running && !app_intercom_audio_busy());
     task_failure = true;
@@ -322,6 +340,8 @@ int main(void)
         assert(s_running && app_intercom_audio_busy());
         assert(app_intercom_audio_request(true, 7) == ESP_ERR_INVALID_STATE);
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
+        test_volume_changes = mode == 0 && variant == 0;
+        if (test_volume_changes) s_volume = 55;
         fail_microphone = mode == 3;
         speaker_audio = false;
         pthread_t thread;
