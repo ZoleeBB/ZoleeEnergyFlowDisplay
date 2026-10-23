@@ -30,6 +30,7 @@ static portMUX_TYPE intercom_status_lock = portMUX_INITIALIZER_UNLOCKED;
 #define INTERCOM_STATUS_UNLOCK() ((void)0)
 #endif
 static int64_t intercom_last_press;
+static bool intercom_background_suspended;
 
 static void intercom_toggle_audio(lv_event_t *event)
 {
@@ -66,12 +67,43 @@ static bool intercom_prepare(void)
 {
     memset(&intercom_next, 0, sizeof(intercom_next));
     if (s_cfg.data_recept_mode != APP_DATA_LOXONE ||
-        !app_loxone_intercom_snapshot(&intercom_next))
-        return false;
+        !app_loxone_intercom_snapshot(&intercom_next)) {
+        memset(&intercom_next, 0, sizeof(intercom_next));
+    }
+    if (intercom_next.ringing && !intercom_background_suspended) {
+        if (bsp_display_lock(-1) != ESP_OK) {
+            return true;
+        }
+        /* Először megszűnnek a háttér widgetjei, utána a képek és cache-ek.
+         * A kiválasztott téma és a kért Otthon-oldal megmarad, csak a RAM-beli
+         * pillanatkép ürül ki. A kamera még nem foglalhat előtte memóriát. */
 #ifdef ESP_PLATFORM
-    if (intercom_next.ringing)
-        app_intercom_poll();
+        size_t psram_before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        size_t internal_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
 #endif
+        home_reset_theme();
+#ifdef ESP_PLATFORM
+        ESP_LOGI("intercom", "Background released: PSRAM=%u->%u DMA=%u->%u bytes",
+                 (unsigned)psram_before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                 (unsigned)internal_before,
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
+#endif
+        home_page = 0;
+        template_loading_requested = true;
+        template_waiting_for_load = true;
+        intercom_background_suspended = true;
+        bg_color_if_changed(s_screen, c(0x000000), 0);
+        lv_obj_set_style_bg_grad_dir(s_screen, LV_GRAD_DIR_NONE, 0);
+        bsp_display_unlock();
+    }
+    /* A dekóder/hang felszabadítása megelőzi a nagy téma visszatöltését.
+     * A nézet a 0-s csengetésre azonnal eltűnik, itt már csak fekete háttér marad. */
+    if (!intercom_next.ringing && intercom_background_suspended && !app_intercom_idle()) {
+        return true;
+    }
+    if (!intercom_next.ringing) {
+        intercom_background_suspended = false;
+    }
     if (intercom_next.ringing && !intercom_front && !intercom_prepared)
     {
 #ifdef ESP_PLATFORM
@@ -80,6 +112,10 @@ static bool intercom_prepare(void)
         intercom_prepared = malloc(INTERCOM_FRONT_SIZE);
 #endif
     }
+#ifdef ESP_PLATFORM
+    if (intercom_next.ringing && intercom_background_suspended)
+        app_intercom_poll();
+#endif
     return intercom_next.ringing;
 }
 

@@ -261,7 +261,7 @@ static void *fake_door(void *argument)
 int main(void)
 {
     assert(app_intercom_audio_start() == ESP_OK);
-    assert(tasks_created == 0 && !s_running);
+    assert(tasks_created == 0 && !s_running && !app_intercom_audio_busy());
     task_failure = true;
     assert(app_intercom_audio_request(true, 7) == ESP_ERR_NO_MEM);
     assert(!s_running && !s_requested && s_status.state == APP_INTERCOM_AUDIO_ERROR);
@@ -287,7 +287,7 @@ int main(void)
         s_running = false; s_requested = false;
         assert(app_intercom_audio_request(true, 6) == ESP_ERR_INVALID_STATE);
         assert(app_intercom_audio_request(true, 7) == ESP_OK);
-        assert(s_running);
+        assert(s_running && app_intercom_audio_busy());
         assert(app_intercom_audio_request(true, 7) == ESP_ERR_INVALID_STATE);
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
         fail_microphone = mode == 3;
@@ -295,7 +295,7 @@ int main(void)
         pthread_t thread;
         assert(pthread_create(&thread, NULL, fake_door, &door) == 0);
         audio_worker(NULL);
-        assert(!s_running && !s_requested && tasks_created == tasks_deleted);
+        assert(!s_running && !app_intercom_audio_busy() && !s_requested && tasks_created == tasks_deleted);
         pthread_join(thread, NULL);
         close(door.media); close(door.listener); close(door.sip);
         assert(door.ack);

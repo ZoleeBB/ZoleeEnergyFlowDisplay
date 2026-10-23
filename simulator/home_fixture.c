@@ -138,3 +138,7 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 {
     *out = app_sim_audio;
 }
+
+/* A késleltetett médiafelszabadítást a valódi UI várakozási ágával teszteljük. */
+bool app_sim_media_idle = true;
+bool app_intercom_idle(void) { return app_sim_media_idle; }

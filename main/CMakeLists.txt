@@ -75,6 +75,7 @@ idf_component_register(
         "app_intercom.c"
         "app_intercom_stream.c"
         "app_intercom_audio.c"
+        "app_intercom_i2s.c"
         "app_intercom_audio_protocol.c"
         "app_loxone_model.c"
         "app_loxone_home_model.c"
@@ -143,4 +144,10 @@ target_compile_options(
 target_link_options(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=esp_lv_adapter_register_display"
     "-Wl,-u,__wrap_esp_lv_adapter_register_display"
+)
+
+# A BSP duplex hang DMA-pufferei kisebb, korlátos belső munkaterületet kapnak.
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=i2s_new_channel"
+    "-Wl,-u,__wrap_i2s_new_channel"
 )

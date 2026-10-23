@@ -47,6 +47,14 @@ static void publish(unsigned epoch, app_intercom_audio_state_t state, const char
     portEXIT_CRITICAL(&s_lock);
 }
 
+bool app_intercom_audio_busy(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    bool busy = s_running;
+    portEXIT_CRITICAL(&s_lock);
+    return busy;
+}
+
 void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 {
     if (!out) {

@@ -112,9 +112,17 @@ static void video_session(const app_intercom_snapshot_t *state)
     jpeg_decode_memory_alloc_cfg_t input_memory = {.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER};
     uint8_t *input = jpeg_alloc_decoder_mem(APP_INTERCOM_JPEG_MAX, &input_memory, &input_capacity);
     esp_http_client_handle_t http = NULL;
-    if (!input || jpeg_new_decoder_engine(&engine, &video.decoder) != ESP_OK)
-    {
-        app_intercom_ui_status("A videó nem indítható: nincs elég szabad memória.", state->revision);
+    if (!input) {
+        app_intercom_ui_status("Nincs 256 KiB PSRAM a tömörített kameraképhez.", state->revision);
+        goto done;
+    }
+    esp_err_t decoder_error = jpeg_new_decoder_engine(&engine, &video.decoder);
+    if (decoder_error != ESP_OK) {
+        char message[160];
+        snprintf(message, sizeof(message), "JPEG-dekóder indítás (%d). Belső DMA: %u B szabad, %u B legnagyobb blokk.",
+                 decoder_error, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
+        app_intercom_ui_status(message, state->revision);
         goto done;
     }
     app_intercom_stream_t stream = {.buffer = input, .capacity = APP_INTERCOM_JPEG_MAX};
@@ -258,6 +266,14 @@ void app_intercom_poll(void)
             app_intercom_ui_status("Nincs elég memória a videófeladathoz. Újrapróbálás...", state.revision);
         }
     }
+}
+
+bool app_intercom_idle(void)
+{
+    portENTER_CRITICAL(&s_video_lock);
+    bool running = s_video_running;
+    portEXIT_CRITICAL(&s_video_lock);
+    return !running && !app_intercom_audio_busy();
 }
 
 esp_err_t app_intercom_start(void)

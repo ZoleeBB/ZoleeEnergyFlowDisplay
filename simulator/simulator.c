@@ -274,10 +274,23 @@ static int intercom_self_test(void)
     config.data_recept_mode = APP_DATA_LOXONE;
     app_ui_set_config(&config);
     if (intercom_needs_cleanup()) return 56;
+    /* Valódi SD-téma és LVGL képek élnek a hívás előtt. */
+    if (app_templates_select("09-solar-journey") != ESP_OK) return 59;
+    template_prepare();
+    template_apply();
+    if (!template_view.document || !template_view.asset_count) return 60;
+    template_build(false);
+    lv_timer_handler();
+    unsigned selected_generation = template_view.generation;
+    home_buffers[0] = lv_draw_buf_create(16, 16, LV_COLOR_FORMAT_ARGB8888, 0);
+    home_gray_buffers[0] = lv_draw_buf_create(16, 16, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (!home_buffers[0] || !home_gray_buffers[0]) return 61;
     app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
     app_intercom_ui_status("Kamera HTTP 401 teszt", 1);
     render_step(200);
     if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 57;
+    if (!intercom_background_suspended || template_view.document || template_pending.document ||
+        template_view.asset_count || home_buffers[0] || home_gray_buffers[0] || home_assets.document) return 62;
     app_intercom_ui_status("Régi hívás hibája", 0);
     render_step(200);
     if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 58;
@@ -320,10 +333,21 @@ static int intercom_self_test(void)
     render_step(200);
     if (intercom_overlay!=original) return 47;
     app_sim_intercom.ringing=false;
+    app_energy_sample_t saved;
+    if (!app_state_get_sample(&saved)) return 63;
+    app_state_set_data_mode(APP_DATA_LOXONE);
+    app_state_set_loxone(true, true);
+    app_state_set_sample(&saved);
+    app_sim_media_idle = false;
+    render_step(200);
+    if (intercom_overlay || template_view.document || !intercom_background_suspended) return 65;
+    app_sim_media_idle = true;
     render_step(200);
     if (intercom_overlay || intercom_front || intercom_prepared || intercom_needs_cleanup()) return 48;
     if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 2) return 55;
-    puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close and released image buffer");
+    if (intercom_background_suspended || !template_view.document ||
+        strcmp(template_view.id, "09-solar-journey") || template_view.generation != selected_generation) return 64;
+    puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close, released theme/images, delayed media cleanup and reloaded theme");
     return 0;
 }
 

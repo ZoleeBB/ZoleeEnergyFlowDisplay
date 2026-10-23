@@ -13,3 +13,5 @@ extern app_intercom_snapshot_t app_sim_intercom;
 #include "app_intercom_audio.h"
 extern app_intercom_audio_status_t app_sim_audio;
 extern unsigned app_sim_audio_starts, app_sim_audio_stops;
+
+extern bool app_sim_media_idle;

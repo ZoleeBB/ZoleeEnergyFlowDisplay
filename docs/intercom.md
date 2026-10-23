@@ -189,7 +189,33 @@ külön fordítással ellenőrzi a helyes és mindegyik hiányos konfigurációt
 A `Hang I2S indítás (257)` jelentése `ESP_ERR_NO_MEM`: a helyi hangdriver
 indítása nem kapott elegendő memóriát. A nagy videó-/hang-stackeket ezért
 explicit PSRAM-ba helyezzük, nem csökkentjük a biztonságos stackméreteket.
-Az I2S a gyártói BSP alapértelmezett DMA-paramétereit használja. A natív életciklus-
+Az I2S a gyártói BSP duplex hívásánál irányonként legfeljebb három, 160 mintás
+DMA-puffert kap. 16 kHz, sztereó, 16 bit mellett ez összesen 3 840 bájt
+mintapuffer a korábbi 11 520 helyett. Az alkalmazás linker-wrappere csak
+a BSP-port duplex hívását módosítja, a gyártói forrás változatlan. A natív életciklus-
 tesztek a tényleges WithCaps létrehozást, PSRAM-képességet, foglalási hibát,
 és a hozzá tartozó törlési API-t is számon kérik. A valódi DMA-foglalás sikerét
 a fizikai kijelzőn kell ellenőrizni.
+
+### Háttértéma felszabadítása csengetéskor
+
+A kaputelefon megnyitása előtt, még a videófeladat és a nagy képpufferek foglalása
+előtt töröljük a háttér LVGL-objektumait, a dekódolt kép-/rasztercache-t, a betöltött
+téma JSON-/PNG-pillanatképét és a Loxone-oldalak színes/szürke képpuffereit.
+Ez csak egyszer történik egy csengetés elején; üresjáratban nincs új lock vagy
+cache-ürítés. Az SD-fájlok, a kiválasztott téma és a kért Otthon-oldal megmaradnak.
+
+Csengetésvégkor az overlay eltűnik, a háttér visszatöltése viszont megvárja a
+videó és hang workerének teljes erőforrásbontását. Így a visszatöltődő nagy PNG-k
+nem torlódnak össze a kamera/DSP puffereivel. Ezután a meglévő betöltőképernyőn át
+újraépül az aktuálisan kiválasztott téma vagy Otthon-oldal, friss adatokkal.
+Kapunyitás vagy videóhiba nem indítja el a visszatöltést; a csengetésállapotnak
+kell megszűnnie. Ez helyért cserébe egy visszatöltési időt jelent a hívás végén.
+
+A videó indítási hibája elkülöníti a 256 KiB-os PSRAM-bemenet foglalási hibáját
+a JPEG-engine hibájától. A dekóder indítási hibakódja mellett a szabad belső
+DMA-memória és a legnagyobb összefüggő blokk is megjelenik. A korábbi közös
+„nincs elég memória” felirat önmagában nem bizonyította a JPEG-hiba típusát.
+A szimulátor valódi Nap pálya téma felszabadítását és változatlan kiválasztással
+való visszatöltését ellenőrzi; a natív teszt a tényleges I2S linker-wrappereket
+és a teljes médiabontást jelző API-kat is vizsgálja.

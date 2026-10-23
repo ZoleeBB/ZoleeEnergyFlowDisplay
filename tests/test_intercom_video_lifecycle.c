@@ -6,12 +6,16 @@
 static unsigned creates, deletes, sessions, decoders, audio_initializations;
 static bool ringing, create_failure;
 static bool credentials = true;
+static bool audio_busy, fail_input, fail_decoder;
 static unsigned scenario, requests, auths, cleared, displayed, offset;
 static int64_t now = 1000000;
 static char last_status[256];
 /* Valós JPEG-markerfolyam, darabolt MIME-fejléccel; a JPEG hardvert helyettesítjük. */
 static const uint8_t body[] = "--frame\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8\xff\xda\x00\x02\x01\xff\xd9\r\n";
 static void (*scheduled)(void *);
+size_t heap_caps_get_free_size(unsigned caps) { assert(caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)); return 2048; }
+size_t heap_caps_get_largest_free_block(unsigned caps) { (void)caps; return 1024; }
+bool app_intercom_audio_busy(void) { return audio_busy; }
 void mbedtls_platform_zeroize(void *buffer, size_t size)
 {
     volatile unsigned char *bytes = buffer;
@@ -78,11 +82,12 @@ void *jpeg_alloc_decoder_mem(size_t size, const jpeg_decode_memory_alloc_cfg_t *
 {
     (void)configuration;
     *capacity = size;
-    return malloc(size);
+    return fail_input ? NULL : malloc(size);
 }
 esp_err_t jpeg_new_decoder_engine(const jpeg_decode_engine_cfg_t *configuration, jpeg_decoder_handle_t *handle)
 {
     assert(configuration->timeout_ms == 100);
+    if (fail_decoder) return ESP_ERR_NO_MEM;
     *handle = (void *)1;
     decoders++;
     return ESP_OK;
@@ -192,6 +197,18 @@ int main(void)
     app_intercom_snapshot_t state = {.revision=1};
     video_session(&state);
     assert(strstr(last_status, "Hiányzó Loxone"));
+    assert(app_intercom_idle());
+    audio_busy = true;
+    assert(!app_intercom_idle());
+    audio_busy = false;
+    credentials = true;
+    fail_input = true;
+    video_session(&state);
+    assert(strstr(last_status, "256 KiB PSRAM"));
+    fail_input = false;
+    fail_decoder = true;
+    video_session(&state);
+    assert(strstr(last_status, "JPEG-dekóder") && strstr(last_status, "2048 B") && strstr(last_status, "1024 B"));
     puts("PASS: actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
     return 0;
 }

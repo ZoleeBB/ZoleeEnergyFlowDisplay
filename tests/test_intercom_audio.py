@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 ROOT = Path(__file__).resolve().parents[1]
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_i2s.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='intercom-audio-') as directory:
     # A korábbi hamis HTTP-kliens engedélyezettnek tekintette a firmware-ből
     # ténylegesen kihagyott hitelesítést. A valódi buildvédelmet is fordítjuk.
