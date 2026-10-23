@@ -8,6 +8,7 @@
 #include "app_config.h"
 #include "app_state.h"
 #include "app_energy_split.h"
+#include "app_battery_diagnostics.h"
 
 /* Egy nap 24 * 12 darab ötperces időablakból áll. */
 #define APP_STATS_SLOT_COUNT 288
@@ -91,6 +92,7 @@ typedef struct
 {
     char date[11];
     app_energy_totals_t totals;
+    app_battery_report_t battery; /* Helyi, mintánként számolt diagnosztika. */
     app_energy_totals_t completed_interval_totals;
     bool has_yesterday;
     /* Szigorúbb, legalább egy órányi közös idősáv százalékhoz. */
