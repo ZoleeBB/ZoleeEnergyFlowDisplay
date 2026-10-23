@@ -13,6 +13,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "app_intercom_build_config.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
 #include <errno.h>
@@ -82,13 +84,14 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
     }
     unsigned epoch = s_epoch;
     portEXIT_CRITICAL(&s_lock);
-    if (enabled && xTaskCreatePinnedToCore(audio_worker, "intercom_audio", 16384, NULL, 4, NULL, 0) != pdPASS) {
+    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 4, NULL, 0,
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_lock);
         s_running = false;
         s_requested = false;
         if (s_epoch == epoch) {
             s_status.state = APP_INTERCOM_AUDIO_ERROR;
-            snprintf(s_status.message, sizeof(s_status.message), "%s", "Nincs elég belső memória a hang indításához.");
+            snprintf(s_status.message, sizeof(s_status.message), "%s", "Nincs elég memória a hang indításához.");
         } else if (s_status.state == APP_INTERCOM_AUDIO_STOPPING) {
             s_status.state = APP_INTERCOM_AUDIO_IDLE;
         }
@@ -715,8 +718,8 @@ static void audio_worker(void *argument)
         s_status.message[0] = 0;
     }
     portEXIT_CRITICAL(&s_lock);
-    /* A FreeRTOS az idle feladatban visszaadja a 16 KiB belső stacket is. */
-    vTaskDelete(NULL);
+    /* A WithCaps párja a PSRAM-stacket és a belső TCB-t is felszabadítja. */
+    vTaskDeleteWithCaps(NULL);
 }
 
 esp_err_t app_intercom_audio_start(void)

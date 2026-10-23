@@ -6,6 +6,25 @@ import subprocess
 import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='intercom-audio-') as directory:
+    # A korábbi hamis HTTP-kliens engedélyezettnek tekintette a firmware-ből
+    # ténylegesen kihagyott hitelesítést. A valódi buildvédelmet is fordítjuk.
+    flags = ('CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH', 'CONFIG_ESP_HTTP_CLIENT_ENABLE_DIGEST_AUTH',
+             'CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM', 'CONFIG_SPIRAM_XIP_FROM_PSRAM')
+    defaults = dict(line.split('=', 1) for line in (ROOT / 'sdkconfig.defaults').read_text().splitlines()
+                    if line.startswith('CONFIG_') and '=' in line)
+    probe = Path(directory) / 'probe.c'
+    probe.write_text('#define ESP_PLATFORM 1\n#include "app_intercom_build_config.h"\n')
+    for absent in (None, *flags):
+        (Path(directory) / 'sdkconfig.h').write_text(''.join(
+            f'#define {flag} 1\n' for flag in flags if defaults.get(flag) == 'y' and flag != absent))
+        compiled = subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-Werror',
+            '-I' + directory, '-Imain', '-c', str(probe), '-o', str(Path(directory) / 'probe.o')],
+            cwd=ROOT, capture_output=True, text=True)
+        if absent is None:
+            assert compiled.returncode == 0, compiled.stderr
+        else:
+            assert compiled.returncode != 0 and 'Intercom requires' in compiled.stderr, absent
+    print('PASS: firmware enables Basic/Digest and external stacks; actual compile guard rejects every missing capability')
     binary = str(Path(directory) / 'test')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
         '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',

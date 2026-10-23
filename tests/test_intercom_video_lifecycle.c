@@ -19,9 +19,10 @@ void mbedtls_platform_zeroize(void *buffer, size_t size)
         *bytes++ = 0;
     }
 }
-int xTaskCreatePinnedToCore(void (*task)(void *), const char *name, unsigned stack,
-                           void *argument, unsigned priority, void *handle, unsigned core)
+int xTaskCreatePinnedToCoreWithCaps(void (*task)(void *), const char *name, unsigned stack,
+                           void *argument, unsigned priority, void *handle, unsigned core, unsigned caps)
 {
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     (void)argument;
     (void)handle;
     assert(!strcmp(name, "intercom_video") && stack == 12288 && priority == 2 && core == 0);
@@ -32,7 +33,7 @@ int xTaskCreatePinnedToCore(void (*task)(void *), const char *name, unsigned sta
     creates++;
     return pdPASS;
 }
-void vTaskDelete(void *task)
+void vTaskDeleteWithCaps(void *task)
 {
     assert(!task);
     deletes++;

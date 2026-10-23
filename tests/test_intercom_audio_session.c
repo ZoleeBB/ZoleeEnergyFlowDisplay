@@ -33,15 +33,17 @@ void vTaskDelay(unsigned delay)
     struct timespec time = {.tv_sec=delay / 1000, .tv_nsec=(long)(delay % 1000) * 1000000L};
     nanosleep(&time, NULL);
 }
-int xTaskCreatePinnedToCore(void (*worker)(void *), const char *name, unsigned stack,
-                           void *argument, unsigned priority, void *handle, unsigned core)
+int xTaskCreatePinnedToCoreWithCaps(void (*worker)(void *), const char *name, unsigned stack,
+                           void *argument, unsigned priority, void *handle, unsigned core, unsigned caps)
 {
-    (void)worker; (void)name; (void)stack; (void)argument; (void)priority; (void)handle; (void)core;
+    assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 && priority == 4 && core == 0);
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    (void)argument; (void)handle;
     if (task_failure) return 0;
     tasks_created++;
     return pdPASS;
 }
-void vTaskDelete(void *task)
+void vTaskDeleteWithCaps(void *task)
 {
     assert(!task);
     tasks_deleted++;

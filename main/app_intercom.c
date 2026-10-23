@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "app_intercom_build_config.h"
 #include "mbedtls/platform_util.h"
 #include <stdlib.h>
 #include <string.h>
@@ -229,10 +231,10 @@ static void worker(void *arg)
     portENTER_CRITICAL(&s_video_lock);
     s_video_running = false;
     portEXIT_CRITICAL(&s_video_lock);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
-/* Nem marad meg a 12 KiB belső task-stack két csengetés között. */
+/* A 12 KiB stack PSRAM-ban él, és két csengetés között felszabadul. */
 void app_intercom_poll(void)
 {
     int64_t now = esp_timer_get_time();
@@ -245,14 +247,15 @@ void app_intercom_poll(void)
     if (!available) {
         return;
     }
-    if (xTaskCreatePinnedToCore(worker, "intercom_video", 12288, NULL, 2, NULL, 0) != pdPASS) {
+    if (xTaskCreatePinnedToCoreWithCaps(worker, "intercom_video", 12288, NULL, 2, NULL, 0,
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_video_lock);
         s_video_running = false;
         s_next_attempt = now + 2000000;
         portEXIT_CRITICAL(&s_video_lock);
         app_intercom_snapshot_t state;
         if (app_loxone_intercom_snapshot(&state)) {
-            app_intercom_ui_status("Nincs elég belső memória a videófeladathoz. Újrapróbálás...", state.revision);
+            app_intercom_ui_status("Nincs elég memória a videófeladathoz. Újrapróbálás...", state.revision);
         }
     }
 }

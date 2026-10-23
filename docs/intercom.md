@@ -55,7 +55,8 @@ használd. Átirányítást nem követünk, így más cél nem kaphatja meg a hi
 ## Erőforrások és korlátok
 
 A videófeladat kizárólag csengetéskor jön létre, és a csengetés végén megszűnik.
-A 12 KiB-os belső stack nem marad foglalva két hívás között. A videó külön,
+A 12 KiB-os stack PSRAM-ban foglalódik, és két hívás között felszabadul;
+nem fogyasztja az I2S/Wi-Fi szűk belső DMA-memóriáját. A videó külön,
 alacsonyabb prioritású CPU0-feladatban érkezik, nem blokkolja a
 Loxone állapotfolyamot. A JPEG-dekódolást az ESP32-P4 hardvere végzi; legfeljebb
 10 képkockát jelenítünk meg másodpercenként. Az adatfolyamot folyamatosan ürítjük,
@@ -134,9 +135,11 @@ Sikertelen indulásnál a pontos lépés és hibakód látható: például
 „Visszhangszűrő memória”, „Hang I2S indítás” vagy „Mikrofon megnyitás”. A BSP I2S-illesztése és kodekeszközei az első
 hívás után megmaradnak, de a mikrofon ADC és a hangszóró erősítője zárva van.
 A hang külön CPU0-feladatban fut; nem tart LVGL-lockot vagy Loxone-lockot I/O alatt.
-Ez a feladat is csak kézi indításkor jön létre, és bontáskor a 16 KiB-os belső
-stackjével együtt megszűnik. Így üresjáratban összesen 28 KiB belső stackmemória
-felszabadul az előző megvalósításhoz képest. Ha nincs kaputelefonnézet vagy videópuffer,
+Ez a feladat is csak kézi indításkor jön létre, 16 KiB-os PSRAM-stackkel.
+Az ESP-IDF `xTaskCreatePinnedToCoreWithCaps` / `vTaskDeleteWithCaps` párja kezeli
+a létrehozást és a bontáskori felszabadítást. A videó és a hang együtt 28 KiB-os
+stackje hívás közben sem a belső memóriát terheli; két hívás között nem marad
+foglalva. A kis TCB-k és az I2S DMA-pufferei továbbra is belső RAM-ban élnek. Ha nincs kaputelefonnézet vagy videópuffer,
 a UI a kaputelefon miatt nem kér grafikus lockot és nem invalidál képcache-t.
 
 A valódi hardveres próba szükséges: a felhasználó 100484 készülékének SIP-támogatása,
@@ -174,3 +177,19 @@ A közös pont a P4 JPEG-dekóder és az RGB565 képút; a kaputelefon az LVGL-e
 Nem indítunk második LCD-drivert és nem rajzolunk az LVGL-lel párhuzamosan közvetlenül a panelre.
 A duplex hang indítási sorrendjét a [Waveshare LVGL minta](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X/tree/main/examples/esp-idf/08_lvgl_demo_v9)
 kodekkezelésével vetettük össze.
+
+### Fordítási hitelesítés és I2S-memória
+
+Az ESP-IDF 5.5.4-ben a HTTP Basic és Digest támogatás alapértelmezetten kikapcsolt.
+A firmware mindkettőt külön engedélyezi a `sdkconfig.defaults` fájlban.
+Az `app_intercom_build_config.h` leállítja a valódi ESP buildet, ha bármelyik
+hitelesítési mód, a külső task-stack vagy a PSRAM XIP hiányzik. A natív teszt
+külön fordítással ellenőrzi a helyes és mindegyik hiányos konfigurációt is.
+
+A `Hang I2S indítás (257)` jelentése `ESP_ERR_NO_MEM`: a helyi hangdriver
+indítása nem kapott elegendő memóriát. A nagy videó-/hang-stackeket ezért
+explicit PSRAM-ba helyezzük, nem csökkentjük a biztonságos stackméreteket.
+Az I2S a gyártói BSP alapértelmezett DMA-paramétereit használja. A natív életciklus-
+tesztek a tényleges WithCaps létrehozást, PSRAM-képességet, foglalási hibát,
+és a hozzá tartozó törlési API-t is számon kérik. A valódi DMA-foglalás sikerét
+a fizikai kijelzőn kell ellenőrizni.
