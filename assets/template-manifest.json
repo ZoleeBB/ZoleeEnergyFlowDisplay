@@ -625,5 +625,25 @@
   {
     "asset": "templates/09-solar-journey/weather_wind.png",
     "sha256": "eb05e181e9cc19b7c5b3f7d69d3ea4244859f0eecda8365e78b3f78d666cb9bb"
+  },
+  {
+    "asset": "templates/10-battery-diagnostics/background-day.png",
+    "sha256": "6a6e4a4adfb7ed93d84e965fea4f8f09965e23e72966119441f91cea1a61780f",
+    "generator": "imagegen: opaque white modular battery tower beside exterior house wall in natural garden; identical day/night composition, lighting-weather night edit; resized 1280x800, 256-color RGB PNG"
+  },
+  {
+    "asset": "templates/10-battery-diagnostics/background-night.png",
+    "sha256": "e1b713578b620c199c5e1fcaad7a2a28e87cd6490b0cf692d281e0b52cb7a1ad",
+    "generator": "imagegen: opaque white modular battery tower beside exterior house wall in natural garden; identical day/night composition, lighting-weather night edit; resized 1280x800, 256-color RGB PNG"
+  },
+  {
+    "asset": "templates/10-battery-diagnostics/preview-dark.png",
+    "sha256": "4122749e942f2780813fff08c7c4c547e84be7b024353166db89007e1e010e61",
+    "generator": "LVGL simulator screenshot, 480x300"
+  },
+  {
+    "asset": "templates/10-battery-diagnostics/preview-light.png",
+    "sha256": "02de6f0a4ef90bf48b5b731472abe85be10f9bbb97c1a1787b6f32b41efdaa08",
+    "generator": "LVGL simulator screenshot, 480x300"
   }
 ]

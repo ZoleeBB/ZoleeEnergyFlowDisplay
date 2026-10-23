@@ -6,6 +6,9 @@
 #define MIN_SPAN 20.0
 #define MAX_AGE (30LL * 86400)
 
+_Static_assert(sizeof(app_battery_diagnostics_t) <= 1024, "Az akku diagnosztika RAM-kerete 1 KiB");
+_Static_assert(sizeof(app_battery_report_t) <= 256, "Az akku jelentés RAM-kerete 256 bájt");
+
 static double span(const app_battery_run_t *run)
 {
     return (run->start_soc - run->end_soc) * run->direction;
@@ -187,11 +190,15 @@ void app_battery_report(const app_battery_diagnostics_t *state, int64_t now,
         {
             out->charge_valid = true;
             out->charge_ratio_pct = ratio;
+            out->charge_soc_span = span(run);
+            out->charge_energy_kwh = run->energy_kwh;
         }
         else
         {
             out->discharge_valid = true;
             out->discharge_ratio_pct = ratio;
+            out->discharge_soc_span = span(run);
+            out->discharge_energy_kwh = run->energy_kwh;
             values[out->discharge_runs++] = run->energy_kwh * 100 / span(run);
             if (span(run) >= 60)
                 out->broad_runs++;
@@ -222,11 +229,15 @@ void app_battery_report(const app_battery_diagnostics_t *state, int64_t now,
         {
             out->charge_valid = true;
             out->charge_ratio_pct = ratio;
+            out->charge_soc_span = span(&state->active);
+            out->charge_energy_kwh = state->active.energy_kwh;
         }
         else
         {
             out->discharge_valid = true;
             out->discharge_ratio_pct = ratio;
+            out->discharge_soc_span = span(&state->active);
+            out->discharge_energy_kwh = state->active.energy_kwh;
         }
     }
     out->efficiency_valid = state->efficiency_valid && now >= state->efficiency_epoch_s &&

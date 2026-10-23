@@ -36,6 +36,7 @@ typedef struct
     bool available, active_ready, charge_valid, discharge_valid, capacity_valid, efficiency_valid;
     double charge_ratio_pct, discharge_ratio_pct, capacity_kwh, capacity_pct;
     double efficiency_pct, cycles, active_soc_span, active_energy_kwh, active_soc_error_pp;
+    double charge_soc_span, discharge_soc_span, charge_energy_kwh, discharge_energy_kwh;
     unsigned discharge_runs, broad_runs, interruptions;
     int active_direction;
     int64_t latest_epoch_s;

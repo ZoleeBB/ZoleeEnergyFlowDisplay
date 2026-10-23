@@ -15,6 +15,8 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 | `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
 
+| `10-battery-diagnostics` | [Akku diagnosztika](battery-diagnostics.md): mért energia/SOC, kapacitásbecslés, párosított hatásfok és megfigyelt ciklusok |
+
 ## Használat
 
 Másold a repository `templates` mappáját az SD gyökerébe. Példa:
@@ -200,6 +202,7 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 | Energiafőkönyv | ![Nappal](../templates/07-energy-ledger/preview-light.png) | ![Éjjel](../templates/07-energy-ledger/preview-dark.png) |
 | Energiastatisztika | ![Nappal](../templates/08-statistics/preview-light.png) | ![Éjjel](../templates/08-statistics/preview-dark.png) |
 | Nap pálya | ![Nappal](../templates/09-solar-journey/preview-light.png) | ![Éjjel](../templates/09-solar-journey/preview-dark.png) |
+| Akku diagnosztika | ![Nappal](../templates/10-battery-diagnostics/preview-light.png) | ![Éjjel](../templates/10-battery-diagnostics/preview-dark.png) |
 
 ![Aktuális ikonok és időjárás](previews/template-icons.png)
 
@@ -260,7 +263,7 @@ A részletes működés: [Nap pálya](solar-journey-acceptance.md).
 
 ## Mentett előnézeti képek
 
-Mind a kilenc csomag kötelező építési bemenete a `preview-light.png` és
+Mind a tíz csomag kötelező építési bemenete a `preview-light.png` és
 `preview-dark.png`. Ezek a valódi LVGL-kijelző 480×300 px-es képei demóadatokkal;
 a validátor legfeljebb 640×400 px-es RGB/RGBA előnézetet fogad el.
 A két képet együtt kell megadni. Az előnézet nem használható kijelzőelemként,
@@ -342,3 +345,14 @@ frissítése megőrzi a témasorrendet. Az OTA a telepített SD-sablont nem cser
 
 Az Energiakör v13 új `solar_timeline` eleméhez az új Master firmware is kell,
 majd a `06-energy-orbit.zip` telepítése. [Részletek](energy-orbit.md).
+
+### Akku diagnosztikai adatforrások
+
+Az új firmware `battery_diag_` forrásai: `capacity`, `capacity_pct`, `assessment`,
+`charge_pct`, `discharge_pct`, `charge_detail`, `discharge_detail`,
+`day_charge_pct`, `day_discharge_pct`, `efficiency_pct`, `cycles`, `c_rate`,
+`measurement`, `soc_error`, `evidence` (mindegyik előtt `battery_diag_`).
+Ezek `value` elemekhez valók; az adatminőséget is kezelő szöveget adnak.
+A `capacity` számmező 48 px-es lehet; a hiányzó eredmény `--`.
+A többihez teljes karakterkészletű 12/16/20/28 px fontot használj.
+A képletek és a referencia érvényessége: [Akku diagnosztika](battery-diagnostics.md).

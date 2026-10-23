@@ -2,7 +2,7 @@
 
 FAT32 fájlrendszer szükséges; exFAT nem támogatott. A gyökérben legyen `config.json`, a kiválasztott [konfigurációs minta](configuration.md) alapján.
 
-A kilenc választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
+A tíz választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
 
 A statisztikát a firmware maga hozza létre és 35 helyi naptári napig őrzi. Egy nap 288 ötperces időablakot tartalmaz. A `.tmp` és `.bak` fájlok helyreállítási állományok: működés közben ne töröld őket. Induláskor a legújabb érvényes revízió kerül betöltésre. [Adatformátum és számítás](statistics.md).
 
@@ -13,7 +13,7 @@ MQTT, HTTP és közvetlen Loxone módban induláskor az SD és a konfiguráció 
 | Tulajdonság | SD-s Slave | SD nélküli Slave |
 | --- | --- | --- |
 | Konfiguráció | SD `config.json`, minimálisan `{"DataReceptMode":"slave"}` | Belső NVS, webes mentéssel, legfeljebb 3072 bájt |
-| Témák | Rendszer és mind a kilenc telepített SD-s téma; a Nap pálya érvényes nappályaadattal | Kizárólag a beépített Rendszer téma |
+| Témák | Rendszer és mind a tíz telepített SD-s téma; a Nap pálya érvényes nappályaadattal | Kizárólag a beépített Rendszer téma |
 | Napi statisztika | Saját integrálás a fogadott élő mintákból, saját SD-re mentve | A master ellenőrzött pillanatképe RAM-ban |
 | Korábbi adatok | Saját, legfeljebb 35 napos történet | Mai diagramok és a master tegnapi összehasonlítása; nincs helyi archívum |
 | Újraindítás | Saját SD-előzmény visszatöltése | Új statisztikai kép kérése a mastertől |
