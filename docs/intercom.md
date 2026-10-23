@@ -1,5 +1,22 @@
 # Loxone kaputelefon – Master kijelző
 
+## Ideiglenes helyi hangszóróteszt
+
+A webes kaputelefon-beállításoknál a **Hangszóróteszt indítása** gomb az ott
+beírt hangerővel folyamatos 1000 Hz-es szinuszhangot indít. Ehhez nem kell
+menteni a hangerőt; a beszélgetéshez a mentett érték érvényes. Újabb kattintás
+leállítja a tesztet. Aktív hívással nem futhat együtt; csengetéskor vagy a
+kaputelefon konfigurációjának cseréjekor automatikusan leáll. A mikrofont,
+SIP/RTP-t és AEC-t nem használja. Ugyanaz az ES8311, I2S és hangszóró-erősítő
+szólal meg, mint a bejövő beszédnél. A webes állapot külön jelzi a foglaltságot
+és a hardveres indítás/lejátszás hibáját. A végpont hitelesített, korlátos és
+ugyanazt a kérésazonosítót igényli, mint a beállításmentés.
+
+Ha a teszthang hallható, a helyi lejátszási út működik. Ha nem, önmagában még
+nem dönthető el, hogy a hangszóró, a bekötés, a kodek/erősítő vezérlése vagy az
+I2S a hibás. Külső mágnes hatását eltávolított és visszahelyezett mágnessel,
+azonos teszthang és hangerő mellett lehet összehasonlítani.
+
 A Loxone adatfogadási módban működő Master a kaputelefon közvetlen HTTP/MJPEG
 élőképét jeleníti meg. A Loxone 100484 Intercom White helyi videócímét a felhasználó
 böngészőben kipróbálta: `/mjpg/video.mjpg`. Más készüléknél kompatibilis MJPEG-cím kell.
@@ -38,8 +55,9 @@ megbízható hálózaton használd. Átirányítást nem követünk.
 
 - A kiválasztott numerikus/digitális állapot **1 / true** értéke teljes képernyős,
   fekete hátterű, képarányt megtartó videónézetet nyit, az aktuális oldal fölött.
-- Kizárólag ugyanennek az állapotnak a **0 / false** értéke zárja be a nézetet,
-  és teszi újra láthatóvá a korábbi oldalt. Nincs bezáró gesztus vagy időzítő.
+- A **0 / false** csengetésjel akkor zárja be a nézetet, ha nincs felépült
+  hanghívás. Az aktív beszélgetés ugyanazzal a hívásazonosítóval nyitva tartja
+  a videót. A hang bontásakor a korábbi oldal visszatér, ha már nincs csengetés.
 - Ismeretlen, hibás, más UUID-hez tartozó állapot vagy kapcsolatvesztés nem nulla.
   A nézet ilyenkor megmarad, és szükség esetén hibajelzést mutat.
 - Kapunyitó cél nélkül nem jelenik meg gomb. Konfigurált célnál a videó alján
@@ -58,7 +76,8 @@ megbízható hálózaton használd. Átirányítást nem követünk.
 
 ## Erőforrások és korlátok
 
-A videófeladat kizárólag csengetéskor jön létre, és a csengetés végén megszűnik.
+A videófeladat csengetéskor jön létre, és a csengetés vagy az aktív beszélgetés
+végéig él. A nézet bezárása után felszabadul.
 A 12 KiB-os stack PSRAM-ban foglalódik, és két hívás között felszabadul;
 nem fogyasztja az I2S/Wi-Fi szűk belső DMA-memóriáját. A videó külön,
 alacsonyabb prioritású CPU0-feladatban érkezik, nem blokkolja a
@@ -102,8 +121,13 @@ a mikrofon csak sikeresen felépült SIP-hívásnál kapcsol be.
 
 - Kapcsolódás közben a gomb **Kapcsolódás megszakítása** felirattal megszakítható.
 - Aktív hívásnál a **Beszélgetés vége** gomb leállítja a mikrofont és a hangszórót,
-  és bontja a hívást. A videó ettől megmarad.
-- A csengetés **0 / false** értéke automatikusan leállítja a hangot és bezárja a videót.
+  és bontja a hívást. A videó aktív csengetés esetén megmarad.
+- Felépült beszélgetést a **0 / false** csengetésjel nem bont. Még csak kapcsolódó
+  hívást a csengetés megszűnése továbbra is megszakít.
+- Sikeresen elküldött **Kapunyitás** impulzus után **5 másodperccel** a hang
+  automatikusan bontódik. Ismételt kapunyitás nem halasztja el a határidőt;
+  sikertelen küldés nem indít időzítőt. Ha közben megszűnt a csengetés, a nézet
+  is bezáródik; aktív csengetés esetén a videó megmarad.
 - Loxone-kapcsolatvesztés vagy a kaputelefon beállításainak cseréje leállítja a
   hangkapcsolatot. Sikertelen hívás után nincs automatikus újrahívás.
 - Hálózati, SIP- vagy hanghardverhiba szöveges visszajelzést ad. Tíz másodpercnyi
@@ -131,14 +155,10 @@ használja közös, kezdettől 16 kHz-es, 16 bites Philips sztereó I2S-órán.
 Mindkét kodek inicializálása megelőzi a hangfolyam megnyitását. Az első mikrofoncsatorna hangja az Espressif
 **ESP-SR 2.6.0 AEC_MODE_VOIP_LOW_COST** visszhangkioltóján halad át; a referencia
 a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
-Alap hangerő 55%, mikrofonerősítés 24 dB. Aktív beszélgetés alatt a videó fölött
-0–100%-os **Hangerő** csúszka és nagy −/+ gombok jelennek meg (10%-os lépések).
-Ez kizárólag a kijelző hangszóróját állítja, a kinti kaputelefonét nem.
-A 0% némít, magasabb érték feloldja a némítást; a felvétel közben is működik.
-A hangerő hívások között megmarad, újraindításkor 55%-ról indul. A UI csak
-kérelmet ad át, a kodeket a hangfeladat állítja LVGL-lock nélkül. Sikertelen
-kodekállítás hanghibát jelez. A hangerő növelése önmagában nem igazolja a
-bejövő hang fizikai lejátszását. A visszhangkioltó és a mintapufferek
+A hangszóró hangereje a webes **Kaputelefon** beállításokban menthető, egész
+0–100%-os érték (0 = némítás). Régi profilnál az alapérték 55%. A kijelzőn nincs
+hangerőcsúszka. A következő hívás a mentett értéket használja; mikrofonerősítés 24 dB.
+A visszhangkioltó és a mintapufferek
 csak aktív beszélgetés alatt, PSRAM-ban élnek. Az AEC által visszaadott
 keretméretet használjuk (nem feltételezünk fix 512 mintát); a csatornapufferek
 16 bájtra igazítottak. Az I2S saját DMA-puffereit továbbra is a driver kezeli.
@@ -170,7 +190,8 @@ a tesztben helyettesített. A videóteszt a valódi keretezőn át, darabolt MIM
 adatokból eljut a képkocka átadásáig; ellenőrzi a 401-es hitelesítési ismétlést,
 a válaszpuffer törlését, az elutasított/átirányított és hiányos HTTP-válaszokat is.
 A szimulátor a tényleges LVGL kétgombos elrendezést, kézi indítást/leállítást,
-hosszú nyomás ismétlésének tiltását és a csengetésvég bontását is ellenőrzi.
+hosszú nyomás ismétlésének tiltását, az aktív hang melletti csengetésvéget és
+a kézi/kapunyitás utáni bontás feltételeit is ellenőrzi.
 
 Források:
 

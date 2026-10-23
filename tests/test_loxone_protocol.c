@@ -6,6 +6,16 @@
 #include <string.h>
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
+static bool test_audio_active;
+static unsigned gate_audio_stops;
+bool app_intercom_audio_active_for(unsigned revision)
+{
+    return test_audio_active && revision == s_intercom_generation;
+}
+void app_intercom_audio_gate_opened(unsigned revision)
+{
+    if (app_intercom_audio_active_for(revision)) gate_audio_stops++;
+}
 
 /* A hálózati teszt a valódi jelenléttermelőt használja, RTOS/NVS nélkül. */
 static app_slave_presence_table_t presence_fixture;
@@ -264,6 +274,19 @@ static void home_control_test(lx_config_t *energy)
     home_command_poll(esp_timer_get_time());
     assert(home_command_count == sent + 1 && !s_intercom_ringing && !s_command_pending);
     assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    test_audio_active = true;
+    unsigned active_generation = s_intercom_generation;
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    assert(s_intercom_generation == active_generation);
+    assert(app_loxone_intercom_snapshot(&door) && !door.ringing && door.audio_active);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(gate_audio_stops == 1);
+    test_audio_active = false;
+    assert(app_loxone_intercom_snapshot(&door) && !door.ringing && !door.audio_active);
     memcpy(packet + 16, &on, sizeof(on));
     assert(update_values(2, packet, sizeof(packet)));
     invalidate(true);

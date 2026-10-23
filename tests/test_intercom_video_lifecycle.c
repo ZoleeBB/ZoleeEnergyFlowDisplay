@@ -6,7 +6,7 @@ static jmp_buf worker_exit;
 #include <string.h>
 #include "../main/app_intercom.c"
 static unsigned creates, deletes, sessions, decoders, audio_initializations;
-static bool ringing, create_failure;
+static bool ringing, create_failure, audio_view;
 static bool credentials = true;
 static bool audio_busy, fail_input, fail_decoder, gray_picture;
 static unsigned scenario, requests, auths, cleared, displayed, offset;
@@ -59,7 +59,7 @@ esp_err_t app_intercom_audio_start(void)
 }
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *state)
 {
-    *state = (app_intercom_snapshot_t){.ringing=ringing, .connected=true, .revision=1};
+    *state = (app_intercom_snapshot_t){.ringing=ringing, .audio_active=audio_view, .connected=true, .revision=1};
     strcpy(state->config.stream_url, "http://192.168.2.21/mjpg/video.mjpg");
     return true;
 }
@@ -202,6 +202,10 @@ int main(void)
     fail_decoder = true;
     assert(app_intercom_start() == ESP_OK);
     assert(audio_initializations == 1 && creates == 0 && sessions == 0);
+    audio_view = true;
+    assert(view_still_open(1) && !view_still_open(2));
+    audio_view = false;
+    assert(!view_still_open(1));
     for (unsigned i = 0; i < 3; i++) {
         ringing = true;
         app_intercom_poll();

@@ -160,10 +160,11 @@ static void decode_frame(void *context, const uint8_t *jpeg, size_t size)
     }
 }
 
-static bool still_ringing(unsigned revision)
+static bool view_still_open(unsigned revision)
 {
     app_intercom_snapshot_t current;
-    return app_loxone_intercom_snapshot(&current) && current.ringing && current.revision == revision;
+    return app_loxone_intercom_snapshot(&current) && (current.ringing || current.audio_active) &&
+           current.revision == revision;
 }
 
 static void video_session(const app_intercom_snapshot_t *state)
@@ -244,7 +245,7 @@ static void video_session(const app_intercom_snapshot_t *state)
         }
         esp_http_client_close(http);
         esp_http_client_clear_response_buffer(http);
-        if (!still_ringing(state->revision)) {
+        if (!view_still_open(state->revision)) {
             goto done;
         }
     }
@@ -260,7 +261,7 @@ static void video_session(const app_intercom_snapshot_t *state)
     int64_t started = esp_timer_get_time();
     int64_t last_progress = started;
     size_t received = 0;
-    while (still_ringing(state->revision))
+    while (view_still_open(state->revision))
     {
         int64_t now = esp_timer_get_time();
         if (!video.jpeg_frames && now - last_progress >= 1000000LL) {
@@ -286,7 +287,7 @@ static void video_session(const app_intercom_snapshot_t *state)
     }
     ESP_LOGI(TAG, "Camera bytes=%u JPEG=%u starts=%u oversized=%u displayed=%d", (unsigned)received,
              video.jpeg_frames, stream.frame_starts, stream.oversized_frames, video.last_frame != 0);
-    if (still_ringing(state->revision) && (video.last_frame || !video.jpeg_frames)) {
+    if (view_still_open(state->revision) && (video.last_frame || !video.jpeg_frames)) {
         app_intercom_ui_status(video.last_frame ? "A videó megszakadt. Újracsatlakozás..." :
             received ? "Nem érkezett teljes MJPEG-kép (max. 2 MiB/kép). Újrapróbálás..." :
                        "A kamera nem küld videóadatot. Újrapróbálás...", state->revision);
@@ -310,14 +311,14 @@ static void worker(void *arg)
     for (;;)
     {
         app_intercom_snapshot_t state = {0};
-        if (!app_loxone_intercom_snapshot(&state) || !state.ringing)
+        if (!app_loxone_intercom_snapshot(&state) || (!state.ringing && !state.audio_active))
             break;
         video_session(&state);
         /* Hiba esetén is megszakítható, legfeljebb két másodperces újrapróbálás. */
         for (unsigned i = 0; i < 10; ++i)
         {
             vTaskDelay(pdMS_TO_TICKS(200));
-            if (!still_ringing(state.revision)) break;
+            if (!view_still_open(state.revision)) break;
         }
     }
     app_intercom_task_finish(&s_video_task);

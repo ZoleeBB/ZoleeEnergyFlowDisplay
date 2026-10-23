@@ -22,6 +22,7 @@ typedef struct
 {
     lx_intercom_config_t config;
     bool ringing, connected, gate_supported, command_pending;
+    bool audio_active;
     unsigned revision;
     char status[LX_HOME_ERROR_SIZE];
 } app_intercom_snapshot_t;

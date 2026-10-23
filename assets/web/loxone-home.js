@@ -10,6 +10,7 @@ const LoxoneHome = (() => {
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
     let revision = 0, saveRevision = 0, currentSection = '';
     let resourcesInstalled = false, resourcesVersion = 0;
+    let speakerTestActive = false, audioBusy = false, speakerTestPending = false;
     const domId = (entry, key) => 'home-' + currentSection + '-' + entry.id + '-' + key;
     const controls = [];
 
@@ -27,6 +28,10 @@ const LoxoneHome = (() => {
     }
     function busy() { return !loaded || pending || waiting || remoteBusy || connectionBusy; }
     function buttons() {
+        if (get('intercom-speaker-test')) {
+            get('intercom-speaker-test').textContent = speakerTestActive ? 'Hangszóróteszt leállítása' : 'Ideiglenes hangszóróteszt indítása';
+            get('intercom-speaker-test').disabled = speakerTestPending || (audioBusy && !speakerTestActive);
+        }
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
         if (get('intercom-save')) get('intercom-save').disabled = busy();
@@ -163,6 +168,9 @@ const LoxoneHome = (() => {
         if (!target) return;
         target.replaceChildren(); currentSection = 'intercom';
         const door = model.intercom;
+        door.speaker_volume ??= 55;
+        const volume = field(target, 'Kijelző hangereje (0–100%, 0 = némítás)', door, 'speaker_volume', 'number');
+        volume.id = 'intercom-speaker-volume'; volume.min = 0; volume.max = 100; volume.step = 1;
         const enabled = field(target, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox');
         enabled.id = 'intercom-enabled';
         const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
@@ -263,6 +271,8 @@ const LoxoneHome = (() => {
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
     function validate() {
         const door = model.intercom;
+        if (!Number.isInteger(door.speaker_volume) || door.speaker_volume < 0 || door.speaker_volume > 100)
+            return 'A hangerő 0 és 100 közötti egész szám legyen.';
         door.stream_url = (door.stream_url || '').trim();
         if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
             return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';
@@ -318,6 +328,9 @@ const LoxoneHome = (() => {
             const response = await apiFetch('/api/loxone/home', {cache: 'no-store'});
             if (!response.ok) throw Error(await response.text());
             const state = await response.json();
+            speakerTestActive = !!state.speaker_test_active;
+            audioBusy = !!state.audio_busy;
+            if (get('intercom-speaker-test-status')) get('intercom-speaker-test-status').textContent = state.speaker_test_message || '';
             const first = !loaded;
             const previousResources = resourcesInstalled;
             const previousVersion = resourcesVersion;
@@ -358,6 +371,22 @@ const LoxoneHome = (() => {
             notify('Otthon-beállítások: ' + (error.name === 'AbortError' ? 'az eszköz nem válaszol.' : error.message), true);
         } finally { fetching = false; buttons(); }
     }
+    async function toggleSpeakerTest() {
+        if (speakerTestPending) return;
+        const volume = speakerTestActive ? 0 : Number(model.intercom.speaker_volume ?? 55);
+        if (!Number.isInteger(volume) || volume < 0 || volume > 100) {
+            notify('A hangerő 0 és 100 közötti egész szám legyen.', true); return;
+        }
+        speakerTestPending = true; buttons();
+        try {
+            const response = await apiFetch('/api/loxone/intercom/speaker-test', {method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'},
+                body: JSON.stringify({enabled: !speakerTestActive, volume})});
+            if (!response.ok) throw Error(await response.text());
+            await refresh(catalog, connectionBusy);
+        } catch (error) { notify('Hangszóróteszt: ' + error.message, true); }
+        finally { speakerTestPending = false; buttons(); }
+    }
     async function save() {
         if (busy()) return;
         let error;
@@ -381,6 +410,7 @@ const LoxoneHome = (() => {
         get('home-add-card').onclick = () => add('cards');
         get('home-save').onclick = save;
         if (get('intercom-save')) get('intercom-save').onclick = save;
+        if (get('intercom-speaker-test')) get('intercom-speaker-test').onclick = toggleSpeakerTest;
         get('home-room').onchange = get('home-category').onchange = render;
         buttons();
     }

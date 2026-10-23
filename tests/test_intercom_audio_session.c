@@ -27,8 +27,10 @@ static int reads, writes, mic_opens, mic_closes, speaker_closes;
 static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
-static bool test_volume_changes;
+static bool tone_mode, tone_ring_stop;
 static int device_volume;
+static unsigned aec_creates;
+static atomic_llong clock_offset;
 static unsigned test_frame = 256;
 static bool fail_aec, fail_aec_inner;
 
@@ -63,7 +65,7 @@ int64_t esp_timer_get_time(void)
 {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
-    return (int64_t)time.tv_sec * 1000000LL + time.tv_nsec / 1000;
+    return (int64_t)time.tv_sec * 1000000LL + time.tv_nsec / 1000 + atomic_load(&clock_offset);
 }
 uint32_t esp_random(void)
 {
@@ -132,34 +134,44 @@ int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
     assert(handle == (void *)2 && size == (int)test_frame * 4);
     for (int i = 0; i < size / 2; i++) ((int16_t *)data)[i] = 4000;
     reads++;
-    if (test_volume_changes) {
-        assert(app_intercom_audio_set_volume(101, 7) == ESP_ERR_INVALID_ARG);
-        assert(app_intercom_audio_set_volume(80, 6) == ESP_ERR_INVALID_STATE);
-        if (reads == 1) assert(app_intercom_audio_set_volume(83, 7) == ESP_OK);
-        if (reads == 2) assert(app_intercom_audio_set_volume(0, 7) == ESP_OK);
-        if (reads == 3) assert(app_intercom_audio_set_volume(100, 7) == ESP_OK);
-    }
     vTaskDelay(32);
     return 0;
 }
 int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)1 && size == (int)test_frame * 4 && data);
-    assert(muted == (device_volume == 0));
-    if (test_volume_changes) {
-        const int expected[] = {55, 83, 0, 100, 100};
-        assert(device_volume == expected[writes]);
+    assert(handle == (void *)1 && data && muted == (device_volume == 0));
+    if (tone_mode) {
+        assert(size == 1280 && reads == 0 && device_volume == 71);
+        int16_t *pcm = data;
+        assert(pcm[0] == 0 && pcm[8] == 8192 && pcm[24] == -8192);
+        for (int i = 0; i < size / 4; i++) assert(pcm[i * 2] == pcm[i * 2 + 1]);
+        if (++writes == 3) {
+            if (tone_ring_stop) atomic_store(&ring, true);
+            else assert(app_intercom_audio_test_request(false, 0) == ESP_OK);
+        }
+        /* A driver által módosított puffer sem halkíthatja el a következő periódust. */
+        memset(data, 0, (size_t)size);
+        return 0;
     }
+    assert(size == (int)test_frame * 4);
+    assert(device_volume == 73);
     for (int i = 0; i < size / 2; i++) {
-        if (abs(((int16_t *)data)[i]) > 100) speaker_audio = true;
+        int16_t sample = ((int16_t *)data)[i];
+        assert(sample == 0 || abs(sample - 2000) < 100);
+        assert(sample == ((int16_t *)data)[i ^ 1]);
+        if (abs(sample) > 100) speaker_audio = true;
     }
     writes++;
-    /* Az explicit csengetésvég az aktív mikrofont is leállítja. */
-    if (writes == 5) atomic_store(&ring, false);
+    if (writes == 3) {
+        atomic_store(&ring, false);
+        assert(app_intercom_audio_active_for(7) && wanted(s_epoch, 7));
+    }
+    if (writes == 5) assert(app_intercom_audio_request(false, 7) == ESP_OK);
     return 0;
 }
 aec_handle_t *aec_create_from_config(aec_config_t *config)
 {
+    aec_creates++;
     assert(config->sample_rate == 16000 && config->filter_length == 4 &&
            config->mic_num == 1 && config->ref_num == 1 && config->out_num == 1 &&
            config->mode == AEC_MODE_VOIP_LOW_COST && config->nlp_level == AEC_NLP_LEVEL_AGGR && config->caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
@@ -182,6 +194,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
     *out = (app_intercom_snapshot_t){.ringing=atomic_load(&ring),.connected=true,.revision=7};
     out->config.enabled = true;
+    out->config.speaker_volume = 73;
     strcpy(out->config.stream_url, "http://127.0.0.2/mjpg/video.mjpg");
     return true;
 }
@@ -308,8 +321,29 @@ int main(void)
     assert(peak == 100);
 
     assert(app_intercom_audio_start() == ESP_OK);
-    assert(app_intercom_audio_get_volume() == 55);
-    assert(app_intercom_audio_set_volume(70, 7) == ESP_ERR_INVALID_STATE);
+    s_requested = true;
+    s_revision = 7;
+    s_status.state = APP_INTERCOM_AUDIO_ACTIVE;
+    atomic_store(&ring, false);
+    assert(app_intercom_audio_active_for(7) && wanted(s_epoch, 7));
+    assert(!app_intercom_audio_active_for(6));
+    app_intercom_audio_gate_opened(6);
+    assert(!s_gate_stop_at);
+    app_intercom_audio_gate_opened(7);
+    int64_t deadline = s_gate_stop_at;
+    app_intercom_audio_gate_opened(7);
+    assert(s_gate_stop_at == deadline);
+    atomic_store(&clock_offset, 4900000);
+    assert(app_intercom_audio_active_for(7) && wanted(s_epoch, 7));
+    atomic_store(&clock_offset, 5100000);
+    assert(!app_intercom_audio_active_for(7) && !wanted(s_epoch, 7));
+    atomic_store(&clock_offset, 0);
+    s_gate_stop_at = 0;
+    s_status.state = APP_INTERCOM_AUDIO_CONNECTING;
+    assert(!wanted(s_epoch, 7));
+    s_requested = false;
+    s_status.state = APP_INTERCOM_AUDIO_IDLE;
+    atomic_store(&ring, true);
     assert(i2s_inits == 1 && mic_opens == 0);
     assert(tasks_created == 0 && !s_running && !app_intercom_audio_busy());
     task_failure = true;
@@ -340,8 +374,6 @@ int main(void)
         assert(s_running && app_intercom_audio_busy());
         assert(app_intercom_audio_request(true, 7) == ESP_ERR_INVALID_STATE);
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
-        test_volume_changes = mode == 0 && variant == 0;
-        if (test_volume_changes) s_volume = 55;
         fail_microphone = mode == 3;
         speaker_audio = false;
         pthread_t thread;
@@ -416,6 +448,22 @@ int main(void)
     s_running = s_requested = false;
     assert(i2s_inits == 1);
     /* Részleges BSP-hiba után soha nem használjuk újra a törölt csatornákat. */
+    /* A teszthang végigmegy a tényleges worker/kodek útvonalon, hálózat és ADC nélkül. */
+    tone_mode = true;
+    for (volatile unsigned stop_mode = 0; stop_mode < 2; stop_mode++) {
+        tone_ring_stop = stop_mode != 0;
+        reads = writes = mic_opens = mic_closes = speaker_closes = 0;
+        atomic_store(&ring, false);
+        unsigned aec_before = aec_creates;
+        assert(app_intercom_audio_test_request(true, 101) == ESP_ERR_INVALID_ARG);
+        assert(app_intercom_audio_test_request(true, 71) == ESP_OK);
+        assert(app_intercom_audio_test_request(true, 71) == ESP_ERR_INVALID_STATE);
+        if (!setjmp(worker_exit)) audio_worker(NULL);
+        assert(!app_intercom_audio_busy());
+        assert(writes == 3 && !reads && !mic_opens && !mic_closes && speaker_closes == 1 && muted);
+        assert(aec_creates == aec_before);
+    }
+    tone_mode = false;
     s_i2s_attempted = false;
     fail_i2s = true;
     audio_call_t *failed_i2s = calloc(1, sizeof(*failed_i2s));

@@ -48,6 +48,12 @@ const catalog = [
                         delete home.intercom.video_password;
                         body = {accepted:true};
                     } else body = home;
+                } else if (url.pathname === '/api/loxone/intercom/speaker-test') {
+                    const value = route.request().postDataJSON();
+                    assert.equal(value.volume, value.enabled ? 72 : 0);
+                    home.speaker_test_active = value.enabled;
+                    home.audio_busy = value.enabled;
+                    body = {accepted:true};
                 } else if (url.pathname === '/api/loxone/slaves') {
                     body = {ready:true, profiles:[], revision:1, busy:false};
                 } else if (url.pathname === '/api/loxone') {
@@ -62,6 +68,11 @@ const catalog = [
             await page.goto('http://loxone-device.test/');
             assert.equal(await page.evaluate(() => isSecureContext), false);
             await page.locator('#intercom-enabled').waitFor();
+            await page.locator('#intercom-speaker-volume').fill('72');
+            await page.locator('#intercom-speaker-test').click();
+            await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('leállítása'));
+            await page.locator('#intercom-speaker-test').click();
+            await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('indítása'));
             await page.locator('#intercom-enabled').check();
             await page.locator('#intercom-stream-url').fill(' \u00a0http://192.168.2.21/mjpg/video.mjpg\u00a0 ');
             await page.locator('#intercom-video-username').fill('admin');
@@ -76,6 +87,7 @@ const catalog = [
             assert.equal(await page.locator('#intercom-video-password').inputValue(), '');
             assert.equal(posts[0].intercom.stream_url, 'http://192.168.2.21/mjpg/video.mjpg');
             assert.equal(posts[0].intercom.bell_uuid, bell);
+            assert.equal(posts[0].intercom.speaker_volume, 72);
             assert.equal(posts[0].intercom.gate.control_uuid, gate);
             assert.equal(await page.locator('#intercom-stream-url').inputValue(), posts[0].intercom.stream_url);
             await page.locator('#intercom-stream-url').fill('http://192.168.2.21/mjpg/video.mjpg');

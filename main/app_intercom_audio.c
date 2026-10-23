@@ -35,8 +35,9 @@ static bool s_requested, s_running, s_started;
 static app_intercom_task_t s_audio_task = APP_INTERCOM_TASK_INITIALIZER;
 static unsigned s_epoch, s_revision;
 static app_intercom_audio_status_t s_status;
-/* Hívások között megmarad, újraindítás után a korábbi 55%-ról indul. */
-static unsigned s_volume = 55;
+static bool s_speaker_test;
+static unsigned s_test_volume;
+static int64_t s_gate_stop_at;
 static esp_codec_dev_handle_t s_speaker, s_microphone;
 static void audio_worker(void *argument);
 
@@ -129,37 +130,40 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
     portEXIT_CRITICAL(&s_lock);
 }
 
-unsigned app_intercom_audio_get_volume(void)
+bool app_intercom_audio_active_for(unsigned revision)
 {
+    int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&s_lock);
-    unsigned volume = s_volume;
+    bool active = s_requested && s_status.state == APP_INTERCOM_AUDIO_ACTIVE &&
+                  s_revision == revision && (!s_gate_stop_at || now < s_gate_stop_at);
     portEXIT_CRITICAL(&s_lock);
-    return volume;
+    return active;
 }
 
-esp_err_t app_intercom_audio_set_volume(unsigned percent, unsigned revision)
+void app_intercom_audio_gate_opened(unsigned revision)
 {
-    if (percent > 100) {
-        return ESP_ERR_INVALID_ARG;
-    }
+    int64_t deadline = esp_timer_get_time() + 5000000LL;
     portENTER_CRITICAL(&s_lock);
-    bool active = s_requested && s_status.state == APP_INTERCOM_AUDIO_ACTIVE && s_revision == revision;
-    if (active) {
-        s_volume = percent;
-    }
+    if (s_requested && s_status.state == APP_INTERCOM_AUDIO_ACTIVE &&
+        s_revision == revision && !s_gate_stop_at)
+        s_gate_stop_at = deadline;
     portEXIT_CRITICAL(&s_lock);
-    return active ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
+static esp_err_t audio_request(bool enabled, unsigned revision, bool test, unsigned volume)
 {
     reap_audio();
     app_intercom_snapshot_t current;
-    if (enabled && (!app_loxone_intercom_snapshot(&current) || !current.ringing ||
-                    !current.connected || current.revision != revision)) {
+    if (enabled && (!app_loxone_intercom_snapshot(&current) ||
+                    (test ? current.ringing : !current.ringing) ||
+                    (!test && !current.connected) || current.revision != revision)) {
         return ESP_ERR_INVALID_STATE;
     }
     portENTER_CRITICAL(&s_lock);
+    if (!enabled && test && !s_speaker_test) {
+        portEXIT_CRITICAL(&s_lock);
+        return ESP_OK;
+    }
     if (enabled && (!s_started || s_running || s_requested)) {
         portEXIT_CRITICAL(&s_lock);
         return ESP_ERR_INVALID_STATE;
@@ -168,13 +172,17 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
         s_epoch++;
         s_revision = revision;
         s_requested = enabled;
+        s_gate_stop_at = 0;
         if (enabled) {
             s_running = true;
+            s_speaker_test = test;
+            s_test_volume = volume;
         }
         s_status = (app_intercom_audio_status_t){
-            .state = enabled ? APP_INTERCOM_AUDIO_CONNECTING :
+            .state = enabled ? (test ? APP_INTERCOM_AUDIO_TESTING : APP_INTERCOM_AUDIO_CONNECTING) :
                      s_running ? APP_INTERCOM_AUDIO_STOPPING : APP_INTERCOM_AUDIO_IDLE,
             .revision = revision,
+            .speaker_test = s_speaker_test,
         };
     }
     unsigned epoch = s_epoch;
@@ -202,13 +210,28 @@ esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
     return ESP_OK;
 }
 
+esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
+{
+    return audio_request(enabled, revision, false, 0);
+}
+
+esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume)
+{
+    if (volume > 100) return ESP_ERR_INVALID_ARG;
+    app_intercom_snapshot_t current = {0};
+    if (enabled && !app_loxone_intercom_snapshot(&current)) return ESP_ERR_INVALID_STATE;
+    return audio_request(enabled, current.revision, true, volume);
+}
+
 static bool wanted(unsigned epoch, unsigned revision)
 {
+    int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&s_lock);
-    bool request = s_requested && s_epoch == epoch;
+    bool request = s_requested && s_epoch == epoch && (!s_gate_stop_at || now < s_gate_stop_at);
+    bool active = s_status.state == APP_INTERCOM_AUDIO_ACTIVE;
     portEXIT_CRITICAL(&s_lock);
     app_intercom_snapshot_t current;
-    return request && app_loxone_intercom_snapshot(&current) && current.ringing &&
+    return request && app_loxone_intercom_snapshot(&current) && (current.ringing || active) &&
            current.connected && current.revision == revision;
 }
 
@@ -667,7 +690,6 @@ static bool open_hardware(audio_call_t *call)
     /* Sikertelen open után is bezárjuk az esetleg engedélyezett adatillesztést. */
     audio_checkpoint(AUDIO_STAGE_SPEAKER);
     call->speaker_open = true;
-    call->volume = app_intercom_audio_get_volume();
     if (!hardware_check(call, "Hangszóró megnyitás", esp_codec_dev_open(s_speaker, &format)) ||
         !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, (int)call->volume)) ||
         !wanted(call->epoch, call->revision)) {
@@ -744,16 +766,6 @@ static void media_session(audio_call_t *call)
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
     while (wanted(call->epoch, call->revision)) {
         int64_t cycle_started = esp_timer_get_time();
-        unsigned volume = app_intercom_audio_get_volume();
-        if (volume != call->volume) {
-            /* I2C-művelet kizárólag itt, LVGL-lock és kritikus szakasz nélkül. */
-            if (!hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, (int)volume)) ||
-                !hardware_check(call, "Hangszóró némítás", esp_codec_dev_set_out_mute(s_speaker, volume == 0))) {
-                publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
-                break;
-            }
-            call->volume = volume;
-        }
         if (!pump_signaling(call)) {
             if (!call->ended) {
                 publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon hangkapcsolata megszakadt.");
@@ -891,6 +903,7 @@ static void close_call(audio_call_t *call)
 
 static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot)
 {
+    call->volume = snapshot->config.speaker_volume;
     audio_checkpoint(AUDIO_STAGE_SIP);
     char host[128];
     if (!intercom_audio_host(snapshot->config.stream_url, host, sizeof(host)) || !connect_peer(call, host)) {
@@ -922,11 +935,60 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
     media_session(call);
 }
 
+static bool test_wanted(unsigned epoch, unsigned revision)
+{
+    portENTER_CRITICAL(&s_lock);
+    bool request = s_requested && s_speaker_test && s_epoch == epoch;
+    portEXIT_CRITICAL(&s_lock);
+    app_intercom_snapshot_t current;
+    return request && app_loxone_intercom_snapshot(&current) &&
+           !current.ringing && current.revision == revision;
+}
+
+static void speaker_test(audio_call_t *call)
+{
+    /* A teszt ugyanazt az ES8311/I2S/erősítő útvonalat használja, mint a hívás,
+     * de nem nyit mikrofont, hálózatot vagy visszhangszűrőt. */
+    if (!hardware_check(call, "Hang I2C indítás", bsp_i2c_init()) || prepare_i2s() != ESP_OK) {
+        if (!call->hardware_error[0])
+            snprintf(call->hardware_error, sizeof(call->hardware_error), "%s", s_i2s_error);
+        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
+        return;
+    }
+    if (!s_speaker) s_speaker = bsp_audio_codec_speaker_init();
+    esp_codec_dev_sample_info_t format = {.sample_rate=AUDIO_RATE, .channel=2, .bits_per_sample=16};
+    call->speaker_open = s_speaker != NULL;
+    if (!hardware_check(call, "Hangszóró inicializálás", s_speaker ? ESP_OK : ESP_FAIL) ||
+        !hardware_check(call, "Hangszóró megnyitás", esp_codec_dev_open(s_speaker, &format)) ||
+        !hardware_check(call, "Hangszóró hangerő", esp_codec_dev_set_out_vol(s_speaker, (int)call->volume)) ||
+        !hardware_check(call, "Hangszóró feloldás", esp_codec_dev_set_out_mute(s_speaker, call->volume == 0))) {
+        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
+        return;
+    }
+    static const int16_t sine[16] = {0,3135,5793,7568,8192,7568,5793,3135,
+                                   0,-3135,-5793,-7568,-8192,-7568,-5793,-3135};
+    int16_t samples[320 * 2];
+    char message[96];
+    snprintf(message, sizeof(message), "Hangszóróteszt: 1000 Hz, hangerő %u%%. Újabb kattintással leállítható.", call->volume);
+    publish(call->epoch, APP_INTERCOM_AUDIO_TESTING, message);
+    while (test_wanted(call->epoch, call->revision)) {
+        /* A codec szoftveres hangerőútja módosíthatja a beadott puffert. */
+        for (unsigned i = 0; i < 320; i++) samples[i * 2] = samples[i * 2 + 1] = sine[i % 16];
+        audio_checkpoint(AUDIO_STAGE_PLAYBACK);
+        if (esp_codec_dev_write(s_speaker, samples, sizeof(samples)) != ESP_CODEC_DEV_OK) {
+            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A hangszóróteszt lejátszása sikertelen.");
+            break;
+        }
+    }
+}
+
 static void audio_worker(void *argument)
 {
     (void)argument;
     portENTER_CRITICAL(&s_lock);
     bool requested = s_requested;
+    bool test = s_speaker_test;
+    unsigned test_volume = s_test_volume;
     unsigned epoch = s_epoch, revision = s_revision;
     portEXIT_CRITICAL(&s_lock);
     if (requested) {
@@ -936,7 +998,10 @@ static void audio_worker(void *argument)
             call->tcp = call->udp = call->listener = call->incoming = call->rtp = -1;
             call->epoch = epoch;
             call->revision = revision;
-            if (wanted(epoch, revision) && app_loxone_intercom_snapshot(&snapshot)) {
+            if (test && test_wanted(epoch, revision)) {
+                call->volume = test_volume;
+                speaker_test(call);
+            } else if (!test && wanted(epoch, revision) && app_loxone_intercom_snapshot(&snapshot)) {
                 run_call(call, &snapshot);
             }
             close_call(call);
@@ -949,6 +1014,7 @@ static void audio_worker(void *argument)
     if (s_epoch == epoch) {
         s_requested = false;
     }
+    s_speaker_test = false;
     if (s_status.state != APP_INTERCOM_AUDIO_ERROR) {
         s_status.state = APP_INTERCOM_AUDIO_IDLE;
         s_status.message[0] = 0;

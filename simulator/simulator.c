@@ -299,7 +299,6 @@ static int intercom_self_test(void)
     if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
     if (!intercom_audio || lv_obj_has_state(intercom_audio, LV_STATE_DISABLED)) return 49;
     if (app_sim_audio_starts || app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE) return 50;
-    if (!lv_obj_has_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN)) return 66;
     lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
     render_step(200);
     if (app_sim_audio_starts != 1 || app_sim_audio.state != APP_INTERCOM_AUDIO_CONNECTING) return 51;
@@ -322,24 +321,11 @@ static int intercom_self_test(void)
     if (lv_obj_get_x(intercom_gate) + lv_obj_get_width(intercom_gate) >= lv_obj_get_x(intercom_audio)) return 54;
     lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
     app_sim_audio.state = APP_INTERCOM_AUDIO_ACTIVE;
+    app_sim_intercom.ringing = false;
     render_step(200);
-    if (lv_obj_has_flag(intercom_volume_panel, LV_OBJ_FLAG_HIDDEN)) return 67;
-    lv_slider_set_value(intercom_volume_slider, 90, LV_ANIM_OFF);
-    lv_obj_send_event(intercom_volume_slider, LV_EVENT_VALUE_CHANGED, NULL);
-    if (app_intercom_audio_get_volume() != 90) return 68;
-    render_step(200);
-    lv_obj_send_event(lv_obj_get_child(intercom_volume_panel, 3), LV_EVENT_CLICKED, NULL);
-    if (app_intercom_audio_get_volume() != 100) return 69;
-    render_step(200);
-    lv_obj_send_event(lv_obj_get_child(intercom_volume_panel, 3), LV_EVENT_CLICKED, NULL);
-    if (app_intercom_audio_get_volume() != 100) return 70;
-    lv_slider_set_value(intercom_volume_slider, 0, LV_ANIM_OFF);
-    lv_obj_send_event(intercom_volume_slider, LV_EVENT_VALUE_CHANGED, NULL);
-    if (app_intercom_audio_get_volume() != 0) return 71;
-    render_step(200);
-    lv_obj_update_layout(intercom_overlay);
-    if (lv_obj_get_y(intercom_volume_panel) + lv_obj_get_height(intercom_volume_panel) >=
-        lv_obj_get_y(intercom_audio)) return 72;
+    if (intercom_overlay != original || intercom_revision != 1) return 66;
+    if (!app_intercom_ui_frame(frame,16,16,32,1)) return 67;
+    app_sim_intercom.ringing = true;
     app_sim_home_reset();
     unsigned sent=app_sim_home_commands;
     ticks+=2000000;
@@ -354,6 +340,7 @@ static int intercom_self_test(void)
     render_step(200);
     if (intercom_overlay!=original) return 47;
     app_sim_intercom.ringing=false;
+    app_sim_audio.state = APP_INTERCOM_AUDIO_STOPPING;
     app_energy_sample_t saved;
     if (!app_state_get_sample(&saved)) return 63;
     app_state_set_data_mode(APP_DATA_LOXONE);
@@ -364,8 +351,7 @@ static int intercom_self_test(void)
     if (intercom_overlay || template_view.document || !intercom_background_suspended) return 65;
     app_sim_media_idle = true;
     render_step(200);
-    if (intercom_overlay || intercom_front || intercom_prepared || intercom_needs_cleanup() ||
-        intercom_volume_panel || intercom_volume_slider || intercom_volume_label) return 48;
+    if (intercom_overlay || intercom_front || intercom_prepared || intercom_needs_cleanup()) return 48;
     if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 2) return 55;
     if (intercom_background_suspended || !template_view.document ||
         strcmp(template_view.id, "09-solar-journey") || template_view.generation != selected_generation) return 64;

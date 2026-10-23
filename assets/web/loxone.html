@@ -14,6 +14,9 @@
 <fieldset><legend>Kaputelefon (Master kijelző)</legend>
 <p>A videóhoz külön felhasználónevet és jelszót kell megadni. A tesztelt kaputelefon videója csak admin felhasználóval működik; az integrációs felhasználónak adott kaputelefon-jogosultság nem elegendő. A csengetésállapot 1 / true értékénél teljes képernyős élőkép nyílik meg; kizárólag a 0 / false érték zárja be. Kapunyitás után is látható marad.</p>
 <div id="intercom-config" class="grid"></div>
+<p><button id="intercom-speaker-test" type="button">Ideiglenes hangszóróteszt indítása</button></p>
+<p><small>A teszt az itt megadott hangerővel folyamatos helyi teszthangot játszik le. Újabb kattintással leállítható; csengetéskor automatikusan leáll. A beszélgetés a mentett hangerőt használja.</small></p>
+<p id="intercom-speaker-test-status" role="status" aria-live="polite"></p>
 <p><small>A videócím a kaputelefon saját helyi IP-címét tartalmazza, például http://192.168.1.50/mjpg/video.mjpg. A kapunyitás opcionális, az Otthon pillanatnyi gombjával azonos impulzust küld. A helyiség és funkció szűrők itt is használhatók.</small></p>
 <button id="intercom-save" type="button">Kaputelefon és Otthon-beállítások mentése</button><p id="intercom-status" role="status" aria-live="polite"></p></fieldset>
 <h3>Fogyasztók</h3><div id="home-consumers"></div><button id="home-add-consumer" type="button">Fogyasztó hozzáadása</button>

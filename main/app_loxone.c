@@ -1,6 +1,7 @@
 /* Korlátos, egy kapcsolatos Loxone kliens. A UI és HTTP feladat nem vár hálózatra. */
 #include "app_loxone.h"
 #include "app_intercom.h"
+#include "app_intercom_audio.h"
 #include "app_loxone_model.h"
 #include "app_loxone_store.h"
 #include "app_loxone_home_store.h"
@@ -64,7 +65,7 @@ static char s_command_status[LX_HOME_ERROR_SIZE];
 typedef struct {
     char id[LX_HOME_ID_SIZE];
     lx_home_command_t action;
-    unsigned revision, session;
+    unsigned revision, session, intercom_revision;
     int64_t queued_us;
 } home_command_t;
 static home_command_t s_pending_command;
@@ -629,6 +630,7 @@ esp_err_t app_loxone_start(void)
     if (!s_home)
         return ESP_ERR_NO_MEM;
     esp_err_t home_load = app_loxone_home_store_load(s_home);
+    if (home_load != ESP_OK) s_home->intercom.speaker_volume = 55;
     if (home_load != ESP_OK && home_load != ESP_ERR_NOT_FOUND)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
@@ -745,7 +747,8 @@ static bool update_values(int type, const uint8_t *data, size_t size)
     {
         bool was_ringing = s_intercom_ringing;
         ok = lx_intercom_bell_update(&s_intercom_ringing, &s_home->intercom, type, data, size);
-        if (was_ringing != s_intercom_ringing)
+        /* Felépült beszélgetés alatt a csengő éle nem cseréli le a hívást. */
+        if (was_ringing != s_intercom_ringing && !app_intercom_audio_active_for(s_intercom_generation))
             s_intercom_generation++;
     }
     xSemaphoreGive(s_lock);
@@ -824,7 +827,8 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     char command[96];
     bool door = !strcmp(card_id, LX_INTERCOM_GATE_ID);
-    bool allowed = (!door || s_intercom_ringing) && s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
+    bool allowed = (!door || s_intercom_ringing || app_intercom_audio_active_for(s_intercom_generation)) &&
+                   s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
                    lx_home_command_build(s_home, s_catalog, card_id, action, command);
     for (unsigned i = 0; allowed && i < s_home->card_count; i++)
@@ -834,6 +838,7 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
                       s_home_values.cards[i].value == (action == LX_HOME_COMMAND_ON ? 0 : 1);
     }
     home_command_t request = {.action = action, .revision = s_home_revision, .session = s_home_session, .queued_us = esp_timer_get_time()};
+    request.intercom_revision = s_intercom_generation;
     snprintf(request.id, sizeof(request.id), "%s", card_id);
     allowed = allowed && xQueueSend(s_home_commands, &request, 0) == pdTRUE;
     if (allowed)
@@ -859,7 +864,9 @@ static void home_command_poll(int64_t now)
          * A ciklus eleji idő ilyenkor régebbi a gombnyomásnál. */
         now = esp_timer_get_time();
         bool door = !strcmp(request.id, LX_INTERCOM_GATE_ID);
-        bool valid = (!door || s_intercom_ringing) && s_home_live && !s_dead && request.revision == s_home_revision &&
+        bool valid = (!door || ((s_intercom_ringing || app_intercom_audio_active_for(s_intercom_generation)) &&
+                              request.intercom_revision == s_intercom_generation)) &&
+                     s_home_live && !s_dead && request.revision == s_home_revision &&
                      request.session == s_home_session && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
                      lx_home_command_build(s_home, s_catalog, request.id, request.action, command);
@@ -884,6 +891,8 @@ static void home_command_poll(int64_t now)
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Állapot-visszajelzésre várunk...");
         }
         xSemaphoreGive(s_lock);
+        if (answer && door && request.action == LX_HOME_COMMAND_PULSE)
+            app_intercom_audio_gate_opened(request.intercom_revision);
         cJSON_Delete(answer);
     }
     now = esp_timer_get_time();
@@ -918,6 +927,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
     out->connected = s_home_live && !s_dead &&
         esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
     out->revision = s_intercom_generation;
+    out->audio_active = out->config.enabled && out->connected && app_intercom_audio_active_for(out->revision);
     char command[96];
     out->gate_supported = lx_home_command_build(s_home, s_catalog, LX_INTERCOM_GATE_ID,
                                                 LX_HOME_COMMAND_PULSE, command);
