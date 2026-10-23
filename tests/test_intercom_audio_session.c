@@ -282,6 +282,15 @@ static void *fake_door(void *argument)
 
 int main(void)
 {
+    /* Csend, szélsőérték és sztereó csatornák külön mérése. */
+    const int16_t levels[] = {0, -32768, 16384, 0};
+    uint16_t peak = 0;
+    measure_signal(&peak, levels, 2, 2);
+    assert(peak == 50);
+    peak = 0;
+    measure_signal(&peak, levels + 1, 2, 2);
+    assert(peak == 100);
+
     assert(app_intercom_audio_start() == ESP_OK);
     assert(i2s_inits == 1 && mic_opens == 0);
     assert(tasks_created == 0 && !s_running && !app_intercom_audio_busy());

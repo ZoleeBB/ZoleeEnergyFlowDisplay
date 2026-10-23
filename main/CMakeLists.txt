@@ -89,6 +89,7 @@ idf_component_register(
         "app_payload.c"
         "app_state.c"
         "app_stats.c"
+        "app_battery_diagnostics.c"
         "app_storage.c"
         "app_time.c"
         "app_ui.c"

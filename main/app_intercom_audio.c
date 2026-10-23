@@ -199,6 +199,7 @@ typedef struct {
     uint16_t receive_port;
     unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
     unsigned cycle_peak_ms;
+    uint16_t signal_peak[4];
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
     char reply[INTERCOM_SIP_MAX + 1];
@@ -685,6 +686,19 @@ static bool receive_audio(audio_call_t *call, const struct sockaddr_in *source,
     return true;
 }
 
+/* A PCM abszolút csúcsszintje százalékban; -32768 is biztonságosan mérhető.
+ * A számlálók nem igazolják, hogy a csomag beszédet tartalmaz. */
+static void measure_signal(uint16_t *peak, const int16_t *samples, unsigned count, unsigned stride)
+{
+    for (unsigned i = 0; i < count; i++) {
+        int value = samples[i * stride];
+        unsigned level = (unsigned)(value < 0 ? -value : value) * 100U / 32768U;
+        if (level > *peak) {
+            *peak = (uint16_t)level;
+        }
+    }
+}
+
 static void media_session(audio_call_t *call)
 {
     const unsigned frame = call->frame_samples;
@@ -698,6 +712,7 @@ static void media_session(audio_call_t *call)
     uint32_t timestamp = esp_random(), ssrc = esp_random();
     int64_t last_packet = esp_timer_get_time();
     int64_t last_status = last_packet;
+    bool show_signal = false;
     publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "Hanghívás létrejött, hangcsomagra várunk...");
     /* A lejátszás és felvétel azonos I2S-órán fut. A hálózati csomagokból
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
@@ -730,14 +745,23 @@ static void media_session(audio_call_t *call)
             break;
         }
         if (esp_timer_get_time() - last_status >= 1000000LL) {
-            char message[128];
-            snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms",
-                     call->rx_packets, call->rx_accepted, call->tx_packets, call->jitter.resyncs,
-                     call->cycle_peak_ms, frame * 1000U / AUDIO_RATE);
+            char message[160];
+            if (show_signal) {
+                snprintf(message, sizeof(message), "Jelszint be:%u%% mikrofon B/J:%u/%u%% AEC:%u%% (2 s csúcs)",
+                         call->signal_peak[0], call->signal_peak[1], call->signal_peak[2], call->signal_peak[3]);
+                memset(call->signal_peak, 0, sizeof(call->signal_peak));
+            } else {
+                snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms",
+                         call->rx_packets, call->rx_accepted, call->tx_packets, call->jitter.resyncs,
+                         call->cycle_peak_ms, frame * 1000U / AUDIO_RATE);
+            }
+            show_signal = !show_signal;
+            call->cycle_peak_ms = 0;
             publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, message);
             last_status = esp_timer_get_time();
         }
         intercom_jitter_read(&call->jitter, remote, frame / 2);
+        measure_signal(&call->signal_peak[0], remote, frame / 2, 1);
         for (unsigned i = 0; i < frame; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
@@ -749,12 +773,15 @@ static void media_session(audio_call_t *call)
         if (!wanted(call->epoch, call->revision)) {
             break;
         }
+        measure_signal(&call->signal_peak[1], capture, frame, 2);
+        measure_signal(&call->signal_peak[2], capture + 1, frame, 2);
         for (unsigned i = 0; i < frame; i++) {
             microphone[i] = capture[i * 2];
         }
         /* A referencia az előzőleg kiküldött hang; új mintát csak feldolgozás után írunk bele. */
         audio_checkpoint(AUDIO_STAGE_PROCESS);
         aec_process(call->aec, microphone, reference, clean);
+        measure_signal(&call->signal_peak[3], clean, frame, 1);
         audio_checkpoint(AUDIO_STAGE_PLAYBACK);
         if (esp_codec_dev_write(s_speaker, speaker, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző hangkimenete nem érhető el.");
@@ -780,7 +807,8 @@ static void media_session(audio_call_t *call)
                 fill = 0;
             }
         }
-        vTaskDelay(1);
+        /* A blokkoló I2S-olvasás adja az ütemet. A plusz egy RTOS tick
+         * minden 16 ms-os keretet lassított és a jitterpuffert elcsúsztatta. */
         unsigned cycle_ms = (unsigned)((esp_timer_get_time() - cycle_started) / 1000);
         if (cycle_ms > call->cycle_peak_ms) call->cycle_peak_ms = cycle_ms;
     }

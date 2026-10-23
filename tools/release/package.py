@@ -106,7 +106,9 @@ def package(build, output, tag, commit, board="main"):
             files['sd-card/templates/loxone-home/' + name] = data
     # The repository keeps templates at its root; the portable installer keeps
     # the same package files under sd-card/. Preserve offline preview links.
-    for name in ('README.md', 'docs/templates.md'):
+    for name in tuple(files):
+        if not name.endswith('.md'):
+            continue
         text = files[name].decode('utf-8')
         text = text.replace('](templates/', '](sd-card/templates/')
         text = text.replace('](../templates/', '](../sd-card/templates/')

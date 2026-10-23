@@ -83,3 +83,11 @@ A `--home-demo` már három címezett Otthon-lapot mutat: Földszint, Kert és e
 Vendégszoba. Jobbra/balra húzással lapozható; a fejléc és a pontok követik az
 aktuális oldalt. A fogyasztói oldal külön külső háznézetet, az Otthon beltéri
 hátteret használ. Az alsó szöveg mindkettőn fedő, kontrasztos láblécen jelenik meg.
+
+## Akku diagnosztika demó
+
+A `10-battery-diagnostics` témát a többi téma között lehet kiválasztani.
+A desktop három mesterséges töltés/kisütés-párt és egy élő kisütést a valódi
+C-modelllel számol ki (15 kWh névleges, kb. 13,8 kWh / 92% becslés). Ezek
+demóadatok, nem csatlakoztatott akkumulátor mérési eredményei. A készüléken
+ugyanezek a mezők csak a tényleges folyamatos mérések után telnek ki.

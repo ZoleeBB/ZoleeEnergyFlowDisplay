@@ -58,6 +58,12 @@ letöltés nincs; a Linuxos tesztek megmaradtak. A régi futások története me
 
 ## Automatikus kiadás PR-merge után
 
+A **#20 kaputelefonos PR** egyszeri célverziója **v3.1.0**, a szokásos
+patch-növelés helyett. A szabály kizárólag a saját `feature/loxone-intercom`
+ág igazolt main-merge-jére érvényes. Összevonás nélküli lezárás nem ad ki
+verziót. Meglévő stabil v3.1.0 vagy újabb verziónál ütközési hibával leáll;
+a korábbi saját foglalást újrafuttatáskor megőrzi. Más PR marad patch-kiadás.
+
 A v3 fejlesztés egyszeri célverziója **v3.0.0**. Kizárólag a
 `ZoleeBB/ZoleeEnergyFlowDisplay` saját `feature/v3-loxone-home` ágából igazoltan
 mainre összevont PR kapja. A kapcsolódó PR-t a pontos main commithoz kérjük le,

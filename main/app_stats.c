@@ -41,6 +41,7 @@ static const char *TAG = "stats";
 typedef struct {
     char date[11];
     app_energy_totals_t totals;
+    app_battery_diagnostics_t battery;
     app_stats_slot_t slots[APP_STATS_SLOT_COUNT];
     uint16_t night_seconds[48];
     double night_load_kwh[48];
@@ -407,6 +408,13 @@ static cJSON *day_to_json(const day_data_t *day)
     cJSON_AddNumberToObject(root, "revision", day->revision);
     cJSON_AddStringToObject(root, "date", day->date);
     cJSON_AddItemToObject(root, "totals", totals_to_json(&day->totals));
+    cJSON *battery = app_battery_to_json(&day->battery);
+    if (!battery || !cJSON_AddItemToObject(root, "battery_diagnostics", battery))
+    {
+        cJSON_Delete(battery);
+        cJSON_Delete(root);
+        return NULL;
+    }
 
     cJSON *slots = cJSON_AddArrayToObject(root, "slots");
     if (!slots) {
@@ -603,6 +611,10 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             parsed->totals.battery_home_kwh+=e->battery_home_kwh;
         }
     }
+    /* Régi napi fájl is érvényes; hibás diagnosztika nem törli az energiamérést. */
+    const cJSON *battery = cJSON_GetObjectItemCaseSensitive(root, "battery_diagnostics");
+    if (battery)
+        app_battery_from_json(battery, &parsed->battery);
     parsed->valid = true;
     *out = *parsed;
     free(parsed);
@@ -789,7 +801,9 @@ static esp_err_t save_day_file(const day_data_t *day)
 /* A mai nap RAM struktúrájának nullázása új dátummal. */
 static void reset_today(const char *date)
 {
+    app_battery_diagnostics_t battery = s_today.battery;
     memset(&s_today, 0, sizeof(s_today));
+    s_today.battery = battery; /* Éjfél nem szakítja meg a valós töltési ciklust. */
     snprintf(s_today.date, sizeof(s_today.date), "%s", date);
     s_today.valid = true;
     s_today.revision=1;
@@ -1001,6 +1015,8 @@ esp_err_t app_stats_init(const app_config_t *cfg)
         memset(&s_yesterday, 0, sizeof(s_yesterday));
     }
 
+    if (!s_today.battery.nominal_kwh && s_yesterday.battery.nominal_kwh)
+        s_today.battery = s_yesterday.battery;
     memset(s_history,0,sizeof(s_history));
     memset(s_night_history, 0, sizeof(s_night_history));
     night_history_put(&s_yesterday);
@@ -1009,9 +1025,17 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     for(int i=2;i<APP_STATS_HISTORY_DAYS;i++){
         struct tm tmv;localtime_r(&now,&tmv);tmv.tm_mday-=i;tmv.tm_isdst=-1;
         char date[11];date_for(mktime(&tmv),date);
-        if(load_day(date,historical)==ESP_OK)history_put(historical);
+        if (load_day(date, historical) == ESP_OK)
+        {
+            history_put(historical);
+            if (!s_today.battery.nominal_kwh && historical->battery.nominal_kwh)
+                s_today.battery = historical->battery;
+        }
     }
     free(historical);
+    if (s_today.battery.nominal_kwh != cfg->energy.battery_capacity_kwh)
+        app_battery_init(&s_today.battery, cfg->energy.battery_capacity_kwh);
+    app_battery_break(&s_today.battery); /* Új boot: nincs folytonos előző minta. */
     cleanup_old_files(today, yesterday);
     s_have_prev = false;
     s_last_save_us = esp_timer_get_time();
@@ -1039,6 +1063,11 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
     roll_day(now);
+    if (runtime.time_synced)
+        app_battery_process(&s_today.battery, sample, s_cfg.energy.battery_capacity_kwh,
+                            app_config_data_timeout(&s_cfg));
+    else
+        app_battery_break(&s_today.battery);
     if(s_have_prev){
         if (s_cfg.data_recept_mode == APP_DATA_LOXONE && s_prev.night_mode && sample->night_mode &&
             (sample->received_epoch_s <= s_prev.received_epoch_s ||
@@ -1109,6 +1138,7 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
     memset(out, 0, sizeof(*out));
     snprintf(out->date, sizeof(out->date), "%s", s_today.date);
     out->totals = s_today.totals;
+    app_battery_report(&s_today.battery, time(NULL), &out->battery);
     out->reference_valid = true;
     out->reference_energy = s_cfg.energy;
     snprintf(out->reference_currency, sizeof(out->reference_currency), "%s", s_cfg.project.currency);
@@ -1374,5 +1404,6 @@ void app_stats_break_continuity(void)
     if(!s_mutex)return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     s_have_prev=false;
+    app_battery_break(&s_today.battery);
     xSemaphoreGive(s_mutex);
 }

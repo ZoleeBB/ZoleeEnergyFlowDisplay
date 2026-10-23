@@ -16,6 +16,7 @@ static struct tm *localtime_r(const time_t *t, struct tm *out)
 #include "../main/app_ui.c"
 #include "app_ingest.h"
 #include "home_fixture.h"
+#include "battery_fixture.h"
 void app_ble_pairing_status(app_ble_pairing_status_t *out){memset(out,0,sizeof(*out));}
 bool app_ble_pairing_submit(uint32_t token,const char *pin){(void)token;(void)pin;return false;}
 void app_ble_pairing_open(void){}
@@ -172,6 +173,7 @@ static void init_demo(void)
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
     fixture.has_yesterday=true;
+    app_battery_fixture(&fixture.battery, config.energy.battery_capacity_kwh, time(NULL));
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
     strftime(fixture.date,sizeof(fixture.date),"%Y-%m-%d",&tmv);
     int current=tmv.tm_hour*12+tmv.tm_min/5;

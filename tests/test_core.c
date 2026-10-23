@@ -577,6 +577,57 @@ static void test_assistant_night_history(void)
     tests++;
 }
 
+static void test_battery_diagnostics_storage(void)
+{
+    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_SLAVE};
+    for (unsigned mode = 0; mode < sizeof(modes) / sizeof(modes[0]); mode++)
+    {
+        time_t start = instant("2026-10-21", 22, 0, 0);
+        reset(start);
+        cfg.data_recept_mode = modes[mode];
+        cfg.energy.battery_capacity_kwh = 10;
+        assert(app_stats_init(&cfg) == ESP_OK);
+        app_state_set_time_synced(true);
+        for (unsigned seconds = 0; seconds <= 10800; seconds += 5)
+        {
+            fake_epoch = start + seconds;
+            fake_us = INT64_C(1000000) + seconds * INT64_C(1000000);
+            app_energy_sample_t value = sample(fake_epoch, 0, 0, 2);
+            value.soc_bat_pct = 80 - seconds / 180.;
+            app_stats_process_sample(&value);
+        }
+        for (unsigned seconds = 10805; seconds <= 11410; seconds += 5)
+        {
+            fake_epoch = start + seconds;
+            fake_us = INT64_C(1000000) + seconds * INT64_C(1000000);
+            app_energy_sample_t value = sample(fake_epoch, 0, 0, 0);
+            value.soc_bat_pct = 20;
+            app_stats_process_sample(&value);
+        }
+        app_stats_get_snapshot(&snapshot);
+        assert(snapshot.battery.capacity_valid && snapshot.battery.discharge_runs == 1);
+        assert(fabs(snapshot.battery.capacity_pct - 100) < .1);
+        assert(app_stats_save_now() == ESP_OK);
+        cJSON *document = read_json("2026-10-22");
+        const cJSON *battery = cJSON_GetObjectItem(document, "battery_diagnostics");
+        assert(cJSON_GetArraySize(cJSON_GetObjectItem(battery, "runs")) == 1);
+        cJSON_Delete(document);
+        assert(app_stats_init(&cfg) == ESP_OK);
+        app_stats_get_snapshot(&snapshot);
+        assert(snapshot.battery.capacity_valid && !snapshot.battery.active_direction);
+        double cycles = snapshot.battery.cycles;
+        feed(fake_epoch + 600, 0, 0, 2);
+        app_stats_get_snapshot(&snapshot);
+        near(snapshot.battery.cycles, cycles); /* A reboot utáni szünet nem energia. */
+        cfg.energy.battery_capacity_kwh = 15;
+        assert(app_stats_init(&cfg) == ESP_OK);
+        app_stats_get_snapshot(&snapshot);
+        assert(!snapshot.battery.capacity_valid && snapshot.battery.cycles == 0);
+    }
+    puts("PASS: battery diagnostics across midnight, actual SD/reboot and all four local data modes");
+    tests++;
+}
+
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
@@ -596,6 +647,7 @@ int main(void){
     app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
     tests++;
     test_assistant_night_history();
+    test_battery_diagnostics_storage();
     test_cardless_stats();
     clean();printf("PASS: %d regression groups (cJSON %s)\n",tests,cJSON_Version());return 0;
 }

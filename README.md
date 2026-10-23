@@ -84,6 +84,7 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 | Energiafőkönyv | ![Nappal](templates/07-energy-ledger/preview-light.png) | ![Éjjel](templates/07-energy-ledger/preview-dark.png) |
 | Energiastatisztika | ![Nappal](templates/08-statistics/preview-light.png) | ![Éjjel](templates/08-statistics/preview-dark.png) |
 | Nap pálya | ![Nappal](templates/09-solar-journey/preview-light.png) | ![Éjjel](templates/09-solar-journey/preview-dark.png) |
+| Akku diagnosztika | ![Nappal](templates/10-battery-diagnostics/preview-light.png) | ![Éjjel](templates/10-battery-diagnostics/preview-dark.png) |
 
 A webes sablonkezelő a csomagok `preview-light.png` / `preview-dark.png` képeit mutatja; régi csomagnál üres keret marad, amíg a témát ZIP-ből frissíted.
 
@@ -103,10 +104,12 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Loxone mintaprogramok](docs/loxone.md)
 - [SD-kártya](docs/sd-card.md)
 - [BLE master/Slave, PIN-es párosítás és SD nélküli működés](docs/ble-data-seed.md)
-- [Kilenc választható téma](docs/templates.md)
+- [Tíz választható téma](docs/templates.md)
 - [Nyugodt otthon – megújult nappali/éjszakai téma](docs/calm-home.md)
 - [Energiakör – megújult téma és 24 órás napállás-idővonal](docs/energy-orbit.md)
 - [Nap pálya – működés, energiautak és ellenőrzés](docs/solar-journey-acceptance.md)
+- [Akku diagnosztika – energia/SOC, kapacitásbecslés és hatásfok](docs/battery-diagnostics.md)
+- [Akku diagnosztika – fejlesztési és folytatási állapot](docs/battery-diagnostics-plan.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Külső témák kompatibilitási ellenőrzése](docs/external-template-review.md)
 - [Statisztika és számítások](docs/statistics.md)

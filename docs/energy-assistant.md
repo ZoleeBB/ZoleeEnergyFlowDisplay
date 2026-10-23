@@ -90,7 +90,7 @@ fut; a szolgáltatás-pillanatképek a grafikus lock előtt készülnek.
   régi/hiányos adatok, nem szinkronizált óra és idő-visszalépés.
 - `tests/test_loxone_protocol.c`: tényleges WS-frissítőből érkező minimális
   asszisztens-pillanatkép, valódi nulla és disconnect invalidálás.
-- `tests/preview/preview.c`: tényleges LVGL a Rendszer és mind a kilenc gyári
+- `tests/preview/preview.c`: tényleges LVGL a Rendszer és mind a tíz gyári
   téma nappali/éjszakai változatán, X, rejtett oldalak, widgetmegőrzés,
   fontos adatdobozokkal való átfedés kizárása. A bemenetek szintetikusak.
 

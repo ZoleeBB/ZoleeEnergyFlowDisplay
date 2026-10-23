@@ -21,7 +21,7 @@ Az alábbi korábbi mérési eredmények a 10,1 colos célra vonatkoznak.
 
 | Slave változat | Téma | Statisztika | Beállítások |
 | --- | --- | --- | --- |
-| SD-vel | Rendszer + kilenc telepített téma; Nap pálya érvényes nappályaadattal | Saját integrálás és legfeljebb 35 nap saját SD-előzmény | SD `config.json`, a master hálózati profilja külön NVS-ben |
+| SD-vel | Rendszer + tíz telepített téma; Nap pálya érvényes nappályaadattal | Saját integrálás és legfeljebb 35 nap saját SD-előzmény | SD `config.json`, a master hálózati profilja külön NVS-ben |
 | SD nélkül | Csak Rendszer | Master napi pillanatképe RAM-ban; 30 s-os szinkron, teljeskép-ellenőrzés, elavultságjelzés | Belső NVS JSON, legfeljebb 3072 bájt, rögzített Slave szerep |
 
 Az SD-s Slave a saját adatgyűjtésétől épít történetet. Az SD nélküli Slave
@@ -62,7 +62,7 @@ Az alábbi pontok eredménye ebben a jegyzetben még nincs hardveren igazolva:
   hibás/lejárt PIN elutasítása, helyes PIN és újracsatlakozás új PIN nélkül.
 - [ ] Energiaelőjelek, valódi nulla/hiányzó időjárás, óra, UTC-eltolás és
   nappali/éjszakai mód egyezése a két kijelzőn.
-- [ ] SD-s Slave: mind a kilenc téma, saját SD-statisztika mentése és
+- [ ] SD-s Slave: mind a tíz téma, saját SD-statisztika mentése és
   újraindítás utáni visszatöltése; a master múltjának automatikus átmásolása nélkül.
 - [ ] SD nélküli Slave: indulás, csak Rendszer téma, belső beállítások és
   párosítás megőrzése; első szinkronig `--`, friss diagramok és tegnapi összehasonlítás.

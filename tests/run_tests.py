@@ -19,6 +19,15 @@ with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
         '-lm', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='battery-diagnostics-') as directory:
+    binary = str(Path(directory) / 'test')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/stubs', '-Imain', 'tests/test_battery_diagnostics.c',
+        'main/app_battery_diagnostics.c', '-l:libcjson.so.1', '-lm', '-o', binary,
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)
@@ -104,7 +113,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
     sources = ['tests/test_core.c', 'main/app_payload.c', 'main/app_config.c',
-               'main/app_http.c', 'main/app_ingest.c', 'main/app_stats.c', 'main/app_events.c', 'main/app_state.c']
+               'main/app_http.c', 'main/app_ingest.c', 'main/app_stats.c', 'main/app_battery_diagnostics.c', 'main/app_events.c', 'main/app_state.c']
     command = [os.environ.get('CC', 'cc'), '-std=gnu11', '-O1', '-g', '-Wall', '-Wextra',
                '-Werror', '-Werror=frame-larger-than=8192', '-fsanitize=undefined',
                '-fno-sanitize-recover=all', '-Itests/stubs', '-Imain', '-Dtime=host_time',

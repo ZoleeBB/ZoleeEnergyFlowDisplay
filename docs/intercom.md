@@ -347,3 +347,16 @@ A natív teszt 30 másodpercnyi hangot vezet át eltérő, ±20%-os lejátszási
 a kétcsomagos helyreállást, a sorszám-/időbélyeg-átfordulást és a régi/idegen/
 hibás csomagok elutasítását. A készüléken a javulást és a kétirányú hang minőségét
 újabb próbával kell ellenőrizni; a videó működő foglalási útvonala nem változik.
+
+### Készülékes visszajelzés és hangütemezés (2026-10-23)
+
+A videó működését a készülékes próba igazolta. Hangnál RX:2483, jó:2419,
+TX:2173, újraszinkron:29 és 50/16 ms ciklus mellett továbbra sem volt hallható
+beszélgetés. Az elfogadott RTP-csomag önmagában nem jelent hallható beszédet.
+A ciklusidő első száma csúcsérték, nem átlag; most másodpercenként újraindul.
+A blokkoló I2S-olvasás mellett a keretenkénti további RTOS-várakozás megszűnt.
+A jelszintfelirat váltakozva mutatja a két másodperces PCM-csúcsot (0–100%):
+bejövő G.711 után, mikrofon bal/jobb, AEC után. Ezzel a hálózati csend,
+a néma/eltérő mikrofoncsatorna és a feldolgozás során eltűnő jel elkülöníthető.
+A hangszóró fizikai megszólalását és a kétirányú beszédet továbbra is készüléken
+kell igazolni; a jelszint nem helyettesíti ezt a próbát.
