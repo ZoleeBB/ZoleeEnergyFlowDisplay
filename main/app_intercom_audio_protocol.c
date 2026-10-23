@@ -125,10 +125,18 @@ bool intercom_audio_host(const char *url, char *host, size_t size)
 
 bool intercom_sdp_audio(const char *sdp, const char *peer, uint16_t *port, uint8_t *payload)
 {
+    uint8_t formats;
+    return intercom_sdp_audio_formats(sdp, peer, port, payload, &formats);
+}
+
+bool intercom_sdp_audio_formats(const char *sdp, const char *peer, uint16_t *port,
+                                uint8_t *payload, uint8_t *formats)
+{
     char session_ip[64] = "", media_ip[64] = "";
     unsigned chosen_port = 0;
     bool audio = false, seen_media = false, found = false, can_send = true;
     uint8_t chosen_payload = 255;
+    uint8_t accepted_formats = 0;
     for (const char *line = sdp; *line;) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
@@ -161,6 +169,9 @@ bool intercom_sdp_audio(const char *sdp, const char *peer, uint16_t *port, uint8
                     if (chosen_payload == 255 && (number == 0 || number == 8)) {
                         chosen_payload = (uint8_t)number;
                     }
+                    if (number == 0 || number == 8) {
+                        accepted_formats |= number == 0 ? 1 : 2;
+                    }
                     cursor = after;
                     while (*cursor == ' ') {
                         cursor++;
@@ -192,6 +203,7 @@ bool intercom_sdp_audio(const char *sdp, const char *peer, uint16_t *port, uint8
     }
     *port = (uint16_t)chosen_port;
     *payload = chosen_payload;
+    *formats = accepted_formats;
     return true;
 }
 

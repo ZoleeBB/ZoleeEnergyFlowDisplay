@@ -33,6 +33,25 @@ static void reap_video(void)
 }
 static int64_t s_next_attempt;
 static const char *TAG = "intercom_video";
+static jpeg_decoder_handle_t s_decoder;
+
+esp_err_t app_intercom_prepare_video(void)
+{
+    if (s_decoder) {
+        return ESP_OK;
+    }
+    /* Az SDK a dekóder descriptoraihoz belső RAM-ot igényel. A késői,
+     * hívásonkénti létrehozás a Wi-Fi/I2S mellett töredezett heapre futott.
+     * Egyetlen videóworker használja; hívás végén csak a nagy képpufferek szűnnek meg. */
+    const jpeg_decode_engine_cfg_t engine = {.timeout_ms = 100};
+    size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    esp_err_t error = jpeg_new_decoder_engine(&engine, &s_decoder);
+    ESP_LOGI(TAG, "JPEG prepare: result=%d DMA before=%u after=%u largest=%u", error,
+             (unsigned)before,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
+    return error;
+}
 
 #define VIDEO_WIDTH 1280U
 #define VIDEO_HEIGHT 720U
@@ -155,7 +174,6 @@ static void video_session(const app_intercom_snapshot_t *state)
         goto credentials_done;
     }
     video_decode_t video = {.revision = state->revision};
-    const jpeg_decode_engine_cfg_t engine = {.timeout_ms = 100};
     size_t input_capacity = 0;
     jpeg_decode_memory_alloc_cfg_t input_memory = {.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER};
     uint8_t *input = jpeg_alloc_decoder_mem(APP_INTERCOM_JPEG_MAX, &input_memory, &input_capacity);
@@ -164,7 +182,7 @@ static void video_session(const app_intercom_snapshot_t *state)
         app_intercom_ui_status("Nincs 2 MiB PSRAM a tömörített kameraképhez.", state->revision);
         goto done;
     }
-    esp_err_t decoder_error = jpeg_new_decoder_engine(&engine, &video.decoder);
+    esp_err_t decoder_error = app_intercom_prepare_video();
     if (decoder_error != ESP_OK) {
         char message[160];
         snprintf(message, sizeof(message), "JPEG-dekóder indítás (%d). Belső DMA: %u B szabad, %u B legnagyobb blokk.",
@@ -173,6 +191,7 @@ static void video_session(const app_intercom_snapshot_t *state)
         app_intercom_ui_status(message, state->revision);
         goto done;
     }
+    video.decoder = s_decoder;
     app_intercom_stream_t stream = {.buffer = input, .capacity = APP_INTERCOM_JPEG_MAX};
     const esp_http_client_config_t options = {
         .url = state->config.stream_url,
@@ -278,7 +297,6 @@ done:
         esp_http_client_close(http);
         esp_http_client_cleanup(http);
     }
-    if (video.decoder) jpeg_del_decoder_engine(video.decoder);
     free(video.pixels);
     free(input);
 credentials_done:

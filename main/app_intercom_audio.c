@@ -195,7 +195,9 @@ typedef struct {
     char local_ip[INET_ADDRSTRLEN], peer_ip[INET_ADDRSTRLEN];
     char uri[256], target[256], call_id[96], from[160], to[384], branch[64];
     uint16_t rtp_port, sip_local_port;
-    uint8_t payload;
+    uint8_t payload, formats;
+    uint16_t receive_port;
+    unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
     char reply[INTERCOM_SIP_MAX + 1];
@@ -450,7 +452,7 @@ static bool handle_message(audio_call_t *call, char *message, int tcp, const str
                      !strncasecmp(content_type, "application/sdp", 15) &&
                      !intercom_sip_header(message, "Record-Route", route, sizeof(route)) &&
                      contact_target(call, message) &&
-                     intercom_sdp_audio(sdp + 4, call->peer_ip, &port, &call->payload);
+                     intercom_sdp_audio_formats(sdp + 4, call->peer_ip, &port, &call->payload, &call->formats);
     /* A 200-as választ hibás SDP esetén is ACK + BYE zárja, nem maradhat nyitott hívás. */
     if (!sip_request(call, "ACK", 1, false) || !supported) {
         return false;
@@ -458,6 +460,8 @@ static bool handle_message(audio_call_t *call, char *message, int tcp, const str
     call->media = call->peer;
     call->media.sin_port = htons(port);
     call->established = true;
+    ESP_LOGI(TAG, "RTP negotiated: local=%u remote=%u tx_payload=%u formats=%u",
+             call->rtp_port, port, call->payload, call->formats);
     return true;
 }
 
@@ -649,6 +653,37 @@ static bool open_hardware(audio_call_t *call)
         hardware_check(call, "Mikrofon erősítés", esp_codec_dev_set_in_gain(s_microphone, 24.0f));
 }
 
+static bool receive_audio(audio_call_t *call, const struct sockaddr_in *source,
+                          const uint8_t *packet, size_t size)
+{
+    call->rx_packets++;
+    /* Az SDP portja a partner FOGADÓ portja, nem kötelező küldőport.
+     * Az IP marad a SIP-ben ellenőrzött kaputelefoné; az első érvényes RTP
+     * küldőportját és SSRC-jét a hívás végéig rögzítjük. A kimenet továbbra is SDP-célú. */
+    if (source->sin_addr.s_addr != call->media.sin_addr.s_addr || !source->sin_port ||
+        (call->receive_port && source->sin_port != call->receive_port)) {
+        call->rx_peer_rejected++;
+        return false;
+    }
+    uint8_t payload = size >= 2 ? packet[1] & 127 : 255;
+    uint8_t format = payload == 0 ? 1 : payload == 8 ? 2 : 0;
+    if (!(call->formats & format)) {
+        call->rx_format_rejected++;
+        return false;
+    }
+    if (!intercom_rtp_receive(&call->jitter, packet, size, payload)) {
+        call->rx_invalid++;
+        return false;
+    }
+    if (!call->receive_port) {
+        call->receive_port = source->sin_port;
+        ESP_LOGI(TAG, "RTP receive source=%u (SDP destination=%u), payload=%u",
+                 ntohs(source->sin_port), ntohs(call->media.sin_port), payload);
+    }
+    call->rx_accepted++;
+    return true;
+}
+
 static void media_session(audio_call_t *call)
 {
     const unsigned frame = call->frame_samples;
@@ -661,7 +696,8 @@ static void media_session(audio_call_t *call)
     uint16_t sequence = (uint16_t)esp_random();
     uint32_t timestamp = esp_random(), ssrc = esp_random();
     int64_t last_packet = esp_timer_get_time();
-    publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "Beszélgetés folyamatban");
+    int64_t last_status = last_packet;
+    publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "Hanghívás létrejött, hangcsomagra várunk...");
     /* A lejátszás és felvétel azonos I2S-órán fut. A hálózati csomagokból
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
     while (wanted(call->epoch, call->revision)) {
@@ -678,14 +714,24 @@ static void media_session(audio_call_t *call)
             if (count <= 0) {
                 break;
             }
-            if (source.sin_addr.s_addr == call->media.sin_addr.s_addr && source.sin_port == call->media.sin_port &&
-                intercom_rtp_receive(&call->jitter, packet, (size_t)count, call->payload)) {
+            if (receive_audio(call, &source, packet, (size_t)count)) {
                 last_packet = esp_timer_get_time();
             }
         }
         if (esp_timer_get_time() - last_packet > 10000000LL) {
-            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "Nem érkezik hang a kaputelefontól. Próbáld újra.");
+            char message[128];
+            snprintf(message, sizeof(message), "Nincs fogadható hang. RX:%u jó:%u forrás:%u kodek:%u RTP:%u TX:%u",
+                     call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
+                     call->rx_format_rejected, call->rx_invalid, call->tx_packets);
+            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, message);
             break;
+        }
+        if (esp_timer_get_time() - last_status >= 1000000LL) {
+            char message[128];
+            snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u, fogadóport:%u",
+                     call->rx_packets, call->rx_accepted, call->tx_packets, call->rtp_port);
+            publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, message);
+            last_status = esp_timer_get_time();
         }
         intercom_jitter_read(&call->jitter, remote, frame / 2);
         for (unsigned i = 0; i < frame; i++) {
@@ -726,11 +772,15 @@ static void media_session(audio_call_t *call)
                     publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A hang küldése megszakadt. Próbáld újra.");
                     return;
                 }
+                call->tx_packets++;
                 fill = 0;
             }
         }
         vTaskDelay(1);
     }
+    ESP_LOGI(TAG, "RTP totals: rx=%u accepted=%u peer=%u format=%u invalid=%u tx=%u",
+             call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
+             call->rx_format_rejected, call->rx_invalid, call->tx_packets);
 }
 
 static void close_call(audio_call_t *call)

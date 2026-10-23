@@ -196,6 +196,10 @@ esp_err_t esp_http_client_close(esp_http_client_handle_t handle) { assert(handle
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t handle) { assert(handle); return ESP_OK; }
 int main(void)
 {
+    /* Korai foglalás: az összes későbbi hívás ugyanazt a motort használja.
+     * Csengetéskor már szimuláltan nincs hely új motor létrehozására. */
+    assert(app_intercom_prepare_video() == ESP_OK && decoders == 1);
+    fail_decoder = true;
     assert(app_intercom_start() == ESP_OK);
     assert(audio_initializations == 1 && creates == 0 && sessions == 0);
     for (unsigned i = 0; i < 3; i++) {
@@ -206,7 +210,7 @@ int main(void)
         if (!setjmp(worker_exit)) scheduled(NULL);
         assert(s_video_running && s_video_task.finished);
         assert(app_intercom_idle());
-        assert(!s_video_running && deletes == creates && !decoders);
+        assert(!s_video_running && deletes == creates && decoders == 1);
     }
     create_failure = true;
     ringing = true;
@@ -217,7 +221,7 @@ int main(void)
     app_intercom_poll();
     if (!setjmp(worker_exit)) scheduled(NULL);
     assert(app_intercom_idle());
-    assert(!s_video_running && creates == 4 && deletes == 4 && sessions == 4 && !decoders);
+    assert(!s_video_running && creates == 4 && deletes == 4 && sessions == 4 && decoders == 1);
     assert(displayed == 4);
     for (scenario = 1; scenario <= 4; scenario++) {
         ringing = true;
@@ -226,7 +230,7 @@ int main(void)
         if (!setjmp(worker_exit)) scheduled(NULL);
         assert(s_video_running && s_video_task.finished);
         assert(app_intercom_idle());
-        assert(!s_video_running && !decoders);
+        assert(!s_video_running && decoders == 1);
         if (scenario == 1) {
             assert(requests == 2 && auths == previous_auths + 1 && displayed == before + 1 && cleared);
         } else {
@@ -247,6 +251,8 @@ int main(void)
     video_session(&state);
     assert(strstr(last_status, "2 MiB PSRAM"));
     fail_input = false;
+    assert(jpeg_del_decoder_engine(s_decoder) == ESP_OK);
+    s_decoder = NULL;
     fail_decoder = true;
     video_session(&state);
     assert(strstr(last_status, "JPEG-dekóder") && strstr(last_status, "2048 B") && strstr(last_status, "1024 B"));
@@ -255,7 +261,9 @@ int main(void)
     unsigned previous_displayed = displayed;
     strcpy(state.config.stream_url, "http://192.168.2.21/mjpg/video.mjpg");
     video_session(&state);
-    assert(displayed == previous_displayed + 1 && !decoders);
+    assert(displayed == previous_displayed + 1 && decoders == 1);
+    assert(jpeg_del_decoder_engine(s_decoder) == ESP_OK);
+    s_decoder = NULL;
     puts("PASS: padded grayscale JPEG to RGB565 in-place,  preemptive Basic with separate credentials, auth-method diagnostics, external deletion without cleanup task, actual video startup creates no task; ringing starts one worker, decoder/session close and task deletes after bell end, repeated calls and task allocation failure recover; fragmented MJPEG reaches display, 401 challenge retries once, cached body clears, denied/redirect/header/credential errors");
     return 0;
 }

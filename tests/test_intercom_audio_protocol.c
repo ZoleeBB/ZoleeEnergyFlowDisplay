@@ -35,6 +35,10 @@ int main(void)
     const char *sdp = "v=0\r\nc=IN IP4 192.168.1.4\r\nm=audio 4000 RTP/AVP 8 0\r\n"
                       "a=rtpmap:8 PCMA/8000\r\na=sendrecv\r\n";
     assert(intercom_sdp_audio(sdp, "192.168.1.4", &port, &payload) && port == 4000 && payload == 8);
+    uint8_t formats = 0;
+    assert(intercom_sdp_audio_formats(sdp, "192.168.1.4", &port, &payload, &formats) && formats == 3);
+    assert(intercom_sdp_audio_formats("c=IN IP4 192.168.1.4\r\nm=audio 4000 RTP/AVP 0\r\n",
+                                    "192.168.1.4", &port, &payload, &formats) && formats == 1);
     assert(!intercom_sdp_audio(sdp, "192.168.1.5", &port, &payload));
     assert(!intercom_sdp_audio("m=audio 0 RTP/AVP 0\r\n", "192.168.1.4", &port, &payload));
     assert(!intercom_sdp_audio("c=IN IP4 192.168.1.4\r\nm=audio 4000 RTP/SAVP 0\r\n", "192.168.1.4", &port, &payload));

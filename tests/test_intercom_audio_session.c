@@ -206,7 +206,8 @@ static void *fake_door(void *argument)
     socklen_t length = sizeof(local);
     assert(getsockname(door->media, (struct sockaddr *)&local, &length) == 0);
     char sdp[256], response[2048];
-    int body = snprintf(sdp, sizeof(sdp), "v=0\r\nc=IN IP4 127.0.0.2\r\nm=audio %u RTP/AVP 0\r\na=sendrecv\r\n", ntohs(local.sin_port));
+    int body = snprintf(sdp, sizeof(sdp), "v=0\r\nc=IN IP4 127.0.0.2\r\nm=audio %u RTP/AVP %s\r\na=sendrecv\r\n",
+                        ntohs(local.sin_port), door->mode == 5 ? "0 8" : "0");
     if (door->mode == 1) {
         /* A leállítás és a későn érkező 200-as válasz versenye. */
         assert(app_intercom_audio_request(false, 7) == ESP_OK);
@@ -263,12 +264,15 @@ static void *fake_door(void *argument)
                           sizeof(sip_destination)) == (int)strlen(bye));
             door->sent_bye = true;
         }
-        if ((!door->mode || door->mode == 4) && door->ack) {
+        if ((!door->mode || door->mode == 4 || door->mode == 5) && door->ack) {
             int16_t samples[160];
             for (unsigned i = 0; i < 160; i++) samples[i] = 2000;
             uint8_t packet[172];
-            intercom_rtp_encode(packet, 1, door->packets * 160, 99, 0, samples);
-            (void)sendto(door->media, packet, sizeof(packet), 0, (struct sockaddr *)&destination, sizeof(destination));
+            intercom_rtp_encode(packet, 1, door->packets * 160, 99, door->mode == 5 ? 8 : 0, samples);
+            /* A küldőport eltér az SDP fogadóportjától; a visszaút PCMA,
+             * miközben a kijelző a preferált PCMU kodekkel küld. */
+            (void)sendto(door->mode == 5 ? door->sip : door->media, packet, sizeof(packet), 0,
+                         (struct sockaddr *)&destination, sizeof(destination));
         }
     }
     close(fd);
@@ -288,7 +292,7 @@ int main(void)
     /* Az algoritmus keretmérete eltérhet; mindhárommal végigfut a tényleges RTP-út. */
     for (unsigned variant = 0; variant < 3; variant++) {
     test_frame = 256U << variant;
-    for (int mode = 0; mode < 5; mode++) {
+    for (int mode = 0; mode < 6; mode++) {
         fake_door_t door = {.mode=mode};
         door.listener = socket(AF_INET, SOCK_STREAM, 0);
         int reuse = 1;
@@ -320,7 +324,7 @@ int main(void)
         pthread_join(thread, NULL);
         close(door.media); close(door.listener); close(door.sip);
         assert(door.ack);
-        if (!mode) {
+        if (!mode || mode == 5) {
             assert(door.packets && writes == 5 && reads == 5 && speaker_audio);
             assert(mic_opens == 1 && mic_closes == 1 && speaker_closes == 1 && muted);
             assert(door.bye);
@@ -335,6 +339,34 @@ int main(void)
         }
     }
     }
+    /* Csak a megfelelő IP, az első érvényes küldőport és a tárgyalt kodek
+     * engedélyezett. Hibás csomag nem rögzítheti a portot. */
+    audio_call_t *rx = calloc(1, sizeof(*rx));
+    assert(rx);
+    inet_pton(AF_INET, "127.0.0.2", &rx->media.sin_addr);
+    rx->media.sin_port = htons(5004);
+    rx->formats = 3;
+    struct sockaddr_in source = {.sin_family=AF_INET, .sin_port=htons(6000)};
+    inet_pton(AF_INET, "127.0.0.3", &source.sin_addr);
+    uint8_t packet[172];
+    int16_t silence[160] = {0};
+    intercom_rtp_encode(packet, 1, 0, 22, 8, silence);
+    assert(!receive_audio(rx, &source, packet, sizeof(packet)) && !rx->receive_port);
+    source.sin_addr = rx->media.sin_addr;
+    assert(!receive_audio(rx, &source, packet, 1) && !rx->receive_port);
+    assert(receive_audio(rx, &source, packet, sizeof(packet)) && rx->receive_port == source.sin_port);
+    source.sin_port = htons(6001);
+    assert(!receive_audio(rx, &source, packet, sizeof(packet)));
+    source.sin_port = htons(6000);
+    intercom_rtp_encode(packet, 2, 160, 22, 0, silence);
+    rx->formats = 2;
+    assert(!receive_audio(rx, &source, packet, sizeof(packet)));
+    rx->formats = 3;
+    packet[8] ^= 1;
+    assert(!receive_audio(rx, &source, packet, sizeof(packet)));
+    assert(rx->rx_packets == 6 && rx->rx_accepted == 1 && rx->rx_peer_rejected == 2 &&
+           rx->rx_format_rejected == 2 && rx->rx_invalid == 1);
+    free(rx);
     atomic_store(&ring, true);
     assert(app_intercom_audio_request(true, 7) == ESP_OK);
     audio_call_t *failure = calloc(1, sizeof(*failure));

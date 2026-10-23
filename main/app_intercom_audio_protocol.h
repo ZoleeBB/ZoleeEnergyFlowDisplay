@@ -17,6 +17,9 @@ int intercom_sip_size(const char *data, size_t size);
 bool intercom_sip_header(const char *message, const char *name, char *out, size_t size);
 bool intercom_audio_host(const char *url, char *host, size_t size);
 bool intercom_sdp_audio(const char *sdp, const char *peer, uint16_t *port, uint8_t *payload);
+/* A válaszban megmaradt kodekek: bit0 PCMU, bit1 PCMA; fogadáskor mind érvényes. */
+bool intercom_sdp_audio_formats(const char *sdp, const char *peer, uint16_t *port,
+                                uint8_t *payload, uint8_t *formats);
 uint8_t intercom_g711_encode(int16_t sample, uint8_t payload);
 int16_t intercom_g711_decode(uint8_t sample, uint8_t payload);
 size_t intercom_rtp_encode(uint8_t *packet, uint16_t sequence, uint32_t timestamp,

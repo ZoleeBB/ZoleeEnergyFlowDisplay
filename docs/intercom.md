@@ -210,7 +210,7 @@ Ez csak egyszer történik egy csengetés elején; üresjáratban nincs új lock
 cache-ürítés. Az SD-fájlok, a kiválasztott téma és a kért Otthon-oldal megmaradnak.
 
 Csengetésvégkor az overlay eltűnik, a háttér visszatöltése viszont megvárja a
-videó és hang workerének teljes erőforrásbontását. Így a visszatöltődő nagy PNG-k
+videó és hang workerének képpuffer-/DSP-erőforrásbontását. Így a visszatöltődő nagy PNG-k
 nem torlódnak össze a kamera/DSP puffereivel. Ezután a meglévő betöltőképernyőn át
 újraépül az aktuálisan kiválasztott téma vagy Otthon-oldal, friss adatokkal.
 Kapunyitás vagy videóhiba nem indítja el a visszatöltést; a csengetésállapotnak
@@ -280,3 +280,38 @@ a képpufferben, hátulról RGB565-re bővítjük. A 8 pixeles szürke MCU-sorl�
 a 16 pixeles RGB-puffer eltérő kitöltését külön teszt ellenőrzi. Nem kell új
 SD-erőforráscsomag. A keretező valós, beágyazott színes/szürke JPEG-ekkel és
 256 KiB fölé növelt, érvényes APP-metaadatokkal is tesztelt, külső képletöltés nélkül.
+
+### JPEG-motor korai foglalása és a hang fogadási kompatibilitása
+
+A készülékes hibajelzés `JPEG-dekóder indítás (257)` mellett 4075 B szabad
+belső DMA-memóriát és 1024 B legnagyobb blokkot mutatott. Ez nem a PSRAM
+képpufferének hibája. Loxone módban a JPEG-motor most a konfiguráció betöltése
+után, a Wi-Fi/BLE előtt létrejön, és két hívás között megmarad. Nem indít kamerát,
+mikrofont vagy új feladatot. A nagy tömörített/dekódolt képpufferek továbbra is
+csak csengetéskor foglalódnak, és utána felszabadulnak. Más adatfogadási mód
+nem foglal JPEG-motort. A korai foglalás hatása firmware-újraindítással érvényesül.
+Hiba esetén a boot tovább fut, és a videófeladat újrapróbálja a motor létrehozását.
+A soros napló az előkészítés eredményét és a DMA-memória előtte/utána értékeit mutatja.
+
+Az [Espressif #18914 hibajegy](https://github.com/espressif/esp-idf/issues/18914)
+az SDK 6.0.2-ben megerősített, fenntartott DMA-poolt kizáró JPEG-foglalást ír le.
+A nálunk rögzített [5.5.4 dekóder](https://github.com/espressif/esp-idf/blob/v5.5.4/components/esp_driver_jpeg/jpeg_decode.c)
+és `jpeg_private.h` ugyanezt a `MALLOC_CAP_DEFAULT`-ot is kérő descriptorfoglalást
+használja. A hibajegy a saját eszközünk pontos allokációs hibapontját nem bizonyítja;
+a korai foglalás a késői töredezettséget és a későbbi erőforrás-versenyt kerüli meg,
+külső SDK-forrás módosítása nélkül.
+
+Az [RFC 3264, 5.1/6.1](https://www.rfc-editor.org/rfc/rfc3264) szerint az SDP
+médiaportja fogadóport, nem kötelező küldőport. A hang most a SIP-ben ellenőrzött
+kaputelefon-IP első érvényes RTP-csomagjának küldőportját rögzíti; ettől kezdve más
+portot vagy SSRC-t továbbra sem fogad. A kimenő hang változatlanul az SDP-ben
+megadott célra megy. Ha mindkét G.711 kodek szerepel a válaszban, a fogadás PCMU
+és PCMA csomagokat is dekódolhat, a küldés a válasz első támogatott kodekjét használja.
+Hibás csomag nem rögzíthet forrásportot. A helyi TCP/UDP-teszt eltérő küldőporttal,
+PCMU-küldéssel és PCMA-visszaúttal is végigjárja a tényleges worker hangútját.
+
+A hang felirata másodpercenként mutatja az RX, jó és TX csomagszámot és a helyi
+fogadóportot. A tíz másodperces időtúllépés külön megadja az idegen forrás,
+nem tárgyalt kodek és hibás/késői RTP miatt elutasított csomagok számát is.
+A gyártói/nyilvános referenciák és a natív hardverhelyettesítő tesztek nem
+helyettesítik a fizikai kaputelefonnal és kijelzővel végzett közös próbát.
