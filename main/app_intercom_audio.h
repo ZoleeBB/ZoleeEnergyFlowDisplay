@@ -27,6 +27,7 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out);
 /* A hibastátusz mellett is tarthat még a kodek/socket takarítása. */
 bool app_intercom_audio_busy(void);
 bool app_intercom_audio_active_for(unsigned revision);
+/* Az elfogadott kapunyitási kérés után 5 s; hálózati nyugtára nem várunk. */
 void app_intercom_audio_gate_opened(unsigned revision);
 /* Helyi hangszóróteszt, SIP/mikrofon/AEC nélkül; ugyanaz a worker birtokolja a kodeket. */
 esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume);

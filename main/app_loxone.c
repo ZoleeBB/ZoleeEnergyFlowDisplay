@@ -849,6 +849,10 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
         snprintf(s_command_status, sizeof(s_command_status), "%s", "Kérés küldése...");
     }
     xSemaphoreGive(s_lock);
+    /* A helyben elfogadott kapunyitás indítja a bontást: a Miniserver
+     * nyugtája késhet vagy elmaradhat, a hang akkor sem maradhat nyitva. */
+    if (allowed && door && action == LX_HOME_COMMAND_PULSE)
+        app_intercom_audio_gate_opened(request.intercom_revision);
     return allowed ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
@@ -892,8 +896,6 @@ static void home_command_poll(int64_t now)
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Állapot-visszajelzésre várunk...");
         }
         xSemaphoreGive(s_lock);
-        if (answer && door && request.action == LX_HOME_COMMAND_PULSE)
-            app_intercom_audio_gate_opened(request.intercom_revision);
         cJSON_Delete(answer);
     }
     now = esp_timer_get_time();

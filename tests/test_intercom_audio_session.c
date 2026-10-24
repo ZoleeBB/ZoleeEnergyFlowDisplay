@@ -27,6 +27,7 @@ static int reads, writes, mic_opens, mic_closes, speaker_closes;
 static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
+static bool gate_timeout_mode;
 static bool tone_mode, tone_ring_stop;
 static int device_volume;
 static unsigned aec_creates;
@@ -63,12 +64,13 @@ void vTaskDeleteWithCaps(void *task)
     assert(task == (void *)1);
     tasks_deleted++;
 }
-int64_t esp_timer_get_time(void)
+static int64_t real_time_us(void)
 {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
-    return (int64_t)time.tv_sec * 1000000LL + time.tv_nsec / 1000 + atomic_load(&clock_offset);
+    return (int64_t)time.tv_sec * 1000000LL + time.tv_nsec / 1000;
 }
+int64_t esp_timer_get_time(void) { return real_time_us() + atomic_load(&clock_offset); }
 uint32_t esp_random(void)
 {
     static uint32_t value = 128;
@@ -173,8 +175,12 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
     if (writes == 3) {
         atomic_store(&ring, false);
         assert(app_intercom_audio_active_for(7) && wanted(s_epoch, 7));
+        if (gate_timeout_mode) app_intercom_audio_gate_opened(7);
     }
-    if (writes == 5) assert(app_intercom_audio_request(false, 7) == ESP_OK);
+    if (writes == 5) {
+        if (gate_timeout_mode) atomic_store(&clock_offset, 5100000);
+        else assert(app_intercom_audio_request(false, 7) == ESP_OK);
+    }
     return 0;
 }
 aec_handle_t *aec_create_from_config(aec_config_t *config)
@@ -270,9 +276,9 @@ static void *fake_door(void *argument)
     vTaskDelay(5);
     assert(send(fd, response + 17, strlen(response) - 17, 0) == (int)strlen(response) - 17);
     buffer->used = 0;
-    int64_t deadline = esp_timer_get_time() + 3000000;
+    int64_t deadline = real_time_us() + 3000000;
     uint32_t last_timestamp = 0;
-    while (esp_timer_get_time() < deadline) {
+    while (real_time_us() < deadline) {
         fd_set set;
         FD_ZERO(&set); FD_SET(fd, &set); FD_SET(door->media, &set);
         struct timeval wait = {.tv_usec=20000};
@@ -402,10 +408,12 @@ int main(void)
         assert(app_intercom_audio_request(true, 7) == ESP_ERR_INVALID_STATE);
         reads = writes = mic_opens = mic_closes = speaker_closes = 0;
         fail_microphone = mode == 3;
+        gate_timeout_mode = mode == 5;
         speaker_audio = false;
         pthread_t thread;
         assert(pthread_create(&thread, NULL, fake_door, &door) == 0);
         if (!setjmp(worker_exit)) audio_worker(NULL);
+        atomic_store(&clock_offset, 0);
         assert(s_running && s_audio_task.finished);
         assert(!app_intercom_audio_busy());
         assert(!s_running && !app_intercom_audio_busy() && !s_requested && tasks_created == tasks_deleted);

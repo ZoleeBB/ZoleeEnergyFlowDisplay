@@ -289,8 +289,20 @@ static void home_control_test(lx_config_t *energy)
     assert(s_intercom_generation == active_generation);
     assert(app_loxone_intercom_snapshot(&door) && !door.ringing && door.audio_active);
     assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    /* A bontás már a sorba vételkor indul, nem a Miniserver nyugtája után. */
+    assert(gate_audio_stops == 1);
     home_command_poll(esp_timer_get_time());
     assert(gate_audio_stops == 1);
+    reject_home_command = true;
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    assert(gate_audio_stops == 2);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    assert(gate_audio_stops == 2);
+    home_command_poll(esp_timer_get_time());
+    assert(gate_audio_stops == 2);
+    reject_home_command = false;
+    s_dead = false;
+    mark_response();
     test_audio_active = false;
     assert(app_loxone_intercom_snapshot(&door) && !door.ringing && !door.audio_active);
     assert(app_loxone_intercom_test_permitted(door.revision));

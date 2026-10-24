@@ -5,6 +5,41 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void jitter_network_delay(void)
+{
+    intercom_jitter_t *jitter = calloc(1, sizeof(*jitter));
+    assert(jitter);
+    uint8_t packet[172];
+    int16_t input[160], output[512];
+    for (unsigned i = 0; i < 160; i++) input[i] = 3000;
+    const unsigned blocks[] = {128, 160, 256, 512};
+    for (unsigned variant = 0; variant < 4; variant++) {
+        memset(jitter, 0, sizeof(*jitter));
+        bool sent[120] = {0};
+        unsigned frame = blocks[variant], played = 0;
+        /* 20 ms-os RTP; 16/20 ms-os lejátszásnál minden ötödik csomag 40 ms-ot
+         * késik. Nagyobb blokknál a daraboláson átnyúló 60 ms-os indulást mérjük. */
+        for (unsigned now = 0; now < 16000; now += frame) {
+            for (unsigned sequence = 0; sequence < 120; sequence++) {
+                unsigned due = sequence * 160 + (frame <= 160 && sequence % 5 == 1 ? 320 : 0);
+                if (!sent[sequence] && due <= now) {
+                    intercom_rtp_encode(packet, (uint16_t)sequence, sequence * 160, 44, 0, input);
+                    assert(intercom_rtp_receive(jitter, packet, sizeof(packet), 0));
+                    sent[sequence] = true;
+                }
+            }
+            intercom_jitter_read(jitter, output, frame);
+            for (unsigned i = 0; i < frame; i++) {
+                if (now + i < INTERCOM_JITTER_PRIME_SAMPLES) assert(output[i] == 0);
+                else { assert(output[i] > 2000); played++; }
+            }
+        }
+        assert(played > 15000 && !jitter->resyncs && !jitter->late_packets);
+    }
+    free(jitter);
+    puts("PASS: constant 60ms priming at four DSP block sizes; reordered 40ms-late RTP at 16/20ms playout");
+}
+
 static void jitter_recovery(void)
 {
     intercom_jitter_t *jitter = calloc(1, sizeof(*jitter));
@@ -65,6 +100,7 @@ static void jitter_recovery(void)
 
 int main(void)
 {
+    jitter_network_delay();
     jitter_recovery();
     const char *message = "SIP/2.0 200 OK\r\nCall-ID: test\r\nContent-Length: 4\r\n\r\ntest";
     for (size_t i = 0; i < strlen(message); i++) {
@@ -121,6 +157,7 @@ int main(void)
         assert(intercom_rtp_encode(packet, 65535, 0xffffffa0, 44, codec, samples) == sizeof(packet));
         intercom_jitter_t *jitter = calloc(1, sizeof(*jitter));
         assert(jitter && intercom_rtp_receive(jitter, packet, sizeof(packet), codec));
+        intercom_jitter_read(jitter, output, 160);
         intercom_jitter_read(jitter, output, 160);
         intercom_jitter_read(jitter, output, 160);
         intercom_jitter_read(jitter, output, 160);

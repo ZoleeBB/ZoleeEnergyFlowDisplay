@@ -6,6 +6,7 @@
 #define INTERCOM_SIP_MAX 6144
 #define INTERCOM_RTP_SAMPLES 160
 #define INTERCOM_JITTER_SAMPLES 2048
+#define INTERCOM_JITTER_PRIME_SAMPLES 480
 
 typedef struct {
     char data[INTERCOM_SIP_MAX + 1];
@@ -33,7 +34,7 @@ typedef struct {
     uint32_t candidate_end;
     uint16_t newest_sequence, candidate_sequence;
     unsigned malformed, wrong_ssrc, late_packets, ahead_packets, resyncs;
-    unsigned priming;
+    unsigned priming; /* Hátralévő 8 kHz-es minták, a DSP-blokkmérettől függetlenül. */
     bool initialized, playing, candidate;
 } intercom_jitter_t;
 /* Forrásellenőrzés a socketnél; itt RTP-határ, típus, SSRC és időbélyeg ellenőrzés. */

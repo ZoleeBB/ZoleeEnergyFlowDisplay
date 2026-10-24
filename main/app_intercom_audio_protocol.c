@@ -312,7 +312,7 @@ static bool resync_rtp(intercom_jitter_t *jitter, uint16_t sequence, uint32_t ti
     }
     memset(jitter->valid, 0, sizeof(jitter->valid));
     jitter->next = timestamp;
-    jitter->priming = 2;
+    jitter->priming = INTERCOM_JITTER_PRIME_SAMPLES;
     jitter->resyncs++;
     return true;
 }
@@ -357,7 +357,7 @@ bool intercom_rtp_receive(intercom_jitter_t *jitter, const uint8_t *packet, size
         jitter->initialized = true;
         jitter->ssrc = ssrc;
         jitter->next = timestamp;
-        jitter->priming = 2;
+        jitter->priming = INTERCOM_JITTER_PRIME_SAMPLES;
         jitter->newest_sequence = sequence;
     }
     int32_t distance = (int32_t)(timestamp - jitter->next);
@@ -397,8 +397,13 @@ void intercom_jitter_read(intercom_jitter_t *jitter, int16_t *out, size_t sample
         return;
     }
     if (jitter->priming) {
-        jitter->priming--;
-        return;
+        /* A 60 ms-os hálózati tartalék nem rövidülhet le kisebb AEC-blokknál.
+         * A blokk maradékát már lejátsszuk, így a késleltetés is állandó. */
+        size_t silence = samples < jitter->priming ? samples : jitter->priming;
+        jitter->priming -= silence;
+        out += silence;
+        samples -= silence;
+        if (!samples) return;
     }
     jitter->playing = true;
     for (size_t i = 0; i < samples; i++, jitter->next++) {

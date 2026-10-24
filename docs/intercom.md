@@ -33,6 +33,11 @@ jelszó az URL-ben, HTTPS vagy hiányzó videóútvonal továbbra is hibát jele
 
 ## Beállítás
 
+A bejövő RTP lejátszásának indulási és újraszinkronizálási tartaléka 60 ms
+(480 minta 8 kHz-en), az AEC blokkméretétől függetlenül. Ez a tipikus 16 ms-os
+blokknál a korábbi 32 ms helyett nagyobb hálózati ingadozást fed le, kis
+többletkésleltetéssel. Az elveszett vagy ennél később érkező hangot nem pótolja.
+
 A folyamatos helyi teszthang és az akadozó beszélgetés különbsége a hálózati és
 DSP-útvonal vizsgálatát indokolja. A beszélgetés most előbb írja a bejövő blokkot
 a hangszóróra, utána olvas mikrofont és futtat AEC-t. A kodekek 16 kHz-en
@@ -159,9 +164,10 @@ a mikrofon csak sikeresen felépült SIP-hívásnál kapcsol be.
   és bontja a hívást. A videó aktív csengetés esetén megmarad.
 - Felépült beszélgetést a **0 / false** csengetésjel nem bont. Még csak kapcsolódó
   hívást a csengetés megszűnése továbbra is megszakít.
-- Sikeresen elküldött **Kapunyitás** impulzus után **5 másodperccel** a hang
-  automatikusan bontódik. Ismételt kapunyitás nem halasztja el a határidőt;
-  sikertelen küldés nem indít időzítőt. Ha közben megszűnt a csengetés, a nézet
+- A helyben elfogadott **Kapunyitás** kérés után **5 másodperccel** a hang
+  automatikusan bontódik, a Miniserver nyugtájától függetlenül. Ismételt
+  kapunyitás nem halasztja el a határidőt; elutasított helyi kérés nem indít
+  időzítőt. Ha közben megszűnt a csengetés, a nézet
   is bezáródik; aktív csengetés esetén a videó megmarad.
 - Loxone-kapcsolatvesztés vagy a kaputelefon beállításainak cseréje leállítja a
   hangkapcsolatot. Sikertelen hívás után nincs automatikus újrahívás.
