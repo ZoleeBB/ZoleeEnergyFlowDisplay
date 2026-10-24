@@ -13,3 +13,11 @@ with tempfile.TemporaryDirectory(prefix='intercom-distributed-') as directory:
             *(['-DAPP_INTERCOM_SLAVE'] if slave else []), 'tests/test_intercom_distributed.c',
             'main/app_intercom_arbiter.c', 'main/app_ringtone_wav.c', '-pthread', '-o', binary], cwd=ROOT, check=True)
         subprocess.run([binary], check=True, timeout=15)
+
+    binary = str(Path(directory) / 'ble-client')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
+        '-ffunction-sections', '-Wl,--gc-sections', '-DAPP_INTERCOM_SLAVE',
+        '-Itests/audio_stubs', '-Itests/stubs', '-Imain', 'tests/test_intercom_ble_client.c',
+        'main/app_ringtone_wav.c', '-pthread', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=15, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})

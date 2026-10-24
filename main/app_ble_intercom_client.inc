@@ -38,7 +38,11 @@ static int slave_intercom_read(uint16_t conn, const struct ble_gatt_error *error
     if (!security_authenticated(conn)) { slave_intercom_failed(); return 0; }
     if (esp_timer_get_time() > s_intercom_deadline) {
         slave_intercom_failed();
-        if (error->status) s_intercom_reading = false;
+        if (!s_intercom_part || error->status) {
+            s_intercom_reading = false;
+            s_intercom_part = 3;
+            s_intercom_next = esp_timer_get_time() + 500000;
+        }
         return 0;
     }
     if (!s_intercom_part) {
@@ -66,7 +70,7 @@ static int slave_intercom_read(uint16_t conn, const struct ble_gatt_error *error
     s_intercom_reading = false;
     if (error->status != BLE_HS_EDONE || s_intercom_length != capacity) {
         memset(s_intercom_profile_data, 0, sizeof(s_intercom_profile_data));
-        s_intercom_part = 0;
+        s_intercom_part = 3;
         slave_intercom_failed();
         return 0;
     }
@@ -75,7 +79,7 @@ static int slave_intercom_read(uint16_t conn, const struct ble_gatt_error *error
         if (app_intercom_control_receive_profile(s_intercom_profile_data, s_intercom_extras_data))
             memcpy(s_intercom_last_profile, s_intercom_profile_data + 4, 8);
         memset(s_intercom_profile_data, 0, sizeof(s_intercom_profile_data));
-        s_intercom_part = 0;
+        s_intercom_part = 3;
     }
     s_intercom_next = 0;
     return 0;
@@ -114,8 +118,9 @@ static void slave_intercom_poll(int64_t now)
                                   slave_intercom_written, (void *)(uintptr_t)s_intercom_request);
         s_intercom_part = 3;
     } else {
-        if (s_intercom_part == 3) s_intercom_part = 0;
-        if (!s_intercom_part && s_intercom_status_data[0] == 1 &&
+        bool force_status = s_intercom_part == 3;
+        if (force_status) s_intercom_part = 0;
+        if (!force_status && !s_intercom_part && s_intercom_status_data[0] == 1 &&
             memcmp(s_intercom_last_profile, s_intercom_status_data + 4, 8)) s_intercom_part = 1;
         s_intercom_length = 0;
         if (s_intercom_part == 1 || s_intercom_part == 2)
