@@ -21,3 +21,16 @@ static inline uint32_t app_ringtone_source_frame(uint32_t frame, uint32_t rate)
 {
     return (uint32_t)((uint64_t)frame * 16000U / rate);
 }
+
+/* A betöltés hibája kérésenként él: párhuzamos webes előnézet nem írhatja felül. */
+typedef enum {
+    APP_RINGTONE_LOAD_OK,
+    APP_RINGTONE_LOAD_BUSY,
+    APP_RINGTONE_LOAD_MISSING,
+    APP_RINGTONE_LOAD_MEMORY,
+    APP_RINGTONE_LOAD_IO,
+    APP_RINGTONE_LOAD_INVALID,
+    APP_RINGTONE_LOAD_NETWORK,
+    APP_RINGTONE_LOAD_AUTH
+} app_ringtone_load_status_t;
+const char* app_ringtone_load_message(app_ringtone_load_status_t status);

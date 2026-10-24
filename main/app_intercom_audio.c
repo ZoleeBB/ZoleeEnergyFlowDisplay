@@ -965,16 +965,19 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
 {
     size_t size = 0, offset, bytes;
     uint8_t *data = NULL;
+    app_ringtone_load_status_t load_status = APP_RINGTONE_LOAD_INVALID;
     /* Az SD rövid ideig foglalt lehet (pl. állapotmentés miatt). Ettől még
      * az egyszer lejátszandó csengőhang sem veszhet el. Hívás/gombnyomás
      * az ismétlések közti legfeljebb 10 ms várakozást is megszakíthatja. */
     for (unsigned attempt = 0; ringtone_wanted(call->epoch, call->revision); attempt++) {
-        data = app_intercom_control_ringtone(snapshot->config.ringtone, &size);
+        data = app_intercom_control_ringtone(snapshot->config.ringtone, &size, &load_status);
         if (data) break;
 #ifdef APP_INTERCOM_SLAVE
         break;
 #else
-        if (attempt >= 49) break;
+        /* PNG-/állománybetöltés a fél másodperces régi keretet túlléphette.
+         * Csak átmeneti foglaltságot ismétlünk; hibás fájlt nem olvasunk 500-szor. */
+        if (load_status != APP_RINGTONE_LOAD_BUSY || attempt >= 499) break;
         vTaskDelay(pdMS_TO_TICKS(10));
 #endif
     }
@@ -983,7 +986,8 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
         return;
     }
     if (!data || !app_ringtone_wav(data, size, &offset, &bytes)) {
-        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kiválasztott csengőhang nem tölthető be. Ellenőrizd az SD-kártyát és a hangcsomagot.");
+        publish(call->epoch, APP_INTERCOM_AUDIO_ERROR,
+                app_ringtone_load_message(data ? APP_RINGTONE_LOAD_INVALID : load_status));
         free(data);
         return;
     }

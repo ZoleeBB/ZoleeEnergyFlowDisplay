@@ -58,3 +58,23 @@ bool app_ringtone_wav(const uint8_t* data, size_t size, size_t* offset, size_t* 
     *bytes = length;
     return true;
 }
+
+const char* app_ringtone_load_message(app_ringtone_load_status_t status)
+{
+    switch (status) {
+    case APP_RINGTONE_LOAD_BUSY:
+        return "A csengőhangra várakozás lejárt: az SD-kártya foglalt.";
+    case APP_RINGTONE_LOAD_MISSING:
+        return "A mentett csengőhang hiányzik. Válassz a telepített hangok közül és mentsd.";
+    case APP_RINGTONE_LOAD_MEMORY:
+        return "Nincs elég szabad memória a csengőhang betöltéséhez.";
+    case APP_RINGTONE_LOAD_IO:
+        return "A csengőhang olvasása sikertelen (SD/fájlhozzáférés).";
+    case APP_RINGTONE_LOAD_NETWORK:
+        return "A Slave nem tudta letölteni a csengőhangot a Masterről.";
+    case APP_RINGTONE_LOAD_AUTH:
+        return "A Master nem engedélyezte a csengőhang letöltését. Ellenőrizd a Slave kapcsolatát.";
+    default:
+        return "A csengőhang WAV-formátuma hibás vagy nem támogatott.";
+    }
+}

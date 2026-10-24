@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 
 static portMUX_TYPE s_control_lock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -231,9 +234,9 @@ bool app_intercom_control_media_key(const char* key)
     return difference == 0;
 }
 
-uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
+uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status)
 {
-    return app_ringtones_load(name, size);
+    return app_ringtones_load_ex(name, size, status);
 }
 #else
 /* A Slave profilja csak RAM-ban él. Sem a Master eszközfüggő SD-titkosítása,
@@ -503,10 +506,14 @@ void app_intercom_control_brightness(unsigned* day, unsigned* night)
     portEXIT_CRITICAL(&s_control_lock);
 }
 
-uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
+uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status)
 {
-    if (!app_ringtone_name(name))
+    *size = 0;
+    *status = APP_RINGTONE_LOAD_NETWORK;
+    if (!app_ringtone_name(name)) {
+        *status = APP_RINGTONE_LOAD_INVALID;
         return NULL;
+    }
     char ip[16], key[65];
     portENTER_CRITICAL(&s_control_lock);
     bool ready = fresh() && s_profile_ready;
@@ -525,8 +532,18 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
     uint8_t* data = NULL;
     if (esp_http_client_open(client, 0) == ESP_OK) {
         int64_t n = esp_http_client_fetch_headers(client);
-        if (n >= 44 && n <= APP_RINGTONE_MAX && esp_http_client_get_status_code(client) == 200) {
+        int code = esp_http_client_get_status_code(client);
+        if (code == 401 || code == 403) *status = APP_RINGTONE_LOAD_AUTH;
+        if (code == 404) *status = APP_RINGTONE_LOAD_MISSING;
+        if (code == 200 && (n < 44 || n > APP_RINGTONE_MAX))
+            *status = APP_RINGTONE_LOAD_INVALID;
+        if (n >= 44 && n <= APP_RINGTONE_MAX && code == 200) {
+#ifdef ESP_PLATFORM
+            data = heap_caps_malloc((size_t)n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
             data = malloc((size_t)n);
+#endif
+            if (!data) *status = APP_RINGTONE_LOAD_MEMORY;
             size_t position = 0;
             int64_t deadline = esp_timer_get_time() + 10000000;
             while (data && position < (size_t)n && esp_timer_get_time() < deadline) {
@@ -541,11 +558,14 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
             }
             size_t offset, bytes;
             if (data && (position != (size_t)n || !app_ringtone_wav(data, position, &offset, &bytes))) {
+                *status = position == (size_t)n ? APP_RINGTONE_LOAD_INVALID : APP_RINGTONE_LOAD_NETWORK;
                 free(data);
                 data = NULL;
             }
-            if (data)
+            if (data) {
                 *size = position;
+                *status = APP_RINGTONE_LOAD_OK;
+            }
         }
     }
     esp_http_client_close(client);

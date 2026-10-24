@@ -40,10 +40,11 @@ bool app_intercom_control_acquire(unsigned revision)
 }
 bool app_intercom_control_allowed(unsigned revision) { return revision == 7; }
 void app_intercom_control_release(unsigned revision) { assert(revision == 7); }
-uint8_t *app_intercom_control_ringtone(const char *name, size_t *size)
+uint8_t *app_intercom_control_ringtone(const char *name, size_t *size, app_ringtone_load_status_t *status)
 {
     assert(!strcmp(name, "test.wav"));
     ring_loads++;
+    *status = ring_load_failure ? APP_RINGTONE_LOAD_MISSING : APP_RINGTONE_LOAD_BUSY;
     if (ring_cancel_load) ring_silenced = true;
     if (ring_load_failure || ring_loads <= ring_busy_loads || ring_cancel_load) return NULL;
     uint8_t *data = calloc(1, 44 + 640);
@@ -55,6 +56,7 @@ uint8_t *app_intercom_control_ringtone(const char *name, size_t *size)
     data[32] = 2; data[34] = 16; memcpy(data + 36, "data", 4);
     data[40] = 0x80; data[41] = 2;
     for (unsigned i = 0; i < 320; i++) data[44 + i * 2 + 1] = 16;
+    *status = APP_RINGTONE_LOAD_OK;
     *size = 684; return data;
 }
 #endif
@@ -543,7 +545,7 @@ int main(void)
         unsigned aec_before = aec_creates;
         ring_loads = 0;
 #ifndef APP_INTERCOM_SLAVE
-        ring_busy_loads = 2;
+        ring_busy_loads = 75;
 #endif
         app_intercom_audio_poll();
         /* Az előző UI-generáció késői bontása nem állíthatja le az új hangot. */

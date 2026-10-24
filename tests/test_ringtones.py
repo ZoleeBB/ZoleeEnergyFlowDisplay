@@ -14,16 +14,36 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
     folder = Path(directory)
+    (folder / 'esp_heap_caps.h').write_text('''#pragma once
+#include <stddef.h>
+#define MALLOC_CAP_SPIRAM 4
+#define MALLOC_CAP_8BIT 2
+void *heap_caps_malloc(size_t size, unsigned caps);
+''')
     stub = folder / 'stub.c'
     stub.write_text('''
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
 #include "app_storage.h"
 #include "app_ringtone_wav.h"
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
 uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
 static int fault, calls;
-static bool busy;
+static bool busy, bounded_reads, fail_reads, fail_memory;
+void fail_allocation(bool value) { fail_memory = value; }
+void *heap_caps_malloc(size_t size, unsigned caps) {
+    assert(caps == (4 | 2));
+    return fail_memory ? NULL : malloc(size);
+}
+void limit_reads(bool value) { bounded_reads = value; }
+void fail_read(bool value) { fail_reads = value; }
+size_t __real_fread(void *, size_t, size_t, FILE *);
+size_t __wrap_fread(void *data, size_t size, size_t count, FILE *file) {
+    if (fail_reads || (bounded_reads && size * count > 512)) return 0;
+    return __real_fread(data, size, count, file);
+}
 void storage_busy(bool value) { busy = value; }
 void fail_rename(int n) { fault = n; calls = 0; }
 int __real_rename(const char *, const char *);
@@ -35,16 +55,24 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
 ''')
     libpath = folder / 'ringtones.so'
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-shared', '-fPIC', '-g', '-O1',
-        '-Wall', '-Wextra', '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
-        '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
+        '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-DESP_PLATFORM', '-I' + directory, '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
         'main/app_ringtone_wav.c', 'main/app_template_zip.c', 'main/app_ringtones.c', str(stub),
-        '-Wl,--wrap=rename', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
     lib = C.CDLL(str(libpath))
     lib.app_ringtone_wav.argtypes = [C.c_char_p, C.c_size_t, C.POINTER(C.c_size_t), C.POINTER(C.c_size_t)]
     lib.app_ringtone_wav.restype = C.c_bool
     lib.app_ringtones_install.argtypes = [C.c_char_p, C.c_char_p]
     lib.app_ringtones_load.argtypes = [C.c_char_p, C.POINTER(C.c_size_t)]
     lib.app_ringtones_load.restype = C.c_void_p
+    lib.app_ringtones_load_ex.argtypes = [C.c_char_p, C.POINTER(C.c_size_t), C.POINTER(C.c_int)]
+    lib.app_ringtones_load_ex.restype = C.c_void_p
+    status = C.c_int()
+    def load_status(name):
+        size.value = 999
+        pointer = lib.app_ringtones_load_ex(name, C.byref(size), C.byref(status))
+        return pointer, status.value
+
     lib.app_ringtones_list.restype = C.c_void_p
     lib.cJSON_PrintUnformatted.argtypes = [C.c_void_p]; lib.cJSON_PrintUnformatted.restype = C.c_void_p
     lib.cJSON_Delete.argtypes = [C.c_void_p]
@@ -106,5 +134,26 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert not lib.app_ringtones_load(b'../secret.wav', C.byref(size))
     lib.storage_busy(1)
     assert not lib.app_ringtones_load(name.encode(), C.byref(size))
+    assert size.value == 0
+    pointer, result = load_status(name.encode())
+    assert pointer is None and result == 1 and size.value == 0
     lib.storage_busy(0)
+    pointer, result = load_status(b'missing.wav')
+    assert pointer is None and result == 2 and size.value == 0
+    (folder / 'ringtones' / 'broken.wav').write_bytes(b'not a WAV')
+    pointer, result = load_status(b'broken.wav')
+    assert pointer is None and result == 5 and size.value == 0
+    lib.fail_allocation(1)
+    pointer, result = load_status(name.encode())
+    assert pointer is None and result == 3 and size.value == 0
+    lib.fail_allocation(0)
+    lib.fail_read(1)
+    pointer, result = load_status(name.encode())
+    assert pointer is None and result == 4 and size.value == 0, (pointer, result, size.value)
+    lib.fail_read(0)
+    # A kamerával osztozó SD/DMA útvonal csak szektoronkénti olvasást enged.
+    lib.limit_reads(1)
+    pointer, result = load_status(name.encode())
+    assert pointer and result == 0 and C.string_at(pointer, size.value) == data
+    libc.free(pointer)
     print('PASS: tubular-chime CC0 WAV, strict PCM/rate/channel/depth/RIFF limits, ZIP traversal/type/count/size rejection, atomic rollback and power-loss recovery, safe list/load')

@@ -7,6 +7,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 
 #ifndef APP_RINGTONE_ROOT
 #define APP_RINGTONE_ROOT APP_SD_MOUNT_POINT "/ringtones"
@@ -29,46 +33,91 @@ static void clean(const char* directory)
     rmdir(directory);
 }
 
-static uint8_t* load(const char* directory, const char* name, size_t* size)
+static uint8_t* load(const char* directory, const char* name, size_t* size,
+                     app_ringtone_load_status_t* status)
 {
+    *status = APP_RINGTONE_LOAD_INVALID;
+    *size = 0;
     if (!app_ringtone_name(name))
         return NULL;
     char path[256];
     snprintf(path, sizeof(path), "%s/%s", directory, name);
     FILE* file = fopen(path, "rb");
-    if (!file)
+    if (!file) {
+        *status = errno == ENOENT ? APP_RINGTONE_LOAD_MISSING : APP_RINGTONE_LOAD_IO;
         return NULL;
-    long length = 0;
-    uint8_t* data = NULL;
-    if (!fseek(file, 0, SEEK_END) && (length = ftell(file)) >= 44 && length <= APP_RINGTONE_MAX
-        && !fseek(file, 0, SEEK_SET)) {
-        data = malloc((size_t)length);
-        size_t offset, bytes;
-        if (data
-            && (fread(data, 1, length, file) != (size_t)length
-                || !app_ringtone_wav(data, length, &offset, &bytes))) {
-            free(data);
-            data = NULL;
-        }
     }
+    /* Ne a stdio válasszon nagyobb rejtett olvasópuffert a szektorok helyett. */
+    setvbuf(file, NULL, _IONBF, 0);
+    uint8_t* data = NULL;
+    *status = APP_RINGTONE_LOAD_IO;
+    if (fseek(file, 0, SEEK_END))
+        goto done;
+    long length = ftell(file);
+    if (length < 0 || fseek(file, 0, SEEK_SET))
+        goto done;
+    *status = APP_RINGTONE_LOAD_INVALID;
+    if (length < 44 || length > APP_RINGTONE_MAX)
+        goto done;
+    /* A videóval együtt akár 1,9 MB hangot is fogadunk; ez nem a belső
+     * DMA-memóriából vehető el. A puffer free()-vel felszabadítható. */
+#ifdef ESP_PLATFORM
+    data = heap_caps_malloc((size_t)length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+    data = malloc((size_t)length);
+#endif
+    *status = APP_RINGTONE_LOAD_MEMORY;
+    if (!data)
+        goto done;
+    *status = APP_RINGTONE_LOAD_IO;
+    /* A több MB-os egyetlen fread az SD-driverben nagy átmeneti DMA-
+     * puffert igényelhet éppen a kamerakép indulásakor. Szektoronként
+     * olvasunk: az SD átmeneti memóriaigénye nem nő a hang hosszával. */
+    size_t position = 0;
+    while (position < (size_t)length) {
+        size_t chunk = (size_t)length - position;
+        if (chunk > 512)
+            chunk = 512;
+        if (fread(data + position, 1, chunk, file) != chunk)
+            goto done;
+        position += chunk;
+    }
+    size_t offset, bytes;
+    *status = APP_RINGTONE_LOAD_INVALID;
+    if (!app_ringtone_wav(data, (size_t)length, &offset, &bytes))
+        goto done;
+    *size = (size_t)length;
+    *status = APP_RINGTONE_LOAD_OK;
+done:
     fclose(file);
-    if (data)
-        *size = (size_t)length;
+    if (*status != APP_RINGTONE_LOAD_OK) {
+        free(data);
+        data = NULL;
+    }
+    return data;
+}
+
+uint8_t* app_ringtones_load_ex(const char* name, size_t* size, app_ringtone_load_status_t* status)
+{
+    if (!status || !size)
+        return NULL;
+    *size = 0;
+    *status = APP_RINGTONE_LOAD_BUSY;
+    /* A hangfeladat újrapróbálhatja, közben hívásra azonnal megszakítható. */
+    if (!app_storage_try_lock())
+        return NULL;
+    struct stat st;
+    if (stat(APP_RINGTONE_ROOT, &st))
+        rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT);
+    uint8_t* data = load(APP_RINGTONE_ROOT, name, size, status);
+    app_storage_unlock();
     return data;
 }
 
 uint8_t* app_ringtones_load(const char* name, size_t* size)
 {
-    /* Hosszú webes SD-feltöltés nem tarthatja fel a hanghívás indítását. */
-    if (!size || !app_storage_try_lock())
-        return NULL;
-    /* Áramszünet a két rename között: a teljes régi csomag visszaállítható. */
-    struct stat st;
-    if (stat(APP_RINGTONE_ROOT, &st))
-        rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT);
-    uint8_t* data = load(APP_RINGTONE_ROOT, name, size);
-    app_storage_unlock();
-    return data;
+    app_ringtone_load_status_t status;
+    return app_ringtones_load_ex(name, size, &status);
 }
 
 cJSON* app_ringtones_list(void)
@@ -109,7 +158,8 @@ esp_err_t app_ringtones_install(const char* archive, char error[160])
             || !strcmp(entry->d_name, "ringtone.json"))
             continue;
         size_t size;
-        uint8_t* data = load(APP_RINGTONE_ROOT ".new", entry->d_name, &size);
+        app_ringtone_load_status_t status;
+        uint8_t* data = load(APP_RINGTONE_ROOT ".new", entry->d_name, &size, &status);
         ok = data != NULL;
         free(data);
         count++;

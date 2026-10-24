@@ -60,10 +60,11 @@ esp_err_t app_wifi_get_ip(char* out, size_t n)
     snprintf(out, n, "192.168.1.10");
     return ESP_OK;
 }
-uint8_t* app_ringtones_load(const char* name, size_t* size)
+uint8_t* app_ringtones_load_ex(const char* name, size_t* size, app_ringtone_load_status_t* status)
 {
     (void)name;
     (void)size;
+    *status = APP_RINGTONE_LOAD_MISSING;
     return NULL;
 }
 static uint8_t command[20];
@@ -222,11 +223,12 @@ int main(void)
     wave_data[20] = 1; wave_data[22] = 1; put32(wave_data + 24, 16000); put32(wave_data + 28, 32000);
     wave_data[32] = 2; wave_data[34] = 16; memcpy(wave_data + 36, "data", 4); put32(wave_data + 40, 640);
     size_t downloaded_size;
+    app_ringtone_load_status_t load_status;
     cancel_download = true;
-    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size));
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status));
     assert(http_reads == 1 && http_cleanups == 1);
     cancel_download = false;
-    uint8_t *downloaded = app_intercom_control_ringtone("doorbell.wav", &downloaded_size);
+    uint8_t *downloaded = app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status);
     assert(downloaded && downloaded_size == sizeof(wave_data) && !memcmp(downloaded, wave_data, downloaded_size));
     assert(http_cleanups == 2); free(downloaded);
     assert(app_intercom_control_acquire(7));

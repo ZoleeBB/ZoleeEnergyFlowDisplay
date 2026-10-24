@@ -1,4 +1,5 @@
 #pragma once
+#include "app_ringtone_wav.h"
 #include "app_loxone.h"
 #include <stdint.h>
 
@@ -58,4 +59,4 @@ bool app_intercom_control_outgoing(uint8_t out[APP_INTERCOM_CONTROL_SIZE]);
 void app_intercom_control_sent(bool success);
 /* Csengőhang lekérése csak a BLE-n kapott, véletlen hozzáférési kulccsal. */
 bool app_intercom_control_media_key(const char* key);
-uint8_t* app_intercom_control_ringtone(const char* name, size_t* size);
+uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status);

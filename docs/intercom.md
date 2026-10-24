@@ -186,3 +186,15 @@ más hardveren/kaputelefonon a működés külön ellenőrzendő.
 - [Rögzített Waveshare BSP](https://github.com/waveshareteam/Waveshare-ESP32-components/tree/0694fdb9fa7751cc2719a9d1927de70547b89ba0/bsp/esp32_p4_wifi6_touch_lcd_x)
 
 A párosított 4B kijelzők és a csengőhangcsomag működése: [Slave kaputelefon](slave-intercom.md).
+
+## Csengőhang-betöltési hibák
+
+A csengőhang nagy puffere kifejezetten PSRAM-ba kerül a Masteren és a Slave-en,
+megőrizve a belső memóriát a kamera/hang DMA számára. Az SD-olvasás legfeljebb
+512 bájtos darabokat kér, így a driver átmeneti puffere nem nő a WAV hosszával. A Master az SD átmeneti
+foglaltságára legfeljebb 5 másodpercig próbál újra; hívásindítás, kapunyitás vagy
+a csengetés vége ezt megszakítja. Hiányzó/hibás fájlt nem próbál folyamatosan újraolvasni.
+A kijelző külön jelzi a foglaltságot, memóriahiányt, hiányzó vagy hibás WAV-ot,
+olvasási hibát, illetve a Slave Master-letöltési és hozzáférési hibáját.
+A webes előnézet és a kijelző betöltése külön kérésenként kap hibaállapotot;
+egy párhuzamos előnézet nem írhatja felül a kijelző hibáját.
