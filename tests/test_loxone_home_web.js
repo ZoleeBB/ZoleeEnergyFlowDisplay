@@ -21,9 +21,10 @@ const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nap
     {uuid,control_uuid:'eeeeeeee-5566-7788-99aabbccddeeff00',action_uuid:'',name:'Hibás parancscím',type:'Switch',secured:false}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
-let uploadAbort=false, uploads=0;
-const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={},timeoutMs)=>{
+let uploadAbort=false, uploads=0, transferBusy=false;
+const sandbox={console,TextEncoder,URL,setLoxoneTransferBusy:active=>{transferBusy=active;},document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={},timeoutMs)=>{
     if(url==='/api/loxone/intercom/ringtones') {
+        assert.equal(transferBusy,true);
         assert.equal(timeoutMs,180000); assert.equal(options.method,'POST'); uploads++;
         if(uploadAbort) throw Object.assign(Error('signal is aborted without reason'),{name:'AbortError'});
         return {ok:true,text:async()=>'Telepítve.'};
@@ -165,10 +166,10 @@ const click=id=>nodes.get(id).onclick();
     await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
     nodes.get('ringtone-file').files=[{name:'private.zip',size:2716219}];
     await nodes.get('ringtone-upload').onclick();
-    assert.equal(uploads,1); assert.equal(nodes.get('ringtone-status').textContent,'Telepítve.');
+    assert.equal(uploads,1); assert.equal(transferBusy,false); assert.equal(nodes.get('ringtone-status').textContent,'Telepítve.');
     uploadAbort=true;
     await nodes.get('ringtone-upload').onclick();
-    assert.equal(uploads,2); assert.match(nodes.get('ringtone-status').textContent,/3 perces/);
+    assert.equal(uploads,2); assert.equal(transferBusy,false); assert.match(nodes.get('ringtone-status').textContent,/3 perces/);
     assert.equal(nodes.get('ringtone-upload').disabled,false);
     // A valódi fetch-segéd normál kérései továbbra is 15 másodpercesek.
     const fetchSource=fs.readFileSync('assets/web/loxone.js','utf8');

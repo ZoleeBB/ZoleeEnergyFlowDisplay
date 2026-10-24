@@ -75,9 +75,13 @@ void vTaskDelay(unsigned delay)
 int xTaskCreatePinnedToCoreWithCaps(void (*worker)(void *), const char *name, unsigned stack,
                            void *argument, unsigned priority, void *handle, unsigned core, unsigned caps)
 {
-    assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 &&
+    assert(worker && !strcmp(name, "intercom_audio") &&
            priority == 7 && core == 0);
-    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#ifdef APP_INTERCOM_DISTRIBUTED
+    if (s_ringtone) assert(stack == 8192 && caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    else
+#endif
+    assert(stack == 16384 && caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     (void)argument;
     assert(handle);
     if (task_failure) return 0;

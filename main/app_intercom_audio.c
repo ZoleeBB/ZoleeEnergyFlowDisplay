@@ -201,13 +201,26 @@ static esp_err_t audio_request(bool enabled, unsigned revision)
 #endif
     }
     unsigned epoch = s_epoch;
+#ifdef APP_INTERCOM_DISTRIBUTED
+    bool ringtone_task = s_ringtone;
+#endif
     portEXIT_CRITICAL(&s_lock);
     if (enabled)
         audio_checkpoint(AUDIO_STAGE_START);
     TaskHandle_t handle = NULL;
+    unsigned stack_size = 16384;
+    unsigned stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#ifdef APP_INTERCOM_DISTRIBUTED
+    /* A WAV fájlműveletei belső vermet kapnak, mint a működő webes lejátszás.
+     * A SIP/AEC nagy beszélgetési verme továbbra is PSRAM-ban marad. */
+    if (ringtone_task) {
+        stack_size = 8192;
+        stack_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    }
+#endif
     /* Az I2S által ütemezett hangot a GUI számolása nem szoríthatja ki. */
-    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 7, &handle, 0,
-            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
+    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", stack_size, NULL, 7, &handle, 0,
+            stack_caps) != pdPASS) {
         portENTER_CRITICAL(&s_lock);
         s_running = false;
         s_requested = false;

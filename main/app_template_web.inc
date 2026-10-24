@@ -1,3 +1,4 @@
+#include "app_web_upload.inc"
 #include "app_support_web.h"
 #include "app_template_page.h"
 #include "app_builtin_previews.h"
@@ -167,14 +168,9 @@ static esp_err_t template_change(httpd_req_t *req){
 static esp_err_t template_upload(httpd_req_t *req){
     if(!template_request_authorized(req,true))return ESP_OK;
     if(req->content_len<22||req->content_len>APP_TEMPLATE_ZIP_MAX)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"A ZIP legfeljebb 8 MiB lehet");
-    if(!app_storage_is_ok())return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Az SD-kártya nem érhető el");
-    if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Az SD-kártya nem érhető el");
-    char path[256];snprintf(path,sizeof(path),"%s/.upload.zip",app_templates_root());FILE *f=fopen(path,"wb");
-    if(!f){app_storage_unlock();return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD-kártya írási hiba");}
-    char buffer[2048],error[160]="Telepítés sikertelen";size_t left=req->content_len;bool ok=true;
-    while(left){int n=httpd_req_recv(req,buffer,left>sizeof(buffer)?sizeof(buffer):left);if(n<=0||fwrite(buffer,1,n,f)!=(size_t)n){ok=false;break;}left-=n;}
-    if(fclose(f))ok=false;
-    app_storage_unlock();
+    char path[256], error[160]="Telepítés sikertelen";
+    snprintf(path,sizeof(path),"%s/.upload.zip",app_templates_root());
+    bool ok=receive_sd_zip(req,path,error);
     bool probe=!strcmp(req->uri,"/api/templates/validate");cJSON *report=NULL;
     if (ok && s_config.energy_flow_disabled)
     {
@@ -191,7 +187,7 @@ static esp_err_t template_upload(httpd_req_t *req){
     }
     esp_err_t result=ok?(probe?app_templates_probe(path,&report,error):app_templates_install(path,error)):ESP_FAIL;
     if(app_storage_lock()==ESP_OK){remove(path);app_storage_unlock();}
-    if(!ok)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"A ZIP feltöltése megszakadt; nem történt telepítés");
+    if(!ok)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,error);
     if(result!=ESP_OK)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,error);
     if(probe){
         char *json=cJSON_PrintUnformatted(report);cJSON_Delete(report);if(!json)return ESP_ERR_NO_MEM;

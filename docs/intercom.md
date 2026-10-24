@@ -211,3 +211,21 @@ A csengőhang-ZIP feltöltésére és ellenőrzésére a böngésző 3 percet en
 a normál API-kérések 15 másodperces korlátja erre nem vonatkozik.
 Az új csomag azonos nevű hangjai felülírják a régieket. A csomag teljes
 hangkészletet cserél; hibás feltöltés/ellenőrzés esetén a korábbi készlet megmarad.
+
+### Feltöltés és webes kapcsolatjelzés
+
+A csengőhang és a téma azonos, 2048 bájtos SD ZIP-fogadósegédet használ.
+A fogadó három egymást követő rövid socket-időtúllépést újrapróbál;
+megszakadáskor a fogadott bájtok számát és a hálózati hibakódot,
+SD-megnyitási/írási/lezárási hibánál pedig külön műveletet és errno-t jelez.
+A csengőhang ideiglenes ZIP-je a működő témakönyvtárba kerül, a hangkészlet
+csak sikeres kicsomagolás és WAV-ellenőrzés után cserélődik.
+
+A Loxone-oldal automatikus lekérdezése a csengőhang feltöltésének idejére
+szünetel. Az előző lekérdezés későn visszaérkező hibája sem görgeti fel az oldalt.
+Az „Az eszköz nem válaszolt 15 másodpercen belül” böngészős üzenet az eszköz
+HTTP-kiszolgálójára vonatkozik, önmagában nem bizonyít Miniserver-bontást.
+
+A csengőhang-feladat 8 KiB belső RAM-os vermet használ a fájlrendszer/
+SD/ROM útvonalhoz, a beszélgetés 16 KiB-os verme változatlanul PSRAM-ban él.
+A hangadatok PSRAM-ban, az SD adatpuffere kis belső DMA-területen maradnak.

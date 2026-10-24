@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "app_loxone.h"
 #include "esp_http_server.h"
 #include "app_slave_presence_service.h"
@@ -12,6 +13,8 @@
 #include "app_storage.h"
 #include "app_intercom_control.h"
 esp_err_t app_storage_lock(void) { return ESP_OK; }
+bool app_storage_is_ok(void) { return true; }
+const char *app_templates_root(void) { return "/tmp"; }
 void app_storage_unlock(void) {}
 cJSON *app_ringtones_list(void) { return cJSON_CreateArray(); }
 esp_err_t app_ringtones_install(const char *path, char error[160]) { (void)path; (void)error; return ESP_OK; }
@@ -62,6 +65,7 @@ static bool authorized = true, header_ok = true, broken;
 static int status_code, requested, registered;
 static const char *input;
 static size_t position;
+static unsigned receive_timeouts;
 static char response[4096];
 static bool authorize(httpd_req_t *req) { (void)req; if (!authorized) status_code=401; return authorized; }
 esp_err_t httpd_resp_set_type(httpd_req_t *r,const char *s) { (void)r;(void)s;return ESP_OK; }
@@ -83,7 +87,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
 }
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
-int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
+int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *route) { (void)server;assert(route->handler);registered++;return ESP_OK; }
 cJSON *app_loxone_web_state(void) { return cJSON_CreateObject(); }
 esp_err_t app_loxone_request(const cJSON *root,bool save) { (void)root;(void)save;return ESP_OK; }
@@ -263,6 +267,22 @@ int main(void)
     assert(cJSON_GetObjectItem(home_state,"resources_version")->valueint == 3);
     cJSON_Delete(home_state);
     slave_tests();
+    char upload_path[] = "/tmp/ringtone-upload-test-XXXXXX";
+    int upload_fd = mkstemp(upload_path); assert(upload_fd >= 0); close(upload_fd);
+    char upload_error[160] = "";
+    input = "0123456789abcdefghij"; position = 0;
+    request.content_len = 20;
+    receive_timeouts = 2;
+    assert(receive_sd_zip(&request, upload_path, upload_error));
+    FILE *uploaded = fopen(upload_path, "rb"); assert(uploaded);
+    char uploaded_bytes[21] = {0}; assert(fread(uploaded_bytes, 1, 20, uploaded) == 20); fclose(uploaded);
+    assert(!strcmp(uploaded_bytes, input));
+    position = 0; broken = true;
+    assert(!receive_sd_zip(&request, upload_path, upload_error) && strstr(upload_error, "fogadása"));
+    broken = false; position = 0; receive_timeouts = 4;
+    assert(!receive_sd_zip(&request, upload_path, upload_error) && receive_timeouts == 0);
+    assert(!receive_sd_zip(&request, "/missing-directory/upload.zip", upload_error) && strstr(upload_error, "errno="));
+    remove(upload_path); request.content_len = 0;
     ringtone_query = true;
     status_code = 200;
     unsigned completed = async_complete;

@@ -26,8 +26,11 @@ function validate(action,scope='mappings'){
  if(action==='save'&&!energyDisabled){const count=sunFields.filter(key=>data.mappings[key].uuid).length;if(count&&count!==4)return 'A nappályához mind a négy adatot párosítsd: azimut, magasság, napkelte és napnyugta.';}
  return '';
 }
-async function refresh(){try{
- const r=await apiFetch('/api/loxone',{cache:'no-store'});if(!r.ok)throw Error(await r.text());const state=await r.json();
+let mediaUploadActive=false,loxoneRefreshing=false,transferGeneration=0;
+function setLoxoneTransferBusy(active){mediaUploadActive=active;if(active)transferGeneration++;}
+async function refresh(){
+ if(mediaUploadActive||loxoneRefreshing)return;loxoneRefreshing=true;const generation=transferGeneration;try{
+ const r=await apiFetch('/api/loxone',{cache:'no-store'});if(mediaUploadActive||generation!==transferGeneration)return;if(!r.ok)throw Error(await r.text());const state=await r.json();if(mediaUploadActive||generation!==transferGeneration)return;
  if(!initialized){for(const key of ['host','port','username','ca_pem'])$(key).value=state[key]??'';$('tls').checked=state.tls;for(const [key] of fields){const m=state.mappings[key];if(m){const o=document.createElement('option');o.value=m.uuid;o.textContent=m.uuid;$(key+'_uuid').append(o);$(key+'_uuid').value=m.uuid;$(key+'_scale').value=m.scale;$(key+'_offset').value=m.offset;}}$('password').placeholder=state.has_password?'Mentett jelszó változatlan':'Add meg a jelszót (másik kijelzőn újra szükséges)';initialized=true;}
  energyDisabled=!!state.energy_flow_disabled;
  for(const [key] of fields)$('mapping-row-'+key).hidden=energyDisabled&&key!=='NightMode';
@@ -36,7 +39,7 @@ async function refresh(){try{
  serverBusy=!!state.busy;buttons();message(feedback||state.status,!!feedback);
  if(typeof LoxoneHome!=='undefined')await LoxoneHome.refresh(catalog,serverBusy,energyDisabled);
  if(typeof LoxoneSlaves!=='undefined')await LoxoneSlaves.refresh(catalog,serverBusy);
- }catch(e){if(!feedback)message('Kapcsolati hiba: '+(e.name==='AbortError'?'Az eszköz nem válaszolt 15 másodpercen belül.':e.message),true);}
+ }catch(e){if(!mediaUploadActive&&generation===transferGeneration&&!feedback)message('Kapcsolati hiba: '+(e.name==='AbortError'?'Az eszköz nem válaszolt 15 másodpercen belül.':e.message),true);}finally{loxoneRefreshing=false;}
 }
 async function submit(action,scope=action==='test'?'connection':'mappings'){
  if(busy)return;
