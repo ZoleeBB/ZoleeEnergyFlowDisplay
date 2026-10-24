@@ -523,7 +523,7 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
         return NULL;
     char url[192];
     snprintf(url, sizeof(url), "http://%s/api/intercom/ringtone?name=%s", ip, name);
-    esp_http_client_config_t config = { .url = url, .timeout_ms = 1500, .disable_auto_redirect = true };
+    esp_http_client_config_t config = { .url = url, .timeout_ms = 500, .disable_auto_redirect = true };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client)
         return NULL;
@@ -536,6 +536,9 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
             size_t position = 0;
             int64_t deadline = esp_timer_get_time() + 3000000;
             while (data && position < (size_t)n && esp_timer_get_time() < deadline) {
+                app_intercom_audio_status_t audio;
+                app_intercom_audio_snapshot(&audio);
+                if (audio.state == APP_INTERCOM_AUDIO_STOPPING) break;
                 int count = esp_http_client_read(client, (char*)data + position, (int)(n - position));
                 if (count <= 0)
                     break;

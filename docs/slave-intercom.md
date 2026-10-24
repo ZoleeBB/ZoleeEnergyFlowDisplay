@@ -30,7 +30,7 @@ ffmpeg -i sajat-hang.mp3 -ac 1 -ar 16000 -c:a pcm_s16le -t 8 csengo.wav
 
 A legördülőben a telepített hangok választhatók; alapból „Nincs csengőhang”, ismétlés kikapcsolva. Ismétlés nélkül a hang egyszer indul a csengetés elején. Ismétléssel a csengetés végéig szól, de egy beszélgetés engedélyezése vagy elfogadott kapunyitás az adott csengetés hátralévő idejére minden kijelzőn elnémítja. A következő csengetés újra megszólalhat. A hangerő a mentett kaputelefon-hangerőt követi.
 
-A Slave a kiválasztott WAV-ot a Mastertől tölti le egy BLE-n kapott, véletlen, Master-bootonként cserélődő médiakulccsal; a lejátszás RAM-ból történik. Letöltési/SD-hiba vagy hiányzó hang nem akadályozza a kamerát és a beszélgetést.
+A Slave a kiválasztott WAV-ot a Mastertől tölti le egy BLE-n kapott, véletlen, Master-bootonként cserélődő médiakulccsal; a lejátszás RAM-ból történik. Foglalt SD-kártya, letöltési/SD-hiba vagy hiányzó hang nem akadályozza a kamerát és a beszélgetést.
 
 A kezdőcsomag három Freesound CC0 hangot tartalmaz: Squidems „Doorbell”, marlocarlo „Doorbell”, SoundProject123456789 „Doorbell”. A pontos URL-ek, licencek, eredeti fájl SHA-256 értékei és átalakítások a csomag `ringtone.json` fájljában szerepelnek. Kiadáskor a hangok már a forrásban vannak, nincs hálózati letöltés.
 

@@ -200,6 +200,11 @@ static esp_err_t audio_request(bool enabled, unsigned revision, bool test, unsig
             .revision = revision,
             .speaker_test = s_speaker_test,
         };
+#ifdef APP_INTERCOM_DISTRIBUTED
+        /* A fájl betöltése még nem SIP-kapcsolódás: a gomb már ekkor is
+         * beszélgetést indítson, és előzze meg a csengőhang lejátszását. */
+        if (enabled && s_ringtone) s_status.state = APP_INTERCOM_AUDIO_RINGING;
+#endif
     }
     unsigned epoch = s_epoch;
     portEXIT_CRITICAL(&s_lock);

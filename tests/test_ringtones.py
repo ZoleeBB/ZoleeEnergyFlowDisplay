@@ -20,10 +20,13 @@ with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
 #include <stdio.h>
 #include "app_storage.h"
 static int fault, calls;
+static bool busy;
+void storage_busy(bool value) { busy = value; }
 void fail_rename(int n) { fault = n; calls = 0; }
 int __real_rename(const char *, const char *);
 int __wrap_rename(const char *a, const char *b) { if (++calls == fault) return -1; return __real_rename(a, b); }
 esp_err_t app_storage_lock(void) { return ESP_OK; }
+bool app_storage_try_lock(void) { return !busy; }
 void app_storage_unlock(void) {}
 bool app_templates_safe_asset(const char *name) { (void)name; return false; }
 ''')
@@ -82,4 +85,7 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert set(json.loads(C.string_at(text))) == set(sounds)
     libc.free(text); lib.cJSON_Delete(array)
     assert not lib.app_ringtones_load(b'../secret.wav', C.byref(size))
+    lib.storage_busy(1)
+    assert not lib.app_ringtones_load(name.encode(), C.byref(size))
+    lib.storage_busy(0)
     print('PASS: three real CC0 WAVs, strict PCM/rate/channel/depth/RIFF limits, ZIP traversal/type/count/size rejection, atomic rollback and power-loss recovery, safe list/load')

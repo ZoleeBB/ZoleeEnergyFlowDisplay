@@ -573,7 +573,7 @@ int main(void)
         unsigned before = tasks_created;
         unsigned aec_before = aec_creates;
         app_intercom_audio_poll();
-        assert(tasks_created == before + 1 && s_ringtone);
+        assert(tasks_created == before + 1 && s_ringtone && s_status.state == APP_INTERCOM_AUDIO_RINGING);
         if (!setjmp(worker_exit)) audio_worker(NULL);
         assert(!app_intercom_audio_busy());
         assert(writes == (ring_preempt ? 1 : ring_repeat ? 3 : AUDIO_RATE == 16000 ? 1 : 2));

@@ -141,6 +141,43 @@ int main(void)
     return 0;
 }
 #else
+static uint8_t wave_data[684];
+static unsigned http_reads, http_cleanups;
+static size_t http_position;
+static bool cancel_download;
+void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->state = cancel_download && http_reads ? APP_INTERCOM_AUDIO_STOPPING : APP_INTERCOM_AUDIO_RINGING;
+}
+esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config)
+{
+    assert(config->timeout_ms == 500 && config->disable_auto_redirect);
+    assert(!strcmp(config->url, "http://192.168.1.10/api/intercom/ringtone?name=doorbell.wav"));
+    http_position = 0; http_reads = 0;
+    return (void *)1;
+}
+esp_err_t esp_http_client_set_header(esp_http_client_handle_t client, const char *name, const char *value)
+{
+    assert(client == (void *)1 && !strcmp(name, "X-Zolee-Media") && strlen(value) == 64);
+    return ESP_OK;
+}
+esp_err_t esp_http_client_open(esp_http_client_handle_t client, int size) { assert(client && !size); return ESP_OK; }
+int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) { assert(client); return sizeof(wave_data); }
+int esp_http_client_get_status_code(esp_http_client_handle_t client) { assert(client); return 200; }
+int esp_http_client_read(esp_http_client_handle_t client, char *out, int size)
+{
+    assert(client && size > 0);
+    size_t count = sizeof(wave_data) - http_position;
+    if (count > (size_t)size) count = (size_t)size;
+    if (count > 100) count = 100;
+    memcpy(out, wave_data + http_position, count);
+    http_position += count; http_reads++;
+    return (int)count;
+}
+esp_err_t esp_http_client_close(esp_http_client_handle_t client) { assert(client); return ESP_OK; }
+esp_err_t esp_http_client_cleanup(esp_http_client_handle_t client) { assert(client); http_cleanups++; return ESP_OK; }
+
 int main(void)
 {
     app_config_t config = { 0 };
@@ -163,11 +200,25 @@ int main(void)
     profile[495] = profile[496] = 1;
     strcpy((char*)extras + 16, "Kapunyitás");
     strcpy((char*)extras + 97, "doorbell.wav");
+    strcpy((char *)extras + 162, "192.168.1.10");
+    memset(extras + 178, 'f', 64);
     extras[12] = 82;
     extras[13] = 17;
     assert(app_intercom_control_receive_profile(profile, extras));
     assert(app_loxone_intercom_snapshot(&snapshot) && snapshot.ringing && !snapshot.config.video_password[0]);
     assert(!app_intercom_control_allowed(7));
+    memcpy(wave_data, "RIFF", 4); put32(wave_data + 4, sizeof(wave_data) - 8);
+    memcpy(wave_data + 8, "WAVEfmt ", 8); put32(wave_data + 16, 16);
+    wave_data[20] = 1; wave_data[22] = 1; put32(wave_data + 24, 16000); put32(wave_data + 28, 32000);
+    wave_data[32] = 2; wave_data[34] = 16; memcpy(wave_data + 36, "data", 4); put32(wave_data + 40, 640);
+    size_t downloaded_size;
+    cancel_download = true;
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size));
+    assert(http_reads == 1 && http_cleanups == 1);
+    cancel_download = false;
+    uint8_t *downloaded = app_intercom_control_ringtone("doorbell.wav", &downloaded_size);
+    assert(downloaded && downloaded_size == sizeof(wave_data) && !memcmp(downloaded, wave_data, downloaded_size));
+    assert(http_cleanups == 2); free(downloaded);
     assert(app_intercom_control_acquire(7));
     assert(!app_intercom_control_acquire(7));
     assert(app_intercom_control_outgoing(command) && command[1] == APP_INTERCOM_ACQUIRE);

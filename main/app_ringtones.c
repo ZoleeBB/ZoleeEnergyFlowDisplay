@@ -59,7 +59,8 @@ static uint8_t* load(const char* directory, const char* name, size_t* size)
 
 uint8_t* app_ringtones_load(const char* name, size_t* size)
 {
-    if (!size || app_storage_lock() != ESP_OK)
+    /* Hosszú webes SD-feltöltés nem tarthatja fel a hanghívás indítását. */
+    if (!size || !app_storage_try_lock())
         return NULL;
     /* Áramszünet a két rename között: a teljes régi csomag visszaállítható. */
     struct stat st;
