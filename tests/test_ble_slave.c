@@ -333,6 +333,12 @@ void app_state_clear_sample(void)
     runtime.has_valid_sample = false;
     ++clears;
 }
+void app_state_set_energy_flow_disabled(bool disabled, bool night)
+{
+    runtime.energy_flow_disabled = disabled;
+    runtime.standalone_night = night;
+    if (disabled) runtime.has_valid_sample = false;
+}
 void app_state_set_slave(bool connected, bool stale, uint16_t timeout, bool packet)
 {
     runtime.slave_connected = connected;

@@ -122,6 +122,7 @@ typedef struct
 typedef struct
 {
     app_data_mode_t data_recept_mode;
+    bool energy_flow_disabled; /* Csak Loxone módban: kizárólag Otthon és kaputelefon. */
     bool cardless_slave; /* Belső indulási állapot; JSON-ból nem kapcsolható be. */
     bool data_seed_enabled; /* BLE master: csak olvasható energiaadat-megosztás. */
     char data_seed_pin[7]; /* Hat számjegy; üresen eszközön generált, tartós PIN. */

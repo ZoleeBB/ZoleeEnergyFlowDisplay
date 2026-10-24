@@ -13,6 +13,7 @@ static int home_page;
 static unsigned home_card_page, home_first_card, home_card_count;
 static lv_obj_t *home_dots[LX_HOME_MAX_PAGES];
 static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
+static bool home_empty = true;
 static unsigned home_revision, home_resource_generation;
 static unsigned home_load_attempts;
 static TEMPLATE_RAM lx_home_config_t home_config, home_next_config;
@@ -33,13 +34,13 @@ static bool home_is_open(void) { return home_request_get() != 0; }
 static void home_close(lv_event_t *event)
 {
     (void)event;
-    home_request_set(0);
+    if (!s_cfg.energy_flow_disabled) home_request_set(0);
     if (event) lv_event_stop_bubbling(event);
 }
 static void home_open_clicked(lv_event_t *event)
 {
     (void)event;
-    if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
+    if (!s_cfg.energy_flow_disabled && !s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(1);
 }
 static void home_cards_requested(void)
@@ -146,11 +147,30 @@ static bool home_decode_images(void)
 static bool home_prepare(bool night)
 {
     int requested = home_request_get();
+    if (s_cfg.energy_flow_disabled)
+    {
+        if (s_diagnostics_requested) return true;
+        if (requested < 2) { requested = 2; home_request_set(2); }
+    }
     if (!requested && !home_page) return true;
     unsigned resource_generation = 0;
     bool snapshot = s_cfg.data_recept_mode == APP_DATA_LOXONE &&
                     app_loxone_home_snapshot(&home_next_config, &home_next_values,
                         &home_next_revision, &home_next_connected, &home_next_wait, home_next_status);
+    home_empty = snapshot && home_next_config.card_count == 0;
+    if (s_cfg.energy_flow_disabled && home_empty)
+    {
+        /* Üres Otthonhoz nem olvasunk SD-képeket, és üres csempelapot sem építünk. */
+        if (home_page)
+        {
+            if (bsp_display_lock(-1) != ESP_OK) return false;
+            home_reset_theme();
+            home_page = 0;
+            bsp_display_unlock();
+        }
+        home_request_set(0);
+        return true;
+    }
     bool sd_ok = app_storage_is_ok();
     bool resources = sd_ok && app_templates_home_info(NULL, &resource_generation);
     /* Hosszú webes telepítés alatt a nem blokkoló katalóguslekérdezés
@@ -342,6 +362,7 @@ static void home_build(void)
     bg_color_if_changed(close, c(0x007D7D), 0);
     lv_obj_set_style_radius(close, 28, 0);
     lv_obj_add_event_cb(close, home_close, LV_EVENT_CLICKED, NULL);
+    if (s_cfg.energy_flow_disabled) lv_obj_add_flag(close, LV_OBJ_FLAG_HIDDEN);
     unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
     memset(home_buttons, 0, sizeof(home_buttons));
     memset(home_switch_knobs, 0, sizeof(home_switch_knobs));

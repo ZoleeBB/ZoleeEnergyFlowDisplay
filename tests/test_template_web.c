@@ -6,6 +6,8 @@
 #include "esp_http_server.h"
 #include "app_templates.h"
 #include "app_storage.h"
+#include "app_config.h"
+static app_config_t s_config;
 static int status,interrupted;static bool authorized=true,header=true,storage_available=true;
 static const unsigned char *request_bytes;static size_t request_offset;
 static char *response;

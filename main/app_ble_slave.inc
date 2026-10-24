@@ -77,6 +77,7 @@ static void slave_reset(void)
     s_master_timeout = 45;
     s_next_scan_us = esp_timer_get_time() + 3000000;
     app_state_set_slave(false, true, 45, false);
+    app_state_set_energy_flow_disabled(false, false);
     app_state_clear_sample();
 }
 
@@ -166,9 +167,19 @@ static void slave_try_frame(int64_t now)
         s_have_frame = true;
         s_last_frame_us = now;
     }
+    if (result == ESP_OK && sample.energy_flow_disabled) s_master_stale = false;
     app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame);
     if (result != ESP_OK)
+    {
+        app_state_set_energy_flow_disabled(false, false);
         return;
+    }
+    app_state_set_energy_flow_disabled(sample.energy_flow_disabled, sample.night_mode);
+    if (sample.energy_flow_disabled)
+    {
+        s_applied_sample_epoch = 0;
+        return;
+    }
     /* Heartbeat nem új mérés: az eredeti minta idejét/korát nem fiatalítjuk. */
     if (sample.received_epoch_s <= s_applied_sample_epoch)
         return;

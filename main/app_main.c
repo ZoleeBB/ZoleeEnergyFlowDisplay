@@ -229,6 +229,7 @@ void app_main(void)
         (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
         fatal_forever("Bluetooth profilhiba", "A párosítási profil nem inicializálható.");
     app_state_set_data_mode(s_config.data_recept_mode);
+    app_state_set_energy_flow_disabled(s_config.energy_flow_disabled, false);
     app_state_set_config_ok(true);
     app_ui_set_config(&s_config);
     if(app_templates_init()!=ESP_OK)app_events_add(APP_EVENT_WARNING,"Sablonkezelő nem indult; alapnézet aktív.");

@@ -12,6 +12,7 @@ static cJSON *settings_json(const app_config_t *v)
     cJSON *root=cJSON_CreateObject();
     if(!root)return NULL;
     cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave);
+    cJSON_AddNumberToObject(root,"EnergyFlowDisabled",v->energy_flow_disabled?1:0);
     cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
     cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
     cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");

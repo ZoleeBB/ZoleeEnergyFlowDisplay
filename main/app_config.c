@@ -332,6 +332,13 @@ static bool parse_config(
         set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http', 'loxone' vagy 'slave' lehet.");
         return false;
     }
+    if (!read_bool01(root, "EnergyFlowDisabled", &cfg->energy_flow_disabled, false, error, error_len))
+        return false;
+    if (cfg->energy_flow_disabled && cfg->data_recept_mode != APP_DATA_LOXONE)
+    {
+        set_error(error, error_len, "Az Energiaáramlás tiltás csak Loxone módban engedélyezhető.");
+        return false;
+    }
     /* Csak az aktív adatfogadási mód beállításait ellenőrizzük. */
     if (cfg->data_recept_mode == APP_DATA_HTTP) {
         cJSON *http = get_object_section(root, "http", false, error, error_len);

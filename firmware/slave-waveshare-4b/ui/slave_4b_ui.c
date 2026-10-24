@@ -2,6 +2,7 @@
  * Érvénytelen/lejárt minta esetén nincs mozgás és nincs régi teljesítményérték. */
 #include "slave_4b_ui.h"
 #include "app_flow_model.h"
+#include "app_loxone_wordmark.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -18,7 +19,7 @@ typedef struct
     int x, y, radius;
 } node_t;
 
-static lv_obj_t *root, *background, *hub, *soc, *battery_detail;
+static lv_obj_t *root, *background, *hub, *soc, *battery_detail, *disabled_overlay;
 static lv_obj_t *temperature, *wind, *clock_label, *weather, *wind_icon;
 static lv_obj_t *message, *diagnostics, *pin_pad, *pin_mask, *pin_countdown;
 static node_t nodes[4]; /* Hálózat, akku, napelem, ház. */
@@ -258,6 +259,29 @@ void slave_4b_ui_message(const char *text)
 void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
                     const app_runtime_state_t *runtime, const char *clock, float seconds)
 {
+    bool disabled = runtime && runtime->energy_flow_disabled && runtime->slave_connected && !runtime->slave_source_stale;
+    if (disabled && !disabled_overlay)
+    {
+        disabled_overlay = box(root, 0, 0, 720, 720);
+        lv_obj_set_style_bg_color(disabled_overlay, lv_color_hex(0), 0);
+        lv_obj_set_style_bg_opa(disabled_overlay, LV_OPA_COVER, 0);
+        lv_obj_t *logo = lv_image_create(disabled_overlay);
+        lv_image_set_src(logo, &loxone_wordmark);
+        lv_obj_set_pos(logo, 160, 270);
+        lv_obj_t *caption = lv_label_create(disabled_overlay);
+        lv_label_set_text(caption, "Energiaáramlás letiltve");
+        lv_obj_set_style_text_font(caption, &app_font_28, 0);
+        lv_obj_set_style_text_color(caption, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_width(caption, 640);
+        lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_pos(caption, 40, 390);
+    }
+    if (!disabled && disabled_overlay)
+    {
+        lv_obj_delete(disabled_overlay);
+        disabled_overlay = NULL;
+    }
+    if (disabled) return;
     app_energy_sample_t empty = {0};
     if (!sample)
         sample = &empty;

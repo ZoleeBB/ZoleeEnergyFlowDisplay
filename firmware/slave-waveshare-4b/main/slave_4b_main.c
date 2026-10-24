@@ -48,14 +48,17 @@ static void refresh(lv_timer_t *timer)
     }
     float elapsed = previous ? (float)(now - previous) / 1000000.f : 0;
     previous = now;
-    slave_4b_ui_update(&sample, available, &runtime, clock, elapsed);
+    app_runtime_state_t visible_runtime = runtime;
+    if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
+        visible_runtime.slave_source_stale = true;
+    slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     slave_4b_ui_pairing(&pairing);
     /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
-    if (available)
-        app_slave_display_night(&display_state, sample.night_mode, now);
+    if (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale))
+        app_slave_display_night(&display_state, runtime.energy_flow_disabled ? runtime.standalone_night : sample.night_mode, now);
     app_slave_display_keep_visible(&display_state,
                                    !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input, now);

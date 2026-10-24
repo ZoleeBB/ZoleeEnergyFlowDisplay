@@ -75,6 +75,7 @@ static char s_home_status[LX_HOME_ERROR_SIZE] = "";
 static cJSON *s_catalog;
 static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
 static bool s_busy,s_password;
+static bool s_energy_disabled;
 /* A hiba csak lépésnevet és kódot tartalmazhat, parancsot/tokent soha. */
 static char s_stage[80],s_failure[192];
 static esp_websocket_client_handle_t s_ws;
@@ -505,7 +506,7 @@ static void invalidate(bool configured)
 static bool configured(const lx_config_t *cfg)
 {
     if(!cfg->host[0]||!cfg->username[0]||!cfg->password[0])return false;
-    for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&!cfg->map[i].uuid[0])return false;
+    for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&(!s_energy_disabled||i==6)&&!cfg->map[i].uuid[0])return false;
     return true;
 }
 /* A memóriabeli profil csak a sikeresen lezárt SD-tranzakció után változik. */
@@ -516,11 +517,13 @@ static void save_home_request(const lx_home_config_t *home)
     if (saved == ESP_OK)
     {
         bool same_bell = !strcmp(s_home->intercom.bell_uuid, home->intercom.bell_uuid);
+        bool intercom_changed = memcmp(&s_home->intercom, &home->intercom, sizeof(home->intercom)) != 0;
         *s_home = *home;
         if (!same_bell || !home->intercom.enabled)
             s_intercom_ringing = false;
         s_home_revision++;
-        s_intercom_generation++;
+        if (intercom_changed)
+            s_intercom_generation++;
     }
     snprintf(s_home_status, sizeof(s_home_status), "%s",
              saved == ESP_OK ? "Otthon-beállítások elmentve." :
@@ -597,7 +600,13 @@ static void worker(void *arg)
                 if(!renew_token(active,token))break;
                 status("Kapcsolódva. A token megújítva.");
             }
-            if(now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
+            if (s_energy_disabled)
+            {
+                if (s_values.seen[6] && (s_values.value[6] == 0 || s_values.value[6] == 1))
+                    app_state_set_energy_flow_disabled(true, s_values.value[6] == 1);
+                status("Loxone Otthon adatkapcsolat működik.");
+            }
+            if(!s_energy_disabled && now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
                 cJSON *payload=lx_values_payload(&s_values,active);
                 char *json=payload?cJSON_PrintUnformatted(payload):NULL;cJSON_Delete(payload);
                 if(json) {char error[192];
@@ -623,6 +632,9 @@ retry:
 }
 esp_err_t app_loxone_start(void)
 {
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    s_energy_disabled = runtime.energy_flow_disabled;
     s_lock=xSemaphoreCreateMutex();s_messages=xQueueCreate(LX_QUEUE_DEPTH,sizeof(message_t));s_requests=xQueueCreate(1,sizeof(request_t*));
     s_home_commands = xQueueCreate(1, sizeof(home_command_t));
     if(!s_lock||!s_messages||!s_requests||!s_home_commands)return ESP_ERR_NO_MEM;
@@ -636,6 +648,7 @@ esp_err_t app_loxone_start(void)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
     lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
+    s_saved.energy_flow_disabled = s_energy_disabled;
     /* A GUI/touch a CPU1-en fut; a hálózati állapotfeldolgozás CPU0-n marad.
      * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
     if (xTaskCreatePinnedToCore(worker, "loxone", 12288, NULL, 3, NULL, 0) != pdPASS)
@@ -648,6 +661,7 @@ cJSON *app_loxone_web_state(void)
     xSemaphoreTake(s_lock,portMAX_DELAY);
     cJSON *root=lx_config_json(&s_saved);
     if(root) {
+        cJSON_AddBoolToObject(root,"energy_flow_disabled",s_energy_disabled);
         cJSON_AddBoolToObject(root,"has_password",s_password);cJSON_AddBoolToObject(root,"busy",s_busy);
         cJSON_AddStringToObject(root,"status",s_status);
         cJSON *catalog=s_catalog?cJSON_Duplicate(s_catalog,true):cJSON_CreateArray();
@@ -659,10 +673,47 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
 {
     if(!s_lock)return ESP_ERR_INVALID_STATE;
     request_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
-    bool ok=lx_config_parse(body,&r->config,save);
+    const cJSON *section = cJSON_GetObjectItemCaseSensitive(body, "section");
+    const char *scope = cJSON_IsString(section) ? section->valuestring : "";
     xSemaphoreTake(s_lock,portMAX_DELAY);
+    cJSON *merged = lx_config_json(&s_saved);
+    bool scoped = !strcmp(scope, "connection") || !strcmp(scope, "mappings");
+    bool ok = merged && (!section || scoped) && (!s_energy_disabled || scoped);
+    if (ok && scoped)
+    {
+        if (!strcmp(scope, "connection"))
+        {
+            const char *keys[] = {"host", "port", "tls", "ca_pem", "username"};
+            for (unsigned i = 0; ok && i < sizeof(keys) / sizeof(keys[0]); i++)
+            {
+                cJSON *value = cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(body, keys[i]), true);
+                ok = value && cJSON_ReplaceItemInObjectCaseSensitive(merged, keys[i], value);
+                if (!ok) cJSON_Delete(value);
+            }
+        }
+        else
+        {
+            cJSON *maps = cJSON_GetObjectItemCaseSensitive(merged, "mappings");
+            const cJSON *input = cJSON_GetObjectItemCaseSensitive(body, "mappings");
+            for (int i = 0; ok && i < LX_FIELD_COUNT; i++)
+            {
+                if (s_energy_disabled && i != 6) continue;
+                cJSON *value = cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(input, lx_fields[i].name), true);
+                ok = value && cJSON_ReplaceItemInObjectCaseSensitive(maps, lx_fields[i].name, value);
+                if (!ok) cJSON_Delete(value);
+            }
+        }
+    }
+    bool require = save && !s_energy_disabled && strcmp(scope, "connection");
+    ok = ok && lx_config_parse(scoped ? merged : body, &r->config, require);
+    cJSON_Delete(merged);
+    r->config.energy_flow_disabled = s_energy_disabled;
+    if (ok && save && !strcmp(scope, "mappings") && !r->config.map[6].uuid[0]) ok = false;
     const cJSON *password=cJSON_GetObjectItemCaseSensitive(body,"password");
-    if(cJSON_IsString(password)&&password->valuestring[0]&&strlen(password->valuestring)<LX_PASSWORD_MAX)
+    if (!strcmp(scope, "mappings"))
+        snprintf(r->config.password, sizeof(r->config.password), "%s", s_saved.password);
+    if(!strcmp(scope, "mappings")) {}
+    else if(cJSON_IsString(password)&&password->valuestring[0]&&strlen(password->valuestring)<LX_PASSWORD_MAX)
         snprintf(r->config.password,sizeof(r->config.password),"%s",password->valuestring);
     else if(cJSON_IsNull(password)&&strcmp(r->config.host,s_saved.host)==0&&r->config.port==s_saved.port&&r->config.tls==s_saved.tls&&strcmp(r->config.username,s_saved.username)==0)snprintf(r->config.password,sizeof(r->config.password),"%s",s_saved.password);
     else ok=false;
@@ -709,7 +760,23 @@ esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SI
         free(home);
         return ESP_ERR_NO_MEM;
     }
-    if (!body || !lx_home_config_parse(body, home, error))
+    const cJSON *section = cJSON_GetObjectItemCaseSensitive(body, "section");
+    const char *scope = cJSON_IsString(section) ? section->valuestring : "";
+    bool scoped = !strcmp(scope, "consumers") || !strcmp(scope, "pages") || !strcmp(scope, "intercom");
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    unsigned previous_revision = s_home_revision;
+    cJSON *merged = scoped ? lx_home_config_json(s_home) : NULL;
+    xSemaphoreGive(s_lock);
+    bool valid = (!section || scoped) && (!s_energy_disabled || (scoped && strcmp(scope, "consumers")));
+    if (scoped && merged)
+    {
+        cJSON *value = cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(body, scope), true);
+        valid = valid && value && cJSON_ReplaceItemInObjectCaseSensitive(merged, scope, value);
+        if (!valid) cJSON_Delete(value);
+    }
+    valid = valid && (!scoped || merged) && body && lx_home_config_parse(scoped ? merged : body, home, error);
+    cJSON_Delete(merged);
+    if (!valid)
     {
         free(request);
         free(home);
@@ -718,8 +785,8 @@ esp_err_t app_loxone_home_request(const cJSON *body, char error[LX_HOME_ERROR_SI
     request->home = home;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool credentials_ok = lx_intercom_credentials_update(&home->intercom, &s_home->intercom,
-        cJSON_GetObjectItemCaseSensitive(body, "intercom"));
-    bool accepted = credentials_ok && !s_busy && !s_home_busy &&
+        !scoped || !strcmp(scope, "intercom") ? cJSON_GetObjectItemCaseSensitive(body, "intercom") : NULL);
+    bool accepted = credentials_ok && previous_revision == s_home_revision && !s_busy && !s_home_busy &&
                     xQueueSend(s_requests, &request, 0) == pdTRUE;
     if (accepted)
     {

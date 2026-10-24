@@ -140,9 +140,9 @@ static void render_step(unsigned elapsed)
         }
         intercom_render();
         diagnostics_capture();
-        if (!home_is_open() && !template_loading_frame()) return;
+        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() && !template_loading_frame()) return;
         if (!home_prepare(sample.night_mode)) return;
-        if (!home_is_open()) template_prepare();
+        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open()) template_prepare();
         assistant_prepare();
         app_assistant_update(&assistant_state,ticks,&sample,
             have && s_cfg.data_recept_mode==APP_DATA_LOXONE && rt.loxone_connected,

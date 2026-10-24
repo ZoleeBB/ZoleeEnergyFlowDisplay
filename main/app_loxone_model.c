@@ -210,7 +210,7 @@ bool lx_values_update(
         lx_uuid_string(data + p, uuid);
         size_t n = type == 2 ? 0 : le32(data + p + 32);
         for (int i = 0; i < LX_FIELD_COUNT; i++)
-            if (strcmp(uuid, cfg->map[i].uuid) == 0)
+            if ((!cfg->energy_flow_disabled || i == 6) && strcmp(uuid, cfg->map[i].uuid) == 0)
             {
                 if (type == 2)
                 {

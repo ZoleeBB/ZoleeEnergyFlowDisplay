@@ -1,7 +1,7 @@
 'use strict';
 const definitions=[
 ['Általános',[
-['DataReceptMode','Adatfogadási mód','mode'],['project.title','Projekt neve'],['project.language','Nyelv','language'],['project.currency','Pénznem']]],
+['DataReceptMode','Adatfogadási mód','mode'],['EnergyFlowDisabled','Energiaáramlás tiltás','bool'],['project.title','Projekt neve'],['project.language','Nyelv','language'],['project.currency','Pénznem']]],
 ['Bluetooth adatmegosztás',[
 ['DataSeedEnabled','Adat seed – master kijelző (BLE)','bool'],['DataSeedPin','Párosítási PIN (6 számjegy, üresen automatikus)','pin']]],
 ['Wi-Fi és hálózat',[
@@ -68,6 +68,7 @@ for(const [title,fields] of definitions){
 }
 function updateVisibility(){
  const mode=byPath('DataReceptMode').value,slave=mode==='slave';
+ const disabled=byPath('EnergyFlowDisabled');disabled.disabled=mode!=='loxone';if(mode!=='loxone')disabled.checked=false;
  sections.get('mqtt.broker').hidden=mode!=='mqtt';
  sections.get('http.data_timeout_seconds').hidden=mode!=='http';
  sections.get('time.ntp_server').hidden=slave;

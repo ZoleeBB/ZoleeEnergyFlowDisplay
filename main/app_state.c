@@ -204,6 +204,15 @@ void app_state_clear_sample(void)
     s_runtime.has_valid_sample = false;
     unlock();
 }
+/* A módjelzés nem mérés: tiltáskor a korábbi minta sem maradhat érvényes. */
+void app_state_set_energy_flow_disabled(bool disabled, bool night)
+{
+    lock();
+    s_runtime.energy_flow_disabled = disabled;
+    s_runtime.standalone_night = night;
+    if (disabled) s_runtime.has_valid_sample = false;
+    unlock();
+}
 void app_state_set_loxone(bool configured, bool connected)
 {
     lock();

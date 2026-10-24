@@ -30,6 +30,7 @@ typedef struct
 
     int status;
     bool night_mode;
+    bool energy_flow_disabled; /* BLE vezérlőállapot, nem energiaminta. */
     double battery_temperature_c;
 
     /* Opcionális nappályaadatok a Loxone T1 bemenetéről. */
@@ -48,6 +49,7 @@ typedef struct
 typedef struct
 {
     app_data_mode_t data_recept_mode;
+    bool energy_flow_disabled, standalone_night;
     bool loxone_configured;
     bool loxone_connected;
     int64_t loxone_connected_monotonic_us;
@@ -100,6 +102,7 @@ void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
+void app_state_set_energy_flow_disabled(bool disabled, bool night);
 void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet);
 void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
                        bool scanning, unsigned slaves, const char *address,

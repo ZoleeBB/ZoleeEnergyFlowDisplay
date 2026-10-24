@@ -8,7 +8,7 @@ class Element {
     append(child) { child.parentNode=this;this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value; }
     replaceChildren() { this.children=[];this.value=''; }
 }
-for(const id of ['intercom-config','intercom-save','intercom-status','intercom-speaker-test','intercom-speaker-test-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','intercom-speaker-test','intercom-speaker-test-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
@@ -88,9 +88,9 @@ const click=id=>nodes.get(id).onclick();
     const preview=nodes.get('home-consumers-item-1-icon-preview');assert(preview.src.includes('/api/templates/home-icon?id='));
     edit('home-consumers-item-1-icon','washing-machine','onchange');assert(preview.src.includes('id=washing-machine&v=3'));
     assert.equal(preview.width,64);assert.equal(preview.height,64);
-    await click('home-save');assert.equal(posts.length,0);assert(nodes.get('home-status').textContent.includes('nevet'));
+    await click('consumers-save');assert.equal(posts.length,0);assert(nodes.get('consumers-status').textContent.includes('nevet'));
     edit('home-consumers-item-1-name','Mosógép');edit('home-consumers-item-1-uuid',uuid,'onchange');edit('home-consumers-item-1-scale','.001');
-    await click('home-save');assert.equal(posts.length,1);
+    await click('consumers-save');assert.equal(posts.length,1);
     assert.equal(posts[0].consumers[0].source.scale,.001);assert.equal(posts[0].consumers[0].average_kw,null);
     assert.equal(posts[0].consumers[0].suggest_start,false);assert(!('password' in posts[0]));
     edit('home-consumers-item-1-name','Még nincs mentve');
@@ -98,7 +98,7 @@ const click=id=>nodes.get(id).onclick();
     edit('home-room',JSON.stringify('Kert'),'onchange');
     assert(nodes.get('home-consumers-item-1-uuid').children.some(node=>node.value===uuid));
     assert.equal(nodes.get('home-consumers-item-1-name').value,'Még nincs mentve');
-    edit('home-consumers-item-1-average_kw','-1');await click('home-save');assert.equal(posts.length,1);
+    edit('home-consumers-item-1-average_kw','-1');await click('consumers-save');assert.equal(posts.length,1);
     edit('home-consumers-item-1-average_kw','2.1');const suggest=nodes.get('home-consumers-item-1-suggest_start');suggest.checked=true;suggest.onchange();
     click('home-add-page'); edit('home-page-title','Földszint');
     click('home-add-card');
@@ -115,7 +115,7 @@ const click=id=>nodes.get(id).onclick();
     assert(!targets.includes('eeeeeeee-5566-7788-99aabbccddeeff00'));
     edit('home-cards-item-1-name','Kapunyitás');edit('home-cards-item-1-control_uuid',control,'onchange');
     await click('home-save');assert.equal(posts.length,2);assert.equal(posts[1].pages[0].cards[0].type,'pulse');
-    assert.equal(posts[1].pages[0].cards[0].control_uuid,control);assert.equal(posts[1].consumers[0].name,'Még nincs mentve');
+    assert.equal(posts[1].pages[0].cards[0].control_uuid,control);assert(!('consumers' in posts[1]));assert(!('intercom' in posts[1]));assert.equal(posts[1].section,'pages');
     edit('home-cards-item-1-type','switch','onchange');edit('home-cards-item-1-uuid',uuid,'onchange');
     assert(nodes.get('home-cards-item-1-scale').disabled);
     await click('home-save');assert.equal(posts.length,3);assert.equal(posts[2].pages[0].cards[0].source.scale,1);
@@ -155,7 +155,7 @@ const click=id=>nodes.get(id).onclick();
     assert.equal(nodes.get('home-page-title').value,'Kert <b>fények</b>');
     click('home-page-up'); assert.equal(nodes.get('home-page-select').value,'page-1');
     await click('home-save');
-    /* A még névtelen fogyasztók miatt a mentés tiltott; törlésük nem bántja a lapokat. */
+    /* A névtelen fogyasztók nem akadályozhatják az Otthon-oldalak külön mentését. */
     while(nodes.get('home-consumers').children.length) nodes.get('home-consumers').children[0].children.at(-1).onclick();
     await click('home-save');
     assert.equal(posts.at(-1).schema,2);assert.equal(posts.at(-1).pages[0].title,'Kert <b>fények</b>');
@@ -165,5 +165,7 @@ const click=id=>nodes.get(id).onclick();
     for(let i=0;i<9;i++)click('home-add-page');
     assert(nodes.get('home-add-page').disabled);assert.equal(nodes.get('home-page-select').children.length,8);
     click('home-remove-page');assert(!nodes.get('home-add-page').disabled);
+    await sandbox.home.refresh(catalog,false,true);assert.equal(nodes.get('consumers-section').hidden,true);
+    await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});
