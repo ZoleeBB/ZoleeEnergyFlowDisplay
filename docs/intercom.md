@@ -198,3 +198,11 @@ A kijelző külön jelzi a foglaltságot, memóriahiányt, hiányzó vagy hibás
 olvasási hibát, illetve a Slave Master-letöltési és hozzáférési hibáját.
 A webes előnézet és a kijelző betöltése külön kérésenként kap hibaállapotot;
 egy párhuzamos előnézet nem írhatja felül a kijelző hibáját.
+
+Az SD adatút a WAV-ot 128 bájtra igazított, 512 bájtos belső DMA-pufferen
+keresztül olvassa, majd PSRAM-ba másolja. A nagy PSRAM-hangpuffer nem kerül
+közvetlenül az SD olvasási műveletéhez. A kis belső puffer minden hibánál is felszabadul.
+A webes hangminta külön, belső vermű háttérfeladatból válaszol aszinkron
+HTTP-kérésre: a lassú vagy szüneteltetett lejátszó nem tartja fel a fő
+HTTP-kezelőt és az ikonok kiszolgálását. Legfeljebb négy hangletöltés futhat
+párhuzamosan. Az SD-zár csak a fájl RAM-ba olvasásáig él, hálózati küldés alatt nem.

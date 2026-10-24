@@ -50,6 +50,7 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     /* Ne a stdio válasszon nagyobb rejtett olvasópuffert a szektorok helyett. */
     setvbuf(file, NULL, _IONBF, 0);
     uint8_t* data = NULL;
+    uint8_t* transfer = NULL;
     *status = APP_RINGTONE_LOAD_IO;
     if (fseek(file, 0, SEEK_END))
         goto done;
@@ -69,6 +70,16 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     *status = APP_RINGTONE_LOAD_MEMORY;
     if (!data)
         goto done;
+    /* A PSRAM és a P4 cache-vonal nem közvetlen SD-DMA célpont.
+     * A fájl mindig igazított belső pufferbe érkezik, onnan másoljuk a hangot. */
+#ifdef ESP_PLATFORM
+    transfer = heap_caps_aligned_calloc(128, 1, 512,
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+#else
+    transfer = calloc(1, 512);
+#endif
+    if (!transfer)
+        goto done;
     *status = APP_RINGTONE_LOAD_IO;
     /* A több MB-os egyetlen fread az SD-driverben nagy átmeneti DMA-
      * puffert igényelhet éppen a kamerakép indulásakor. Szektoronként
@@ -78,8 +89,9 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
         size_t chunk = (size_t)length - position;
         if (chunk > 512)
             chunk = 512;
-        if (fread(data + position, 1, chunk, file) != chunk)
+        if (fread(transfer, 1, chunk, file) != chunk)
             goto done;
+        memcpy(data + position, transfer, chunk);
         position += chunk;
     }
     size_t offset, bytes;
@@ -89,6 +101,7 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     *size = (size_t)length;
     *status = APP_RINGTONE_LOAD_OK;
 done:
+    free(transfer);
     fclose(file);
     if (*status != APP_RINGTONE_LOAD_OK) {
         free(data);

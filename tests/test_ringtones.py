@@ -18,7 +18,10 @@ with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
 #include <stddef.h>
 #define MALLOC_CAP_SPIRAM 4
 #define MALLOC_CAP_8BIT 2
+#define MALLOC_CAP_INTERNAL 1
+#define MALLOC_CAP_DMA 8
 void *heap_caps_malloc(size_t size, unsigned caps);
+void *heap_caps_aligned_calloc(size_t, size_t, size_t, unsigned);
 ''')
     stub = folder / 'stub.c'
     stub.write_text('''
@@ -31,7 +34,14 @@ void *heap_caps_malloc(size_t size, unsigned caps);
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
 uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
 static int fault, calls;
-static bool busy, bounded_reads, fail_reads, fail_memory;
+static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer;
+static void *dma_buffer;
+void fail_dma(bool value) { fail_transfer = value; }
+void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps) {
+    assert(alignment == 128 && count == 1 && size == 512 && caps == (1 | 8 | 2));
+    dma_buffer = fail_transfer ? NULL : aligned_alloc(alignment, size);
+    return dma_buffer;
+}
 void fail_allocation(bool value) { fail_memory = value; }
 void *heap_caps_malloc(size_t size, unsigned caps) {
     assert(caps == (4 | 2));
@@ -41,6 +51,7 @@ void limit_reads(bool value) { bounded_reads = value; }
 void fail_read(bool value) { fail_reads = value; }
 size_t __real_fread(void *, size_t, size_t, FILE *);
 size_t __wrap_fread(void *data, size_t size, size_t count, FILE *file) {
+    if (bounded_reads) assert(data == dma_buffer && ((size_t)data % 128) == 0);
     if (fail_reads || (bounded_reads && size * count > 512)) return 0;
     return __real_fread(data, size, count, file);
 }
@@ -147,6 +158,10 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     pointer, result = load_status(name.encode())
     assert pointer is None and result == 3 and size.value == 0
     lib.fail_allocation(0)
+    lib.fail_dma(1)
+    pointer, result = load_status(name.encode())
+    assert pointer is None and result == 3 and size.value == 0
+    lib.fail_dma(0)
     lib.fail_read(1)
     pointer, result = load_status(name.encode())
     assert pointer is None and result == 4 and size.value == 0, (pointer, result, size.value)
