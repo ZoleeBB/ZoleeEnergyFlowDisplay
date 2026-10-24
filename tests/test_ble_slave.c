@@ -660,6 +660,16 @@ int main(void)
     s_remote_intercom = 170;
     slave_poll(now_us);
     assert(stats_ready_checks == before_stats + 2 && !slave_intercom_available());
+    /* Új, HTTP/MQTT Master: a karakterisztikák léteznek, de kaputelefon nincs. */
+    s_remote_intercom_profile = 180;
+    s_remote_intercom_extras = 190;
+    slave_poll(now_us);
+    assert(s_intercom_reading);
+    struct ble_gatt_error no_intercom = {.status = 5};
+    slave_intercom_read(7, &no_intercom, NULL, (void *)(uintptr_t)s_intercom_request);
+    assert(!s_intercom_reading && s_intercom_next > now_us);
+    slave_poll(now_us);
+    assert(stats_ready_checks == before_stats + 3);
 #endif
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");

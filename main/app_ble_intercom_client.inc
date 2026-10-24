@@ -61,6 +61,10 @@ static int slave_intercom_read(
             || os_mbuf_copydata(attr->om, 0, sizeof(data), data)
             || !app_intercom_control_receive(data, sizeof(data))) {
             slave_intercom_failed();
+            /* HTTP/MQTT Master is hirdetheti a közös GATT szolgáltatást,
+             * de intercom állapotot nem ad. A visszalépés hagyjon időt
+             * a régi energia-/statisztikai és jelenlétfunkcióknak. */
+            s_intercom_next = esp_timer_get_time() + 5000000;
             return 0;
         }
         memcpy(s_intercom_status_data, data, sizeof(data));
