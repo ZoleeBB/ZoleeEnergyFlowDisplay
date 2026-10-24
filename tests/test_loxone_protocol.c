@@ -294,10 +294,14 @@ static void home_control_test(lx_config_t *energy)
     test_audio_active = false;
     assert(app_loxone_intercom_snapshot(&door) && !door.ringing && !door.audio_active);
     assert(app_loxone_intercom_test_permitted(door.revision));
+    assert(app_loxone_intercom_call_permitted(door.revision, true));
+    assert(!app_loxone_intercom_call_permitted(door.revision, false));
+    assert(!app_loxone_intercom_call_permitted(door.revision + 1, true));
     assert(!app_loxone_intercom_test_permitted(door.revision + 1));
     test_mutex_busy = true;
     /* Foglalt Loxone-lock nem késleltetheti a következő I2S blokkot. */
     assert(app_loxone_intercom_test_permitted(door.revision));
+    assert(app_loxone_intercom_call_permitted(door.revision, true));
     test_mutex_busy = false;
     memcpy(packet + 16, &on, sizeof(on));
     assert(update_values(2, packet, sizeof(packet)));

@@ -631,6 +631,7 @@ esp_err_t app_loxone_start(void)
         return ESP_ERR_NO_MEM;
     esp_err_t home_load = app_loxone_home_store_load(s_home);
     if (home_load != ESP_OK) s_home->intercom.speaker_volume = 55;
+    if (home_load != ESP_OK) s_home->intercom.microphone_gain = 80;
     if (home_load != ESP_OK && home_load != ESP_ERR_NOT_FOUND)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
@@ -916,6 +917,17 @@ static void home_command_poll(int64_t now)
 }
 
 /* Kis pillanatkép, a teljes Otthon-katalógus másolása és hálózati várakozás nélkül. */
+bool app_loxone_intercom_call_permitted(unsigned revision, bool active)
+{
+    if (!s_lock || !s_home) return false;
+    if (xSemaphoreTake(s_lock, 0) != pdTRUE) return true;
+    bool allowed = s_home->intercom.enabled && s_home_live && !s_dead &&
+                   esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
+                   s_intercom_generation == revision && (s_intercom_ringing || active);
+    xSemaphoreGive(s_lock);
+    return allowed;
+}
+
 bool app_loxone_intercom_test_permitted(unsigned revision)
 {
     if (!s_lock || !s_home) return false;

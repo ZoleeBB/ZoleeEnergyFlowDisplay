@@ -66,6 +66,7 @@ typedef struct
 {
     bool enabled;
     uint8_t speaker_volume;
+    uint8_t microphone_gain;
     char stream_url[LX_INTERCOM_URL_SIZE];
     char video_username[96];
     /* Csak RAM-ban él; a publikus JSON és UI-pillanatkép nem tartalmazza. */

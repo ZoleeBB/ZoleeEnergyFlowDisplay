@@ -28,6 +28,7 @@
 
 #define SIP_PORT 5060
 #define AUDIO_RATE 16000
+#define AUDIO_DSP_RATE 8000
 #define AUDIO_FRAME_MAX 1024
 static const char *TAG = "intercom_audio";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -190,9 +191,8 @@ static esp_err_t audio_request(bool enabled, unsigned revision, bool test, unsig
     if (enabled)
         audio_checkpoint(AUDIO_STAGE_START);
     TaskHandle_t handle = NULL;
-    /* A teszthang rövid, blokkoló I2S-írásait a GUI számolása nem előzheti meg.
-     * A hívás DSP-feladatának prioritása ettől nem változik. */
-    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, test ? 7 : 4, &handle, 0,
+    /* Az I2S által ütemezett hangot a GUI számolása nem szoríthatja ki. */
+    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 7, &handle, 0,
             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_lock);
         s_running = false;
@@ -232,9 +232,7 @@ static bool wanted(unsigned epoch, unsigned revision)
     bool request = s_requested && s_epoch == epoch && (!s_gate_stop_at || now < s_gate_stop_at);
     bool active = s_status.state == APP_INTERCOM_AUDIO_ACTIVE;
     portEXIT_CRITICAL(&s_lock);
-    app_intercom_snapshot_t current;
-    return request && app_loxone_intercom_snapshot(&current) && (current.ringing || active) &&
-           current.connected && current.revision == revision;
+    return request && app_loxone_intercom_call_permitted(revision, active);
 }
 
 typedef struct {
@@ -248,7 +246,9 @@ typedef struct {
     uint16_t receive_port;
     unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
     unsigned cycle_peak_ms;
+    unsigned dsp_peak_us;
     unsigned volume;
+    unsigned microphone_gain;
     uint16_t signal_peak[4];
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
@@ -646,10 +646,10 @@ static bool open_hardware(audio_call_t *call)
      * az I2S driver foglalja; a DSP nem fogyaszthatja el előlük a belső RAM-ot. */
     aec_config_t aec_config = {
         .mic_num = 1, .ref_num = 1, .out_num = 1,
-        .filter_length = 4, .sample_rate = AUDIO_RATE,
+        .filter_length = 4, .sample_rate = AUDIO_DSP_RATE,
         .caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
         /* A készüléken az FD/FFT feldolgozás pánikot okozott. A SIP-híváshoz
-         * a gyártó VoIP AEC-je használható ugyanúgy 16 kHz-es PCM-mel. */
+         * a gyártó VoIP AEC-je 8 kHz-en közvetlenül illeszkedik a G.711-hez. */
         .mode = AEC_MODE_VOIP_LOW_COST,
         .nlp_level = AEC_NLP_LEVEL_AGGR,
     };
@@ -665,9 +665,9 @@ static bool open_hardware(audio_call_t *call)
                         frame > 0 && frame <= AUDIO_FRAME_MAX && frame % 8 == 0 ? ESP_OK : ESP_ERR_INVALID_SIZE)) {
         return false;
     }
-    ESP_LOGI(TAG, "AEC VoIP: rate=%u frame=%d", AUDIO_RATE, frame);
+    ESP_LOGI(TAG, "AEC VoIP: DSP rate=%u frame=%d; I2S rate=%u", AUDIO_DSP_RATE, frame, AUDIO_RATE);
     call->frame_samples = (unsigned)frame;
-    call->buffers = heap_caps_aligned_calloc(16, frame * 8, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    call->buffers = heap_caps_aligned_calloc(16, frame * 12, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!hardware_check(call, "Hangpuffer memória", call->buffers ? ESP_OK : ESP_ERR_NO_MEM) ||
         !wanted(call->epoch, call->revision)) {
         return false;
@@ -700,9 +700,9 @@ static bool open_hardware(audio_call_t *call)
     audio_checkpoint(AUDIO_STAGE_MICROPHONE);
     call->microphone_open = true;
     return hardware_check(call, "Mikrofon megnyitás", esp_codec_dev_open(s_microphone, &format)) &&
-        hardware_check(call, "Mikrofon feloldás", esp_codec_dev_set_in_mute(s_microphone, false)) &&
+        hardware_check(call, "Mikrofon feloldás", esp_codec_dev_set_in_mute(s_microphone, call->microphone_gain == 0)) &&
         hardware_check(call, "Hangszóró feloldás", esp_codec_dev_set_out_mute(s_speaker, call->volume == 0)) &&
-        hardware_check(call, "Mikrofon erősítés", esp_codec_dev_set_in_gain(s_microphone, 24.0f));
+        hardware_check(call, "Mikrofon erősítés", esp_codec_dev_set_in_gain(s_microphone, call->microphone_gain * 0.375f));
 }
 
 static bool receive_audio(audio_call_t *call, const struct sockaddr_in *source,
@@ -751,10 +751,11 @@ static void measure_signal(uint16_t *peak, const int16_t *samples, unsigned coun
 
 static void media_session(audio_call_t *call)
 {
-    const unsigned frame = call->frame_samples;
+    const unsigned samples = call->frame_samples;
+    const unsigned frame = samples * 2;
     int16_t *speaker = call->buffers, *capture = speaker + frame * 2;
-    int16_t *reference = capture + frame * 2, *microphone = reference + frame;
-    int16_t *clean = microphone + frame, *remote = clean + frame;
+    int16_t *reference = capture + frame * 2, *microphone = reference + samples;
+    int16_t *clean = microphone + samples, *remote = clean + samples;
     int16_t transmit[160];
     size_t fill = 0;
     uint8_t packet[1200];
@@ -801,20 +802,29 @@ static void media_session(audio_call_t *call)
                          call->signal_peak[0], call->signal_peak[1], call->signal_peak[2], call->signal_peak[3]);
                 memset(call->signal_peak, 0, sizeof(call->signal_peak));
             } else {
-                snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms",
+                snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms AEC:%u ms",
                          call->rx_packets, call->rx_accepted, call->tx_packets, call->jitter.resyncs,
-                         call->cycle_peak_ms, frame * 1000U / AUDIO_RATE);
+                         call->cycle_peak_ms, frame * 1000U / AUDIO_RATE, call->dsp_peak_us / 1000U);
             }
             show_signal = !show_signal;
             call->cycle_peak_ms = 0;
+            call->dsp_peak_us = 0;
             publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, message);
             last_status = esp_timer_get_time();
         }
-        intercom_jitter_read(&call->jitter, remote, frame / 2);
-        measure_signal(&call->signal_peak[0], remote, frame / 2, 1);
+        intercom_jitter_read(&call->jitter, remote, samples);
+        measure_signal(&call->signal_peak[0], remote, samples, 1);
         for (unsigned i = 0; i < frame; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
+        /* Előbb kapjon adatot a DAC: a mikrofon és az AEC nem késleltetheti
+         * a már fogadott hangblokk átadását. Az I2S olvasás/írás ugyanazon az órán fut. */
+        audio_checkpoint(AUDIO_STAGE_PLAYBACK);
+        if (esp_codec_dev_write(s_speaker, speaker, frame * 4) != ESP_CODEC_DEV_OK) {
+            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző hangkimenete nem érhető el.");
+            break;
+        }
+        if (!wanted(call->epoch, call->revision)) break;
         audio_checkpoint(AUDIO_STAGE_CAPTURE);
         if (esp_codec_dev_read(s_microphone, capture, frame * 4) != ESP_CODEC_DEV_OK) {
             publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző mikrofonja nem ad hangot.");
@@ -825,27 +835,27 @@ static void media_session(audio_call_t *call)
         }
         measure_signal(&call->signal_peak[1], capture, frame, 2);
         measure_signal(&call->signal_peak[2], capture + 1, frame, 2);
-        for (unsigned i = 0; i < frame; i++) {
-            microphone[i] = capture[i * 2];
+        for (unsigned i = 0; i < samples; i++) {
+            /* A 16 kHz-es első mikrofoncsatornából két szomszédos időminta
+             * átlaga adja a 8 kHz-es AEC-bemenetet. */
+            microphone[i] = (int16_t)(((int)capture[i * 4] + capture[i * 4 + 2]) / 2);
         }
         /* A referencia az előzőleg kiküldött hang; új mintát csak feldolgozás után írunk bele. */
         audio_checkpoint(AUDIO_STAGE_PROCESS);
+        int64_t dsp_started = esp_timer_get_time();
         aec_process(call->aec, microphone, reference, clean);
-        measure_signal(&call->signal_peak[3], clean, frame, 1);
-        audio_checkpoint(AUDIO_STAGE_PLAYBACK);
-        if (esp_codec_dev_write(s_speaker, speaker, frame * 4) != ESP_CODEC_DEV_OK) {
-            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kijelző hangkimenete nem érhető el.");
-            break;
-        }
-        for (unsigned i = 0; i < frame; i++) {
-            reference[i] = speaker[i * 2];
+        unsigned dsp_us = (unsigned)(esp_timer_get_time() - dsp_started);
+        if (dsp_us > call->dsp_peak_us) call->dsp_peak_us = dsp_us;
+        measure_signal(&call->signal_peak[3], clean, samples, 1);
+        for (unsigned i = 0; i < samples; i++) {
+            reference[i] = remote[i];
         }
         if (!wanted(call->epoch, call->revision)) {
             break;
         }
-        /* 16 kHz AEC -> 8 kHz G.711; a DSP-keretből 20 ms-os RTP-csomagok készülnek. */
-        for (unsigned i = 0; i < frame; i += 2) {
-            transmit[fill++] = (int16_t)(((int)clean[i] + clean[i + 1]) / 2);
+        /* A 8 kHz-es AEC kimenetéből változatlan időalappal 20 ms-os RTP készül. */
+        for (unsigned i = 0; i < samples; i++) {
+            transmit[fill++] = clean[i];
             if (fill == INTERCOM_RTP_SAMPLES) {
                 size_t length = intercom_rtp_encode(packet, sequence++, timestamp, ssrc, call->payload, transmit);
                 timestamp += INTERCOM_RTP_SAMPLES;
@@ -857,8 +867,7 @@ static void media_session(audio_call_t *call)
                 fill = 0;
             }
         }
-        /* A blokkoló I2S-olvasás adja az ütemet. A plusz egy RTOS tick
-         * minden 16 ms-os keretet lassított és a jitterpuffert elcsúsztatta. */
+        /* Az I2S órája adja az ütemet, nincs keretenkénti további várakozás. */
         unsigned cycle_ms = (unsigned)((esp_timer_get_time() - cycle_started) / 1000);
         if (cycle_ms > call->cycle_peak_ms) call->cycle_peak_ms = cycle_ms;
     }
@@ -906,6 +915,7 @@ static void close_call(audio_call_t *call)
 static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot)
 {
     call->volume = snapshot->config.speaker_volume;
+    call->microphone_gain = snapshot->config.microphone_gain;
     audio_checkpoint(AUDIO_STAGE_SIP);
     char host[128];
     if (!intercom_audio_host(snapshot->config.stream_url, host, sizeof(host)) || !connect_peer(call, host)) {

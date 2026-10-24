@@ -15,8 +15,8 @@ ugyanazt a kérésazonosítót igényli, mint a beállításmentés.
 A folyamatos tesztciklus nem készít teljes Loxone-pillanatképet és nem vár
 a Loxone mutexére a 20 ms-os hangblokkok között. Rövid, nem várakozó ellenőrzés
 figyeli a csengetést és a konfigurációgenerációt; pillanatnyi mutexfoglaltságnál
-a következő blokkban próbálja újra. A helyi tesztfeladat prioritása 7, a normál
-hívásé továbbra is 4, így a GUI számolása nem szoríthatja ki a rövid teszthang-írást.
+a következő blokkban próbálja újra. A helyi teszt és a hívás prioritása is 7,
+így a GUI számolása nem szoríthatja ki a rövid hang-írást.
 Az I2S DMA-keret változatlan; a készülékes folyamatosságot továbbra is meg kell vizsgálni.
 
 Ha a teszthang hallható, a helyi lejátszási út működik. Ha nem, önmagában még
@@ -32,6 +32,21 @@ A webes mentés a bemásolt videócím körüli szóközöket eltávolítja; a b
 jelszó az URL-ben, HTTPS vagy hiányzó videóútvonal továbbra is hibát jelez.
 
 ## Beállítás
+
+A folyamatos helyi teszthang és az akadozó beszélgetés különbsége a hálózati és
+DSP-útvonal vizsgálatát indokolja. A beszélgetés most előbb írja a bejövő blokkot
+a hangszóróra, utána olvas mikrofont és futtat AEC-t. A kodekek 16 kHz-en
+maradnak; a mikrofon első csatornájának két-két szomszédos mintája átlagolva
+kerül a 8 kHz-es VoIP AEC-be. A 8 kHz-es kimenet közvetlenül tölti a G.711
+20 ms-os csomagjait, változatlan 8 kHz-es RTP-időalappal. A hívás közbeni
+állapotellenőrzés sem másol teljes konfigurációt vagy vár Loxone-lockra.
+A felirat az AEC feldolgozási idejét is mutatja; ez a készülékes próbán
+segít megkülönböztetni a DSP-terhelést az I2S-/hálózati várakozástól.
+
+Az Espressif a VoIP módhoz 8 és 16 kHz-et dokumentál:
+[AEC módok és erőforrásigény](https://docs.espressif.com/projects/esp-sr/en/latest/esp32s3/acoustic_echo_cancellation/README.html).
+A helyi tesztek a minták és időbélyegek helyességét igazolják; a fizikai
+beszélgetés folyamatossága, hangerő, torzítás és visszhang készülékes ellenőrzést igényel.
 
 A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
 
@@ -173,11 +188,15 @@ párhuzamos használat viselkedését a tényleges készüléken kell ellenőriz
 A kijelző a rögzített Waveshare BSP ES8311 hangkimenetét és ES7210 mikrofonját
 használja közös, kezdettől 16 kHz-es, 16 bites Philips sztereó I2S-órán.
 Mindkét kodek inicializálása megelőzi a hangfolyam megnyitását. Az első mikrofoncsatorna hangja az Espressif
-**ESP-SR 2.6.0 AEC_MODE_VOIP_LOW_COST** visszhangkioltóján halad át; a referencia
+**ESP-SR 2.6.0 AEC_MODE_VOIP_LOW_COST** visszhangkioltóján halad át 8 kHz-en; a referencia
 a hangszóróra küldött PCM. Nincs letöltött beszédmodell vagy új SD-adatfájl.
 A hangszóró hangereje a webes **Kaputelefon** beállításokban menthető, egész
 0–100%-os érték (0 = némítás). Régi profilnál az alapérték 55%. A kijelzőn nincs
-hangerőcsúszka. A következő hívás a mentett értéket használja; mikrofonerősítés 24 dB.
+hangerőcsúszka. A következő hívás a mentett értéket használja. Ugyanitt a
+**Mikrofon erősítése** külön 0–100%-os egész érték: 0 némítás, 100 a kodek
+37,5 dB-es maximális erősítése. Régi profilnál és új beállításnál 80% (30 dB),
+a korábbi fix 24 dB helyett. A százalék a kodek erősítési tartományát skálázza,
+nem a hangnyomás százaléka; a hardver a támogatott lépésekre kerekíthet.
 A visszhangkioltó és a mintapufferek
 csak aktív beszélgetés alatt, PSRAM-ban élnek. Az AEC által visszaadott
 keretméretet használjuk (nem feltételezünk fix 512 mintát); a csatornapufferek
@@ -205,7 +224,7 @@ médiacím, egyirányú vagy nem támogatott SDP, kodekhatárok, RTP-időbélyeg
 átfordulása, csomagvesztés és sérült fejléc. Helyi TCP/UDP kaputelefon-másolat
 mellett a valódi session-kód oda-vissza hangot küld/fogad, ACK/BYE bontást,
 CANCEL/200 versenyt, elutasított hívást, hanghardverhibát és ismételt hívásokat
-ellenőriz, 256/512/1024 mintás AEC-kerettel; az I2S és az AEC hardver ebben
+ellenőriz, 128/256/512 mintás, 8 kHz-es AEC-kerettel, kétszer ennyi 16 kHz-es I2S-mintával; az I2S és az AEC hardver ebben
 a tesztben helyettesített. A videóteszt a valódi keretezőn át, darabolt MIME/JPEG
 adatokból eljut a képkocka átadásáig; ellenőrzi a 401-es hitelesítési ismétlést,
 a válaszpuffer törlését, az elutasított/átirányított és hiányos HTTP-válaszokat is.
@@ -316,7 +335,7 @@ oka csak a készülék naplójából igazolható; a javítás a bizonyítottan a
 A készülékről érkezett `AEC feldolgozás (reset=4)` napló a feldolgozóhívás
 alatti pánikot jelzi; önmagában nem mondja meg a CPU-kivétel pontos okát.
 A hang az FD/FFT útvonal helyett az Espressif VoIP AEC-útvonalát használja,
-továbbra is 16 kHz-es PCM-mel és kétirányú SIP/RTP-hívással. Az AEC külső
+8 kHz-es DSP-PCM-mel és kétirányú SIP/RTP-hívással, miközben az I2S 16 kHz marad. Az AEC külső
 handle-je mellett a belső feldolgozó létezését is ellenőrizzük; hiányánál
 memóriahiba jelenik meg feldolgozóhívás helyett. A pontos készülékes eredmény
 újabb próbát igényel.

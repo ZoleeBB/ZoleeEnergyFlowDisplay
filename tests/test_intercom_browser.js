@@ -69,6 +69,7 @@ const catalog = [
             assert.equal(await page.evaluate(() => isSecureContext), false);
             await page.locator('#intercom-enabled').waitFor();
             await page.locator('#intercom-speaker-volume').fill('72');
+            await page.locator('#intercom-microphone-gain').fill('90');
             await page.locator('#intercom-speaker-test').click();
             await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('leállítása'));
             await page.locator('#intercom-speaker-test').click();
@@ -88,6 +89,7 @@ const catalog = [
             assert.equal(posts[0].intercom.stream_url, 'http://192.168.2.21/mjpg/video.mjpg');
             assert.equal(posts[0].intercom.bell_uuid, bell);
             assert.equal(posts[0].intercom.speaker_volume, 72);
+            assert.equal(posts[0].intercom.microphone_gain, 90);
             assert.equal(posts[0].intercom.gate.control_uuid, gate);
             assert.equal(await page.locator('#intercom-stream-url').inputValue(), posts[0].intercom.stream_url);
             await page.locator('#intercom-stream-url').fill('http://192.168.2.21/mjpg/video.mjpg');

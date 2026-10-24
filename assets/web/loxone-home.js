@@ -171,6 +171,9 @@ const LoxoneHome = (() => {
         door.speaker_volume ??= 55;
         const volume = field(target, 'Kijelző hangereje (0–100%, 0 = némítás)', door, 'speaker_volume', 'number');
         volume.id = 'intercom-speaker-volume'; volume.min = 0; volume.max = 100; volume.step = 1;
+        door.microphone_gain ??= 80;
+        const gain = field(target, 'Mikrofon erősítése (0–100%, 0 = némítás)', door, 'microphone_gain', 'number');
+        gain.id = 'intercom-microphone-gain'; gain.min = 0; gain.max = 100; gain.step = 1;
         const enabled = field(target, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox');
         enabled.id = 'intercom-enabled';
         const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
@@ -273,6 +276,8 @@ const LoxoneHome = (() => {
         const door = model.intercom;
         if (!Number.isInteger(door.speaker_volume) || door.speaker_volume < 0 || door.speaker_volume > 100)
             return 'A hangerő 0 és 100 közötti egész szám legyen.';
+        if (!Number.isInteger(door.microphone_gain) || door.microphone_gain < 0 || door.microphone_gain > 100)
+            return 'A mikrofon erősítése 0 és 100 közötti egész szám legyen.';
         door.stream_url = (door.stream_url || '').trim();
         if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
             return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';

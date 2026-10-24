@@ -30,6 +30,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out);
 /* A teszthang real-time ciklusát nem várakoztatja a Loxone mutexére.
  * Foglalt állapotnál a következő blokkban újra ellenőrizhető a leállítás. */
 bool app_loxone_intercom_test_permitted(unsigned revision);
+bool app_loxone_intercom_call_permitted(unsigned revision, bool active);
 /* Kizárólag a helyi videófeladatnak, a webes válaszba soha nem kerül jelszó. */
 bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX]);
 

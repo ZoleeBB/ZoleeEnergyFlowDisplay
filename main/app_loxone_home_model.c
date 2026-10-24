@@ -177,6 +177,7 @@ static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
 {
     /* Régi profilból hiányozhat; a kifejezett 0% némítást jelent. */
     out->speaker_volume = 55;
+    out->microphone_gain = 80;
     if (!entry)
         return true;
     const cJSON *enabled = cJSON_GetObjectItemCaseSensitive(entry, "enabled");
@@ -190,6 +191,13 @@ static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
             volume->valuedouble != (int)volume->valuedouble)
             return fail(error, "intercom", 0, "speaker_volume");
         out->speaker_volume = (uint8_t)volume->valuedouble;
+    }
+    const cJSON *gain = cJSON_GetObjectItemCaseSensitive(entry, "microphone_gain");
+    if (gain) {
+        if (!cJSON_IsNumber(gain) || !isfinite(gain->valuedouble) || gain->valuedouble < 0 ||
+            gain->valuedouble > 100 || gain->valuedouble != (int)gain->valuedouble)
+            return fail(error, "intercom", 0, "microphone_gain");
+        out->microphone_gain = (uint8_t)gain->valuedouble;
     }
     const char *url = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "stream_url"));
     if (url && url[0])
@@ -410,6 +418,7 @@ cJSON *lx_home_config_json(const lx_home_config_t *config)
     cJSON *door = cJSON_AddObjectToObject(root, "intercom");
     if (!door || !cJSON_AddBoolToObject(door, "enabled", config->intercom.enabled) ||
         !cJSON_AddNumberToObject(door, "speaker_volume", config->intercom.speaker_volume) ||
+        !cJSON_AddNumberToObject(door, "microphone_gain", config->intercom.microphone_gain) ||
         !cJSON_AddStringToObject(door, "stream_url", config->intercom.stream_url) ||
         !cJSON_AddStringToObject(door, "video_username", config->intercom.video_username) ||
         !cJSON_AddBoolToObject(door, "has_video_password", config->intercom.video_password[0] != 0) ||

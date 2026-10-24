@@ -80,10 +80,12 @@ int main(void)
     strcpy(config->intercom.video_username, "admin");
     strcpy(config->intercom.video_password, "Separate-Camera-Secret");
     config->intercom.speaker_volume = 81;
+    config->intercom.microphone_gain = 92;
     assert(app_loxone_home_store_save(config) == ESP_OK);
     assert(app_loxone_home_store_load(out) == ESP_OK);
     assert(!strcmp(out->intercom.video_password, config->intercom.video_password));
     assert(out->intercom.speaker_volume == 81);
+    assert(out->intercom.microphone_gain == 92);
     FILE *stored = fopen(APP_SD_MOUNT_POINT "/loxone-home.json", "rb");
     assert(stored);
     char *stored_body = calloc(1, LX_HOME_STORE_MAX + 1);

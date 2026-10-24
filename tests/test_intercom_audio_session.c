@@ -32,7 +32,7 @@ static int device_volume;
 static unsigned aec_creates;
 static unsigned full_snapshots, tone_first_snapshots;
 static atomic_llong clock_offset;
-static unsigned test_frame = 256;
+static unsigned test_frame = 128;
 static bool fail_aec, fail_aec_inner;
 
 void vTaskDelay(unsigned delay)
@@ -44,7 +44,7 @@ int xTaskCreatePinnedToCoreWithCaps(void (*worker)(void *), const char *name, un
                            void *argument, unsigned priority, void *handle, unsigned core, unsigned caps)
 {
     assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 &&
-           priority == (s_speaker_test ? 7U : 4U) && core == 0);
+           priority == 7 && core == 0);
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     (void)argument;
     assert(handle);
@@ -129,12 +129,16 @@ int esp_codec_dev_set_in_mute(esp_codec_dev_handle_t handle, bool mute)
 }
 int esp_codec_dev_set_in_gain(esp_codec_dev_handle_t handle, float gain)
 {
-    (void)handle; assert(gain <= 24.0f); return 0;
+    assert(handle == (void *)2 && gain == 31.5f); return 0;
 }
 int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)2 && size == (int)test_frame * 4);
-    for (int i = 0; i < size / 2; i++) ((int16_t *)data)[i] = 4000;
+    assert(handle == (void *)2 && size == (int)test_frame * 8);
+    assert(writes == reads + 1); /* A lejátszás megelőzi az ADC/DSP lépést. */
+    for (int i = 0; i < size / 4; i++) {
+        ((int16_t *)data)[i * 2] = i % 2 ? 5000 : 3000;
+        ((int16_t *)data)[i * 2 + 1] = -12000;
+    }
     reads++;
     vTaskDelay(32);
     return 0;
@@ -157,7 +161,7 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
         memset(data, 0, (size_t)size);
         return 0;
     }
-    assert(size == (int)test_frame * 4);
+    assert(size == (int)test_frame * 8);
     assert(device_volume == 73);
     for (int i = 0; i < size / 2; i++) {
         int16_t sample = ((int16_t *)data)[i];
@@ -176,7 +180,7 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 aec_handle_t *aec_create_from_config(aec_config_t *config)
 {
     aec_creates++;
-    assert(config->sample_rate == 16000 && config->filter_length == 4 &&
+    assert(config->sample_rate == 8000 && config->filter_length == 4 &&
            config->mic_num == 1 && config->ref_num == 1 && config->out_num == 1 &&
            config->mode == AEC_MODE_VOIP_LOW_COST && config->nlp_level == AEC_NLP_LEVEL_AGGR && config->caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (fail_aec) return NULL;
@@ -191,6 +195,7 @@ int aec_get_chunksize(aec_handle_t *aec) { return aec->frame_size; }
 void aec_process(aec_handle_t *aec, int16_t *input, int16_t *reference, int16_t *output)
 {
     assert(aec && input && reference && output);
+    for (unsigned i = 0; i < test_frame; i++) assert(input[i] == 4000);
     memcpy(output, input, test_frame * 2);
 }
 void aec_destroy(aec_handle_t *aec) { free(aec); }
@@ -198,12 +203,17 @@ bool app_loxone_intercom_test_permitted(unsigned revision)
 {
     return !atomic_load(&ring) && revision == 7;
 }
+bool app_loxone_intercom_call_permitted(unsigned revision, bool active)
+{
+    return revision == 7 && (atomic_load(&ring) || active);
+}
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
     full_snapshots++;
     *out = (app_intercom_snapshot_t){.ringing=atomic_load(&ring),.connected=true,.revision=7};
     out->config.enabled = true;
     out->config.speaker_volume = 73;
+    out->config.microphone_gain = 84;
     strcpy(out->config.stream_url, "http://127.0.0.2/mjpg/video.mjpg");
     return true;
 }
@@ -261,6 +271,7 @@ static void *fake_door(void *argument)
     assert(send(fd, response + 17, strlen(response) - 17, 0) == (int)strlen(response) - 17);
     buffer->used = 0;
     int64_t deadline = esp_timer_get_time() + 3000000;
+    uint32_t last_timestamp = 0;
     while (esp_timer_get_time() < deadline) {
         fd_set set;
         FD_ZERO(&set); FD_SET(fd, &set); FD_SET(door->media, &set);
@@ -288,6 +299,13 @@ static void *fake_door(void *argument)
             int count = recv(door->media, packet, sizeof(packet), 0);
             assert(count == 172 && (packet[1] & 127) == 0);
             assert(abs(intercom_g711_decode(packet[12], 0) - 4000) < 200);
+            uint32_t timestamp;
+            memcpy(&timestamp, packet + 4, sizeof(timestamp));
+            timestamp = ntohl(timestamp);
+            if (door->packets) assert(timestamp - last_timestamp == 160);
+            last_timestamp = timestamp;
+            for (unsigned i = 12; i < sizeof(packet); i++)
+                assert(abs(intercom_g711_decode(packet[i], 0) - 4000) < 200);
             door->packets++;
         }
         if (door->mode == 4 && door->packets >= 2 && !door->sent_bye) {
@@ -361,7 +379,7 @@ int main(void)
     task_failure = false;
     /* Az algoritmus keretmérete eltérhet; mindhárommal végigfut a tényleges RTP-út. */
     for (unsigned variant = 0; variant < 3; variant++) {
-    test_frame = 256U << variant;
+    test_frame = 128U << variant;
     for (int mode = 0; mode < 6; mode++) {
         fake_door_t door = {.mode=mode};
         door.listener = socket(AF_INET, SOCK_STREAM, 0);
@@ -395,7 +413,7 @@ int main(void)
         close(door.media); close(door.listener); close(door.sip);
         assert(door.ack);
         if (!mode || mode == 5) {
-            assert(door.packets && writes == 5 && reads == 5 && speaker_audio);
+            assert(door.packets && writes == 5 && reads == 4 && speaker_audio);
             assert(mic_opens == 1 && mic_closes == 1 && speaker_closes == 1 && muted);
             assert(door.bye);
         } else if (mode == 4) {
@@ -480,6 +498,8 @@ int main(void)
     assert(strstr(failed_i2s->hardware_error, "DMA: 8192 B szabad, 4096 B") && i2s_inits == 2);
     assert(!open_hardware(failed_i2s) && i2s_inits == 2);
     free(failed_i2s);
-    puts("PASS: deferred external WithCaps deletion with no self-delete allocation, real SIP TCP fragmentation/ACK, bidirectional RTP, explicit bell close, CANCEL/200 race, rejected call without microphone, hardware failure cleanup, PSRAM DSP, explicit stereo I2S, 256/512/1024-sample AEC and repeated calls");
+    puts("PASS: real SIP/RTP session, 8 kHz AEC with 16 kHz stereo I2S, playback before ADC/DSP, "
+         "left-channel decimation, 20 ms RTP clock, configured microphone gain, "
+         "128/256/512-sample AEC, bell hold, timed/manual close, tone isolation and cleanup");
     return 0;
 }
