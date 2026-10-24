@@ -234,9 +234,9 @@ bool app_intercom_control_media_key(const char* key)
     return difference == 0;
 }
 
-uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status)
+uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status, char error[160])
 {
-    return app_ringtones_load_ex(name, size, status);
+    return app_ringtones_load_detailed(name, size, status, error);
 }
 #else
 /* A Slave profilja csak RAM-ban él. Sem a Master eszközfüggő SD-titkosítása,
@@ -506,10 +506,11 @@ void app_intercom_control_brightness(unsigned* day, unsigned* night)
     portEXIT_CRITICAL(&s_control_lock);
 }
 
-uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status)
+uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status, char error[160])
 {
     *size = 0;
     *status = APP_RINGTONE_LOAD_NETWORK;
+    error[0] = 0;
     if (!app_ringtone_name(name)) {
         *status = APP_RINGTONE_LOAD_INVALID;
         return NULL;
@@ -571,6 +572,7 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
     memset(key, 0, sizeof(key));
+    if (!data) snprintf(error, 160, "%s", app_ringtone_load_message(*status));
     return data;
 }
 #endif

@@ -34,7 +34,12 @@ void *heap_caps_aligned_calloc(size_t, size_t, size_t, unsigned);
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
 uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
 static int fault, calls;
-static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer;
+static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer, fail_seek;
+void fail_position(bool value) { fail_seek = value; }
+int __real_fseek(FILE *, long, int);
+int __wrap_fseek(FILE *file, long position, int origin) {
+    return fail_seek ? -1 : __real_fseek(file, position, origin);
+}
 static void *dma_buffer;
 void fail_dma(bool value) { fail_transfer = value; }
 void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps) {
@@ -69,7 +74,7 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-fsanitize=undefined', '-fno-sanitize-recover=all',
         '-DESP_PLATFORM', '-I' + directory, '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
         'main/app_ringtone_wav.c', 'main/app_template_zip.c', 'main/app_ringtones.c', str(stub),
-        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
     lib = C.CDLL(str(libpath))
     lib.app_ringtone_wav.argtypes = [C.c_char_p, C.c_size_t, C.POINTER(C.c_size_t), C.POINTER(C.c_size_t)]
     lib.app_ringtone_wav.restype = C.c_bool
@@ -78,7 +83,10 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     lib.app_ringtones_load.restype = C.c_void_p
     lib.app_ringtones_load_ex.argtypes = [C.c_char_p, C.POINTER(C.c_size_t), C.POINTER(C.c_int)]
     lib.app_ringtones_load_ex.restype = C.c_void_p
+    lib.app_ringtones_load_detailed.argtypes = [C.c_char_p, C.POINTER(C.c_size_t), C.POINTER(C.c_int), C.c_char_p]
+    lib.app_ringtones_load_detailed.restype = C.c_void_p
     status = C.c_int()
+    detail = C.create_string_buffer(160)
     def load_status(name):
         size.value = 999
         pointer = lib.app_ringtones_load_ex(name, C.byref(size), C.byref(status))
@@ -134,6 +142,7 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
                 {'fake.wav': b'not-wav'}, {'big.wav': b'x' * 300000},
                 {f'sound-{i}.wav': b'invalid' for i in range(34)}):
         install(bad, False)
+        assert error.value and not error.value.startswith('Hibás csengőhangcsomag'.encode())
         assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
     for fail in (1, 2):
         lib.fail_rename(fail)
@@ -171,7 +180,13 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     lib.fail_read(1)
     pointer, result = load_status(name.encode())
     assert pointer is None and result == 4 and size.value == 0, (pointer, result, size.value)
+    assert not lib.app_ringtones_load_detailed(name.encode(), C.byref(size), C.byref(status), detail)
+    assert 'adatolvasás' in detail.value.decode() and name in detail.value.decode()
     lib.fail_read(0)
+    lib.fail_position(1)
+    assert not lib.app_ringtones_load_detailed(name.encode(), C.byref(size), C.byref(status), detail)
+    assert 'SEEK_END' in detail.value.decode()
+    lib.fail_position(0)
     # A kamerával osztozó SD/DMA útvonal csak szektoronkénti olvasást enged.
     lib.limit_reads(1)
     pointer, result = load_status(name.encode())

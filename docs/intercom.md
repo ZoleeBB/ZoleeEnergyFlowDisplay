@@ -229,3 +229,14 @@ HTTP-kiszolgálójára vonatkozik, önmagában nem bizonyít Miniserver-bontást
 A csengőhang-feladat 8 KiB belső RAM-os vermet használ a fájlrendszer/
 SD/ROM útvonalhoz, a beszélgetés 16 KiB-os verme változatlanul PSRAM-ban él.
 A hangadatok PSRAM-ban, az SD adatpuffere kis belső DMA-területen maradnak.
+
+### Pontos telepítési és fájlbetöltési hibák
+
+A telepítő a ZIP-, könyvtár-, WAV-olvasási és aktiválási hibát nem cseréli le
+általános „hibás PCM WAV” szövegre. A hiba megnevezi az érintett fájlt és lépést;
+fájlrendszerhibánál errno is látható. A csengetéskori betöltés megkülönbözteti
+a megnyitást, méretlekérést, SEEK_END/SEEK_SET műveletet, memóriafoglalást,
+adatolvasást (bájtpozícióval) és a PCM-ellenőrzést. A hiba a kérés saját
+pufferében él, így a párhuzamos webes lejátszás nem írhatja felül.
+A részletes üzenet a készülékes ok feltárását szolgálja; egy sikeres hostteszt
+önmagában nem igazolja az ESP32/FatFS adatutat.

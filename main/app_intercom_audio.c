@@ -979,11 +979,12 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
     size_t size = 0, offset, bytes;
     uint8_t *data = NULL;
     app_ringtone_load_status_t load_status = APP_RINGTONE_LOAD_INVALID;
+    char load_error[160] = "";
     /* Az SD rövid ideig foglalt lehet (pl. állapotmentés miatt). Ettől még
      * az egyszer lejátszandó csengőhang sem veszhet el. Hívás/gombnyomás
      * az ismétlések közti legfeljebb 10 ms várakozást is megszakíthatja. */
     for (unsigned attempt = 0; ringtone_wanted(call->epoch, call->revision); attempt++) {
-        data = app_intercom_control_ringtone(snapshot->config.ringtone, &size, &load_status);
+        data = app_intercom_control_ringtone(snapshot->config.ringtone, &size, &load_status, load_error);
         if (data) break;
 #ifdef APP_INTERCOM_SLAVE
         break;
@@ -1000,7 +1001,7 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
     }
     if (!data || !app_ringtone_wav(data, size, &offset, &bytes)) {
         publish(call->epoch, APP_INTERCOM_AUDIO_ERROR,
-                app_ringtone_load_message(data ? APP_RINGTONE_LOAD_INVALID : load_status));
+                load_error[0] ? load_error : app_ringtone_load_message(data ? APP_RINGTONE_LOAD_INVALID : load_status));
         free(data);
         return;
     }

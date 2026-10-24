@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <zlib.h>
+#include <errno.h>
 
 /* A ZIP-formátum többyte-os mezői little-endian sorrendben vannak. */
 static unsigned u16(const unsigned char *p)
@@ -34,10 +35,15 @@ static bool fail(char *error, const char *message)
 static bool unzip(const char *archive, const char *directory, char error[160], bool ringtone)
 {
     FILE *f = fopen(archive, "rb");
-    if (!f)
+    if (!f) {
+        if (ringtone) { snprintf(error, 160, "ZIP megnyitása sikertelen (errno=%d).", errno); return false; }
         return fail(error, "ZIP nem olvasható / Cannot read ZIP");
+    }
 
     bool ok = false;
+    const char *stage = "archívumméret";
+    char current_name[65] = "";
+    errno = 0;
     unsigned char *tail = NULL, *input = NULL, *output = NULL;
     char names[72][65];
     unsigned entries = 0;
@@ -50,6 +56,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
     if (length < 22 || length > APP_TEMPLATE_ZIP_MAX)
         goto done;
 
+    stage = "központi könyvtár olvasása";
     size_t tail_size = length < 65557 ? (size_t)length : 65557;
     tail = malloc(tail_size);
     if (!tail)
@@ -77,6 +84,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
     long next = cd;
     for (unsigned i = 0; i < entries; i++)
     {
+        stage = "ZIP központi fejléc";
         unsigned char h[46], local[30];
         if (fseek(f, next, SEEK_SET) || fread(h, 1, 46, f) != 46 || u32(h) != 0x02014b50)
             goto done;
@@ -87,6 +95,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
                  crc = u32(h + 16);
         unsigned unix_type = (u32(h + 38) >> 16) & 0170000;
 
+        stage = "ZIP név/méret/tömörítés ellenőrzése";
         /* Nem követünk könyvtárbejárást, symlinket vagy ismeretlen ZIP-funkciót. */
         if ((flags & ~(0x800 | 8 | 6)) || (method != 0 && method != 8) || u16(h + 34) ||
             (unix_type && unix_type != 0100000) || !n || n > 64 || size > APP_TEMPLATE_PNG_MAX ||
@@ -96,6 +105,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
         if (fread(names[i], 1, n, f) != n)
             goto done;
         names[i][n] = 0;
+        snprintf(current_name, sizeof(current_name), "%s", names[i]);
         if (strlen(names[i]) != n ||
             (ringtone ? (strcmp(names[i], "ringtone.json") && !app_ringtone_name(names[i])) :
              (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i]))))
@@ -109,6 +119,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
         next += 46 + n + extra + comment;
         if (next > (long)((uint64_t)cd + cd_size))
             goto done;
+        stage = "ZIP helyi fejléc";
         if (fseek(f, offset, SEEK_SET) || fread(local, 1, 30, f) != 30 ||
             u32(local) != 0x04034b50 || u16(local + 6) != flags || u16(local + 8) != method ||
             u16(local + 26) != n)
@@ -123,12 +134,16 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
             goto done;
 
         /* Egyetlen elemhez tartozó bemeneti/kimeneti puffer él egyszerre. */
+        stage = "ZIP bemeneti/kimeneti memóriafoglalás";
         input = malloc(compressed ? compressed : 1);
         output = malloc(size);
-        if (!input || !output || fseek(f, (long)data_offset, SEEK_SET) ||
+        if (!input || !output) goto done;
+        stage = "ZIP tömörített adat olvasása";
+        if (fseek(f, (long)data_offset, SEEK_SET) ||
             fread(input, 1, compressed, f) != compressed)
             goto done;
 
+        stage = "ZIP kicsomagolása";
         if (method == 0)
         {
             if (compressed != size)
@@ -151,14 +166,17 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
                 goto done;
         }
 
+        stage = "ZIP CRC-ellenőrzés";
         if ((uint32_t)crc32(0, output, size) != crc)
             goto done;
 
         char path[256];
         snprintf(path, sizeof(path), "%s/%s", directory, names[i]);
+        stage = "kibontott fájl létrehozása";
         FILE *out = fopen(path, "wb");
         if (!out)
             goto done;
+        stage = "kibontott fájl írása/lezárása";
         bool written = fwrite(output, 1, size, out) == size;
         if (fclose(out))
             written = false;
@@ -214,12 +232,14 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
     }
 
 done:
+    if (!ok && ringtone)
+        snprintf(error, 160, "ZIP %s: %.64s (errno=%d).", stage, current_name[0] ? current_name : "archívum", errno);
     /* Minden hibás ágon az összes puffer és a megnyitott ZIP felszabadul. */
     free(input);
     free(output);
     free(tail);
     fclose(f);
-    if (!ok)
+    if (!ok && !ringtone)
         fail(error, "Hibás vagy nem támogatott ZIP: útvonal, méret, CRC vagy tömörítés.");
     return ok;
 }

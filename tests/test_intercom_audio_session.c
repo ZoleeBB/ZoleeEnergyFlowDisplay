@@ -40,9 +40,10 @@ bool app_intercom_control_acquire(unsigned revision)
 }
 bool app_intercom_control_allowed(unsigned revision) { return revision == 7; }
 void app_intercom_control_release(unsigned revision) { assert(revision == 7); }
-uint8_t *app_intercom_control_ringtone(const char *name, size_t *size, app_ringtone_load_status_t *status)
+uint8_t *app_intercom_control_ringtone(const char *name, size_t *size, app_ringtone_load_status_t *status, char error[160])
 {
     assert(!strcmp(name, "test.wav"));
+    error[0] = 0;
     ring_loads++;
     *status = ring_load_failure ? APP_RINGTONE_LOAD_MISSING : APP_RINGTONE_LOAD_BUSY;
     if (ring_cancel_load) ring_silenced = true;
