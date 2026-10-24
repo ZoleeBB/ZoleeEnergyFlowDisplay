@@ -18,7 +18,7 @@ static app_data_mode_t s_mode;
 
 esp_err_t app_ingest_slave_sample(const app_energy_sample_t *sample)
 {
-    if (!s_mutex || s_mode != APP_DATA_SLAVE || !sample)
+    if (!s_mutex || s_mode != APP_DATA_SLAVE || !sample || sample->energy_flow_disabled)
         return ESP_ERR_INVALID_STATE;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     app_stats_process_sample(sample);

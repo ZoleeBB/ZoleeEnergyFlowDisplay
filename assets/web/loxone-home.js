@@ -4,7 +4,7 @@ const LoxoneHome = (() => {
     const icons = /*HOME_ICONS*/;
     const get = id => document.getElementById(id);
     let model = {schema: 2, consumers: [], pages: [], intercom: {enabled: false, stream_url: '', bell_uuid: '', gate: null}};
-    let selectedPage = 0;
+    let selectedPage = 0, saveSection = 'pages', energyFlowDisabled = false;
     const activeCards = () => model.pages[selectedPage]?.cards || [];
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
@@ -15,11 +15,8 @@ const LoxoneHome = (() => {
     const controls = [];
 
     function notify(text, error = false) {
-        const node = get('home-status');
-        node.textContent = text;
-        node.className = error ? 'feedback-error' : '';
-        const doorStatus = get('intercom-status');
-        if (doorStatus) { doorStatus.textContent = text; doorStatus.className = node.className; }
+        const node = get(saveSection === 'intercom' ? 'intercom-status' : saveSection === 'consumers' ? 'consumers-status' : 'home-status');
+        if (node) { node.textContent = text; node.className = error ? 'feedback-error' : ''; }
     }
     function create(tag, text) {
         const node = document.createElement(tag);
@@ -34,6 +31,7 @@ const LoxoneHome = (() => {
         }
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
+        if (get('consumers-save')) get('consumers-save').disabled = busy();
         if (get('intercom-save')) get('intercom-save').disabled = busy();
         get('home-add-consumer').disabled = busy() || model.consumers.length >= 12;
         get('home-add-card').disabled = busy() || !model.pages.length || activeCards().length >= 12;
@@ -272,7 +270,8 @@ const LoxoneHome = (() => {
         entries.push(entry); render();
     }
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
-    function validate() {
+    function validate(scope) {
+        if (scope === 'intercom') {
         const door = model.intercom;
         if (!Number.isInteger(door.speaker_volume) || door.speaker_volume < 0 || door.speaker_volume > 100)
             return 'A hangerő 0 és 100 közötti egész szám legyen.';
@@ -302,7 +301,11 @@ const LoxoneHome = (() => {
         if (door.gate && (!uuidValid(door.gate.control_uuid) || !door.gate.name.trim() ||
             /[\x00-\x1f\x7f]/.test(door.gate.name) || new TextEncoder().encode(door.gate.name).length > 80))
             return 'Kaputelefon: válassz kapunyitó objektumot és adj legfeljebb 80 bájtos gombfeliratot.';
-        for (const section of ['consumers', 'cards']) for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
+        return '';
+        }
+        if (scope === 'pages' && model.pages.some(page => !page.title.trim() || new TextEncoder().encode(page.title).length > 80))
+            return 'Adj minden Otthon-oldalnak legfeljebb 80 bájtos címet.';
+        for (const section of (scope === 'consumers' ? ['consumers'] : ['cards'])) for (const entry of section === 'consumers' ? model.consumers : model.pages.flatMap(page => page.cards)) {
             const title = entry.name || 'Névtelen elem';
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
             if (!icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
@@ -326,7 +329,10 @@ const LoxoneHome = (() => {
         }
         return '';
     }
-    async function refresh(nextCatalog = [], otherBusy = false) {
+    async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = energyFlowDisabled) {
+        energyFlowDisabled = energyDisabled;
+        if (get('consumers-section')) get('consumers-section').hidden = energyDisabled;
+        if (get('home-resource-warning')) get('home-resource-warning').textContent = energyDisabled ? 'A Loxone Otthon közös erőforráscsomag nincs telepítve. A csempék megjelenítéséhez telepítsd a loxone-home.zip csomagot a sablonkezelőben. Üres Otthonnál a logós készenlét csomag nélkül is működik.' : 'A Loxone Otthon közös erőforráscsomag nincs telepítve. Az Otthon és a ház fogyasztói képernyő a csomag telepítéséig nem fog működni. Telepítsd a loxone-home.zip csomagot a sablonkezelőben.';
         if (!get('home-editor') || fetching) return;
         fetching = true; connectionBusy = otherBusy;
         try {
@@ -361,7 +367,7 @@ const LoxoneHome = (() => {
             revision = state.revision; remoteBusy = !!state.busy;
             if (waiting && !remoteBusy) {
                 waiting = false;
-                if (revision > saveRevision) {
+                if (revision > saveRevision && saveSection === 'intercom') {
                     model.intercom.has_video_password = !!state.intercom?.has_video_password;
                     model.intercom.video_password = '';
                     if (get('intercom-video-password')) get('intercom-video-password').value = '';
@@ -392,17 +398,18 @@ const LoxoneHome = (() => {
         } catch (error) { notify('Hangszóróteszt: ' + error.message, true); }
         finally { speakerTestPending = false; buttons(); }
     }
-    async function save() {
+    async function save(scope = 'pages') {
         if (busy()) return;
+        saveSection = scope;
         let error;
-        try { error = validate(); }
+        try { error = validate(scope); }
         catch (failure) { notify('A böngésző nem tudta ellenőrizni a beállításokat: ' + failure.message, true); return; }
         if (error) { notify(error, true); return; }
         pending = true; buttons(); notify('Otthon-beállítások mentése…');
         saveRevision = revision;
         try {
             const response = await apiFetch('/api/loxone/home', {method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'}, body: JSON.stringify(model)});
+                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'}, body: JSON.stringify({schema: 2, section: scope, [scope]: model[scope]})});
             if (!response.ok) throw Error(await response.text());
             waiting = true;
             await refresh(catalog, connectionBusy);
@@ -413,8 +420,9 @@ const LoxoneHome = (() => {
         get('home-add-consumer').onclick = () => add('consumers');
         get('home-add-page').onclick = addPage;
         get('home-add-card').onclick = () => add('cards');
-        get('home-save').onclick = save;
-        if (get('intercom-save')) get('intercom-save').onclick = save;
+        get('home-save').onclick = () => save('pages');
+        if (get('consumers-save')) get('consumers-save').onclick = () => save('consumers');
+        if (get('intercom-save')) get('intercom-save').onclick = () => save('intercom');
         if (get('intercom-speaker-test')) get('intercom-speaker-test').onclick = toggleSpeakerTest;
         get('home-room').onchange = get('home-category').onchange = render;
         buttons();

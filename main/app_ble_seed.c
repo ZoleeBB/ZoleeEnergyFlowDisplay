@@ -9,6 +9,7 @@
 #include "app_events.h"
 #include "app_time.h"
 #include "app_ingest.h"
+#include "app_stats.h"
 #include "app_ble_profile.h"
 #include "app_slave_presence_service.h"
 #include "app_ble_stats_protocol.h"
@@ -284,6 +285,13 @@ static int64_t refresh_packets(int64_t now)
 {
     app_energy_sample_t sample;
     bool valid = app_state_get_sample(&sample);
+    app_runtime_state_t runtime;
+    app_state_get_runtime(&runtime);
+    if (s_config.energy_flow_disabled)
+    {
+        sample = (app_energy_sample_t){.night_mode = runtime.standalone_night};
+        valid = true; /* Csak a kódoló NightMode bemenete, nem mérési minta. */
+    }
     app_ble_protocol_encode(
         valid ? &sample : NULL, &s_config, now, ++s_sequence, s_packets[0], s_packets[1]);
     struct timeval current;
@@ -298,8 +306,6 @@ static int64_t refresh_packets(int64_t now)
         minutes = ((offset[1] - '0') * 600 + (offset[2] - '0') * 60 + (offset[3] - '0') * 10 +
                    offset[4] - '0') *
                   (offset[0] == '-' ? -1 : 1);
-    app_runtime_state_t runtime;
-    app_state_get_runtime(&runtime);
     app_ble_clock_encode((int64_t)current.tv_sec * 1000 + current.tv_usec / 1000,
                          (int16_t)minutes,
                          (uint16_t)app_config_data_timeout(&s_config),

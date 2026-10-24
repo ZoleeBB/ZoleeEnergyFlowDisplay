@@ -27,6 +27,7 @@ typedef struct
 } lx_mapping_t;
 typedef struct
 {
+    bool energy_flow_disabled; /* Csak futási szabály, az SD-párosításokat nem módosítja. */
     char host[128];
     uint16_t port;
     bool tls;

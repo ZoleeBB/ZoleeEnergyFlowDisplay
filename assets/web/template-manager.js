@@ -84,7 +84,7 @@ function drawStoredPreview(canvas,bitmap){
 }
 if(typeof document!=='undefined'){
  const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');
- let selected=null,verified=null,images=new Map(),generation=0,busy=false;
+ let selected=null,verified=null,images=new Map(),generation=0,busy=false,energyDisabled=false;
  function loadThumb(t,holder){
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
   img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);
@@ -95,14 +95,16 @@ if(typeof document!=='undefined'){
  async function refresh(){
   const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);
   const data=await r.json();list.replaceChildren();
+  energyDisabled=!!data.energy_flow_disabled;
+  const warning=document.getElementById('energy-disabled-warning');if(warning)warning.hidden=!energyDisabled;
   for(const resource of data.resources||[]){
    const article=document.createElement('article');article.className='theme-card';
    const info=document.createElement('div');info.className='theme-info';
-   const title=document.createElement('strong');title.textContent=resource.name;
-   const caption=document.createElement('small');caption.textContent='Közös erőforráscsomag · v'+resource.version+' · a Loxone-oldalakhoz';
+   const title=document.createElement('strong');title.textContent=energyDisabled?'Loxone Otthon-kártyák ✓':resource.name;
+   const caption=document.createElement('small');caption.textContent=resource.installed===false?'A megjelenítéshez telepítsd a loxone-home.zip csomagot.':'Közös erőforráscsomag · v'+resource.version+' · a Loxone-oldalakhoz';
    const del=document.createElement('button');del.textContent='Törlés';del.onclick=()=>{if(confirm('Törlöd a Loxone-oldalak közös erőforrásait?'))action('/api/templates/delete',resource.id);};
    const holder=document.createElement('div');holder.className='theme-thumb';
-   info.append(title,caption,del);article.append(holder,info);list.append(article);loadThumb(resource,holder);
+   info.append(title,caption);if(resource.installed!==false)info.append(del);if(energyDisabled){const link=document.createElement('a');link.href='/loxone';link.textContent='Otthon-kártyák beállítása';info.append(link);}article.append(holder,info);list.append(article);if(resource.installed!==false)loadThumb(resource,holder);
   }
   for(const [index,t] of data.templates.entries()){
    const article=document.createElement('article');article.className='theme-card';
@@ -137,7 +139,7 @@ if(typeof document!=='undefined'){
  function lock(value){busy=value;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=value?'working':'';fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
  async function action(path,body){if(busy)return;lock(true);message.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
  fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
-  try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);
+  try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);if(energyDisabled&&manifest.id!=='loxone-home')throw Error('Ebben a módban csak a Loxone Otthon erőforráscsomag telepíthető.');
    const next=new Map();try{for(const mode of ['light','dark']){const name=previewName(mode),data=files.get(name);if(data)next.set(name,await createImageBitmap(new Blob([data],{type:'image/png'})));}}catch(e){for(const image of next.values())image.close();throw e;}
    if(id!==generation){for(const image of next.values())image.close();return;}images=next;selected=file;
    document.getElementById('metadata').textContent=manifest.name+' · v'+manifest.version+' · PNG: '+(memory.encoded/1048576).toFixed(2)+' MiB · becsült dekódolt képmemória: '+(memory.decoded/1048576).toFixed(2)+' MiB';

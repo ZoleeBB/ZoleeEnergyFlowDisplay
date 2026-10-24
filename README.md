@@ -29,6 +29,16 @@ számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablak
 
 Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
 
+## Loxone Otthon kaputelefon-kijelzőként
+
+Az alapból kikapcsolt **Energiaáramlás tiltás** csak Loxone módban engedélyezhető.
+Ilyenkor az Otthon-kártyák maradnak elérhetők, az Adatpárosítás csak NightMode-ot
+kínál; a korábbi energia-beállítások megmaradnak. Csempék nélkül fekete logós
+nézet és fix 10% fényerő működik; a kaputelefon nappali/éjszakai fényerővel nyílik,
+bezárásakor visszatér a logó és 10%. A Slave-ek szintén logós nézetet mutatnak.
+A fogyasztók, Otthon-kártyák és kaputelefon külön menthetők.
+[Részletek és Master/Slave-frissítés](docs/energy-flow-disable.md).
+
 ## v3.1.0 – Kaputelefon
 
 Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
@@ -108,6 +118,8 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [JSON és MQTT](docs/mqtt.md)
 - [HTTP adatfogadás](docs/http-input.md)
 - [Közvetlen Loxone kapcsolat](docs/loxone-direct.md)
+- [Energiaáramlás tiltás – Otthon, logós készenlét, 10% fényerő és Slave-ek](docs/energy-flow-disable.md)
+- [Energiaáramlás tiltás – fejlesztési terv és ellenőrzési állapot](docs/energy-flow-disable-plan.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](docs/intercom.md)
 - [Loxone fogyasztók és lapozható Otthon-kártyák – beállítás és mintaprofil](docs/v3-home-config.md)
 - [Helyi energiaasszisztens – napelemes indításjavaslat és éjszakai fogyasztás](docs/energy-assistant.md)

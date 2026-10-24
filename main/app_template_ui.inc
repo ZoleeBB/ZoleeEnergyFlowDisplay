@@ -339,11 +339,17 @@ static void template_text(char out[128],const char *source,const app_energy_samp
 static void template_gesture(lv_event_t *event)
 {
     (void)event;
-    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME)) return;
+    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME && s_view != VIEW_HOME_SETUP && s_view != VIEW_ENERGY_DISABLED)) return;
     lv_indev_t *input = lv_indev_active();
     if (!input) return;
     lv_dir_t direction = lv_indev_get_gesture_dir(input);
-    if (home_is_open())
+    if (s_cfg.energy_flow_disabled && direction == LV_DIR_TOP)
+        s_diagnostics_requested = true;
+    else if (s_cfg.energy_flow_disabled && !home_is_open())
+        return;
+    else if (s_view == VIEW_ENERGY_DISABLED)
+        return;
+    else if (home_is_open())
         home_gesture(direction);
     else if (s_diagnostics_requested)
         return;
@@ -1088,7 +1094,7 @@ static void diagnostics_close(lv_event_t *event)
 {
     (void)event;
     s_diagnostics_requested = false;
-    template_loading_requested = true;
+    template_loading_requested = !s_cfg.energy_flow_disabled;
     if (event) lv_event_stop_bubbling(event);
 }
 

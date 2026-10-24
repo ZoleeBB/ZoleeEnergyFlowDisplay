@@ -77,9 +77,20 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
 {
     if (!energy || !weather || !sample || energy_length != 20 || weather_length != 20 ||
         energy[0] != 1 || weather[0] != 1 ||
-        app_ble_packet_sequence(energy) != app_ble_packet_sequence(weather) || (energy[1] & ~7) ||
+        app_ble_packet_sequence(energy) != app_ble_packet_sequence(weather) || (energy[1] & ~15) ||
         (weather[1] & 128))
         return ESP_ERR_INVALID_ARG;
+    if (energy[1] & 8)
+    {
+        /* Külön vezérlőcsomag: energiaérvényesség/lejárat nem keverhető bele. */
+        if (energy[1] & 3) return ESP_ERR_INVALID_ARG;
+        for (unsigned i = 2; i < 18; i++)
+            if (energy[i] || weather[i]) return ESP_ERR_INVALID_ARG;
+        if (weather[1]) return ESP_ERR_INVALID_ARG;
+        *sample = (app_energy_sample_t){.energy_flow_disabled = true,
+                                       .night_mode = (energy[1] & 4) != 0};
+        return ESP_OK;
+    }
     if (!(energy[1] & 1) || (energy[1] & 2))
         return ESP_ERR_INVALID_STATE;
     app_energy_sample_t next = {0};
@@ -147,6 +158,11 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
     energy[0] = weather[0] = APP_BLE_PROTOCOL_VERSION;
     put16(energy + 18, sequence);
     put16(weather + 18, sequence);
+    if (cfg->energy_flow_disabled && cfg->data_recept_mode == APP_DATA_LOXONE)
+    {
+        energy[1] = 8 | (sample && sample->night_mode ? 4 : 0);
+        return;
+    }
     if (!sample)
     {
         energy[1] = 2; /* Nincs minta: lejárt adatként kezelendő. */

@@ -6,6 +6,8 @@
 #include "esp_http_server.h"
 #include "app_templates.h"
 #include "app_storage.h"
+#include "app_config.h"
+static app_config_t s_config;
 static int status,interrupted;static bool authorized=true,header=true,storage_available=true;
 static const unsigned char *request_bytes;static size_t request_offset;
 static char *response;
@@ -90,5 +92,19 @@ int main(int argc,char **argv){
  request("/api/templates/home-icon?id=unknown",NULL,0);assert(status==404&&chunk_bytes==0);
  assert(app_templates_delete("loxone-home",error)==ESP_OK);
  request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==404&&chunk_bytes==0);
+ s_config.data_recept_mode=APP_DATA_LOXONE;s_config.energy_flow_disabled=true;
+ request("/api/templates",NULL,0);assert(status==200);
+ report=cJSON_Parse(response);assert(report);
+ assert(cJSON_GetArraySize(cJSON_GetObjectItem(report,"templates"))==0);
+ assert(cJSON_GetArraySize(cJSON_GetObjectItem(report,"resources"))==1);
+ assert(cJSON_IsTrue(cJSON_GetObjectItem(report,"energy_flow_disabled")));
+ cJSON_Delete(report);
+ request("/api/templates/select",(const unsigned char *)"builtin",7);assert(status==400);
+ request("/api/templates/select",(const unsigned char *)"loxone-home",11);assert(status==200);
+ request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==400);
+ request("/api/templates/install",zip,size);assert(status==400);
+ s_config.energy_flow_disabled=false;
+ request("/api/templates",NULL,0);assert(status==200);
+ report=cJSON_Parse(response);assert(cJSON_GetArraySize(cJSON_GetObjectItem(report,"templates"))==2);cJSON_Delete(report);
  free(zip);free(response);puts("PASS: real template HTTP preview page, validation without installation, install, safe replacement, preview, auth/header and interrupted upload");return 0;
 }

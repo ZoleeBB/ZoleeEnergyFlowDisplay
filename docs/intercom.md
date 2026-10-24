@@ -5,6 +5,11 @@ HTTP/MJPEG-kameraképet nyit, kézzel indítható kétirányú beszélgetéssel 
 opcionális kapunyitással. A funkció alapértelmezetten kikapcsolt; a Slave-ek
 nem kapnak videót vagy hangot. Nem kell külön SIP-szerver, NAS vagy új SD-csomag.
 
+Az [Energiaáramlás tiltás](energy-flow-disable.md) mellett is használható.
+Üres Otthon esetén a Master 10%-os logós készenlétből a napszakhoz beállított
+fényerővel nyitja meg, és bezáráskor a logóhoz, illetve 10%-ra tér vissza.
+A Kaputelefon saját mentésgombja csak a kaputelefon-szakaszt módosítja.
+
 ## Beállítás
 
 A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
