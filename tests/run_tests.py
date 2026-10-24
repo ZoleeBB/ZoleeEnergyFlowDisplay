@@ -41,6 +41,8 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_audio.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_distributed.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_ringtones.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home_store.py')], check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_loxone_home_web.js')], cwd=ROOT, check=True)
 subprocess.run(['node', str(ROOT / 'tests/test_slave_presence_web.js')], cwd=ROOT, check=True)
@@ -110,13 +112,14 @@ with tempfile.TemporaryDirectory(prefix='zolee-ble-') as directory:
                     'main/app_ble_protocol.c', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-slave-') as directory:
-    binary = str(Path(directory) / 'test_ble_slave')
-    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
-                    '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
-                    '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
-                    'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c',
-                    'main/app_slave_presence.c', 'main/app_slave_display.c', '-lm', '-o', binary], cwd=ROOT, check=True)
-    subprocess.run([binary], check=True, timeout=10)
+    for flags in ([], ['-DAPP_INTERCOM_SLAVE']):
+        binary = str(Path(directory) / 'test_ble_slave')
+        subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
+                        '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                        *flags, '-Itests/stubs', '-Imain', 'tests/test_ble_slave.c',
+                        'main/app_ble_protocol.c', 'main/app_ble_stats_protocol.c',
+                        'main/app_slave_presence.c', 'main/app_slave_display.c', '-lm', '-o', binary], cwd=ROOT, check=True)
+        subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-tests-') as directory:
     temp = Path(directory)
     sources = ['tests/test_core.c', 'main/app_payload.c', 'main/app_config.c',

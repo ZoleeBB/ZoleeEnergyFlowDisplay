@@ -8,6 +8,19 @@
 #include "app_slave_presence_service.h"
 #include "app_templates.h"
 #include "app_intercom_audio.h"
+#include "app_ringtones.h"
+#include "app_storage.h"
+#include "app_intercom_control.h"
+esp_err_t app_storage_lock(void) { return ESP_OK; }
+void app_storage_unlock(void) {}
+cJSON *app_ringtones_list(void) { return cJSON_CreateArray(); }
+esp_err_t app_ringtones_install(const char *path, char error[160]) { (void)path; (void)error; return ESP_OK; }
+uint8_t *app_ringtones_load(const char *name, size_t *size) { (void)name; (void)size; return NULL; }
+bool app_intercom_control_media_key(const char *key) { (void)key; return false; }
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out) { memset(out, 0, sizeof(*out)); return true; }
+esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) { (void)r; (void)q; (void)n; return ESP_FAIL; }
+esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) { (void)q; (void)k; (void)v; (void)n; return ESP_FAIL; }
+esp_err_t httpd_resp_send(httpd_req_t *r, const char *b, int n) { (void)r; (void)b; (void)n; return ESP_OK; }
 static unsigned speaker_test_requests, speaker_test_volume;
 static bool speaker_test_active;
 void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
@@ -220,7 +233,7 @@ int main(void)
     s_config.data_recept_mode=APP_DATA_HTTP;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_SLAVE;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_MQTT;assert(loxone_register(NULL)==ESP_OK&&!registered);
-    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==9);
+    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==11);
     authorized=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==401&&!speaker_test_requests);
     authorized=true;header_ok=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==400&&!speaker_test_requests);
     header_ok=true;

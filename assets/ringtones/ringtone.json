@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "kind": "intercom-ringtones",
+  "sounds": [
+    {
+      "file": "electronic-doorbell.wav",
+      "title": "electronic-doorbell",
+      "author": "Squidems",
+      "source": "https://freesound.org/people/Squidems/sounds/709948/",
+      "download": "https://cdn.freesound.org/previews/709/709948_3199363-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_sha256": "e77679cc9dc4f7dc474fa0381554dacc5f0bdef542ca0a006f76dcaa6c0dafc7",
+      "changes": "16 kHz mono PCM16, peak limit 0.7"
+    },
+    {
+      "file": "tubular-chime.wav",
+      "title": "tubular-chime",
+      "author": "marlocarlo",
+      "source": "https://freesound.org/people/marlocarlo/sounds/841813/",
+      "download": "https://cdn.freesound.org/previews/841/841813_5941961-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_sha256": "9412ebc97c6ce3df76386b492f9dc1d971c67331737284fe6b23953853caf55f",
+      "changes": "16 kHz mono PCM16, peak limit 0.7"
+    },
+    {
+      "file": "classic-doorbell.wav",
+      "title": "classic-doorbell",
+      "author": "SoundProject123456789",
+      "source": "https://freesound.org/people/SoundProject123456789/sounds/263078/",
+      "download": "https://cdn.freesound.org/previews/263/263078_4937375-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_sha256": "a828ee113877673f3898d076b429794012feaebf6b46ca99ffe5dc9f0979e396",
+      "changes": "16 kHz mono PCM16, peak limit 0.7; first 7.5 seconds"
+    }
+  ]
+}

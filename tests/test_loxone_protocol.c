@@ -339,7 +339,10 @@ static void home_control_test(lx_config_t *energy)
     app_intercom_snapshot_t door;
     assert(app_loxone_intercom_snapshot(&door) && door.ringing && door.gate_supported);
     unsigned generation = door.revision;
-    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    /* A Slave elavult érintése a pillanatnyilag érvényes kapucélt sem használhatja. */
+    assert(app_loxone_intercom_gate_request(generation - 1) != ESP_OK);
+    assert(!s_command_pending);
+    assert(app_loxone_intercom_gate_request(generation) == ESP_OK);
     sent = home_command_count;
     home_command_poll(esp_timer_get_time());
     assert(home_command_count == sent + 1 && s_intercom_ringing && !s_command_pending);

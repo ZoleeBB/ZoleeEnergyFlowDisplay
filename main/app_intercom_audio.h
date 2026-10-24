@@ -9,6 +9,7 @@ typedef enum {
     APP_INTERCOM_AUDIO_ACTIVE,
     APP_INTERCOM_AUDIO_STOPPING,
     APP_INTERCOM_AUDIO_ERROR,
+    APP_INTERCOM_AUDIO_RINGING,
     APP_INTERCOM_AUDIO_TESTING
 } app_intercom_audio_state_t;
 
@@ -31,3 +32,6 @@ bool app_intercom_audio_active_for(unsigned revision);
 void app_intercom_audio_gate_opened(unsigned revision);
 /* Helyi hangszóróteszt, SIP/mikrofon/AEC nélkül; ugyanaz a worker birtokolja a kodeket. */
 esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume);
+
+/* Hívása a runtime háttérciklusában, LVGL-lock nélkül. */
+void app_intercom_audio_poll(void);

@@ -3,6 +3,7 @@
 #include "app_loxone_page.h"
 #include "app_templates.h"
 #include "app_intercom_audio.h"
+#include "app_ringtone_web.inc"
 static esp_err_t loxone_page(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
@@ -54,6 +55,7 @@ static esp_err_t loxone_home_get(httpd_req_t *req)
         cJSON_AddBoolToObject(root, "audio_busy", app_intercom_audio_busy());
         cJSON_AddStringToObject(root, "speaker_test_message", audio.speaker_test ? audio.message : "");
     }
+    if (root) cJSON_AddItemToObject(root, "ringtones", app_ringtones_list());
     app_template_info_t resources;
     unsigned resource_generation = 0;
     bool installed = app_templates_home_info(&resources, &resource_generation);
@@ -150,6 +152,8 @@ static esp_err_t loxone_register(httpd_handle_t server)
 {
     if(s_config.data_recept_mode!=APP_DATA_LOXONE)return ESP_OK;
     const httpd_uri_t routes[]={
+        {.uri="/api/loxone/intercom/ringtones",.method=HTTP_POST,.handler=ringtone_upload},
+        {.uri="/api/intercom/ringtone",.method=HTTP_GET,.handler=ringtone_get},
         {.uri="/loxone",.method=HTTP_GET,.handler=loxone_page},
         {.uri="/api/loxone",.method=HTTP_GET,.handler=loxone_get},
         {.uri="/api/loxone/test",.method=HTTP_POST,.handler=loxone_post},

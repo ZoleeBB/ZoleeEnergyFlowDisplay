@@ -11,6 +11,10 @@
 #include "app_ingest.h"
 #include "app_stats.h"
 #include "app_ble_profile.h"
+#ifdef APP_INTERCOM_DISTRIBUTED
+#include "app_intercom_control.h"
+#include "esp_random.h"
+#endif
 #include "app_slave_presence_service.h"
 #include "app_ble_stats_protocol.h"
 #include <stdlib.h>
@@ -65,6 +69,11 @@ static const ble_uuid128_t s_clock_uuid = SEED_UUID(0x03);
 static const ble_uuid128_t s_profile_uuid = SEED_UUID(0x04);
 static const ble_uuid128_t s_stats_uuid = SEED_UUID(0x05);
 static const ble_uuid128_t s_presence_uuid = SEED_UUID(0x06);
+#ifdef APP_INTERCOM_DISTRIBUTED
+static const ble_uuid128_t s_intercom_uuid = SEED_UUID(0x07);
+static const ble_uuid128_t s_intercom_profile_uuid = SEED_UUID(0x08);
+static const ble_uuid128_t s_intercom_extras_uuid = SEED_UUID(0x09);
+#endif
 static app_config_t s_config;
 static bool s_started;
 static bool s_synced;
@@ -86,6 +95,9 @@ typedef struct
     uint16_t handle;
     bool subscribed[3];
     uint32_t presence_sequence;
+#ifdef APP_INTERCOM_DISTRIBUTED
+    uint32_t intercom_id;
+#endif
     uint8_t *stats_wire;
     uint32_t stats_id;
     uint16_t stats_page;
@@ -146,6 +158,9 @@ static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
 
 #include "app_ble_stats_server.inc"
 #include "app_ble_presence_server.inc"
+#if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
+#include "app_ble_intercom_server.inc"
+#endif
 
 static const struct ble_gatt_svc_def s_services[] = {
     {
@@ -196,6 +211,16 @@ static const struct ble_gatt_svc_def s_services[] = {
                              BLE_GATT_CHR_F_READ_AUTHEN,
                     .min_key_size = 16,
                 },
+#if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
+                {.uuid = &s_intercom_uuid.u, .access_cb = access_intercom,
+                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_READ_ENC |
+                          BLE_GATT_CHR_F_READ_AUTHEN | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
+                 .min_key_size = 16},
+                {.uuid = &s_intercom_profile_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)0,
+                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
+                {.uuid = &s_intercom_extras_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)1,
+                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
+#endif
                 {0},
             },
     },
@@ -334,10 +359,13 @@ static void poll_state(struct ble_npl_event *event)
     {
         slave_poll(now);
         diagnostics_update();
-        ble_npl_callout_reset(&s_poll, ble_npl_time_ms_to_ticks32(1000));
+        ble_npl_callout_reset(&s_poll, ble_npl_time_ms_to_ticks32(250));
         return;
     }
     presence_register_peers();
+#ifdef APP_INTERCOM_DISTRIBUTED
+    app_intercom_control_tick();
+#endif
     int64_t sample_us = refresh_packets(now);
     bool publish = sample_us != s_last_sample_us || previous_flags != s_packets[0][1] ||
                    now - s_last_publish_us >= 5000000;
@@ -540,6 +568,9 @@ esp_err_t app_ble_seed_start(const app_config_t *cfg)
         return ESP_ERR_INVALID_STATE;
     if (cfg->data_recept_mode == APP_DATA_SLAVE || cfg->data_recept_mode == APP_DATA_LOXONE)
     {
+        #ifdef APP_INTERCOM_DISTRIBUTED
+        app_intercom_control_init(cfg);
+        #endif
         esp_err_t presence_error = app_slave_presence_service_init(cfg->data_recept_mode != APP_DATA_SLAVE);
         if (presence_error != ESP_OK)
             app_events_add(APP_EVENT_WARNING, "Slave jelenlétprofil nem indult; sötétítés kikapcsolva.");

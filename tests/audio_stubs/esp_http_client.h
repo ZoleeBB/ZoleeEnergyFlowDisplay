@@ -22,3 +22,5 @@ esp_err_t esp_http_client_close(esp_http_client_handle_t);
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t);
 
 esp_err_t esp_http_client_get_header(esp_http_client_handle_t, const char *, char **);
+
+esp_err_t esp_http_client_set_header(esp_http_client_handle_t, const char *, const char *);

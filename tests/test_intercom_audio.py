@@ -37,13 +37,13 @@ with tempfile.TemporaryDirectory(prefix='intercom-audio-') as directory:
         '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=20, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})
 
-    session = str(Path(directory) / 'session')
-    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-        '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
-        '-Itests/audio_stubs', '-Itests/stubs', '-Imain', 'tests/test_intercom_audio_session.c',
-        'main/app_intercom_audio_protocol.c', '-pthread', '-o', session], cwd=ROOT, check=True)
-    subprocess.run([session], check=True, timeout=25, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})
-
+    for mode, flags in [('master', []), ('distributed', ['-DAPP_INTERCOM_DISTRIBUTED']), ('slave', ['-DAPP_INTERCOM_DISTRIBUTED', '-DAPP_INTERCOM_SLAVE'])]:
+        session = str(Path(directory) / ('session-' + mode))
+        subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+            '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
+            *flags, '-Itests/audio_stubs', '-Itests/stubs', '-Imain', 'tests/test_intercom_audio_session.c',
+            'main/app_intercom_audio_protocol.c', 'main/app_ringtone_wav.c', '-pthread', '-o', session], cwd=ROOT, check=True)
+        subprocess.run([session], check=True, timeout=25, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})
     video = str(Path(directory) / 'video')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
         '-Werror=frame-larger-than=8192', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',

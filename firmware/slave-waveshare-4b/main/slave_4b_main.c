@@ -1,5 +1,9 @@
 /* Dedikált 4B Slave: nincs SD, konfigurálható adatforrás vagy master indítás. */
 #include "slave_4b_ui.h"
+#include "slave_4b_intercom.h"
+#include "app_intercom.h"
+#include "app_intercom_audio.h"
+#include "app_intercom_control.h"
 #include "app_boot_config.h"
 #include "app_ble_profile.h"
 #include "app_slave_display_input.h"
@@ -59,11 +63,17 @@ static void refresh(lv_timer_t *timer)
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
     if (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale))
         app_slave_display_night(&display_state, runtime.energy_flow_disabled ? runtime.standalone_night : sample.night_mode, now);
+    bool intercom_visible = slave_4b_intercom_update();
     app_slave_display_keep_visible(&display_state,
-                                   !atomic_load(&boot_complete) || pairing.pin_required ||
+                                   intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input, now);
     app_slave_presence_service_apply(&display_state, now);
     int brightness = (int)app_slave_display_brightness(&display_state, now);
+    if (intercom_visible) {
+        unsigned day, night;
+        app_intercom_control_brightness(&day, &night);
+        brightness = display_state.night ? (int)night : (int)day;
+    }
     if (brightness != last_brightness)
     {
         bsp_display_brightness_set(brightness);
@@ -145,6 +155,8 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(lv_timer_create(refresh, 33, NULL) ? ESP_OK : ESP_ERR_NO_MEM);
     bsp_display_unlock();
+    (void)app_intercom_prepare_video();
+    ESP_ERROR_CHECK(app_intercom_start());
     ESP_ERROR_CHECK(app_ble_seed_start(&config));
 
     app_runtime_state_t runtime;
@@ -165,6 +177,9 @@ void app_main(void)
     ESP_ERROR_CHECK(app_ota_start_auto_update(&config));
     app_ble_profile_boot_complete();
     atomic_store(&boot_complete, true);
-    for (;;)
-        vTaskDelay(pdMS_TO_TICKS(60000));
+    for (;;) {
+        app_intercom_audio_poll();
+        slave_4b_intercom_prepare();
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 }

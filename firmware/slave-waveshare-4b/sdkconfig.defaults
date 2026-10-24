@@ -67,3 +67,7 @@ CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
 # Mindkét célhardveren van PSRAM; a tanúsítvány-ellenőrzés változatlan.
 # CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+
+# Közös kaputelefon médiafeladatok és HTTP kamera-hitelesítés.
+CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH=y
+CONFIG_ESP_HTTP_CLIENT_ENABLE_DIGEST_AUTH=y

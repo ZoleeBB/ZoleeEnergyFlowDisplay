@@ -35,7 +35,7 @@ else:
         subprocess.run(['cc','-std=gnu11','-O1','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                         '-Werror=frame-larger-than=8192','-fsanitize=undefined','-fno-sanitize-recover=all',
                         '-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
-                        'tests/test_template_web.c','main/app_templates.c','main/app_template_zip.c',
+                        'tests/test_template_web.c','main/app_templates.c','main/app_template_zip.c','main/app_ringtone_wav.c',
                         '-lz','-lm','-l:libcjson.so.1','-o',str(binary)],cwd=ROOT,check=True)
         home_zip=package_home_resources(Path(directory)/'packages')
         subprocess.run([str(binary),str(paths[0]),str(sd),str(home_zip)],check=True)

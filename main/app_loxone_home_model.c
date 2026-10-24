@@ -199,6 +199,25 @@ static bool intercom(const cJSON *entry, lx_intercom_config_t *out, char *error)
             return fail(error, "intercom", 0, "microphone_gain");
         out->microphone_gain = (uint8_t)gain->valuedouble;
     }
+    const cJSON *repeat = cJSON_GetObjectItemCaseSensitive(entry, "ringtone_repeat");
+    const cJSON *tone = cJSON_GetObjectItemCaseSensitive(entry, "ringtone");
+    if (repeat && !cJSON_IsBool(repeat))
+        return fail(error, "intercom", 0, "ringtone_repeat");
+    out->ringtone_repeat = cJSON_IsTrue(repeat);
+    if (tone) {
+        if (!cJSON_IsString(tone) || strlen(tone->valuestring) >= sizeof(out->ringtone))
+            return fail(error, "intercom", 0, "ringtone");
+        const char *name = tone->valuestring;
+        for (size_t i = 0; name[i]; i++) {
+            char ch = name[i];
+            if (!((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.'))
+                return fail(error, "intercom", 0, "ringtone");
+        }
+        size_t n = strlen(name);
+        if (n && (n < 5 || strcmp(name + n - 4, ".wav") || strstr(name, "..")))
+            return fail(error, "intercom", 0, "ringtone");
+        snprintf(out->ringtone, sizeof(out->ringtone), "%s", name);
+    }
     const char *url = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "stream_url"));
     if (url && url[0])
     {
@@ -419,6 +438,8 @@ cJSON *lx_home_config_json(const lx_home_config_t *config)
     if (!door || !cJSON_AddBoolToObject(door, "enabled", config->intercom.enabled) ||
         !cJSON_AddNumberToObject(door, "speaker_volume", config->intercom.speaker_volume) ||
         !cJSON_AddNumberToObject(door, "microphone_gain", config->intercom.microphone_gain) ||
+        !cJSON_AddStringToObject(door, "ringtone", config->intercom.ringtone) ||
+        !cJSON_AddBoolToObject(door, "ringtone_repeat", config->intercom.ringtone_repeat) ||
         !cJSON_AddStringToObject(door, "stream_url", config->intercom.stream_url) ||
         !cJSON_AddStringToObject(door, "video_username", config->intercom.video_username) ||
         !cJSON_AddBoolToObject(door, "has_video_password", config->intercom.video_password[0] != 0) ||

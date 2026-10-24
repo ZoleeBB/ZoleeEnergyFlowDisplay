@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     subprocess.run(['cc','-std=gnu11','-shared','-fPIC','-g','-O1','-Wall','-Wextra','-Werror',
                     '-Wno-misleading-indentation','-Werror=frame-larger-than=8192','-fsanitize=undefined',
                     '-fno-sanitize-recover=all','-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
-                    'main/app_templates.c','main/app_template_zip.c','-lz','-lm','-l:libcjson.so.1',
+                    'main/app_templates.c','main/app_template_zip.c','main/app_ringtone_wav.c','-lz','-lm','-l:libcjson.so.1',
                     '-o',str(tmp/'templates.so')],cwd=ROOT,check=True)
     lib=C.CDLL(str(tmp/'templates.so'))
     lib.app_templates_validate.argtypes=[C.c_char_p,C.c_void_p,C.c_char_p]
