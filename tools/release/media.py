@@ -1,4 +1,4 @@
-"""Deterministic release media, generated from the same checkout as the firmware."""
+"""Determinista médiacsomagok a firmware-rel azonos forrásból."""
 import io
 import sys
 from pathlib import Path

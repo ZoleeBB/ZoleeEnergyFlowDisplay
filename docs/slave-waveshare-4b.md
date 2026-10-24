@@ -44,3 +44,7 @@ megmarad. Régi Masterrel továbbra is a saját folyamatos nappali/éjszakai fé
 alatt memóriában marad; saját fényerőinek korábbi NVS-beállítása nem változik.
 Részletes szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).
 Fizikai paneles próba még szükséges.
+
+## Kaputelefon
+
+A Masteren kezelt kamera, hang, kapunyitás és csengőhang a 4B-n is elérhető; a hívásfoglalás központi. [Részletes működés és hardveres átvétel](slave-intercom.md).

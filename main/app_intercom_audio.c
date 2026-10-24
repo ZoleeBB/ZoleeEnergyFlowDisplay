@@ -1011,7 +1011,7 @@ static bool ringtone_wanted(unsigned epoch, unsigned revision)
     app_intercom_snapshot_t current;
     return request && app_loxone_intercom_snapshot(&current) && current.connected &&
         current.ringing && current.revision == revision && !current.ringtone_silenced &&
-        !current.audio_elsewhere && !current.command_pending;
+        !current.audio_active && !current.command_pending;
 }
 
 static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *snapshot)
@@ -1126,9 +1126,15 @@ esp_err_t app_intercom_audio_start(void)
     /* A már engedélyezett kaputelefonnál bootkor foglaljuk a 3 840 bájt DMA-t,
      * a kamera és AEC előtt. A kodek/mikrofon és a hívás csak gombnyomáskor nyílik meg.
      * A videó működését egy audiohiba nem akadályozhatja meg. */
+#ifdef APP_INTERCOM_SLAVE
+    /* A Slave profilja még nem érkezett meg. A kicsi, fix DMA-területet
+     * így is előre foglaljuk, a kodeket és a mikrofont nem nyitjuk meg. */
+    (void)prepare_i2s();
+#else
     app_intercom_snapshot_t state;
     if (app_loxone_intercom_snapshot(&state) && state.config.enabled)
         (void)prepare_i2s();
+#endif
     audio_checkpoint(AUDIO_STAGE_NONE);
     portENTER_CRITICAL(&s_lock);
     s_started = true;
@@ -1160,7 +1166,7 @@ void app_intercom_audio_poll(void)
     if (busy) return;
     bell_seen = true;
     bell_revision = current.revision;
-    if (!current.config.ringtone[0] || !current.config.speaker_volume || current.ringtone_silenced || current.audio_elsewhere) return;
+    if (!current.config.ringtone[0] || !current.config.speaker_volume || current.ringtone_silenced || current.audio_active) return;
     portENTER_CRITICAL(&s_lock);
     s_ringtone = true;
     portEXIT_CRITICAL(&s_lock);

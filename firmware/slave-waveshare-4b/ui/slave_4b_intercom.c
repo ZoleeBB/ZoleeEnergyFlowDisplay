@@ -28,9 +28,9 @@ static lv_obj_t *overlay, *image, *status, *audio_status, *audio, *gate;
 static lv_image_dsc_t descriptor;
 static int64_t last_gate;
 
-static lv_obj_t *label(lv_obj_t *parent, const char *text, int y)
+static lv_obj_t* label(lv_obj_t* parent, const char* text, int y)
 {
-    lv_obj_t *object = lv_label_create(parent);
+    lv_obj_t* object = lv_label_create(parent);
     lv_label_set_text(object, text);
     lv_obj_set_pos(object, 20, y);
     lv_obj_set_width(object, 680);
@@ -40,7 +40,7 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int y)
     return object;
 }
 
-static void talk(lv_event_t *event)
+static void talk(lv_event_t* event)
 {
     lv_event_stop_bubbling(event);
     app_intercom_audio_status_t state;
@@ -50,26 +50,27 @@ static void talk(lv_event_t *event)
         lv_label_set_text(audio_status, "A hang nem indítható. Ellenőrizd a Master kapcsolatát.");
 }
 
-static void open_gate(lv_event_t *event)
+static void open_gate(lv_event_t* event)
 {
     lv_event_stop_bubbling(event);
     int64_t now = esp_timer_get_time();
-    if (last_gate && now - last_gate < 1000000) return;
+    if (last_gate && now - last_gate < 1000000)
+        return;
     last_gate = now;
     if (app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK)
         lv_obj_add_state(gate, LV_STATE_DISABLED);
 }
 
-static lv_obj_t *button(int x, lv_event_cb_t callback)
+static lv_obj_t* button(int x, lv_event_cb_t callback)
 {
-    lv_obj_t *object = lv_button_create(overlay);
+    lv_obj_t* object = lv_button_create(overlay);
     lv_obj_set_pos(object, x, 610);
     lv_obj_set_size(object, 330, 90);
     lv_obj_set_style_radius(object, 16, 0);
     lv_obj_set_style_text_font(object, &app_font_28, 0);
     lv_obj_remove_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(object, callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *title = lv_label_create(object);
+    lv_obj_t* title = lv_label_create(object);
     lv_obj_set_width(title, 306);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
@@ -79,40 +80,51 @@ static lv_obj_t *button(int x, lv_event_cb_t callback)
 
 void slave_4b_intercom_prepare(void)
 {
-    app_intercom_snapshot_t snapshot = {0};
+    app_intercom_snapshot_t snapshot = { 0 };
     bool active = app_loxone_intercom_snapshot(&snapshot) && (snapshot.ringing || snapshot.audio_active);
     portENTER_CRITICAL(&frame_lock);
     bool need = active && !front && !spare;
     portEXIT_CRITICAL(&frame_lock);
     if (need) {
-        uint8_t *a = heap_caps_malloc(VIDEO_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        uint8_t *b = heap_caps_malloc(VIDEO_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (!a || !b) { free(a); free(b); }
-        else {
+        uint8_t* a = heap_caps_malloc(VIDEO_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        uint8_t* b = heap_caps_malloc(VIDEO_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!a || !b) {
+            free(a);
+            free(b);
+        } else {
             portENTER_CRITICAL(&frame_lock);
-            front = a; spare = b;
+            front = a;
+            spare = b;
             portEXIT_CRITICAL(&frame_lock);
         }
     }
     portENTER_CRITICAL(&frame_lock);
-    if (generation != snapshot.revision) { ready = false; generation = snapshot.revision; }
+    if (generation != snapshot.revision) {
+        ready = false;
+        generation = snapshot.revision;
+    }
     accepting = active && spare;
     bool cleanup = !active && !visible && !writing;
+    bool media_ready = front && spare;
     portEXIT_CRITICAL(&frame_lock);
-    if (active) app_intercom_poll();
+    if (active && media_ready)
+        app_intercom_poll();
+    else if (active)
+        app_intercom_ui_status("Nincs elég memória a kameraképhez.", snapshot.revision);
     if (cleanup && app_intercom_idle()) {
         portENTER_CRITICAL(&frame_lock);
         uint8_t *a = front, *b = spare;
         front = spare = NULL;
         ready = false;
         portEXIT_CRITICAL(&frame_lock);
-        free(a); free(b);
+        free(a);
+        free(b);
     }
 }
 
 bool slave_4b_intercom_update(void)
 {
-    app_intercom_snapshot_t snapshot = {0};
+    app_intercom_snapshot_t snapshot = { 0 };
     bool active = app_loxone_intercom_snapshot(&snapshot) && (snapshot.ringing || snapshot.audio_active);
     if (!active) {
         if (overlay) {
@@ -158,10 +170,16 @@ bool slave_4b_intercom_update(void)
         portENTER_CRITICAL(&frame_lock);
         have_frame = ready && !writing && generation == snapshot.revision;
         if (have_frame) {
-            uint8_t *old = front; front = spare; spare = old;
-            descriptor = (lv_image_dsc_t){.header = {.magic = LV_IMAGE_HEADER_MAGIC,
-                .cf = LV_COLOR_FORMAT_RGB565, .w = frame_width, .h = frame_height, .stride = frame_width * 2},
-                .data_size = frame_width * frame_height * 2, .data = front};
+            uint8_t* old = front;
+            front = spare;
+            spare = old;
+            descriptor = (lv_image_dsc_t) { .header = { .magic = LV_IMAGE_HEADER_MAGIC,
+                                                .cf = LV_COLOR_FORMAT_RGB565,
+                                                .w = frame_width,
+                                                .h = frame_height,
+                                                .stride = frame_width * 2 },
+                .data_size = frame_width * frame_height * 2,
+                .data = front };
             ready = false;
         }
         portEXIT_CRITICAL(&frame_lock);
@@ -176,43 +194,62 @@ bool slave_4b_intercom_update(void)
     portENTER_CRITICAL(&frame_lock);
     snprintf(detail, sizeof(detail), "%s", message_revision == snapshot.revision ? message : "");
     portEXIT_CRITICAL(&frame_lock);
-    if (!snapshot.connected) lv_label_set_text(status, "A Master adatkapcsolata megszakadt.");
-    else if (detail[0]) lv_label_set_text(status, detail);
+    if (!snapshot.connected)
+        lv_label_set_text(status, "A Master adatkapcsolata megszakadt.");
+    else if (detail[0])
+        lv_label_set_text(status, detail);
     app_intercom_audio_status_t sound;
     app_intercom_audio_snapshot(&sound);
     bool talking = sound.state == APP_INTERCOM_AUDIO_ACTIVE || sound.state == APP_INTERCOM_AUDIO_CONNECTING;
     lv_label_set_text(lv_obj_get_child(audio, 0), talking ? "Beszélgetés vége" : "Beszélgetés");
     lv_obj_set_style_bg_color(audio, lv_color_hex(talking ? 0xa53030 : 0x246696), 0);
-    bool blocked = snapshot.audio_elsewhere || sound.state == APP_INTERCOM_AUDIO_STOPPING || !snapshot.connected;
-    if (blocked) lv_obj_add_state(audio, LV_STATE_DISABLED);
-    else lv_obj_remove_state(audio, LV_STATE_DISABLED);
-    lv_label_set_text(audio_status, snapshot.audio_elsewhere ? "Beszélgetés másik kijelzőn / várakozás a Masterre" :
-        sound.revision == snapshot.revision && sound.state != APP_INTERCOM_AUDIO_RINGING ? sound.message : "");
+    bool blocked
+        = snapshot.audio_elsewhere || sound.state == APP_INTERCOM_AUDIO_STOPPING || !snapshot.connected;
+    if (blocked)
+        lv_obj_add_state(audio, LV_STATE_DISABLED);
+    else
+        lv_obj_remove_state(audio, LV_STATE_DISABLED);
+    lv_label_set_text(audio_status,
+        snapshot.audio_elsewhere ? "Beszélgetés másik kijelzőn / várakozás a Masterre"
+            : sound.revision == snapshot.revision && sound.state != APP_INTERCOM_AUDIO_RINGING ? sound.message
+                                                                                               : "");
     if (snapshot.gate_supported) {
         lv_obj_remove_flag(gate, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(lv_obj_get_child(gate, 0), snapshot.config.gate.name);
-        if (!snapshot.connected || snapshot.command_pending) lv_obj_add_state(gate, LV_STATE_DISABLED);
-        else lv_obj_remove_state(gate, LV_STATE_DISABLED);
-    } else lv_obj_add_flag(gate, LV_OBJ_FLAG_HIDDEN);
+        if (!snapshot.connected || snapshot.command_pending)
+            lv_obj_add_state(gate, LV_STATE_DISABLED);
+        else
+            lv_obj_remove_state(gate, LV_STATE_DISABLED);
+    } else
+        lv_obj_add_flag(gate, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_x(audio, snapshot.gate_supported ? 370 : 195);
     return true;
 }
 
-bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned height, unsigned stride, unsigned revision)
+bool app_intercom_ui_frame(
+    const uint8_t* pixels, unsigned width, unsigned height, unsigned stride, unsigned revision)
 {
-    if (!pixels || !width || !height || width > 1280 || height > 720 || stride < width * 2) return false;
+    if (!pixels || !width || !height || width > 1280 || height > 720 || stride < width * 2)
+        return false;
     portENTER_CRITICAL(&frame_lock);
     bool accepted = accepting && spare && !writing && generation == revision;
-    uint8_t *destination = accepted ? spare : NULL;
-    if (accepted) { writing = true; ready = false; }
+    uint8_t* destination = accepted ? spare : NULL;
+    if (accepted) {
+        writing = true;
+        ready = false;
+    }
     portEXIT_CRITICAL(&frame_lock);
-    if (!accepted) return false;
-    unsigned scale = width * VIDEO_HEIGHT > height * VIDEO_WIDTH ? VIDEO_WIDTH * 1024 / width : VIDEO_HEIGHT * 1024 / height;
+    if (!accepted)
+        return false;
+    unsigned scale = width * VIDEO_HEIGHT > height * VIDEO_WIDTH ? VIDEO_WIDTH * 1024 / width
+                                                                 : VIDEO_HEIGHT * 1024 / height;
     unsigned w = width * scale / 1024, h = height * scale / 1024;
-    if (!w) w = 1;
-    if (!h) h = 1;
+    if (!w)
+        w = 1;
+    if (!h)
+        h = 1;
     for (unsigned y = 0; y < h; y++) {
-        const uint8_t *row = pixels + (y * height / h) * stride;
+        const uint8_t* row = pixels + (y * height / h) * stride;
         for (unsigned x = 0; x < w; x++) {
             unsigned source = (x * width / w) * 2;
             destination[(y * w + x) * 2] = row[source];
@@ -221,13 +258,18 @@ bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned heigh
     }
     portENTER_CRITICAL(&frame_lock);
     accepted = accepting && generation == revision;
-    if (accepted) { ready = true; frame_width = w; frame_height = h; message[0] = 0; }
+    if (accepted) {
+        ready = true;
+        frame_width = w;
+        frame_height = h;
+        message[0] = 0;
+    }
     writing = false;
     portEXIT_CRITICAL(&frame_lock);
     return accepted;
 }
 
-void app_intercom_ui_status(const char *text, unsigned revision)
+void app_intercom_ui_status(const char* text, unsigned revision)
 {
     portENTER_CRITICAL(&frame_lock);
     snprintf(message, sizeof(message), "%s", text ? text : "");

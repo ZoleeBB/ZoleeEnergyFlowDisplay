@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Actual RIFF parser and SD ZIP installer, including rollback and hostile archives."""
+"""Valódi RIFF-parser és SD ZIP-telepítő: visszaállítás és hibás archívumok."""
 import ctypes as C
 import io
 import json

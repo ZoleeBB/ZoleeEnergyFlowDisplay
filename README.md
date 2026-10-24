@@ -67,7 +67,8 @@ A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb v
 | Helyi energiaasszisztens | Külön engedélyezhető indításjavaslat 100%-os akkunál és legalább kétperces elegendő napelemes többletnél; magasabb éjszakai fogyasztás jelzése mért referencia alapján. A jelzés nem kapcsol fogyasztót. [Feltételek és működés](docs/energy-assistant.md). |
 | Slave-jelenlét és saját fényerő | Nappal saját nappali fényerő; engedélyezett éjszakai sötétítésnél jelenlét vagy érintés ébreszt a saját éjszakai fényerőre, időkorlát után újra sötétít. Az első teljes érintés csak ébreszt. [Felhasználói beállítás](docs/loxone-direct.md), [profil és BLE-protokoll](docs/slave-presence-protocol.md). |
 | Megújult témák | Új nappali/éjszakai megjelenés: [Nyugodt otthon](docs/calm-home.md) és [Energiakör](docs/energy-orbit.md); utóbbiban 00:00–24:00 napállás-idővonal. |
-| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI és négy kiadási csomag. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
+| Kaputelefon és csengőhang | A Master és a párosított 4B Slave élőképe, kézi duplex hang és kapunyitás, egyetlen központilag engedélyezett hívással. Feltölthető PCM WAV csengőhangcsomag és ismétlés. [Beállítás és működés](docs/slave-intercom.md). |
+| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI, Master/Slave OTA és USB telepítő, témák és csengőhangok kiadási csomagjai. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
 
 A fogyasztói/Otthon-oldalak és az energiaasszisztens **csak Masteren, közvetlen Loxone módban** érhetők el. A kijelzőoldalakhoz működő SD és telepített `loxone-home.zip` szükséges. A Slave jelenlétfunkciójához a Master és a Slave megfelelő firmware-e is kell.
 

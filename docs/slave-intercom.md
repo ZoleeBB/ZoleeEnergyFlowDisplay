@@ -16,7 +16,7 @@ A kamera adminjelszava csak a védett BLE profilon jut át, a Slave RAM-jában �
 
 ## Hangillesztés
 
-Master: 16 kHz, kétcsatornás STD I2S. 4B Slave: a rögzített 3.0.1 BSP 24 kHz-es STD TX / négy fizikai slotos TDM RX útvonala. FL mikrofon = slot0; a codec egycsatornás PCM-ként adja át. A beszélgetés mindkét kijelzőn 8 kHz-es G.711 és ESP-SR VoIP AEC, a Slave három 24 kHz-es időminta átlagából állítja elő a 8 kHz-es mikrofonjelet. A csengőhang nem nyit mikrofont, SIP-et vagy AEC-t.
+Master: 16 kHz, kétcsatornás STD I2S. 4B Slave: a rögzített 3.0.1 BSP 24 kHz-es STD TX / négy fizikai slotos TDM RX útvonala. FL mikrofon = slot0; a codec egycsatornás PCM-ként adja át. A beszélgetés mindkét kijelzőn 8 kHz-es G.711 és ESP-SR VoIP AEC, a Slave három 24 kHz-es időminta átlagából állítja elő a 8 kHz-es mikrofonjelet. A csengőhang nem nyit mikrofont, SIP-et vagy AEC-t. A Slave a kis I2S/DMA-területet már induláskor, a Wi-Fi/BLE és a videó előtt lefoglalja; a hangkodek és a mikrofon ettől még zárva marad.
 
 ## Csengőhangcsomag
 

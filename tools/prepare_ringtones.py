@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package the checked-in CC0 doorbells; no network is needed for a release."""
+"""A forrásban tárolt CC0 csengőhangok csomagolása, kiadáskor hálózati letöltés nélkül."""
 import json
 from pathlib import Path
 import wave

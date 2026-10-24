@@ -30,7 +30,8 @@ const catalog = [
         for (const width of [390, 1280]) for (const energyDisabled of [false, true]) {
             const context = await browser.newContext({viewport:{width, height:900}});
             const posts = [], errors = [];
-            let home = {schema:2, revision:1, busy:false, consumers:[], pages:[], resources_installed:true,
+            let uploads = 0;
+            let home = {schema:2, revision:1, busy:false, consumers:[], pages:[], resources_installed:true, ringtones:['classic-doorbell.wav'],
                 intercom:{enabled:false, stream_url:'', bell_uuid:'', gate:null}};
             await context.route('http://loxone-device.test/**', async route => {
                 const url = new URL(route.request().url());
@@ -48,6 +49,13 @@ const catalog = [
                         delete home.intercom.video_password;
                         body = {accepted:true};
                     } else body = home;
+                } else if (url.pathname === '/api/loxone/intercom/ringtones') {
+                    assert.equal(route.request().headers()['x-zolee-loxone'], '1');
+                    assert.equal(route.request().method(), 'POST');
+                    assert.equal(route.request().postDataBuffer().toString(), 'fixture-zip');
+                    uploads++;
+                    home.ringtones = ['classic-doorbell.wav', 'new-door.wav'];
+                    return route.fulfill({body:'Csengőhangcsomag telepítve.'});
                 } else if (url.pathname === '/api/loxone/intercom/speaker-test') {
                     const value = route.request().postDataJSON();
                     assert.equal(value.volume, value.enabled ? 72 : 0);
@@ -75,6 +83,20 @@ const catalog = [
             assert.equal(await page.locator('#connection-save').isVisible(), true);
             await page.locator('#intercom-speaker-volume').fill('72');
             await page.locator('#intercom-microphone-gain').fill('90');
+            assert.equal(await page.locator('#home-room').evaluate(node => node.closest('section')?.id), 'cards-section');
+            assert.equal(await page.locator('#home-category').evaluate(node => node.closest('section')?.id), 'cards-section');
+            assert.equal(await page.locator('#intercom-ringtone').inputValue(), '');
+            assert.equal(await page.locator('#intercom-ringtone-repeat').isChecked(), false);
+            await page.locator('#intercom-ringtone').selectOption('classic-doorbell.wav');
+            await page.locator('#intercom-ringtone-repeat').check();
+            await page.locator('#ringtone-file').setInputFiles({name:'ringtones.zip', mimeType:'application/zip', buffer:Buffer.from('fixture-zip')});
+            await page.locator('#ringtone-upload').click();
+            await page.waitForFunction(() => [...document.querySelector('#intercom-ringtone').options].some(option => option.value === 'new-door.wav'));
+            assert.equal(uploads, 1);
+            assert.equal(await page.locator('#intercom-speaker-volume').inputValue(), '72');
+            assert.equal(await page.locator('#intercom-ringtone').inputValue(), 'classic-doorbell.wav');
+            assert.equal(await page.locator('#intercom-ringtone-repeat').isChecked(), true);
+            await page.locator('#intercom-ringtone').selectOption('new-door.wav');
             await page.locator('#intercom-speaker-test').click();
             await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('leállítása'));
             await page.locator('#intercom-speaker-test').click();
@@ -97,6 +119,8 @@ const catalog = [
             assert.equal(posts[0].intercom.bell_uuid, bell);
             assert.equal(posts[0].intercom.speaker_volume, 72);
             assert.equal(posts[0].intercom.microphone_gain, 90);
+            assert.equal(posts[0].intercom.ringtone, 'new-door.wav');
+            assert.equal(posts[0].intercom.ringtone_repeat, true);
             assert.equal(posts[0].intercom.gate.control_uuid, gate);
             assert.equal(await page.locator('#intercom-stream-url').inputValue(), posts[0].intercom.stream_url);
             await page.locator('#intercom-stream-url').fill('http://192.168.2.21/mjpg/video.mjpg');

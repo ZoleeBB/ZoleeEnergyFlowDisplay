@@ -8,6 +8,9 @@
 #include "app_ble_protocol.h"
 #include "app_events.h"
 #include "app_ble_profile.h"
+#ifdef APP_INTERCOM_SLAVE
+#include "app_intercom_control.h"
+#endif
 #include "app_slave_presence_service.h"
 
 #define BLE_HS_CONN_HANDLE_NONE 0xffff
@@ -119,8 +122,17 @@ typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
                            s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
                            s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
+#ifdef APP_INTERCOM_SLAVE
+static const ble_uuid128_t s_intercom_uuid = {{1007}}, s_intercom_profile_uuid = {{1008}}, s_intercom_extras_uuid = {{1009}};
+void app_intercom_control_disconnected(void) {}
+bool app_intercom_control_receive(const uint8_t *data, size_t size) { (void)data; (void)size; return false; }
+bool app_intercom_control_receive_profile(const uint8_t *a, const uint8_t *b) { (void)a; (void)b; return false; }
+bool app_intercom_control_outgoing(uint8_t out[20]) { (void)out; return false; }
+void app_intercom_control_sent(bool ok) { (void)ok; }
+#endif
 static app_config_t s_config;
-bool app_stats_is_ready(void) { return false; }
+static unsigned stats_ready_checks;
+bool app_stats_is_ready(void) { stats_ready_checks++; return false; }
 bool app_stats_remote_publish(const app_stats_snapshot_t *snapshot) { (void)snapshot; return true; }
 void app_stats_remote_source(const char *id) { (void)id; }
 void app_stats_remote_disconnected(void) {}
@@ -634,6 +646,21 @@ int main(void)
     slave_profile_read(7, &ok, &invalid_attr, NULL);
     assert(terminations == before_termination + 2);
     presence_client_tests();
+#ifdef APP_INTERCOM_SLAVE
+    slave_reset();
+    s_master = 7;
+    s_config.cardless_slave = true;
+    s_slave_ready = s_profile_accepted = true;
+    s_profile_next_read = now_us + 10000000;
+    s_last_frame_us = s_last_clock_receive_us = now_us;
+    unsigned before_stats = stats_ready_checks;
+    slave_poll(now_us);
+    assert(stats_ready_checks == before_stats + 1 && !slave_intercom_available());
+    /* Részlegesen frissített Master sem tilthatja le a régi statisztikai utat. */
+    s_remote_intercom = 170;
+    slave_poll(now_us);
+    assert(stats_ready_checks == before_stats + 2 && !slave_intercom_available());
+#endif
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");
     return 0;

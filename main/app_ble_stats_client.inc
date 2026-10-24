@@ -135,7 +135,7 @@ static int slave_stats_written(uint16_t conn,
 static void slave_stats_next(void)
 {
 #ifdef APP_INTERCOM_SLAVE
-    if (s_remote_intercom && (s_intercom_reading || esp_timer_get_time() >= s_intercom_next)) {
+    if (slave_intercom_available() && (s_intercom_reading || esp_timer_get_time() >= s_intercom_next)) {
         s_stats_page_pending = true;
         return;
     }

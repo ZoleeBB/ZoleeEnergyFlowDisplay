@@ -530,7 +530,7 @@ static void slave_poll(int64_t now)
     {
 #ifdef APP_INTERCOM_SLAVE
         slave_intercom_poll(now);
-        if (!s_intercom_reading && !s_presence_reading && s_intercom_next > now)
+        if (!s_intercom_reading && !s_presence_reading && (!slave_intercom_available() || s_intercom_next > now))
 #else
         if (!s_presence_reading)
 #endif

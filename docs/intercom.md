@@ -1,9 +1,11 @@
-# Loxone kaputelefon – Master kijelző
+# Loxone kaputelefon – Master és 4B Slave kijelző
 
 A Loxone adatfogadási módban működő Master csengetéskor teljes képernyős
 HTTP/MJPEG-kameraképet nyit, kézzel indítható kétirányú beszélgetéssel és
-opcionális kapunyitással. A funkció alapértelmezetten kikapcsolt; a Slave-ek
-nem kapnak videót vagy hangot. Nem kell külön SIP-szerver, NAS vagy új SD-csomag.
+opcionális kapunyitással. A funkció alapértelmezetten kikapcsolt. A párosított
+4B Slave ugyanazt a kaputelefont használja, a beállításokat a Mastertől kapja;
+egyidejűleg csak egy kijelző beszélhet. Nem kell külön SIP-szerver vagy NAS.
+A választható csengőhangok külön SD-csomagként telepíthetők a Masterre.
 
 Az [Energiaáramlás tiltás](energy-flow-disable.md) mellett is használható.
 Üres Otthon esetén a Master 10%-os logós készenlétből a napszakhoz beállított
@@ -12,7 +14,7 @@ A Kaputelefon saját mentésgombja csak a kaputelefon-szakaszt módosítja.
 
 ## Beállítás
 
-A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
+A **Loxone beállítások → Kaputelefon (Master és Slave kijelzők)** részben:
 
 1. Engedélyezd a kaputelefont.
 2. Add meg a kaputelefon saját helyi videócímét, például
@@ -27,7 +29,8 @@ A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
    TimedSwitch célok használhatók. Az állapot UUID-je nem parancscél.
 6. Állítsd be a **Hangszóró hangereje** és **Mikrofon erősítése** értékét.
    Mindkettő 0–100 közötti egész szám; 0 némítást jelent.
-7. Ments a közös **Kaputelefon és Otthon-beállítások mentése** gombbal.
+7. Válassz csengőhangot és opcionálisan ismétlést a feltöltött hangcsomagból.
+8. Ments a külön **Kaputelefon mentése** gombbal.
 
 A hangszóró alapértéke 55%, a mikrofoné 80%. A mikrofon százaléka a kodek
 0–37,5 dB-es erősítési tartományát skálázza: 80% = 30 dB, 100% = 37,5 dB;

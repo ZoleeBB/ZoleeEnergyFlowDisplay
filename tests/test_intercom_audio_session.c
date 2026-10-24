@@ -274,6 +274,7 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
         strcpy(out->config.ringtone, "test.wav");
         out->config.ringtone_repeat = ring_repeat;
         out->ringtone_silenced = ring_silenced;
+        out->audio_elsewhere = true; /* A bootkarantén tiltja a gombot, a csengőhangot nem. */
     }
 #endif
     out->config.enabled = true;
