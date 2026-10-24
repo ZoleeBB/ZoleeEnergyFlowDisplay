@@ -319,7 +319,7 @@ static void intercom_render(void)
         lv_obj_remove_state(intercom_audio, LV_STATE_DISABLED);
     }
     lv_label_set_text(intercom_audio_message,
-                      audio.revision == intercom_revision ? audio.message : "");
+                      audio.revision == intercom_revision && !talking ? audio.message : "");
     if (gate)
     {
         lv_obj_remove_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN);

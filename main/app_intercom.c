@@ -259,19 +259,9 @@ static void video_session(const app_intercom_snapshot_t *state)
     app_intercom_ui_status("Kamera elérhető, az első MJPEG-képkockára várunk...", state->revision);
     uint8_t chunk[4096];
     int64_t started = esp_timer_get_time();
-    int64_t last_progress = started;
     size_t received = 0;
     while (view_still_open(state->revision))
     {
-        int64_t now = esp_timer_get_time();
-        if (!video.jpeg_frames && now - last_progress >= 1000000LL) {
-            char message[160];
-            snprintf(message, sizeof(message),
-                     "MJPEG: %u KiB adat, %u képkezdés, %u túlméretes kép. Első teljes képre várunk...",
-                     (unsigned)(received / 1024U), stream.frame_starts, stream.oversized_frames);
-            app_intercom_ui_status(message, state->revision);
-            last_progress = now;
-        }
         int count = esp_http_client_read(http, (char *)chunk, sizeof(chunk));
         if (count == -ESP_ERR_HTTP_EAGAIN && esp_timer_get_time() - started < 10000000LL) {
             continue;

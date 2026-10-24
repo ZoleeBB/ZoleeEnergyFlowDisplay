@@ -165,6 +165,7 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
     }
     assert(size == (int)test_frame * 8);
     assert(device_volume == 73);
+    assert(s_status.state == APP_INTERCOM_AUDIO_ACTIVE && !s_status.message[0]);
     for (int i = 0; i < size / 2; i++) {
         int16_t sample = ((int16_t *)data)[i];
         assert(sample == 0 || abs(sample - 2000) < 100);
@@ -344,15 +345,6 @@ static void *fake_door(void *argument)
 
 int main(void)
 {
-    /* Csend, szélsőérték és sztereó csatornák külön mérése. */
-    const int16_t levels[] = {0, -32768, 16384, 0};
-    uint16_t peak = 0;
-    measure_signal(&peak, levels, 2, 2);
-    assert(peak == 50);
-    peak = 0;
-    measure_signal(&peak, levels + 1, 2, 2);
-    assert(peak == 100);
-
     assert(app_intercom_audio_start() == ESP_OK);
     s_requested = true;
     s_revision = 7;

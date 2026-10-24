@@ -245,11 +245,8 @@ typedef struct {
     uint8_t payload, formats;
     uint16_t receive_port;
     unsigned rx_packets, rx_accepted, rx_peer_rejected, rx_format_rejected, rx_invalid, tx_packets;
-    unsigned cycle_peak_ms;
-    unsigned dsp_peak_us;
     unsigned volume;
     unsigned microphone_gain;
-    uint16_t signal_peak[4];
     bool accepted, established, pending, ended;
     intercom_sip_buffer_t stream, accepted_stream;
     char reply[INTERCOM_SIP_MAX + 1];
@@ -736,19 +733,6 @@ static bool receive_audio(audio_call_t *call, const struct sockaddr_in *source,
     return true;
 }
 
-/* A PCM abszolút csúcsszintje százalékban; -32768 is biztonságosan mérhető.
- * A számlálók nem igazolják, hogy a csomag beszédet tartalmaz. */
-static void measure_signal(uint16_t *peak, const int16_t *samples, unsigned count, unsigned stride)
-{
-    for (unsigned i = 0; i < count; i++) {
-        int value = samples[i * stride];
-        unsigned level = (unsigned)(value < 0 ? -value : value) * 100U / 32768U;
-        if (level > *peak) {
-            *peak = (uint16_t)level;
-        }
-    }
-}
-
 static void media_session(audio_call_t *call)
 {
     const unsigned samples = call->frame_samples;
@@ -762,13 +746,10 @@ static void media_session(audio_call_t *call)
     uint16_t sequence = (uint16_t)esp_random();
     uint32_t timestamp = esp_random(), ssrc = esp_random();
     int64_t last_packet = esp_timer_get_time();
-    int64_t last_status = last_packet;
-    bool show_signal = false;
-    publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "Hanghívás létrejött, hangcsomagra várunk...");
+    publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, "");
     /* A lejátszás és felvétel azonos I2S-órán fut. A hálózati csomagokból
      * legfeljebb 256 ms-nyi jitterpuffer él, hiányzó minták helyén csend van. */
     while (wanted(call->epoch, call->revision)) {
-        int64_t cycle_started = esp_timer_get_time();
         if (!pump_signaling(call)) {
             if (!call->ended) {
                 publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon hangkapcsolata megszakadt.");
@@ -787,33 +768,15 @@ static void media_session(audio_call_t *call)
             }
         }
         if (esp_timer_get_time() - last_packet > 10000000LL) {
-            char message[160];
-            snprintf(message, sizeof(message), "Hanghiba RX:%u jó:%u F:%u K:%u H:%u S:%u L:%u A:%u R:%u TX:%u",
+            ESP_LOGW(TAG, "RTP timeout: rx=%u accepted=%u peer=%u format=%u malformed=%u ssrc=%u late=%u ahead=%u resync=%u tx=%u",
                      call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
                      call->rx_format_rejected, call->jitter.malformed, call->jitter.wrong_ssrc,
                      call->jitter.late_packets, call->jitter.ahead_packets, call->jitter.resyncs, call->tx_packets);
-            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, message);
+            publish(call->epoch, APP_INTERCOM_AUDIO_ERROR,
+                    "A kaputelefon nem küld hangot. Indítsd újra a beszélgetést.");
             break;
         }
-        if (esp_timer_get_time() - last_status >= 1000000LL) {
-            char message[160];
-            if (show_signal) {
-                snprintf(message, sizeof(message), "Jelszint be:%u%% mikrofon B/J:%u/%u%% AEC:%u%% (2 s csúcs)",
-                         call->signal_peak[0], call->signal_peak[1], call->signal_peak[2], call->signal_peak[3]);
-                memset(call->signal_peak, 0, sizeof(call->signal_peak));
-            } else {
-                snprintf(message, sizeof(message), "Hang RX:%u jó:%u TX:%u újraszinkron:%u ciklus:%u/%u ms AEC:%u ms",
-                         call->rx_packets, call->rx_accepted, call->tx_packets, call->jitter.resyncs,
-                         call->cycle_peak_ms, frame * 1000U / AUDIO_RATE, call->dsp_peak_us / 1000U);
-            }
-            show_signal = !show_signal;
-            call->cycle_peak_ms = 0;
-            call->dsp_peak_us = 0;
-            publish(call->epoch, APP_INTERCOM_AUDIO_ACTIVE, message);
-            last_status = esp_timer_get_time();
-        }
         intercom_jitter_read(&call->jitter, remote, samples);
-        measure_signal(&call->signal_peak[0], remote, samples, 1);
         for (unsigned i = 0; i < frame; i++) {
             speaker[i * 2] = speaker[i * 2 + 1] = remote[i / 2];
         }
@@ -833,8 +796,6 @@ static void media_session(audio_call_t *call)
         if (!wanted(call->epoch, call->revision)) {
             break;
         }
-        measure_signal(&call->signal_peak[1], capture, frame, 2);
-        measure_signal(&call->signal_peak[2], capture + 1, frame, 2);
         for (unsigned i = 0; i < samples; i++) {
             /* A 16 kHz-es első mikrofoncsatornából két szomszédos időminta
              * átlaga adja a 8 kHz-es AEC-bemenetet. */
@@ -842,11 +803,7 @@ static void media_session(audio_call_t *call)
         }
         /* A referencia az előzőleg kiküldött hang; új mintát csak feldolgozás után írunk bele. */
         audio_checkpoint(AUDIO_STAGE_PROCESS);
-        int64_t dsp_started = esp_timer_get_time();
         aec_process(call->aec, microphone, reference, clean);
-        unsigned dsp_us = (unsigned)(esp_timer_get_time() - dsp_started);
-        if (dsp_us > call->dsp_peak_us) call->dsp_peak_us = dsp_us;
-        measure_signal(&call->signal_peak[3], clean, samples, 1);
         for (unsigned i = 0; i < samples; i++) {
             reference[i] = remote[i];
         }
@@ -868,8 +825,6 @@ static void media_session(audio_call_t *call)
             }
         }
         /* Az I2S órája adja az ütemet, nincs keretenkénti további várakozás. */
-        unsigned cycle_ms = (unsigned)((esp_timer_get_time() - cycle_started) / 1000);
-        if (cycle_ms > call->cycle_peak_ms) call->cycle_peak_ms = cycle_ms;
     }
     ESP_LOGI(TAG, "RTP totals: rx=%u accepted=%u peer=%u format=%u invalid=%u tx=%u",
              call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
@@ -917,6 +872,7 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
     call->volume = snapshot->config.speaker_volume;
     call->microphone_gain = snapshot->config.microphone_gain;
     audio_checkpoint(AUDIO_STAGE_SIP);
+    publish(call->epoch, APP_INTERCOM_AUDIO_CONNECTING, "Kapcsolódás a kaputelefonhoz...");
     char host[128];
     if (!intercom_audio_host(snapshot->config.stream_url, host, sizeof(host)) || !connect_peer(call, host)) {
         publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, "A kaputelefon SIP-hangkapcsolata nem érhető el (TCP 5060).");
@@ -926,6 +882,7 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
         return;
     }
     call->pending = true;
+    publish(call->epoch, APP_INTERCOM_AUDIO_CONNECTING, "A kaputelefon válaszára várunk...");
     int64_t deadline = esp_timer_get_time() + 12000000;
     while (!call->established && wanted(call->epoch, call->revision) && esp_timer_get_time() < deadline) {
         if (!pump_signaling(call)) {
@@ -940,6 +897,7 @@ static void run_call(audio_call_t *call, const app_intercom_snapshot_t *snapshot
     if (!wanted(call->epoch, call->revision)) {
         return;
     }
+    publish(call->epoch, APP_INTERCOM_AUDIO_CONNECTING, "Hangkapcsolat előkészítése...");
     if (!open_hardware(call)) {
         publish(call->epoch, APP_INTERCOM_AUDIO_ERROR, call->hardware_error);
         return;

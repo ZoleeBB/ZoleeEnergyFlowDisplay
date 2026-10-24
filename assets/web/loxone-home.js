@@ -29,7 +29,7 @@ const LoxoneHome = (() => {
     function busy() { return !loaded || pending || waiting || remoteBusy || connectionBusy; }
     function buttons() {
         if (get('intercom-speaker-test')) {
-            get('intercom-speaker-test').textContent = speakerTestActive ? 'Hangszóróteszt leállítása' : 'Ideiglenes hangszóróteszt indítása';
+            get('intercom-speaker-test').textContent = speakerTestActive ? 'Hangszóróteszt leállítása' : 'Hangszóróteszt indítása';
             get('intercom-speaker-test').disabled = speakerTestPending || (audioBusy && !speakerTestActive);
         }
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;

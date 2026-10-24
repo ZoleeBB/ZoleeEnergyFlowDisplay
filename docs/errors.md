@@ -148,6 +148,13 @@ A regresszió a valódi háttértaskot futtatja szimulált várakozással,
 
 ## Közvetlen Loxone kapcsolat
 
+A [kaputelefon](intercom.md) működő videónál és létrejött beszélgetésnél nem
+mutat folyamatos diagnosztikai adatokat. Kapcsolódáskor rövid folyamatjelzés,
+hibánál hitelesítési/hálózati/kép-/hanghardver-üzenet jelenik meg. Ha tíz
+másodpercig nincs elfogadott bejövő hangcsomag, a beszélgetés bontódik;
+a részletes RTP-számlálók a soros naplóba kerülnek. A webes hangszóróteszt
+a helyi lejátszási út külön ellenőrzésére használható.
+
 Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg. A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik; a szükséges állapotok visszaérkezésekor automatikusan folytatódik a kijelzés. A token előzetes megújítása normál esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál a webfelület a konkrét fázist és hibakódot mutatja. [Hibaelhárítás és korlátok](loxone-direct.md).
 
 ## Loxone-oldal után eltűnő gesztus vagy betöltőkép

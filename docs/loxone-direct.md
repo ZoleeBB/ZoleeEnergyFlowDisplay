@@ -150,3 +150,6 @@ módban működik. Részletek és a régi napfájlok kezelése:
 
 A Master MJPEG-élőképének, a csengetésállapotnak, az opcionális kapunyitónak és
 a kézzel indítható kétirányú hangkapcsolatnak a beállítása: [Loxone kaputelefon](intercom.md).
+Ugyanitt menthető külön a hangszóró hangereje és a mikrofon erősítése.
+Az aktív beszélgetés csengetés nélkül is nyitva tartja a videót; elfogadott
+kapunyitás után 5 másodperccel bont, és csengetés hiányában az ablak is bezárul.
