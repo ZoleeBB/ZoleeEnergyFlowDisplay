@@ -78,6 +78,75 @@ static void home_requests(void)
     assert(app_loxone_home_request(invalid, error) != ESP_OK);
     cJSON_Delete(invalid); cJSON_Delete(empty); free(s_home); s_home = NULL;
 }
+/* A tényleges kéréskezelő csak a kiválasztott szakaszt mentheti. */
+static void energy_disabled_requests(void)
+{
+    static lx_config_t backup;
+    backup = s_saved;
+    lx_config_defaults(&s_saved);
+    strcpy(s_saved.host, "192.168.1.10");
+    strcpy(s_saved.username, "integration");
+    strcpy(s_saved.password, "IntegrationSecret");
+    const char *uuid = "11223344-5566-7788-99aabbccddeeff00";
+    strcpy(s_saved.map[0].uuid, uuid);
+    s_saved.map[0].scale = .001;
+    s_energy_disabled = true;
+    assert(!configured(&s_saved));
+    strcpy(s_saved.map[6].uuid, uuid);
+    assert(configured(&s_saved));
+    cJSON *body = cJSON_Parse("{\"section\":\"connection\",\"host\":\"192.168.1.11\",\"port\":80,\"tls\":false,\"ca_pem\":\"\",\"username\":\"integration\",\"password\":\"NewSecret\",\"mappings\":{}}");
+    assert(app_loxone_request(body, true) == ESP_OK);
+    request_t *request = NULL;
+    assert(xQueueReceive(s_requests, &request, 0));
+    assert(!strcmp(request->config.host, "192.168.1.11"));
+    assert(!memcmp(request->config.map, s_saved.map, sizeof(s_saved.map)));
+    free(request); s_busy = false; cJSON_Delete(body);
+    body = cJSON_Parse("{\"section\":\"mappings\",\"host\":\"unsaved-host\",\"password\":\"UnsavedSecret\",\"mappings\":{\"NightMode\":{\"uuid\":\"aabbccdd-5566-7788-99aabbccddeeff00\",\"scale\":-1,\"offset\":1},\"PowerGrid\":null}}");
+    assert(app_loxone_request(body, true) == ESP_OK);
+    assert(xQueueReceive(s_requests, &request, 0));
+    assert(!strcmp(request->config.host, s_saved.host));
+    assert(!strcmp(request->config.password, "IntegrationSecret"));
+    assert(!memcmp(&request->config.map[0], &s_saved.map[0], sizeof(lx_mapping_t)));
+    assert(request->config.map[6].scale == -1 && request->config.energy_flow_disabled);
+    free(request); s_busy = false; cJSON_Delete(body);
+    s_energy_disabled = false;
+    assert(!configured(&s_saved)); /* A normál mód újra minden kötelező energiaadatot kér. */
+    s_energy_disabled = true;
+    s_home = calloc(1, sizeof(*s_home)); assert(s_home);
+    s_home->consumer_count = 1;
+    strcpy(s_home->consumers[0].id, "saved-consumer");
+    strcpy(s_home->consumers[0].name, "Saved consumer");
+    strcpy(s_home->consumers[0].icon, "home");
+    strcpy(s_home->consumers[0].source.uuid, uuid);
+    s_home->consumers[0].source.scale = .001;
+    strcpy(s_home->intercom.stream_url, "http://192.168.1.50/mjpg/video.mjpg");
+    strcpy(s_home->intercom.video_username, "admin");
+    strcpy(s_home->intercom.video_password, "CameraSecret");
+    s_home->intercom.speaker_volume = 55;
+    s_home->intercom.microphone_gain = 80;
+    char error[LX_HOME_ERROR_SIZE] = {0};
+    body = cJSON_Parse("{\"section\":\"pages\",\"pages\":[{\"id\":\"home\",\"title\":\"Empty home\",\"cards\":[]}],\"consumers\":[],\"intercom\":{\"video_password\":\"MustNotBeSaved\"}}");
+    assert(app_loxone_home_request(body, error) == ESP_OK);
+    assert(xQueueReceive(s_requests, &request, 0));
+    assert(request->home->consumer_count == 1);
+    assert(!strcmp(request->home->intercom.video_password, "CameraSecret"));
+    assert(!strcmp(request->home->pages[0].title, "Empty home"));
+    unsigned previous = s_intercom_generation;
+    home_store_error = false;
+    save_home_request(request->home);
+    assert(s_intercom_generation == previous);
+    assert(s_home->consumer_count == 1 && !strcmp(s_home->intercom.video_password, "CameraSecret"));
+    free(request->home); free(request); cJSON_Delete(body);
+    body = cJSON_Parse("{\"section\":\"consumers\",\"consumers\":[]}");
+    assert(app_loxone_home_request(body, error) != ESP_OK);
+    cJSON_Delete(body);
+    body = cJSON_Parse("{\"schema\":1}");
+    assert(app_loxone_home_request(body, error) != ESP_OK);
+    cJSON_Delete(body);
+    free(s_home); s_home = NULL;
+    s_saved = backup; s_energy_disabled = false;
+    puts("PASS: real section save preserves hidden mappings/consumers and camera secrets, ignores unsaved other sections, keeps Intercom revision and restores strict normal mode");
+}
 static int64_t clock_us;
 int64_t esp_timer_get_time(void){return clock_us+=1000;}
 void esp_fill_random(void *data,size_t n){FILE *f=fopen("/dev/urandom","rb");assert(f&&fread(data,1,n,f)==n);fclose(f);}
@@ -379,6 +448,7 @@ static void presence_stream_test(lx_config_t *energy)
 int main(int argc,char **argv)
 {
     home_requests();
+    energy_disabled_requests();
 
     assert(argc==3);char *private=load(argv[1]);s_public_key=load(argv[2]);
     mbedtls_pk_init(&server_key);

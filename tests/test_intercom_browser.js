@@ -27,7 +27,7 @@ const catalog = [
 (async () => {
     const browser = await chromium.launch({headless:true});
     try {
-        for (const width of [390, 1280]) {
+        for (const width of [390, 1280]) for (const energyDisabled of [false, true]) {
             const context = await browser.newContext({viewport:{width, height:900}});
             const posts = [], errors = [];
             let home = {schema:2, revision:1, busy:false, consumers:[], pages:[], resources_installed:true,
@@ -57,7 +57,7 @@ const catalog = [
                 } else if (url.pathname === '/api/loxone/slaves') {
                     body = {ready:true, profiles:[], revision:1, busy:false};
                 } else if (url.pathname === '/api/loxone') {
-                    body = {host:'192.168.2.10', port:80, username:'kijelzo', busy:false, catalog, mappings:{}};
+                    body = {host:'192.168.2.10', port:80, username:'kijelzo', busy:false, energy_flow_disabled:energyDisabled, catalog, mappings:{}};
                 } else {
                     return route.fulfill({status:404, body:'{}'});
                 }
@@ -68,6 +68,11 @@ const catalog = [
             await page.goto('http://loxone-device.test/');
             assert.equal(await page.evaluate(() => isSecureContext), false);
             await page.locator('#intercom-enabled').waitFor();
+            assert.equal(await page.locator('#consumers-section').isVisible(), !energyDisabled);
+            assert.equal(await page.locator('#mapping-row-PowerGrid').isVisible(), !energyDisabled);
+            assert.equal(await page.locator('#mapping-row-NightMode').isVisible(), true);
+            assert.equal(await page.locator('#cards-section').isVisible(), true);
+            assert.equal(await page.locator('#connection-save').isVisible(), true);
             await page.locator('#intercom-speaker-volume').fill('72');
             await page.locator('#intercom-microphone-gain').fill('90');
             await page.locator('#intercom-speaker-test').click();
@@ -83,6 +88,7 @@ const catalog = [
             await page.locator('#intercom-save').click();
             await page.waitForFunction(() => document.querySelector('#intercom-status').textContent.includes('Elmentve'));
             assert.equal(posts.length, 1);
+            assert.equal(posts[0].section,'intercom');assert(!('pages' in posts[0]));assert(!('consumers' in posts[0]));
             assert.equal(posts[0].intercom.video_username, 'admin');
             assert.equal(posts[0].intercom.video_password, 'Separate-camera-secret');
             assert.equal(await page.locator('#intercom-video-password').inputValue(), '');

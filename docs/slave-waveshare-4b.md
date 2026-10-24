@@ -1,5 +1,7 @@
 # Waveshare 4B – 720×720-as Slave firmware
 
+Az [Energiaáramlás tiltás](energy-flow-disable.md) külön szabályai: Loxone Otthon-alapnézet, megőrzött témák és Slave logós képernyő.
+
 A fő Rendszer téma Energiaáramlás kártyája a Waveshare
 ESP32-P4-WIFI6-Touch-LCD-4B (SKU 31416) eszközön, falon vagy asztali tartón,
 SD nélkül, kizárólag Slave szerepben.

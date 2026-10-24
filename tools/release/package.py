@@ -81,6 +81,7 @@ def package(build, output, tag, commit, board="main"):
             'A csomag a P4-et programozza; a C6 firmware külön ellenőrzendő.\n').encode('utf-8')
     files['README.md'] = (ROOT / 'README.md').read_bytes()
     files['config.sample.json'] = (ROOT / 'config.sample.json').read_bytes()
+    files['assets/loxone-wordmark.svg'] = (ROOT / 'assets/loxone-wordmark.svg').read_bytes()
     files['assets/loxone-logo.png'] = (ROOT / 'assets/loxone-logo.png').read_bytes()
     files['assets/template-manifest.json'] = (ROOT / 'assets/template-manifest.json').read_bytes()
     # A README és a támogatási útmutató helyi hivatkozásai az USB-csomagban is éljenek.

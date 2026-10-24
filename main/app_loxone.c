@@ -505,8 +505,13 @@ static void invalidate(bool configured)
 }
 static bool configured(const lx_config_t *cfg)
 {
-    if(!cfg->host[0]||!cfg->username[0]||!cfg->password[0])return false;
-    for(int i=0;i<LX_FIELD_COUNT;i++)if(lx_fields[i].required&&(!s_energy_disabled||i==6)&&!cfg->map[i].uuid[0])return false;
+    if (!cfg->host[0] || !cfg->username[0] || !cfg->password[0])
+        return false;
+    for (int i = 0; i < LX_FIELD_COUNT; i++)
+    {
+        if (lx_fields[i].required && (!s_energy_disabled || i == 6) && !cfg->map[i].uuid[0])
+            return false;
+    }
     return true;
 }
 /* A memóriabeli profil csak a sikeresen lezárt SD-tranzakció után változik. */
@@ -712,11 +717,14 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
     const cJSON *password=cJSON_GetObjectItemCaseSensitive(body,"password");
     if (!strcmp(scope, "mappings"))
         snprintf(r->config.password, sizeof(r->config.password), "%s", s_saved.password);
-    if(!strcmp(scope, "mappings")) {}
-    else if(cJSON_IsString(password)&&password->valuestring[0]&&strlen(password->valuestring)<LX_PASSWORD_MAX)
-        snprintf(r->config.password,sizeof(r->config.password),"%s",password->valuestring);
-    else if(cJSON_IsNull(password)&&strcmp(r->config.host,s_saved.host)==0&&r->config.port==s_saved.port&&r->config.tls==s_saved.tls&&strcmp(r->config.username,s_saved.username)==0)snprintf(r->config.password,sizeof(r->config.password),"%s",s_saved.password);
-    else ok=false;
+    else if (cJSON_IsString(password) && password->valuestring[0] && strlen(password->valuestring) < LX_PASSWORD_MAX)
+        snprintf(r->config.password, sizeof(r->config.password), "%s", password->valuestring);
+    else if (cJSON_IsNull(password) && !strcmp(r->config.host, s_saved.host) &&
+             r->config.port == s_saved.port && r->config.tls == s_saved.tls &&
+             !strcmp(r->config.username, s_saved.username))
+        snprintf(r->config.password, sizeof(r->config.password), "%s", s_saved.password);
+    else
+        ok = false;
     r->save=save;
     if(!ok||!r->config.password[0]||s_busy||s_home_busy) {xSemaphoreGive(s_lock);mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ESP_ERR_INVALID_ARG;}
     s_busy=true;snprintf(s_status,sizeof(s_status),"%s",save?"Beállítások mentése...":"Kapcsolat tesztelése...");

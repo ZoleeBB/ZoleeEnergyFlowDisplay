@@ -24,6 +24,9 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
 (async()=>{
  await sandbox.api.load();
  const mode=nodes.get('DataReceptMode'),seed=nodes.get('DataSeedEnabled'),sections=sandbox.api.sections;
+ const disabled=nodes.get('EnergyFlowDisabled');assert(disabled.disabled&&!disabled.checked);
+ mode.value='loxone';mode.onchange();assert(!disabled.disabled);disabled.checked=true;assert.equal(sandbox.api.values().EnergyFlowDisabled,1);
+ mode.value='mqtt';mode.onchange();assert(disabled.disabled&&!disabled.checked);
  assert(mode.children.some(option=>option.value==='slave'));
  assert(seed.checked&&!seed.disabled&&!sections.get('mqtt.broker').hidden);
  mode.value='slave';mode.onchange();

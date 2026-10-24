@@ -1935,6 +1935,7 @@ void app_ui_show_fatal(const char *title, const char *detail)
 #include "app_energy_assistant_ui.inc"
 #include "app_loxone_logo.h"
 #include "app_loxone_wordmark.h"
+#include "app_energy_display_policy.h"
 /* Saját Loxone képernyők: a témákhoz nem foglalunk új képcache-t. */
 static void loxone_screen(runtime_view_t view)
 {
@@ -2154,6 +2155,26 @@ static void slave_display_update(const app_runtime_state_t *state,
 
 #include "app_intercom_ui.inc"
 
+static void master_display_update(bool have, bool night, bool intercom_active)
+{
+    if ((have || s_cfg.energy_flow_disabled) && s_cfg.data_recept_mode != APP_DATA_SLAVE)
+    {
+        s_target = (int)app_energy_display_target(&s_cfg, night, home_empty, intercom_active);
+        /* A logós készenlét és a kaputelefon közötti váltás azonnali. */
+        if (s_cfg.energy_flow_disabled && home_empty && s_brightness != s_target)
+        {
+            s_brightness = s_target;
+            bsp_display_brightness_set(s_brightness);
+        }
+        if (s_brightness != s_target)
+        {
+            int d = s_target - s_brightness;
+            s_brightness += d > 0 ? 1 : -1;
+            bsp_display_brightness_set(s_brightness);
+        }
+    }
+}
+
 static void runtime(void *arg)
 {
     (void)arg;
@@ -2183,23 +2204,7 @@ static void runtime(void *arg)
         }
 
         bool intercom_active = intercom_prepare();
-        if ((have || s_cfg.energy_flow_disabled) && s_cfg.data_recept_mode != APP_DATA_SLAVE)
-        {
-            bool logo_idle = s_cfg.energy_flow_disabled && home_empty && !intercom_active;
-            s_target = logo_idle ? 10 : s.night_mode ? s_cfg.display.night_brightness : s_cfg.display.day_brightness;
-            /* A logós készenlét és a kaputelefon közötti váltás azonnali. */
-            if (s_cfg.energy_flow_disabled && home_empty && s_brightness != s_target)
-            {
-                s_brightness = s_target;
-                bsp_display_brightness_set(s_brightness);
-            }
-            if (s_brightness != s_target)
-            {
-                int d = s_target - s_brightness;
-                s_brightness += d > 0 ? 1 : -1;
-                bsp_display_brightness_set(s_brightness);
-            }
-        }
+        master_display_update(have, s.night_mode, intercom_active);
 
         /* A kaputelefon a témaerőforrások betöltésétől és az energiaadatoktól
          * függetlenül, a csengetés teljes ideje alatt elsőbbséget kap. */

@@ -616,6 +616,7 @@ static const char app_loxone_page[] =
 "    }\n"
 "    async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = false) {\n"
 "        if (get('consumers-section')) get('consumers-section').hidden = energyDisabled;\n"
+"        if (get('home-resource-warning')) get('home-resource-warning').textContent = energyDisabled ? 'A Loxone Otthon közös erőforráscsomag nincs telepítve. A csempék megjelenítéséhez telepítsd a loxone-home.zip csomagot a sablonkezelőben. Üres Otthonnál a logós készenlét csomag nélkül is működik.' : 'A Loxone Otthon közös erőforráscsomag nincs telepítve. Az Otthon és a ház fogyasztói képernyő a csomag telepítéséig nem fog működni. Telepítsd a loxone-home.zip csomagot a sablonkezelőben.';\n"
 "        if (!get('home-editor') || fetching) return;\n"
 "        fetching = true; connectionBusy = otherBusy;\n"
 "        try {\n"

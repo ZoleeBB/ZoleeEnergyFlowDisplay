@@ -71,7 +71,7 @@ class ReleaseTests(unittest.TestCase):
         manifest = json.loads((unpack/'flasher_args.json').read_text())
         self.assertEqual(manifest['flash_files'],self.flash)
         self.assertEqual((unpack/'app.bin').read_bytes(),ota.read_bytes())
-        for name in ('docs/templates.md','docs/template-authoring.md','assets/template-manifest.json','assets/loxone-logo.png',
+        for name in ('docs/templates.md','docs/template-authoring.md','assets/template-manifest.json','assets/loxone-logo.png','assets/loxone-wordmark.svg',
                      'docs/previews/template-icons.png','docs/previews/live-home-flow.gif',
                      'examples/config.http.sample.json','examples/loxone-energy-http-post.picoc'):
             self.assertTrue((unpack/name).is_file(),name)

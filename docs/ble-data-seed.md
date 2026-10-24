@@ -217,7 +217,7 @@ A protokoll verziója jelenleg **1**; ismeretlen verziót a slave ne értelmezze
 | Offset | Típus | Tartalom |
 |---|---|---|
 | 0 | u8 | Protokollverzió: 1 |
-| 1 | u8 | Flag: bit0 van minta, bit1 lejárt/nincs adat, bit2 éjszakai mód |
+| 1 | u8 | Flag: bit0 van minta, bit1 lejárt/nincs adat, bit2 éjszakai mód, bit3 energiaáramlás letiltva |
 | 2 | u8 | Status: 1 normál, 2 felkészülés, 3 szigetüzem, 4 hiba, 5 hálózat újra elérhető |
 | 3 | u8 | Aktuális nappali/éjszakai fényerő, % |
 | 4 | i16 | PowerGrid, W; pozitív vételezés, negatív visszatáplálás |
@@ -234,6 +234,16 @@ Lejárt mintánál a legutolsó értékek megmaradnak, a bit1 jelzi az érvényt
 A lejárat MQTT/HTTP módban a konfigurált timeout, Loxone módban 45 másodperc.
 A slave saját, monotón órával felügyelje a BLE-adatérkezést is: például 15 s
 heartbeat-kimaradásnál mutasson kapcsolathibát akkor is, ha a kapcsolat még él.
+
+### Energiaáramlás tiltás módjelzése
+
+Az [Energiaáramlás tiltás](energy-flow-disable.md) az energia-csomag bit3
+jelzését használja. Ilyenkor bit0/bit1 nulla, bit2 továbbra is NightMode;
+az energia-csomag 2–17. és az időjárás-csomag 1–17. bájtjai nullák.
+Ez vezérlőállapot, nem energiaminta, ezért nem kerülhet statisztikai ingestbe.
+A három csomag 18–19. bájtja továbbra is azonos sorszám. A Slave az utolsó
+módjelzést legfeljebb 15 másodpercnyi csomaghiányig jeleníti meg.
+Mindkét firmware frissítendő; régi Slave az új flaget elutasítja.
 
 ### Időjárás csomag
 

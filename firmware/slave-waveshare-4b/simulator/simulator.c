@@ -245,6 +245,20 @@ static int self_test(void)
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
     puts("PASS: BLE decode, day/night, animation, optional weather, SOC 0..100, island, timeout/disconnect, touch PIN/reset/delete/cancel, diagnostics");
     app_test_slave_display_input(display);
+    runtime.slave_connected = true;
+    runtime.slave_source_stale = false;
+    runtime.energy_flow_disabled = true;
+    step(33);
+    CHECK(save("slave-4b-energy-disabled.ppm") == 0);
+    CHECK((pixels[0] & 0xffffff) == 0);
+    uint64_t disabled_hash = hash();
+    sample.power_pv_kw = 14;
+    step(500);
+    CHECK(hash() == disabled_hash);
+    runtime.energy_flow_disabled = false;
+    step(33);
+    CHECK(hash() != disabled_hash);
+    puts("PASS: actual 4B black logo state is stable without energy animation and returns to the energy screen");
     return 0;
 }
 

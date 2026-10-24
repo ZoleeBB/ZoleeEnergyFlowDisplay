@@ -5,6 +5,7 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | Rész | Beállítás |
 | --- | --- |
 | `DataReceptMode` | `mqtt` (alapérték), `http`, `loxone` vagy `slave` |
+| `EnergyFlowDisabled` | 0/1, alapból 0; kizárólag Loxone módban: [Otthon/kaputelefon, logós készenlét és Slave-ek](energy-flow-disable.md) |
 | `DataSeedEnabled` | 0/1, alapból 0: BLE master-adatmegosztás; Slave módban 0 szükséges |
 | `DataSeedPin` | Hat számjegyű szöveg; üresen eszközön generált, tartós PIN. Master módban a diagnosztikán is látszik. Változtatása törli a BLE-párosításokat. |
 | `ota.auto_update` | 0/1, alapból 0: [automatikus stabil GitHub-frissítés](ota.md#automatikus-éjféli-rendszerfrissítés) helyi napváltás után; internet és Wi-Fi kell hozzá |

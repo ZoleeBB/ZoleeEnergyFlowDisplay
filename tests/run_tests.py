@@ -10,6 +10,13 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_workflows.py')], check
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_ci_plan.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_documentation.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_support_web.py')], check=True)
+with tempfile.TemporaryDirectory(prefix='energy-flow-disabled-') as directory:
+    binary = str(Path(directory) / 'test')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-fsanitize=undefined', '-fno-sanitize-recover=all', '-Itests/stubs', '-Imain',
+                    'tests/test_energy_flow_disabled.c', 'main/app_config.c', 'main/app_ble_protocol.c',
+                    '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
     binary = str(Path(directory) / 'test')
     subprocess.run([

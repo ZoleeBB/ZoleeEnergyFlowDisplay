@@ -1638,6 +1638,63 @@ static void test_intercom_frame_mailbox(void)
     puts("PASS: actual camera mailbox accepts frames without LVGL lock, before overlay, latest-only, padded rows, stable displayed buffer, stale rejection and deferred cleanup");
 }
 
+static void test_energy_disabled_home(app_runtime_state_t rt)
+{
+    s_cfg.energy_flow_disabled = true;
+    s_cfg.data_recept_mode = APP_DATA_LOXONE;
+    s_cfg.display.day_brightness = 83;
+    s_cfg.display.night_brightness = 24;
+    app_sim_home_reset();
+    app_sim_home_config.card_count = app_sim_home_config.page_count = 0;
+    home_request_set(0);
+    unsigned reads = home_resource_reads;
+    assert(home_prepare(false));
+    assert(home_empty && !home_is_open() && home_resource_reads == reads);
+    render_runtime(rt, (app_energy_sample_t){0}, false, ticks);
+    assert(s_view == VIEW_ENERGY_DISABLED);
+    master_display_update(false, false, false);
+    assert(last_pwm_brightness == 10);
+    save_frame("master-energy-disabled-empty");
+    for (unsigned night = 0; night < 2; night++)
+    {
+        app_sim_intercom = (app_intercom_snapshot_t){.ringing = true, .connected = true, .revision = 400 + night};
+        bool active = intercom_prepare();
+        assert(active);
+        master_display_update(false, night, active);
+        assert(last_pwm_brightness == (night ? 24 : 83));
+        intercom_render();
+        assert(intercom_overlay);
+        app_sim_intercom.ringing = false;
+        assert(!intercom_prepare());
+        intercom_render();
+        assert(home_prepare(night));
+        master_display_update(false, night, false);
+        render_runtime(rt, (app_energy_sample_t){0}, false, ticks);
+        assert(s_view == VIEW_ENERGY_DISABLED && last_pwm_brightness == 10);
+        assert(home_resource_reads == reads);
+    }
+    app_sim_home_reset();
+    assert(home_prepare(false));
+    render_runtime(rt, (app_energy_sample_t){0}, false, ticks);
+    assert(s_view == VIEW_HOME && home_request_get() == 2);
+    home_close(NULL);
+    assert(home_request_get() == 2);
+    home_open_clicked(NULL);
+    assert(home_request_get() == 2);
+    s_diagnostics_requested = true;
+    render_runtime(rt, (app_energy_sample_t){0}, false, ticks);
+    assert(s_view == VIEW_DIAGNOSTICS);
+    diagnostics_close(NULL);
+    assert(home_prepare(false));
+    render_runtime(rt, (app_energy_sample_t){0}, false, ticks);
+    assert(s_view == VIEW_HOME);
+    s_cfg.energy_flow_disabled = false;
+    home_close(NULL);
+    assert(home_prepare(false));
+    app_sim_home_enabled = false;
+    puts("PASS: actual Master LVGL logo with no Home resource reads, immediate 10/83/24/10 PWM, Intercom return, Home without energy samples, blocked energy navigation and diagnostic return");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -1721,7 +1778,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
+    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1736,7 +1793,9 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
-        if (getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
+        if (getenv("ZOLEE_ENERGY_DISABLED_ONLY"))
+            test_energy_disabled_home(runtime);
+        else if (getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
         {
             app_sim_home_reset();
             home_request_set(1);
@@ -2313,6 +2372,7 @@ int main(void)
     puts("PASS: corrupt background/icon never displays an incomplete Home page; decoded buffers roll back and retry succeeds");
     test_home_return_navigation(rt, sample);
     test_home_lifecycle(rt, sample);
+    test_energy_disabled_home(rt);
     app_sim_home_enabled=false;
     lv_indev_delete(home_input);
     clear();template_release_cache();app_templates_view_free(&template_view);

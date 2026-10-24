@@ -25,10 +25,10 @@ kívül a korábbi működés marad érvényes.
 ## Lépések és állapot
 
 - [x] Követelmények és NightMode/Slave működés tisztázása, jelenlegi kód áttekintése.
-- [ ] Konfiguráció és webes beállításkapcsoló, Loxone kizárólagosság validálása.
-- [ ] Szakaszonkénti mentés és szerveroldali adatmegőrzés, NightMode-only feldolgozás.
-- [ ] Master Otthon-alapnézet, navigáció és témakezelő korlátozása.
-- [ ] BLE módjelzés, mindkét Slave-kijelző logós nézete.
+- [x] Konfiguráció és webes beállításkapcsoló, Loxone kizárólagosság validálása.
+- [x] Szakaszonkénti mentés és szerveroldali adatmegőrzés, NightMode-only feldolgozás.
+- [x] Master Otthon-alapnézet, navigáció és témakezelő korlátozása.
+- [x] BLE módjelzés, mindkét Slave-kijelző logós nézete.
 - [ ] C/JS regressziós tesztek, szimulátor, firmware build és méretellenőrzés.
 - [ ] Felhasználói dokumentáció, README, feltöltés és PR.
 
@@ -40,3 +40,12 @@ hiányzó/frissülő erőforráscsomag; közvetlen tiltott API-kérés;
 szakaszok párhuzamos szerkesztése/mentése; mentési hiba;
 BLE azonos sorszámú teljes csomagpár, elavult/hibás csomag, kapcsolatvesztés;
 visszatérés normál energiaadatokra; SD nélküli és 720×720 Slave.
+
+## Ellenőrzési eredmények
+
+- Új C mód-/fényerő-/BLE teszt: sikeres.
+- Valódi Loxone részleges mentési regresszió: sikeres.
+- Valódi Master LVGL teljes vizuális és 100 életciklusos regresszió, új logó/kaputelefon/PWM próba: sikeres.
+- 4B szimulátor build és logós állapotpróba: sikeres.
+- Teljes C/JS tesztcsomag: folyamatban; az offline USB-csomag új SVG-hivatkozásának csomagolását javítottuk.
+- ESP-IDF firmware és méret/partíció: a PR CI-fordítása ellenőrzi. Fizikai eszközpróba szükséges.

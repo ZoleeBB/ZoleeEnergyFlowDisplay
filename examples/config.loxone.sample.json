@@ -1,5 +1,6 @@
 {
   "DataReceptMode": "loxone",
+  "EnergyFlowDisabled": 0,
   "project": {
     "title": "Otthoni energia",
     "language": "hu",

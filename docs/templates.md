@@ -1,5 +1,7 @@
 # SD-kártyás sablonok
 
+Az [Energiaáramlás tiltás](energy-flow-disable.md) külön szabályai: Loxone Otthon-alapnézet, megőrzött témák és Slave logós képernyő.
+
 Az eredeti nézet a firmware része, mindig elérhető. A választható elrendezések a repository
 `templates/` könyvtárában vannak, mindegyik saját világos és sötét témával.
 

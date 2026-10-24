@@ -585,6 +585,15 @@ int main(void)
     notify(0);
     notify(1);
     assert(ingests == 2 && ingested.received_epoch_s == 1800000005);
+    /* Hitelesített teljes módcsomag nem kerülhet a mérési/statisztikai ingestbe. */
+    app_config_t mode_cfg = {.data_recept_mode=APP_DATA_LOXONE,.energy_flow_disabled=true};
+    app_energy_sample_t night_only = {.night_mode=true};
+    app_ble_protocol_encode(&night_only,&mode_cfg,now_us,900,packets[0].data,packets[1].data);
+    app_ble_clock_encode(1800000005123LL,120,30,true,900,packets[2].data);
+    notify(2);notify(1);notify(0);
+    assert(ingests==2&&runtime.energy_flow_disabled&&runtime.standalone_night&&!runtime.has_valid_sample);
+    make_frame(901,1800000006);notify(0);notify(1);notify(2);
+    assert(ingests==3&&!runtime.energy_flow_disabled);
     slave_poll(now_us);
     slave_diagnostics();
     assert(runtime.ble_rssi == -66);
@@ -600,14 +609,14 @@ int main(void)
     assert(terminations == 2 && !runtime.slave_connected);
     make_frame(80, 1800000010);
     connect_link(true);
-    assert(ingests == 3);
+    assert(ingests == 4);
     make_frame(81, 1800000015);
     packets[0].data[12] = 0xff;
     packets[0].data[13] = 0xff;
     notify(0);
     notify(1);
     notify(2);
-    assert(terminations == 3 && ingests == 3 && !runtime.has_valid_sample);
+    assert(terminations == 3 && ingests == 4 && !runtime.has_valid_sample);
     assert(clears >= 4);
     unsigned before_termination = terminations;
     s_master = 7;

@@ -14,6 +14,20 @@ A modell külön objektum; nem növeli meg a több helyen másolt, jelszót is t
 `lx_config_t` hitelesítési konfigurációt. A modellben nincs token vagy jelszó.
 A készüléken csak Master és közvetlen Loxone módban érhető el.
 
+## Energiaáramlás nélküli használat
+
+Az [Energiaáramlás tiltás](energy-flow-disable.md) az Otthon-kártyákat alapnézetté
+teszi. A fogyasztók ilyenkor rejtettek, az üres Otthon helyett logó és 10% fényerő
+jelenik meg; a kaputelefon önállóan használható. A webes fogyasztói, Otthon- és
+kaputelefon-szakasz normál módban is külön menthető.
+
+A `/api/loxone/home` új kérései `schema: 2` mellett `section` mezőben a
+`consumers`, `pages` vagy `intercom` értéket és kizárólag a megadott szakasz
+adatát küldik. A szerver a legfrissebb mentett profil többi szakaszát megőrzi,
+revízióváltás vagy párhuzamos mentés esetén újrapróbálkozást kér. Normál módban
+a régi teljesprofil-kérés továbbra is támogatott; tiltáskor teljesprofil- és
+fogyasztói írás elutasított. A kamera-jelszó megőrzése szerveroldali.
+
 ## Tárolás és webes szerkesztés
 
 - Külön `/sdcard/loxone-home.json`, legfeljebb 128 KiB, schema 2; jelszó és token nélkül.

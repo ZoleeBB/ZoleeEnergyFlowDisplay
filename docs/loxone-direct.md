@@ -14,7 +14,11 @@ a webfelület a háttérfeladat állapotát mutatja, nem blokkolja a HTTP kiszol
 A lista csak a vizualizációban elérhető, a felhasználónak engedélyezett elemeket
 kínálja fel. Javasolt külön kategória és felhasználó, virtuális állapotokkal.
 
-A kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status,
+**Energiaáramlás tiltás:** aktív állapotban csak a NightMode látható és kötelező;
+a többi energia-párosítás megmarad. A Miniserver és az egyes funkciószakaszok
+külön menthetők. [Működés és logós készenlét](energy-flow-disable.md).
+
+Normál módban a kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status,
 NightMode és BatteryTemperature. Az időjárási négy mező kihagyható (null),
 a nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (fok,
 0 ≤ érték < 360), `SunAltitude` (fok, −90…90), `Sunrise` és `Sunset`

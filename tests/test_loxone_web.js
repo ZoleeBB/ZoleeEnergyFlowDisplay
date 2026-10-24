@@ -64,5 +64,11 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
  nodes.get('password').value='';assert.equal(sandbox.api.values().password,null);
  state.busy=true;await sandbox.api.refresh();assert(nodes.get('save').disabled);await sandbox.api.submit('save');assert.equal(sent.length,3);
  const html=fs.readFileSync('assets/web/loxone.html','utf8');assert.equal((html.match(/id="status"/g)||[]).length,1);assert(html.indexOf('id="status"')<html.indexOf('id="mappings"'));
+ state.energy_flow_disabled=true;await sandbox.api.refresh();
+ assert.equal(nodes.get('mapping-row-PowerGrid').hidden,true);
+ assert.equal(nodes.get('mapping-row-NightMode').hidden,false);
+ const disabledValues=sandbox.api.values();assert.deepEqual(Object.keys(disabledValues.mappings),['NightMode']);
+ state.energy_flow_disabled=false;await sandbox.api.refresh();
+ assert.equal(nodes.get('mapping-row-PowerGrid').hidden,false);
  console.log('PASS: visible persistent WSS/server errors, no invalid POST, and actual Loxone web JS, discovery, retained test password, mapping/filter, transforms, optional fields, save and busy state');
 })().catch(e=>{console.error(e);process.exitCode=1;});

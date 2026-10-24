@@ -1,5 +1,6 @@
 {
   "DataReceptMode": "mqtt",
+  "EnergyFlowDisabled": 0,
   "DataSeedEnabled": 0,
   "DataSeedPin": "",
   "project": {
