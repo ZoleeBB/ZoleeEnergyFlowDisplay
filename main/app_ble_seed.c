@@ -9,6 +9,7 @@
 #include "app_events.h"
 #include "app_time.h"
 #include "app_ingest.h"
+#include "app_stats.h"
 #include "app_ble_profile.h"
 #include "app_slave_presence_service.h"
 #include "app_ble_stats_protocol.h"

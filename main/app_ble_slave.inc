@@ -4,7 +4,7 @@
  * soros eseménysorában fut, nincs külön task vagy blokkoló rádiós várakozás.
  */
 static uint16_t s_master = BLE_HS_CONN_HANDLE_NONE;
-static bool s_connecting, s_slave_ready;
+static bool s_connecting, s_slave_ready, s_source_disabled;
 static uint16_t s_service_start, s_service_end;
 static uint16_t s_remote_values[3], s_remote_defs[3], s_cccd;
 static uint16_t s_remote_profile;
@@ -76,6 +76,7 @@ static void slave_reset(void)
     s_master_stale = true;
     s_master_timeout = 45;
     s_next_scan_us = esp_timer_get_time() + 3000000;
+    s_source_disabled = false;
     app_state_set_slave(false, true, 45, false);
     app_state_set_energy_flow_disabled(false, false);
     app_state_clear_sample();
@@ -171,15 +172,20 @@ static void slave_try_frame(int64_t now)
     app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame);
     if (result != ESP_OK)
     {
+        s_source_disabled = false;
         app_state_set_energy_flow_disabled(false, false);
         return;
     }
     app_state_set_energy_flow_disabled(sample.energy_flow_disabled, sample.night_mode);
     if (sample.energy_flow_disabled)
     {
+        /* Visszakapcsoláskor rövid tiltási időn át sem integrálhatunk energiát. */
+        if (!s_source_disabled) app_stats_break_continuity();
+        s_source_disabled = true;
         s_applied_sample_epoch = 0;
         return;
     }
+    s_source_disabled = false;
     /* Heartbeat nem új mérés: az eredeti minta idejét/korát nem fiatalítjuk. */
     if (sample.received_epoch_s <= s_applied_sample_epoch)
         return;

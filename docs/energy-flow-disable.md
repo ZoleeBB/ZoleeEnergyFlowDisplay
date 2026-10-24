@@ -79,7 +79,8 @@ jelenlétszabályai megmaradnak; a fix 10% kizárólag az üres Otthonú Master 
 Az Adat seed kapcsoló beállítása megmarad: ha eddig ki volt kapcsolva, a mód
 nem engedélyezi automatikusan. Aktív seed mellett külön BLE módjelzés megy,
 nem nulla teljesítményű energiaminta. Nem integrálunk belőle energiát vagy
-hamis statisztikát. Az időszinkron, PIN-es párosítás, Wi-Fi/OTA öröklés és
+hamis statisztikát. Belépéskor a Slave integrálási lánca is megszakad,
+így rövid tiltási időn át sem számolunk energiát. Az időszinkron, PIN-es párosítás, Wi-Fi/OTA öröklés és
 jelenlét működése megmarad. Friss módjelzés esetén a Slave OTA-ellenőrzése nem
 követel energiamintát vagy SD nélküli energiatörténetet.
 

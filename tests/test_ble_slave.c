@@ -328,6 +328,8 @@ void app_events_add(app_event_level_t level, const char *fmt, ...)
     (void)level;
     (void)fmt;
 }
+static unsigned continuity_breaks;
+void app_stats_break_continuity(void) { continuity_breaks++; }
 void app_state_clear_sample(void)
 {
     runtime.has_valid_sample = false;
@@ -592,6 +594,7 @@ int main(void)
     app_ble_clock_encode(1800000005123LL,120,30,true,900,packets[2].data);
     notify(2);notify(1);notify(0);
     assert(ingests==2&&runtime.energy_flow_disabled&&runtime.standalone_night&&!runtime.has_valid_sample);
+    assert(continuity_breaks==1);slave_try_frame(now_us);assert(continuity_breaks==1);
     make_frame(901,1800000006);notify(0);notify(1);notify(2);
     assert(ingests==3&&!runtime.energy_flow_disabled);
     slave_poll(now_us);
