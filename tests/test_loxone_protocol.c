@@ -38,7 +38,13 @@ QueueHandle_t xQueueCreate(unsigned count,size_t item){queue_t *q=calloc(1,sizeo
 int xQueueSend(QueueHandle_t handle,const void *item,TickType_t ticks){(void)ticks;queue_t *q=handle;if(q->count==q->capacity)return 0;memcpy(q->data+q->tail*q->item,item,q->item);q->tail=(q->tail+1)%q->capacity;q->count++;return 1;}
 int xQueueReceive(QueueHandle_t handle,void *item,TickType_t ticks){queue_t *q=handle;if(!q->count){(void)ticks;return 0;}memcpy(item,q->data+q->head*q->item,q->item);q->head=(q->head+1)%q->capacity;q->count--;return 1;}
 unsigned uxQueueMessagesWaiting(QueueHandle_t handle){return ((queue_t*)handle)->count;}
-int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout){(void)mutex;(void)timeout;return 1;}
+static bool test_mutex_busy;
+int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout)
+{
+    (void)mutex;
+    if (test_mutex_busy) { assert(timeout == 0); return 0; }
+    return 1;
+}
 int xSemaphoreGive(SemaphoreHandle_t mutex){(void)mutex;return 1;}
 static bool home_store_error;
 esp_err_t app_loxone_home_store_save(const lx_home_config_t *home)
@@ -287,6 +293,12 @@ static void home_control_test(lx_config_t *energy)
     assert(gate_audio_stops == 1);
     test_audio_active = false;
     assert(app_loxone_intercom_snapshot(&door) && !door.ringing && !door.audio_active);
+    assert(app_loxone_intercom_test_permitted(door.revision));
+    assert(!app_loxone_intercom_test_permitted(door.revision + 1));
+    test_mutex_busy = true;
+    /* Foglalt Loxone-lock nem késleltetheti a következő I2S blokkot. */
+    assert(app_loxone_intercom_test_permitted(door.revision));
+    test_mutex_busy = false;
     memcpy(packet + 16, &on, sizeof(on));
     assert(update_values(2, packet, sizeof(packet)));
     invalidate(true);

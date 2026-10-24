@@ -99,7 +99,16 @@ static void touch_sample(int x,bool pressed){touch_sample_xy(x,400,pressed);}
 time_t host_time(time_t *out){if(out)*out=epoch;return epoch;}
 int64_t esp_timer_get_time(void){return ticks;}
 lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg){assert(cfg->rotation==ESP_LV_ADAPTER_ROTATE_270);assert(cfg->tear_avoid_mode==ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL);assert(cfg->lv_adapter_cfg.task_core_id==1);assert(cfg->lv_adapter_cfg.task_stack_size==32768);assert(cfg->lv_adapter_cfg.stack_in_psram);touch_swap_xy=cfg->touch_flags.swap_xy;touch_mirror_x=cfg->touch_flags.mirror_x;touch_mirror_y=cfg->touch_flags.mirror_y;assert(touch_swap_xy==1&&touch_mirror_x==0&&touch_mirror_y==1);return display;}
-esp_err_t bsp_display_lock(int timeout){(void)timeout;return ESP_OK;}
+static unsigned video_lock_attempts;
+static bool reject_video_lock;
+esp_err_t bsp_display_lock(int timeout)
+{
+    if (timeout == 100) {
+        video_lock_attempts++;
+        if (reject_video_lock) return ESP_FAIL;
+    }
+    return ESP_OK;
+}
 void bsp_display_unlock(void){}
 void bsp_display_backlight_on(void){}
 void bsp_display_brightness_set(int value){last_pwm_brightness=value;}
@@ -1569,6 +1578,66 @@ static void test_home_lifecycle(app_runtime_state_t runtime, app_energy_sample_t
     puts("PASS: 100 actual LVGL lifecycle cycles, 400 rendered consumer/Home pages, HU/EN day/night, builtin/05/06 return, stable widgets/animations, released image buffers and no commands");
 }
 
+static void test_intercom_frame_mailbox(void)
+{
+    int old_mode = s_cfg.data_recept_mode;
+    bool loading = template_loading_requested, waiting = template_waiting_for_load;
+    s_cfg.data_recept_mode = APP_DATA_LOXONE;
+    app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=17};
+    assert(intercom_prepare());
+    assert(!intercom_overlay && intercom_prepared && intercom_spare);
+    uint8_t pixels[24];
+    memset(pixels, 0x34, sizeof(pixels));
+    reject_video_lock = true;
+    unsigned locks = video_lock_attempts;
+    /* Már a nézet létrehozása előtt is átvehető kép, akkor is, ha a
+     * régi 100 ms-os display-lock minden alkalommal időtúllépne. */
+    assert(app_intercom_ui_frame(pixels, 4, 2, 12, 17));
+    memset(pixels, 0x56, sizeof(pixels));
+    assert(!app_intercom_ui_frame(pixels, 4, 2, 12, 16));
+    intercom_render();
+    assert(intercom_descriptor.header.w == 4 && intercom_descriptor.header.stride == 8);
+    assert(intercom_descriptor.data_size == 16);
+    for (unsigned i = 0; i < 16; i++) assert(intercom_front[i] == 0x34);
+    uint8_t *shown = intercom_front;
+    assert(app_intercom_ui_frame(pixels, 4, 2, 12, 17));
+    for (unsigned i = 0; i < 16; i++) assert(shown[i] == 0x34);
+    memset(pixels, 0x78, sizeof(pixels));
+    assert(app_intercom_ui_frame(pixels, 4, 2, 12, 17));
+    intercom_frame_writing = true;
+    intercom_render();
+    assert(intercom_front == shown);
+    intercom_frame_writing = false;
+    intercom_render();
+    for (unsigned i = 0; i < 16; i++) assert(intercom_front[i] == 0x78);
+    assert(video_lock_attempts == locks);
+    app_sim_intercom.ringing = false;
+    app_sim_media_idle = false;
+    assert(intercom_prepare());
+    intercom_render();
+    assert(!intercom_overlay && intercom_front && intercom_spare);
+    assert(!app_intercom_ui_frame(pixels, 4, 2, 12, 17));
+    uint8_t *retained = intercom_front;
+    app_sim_intercom.ringing = true;
+    app_sim_intercom.revision = 18;
+    assert(intercom_prepare());
+    intercom_render();
+    assert(intercom_front == retained);
+    assert(!app_intercom_ui_frame(pixels, 4, 2, 12, 17));
+    assert(app_intercom_ui_frame(pixels, 4, 2, 12, 18));
+    intercom_render();
+    app_sim_intercom.ringing = false;
+    app_sim_media_idle = true;
+    assert(!intercom_prepare());
+    intercom_render();
+    assert(!intercom_needs_cleanup());
+    reject_video_lock = false;
+    s_cfg.data_recept_mode = old_mode;
+    template_loading_requested = loading;
+    template_waiting_for_load = waiting;
+    puts("PASS: actual camera mailbox accepts frames without LVGL lock, before overlay, latest-only, padded rows, stable displayed buffer, stale rejection and deferred cleanup");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -1629,6 +1698,10 @@ int main(void)
     config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
+    test_intercom_frame_mailbox();
+    if (getenv("ZOLEE_INTERCOM_MAILBOX_ONLY")) {
+        lv_display_delete(display); lv_deinit(); return 0;
+    }
     fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};

@@ -12,6 +12,11 @@ static lv_obj_t *intercom_overlay, *intercom_image, *intercom_message, *intercom
 static lv_obj_t *intercom_audio, *intercom_audio_message;
 static uint8_t *intercom_front;
 static uint8_t *intercom_prepared;
+/* A dekóder a tartalék pufferbe ír LVGL-lock nélkül. A UI zárolva cseréli
+ * fel a két puffert, így a rajzoló által használt kép soha nem módosul. */
+static uint8_t *intercom_spare;
+static bool intercom_frame_ready, intercom_frame_writing, intercom_frame_accepting;
+static unsigned intercom_frame_revision, intercom_frame_width, intercom_frame_height;
 static lv_image_dsc_t intercom_descriptor;
 static app_intercom_snapshot_t intercom_next;
 static unsigned intercom_revision;
@@ -114,6 +119,25 @@ static bool intercom_prepare(void)
         intercom_prepared = malloc(INTERCOM_FRONT_SIZE);
 #endif
     }
+    if (intercom_next.ringing) {
+        if (!intercom_spare) {
+#ifdef ESP_PLATFORM
+            uint8_t *spare = heap_caps_malloc(INTERCOM_FRONT_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+            uint8_t *spare = malloc(INTERCOM_FRONT_SIZE);
+#endif
+            INTERCOM_STATUS_LOCK();
+            intercom_spare = spare;
+            INTERCOM_STATUS_UNLOCK();
+        }
+        INTERCOM_STATUS_LOCK();
+        if (!intercom_frame_accepting || intercom_frame_revision != intercom_next.revision) {
+            intercom_frame_ready = false;
+            intercom_frame_revision = intercom_next.revision;
+        }
+        intercom_frame_accepting = true;
+        INTERCOM_STATUS_UNLOCK();
+    }
 #ifdef ESP_PLATFORM
     if (intercom_next.ringing && intercom_background_suspended)
         app_intercom_poll();
@@ -125,7 +149,46 @@ static bool intercom_prepare(void)
  * Üresjáratban ezért LVGL-lock kérése nélkül is kihagyható a takarítás. */
 static bool intercom_needs_cleanup(void)
 {
-    return intercom_overlay || intercom_front || intercom_prepared;
+    return intercom_overlay || intercom_front || intercom_prepared || intercom_spare;
+}
+
+/* Kizárólag a UI hívja, a szokásos LVGL-lock birtokában. */
+static void intercom_present_frame(void)
+{
+    if (!intercom_front) return;
+    INTERCOM_STATUS_LOCK();
+    bool ready = intercom_frame_ready && !intercom_frame_writing &&
+                 intercom_frame_revision == intercom_revision;
+    INTERCOM_STATUS_UNLOCK();
+    if (!ready) return;
+    lv_image_cache_drop(&intercom_descriptor);
+    INTERCOM_STATUS_LOCK();
+    /* A producer az előző vizsgálat óta új képet kezdhetett írni. */
+    if (!intercom_frame_ready || intercom_frame_writing || intercom_frame_revision != intercom_revision) {
+        INTERCOM_STATUS_UNLOCK();
+        return;
+    }
+    uint8_t *old_front = intercom_front;
+    intercom_front = intercom_spare;
+    intercom_spare = old_front;
+    unsigned width = intercom_frame_width, height = intercom_frame_height;
+    intercom_frame_ready = false;
+    INTERCOM_STATUS_UNLOCK();
+    intercom_descriptor = (lv_image_dsc_t){
+        .header = {.magic=LV_IMAGE_HEADER_MAGIC, .cf=LV_COLOR_FORMAT_RGB565,
+                   .w=width, .h=height, .stride=width * 2U},
+        .data_size=width * height * 2U, .data=intercom_front,
+    };
+    lv_image_set_src(intercom_image, &intercom_descriptor);
+    unsigned scale_x = W * 256U / width, scale_y = (H - 204) * 256U / height;
+    lv_image_set_scale(intercom_image, scale_x < scale_y ? scale_x : scale_y);
+    lv_obj_align(intercom_image, LV_ALIGN_CENTER, 0, -24);
+    lv_obj_remove_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_invalidate(intercom_image);
+    intercom_video_status[0] = 0;
+    INTERCOM_STATUS_LOCK();
+    if (intercom_pending_revision == intercom_revision) intercom_pending = false;
+    INTERCOM_STATUS_UNLOCK();
 }
 
 static void intercom_render(void)
@@ -133,8 +196,12 @@ static void intercom_render(void)
     if (!intercom_next.ringing)
     {
         /* Üresjáratban a háttér képcache-éhez és az audiovezérléshez sem nyúlunk. */
-        if (!intercom_overlay && !intercom_front && !intercom_prepared)
+        if (!intercom_overlay && !intercom_front && !intercom_prepared && !intercom_spare)
             return;
+        INTERCOM_STATUS_LOCK();
+        intercom_frame_accepting = intercom_frame_ready = false;
+        bool writing = intercom_frame_writing;
+        INTERCOM_STATUS_UNLOCK();
         (void)app_intercom_audio_request(false, intercom_revision);
         if (intercom_overlay)
         {
@@ -143,8 +210,13 @@ static void intercom_render(void)
             intercom_audio = intercom_audio_message = NULL;
         }
         lv_image_cache_drop(&intercom_descriptor);
+        /* A producer LVGL-lock nélkül másolhat: csak a teljes leállása után
+         * szabad a két képpuffert felszabadítani. A háttér is addig vár. */
+        if (writing || !app_intercom_idle()) return;
         free(intercom_front);
         free(intercom_prepared);
+        free(intercom_spare);
+        intercom_spare = NULL;
         intercom_front = intercom_prepared = NULL;
         memset(&intercom_descriptor, 0, sizeof(intercom_descriptor));
         return;
@@ -153,8 +225,12 @@ static void intercom_render(void)
     {
         intercom_revision = intercom_next.revision;
         intercom_last_press = 0;
-        intercom_front = intercom_prepared;
-        intercom_prepared = NULL;
+        /* Gyors újracsengésnél a régi worker bontása még tarthat, a UI-puffer
+         * ilyenkor megmaradt. Nem írhatjuk felül NULL előkészített pufferrel. */
+        if (!intercom_front) {
+            intercom_front = intercom_prepared;
+            intercom_prepared = NULL;
+        }
         strcpy(intercom_video_status, tr("Kapcsolódás a kamerához...", "Connecting to camera..."));
         intercom_overlay = lv_obj_create(lv_layer_top());
         lv_obj_remove_style_all(intercom_overlay);
@@ -222,6 +298,7 @@ static void intercom_render(void)
         intercom_pending = false;
     }
     INTERCOM_STATUS_UNLOCK();
+    intercom_present_frame();
     bool gate = intercom_next.config.gate.control_uuid[0] != 0;
     lv_obj_align(intercom_gate, LV_ALIGN_BOTTOM_MID, -250, -20);
     lv_obj_align(intercom_audio, LV_ALIGN_BOTTOM_MID, gate ? 250 : 0, -20);
@@ -254,7 +331,7 @@ static void intercom_render(void)
     }
     else
         lv_obj_add_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN);
-    const char *message = !intercom_front ? tr("Nincs elég memória a kameraképhez.", "Not enough memory for video.") :
+    const char *message = !intercom_front || !intercom_spare ? tr("Nincs elég memória a kameraképhez.", "Not enough memory for video.") :
         !intercom_next.connected ? tr("A Loxone-kapcsolat megszakadt. A csengetés végére várunk...",
                                     "Loxone disconnected. Waiting for ringing to end...") :
         intercom_last_press && esp_timer_get_time() - intercom_last_press < 3000000LL &&
@@ -272,35 +349,27 @@ bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned heigh
 {
     if (!pixels || !width || !height || width > 1280 || height > 720 || stride < width * 2U)
         return false;
-    if (bsp_display_lock(100) != ESP_OK)
-        return false;
-    bool accepted = intercom_overlay && intercom_front && revision == intercom_revision;
-    if (accepted)
-    {
-        lv_image_cache_drop(&intercom_descriptor);
-        for (unsigned y = 0; y < height; ++y)
-            memcpy(intercom_front + y * width * 2U, pixels + y * stride, width * 2U);
-        intercom_descriptor = (lv_image_dsc_t){
-            .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565,
-                       .w = width, .h = height, .stride = width * 2U},
-            .data_size = width * height * 2U, .data = intercom_front,
-        };
-        lv_image_set_src(intercom_image, &intercom_descriptor);
-        unsigned available_height = H - 204;
-        unsigned scale_x = W * 256U / width;
-        unsigned scale_y = available_height * 256U / height;
-        unsigned scale = scale_x < scale_y ? scale_x : scale_y;
-        lv_image_set_scale(intercom_image, scale);
-        lv_obj_align(intercom_image, LV_ALIGN_CENTER, 0,
-                     -24);
-        lv_obj_remove_flag(intercom_image, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_invalidate(intercom_image);
-        intercom_video_status[0] = 0;
-        INTERCOM_STATUS_LOCK();
-        if (intercom_pending_revision == revision) intercom_pending = false;
-        INTERCOM_STATUS_UNLOCK();
+    INTERCOM_STATUS_LOCK();
+    bool accepted = intercom_frame_accepting && intercom_spare &&
+                    !intercom_frame_writing && revision == intercom_frame_revision;
+    uint8_t *destination = accepted ? intercom_spare : NULL;
+    if (accepted) {
+        intercom_frame_writing = true;
+        intercom_frame_ready = false;
     }
-    bsp_display_unlock();
+    INTERCOM_STATUS_UNLOCK();
+    if (!accepted) return false;
+    for (unsigned y = 0; y < height; ++y)
+        memcpy(destination + y * width * 2U, pixels + y * stride, width * 2U);
+    INTERCOM_STATUS_LOCK();
+    accepted = intercom_frame_accepting && revision == intercom_frame_revision;
+    if (accepted) {
+        intercom_frame_width = width;
+        intercom_frame_height = height;
+        intercom_frame_ready = true;
+    }
+    intercom_frame_writing = false;
+    INTERCOM_STATUS_UNLOCK();
     return accepted;
 }
 

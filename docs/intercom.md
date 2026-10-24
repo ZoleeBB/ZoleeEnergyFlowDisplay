@@ -12,6 +12,13 @@ szólal meg, mint a bejövő beszédnél. A webes állapot külön jelzi a fogla
 és a hardveres indítás/lejátszás hibáját. A végpont hitelesített, korlátos és
 ugyanazt a kérésazonosítót igényli, mint a beállításmentés.
 
+A folyamatos tesztciklus nem készít teljes Loxone-pillanatképet és nem vár
+a Loxone mutexére a 20 ms-os hangblokkok között. Rövid, nem várakozó ellenőrzés
+figyeli a csengetést és a konfigurációgenerációt; pillanatnyi mutexfoglaltságnál
+a következő blokkban próbálja újra. A helyi tesztfeladat prioritása 7, a normál
+hívásé továbbra is 4, így a GUI számolása nem szoríthatja ki a rövid teszthang-írást.
+Az I2S DMA-keret változatlan; a készülékes folyamatosságot továbbra is meg kell vizsgálni.
+
 Ha a teszthang hallható, a helyi lejátszási út működik. Ha nem, önmagában még
 nem dönthető el, hogy a hangszóró, a bekötés, a kodek/erősítő vezérlése vagy az
 I2S a hibás. Külső mágnes hatását eltávolított és visszahelyezett mágnessel,
@@ -85,9 +92,22 @@ Loxone állapotfolyamot. A JPEG-dekódolást az ESP32-P4 hardvere végzi; legfel
 10 képkockát jelenítünk meg másodpercenként. Az adatfolyamot folyamatosan ürítjük,
 nincs felhalmozódó videósor. Egy tömörített képkocka legfeljebb 2 MiB, a kép
 legfeljebb 1280×720, baseline színes vagy szürkeárnyalatos JPEG legyen. A videópufferek csak csengetéskor
-foglalódnak: a megjelenített RGB565 kép kb. 1,76 MiB PSRAM, a dekóder eredménye
-legfeljebb ugyanennyi, továbbá 2 MiB a tömörített keret. A megjelenített képet
-és a dekóder kimenetét külön puffer őrzi, így a rajzolás nem olvas éppen átírt képet.
+vagy aktív beszélgetéskor élnek: a megjelenített RGB565 kép és a legfrissebb
+képet fogadó tartalék puffer egyenként kb. 1,76 MiB PSRAM, a dekóder eredménye
+legfeljebb ugyanennyi, továbbá 2 MiB a tömörített keret. A videófeladat a
+tartalék pufferbe másol **LVGL-lock nélkül**. A UI a saját zárolása alatt
+cseréli fel a két képpuffert, így a rajzolás nem olvas éppen átírt képet.
+Nincs képsor: mindig a legfrissebb teljes kép marad meg. Az első kép a nézet
+létrehozása előtt is fogadható. A régi generáció elutasított, bontáskor az
+elfogadás azonnal megszűnik, a pufferek a producer leállása után szabadulnak fel.
+
+A korábbi átadás 100 ms-os LVGL-lockot kért a videófeladatból; sikertelen lock
+ugyanazt a „kamera kész, kijelző még nem vette át” feliratot adta, mint a
+hiányzó nézet/puffer vagy eltérő generáció. A felhasználói felirat ezért nem
+bizonyította az elutasítás pontos okát. A postaládás átadás ezt a lockfüggést
+és az induláskori nézetlétrehozási versenyt megszünteti. A célzott valódi UI-teszt
+szándékosan tiltott 100 ms-os lockkal, korai képpel, újabb képre cserével,
+kitöltött sorokkal, gyors újracsengéssel és késleltetett felszabadítással fut.
 
 A konfiguráció a meglévő `loxone-home.json` profil opcionális `intercom` objektuma,
 a korábbi profilok alapértelmezetten kikapcsolt kaputelefonnal töltődnek be.

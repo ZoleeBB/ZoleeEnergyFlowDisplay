@@ -30,6 +30,7 @@ static bool fail_microphone, muted, speaker_audio;
 static bool tone_mode, tone_ring_stop;
 static int device_volume;
 static unsigned aec_creates;
+static unsigned full_snapshots, tone_first_snapshots;
 static atomic_llong clock_offset;
 static unsigned test_frame = 256;
 static bool fail_aec, fail_aec_inner;
@@ -42,7 +43,8 @@ void vTaskDelay(unsigned delay)
 int xTaskCreatePinnedToCoreWithCaps(void (*worker)(void *), const char *name, unsigned stack,
                            void *argument, unsigned priority, void *handle, unsigned core, unsigned caps)
 {
-    assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 && priority == 4 && core == 0);
+    assert(worker && !strcmp(name, "intercom_audio") && stack == 16384 &&
+           priority == (s_speaker_test ? 7U : 4U) && core == 0);
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     (void)argument;
     assert(handle);
@@ -141,6 +143,8 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
     assert(handle == (void *)1 && data && muted == (device_volume == 0));
     if (tone_mode) {
+        if (!writes) tone_first_snapshots = full_snapshots;
+        else assert(full_snapshots == tone_first_snapshots);
         assert(size == 1280 && reads == 0 && device_volume == 71);
         int16_t *pcm = data;
         assert(pcm[0] == 0 && pcm[8] == 8192 && pcm[24] == -8192);
@@ -190,8 +194,13 @@ void aec_process(aec_handle_t *aec, int16_t *input, int16_t *reference, int16_t 
     memcpy(output, input, test_frame * 2);
 }
 void aec_destroy(aec_handle_t *aec) { free(aec); }
+bool app_loxone_intercom_test_permitted(unsigned revision)
+{
+    return !atomic_load(&ring) && revision == 7;
+}
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
+    full_snapshots++;
     *out = (app_intercom_snapshot_t){.ringing=atomic_load(&ring),.connected=true,.revision=7};
     out->config.enabled = true;
     out->config.speaker_volume = 73;

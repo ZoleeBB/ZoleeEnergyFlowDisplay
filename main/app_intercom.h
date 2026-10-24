@@ -12,8 +12,9 @@ esp_err_t app_intercom_prepare_video(void);
 void app_intercom_poll(void);
 /* Csak a teljes médiafelszabadítás után tölthető vissza a háttér. */
 bool app_intercom_idle(void);
-/* Már dekódolt RGB565 kép; csak a rövid képmásolás alatt vesz LVGL-lockot.
- * A revision kizárja a régi beállításhoz tartozó későn beérkező képet. */
+/* Már dekódolt RGB565 kép másolása a legfrissebbképes postaládába, LVGL-lock
+ * nélkül. A UI saját lock alatt cseréli a képpuffereket. A revision kizárja
+ * a régi beállításhoz tartozó későn beérkező képet. */
 bool app_intercom_ui_frame(const uint8_t *pixels, unsigned width, unsigned height,
                            unsigned stride, unsigned revision);
 void app_intercom_ui_status(const char *message, unsigned revision);

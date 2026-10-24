@@ -190,7 +190,9 @@ static esp_err_t audio_request(bool enabled, unsigned revision, bool test, unsig
     if (enabled)
         audio_checkpoint(AUDIO_STAGE_START);
     TaskHandle_t handle = NULL;
-    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, 4, &handle, 0,
+    /* A teszthang rövid, blokkoló I2S-írásait a GUI számolása nem előzheti meg.
+     * A hívás DSP-feladatának prioritása ettől nem változik. */
+    if (enabled && xTaskCreatePinnedToCoreWithCaps(audio_worker, "intercom_audio", 16384, NULL, test ? 7 : 4, &handle, 0,
             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&s_lock);
         s_running = false;
@@ -940,9 +942,7 @@ static bool test_wanted(unsigned epoch, unsigned revision)
     portENTER_CRITICAL(&s_lock);
     bool request = s_requested && s_speaker_test && s_epoch == epoch;
     portEXIT_CRITICAL(&s_lock);
-    app_intercom_snapshot_t current;
-    return request && app_loxone_intercom_snapshot(&current) &&
-           !current.ringing && current.revision == revision;
+    return request && app_loxone_intercom_test_permitted(revision);
 }
 
 static void speaker_test(audio_call_t *call)

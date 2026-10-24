@@ -27,6 +27,9 @@ typedef struct
     char status[LX_HOME_ERROR_SIZE];
 } app_intercom_snapshot_t;
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out);
+/* A teszthang real-time ciklusát nem várakoztatja a Loxone mutexére.
+ * Foglalt állapotnál a következő blokkban újra ellenőrizhető a leállítás. */
+bool app_loxone_intercom_test_permitted(unsigned revision);
 /* Kizárólag a helyi videófeladatnak, a webes válaszba soha nem kerül jelszó. */
 bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX]);
 

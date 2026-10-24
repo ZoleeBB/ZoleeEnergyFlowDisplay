@@ -310,6 +310,8 @@ static int intercom_self_test(void)
     uint8_t frame[16*16*2];
     for (unsigned i=0;i<sizeof(frame);i+=2) { frame[i]=0;frame[i+1]=0xf8; }
     if (!app_intercom_ui_frame(frame,16,16,32,1)) return 41;
+    render_step(200);
+    if (intercom_descriptor.header.w != 16 || intercom_front[1] != 0xf8) return 68;
     if (app_intercom_ui_frame(frame,16,16,32,0)) return 42;
     lv_obj_t *original = intercom_overlay;
     strcpy(app_sim_intercom.config.gate.control_uuid, "11223344-5566-7788-99aabbccddeeff00");
