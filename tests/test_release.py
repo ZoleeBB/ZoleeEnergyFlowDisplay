@@ -92,8 +92,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn('loxone-home.zip', media.namelist())
             self.assertEqual(len(media.namelist()), len(list((ROOT / 'templates').glob('*/template.json'))) + 1)
         with zipfile.ZipFile(self.out / f'ZoleeEnergyFlowDisplay-{self.tag}-ringtones.zip') as media:
-            self.assertEqual(sum(name.endswith('.wav') for name in media.namelist()), 3)
+            self.assertEqual(sum(name.endswith('.wav') for name in media.namelist()), 1)
             self.assertIn('ringtone.json', media.namelist())
+            self.assertIn('tubular-chime.wav', media.namelist())
         # Documentation and example links must resolve in the offline installer.
         import re
         for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:

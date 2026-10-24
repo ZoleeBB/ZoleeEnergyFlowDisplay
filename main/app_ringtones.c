@@ -143,6 +143,6 @@ esp_err_t app_ringtones_install(const char* archive, char error[160])
     app_storage_unlock();
     if (!ok)
         snprintf(error, 160, "%s",
-            "Hibás csengőhangcsomag. PCM WAV: 16 bit, mono, 16 kHz, legfeljebb 8 s; maximum 32 hang.");
+            "Hibás csengőhangcsomag. PCM WAV: 16 bit, mono, 16 kHz, legfeljebb 60 s; maximum 32 hang.");
     return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }

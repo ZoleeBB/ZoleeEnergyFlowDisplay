@@ -41,7 +41,7 @@ bool app_ringtone_wav(const uint8_t* data, size_t size, size_t* offset, size_t* 
                 return false;
             format = true;
         } else if (!memcmp(data + p, "data", 4)) {
-            if (samples || !n || n > 256000 || n % 2)
+            if (samples || !n || n > APP_RINGTONE_PCM_MAX || n % 2)
                 return false;
             samples = true;
             start = p + 8;

@@ -478,12 +478,6 @@ bool app_loxone_intercom_call_permitted(unsigned revision, bool active)
     portEXIT_CRITICAL(&s_control_lock);
     return ok;
 }
-bool app_loxone_intercom_test_permitted(unsigned revision)
-{
-    (void)revision;
-    return false;
-}
-
 esp_err_t app_loxone_home_command(const char* id, lx_home_command_t action)
 {
     if (!id || strcmp(id, LX_INTERCOM_GATE_ID) || action != LX_HOME_COMMAND_PULSE)
@@ -534,12 +528,13 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size)
         if (n >= 44 && n <= APP_RINGTONE_MAX && esp_http_client_get_status_code(client) == 200) {
             data = malloc((size_t)n);
             size_t position = 0;
-            int64_t deadline = esp_timer_get_time() + 3000000;
+            int64_t deadline = esp_timer_get_time() + 10000000;
             while (data && position < (size_t)n && esp_timer_get_time() < deadline) {
                 app_intercom_audio_status_t audio;
                 app_intercom_audio_snapshot(&audio);
                 if (audio.state == APP_INTERCOM_AUDIO_STOPPING) break;
-                int count = esp_http_client_read(client, (char*)data + position, (int)(n - position));
+                size_t remaining = (size_t)n - position;
+                int count = esp_http_client_read(client, (char*)data + position, remaining > 2048 ? 2048 : (int)remaining);
                 if (count <= 0)
                     break;
                 position += count;

@@ -11,7 +11,6 @@ const LoxoneHome = (() => {
     let revision = 0, saveRevision = 0, currentSection = '';
     let resourcesInstalled = false, resourcesVersion = 0;
     let ringtoneFiles = [];
-    let speakerTestActive = false, audioBusy = false, speakerTestPending = false;
     const domId = (entry, key) => 'home-' + currentSection + '-' + entry.id + '-' + key;
     const controls = [];
 
@@ -26,10 +25,6 @@ const LoxoneHome = (() => {
     }
     function busy() { return !loaded || pending || waiting || remoteBusy || connectionBusy; }
     function buttons() {
-        if (get('intercom-speaker-test')) {
-            get('intercom-speaker-test').textContent = speakerTestActive ? 'Hangszóróteszt leállítása' : 'Hangszóróteszt indítása';
-            get('intercom-speaker-test').disabled = speakerTestPending || (audioBusy && !speakerTestActive);
-        }
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
         if (get('consumers-save')) get('consumers-save').disabled = busy();
@@ -165,30 +160,31 @@ const LoxoneHome = (() => {
     function renderIntercom() {
         const target = get('intercom-config');
         if (!target) return;
+        const previousPreview = get('intercom-ringtone-preview');
+        if (typeof previousPreview?.pause === 'function') previousPreview.pause();
         target.replaceChildren(); currentSection = 'intercom';
+        const group = title => {
+            const box = create('fieldset'), legend = create('legend', title), grid = create('div');
+            grid.className = 'intercom-grid'; box.append(legend); box.append(grid); target.append(box);
+            return grid;
+        };
+        const wide = input => { input.parentNode.className = 'intercom-wide'; return input; };
+        const checkbox = input => { input.parentNode.className = 'intercom-check'; return input; };
         const door = model.intercom;
-        door.speaker_volume ??= 55;
-        const volume = field(target, 'Kijelző hangereje (0–100%, 0 = némítás)', door, 'speaker_volume', 'number');
-        volume.id = 'intercom-speaker-volume'; volume.min = 0; volume.max = 100; volume.step = 1;
-        door.microphone_gain ??= 80;
-        const gain = field(target, 'Mikrofon erősítése (0–100%, 0 = némítás)', door, 'microphone_gain', 'number');
-        gain.id = 'intercom-microphone-gain'; gain.min = 0; gain.max = 100; gain.step = 1;
-        const ringtone = select(target, 'Csengőhang', door, 'ringtone', [['', 'Nincs csengőhang'], ...ringtoneFiles.map(name => [name, name.replace(/\.wav$/, '').replace(/[-_]/g, ' ')])]);
-        ringtone.id = 'intercom-ringtone';
-        const repeat = field(target, 'Csengőhang folyamatos ismétlése', door, 'ringtone_repeat', 'checkbox');
-        repeat.id = 'intercom-ringtone-repeat';
-        const enabled = field(target, 'Kaputelefon engedélyezése' , door, 'enabled', 'checkbox');
-        enabled.id = 'intercom-enabled';
-        const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
+        const connection = group('Kapcsolat és kamera');
+        const enabled = checkbox(wide(field(connection, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox')));
+        enabled.parentNode.className += ' intercom-wide'; enabled.id = 'intercom-enabled';
+        const url = wide(field(connection, 'MJPEG-videócím (HTTP)', door, 'stream_url'));
         url.id = 'intercom-stream-url'; url.placeholder = 'http://192.168.1.50/mjpg/video.mjpg';
-        const username = field(target, 'Videó felhasználóneve (admin)', door, 'video_username');
+        const username = field(connection, 'Videó felhasználóneve (admin)', door, 'video_username');
         username.id = 'intercom-video-username'; username.maxLength = 95; username.autocomplete = 'off';
-        const password = field(target, 'Videó jelszava', door, 'video_password', 'password');
+        const password = field(connection, 'Videó jelszava', door, 'video_password', 'password');
         password.id = 'intercom-video-password'; password.maxLength = 127; password.autocomplete = 'new-password';
         password.placeholder = door.has_video_password ? 'Mentett jelszó / üresen változatlan' : 'Admin felhasználó jelszava';
-        const bell = select(target, 'Csengetés folyamatban – Loxone állapot', door, 'bell_uuid', stateChoices());
+        const actions = group('Csengetés és kapunyitás');
+        const bell = select(actions, 'Csengetés folyamatban – Loxone állapot', door, 'bell_uuid', stateChoices());
         bell.id = 'intercom-bell';
-        const gate = select(target, 'Kapunyitás – vezérelhető Loxone objektum (opcionális)',
+        const gate = select(actions, 'Kapunyitás – Loxone objektum (opcionális)',
             {id: 'gate', control_uuid: door.gate?.control_uuid || ''}, 'control_uuid', stateChoices(true, true));
         gate.id = 'intercom-gate';
         gate.onchange = () => {
@@ -197,9 +193,38 @@ const LoxoneHome = (() => {
             render();
         };
         if (door.gate) {
-            const title = field(target, 'Kapunyitó gomb felirata', door.gate, 'name');
+            const title = field(actions, 'Kapunyitó gomb felirata', door.gate, 'name');
             title.id = 'intercom-gate-name';
         }
+        const sound = group('Hang és csengőhang');
+        door.speaker_volume ??= 55;
+        const volume = field(sound, 'Kijelző hangereje (0–100%, 0 = némítás)', door, 'speaker_volume', 'number');
+        volume.id = 'intercom-speaker-volume'; volume.min = 0; volume.max = 100; volume.step = 1;
+        door.microphone_gain ??= 80;
+        const gain = field(sound, 'Mikrofon erősítése (0–100%, 0 = némítás)', door, 'microphone_gain', 'number');
+        gain.id = 'intercom-microphone-gain'; gain.min = 0; gain.max = 100; gain.step = 1;
+        const ringtone = select(sound, 'Csengőhang', door, 'ringtone', [['', 'Nincs csengőhang'], ...ringtoneFiles.map(name => [name, name.replace(/\.wav$/, '').replace(/[-_]/g, ' ')])]);
+        ringtone.id = 'intercom-ringtone';
+        const repeat = checkbox(field(sound, 'Folyamatos ismétlés csengetés közben', door, 'ringtone_repeat', 'checkbox'));
+        repeat.id = 'intercom-ringtone-repeat';
+        const previewBox = create('div'), preview = create('audio');
+        previewBox.className = 'intercom-wide';
+        previewBox.append(create('p', 'Hangminta ezen a számítógépen / telefonon'));
+        preview.id = 'intercom-ringtone-preview'; preview.controls = true; preview.preload = 'none';
+        preview.setAttribute('aria-label', 'A kiválasztott csengőhang meghallgatása');
+        previewBox.append(preview);
+        previewBox.append(create('small', 'A minta a böngészőben szólal meg. A kijelző hangerejét és a mentett beállításokat nem módosítja.'));
+        sound.append(previewBox);
+        const updatePreview = () => {
+            if (typeof preview.pause === 'function') preview.pause();
+            previewBox.hidden = !door.ringtone;
+            if (door.ringtone) preview.src = '/api/intercom/ringtone?name=' + encodeURIComponent(door.ringtone);
+            else preview.removeAttribute('src');
+            if (typeof preview.load === 'function') preview.load();
+        };
+        const changed = ringtone.onchange;
+        ringtone.onchange = () => { changed(); updatePreview(); };
+        updatePreview();
     }
     function render() {
         controls.length = 0;
@@ -362,9 +387,6 @@ const LoxoneHome = (() => {
             const state = await response.json();
             const previousRingtones = JSON.stringify(ringtoneFiles);
             ringtoneFiles = Array.isArray(state.ringtones) ? state.ringtones.slice().sort() : [];
-            speakerTestActive = !!state.speaker_test_active;
-            audioBusy = !!state.audio_busy;
-            if (get('intercom-speaker-test-status')) get('intercom-speaker-test-status').textContent = state.speaker_test_message || '';
             const first = !loaded;
             const previousResources = resourcesInstalled;
             const previousVersion = resourcesVersion;
@@ -405,22 +427,6 @@ const LoxoneHome = (() => {
             notify('Otthon-beállítások: ' + (error.name === 'AbortError' ? 'az eszköz nem válaszol.' : error.message), true);
         } finally { fetching = false; buttons(); }
     }
-    async function toggleSpeakerTest() {
-        if (speakerTestPending) return;
-        const volume = speakerTestActive ? 0 : Number(model.intercom.speaker_volume ?? 55);
-        if (!Number.isInteger(volume) || volume < 0 || volume > 100) {
-            notify('A hangerő 0 és 100 közötti egész szám legyen.', true); return;
-        }
-        speakerTestPending = true; buttons();
-        try {
-            const response = await apiFetch('/api/loxone/intercom/speaker-test', {method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'},
-                body: JSON.stringify({enabled: !speakerTestActive, volume})});
-            if (!response.ok) throw Error(await response.text());
-            await refresh(catalog, connectionBusy);
-        } catch (error) { notify('Hangszóróteszt: ' + error.message, true); }
-        finally { speakerTestPending = false; buttons(); }
-    }
     async function save(scope = 'pages') {
         if (busy()) return;
         saveSection = scope;
@@ -447,7 +453,6 @@ const LoxoneHome = (() => {
         if (get('consumers-save')) get('consumers-save').onclick = () => save('consumers');
         if (get('ringtone-upload')) get('ringtone-upload').onclick = uploadRingtones;
         if (get('intercom-save')) get('intercom-save').onclick = () => save('intercom');
-        if (get('intercom-speaker-test')) get('intercom-speaker-test').onclick = toggleSpeakerTest;
         get('home-room').onchange = get('home-category').onchange = render;
         buttons();
     }

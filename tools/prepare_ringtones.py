@@ -15,7 +15,7 @@ def ringtone_files():
     for sound in manifest['sounds']:
         path = folder / sound['file']
         with wave.open(str(path)) as audio:
-            if (audio.getnchannels(), audio.getsampwidth(), audio.getframerate(), audio.getcomptype()) != (1, 2, 16000, 'NONE') or not 0 < audio.getnframes() <= 128000:
+            if (audio.getnchannels(), audio.getsampwidth(), audio.getframerate(), audio.getcomptype()) != (1, 2, 16000, 'NONE') or not 0 < audio.getnframes() <= 960000:
                 raise ValueError('Unsupported ringtone: ' + path.name)
         if sound['license'] != 'CC0-1.0':
             raise ValueError('Starter pack must be redistributable CC0')

@@ -21,21 +21,6 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out) { memset(out, 0,
 esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) { (void)r; (void)q; (void)n; return ESP_FAIL; }
 esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) { (void)q; (void)k; (void)v; (void)n; return ESP_FAIL; }
 esp_err_t httpd_resp_send(httpd_req_t *r, const char *b, int n) { (void)r; (void)b; (void)n; return ESP_OK; }
-static unsigned speaker_test_requests, speaker_test_volume;
-static bool speaker_test_active;
-void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
-{
-    *out = (app_intercom_audio_status_t){.state=speaker_test_active ? APP_INTERCOM_AUDIO_TESTING : APP_INTERCOM_AUDIO_IDLE,
-                                       .speaker_test=speaker_test_active};
-}
-bool app_intercom_audio_busy(void) { return speaker_test_active; }
-esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume)
-{
-    speaker_test_requests++;
-    speaker_test_active = enabled;
-    speaker_test_volume = volume;
-    return ESP_OK;
-}
 static bool home_resources_installed;
 bool app_templates_home_info(app_template_info_t *info, unsigned *generation)
 {
@@ -106,12 +91,6 @@ static void post(const char *body)
     input=body;position=0;status_code=200;response[0]=0;
     httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/home",.content_len=strlen(body)};
     loxone_home_post(&request);
-}
-static void test_post(const char *body)
-{
-    input=body;position=0;status_code=200;
-    httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/intercom/speaker-test",.content_len=strlen(body)};
-    intercom_speaker_test_post(&request);
 }
 static void slave_post_size(const char *body, size_t size)
 {
@@ -233,14 +212,7 @@ int main(void)
     s_config.data_recept_mode=APP_DATA_HTTP;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_SLAVE;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_MQTT;assert(loxone_register(NULL)==ESP_OK&&!registered);
-    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==11);
-    authorized=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==401&&!speaker_test_requests);
-    authorized=true;header_ok=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==400&&!speaker_test_requests);
-    header_ok=true;
-    test_post("{\"enabled\":true,\"volume\":101}");assert(status_code==400&&!speaker_test_requests);
-    test_post("{\"enabled\":true,\"volume\":70} trailing");assert(status_code==400&&!speaker_test_requests);
-    test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==202&&speaker_test_active&&speaker_test_volume==70);
-    test_post("{\"enabled\":false,\"volume\":0}");assert(status_code==202&&!speaker_test_active&&speaker_test_requests==2);
+    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==10);
     authorized=false;post("{\"schema\":1}");assert(status_code==401&&!requested);
     authorized=true;header_ok=false;post("{\"schema\":1}");assert(status_code==400&&!requested);
     header_ok=true;broken=true;post("{\"schema\":1}");assert(status_code==400&&!requested);broken=false;

@@ -2205,10 +2205,10 @@ static void runtime(void *arg)
             }
         }
 
+        bool intercom_active = intercom_prepare();
 #ifdef APP_INTERCOM_DISTRIBUTED
         app_intercom_audio_poll();
 #endif
-        bool intercom_active = intercom_prepare();
         master_display_update(have, s.night_mode, intercom_active);
 
         /* A kaputelefon a témaerőforrások betöltésétől és az energiaadatoktól

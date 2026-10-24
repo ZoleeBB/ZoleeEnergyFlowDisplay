@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
 #include <stdbool.h>
 #include <stdio.h>
 #include "app_storage.h"
+#include "app_ringtone_wav.h"
+uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
+uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
 static int fault, calls;
 static bool busy;
 void storage_busy(bool value) { busy = value; }
@@ -46,16 +49,32 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     lib.cJSON_PrintUnformatted.argtypes = [C.c_void_p]; lib.cJSON_PrintUnformatted.restype = C.c_void_p
     lib.cJSON_Delete.argtypes = [C.c_void_p]
     libc = C.CDLL(None); libc.free.argtypes = [C.c_void_p]
+    lib.test_frames.argtypes = [C.c_uint32, C.c_uint32]
+    lib.test_source.argtypes = [C.c_uint32, C.c_uint32]
+    assert lib.test_frames(1920000, 24000) == 1440000
+    assert lib.test_frames(1920000, 16000) == 960000
+    assert lib.test_source(1439999, 24000) == 959999
     offset, size = C.c_size_t(), C.c_size_t()
     sounds = {p.name: p.read_bytes() for p in (ROOT / 'assets/ringtones').glob('*.wav')}
-    assert len(sounds) == 3
+    assert set(sounds) == {'tubular-chime.wav'}
     for data in sounds.values():
         assert lib.app_ringtone_wav(data, len(data), C.byref(offset), C.byref(size))
-        assert 0 < size.value <= 256000
+        assert 0 < size.value <= 1920000
         for position, value in [(0, ord('X')), (20, 3), (22, 2), (24, 0), (34, 8)]:
             bad = bytearray(data); bad[position] = value
             assert not lib.app_ringtone_wav(bytes(bad), len(bad), C.byref(offset), C.byref(size)), position
         assert not lib.app_ringtone_wav(data[:-1], len(data) - 1, C.byref(offset), C.byref(size))
+    def pcm(seconds, extra_frames=0):
+        output = io.BytesIO()
+        with wave.open(output, 'wb') as audio:
+            audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(16000)
+            audio.writeframes(b'\0\0' * (16000 * seconds + extra_frames))
+        return output.getvalue()
+    for seconds in (9, 37, 60):
+        data = pcm(seconds)
+        assert lib.app_ringtone_wav(data, len(data), C.byref(offset), C.byref(size))
+    data = pcm(60, 1)
+    assert not lib.app_ringtone_wav(data, len(data), C.byref(offset), C.byref(size))
     archive = folder / 'upload.zip'; error = C.create_string_buffer(160)
     def pack(files):
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -88,4 +107,4 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     lib.storage_busy(1)
     assert not lib.app_ringtones_load(name.encode(), C.byref(size))
     lib.storage_busy(0)
-    print('PASS: three real CC0 WAVs, strict PCM/rate/channel/depth/RIFF limits, ZIP traversal/type/count/size rejection, atomic rollback and power-loss recovery, safe list/load')
+    print('PASS: tubular-chime CC0 WAV, strict PCM/rate/channel/depth/RIFF limits, ZIP traversal/type/count/size rejection, atomic rollback and power-loss recovery, safe list/load')

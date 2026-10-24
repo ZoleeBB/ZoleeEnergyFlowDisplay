@@ -1029,15 +1029,6 @@ bool app_loxone_intercom_call_permitted(unsigned revision, bool active)
     return allowed;
 }
 
-bool app_loxone_intercom_test_permitted(unsigned revision)
-{
-    if (!s_lock || !s_home) return false;
-    if (xSemaphoreTake(s_lock, 0) != pdTRUE) return true;
-    bool allowed = !s_intercom_ringing && s_intercom_generation == revision;
-    xSemaphoreGive(s_lock);
-    return allowed;
-}
-
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
     if (!out || !s_lock || !s_home)

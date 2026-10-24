@@ -82,17 +82,14 @@ kapcsolat bontódik, érthető üzenettel. A részletes RTP-hibaszámlálók ily
 a soros naplóba kerülnek. A napló és a váratlan hang-újraindulás webes
 eseménybejegyzése segíti a hibakeresést; jelszót vagy hangmintát nem tárolnak.
 
-## Helyi hangszóróteszt
+## Csengőhang és böngészős hangminta
 
-A webes **Hangszóróteszt indítása** gomb az ott megadott hangerővel folyamatos
-1000 Hz-es szinuszt játszik; újabb kattintás leállítja. Ehhez nem kell menteni
-a hangerőt. A beszélgetés továbbra is a mentett értéket használja.
-
-A teszt ugyanazt az I2S/ES8311/hangszóró-erősítő útvonalat használja, de nem
-nyit mikrofont, SIP/RTP-kapcsolatot vagy AEC-t. Aktív hívással nem futhat együtt;
-csengetéskor vagy konfigurációcserekor automatikusan leáll. A webes állapot jelzi
-a foglaltságot és a hibát. A végpont hitelesített és korlátos.
-A teszt kézzel indítható diagnosztikai lehetőségként megmarad, nem indul el magától.
+A Kaputelefon-kártya külön csoportban mutatja a kamerát, a Loxone-párosításokat
+és a hangbeállításokat. A kiválasztott csengőhang a **Hangminta** lejátszójával
+mentés nélkül meghallgatható a böngészőben, a számítógép vagy telefon hangszóróján.
+Ez nem indít hívást és nem szólaltatja meg a kijelzőt. A kijelző a mentett hangot
+játssza le csengetéskor; az ismétlés hívásindításra vagy kapunyitásra megszűnik.
+A csomagfeltöltés külön lenyitható részben található. A korábbi debug-hangteszt megszűnt.
 
 ## Hálózat és hitelesítés
 
