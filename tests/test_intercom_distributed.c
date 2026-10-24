@@ -29,9 +29,11 @@ void app_intercom_audio_gate_opened(unsigned revision)
 
 #ifndef APP_INTERCOM_SLAVE
 static app_intercom_snapshot_t fixture;
+static bool change_after_snapshot;
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t* out)
 {
     *out = fixture;
+    if (change_after_snapshot) { fixture.revision++; change_after_snapshot = false; }
     return true;
 }
 bool app_loxone_intercom_credentials(unsigned revision, char user[96], char password[LX_PASSWORD_MAX])
@@ -47,6 +49,11 @@ esp_err_t app_loxone_home_command(const char* id, lx_home_command_t action)
     gates++;
     app_intercom_control_gate(fixture.revision);
     return ESP_OK;
+}
+esp_err_t app_loxone_intercom_gate_request(unsigned revision)
+{
+    if (revision != fixture.revision) return ESP_ERR_INVALID_STATE;
+    return app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE);
 }
 esp_err_t app_wifi_get_ip(char* out, size_t n)
 {
@@ -126,6 +133,9 @@ int main(void)
     app_intercom_control_status(owner, status);
     memcpy(command, status, 20);
     command[1] = APP_INTERCOM_GATE;
+    change_after_snapshot = true;
+    assert(!app_intercom_control_command(owner, command, 20) && !gates);
+    fixture.revision = 7;
     assert(
         app_intercom_control_command(owner, command, 20) && gates == 1 && app_intercom_control_silenced(7));
     command[4] ^= 1;

@@ -176,7 +176,7 @@ bool app_intercom_control_command(uint32_t peer, const uint8_t* data, size_t siz
     if (operation == APP_INTERCOM_GATE) {
         if (!snapshot.connected || (!snapshot.ringing && !snapshot.audio_active))
             return false;
-        return app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK;
+        return app_loxone_intercom_gate_request(snapshot.revision) == ESP_OK;
     }
     portENTER_CRITICAL(&s_control_lock);
     app_intercom_arbiter_tick(&s_arbiter, snapshot.revision, esp_timer_get_time());

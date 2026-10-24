@@ -902,14 +902,16 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
     return true;
 }
 
-esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
+static esp_err_t home_command_request(const char *card_id, lx_home_command_t action,
+                                       bool check_generation, unsigned generation)
 {
     if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)
         return ESP_ERR_INVALID_STATE;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     char command[96];
     bool door = !strcmp(card_id, LX_INTERCOM_GATE_ID);
-    bool allowed = (!door || s_intercom_ringing || intercom_held(s_intercom_generation)) &&
+    bool allowed = (!check_generation || s_intercom_generation == generation) &&
+                   (!door || s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                    s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
                    lx_home_command_build(s_home, s_catalog, card_id, action, command);
@@ -939,6 +941,18 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
 #endif
     }
     return allowed ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
+{
+    return home_command_request(card_id, action, false, 0);
+}
+
+/* A Slave régi gombnyomása nem használhat közben megváltozott kapunyitó
+ * beállítást. A generáció és a sorba helyezés ugyanazon Loxone-zár alatt áll. */
+esp_err_t app_loxone_intercom_gate_request(unsigned revision)
+{
+    return home_command_request(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE, true, revision);
 }
 
 /* Kizárólag a Loxone-worker küldhet a WebSocketre. A kivett parancsot soha
