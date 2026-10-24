@@ -10,6 +10,7 @@ static int64_t test_now = 1;
 int64_t esp_timer_get_time(void) { return test_now; }
 uint32_t esp_random(void) { static uint32_t value = 41; return ++value; }
 static unsigned gates;
+bool app_intercom_audio_busy(void) { return false; }
 void app_intercom_audio_gate_opened(unsigned revision) { assert(revision == 7); gates++; }
 
 #ifndef APP_INTERCOM_SLAVE

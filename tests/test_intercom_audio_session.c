@@ -29,6 +29,32 @@ static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
 static bool gate_timeout_mode;
 static bool tone_mode, tone_ring_stop;
+#ifdef APP_INTERCOM_DISTRIBUTED
+static bool ring_mode, ring_repeat, ring_silenced, ring_preempt;
+static unsigned ring_grants;
+bool app_intercom_control_acquire(unsigned revision)
+{
+    if (revision != 7) return false;
+    if (ring_mode) { assert(speaker_closes && !s_running); ring_grants++; }
+    return true;
+}
+bool app_intercom_control_allowed(unsigned revision) { return revision == 7; }
+void app_intercom_control_release(unsigned revision) { assert(revision == 7); }
+uint8_t *app_intercom_control_ringtone(const char *name, size_t *size)
+{
+    assert(!strcmp(name, "test.wav"));
+    uint8_t *data = calloc(1, 44 + 640);
+    memcpy(data, "RIFF", 4); memcpy(data + 8, "WAVEfmt ", 8);
+    unsigned n = 44 + 640 - 8;
+    for (unsigned i = 0; i < 4; i++) data[4 + i] = n >> (i * 8);
+    data[16] = 16; data[20] = 1; data[22] = 1;
+    data[24] = 0x80; data[25] = 0x3e; data[28] = 0; data[29] = 0x7d;
+    data[32] = 2; data[34] = 16; memcpy(data + 36, "data", 4);
+    data[40] = 0x80; data[41] = 2;
+    for (unsigned i = 0; i < 320; i++) data[44 + i * 2 + 1] = 16;
+    *size = 684; return data;
+}
+#endif
 static int device_volume;
 static unsigned aec_creates;
 static unsigned full_snapshots, tone_first_snapshots;
@@ -101,9 +127,20 @@ esp_err_t bsp_audio_init(const void *configuration)
 }
 esp_codec_dev_handle_t bsp_audio_codec_speaker_init(void) { return (void *)1; }
 esp_codec_dev_handle_t bsp_audio_codec_microphone_init(void) { return (void *)2; }
+esp_err_t bsp_audio_init_voice_24k(void)
+{
+    i2s_inits++;
+    return fail_i2s ? ESP_ERR_NO_MEM : ESP_OK;
+}
 int esp_codec_dev_open(esp_codec_dev_handle_t handle, esp_codec_dev_sample_info_t *format)
 {
-    assert(format->sample_rate == 16000 && format->channel == 2 && format->bits_per_sample == 16);
+    assert(format->sample_rate == AUDIO_RATE && format->bits_per_sample == 16);
+#ifdef APP_INTERCOM_SLAVE
+    if (handle == (void *)2) assert(format->channel == 4 && format->channel_mask == 1);
+    else assert(format->channel == 2);
+#else
+    assert(format->channel == 2);
+#endif
     if (handle == (void *)2) {
         if (fail_microphone) return -1;
         mic_opens++;
@@ -135,12 +172,16 @@ int esp_codec_dev_set_in_gain(esp_codec_dev_handle_t handle, float gain)
 }
 int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 {
-    assert(handle == (void *)2 && size == (int)test_frame * 8);
+    assert(handle == (void *)2 && size == (int)test_frame * AUDIO_DECIMATION * AUDIO_CAPTURE_CHANNELS * 2);
     assert(writes == reads + 1); /* A lejátszás megelőzi az ADC/DSP lépést. */
+#ifdef APP_INTERCOM_SLAVE
+    for (int i = 0; i < size / 2; i++) ((int16_t *)data)[i] = 3000 + (i % 3) * 1000;
+#else
     for (int i = 0; i < size / 4; i++) {
         ((int16_t *)data)[i * 2] = i % 2 ? 5000 : 3000;
         ((int16_t *)data)[i * 2 + 1] = -12000;
     }
+#endif
     reads++;
     vTaskDelay(32);
     return 0;
@@ -148,12 +189,22 @@ int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int size)
 int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
 {
     assert(handle == (void *)1 && data && muted == (device_volume == 0));
+#ifdef APP_INTERCOM_DISTRIBUTED
+    if (ring_mode) {
+        assert(s_ringtone && !reads && device_volume == 73);
+        for (int i = 0; i < size / 2; i++) assert(((int16_t *)data)[i] == 4096);
+        writes++;
+        if (ring_preempt && writes == 1) assert(app_intercom_audio_request(true, 7) == ESP_OK);
+        else if (ring_repeat && writes == 3) ring_silenced = true;
+        return 0;
+    }
+#endif
     if (tone_mode) {
         if (!writes) tone_first_snapshots = full_snapshots;
         else assert(full_snapshots == tone_first_snapshots);
         assert(size == 1280 && reads == 0 && device_volume == 71);
         int16_t *pcm = data;
-        assert(pcm[0] == 0 && pcm[8] == 8192 && pcm[24] == -8192);
+        assert(pcm[0] == 0 && pcm[(AUDIO_RATE / 1000) / 4 * 2] == 8192 && pcm[(AUDIO_RATE / 1000) * 3 / 4 * 2] == -8192);
         for (int i = 0; i < size / 4; i++) assert(pcm[i * 2] == pcm[i * 2 + 1]);
         if (++writes == 3) {
             if (tone_ring_stop) atomic_store(&ring, true);
@@ -163,7 +214,7 @@ int esp_codec_dev_write(esp_codec_dev_handle_t handle, void *data, int size)
         memset(data, 0, (size_t)size);
         return 0;
     }
-    assert(size == (int)test_frame * 8);
+    assert(size == (int)test_frame * AUDIO_DECIMATION * 4);
     assert(device_volume == 73);
     assert(s_status.state == APP_INTERCOM_AUDIO_ACTIVE && !s_status.message[0]);
     for (int i = 0; i < size / 2; i++) {
@@ -218,6 +269,13 @@ bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
 {
     full_snapshots++;
     *out = (app_intercom_snapshot_t){.ringing=atomic_load(&ring),.connected=true,.revision=7};
+#ifdef APP_INTERCOM_DISTRIBUTED
+    if (ring_mode) {
+        strcpy(out->config.ringtone, "test.wav");
+        out->config.ringtone_repeat = ring_repeat;
+        out->ringtone_silenced = ring_silenced;
+    }
+#endif
     out->config.enabled = true;
     out->config.speaker_volume = 73;
     out->config.microphone_gain = 84;
@@ -498,6 +556,41 @@ int main(void)
     assert(strstr(failed_i2s->hardware_error, "DMA: 8192 B szabad, 4096 B") && i2s_inits == 2);
     assert(!open_hardware(failed_i2s) && i2s_inits == 2);
     free(failed_i2s);
+#ifdef APP_INTERCOM_DISTRIBUTED
+    s_i2s_attempted = false;
+    fail_i2s = false;
+    tone_mode = false;
+    ring_mode = true;
+    for (volatile unsigned mode = 0; mode < 3; mode++) {
+        atomic_store(&ring, false);
+        app_intercom_audio_poll();
+        atomic_store(&ring, true);
+        ring_repeat = mode != 0;
+        ring_preempt = mode == 2;
+        ring_silenced = false;
+        reads = writes = mic_opens = mic_closes = speaker_closes = 0;
+        unsigned before = tasks_created;
+        unsigned aec_before = aec_creates;
+        app_intercom_audio_poll();
+        assert(tasks_created == before + 1 && s_ringtone);
+        if (!setjmp(worker_exit)) audio_worker(NULL);
+        assert(!app_intercom_audio_busy());
+        assert(writes == (ring_preempt ? 1 : ring_repeat ? 3 : AUDIO_RATE == 16000 ? 1 : 2));
+        assert(!reads && !mic_opens && !mic_closes && speaker_closes == 1 && aec_before == aec_creates);
+        if (ring_preempt) {
+            assert(s_call_pending);
+            task_failure = true;
+            app_intercom_audio_poll();
+            task_failure = false;
+            assert(ring_grants == 1 && !s_call_pending && !s_running);
+        } else {
+            app_intercom_audio_poll();
+            assert(tasks_created == before + 1);
+        }
+    }
+    ring_mode = false;
+    puts("PASS: actual one-shot and repeating PCM ringtone worker, no microphone/SIP/AEC, global suppression, preemption waits for speaker close, no same-bell replay");
+#endif
     puts("PASS: real SIP/RTP session, 8 kHz AEC with 16 kHz stereo I2S, playback before ADC/DSP, "
          "left-channel decimation, 20 ms RTP clock, configured microphone gain, "
          "128/256/512-sample AEC, bell hold, timed/manual close, tone isolation and cleanup");

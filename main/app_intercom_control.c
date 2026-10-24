@@ -340,7 +340,6 @@ bool app_intercom_control_receive(const uint8_t *data, size_t size)
     s_grant = get32(data + 12);
     s_received = esp_timer_get_time();
     s_profile_ready = s_profile_boot == boot && s_profile_revision == revision;
-    if (!s_want && (s_flags & APP_INTERCOM_OWNED)) s_operation = APP_INTERCOM_RELEASE;
     portEXIT_CRITICAL(&s_control_lock);
     if (gate_opened) app_intercom_audio_gate_opened(revision);
     return true;
@@ -382,7 +381,9 @@ bool app_intercom_control_receive_profile(const uint8_t *p, const uint8_t *x)
 
 bool app_intercom_control_outgoing(uint8_t out[APP_INTERCOM_CONTROL_SIZE])
 {
+    bool busy = app_intercom_audio_busy();
     portENTER_CRITICAL(&s_control_lock);
+    if (!s_want && (s_flags & APP_INTERCOM_OWNED) && !busy) s_operation = APP_INTERCOM_RELEASE;
     uint8_t operation = s_operation ? s_operation : s_want && (s_flags & APP_INTERCOM_OWNED) ? APP_INTERCOM_KEEP : 0;
     bool ok = fresh() && s_profile_ready && operation;
     if (ok) {

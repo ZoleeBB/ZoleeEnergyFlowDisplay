@@ -57,7 +57,7 @@ if(UNIX)
     target_include_directories(slave_intercom_preview PRIVATE
         "${APP_ROOT}/tests/audio_stubs" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main")
     target_link_libraries(slave_intercom_preview PRIVATE lvgl m pthread)
-    target_compile_options(slave_intercom_preview PRIVATE -Wall -Wextra -Werror)
+    target_compile_options(slave_intercom_preview PRIVATE -Wall -Wextra -Werror -UNDEBUG)
     if(ZOLEE_PREVIEW_ASAN)
         target_compile_options(slave_intercom_preview PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(slave_intercom_preview PRIVATE -fsanitize=address,undefined)

@@ -7,6 +7,7 @@
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "lvgl.h"
+#include "src/misc/cache/instance/lv_image_cache.h"
 #include "freertos/FreeRTOS.h"
 #include <stdio.h>
 #include <stdlib.h>

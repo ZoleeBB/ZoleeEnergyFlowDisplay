@@ -19,3 +19,7 @@ esp_err_t bsp_i2c_init(void);
 esp_err_t bsp_audio_init(const void *configuration);
 esp_codec_dev_handle_t bsp_audio_codec_speaker_init(void);
 esp_codec_dev_handle_t bsp_audio_codec_microphone_init(void);
+
+#define BSP_AUDIO_TDM_SLOT_COUNT 4
+#define BSP_AUDIO_TDM_SLOT_MASK_FL 1
+esp_err_t bsp_audio_init_voice_24k(void);
