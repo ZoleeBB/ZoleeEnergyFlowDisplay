@@ -1,15 +1,16 @@
-/* Jelszómentes Otthon-szerkesztő. A háttérfrissítés nem írja felül a szerkesztést. */
+/* Külön videós hitelesítés az Otthon-szerkesztőben. A háttérfrissítés nem írja felül a szerkesztést. */
 const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
     const get = id => document.getElementById(id);
-    let model = {schema: 2, consumers: [], pages: []};
+    let model = {schema: 2, consumers: [], pages: [], intercom: {enabled: false, stream_url: '', bell_uuid: '', gate: null}};
     let selectedPage = 0;
     const activeCards = () => model.pages[selectedPage]?.cards || [];
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
     let revision = 0, saveRevision = 0, currentSection = '';
     let resourcesInstalled = false, resourcesVersion = 0;
+    let speakerTestActive = false, audioBusy = false, speakerTestPending = false;
     const domId = (entry, key) => 'home-' + currentSection + '-' + entry.id + '-' + key;
     const controls = [];
 
@@ -17,6 +18,8 @@ const LoxoneHome = (() => {
         const node = get('home-status');
         node.textContent = text;
         node.className = error ? 'feedback-error' : '';
+        const doorStatus = get('intercom-status');
+        if (doorStatus) { doorStatus.textContent = text; doorStatus.className = node.className; }
     }
     function create(tag, text) {
         const node = document.createElement(tag);
@@ -25,8 +28,13 @@ const LoxoneHome = (() => {
     }
     function busy() { return !loaded || pending || waiting || remoteBusy || connectionBusy; }
     function buttons() {
+        if (get('intercom-speaker-test')) {
+            get('intercom-speaker-test').textContent = speakerTestActive ? 'Hangszóróteszt leállítása' : 'Hangszóróteszt indítása';
+            get('intercom-speaker-test').disabled = speakerTestPending || (audioBusy && !speakerTestActive);
+        }
         for (const control of controls) control.disabled = busy() || !!control.homeFixed;
         get('home-save').disabled = busy();
+        if (get('intercom-save')) get('intercom-save').disabled = busy();
         get('home-add-consumer').disabled = busy() || model.consumers.length >= 12;
         get('home-add-card').disabled = busy() || !model.pages.length || activeCards().length >= 12;
         get('home-add-page').disabled = busy() || model.pages.length >= 8;
@@ -37,7 +45,7 @@ const LoxoneHome = (() => {
         if (type === 'checkbox') input.checked = !!entry[key];
         else input.value = entry[key] ?? '';
         if (type === 'number') input.step = 'any';
-        if (type === 'text') input.maxLength = ['name', 'title'].includes(key) ? 80 : key === 'unit' ? 16 : 36;
+        if (type === 'text') input.maxLength = ['name', 'title'].includes(key) ? 80 : key === 'unit' ? 16 : key === 'stream_url' ? 256 : 36;
         input.id = domId(entry, key);
         input.oninput = input.onchange = () => {
             entry[key] = type === 'checkbox' ? input.checked : type === 'number' ?
@@ -155,8 +163,44 @@ const LoxoneHome = (() => {
         model.pages.push({id: 'page-' + serial, title: 'Új oldal', cards: []});
         selectedPage = model.pages.length - 1; render();
     }
+    function renderIntercom() {
+        const target = get('intercom-config');
+        if (!target) return;
+        target.replaceChildren(); currentSection = 'intercom';
+        const door = model.intercom;
+        door.speaker_volume ??= 55;
+        const volume = field(target, 'Kijelző hangereje (0–100%, 0 = némítás)', door, 'speaker_volume', 'number');
+        volume.id = 'intercom-speaker-volume'; volume.min = 0; volume.max = 100; volume.step = 1;
+        door.microphone_gain ??= 80;
+        const gain = field(target, 'Mikrofon erősítése (0–100%, 0 = némítás)', door, 'microphone_gain', 'number');
+        gain.id = 'intercom-microphone-gain'; gain.min = 0; gain.max = 100; gain.step = 1;
+        const enabled = field(target, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox');
+        enabled.id = 'intercom-enabled';
+        const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
+        url.id = 'intercom-stream-url'; url.placeholder = 'http://192.168.1.50/mjpg/video.mjpg';
+        const username = field(target, 'Videó felhasználóneve (admin)', door, 'video_username');
+        username.id = 'intercom-video-username'; username.maxLength = 95; username.autocomplete = 'off';
+        const password = field(target, 'Videó jelszava', door, 'video_password', 'password');
+        password.id = 'intercom-video-password'; password.maxLength = 127; password.autocomplete = 'new-password';
+        password.placeholder = door.has_video_password ? 'Mentett jelszó / üresen változatlan' : 'Admin felhasználó jelszava';
+        const bell = select(target, 'Csengetés folyamatban – Loxone állapot', door, 'bell_uuid', stateChoices());
+        bell.id = 'intercom-bell';
+        const gate = select(target, 'Kapunyitás – vezérelhető Loxone objektum (opcionális)',
+            {id: 'gate', control_uuid: door.gate?.control_uuid || ''}, 'control_uuid', stateChoices(true, true));
+        gate.id = 'intercom-gate';
+        gate.onchange = () => {
+            door.gate = gate.value ? {id: 'intercom-gate', name: door.gate?.name || 'Kapunyitás',
+                icon: 'door', type: 'pulse', control_uuid: gate.value} : null;
+            render();
+        };
+        if (door.gate) {
+            const title = field(target, 'Kapunyitó gomb felirata', door.gate, 'name');
+            title.id = 'intercom-gate-name';
+        }
+    }
     function render() {
         controls.length = 0;
+        renderIntercom();
         renderPages();
         for (const section of ['consumers', 'cards']) {
             currentSection = section;
@@ -229,6 +273,35 @@ const LoxoneHome = (() => {
     }
     const uuidValid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/i.test(value || '');
     function validate() {
+        const door = model.intercom;
+        if (!Number.isInteger(door.speaker_volume) || door.speaker_volume < 0 || door.speaker_volume > 100)
+            return 'A hangerő 0 és 100 közötti egész szám legyen.';
+        if (!Number.isInteger(door.microphone_gain) || door.microphone_gain < 0 || door.microphone_gain > 100)
+            return 'A mikrofon erősítése 0 és 100 közötti egész szám legyen.';
+        door.stream_url = (door.stream_url || '').trim();
+        if (door.enabled && (!door.stream_url || !uuidValid(door.bell_uuid)))
+            return 'Kaputelefon: add meg a videó címét és válaszd ki a csengetésállapotot.';
+        if (new TextEncoder().encode(door.video_username || '').length > 95 ||
+            new TextEncoder().encode(door.video_password || '').length > 127)
+            return 'Kaputelefon: a felhasználónév legfeljebb 95, a jelszó 127 bájt lehet.';
+        if (door.enabled && (!door.video_username || (!door.video_password && !door.has_video_password)))
+            return 'Kaputelefon: add meg az admin videós felhasználónevét és jelszavát.';
+        if (door.stream_url) {
+            let url;
+            try { url = new URL(door.stream_url); }
+            catch (_) { return 'Kaputelefon: érvénytelen videócím. Példa: http://192.168.2.21/mjpg/video.mjpg'; }
+            if (url.protocol !== 'http:') return 'Kaputelefon: a videócím http:// kezdetű legyen.';
+            if (url.username || url.password) return 'Kaputelefon: a felhasználónevet és jelszót ne írd a videócímbe.';
+            if (!url.hostname || url.pathname === '/' || url.hash || /[\s\\]/.test(door.stream_url))
+                return 'Kaputelefon: teljes HTTP videócím kell, belső szóköz, fordított perjel és # nélkül.';
+            if (new TextEncoder().encode(url.href).length > 256)
+                return 'Kaputelefon: a videócím legfeljebb 256 bájt lehet.';
+            door.stream_url = url.href;
+            if (get('intercom-stream-url')) get('intercom-stream-url').value = door.stream_url;
+        }
+        if (door.gate && (!uuidValid(door.gate.control_uuid) || !door.gate.name.trim() ||
+            /[\x00-\x1f\x7f]/.test(door.gate.name) || new TextEncoder().encode(door.gate.name).length > 80))
+            return 'Kaputelefon: válassz kapunyitó objektumot és adj legfeljebb 80 bájtos gombfeliratot.';
         for (const section of ['consumers', 'cards']) for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
             const title = entry.name || 'Névtelen elem';
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
@@ -260,6 +333,9 @@ const LoxoneHome = (() => {
             const response = await apiFetch('/api/loxone/home', {cache: 'no-store'});
             if (!response.ok) throw Error(await response.text());
             const state = await response.json();
+            speakerTestActive = !!state.speaker_test_active;
+            audioBusy = !!state.audio_busy;
+            if (get('intercom-speaker-test-status')) get('intercom-speaker-test-status').textContent = state.speaker_test_message || '';
             const first = !loaded;
             const previousResources = resourcesInstalled;
             const previousVersion = resourcesVersion;
@@ -269,7 +345,7 @@ const LoxoneHome = (() => {
                 get('home-resource-warning').hidden = resourcesInstalled;
             }
             if (first) {
-                model = {schema: 2, consumers: state.consumers || [], pages: state.pages ||
+                model = {schema: 2, intercom: state.intercom || {enabled: false, stream_url: '', bell_uuid: '', gate: null}, consumers: state.consumers || [], pages: state.pages ||
                     (state.cards?.length ? [{id: 'home', title: 'Otthon', cards: state.cards}] : [])};
                 for (const entry of model.pages.flatMap(page => page.cards)) {
                     entry.source ||= {uuid: '', scale: 1, offset: 0};
@@ -285,6 +361,11 @@ const LoxoneHome = (() => {
             revision = state.revision; remoteBusy = !!state.busy;
             if (waiting && !remoteBusy) {
                 waiting = false;
+                if (revision > saveRevision) {
+                    model.intercom.has_video_password = !!state.intercom?.has_video_password;
+                    model.intercom.video_password = '';
+                    if (get('intercom-video-password')) get('intercom-video-password').value = '';
+                }
                 notify(state.status || (revision > saveRevision ? 'Otthon-beállítások elmentve.' : 'A mentés nem fejeződött be.'), revision <= saveRevision);
             } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 8 elnevezhető oldal, oldalanként 12 kártyával.');
             const nextKey = JSON.stringify(nextCatalog);
@@ -295,9 +376,28 @@ const LoxoneHome = (() => {
             notify('Otthon-beállítások: ' + (error.name === 'AbortError' ? 'az eszköz nem válaszol.' : error.message), true);
         } finally { fetching = false; buttons(); }
     }
+    async function toggleSpeakerTest() {
+        if (speakerTestPending) return;
+        const volume = speakerTestActive ? 0 : Number(model.intercom.speaker_volume ?? 55);
+        if (!Number.isInteger(volume) || volume < 0 || volume > 100) {
+            notify('A hangerő 0 és 100 közötti egész szám legyen.', true); return;
+        }
+        speakerTestPending = true; buttons();
+        try {
+            const response = await apiFetch('/api/loxone/intercom/speaker-test', {method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'},
+                body: JSON.stringify({enabled: !speakerTestActive, volume})});
+            if (!response.ok) throw Error(await response.text());
+            await refresh(catalog, connectionBusy);
+        } catch (error) { notify('Hangszóróteszt: ' + error.message, true); }
+        finally { speakerTestPending = false; buttons(); }
+    }
     async function save() {
         if (busy()) return;
-        const error = validate(); if (error) { notify(error, true); return; }
+        let error;
+        try { error = validate(); }
+        catch (failure) { notify('A böngésző nem tudta ellenőrizni a beállításokat: ' + failure.message, true); return; }
+        if (error) { notify(error, true); return; }
         pending = true; buttons(); notify('Otthon-beállítások mentése…');
         saveRevision = revision;
         try {
@@ -314,6 +414,8 @@ const LoxoneHome = (() => {
         get('home-add-page').onclick = addPage;
         get('home-add-card').onclick = () => add('cards');
         get('home-save').onclick = save;
+        if (get('intercom-save')) get('intercom-save').onclick = save;
+        if (get('intercom-speaker-test')) get('intercom-speaker-test').onclick = toggleSpeakerTest;
         get('home-room').onchange = get('home-category').onchange = render;
         buttons();
     }

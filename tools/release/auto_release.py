@@ -33,6 +33,16 @@ def tag_for_merged_pr(repository, number, tags, releases, merged_pr=None):
     A meglévő verzió nem írható felül; más PR továbbra is patch-verziót kap.
     """
     head = (merged_pr or {}).get('head') or {}
+    if (repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and number == 20 and
+            head.get('ref') == 'feature/loxone-intercom' and
+            (head.get('repo') or {}).get('full_name') == repository):
+        # Kizárólag a saját kaputelefonos PR egyszeri célverziója.
+        versions = [stable_version(t.get('name')) for t in tags]
+        versions += [stable_version(r.get('tag_name')) or stable_version(r.get('name'))
+                     for r in releases if not r.get('prerelease')]
+        if any(v is not None and v >= (3, 1, 0) for v in versions):
+            raise ValueError('Cannot assign v3.1.0: stable v3.1.0 or newer already exists')
+        return validate_tag('v3.1.0')
     if (repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and
             head.get('ref') == 'feature/v3-loxone-home' and
             (head.get('repo') or {}).get('full_name') == repository):

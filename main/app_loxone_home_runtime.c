@@ -71,6 +71,8 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
     for (unsigned i = 0; i < config->card_count; i++)
         if (!strcmp(config->cards[i].id, card_id))
             card = &config->cards[i];
+    if (!strcmp(card_id, LX_INTERCOM_GATE_ID) && config->intercom.enabled)
+        card = &config->intercom.gate;
     if (!card || !lx_uuid_valid(card->control_uuid) || card->type == LX_HOME_CARD_VALUE ||
         (card->type == LX_HOME_CARD_PULSE) != (action == LX_HOME_COMMAND_PULSE))
         return false;
@@ -101,4 +103,30 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
         return true;
     }
     return false;
+}
+
+bool lx_intercom_bell_update(bool *ringing, const lx_intercom_config_t *config,
+                             int type, const uint8_t *data, size_t size)
+{
+    if (!ringing || !config)
+        return false;
+    if (type != 2 || !config->enabled)
+        return true;
+    if (size % 24 || (!data && size))
+        return false;
+    for (size_t position = 0; position < size; position += 24)
+    {
+        char uuid[LX_UUID_LEN];
+        lx_uuid_string(data + position, uuid);
+        if (strcmp(uuid, config->bell_uuid))
+            continue;
+        uint64_t bits = 0;
+        for (unsigned byte = 0; byte < 8; ++byte)
+            bits |= (uint64_t)data[position + 16 + byte] << (8 * byte);
+        double value;
+        memcpy(&value, &bits, sizeof(value));
+        if (value == 0 || value == 1)
+            *ringing = value == 1;
+    }
+    return true;
 }

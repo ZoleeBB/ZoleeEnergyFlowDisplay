@@ -25,6 +25,7 @@
 #include "app_events.h"
 #include "app_mqtt.h"
 #include "app_loxone.h"
+#include "app_intercom.h"
 #include "app_ingest.h"
 #include "app_ota.h"
 #include "app_ble_profile.h"
@@ -219,6 +220,11 @@ void app_main(void)
        xTaskCreate(orientation_verified_task,"orientation_ok",3072,NULL,3,NULL)!=pdPASS)
         app_events_add(APP_EVENT_WARNING,"90 fokos kijelző ellenőrző feladat nem indult el.");
 
+    /* A JPEG kis belső DMA-foglalása megelőzi a Wi-Fi/BLE feladatokat.
+     * Csak Loxone módban kell; hiba esetén az alkalmazás tovább fut, és a videó újrapróbálja. */
+    if (s_config.data_recept_mode == APP_DATA_LOXONE && app_intercom_prepare_video() != ESP_OK) {
+        app_events_add(APP_EVENT_WARNING, "A kaputelefon JPEG-dekóderének korai előkészítése nem sikerült.");
+    }
     if (app_ble_profile_init(&s_config) != ESP_OK &&
         (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
         fatal_forever("Bluetooth profilhiba", "A párosítási profil nem inicializálható.");

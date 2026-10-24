@@ -145,3 +145,11 @@ A jelzés külön helyet használ a Rendszer és a gyári témák címsávjában
 a fogyasztói/kártyaoldalak és a PIN-pad vezérlőit nem takarja. Csak Master/Loxone
 módban működik. Részletek és a régi napfájlok kezelése:
 [Helyi energiaasszisztens](energy-assistant.md).
+
+## Kaputelefon
+
+A Master MJPEG-élőképének, a csengetésállapotnak, az opcionális kapunyitónak és
+a kézzel indítható kétirányú hangkapcsolatnak a beállítása: [Loxone kaputelefon](intercom.md).
+Ugyanitt menthető külön a hangszóró hangereje és a mikrofon erősítése.
+Az aktív beszélgetés csengetés nélkül is nyitva tartja a videót; elfogadott
+kapunyitás után 5 másodperccel bont, és csengetés hiányában az ablak is bezárul.

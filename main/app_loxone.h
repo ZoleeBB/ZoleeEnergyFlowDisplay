@@ -18,6 +18,22 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
                               bool *command_pending, char status[LX_HOME_ERROR_SIZE]);
 esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action);
 
+typedef struct
+{
+    lx_intercom_config_t config;
+    bool ringing, connected, gate_supported, command_pending;
+    bool audio_active;
+    unsigned revision;
+    char status[LX_HOME_ERROR_SIZE];
+} app_intercom_snapshot_t;
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out);
+/* A teszthang real-time ciklusát nem várakoztatja a Loxone mutexére.
+ * Foglalt állapotnál a következő blokkban újra ellenőrizhető a leállítás. */
+bool app_loxone_intercom_test_permitted(unsigned revision);
+bool app_loxone_intercom_call_permitted(unsigned revision, bool active);
+/* Kizárólag a helyi videófeladatnak, a webes válaszba soha nem kerül jelszó. */
+bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX]);
+
 #include "app_energy_assistant.h"
 /* A teljes kártyakonfiguráció helyett legfeljebb 12 kis fogyasztóbejegyzés. */
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);

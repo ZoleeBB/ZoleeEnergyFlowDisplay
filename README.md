@@ -4,7 +4,7 @@
 
 Otthoni energiaáramlás-kijelző a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150) panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja.
 
-A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát, a Slave pedig Bluetooth-on a mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, kilenc, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
+A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát, a Slave pedig Bluetooth-on a mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, tíz, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
@@ -28,6 +28,23 @@ a BT-szerepet, címeket, kapcsolatot, jelerősséget, masterként a kapcsolódó
 számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablaka itt nyitható meg.
 
 Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
+
+## v3.1.0 – Kaputelefon
+
+Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
+opcionális, nagy kapunyitó nyomógombbal és külön gombbal indítható kétirányú
+hangkapcsolattal. A weben külön menthető a hangszóró hangereje és a mikrofon
+erősítése; kézzel indítható helyi hangszóróteszt is elérhető.
+
+Az aktív beszélgetés a csengetés megszűnése után is nyitva tartja a videót.
+Elfogadott kapunyitás után 5 másodperccel a hang automatikusan bontódik;
+ha addigra nincs csengetés, a videóablak is bezárul. Létrejött kapcsolatnál
+nincsenek folyamatos diagnosztikai feliratok, csak kapcsolódási állapot és hiba.
+A videó, a kétirányú hang és az időzített bontás készüléken visszaigazolt.
+
+[Beállítás, működés és korlátok](docs/intercom.md).
+A #20 PR mainre összevonásának célverziója **v3.1.0**;
+[kiadási folyamat](docs/releases.md#automatikus-kiadás-pr-merge-után).
 
 ## v3.0.0 újdonságai
 
@@ -61,7 +78,7 @@ beállítás nem kell. [Párosítás és átállítás](docs/ble-data-seed.md).
 
 Az I1–I12 bemenetek sorrendje fix; I13 az időjárási jelenlétmaszk, T1 pedig az opcionális, `#`-elválasztott nappályaadat. Mindkét Pico C változat (MQTT és HTTP) ezt a kiosztást használja. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a kilenc sablon között; SD nélkül csak a Rendszer nézet érhető el. Felfelé húzás nyitja a diagnosztikát, jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-lapokat, a ház érintése a fogyasztókat nyitja meg, ha a szükséges csomag és konfiguráció elérhető. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` beállítások (SD-n vagy belső NVS-ben), `/diagnostics` diagnosztika. A Slave webfelületéhez a mastertől örökölt Wi-Fi-n kapott saját IP-cím használható. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mind a négy adatfogadási módot jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot, SD- vagy belsőtár-állapotot és Bluetooth-adatokat mutat.
+A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a tíz sablon között; SD nélkül csak a Rendszer nézet érhető el. Felfelé húzás nyitja a diagnosztikát, jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-lapokat, a ház érintése a fogyasztókat nyitja meg, ha a szükséges csomag és konfiguráció elérhető. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` beállítások (SD-n vagy belső NVS-ben), `/diagnostics` diagnosztika. A Slave webfelületéhez a mastertől örökölt Wi-Fi-n kapott saját IP-cím használható. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mind a négy adatfogadási módot jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot, SD- vagy belsőtár-állapotot és Bluetooth-adatokat mutat.
 
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
@@ -91,6 +108,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [JSON és MQTT](docs/mqtt.md)
 - [HTTP adatfogadás](docs/http-input.md)
 - [Közvetlen Loxone kapcsolat](docs/loxone-direct.md)
+- [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](docs/intercom.md)
 - [Loxone fogyasztók és lapozható Otthon-kártyák – beállítás és mintaprofil](docs/v3-home-config.md)
 - [Helyi energiaasszisztens – napelemes indításjavaslat és éjszakai fogyasztás](docs/energy-assistant.md)
 - [Slave-jelenlétprofil, éjszakai sötétítés és BLE-protokoll](docs/slave-presence-protocol.md)

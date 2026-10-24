@@ -35,6 +35,19 @@ class AutomaticReleaseTests(unittest.TestCase):
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',43,[{'name':'v2.0.0'}],[]),'v2.0.1')
         with self.assertRaises(ValueError):tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v2.0.0'}],[])
 
+    def test_intercom_release_scope_and_collisions(self):
+        repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
+        pr = {'head': {'ref': 'feature/loxone-intercom', 'repo': {'full_name': repository}}}
+        self.assertEqual(tag_for_merged_pr(repository, 20, [{'name': 'v3.0.5'}], [], pr), 'v3.1.0')
+        self.assertEqual(tag_for_merged_pr(repository, 21, [{'name': 'v3.0.5'}], [], pr), 'v3.0.6')
+        for other in [None, {'head': {'ref': 'feature/loxone-intercom', 'repo': {'full_name': 'fork/repo'}}},
+                      {'head': {'ref': 'other', 'repo': {'full_name': repository}}}]:
+            self.assertEqual(tag_for_merged_pr(repository, 20, [{'name': 'v3.0.5'}], [], other), 'v3.0.6')
+        for tags, releases in [([{'name': 'v3.1.0'}], []), ([{'name': 'v4.0.0'}], []),
+                               ([], [{'tag_name': 'legacy', 'name': '3.1.1'}])]:
+            with self.assertRaisesRegex(ValueError, 'Cannot assign v3.1.0'):
+                tag_for_merged_pr(repository, 20, tags, releases, pr)
+
     def test_v3_branch_scope_and_existing_versions(self):
         repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
         pr = {'head': {'ref': 'feature/v3-loxone-home', 'repo': {'full_name': repository}}}

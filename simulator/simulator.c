@@ -132,6 +132,13 @@ static void render_step(unsigned elapsed)
         bool have=app_state_get_sample(&sample);
         app_stats_get_snapshot(&s_stats_snapshot);
         app_stats_get_period(false,&s_week_period);app_stats_get_period(true,&s_month_period);
+        if (intercom_prepare())
+        {
+            intercom_render();
+            lv_timer_handler();
+            return;
+        }
+        intercom_render();
         diagnostics_capture();
         if (!home_is_open() && !template_loading_frame()) return;
         if (!home_prepare(sample.night_mode)) return;
@@ -264,6 +271,108 @@ static int self_test(void)
     fclose(f);printf("PASS: %u demo packets, all scenes, validation, timeout, recovery, animation.\n",packets);
     return 0;
 }
+static int intercom_self_test(void)
+{
+    config.data_recept_mode = APP_DATA_LOXONE;
+    app_ui_set_config(&config);
+    if (intercom_needs_cleanup()) return 56;
+    /* Valódi SD-téma és LVGL képek élnek a hívás előtt. */
+    if (app_templates_select("09-solar-journey") != ESP_OK) return 59;
+    template_prepare();
+    template_apply();
+    if (!template_view.document || !template_view.asset_count) return 60;
+    template_build(false);
+    lv_timer_handler();
+    unsigned selected_generation = template_view.generation;
+    home_buffers[0] = lv_draw_buf_create(16, 16, LV_COLOR_FORMAT_ARGB8888, 0);
+    home_gray_buffers[0] = lv_draw_buf_create(16, 16, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (!home_buffers[0] || !home_gray_buffers[0]) return 61;
+    app_sim_intercom = (app_intercom_snapshot_t){.ringing=true,.connected=true,.revision=1};
+    app_intercom_ui_status("Kamera HTTP 401 teszt", 1);
+    render_step(200);
+    if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 57;
+    if (!intercom_background_suspended || template_view.document || template_pending.document ||
+        template_view.asset_count || home_buffers[0] || home_gray_buffers[0] || home_assets.document) return 62;
+    app_intercom_ui_status("Régi hívás hibája", 0);
+    render_step(200);
+    if (strcmp(intercom_video_status, "Kamera HTTP 401 teszt")) return 58;
+    if (!intercom_overlay || !lv_obj_has_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN)) return 40;
+    if (!intercom_audio || lv_obj_has_state(intercom_audio, LV_STATE_DISABLED)) return 49;
+    if (app_sim_audio_starts || app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE) return 50;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    render_step(200);
+    if (app_sim_audio_starts != 1 || app_sim_audio.state != APP_INTERCOM_AUDIO_CONNECTING) return 51;
+    lv_obj_send_event(intercom_audio, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
+    if (app_sim_audio_starts != 1) return 52;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    render_step(200);
+    if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 1) return 53;
+    uint8_t frame[16*16*2];
+    for (unsigned i=0;i<sizeof(frame);i+=2) { frame[i]=0;frame[i+1]=0xf8; }
+    if (!app_intercom_ui_frame(frame,16,16,32,1)) return 41;
+    render_step(200);
+    if (intercom_descriptor.header.w != 16 || intercom_front[1] != 0xf8) return 68;
+    if (app_intercom_ui_frame(frame,16,16,32,0)) return 42;
+    lv_obj_t *original = intercom_overlay;
+    strcpy(app_sim_intercom.config.gate.control_uuid, "11223344-5566-7788-99aabbccddeeff00");
+    strcpy(app_sim_intercom.config.gate.name, "Kapunyitás");
+    app_sim_intercom.gate_supported=true;
+    render_step(200);
+    if (lv_obj_has_flag(intercom_gate,LV_OBJ_FLAG_HIDDEN) || lv_obj_has_state(intercom_gate,LV_STATE_DISABLED)) return 43;
+    lv_obj_update_layout(intercom_overlay);
+    if (lv_obj_get_x(intercom_gate) + lv_obj_get_width(intercom_gate) >= lv_obj_get_x(intercom_audio)) return 54;
+    lv_obj_send_event(intercom_audio, LV_EVENT_CLICKED, NULL);
+    app_sim_audio.state = APP_INTERCOM_AUDIO_ACTIVE;
+    strcpy(app_sim_audio.message, "Korábbi kapcsolódási állapot");
+    app_sim_intercom.ringing = false;
+    render_step(200);
+    if (intercom_overlay != original || intercom_revision != 1) return 66;
+    if (lv_label_get_text(intercom_audio_message)[0]) return 69;
+    if (!app_intercom_ui_frame(frame,16,16,32,1)) return 67;
+    app_sim_intercom.ringing = true;
+    app_sim_audio.state = APP_INTERCOM_AUDIO_CONNECTING;
+    strcpy(app_sim_audio.message, "A kaputelefon válaszára várunk...");
+    render_step(200);
+    if (strcmp(lv_label_get_text(intercom_audio_message), app_sim_audio.message)) return 70;
+    app_sim_audio.state = APP_INTERCOM_AUDIO_ERROR;
+    strcpy(app_sim_audio.message, "A kaputelefon nem küld hangot.");
+    render_step(200);
+    if (strcmp(lv_label_get_text(intercom_audio_message), app_sim_audio.message)) return 71;
+    app_sim_audio.state = APP_INTERCOM_AUDIO_ACTIVE;
+    render_step(200);
+    app_sim_home_reset();
+    unsigned sent=app_sim_home_commands;
+    ticks+=2000000;
+    lv_obj_send_event(intercom_gate,LV_EVENT_CLICKED,NULL);
+    if (app_sim_home_commands!=sent+1 || intercom_overlay!=original || !app_sim_intercom.ringing) return 44;
+    lv_obj_send_event(intercom_gate,LV_EVENT_LONG_PRESSED_REPEAT,NULL);
+    if (app_sim_home_commands!=sent+1) return 45;
+    app_sim_intercom.connected=false;
+    render_step(200);
+    if (intercom_overlay!=original || !lv_obj_has_state(intercom_gate,LV_STATE_DISABLED)) return 46;
+    app_intercom_ui_status("A videó megszakadt.",1);
+    render_step(200);
+    if (intercom_overlay!=original) return 47;
+    app_sim_intercom.ringing=false;
+    app_sim_audio.state = APP_INTERCOM_AUDIO_STOPPING;
+    app_energy_sample_t saved;
+    if (!app_state_get_sample(&saved)) return 63;
+    app_state_set_data_mode(APP_DATA_LOXONE);
+    app_state_set_loxone(true, true);
+    app_state_set_sample(&saved);
+    app_sim_media_idle = false;
+    render_step(200);
+    if (intercom_overlay || template_view.document || !intercom_background_suspended) return 65;
+    app_sim_media_idle = true;
+    render_step(200);
+    if (intercom_overlay || intercom_front || intercom_prepared || intercom_needs_cleanup()) return 48;
+    if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE || app_sim_audio_stops != 2) return 55;
+    if (intercom_background_suspended || !template_view.document ||
+        strcmp(template_view.id, "09-solar-journey") || template_view.generation != selected_generation) return 64;
+    puts("PASS: actual LVGL intercom overlay, optional large gate button, RGB565 frame, stale revision, one pulse, no long-press repeat, disconnect/error persistence, explicit close, released theme/images, delayed media cleanup and reloaded theme");
+    return 0;
+}
+
 #ifdef _WIN32
 /* A teljes ablak memóriában készül el; csak a kész kép kerül a képernyőre.
  * A GDI puffer csak méretváltáskor foglalódik újra. */
@@ -377,7 +486,8 @@ int main(int argc,char **argv)
         app_state_set_data_mode(APP_DATA_LOXONE);app_state_set_loxone(true,true);
         app_sim_home_reset();home_request_set(1);
     }
-    if(argc>1 && strcmp(argv[1],"--self-test")==0){
+    if(argc>1 && strcmp(argv[1],"--intercom-test")==0) result=intercom_self_test();
+    else if(argc>1 && strcmp(argv[1],"--self-test")==0){
         result=self_test();
 #ifdef _WIN32
         if(result==0)result=paint_self_test();

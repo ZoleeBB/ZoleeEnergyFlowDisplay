@@ -8,7 +8,7 @@ class Element {
     append(child) { child.parentNode=this;this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value; }
     replaceChildren() { this.children=[];this.value=''; }
 }
-for(const id of ['home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['intercom-config','intercom-save','intercom-status','intercom-speaker-test','intercom-speaker-test-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
@@ -19,14 +19,21 @@ const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nap
     {uuid,control_uuid:'eeeeeeee-5566-7788-99aabbccddeeff00',action_uuid:'',name:'Hibás parancscím',type:'Switch',secured:false}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
-const sandbox={console,TextEncoder,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
+const tonePosts=[];
+const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
+    if (url === '/api/loxone/intercom/speaker-test') {
+        assert.equal(options.headers['X-Zolee-Loxone'], '1');
+        const value = JSON.parse(options.body); tonePosts.push(value);
+        state.speaker_test_active = value.enabled; state.audio_busy = value.enabled;
+        return {ok:true};
+    }
     assert.equal(url,'/api/loxone/home');
     if(offline)throw Error('kapcsolat megszakadt');
     if(options.method==='POST') {
         if(reject)return {ok:false,text:async()=>'Az SD-kártya nem írható.'};
         assert.equal(options.headers['X-Zolee-Loxone'],'1');posts.push(JSON.parse(options.body));
         state.busy=hold;
-        if(!hold){state={...state,...JSON.parse(options.body),revision:state.revision+1,status:'Otthon-beállítások elmentve.'};}
+        if(!hold){state={...state,...JSON.parse(options.body),revision:state.revision+1,status:'Otthon-beállítások elmentve.'};state.intercom.has_video_password=true;delete state.intercom.video_password;}
         return {ok:true};
     }
     return {ok:true,json:async()=>structuredClone(state)};
@@ -38,8 +45,43 @@ const click=id=>nodes.get(id).onclick();
 (async()=>{
     assert(nodes.get('home-save').disabled);
     await sandbox.home.refresh(catalog);assert(!nodes.get('home-save').disabled);
+    edit('intercom-speaker-volume', '73');
+    edit('intercom-microphone-gain', '90');
+    await click('intercom-speaker-test');
+    assert.deepEqual(tonePosts[0], {enabled:true, volume:73});
+    assert.equal(nodes.get('intercom-speaker-test').textContent, 'Hangszóróteszt leállítása');
+    await click('intercom-speaker-test');
+    assert.deepEqual(tonePosts[1], {enabled:false, volume:0});
+    edit('intercom-speaker-volume', '101');
+    await click('intercom-speaker-test'); assert.equal(tonePosts.length, 2);
+    edit('intercom-speaker-volume', '73');
     assert.equal(nodes.get('home-resource-warning').hidden,false);
-    click('home-add-consumer');assert.equal(nodes.get('home-consumers-item-1-icon').children.length,64);
+    const enabled=nodes.get('intercom-enabled'); enabled.checked=true;enabled.onchange();
+    await click('intercom-save');assert.equal(posts.length,0);
+    edit('intercom-stream-url',' \u00a0http://192.168.2.21/mjpg/video.mjpg\u00a0 ');
+    edit('intercom-video-username','admin');
+    edit('intercom-video-password','Camera-secret');
+    edit('intercom-bell',uuid,'onchange');
+    edit('intercom-gate',control,'onchange');
+    edit('intercom-gate-name','Kapu nyitása');
+    await click('intercom-save');assert.equal(posts.length,1);
+    assert.equal(posts[0].intercom.stream_url,'http://192.168.2.21/mjpg/video.mjpg');
+    assert.equal(posts[0].intercom.speaker_volume,73);
+    assert.equal(posts[0].intercom.microphone_gain,90);
+    assert.equal(nodes.get('intercom-stream-url').value,posts[0].intercom.stream_url);
+    assert.equal(posts[0].intercom.gate.type,'pulse');
+    assert.equal(posts[0].intercom.gate.control_uuid,control);
+    assert.equal(posts[0].intercom.gate.name,'Kapu nyitása');
+    assert(!('username' in posts[0].intercom) && !('password' in posts[0].intercom));
+    await sandbox.home.refresh(catalog);
+    assert.equal(nodes.get('intercom-gate-name').value,'Kapu nyitása');
+    edit('intercom-stream-url','http://user:password@camera/video');
+    await click('intercom-save');assert.equal(posts.length,1);
+    edit('intercom-stream-url','http://192.168.1.50/mjpg/video.mjpg');
+    edit('intercom-gate','','onchange');
+    assert(!nodes.get('intercom-gate').value);
+    posts.length=0;
+        click('home-add-consumer');assert.equal(nodes.get('home-consumers-item-1-icon').children.length,64);
     assert(!nodes.has('home-consumers-item-1-icon-preview'));
     state.resources_installed=true;state.resources_version=3;await sandbox.home.refresh(catalog);
     assert.equal(nodes.get('home-resource-warning').hidden,true);
@@ -123,5 +165,5 @@ const click=id=>nodes.get(id).onclick();
     for(let i=0;i<9;i++)click('home-add-page');
     assert(nodes.get('home-add-page').disabled);assert.equal(nodes.get('home-page-select').children.length,8);
     click('home-remove-page');assert(!nodes.get('home-add-page').disabled);
-    console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, no secret submission or background edit loss');
+    console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

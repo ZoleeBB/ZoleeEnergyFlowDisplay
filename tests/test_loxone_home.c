@@ -260,10 +260,27 @@ int main(int argc, char **argv)
     assert(config && roundtrip);
     char error[LX_HOME_ERROR_SIZE];
     assert(lx_home_config_parse(NULL, config, error));
+    assert(config->intercom.speaker_volume == 55);
+    assert(config->intercom.microphone_gain == 80);
     assert(!config->consumer_count && !config->card_count);
     cJSON *json = profile();
     assert(lx_home_config_parse(json, config, error));
     assert(config->consumer_count == 1 && config->card_count == 3);
+    assert(config->intercom.speaker_volume == 55);
+    cJSON *door_volume = cJSON_AddObjectToObject(json, "intercom");
+    cJSON_AddBoolToObject(door_volume, "enabled", false);
+    cJSON_AddNumberToObject(door_volume, "speaker_volume", 100);
+    assert(lx_home_config_parse(json, config, error) && config->intercom.speaker_volume == 100);
+    cJSON_SetNumberValue(cJSON_GetObjectItem(door_volume, "speaker_volume"), 100.5);
+    assert(!lx_home_config_parse(json, config, error));
+    cJSON_SetNumberValue(cJSON_GetObjectItem(door_volume, "speaker_volume"), 0);
+    assert(lx_home_config_parse(json, config, error) && !config->intercom.speaker_volume);
+    cJSON_AddNumberToObject(door_volume, "microphone_gain", 100);
+    assert(lx_home_config_parse(json, config, error) && config->intercom.microphone_gain == 100);
+    cJSON_SetNumberValue(cJSON_GetObjectItem(door_volume, "microphone_gain"), 101);
+    assert(!lx_home_config_parse(json, config, error));
+    cJSON_SetNumberValue(cJSON_GetObjectItem(door_volume, "microphone_gain"), 0);
+    assert(lx_home_config_parse(json, config, error) && !config->intercom.microphone_gain);
     assert(config->consumers[0].source.scale == 0.001);
     assert(!config->consumers[0].average_known && !config->consumers[0].suggest_start);
     assert(config->cards[1].type == LX_HOME_CARD_PULSE && !config->cards[1].source.uuid[0]);
@@ -292,7 +309,7 @@ int main(int argc, char **argv)
     assert(serialized && lx_home_config_parse(serialized, roundtrip, error));
     assert(!memcmp(config, roundtrip, sizeof(*config)));
     char *encoded = cJSON_PrintUnformatted(serialized);
-    assert(encoded && !strstr(encoded, "password") && !strstr(encoded, "token"));
+    assert(encoded && !strstr(encoded, "\"video_password\"") && !strstr(encoded, "\"password\"") && !strstr(encoded, "token"));
     free(encoded);
     cJSON_Delete(serialized);
 

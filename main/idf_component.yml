@@ -29,6 +29,10 @@ dependencies:
   espressif/esp_hosted:
     version: "1.4.7"
 
+  # Kihangosított kaputelefon: csak az AEC algoritmust használjuk, beszédmodellek nélkül.
+  espressif/esp-sr:
+    version: "2.6.0"
+
   # Helyi .local névfeloldás a web/OTA felülethez.
   espressif/mdns:
     version: "^1.8.2"

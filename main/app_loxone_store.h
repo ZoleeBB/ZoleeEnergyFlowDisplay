@@ -4,3 +4,7 @@
 /* A kulcs csak a készülék NVS-ében él. Az SD-re AES-256-GCM titkosítvány kerül. */
 esp_err_t app_loxone_store_load(lx_config_t *out);
 esp_err_t app_loxone_store_save(const lx_config_t *cfg);
+
+/* Külön névtérrel hitelesített titok; a secret objektumon kívül nem ír adatot. */
+bool app_loxone_secret_crypt(char password[LX_PASSWORD_MAX], const char *associated,
+                             cJSON *root, bool encrypt);

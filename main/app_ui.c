@@ -2107,6 +2107,8 @@ static void slave_display_update(const app_runtime_state_t *state,
     }
 }
 
+#include "app_intercom_ui.inc"
+
 static void runtime(void *arg)
 {
     (void)arg;
@@ -2145,6 +2147,23 @@ static void runtime(void *arg)
             }
         }
 
+        /* A kaputelefon a témaerőforrások betöltésétől és az energiaadatoktól
+         * függetlenül, a csengetés teljes ideje alatt elsőbbséget kap. */
+        if (intercom_prepare())
+        {
+            if (bsp_display_lock(-1) == ESP_OK)
+            {
+                intercom_render();
+                bsp_display_unlock();
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+        if (intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
+        {
+            intercom_render();
+            bsp_display_unlock();
+        }
         diagnostics_capture();
         assistant_prepare();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */

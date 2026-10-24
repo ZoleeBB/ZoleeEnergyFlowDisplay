@@ -107,3 +107,40 @@ bool app_stats_get_night_reference(app_assistant_night_t *out)
     memset(out, 0, sizeof(*out));
     return false;
 }
+
+/* A valódi felugró nézet tesztelhető hálózat és hardveres JPEG nélkül. */
+app_intercom_snapshot_t app_sim_intercom;
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out)
+{
+    *out = app_sim_intercom;
+    out->audio_active = app_sim_intercom.connected && app_sim_audio.state == APP_INTERCOM_AUDIO_ACTIVE &&
+                        app_sim_audio.revision == app_sim_intercom.revision;
+    return true;
+}
+
+/* A szimulátor ugyanazt a kézi hívásvezérlést modellezi, hálózati mikrofon nélkül. */
+#include "app_intercom_audio.h"
+app_intercom_audio_status_t app_sim_audio;
+unsigned app_sim_audio_starts, app_sim_audio_stops;
+esp_err_t app_intercom_audio_request(bool enabled, unsigned revision)
+{
+    if (enabled) {
+        if (!app_sim_intercom.ringing || !app_sim_intercom.connected || revision != app_sim_intercom.revision) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        app_sim_audio_starts++;
+        app_sim_audio = (app_intercom_audio_status_t){.state=APP_INTERCOM_AUDIO_CONNECTING,.revision=revision};
+    } else if (app_sim_audio.state != APP_INTERCOM_AUDIO_IDLE) {
+        app_sim_audio_stops++;
+        app_sim_audio = (app_intercom_audio_status_t){.revision=revision};
+    }
+    return ESP_OK;
+}
+void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
+{
+    *out = app_sim_audio;
+}
+
+/* A késleltetett médiafelszabadítást a valódi UI várakozási ágával teszteljük. */
+bool app_sim_media_idle = true;
+bool app_intercom_idle(void) { return app_sim_media_idle; }

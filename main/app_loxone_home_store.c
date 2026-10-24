@@ -1,7 +1,9 @@
 /* Korlátos SD-tároló, FAT-on is helyreállítható tmp/bak cserével.
- * Kizárólag a háttérfeladat hívja; nincs LVGL-lock vagy hitelesítési adat. */
+ * Kizárólag a háttérfeladat hívja; nincs LVGL-lock; a videós jelszó eszközkulccsal titkosított. */
 #include "app_loxone_home_store.h"
 #include "app_storage.h"
+#include "app_loxone_store.h"
+#include "mbedtls/platform_util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,18 @@
 #define HOME_PATH APP_SD_MOUNT_POINT "/loxone-home.json"
 #define HOME_TMP HOME_PATH ".tmp"
 #define HOME_BACKUP HOME_PATH ".bak"
+
+/* A kamera címe és felhasználója is hitelesített, külön az integráció titkától. */
+static bool video_secret(lx_intercom_config_t *door, cJSON *root, bool encrypt)
+{
+    char associated[512];
+    int length = snprintf(associated, sizeof(associated), "intercom-video-v1|%u:%s|%s",
+                          (unsigned)strlen(door->stream_url), door->stream_url, door->video_username);
+    if (length < 0 || (size_t)length >= sizeof(associated))
+        return false;
+    cJSON *entry = cJSON_GetObjectItemCaseSensitive(root, "intercom");
+    return entry && app_loxone_secret_crypt(door->video_password, associated, entry, encrypt);
+}
 
 static bool read_profile(const char *path, lx_home_config_t *out)
 {
@@ -29,6 +43,8 @@ static bool read_profile(const char *path, lx_home_config_t *out)
     /* A fájl teljes tartalma egyetlen JSON; záró szemét nem fogadható el. */
     cJSON *root = lx_home_document_parse(body, (size_t)size);
     ok = root && lx_home_config_parse(root, out, NULL);
+    if (ok)
+        (void)video_secret(&out->intercom, root, false);
     cJSON_Delete(root);
 done:
     free(body);
@@ -63,10 +79,19 @@ esp_err_t app_loxone_home_store_save(const lx_home_config_t *config)
     /* A publikus C API is csak érvényes, körbejárható profilt tárolhat. */
     lx_home_config_t *validated = malloc(sizeof(*validated));
     bool valid = validated && lx_home_config_parse(root, validated, NULL);
+    if (valid && config->intercom.video_password[0]) {
+        memcpy(validated->intercom.video_password, config->intercom.video_password,
+               sizeof(validated->intercom.video_password));
+        valid = video_secret(&validated->intercom, root, true);
+        mbedtls_platform_zeroize(validated->intercom.video_password,
+                                 sizeof(validated->intercom.video_password));
+    }
     char *body = valid ? cJSON_PrintUnformatted(root) : NULL;
     cJSON_Delete(root);
     if (!body)
     {
+        if (validated)
+            mbedtls_platform_zeroize(validated, sizeof(*validated));
         free(validated);
         return valid ? ESP_ERR_NO_MEM : ESP_ERR_INVALID_ARG;
     }
@@ -74,6 +99,8 @@ esp_err_t app_loxone_home_store_save(const lx_home_config_t *config)
     if (size > LX_HOME_STORE_MAX)
     {
         free(body);
+        if (validated)
+            mbedtls_platform_zeroize(validated, sizeof(*validated));
         free(validated);
         return ESP_ERR_INVALID_SIZE;
     }
@@ -81,6 +108,8 @@ esp_err_t app_loxone_home_store_save(const lx_home_config_t *config)
     if (error != ESP_OK)
     {
         free(body);
+        if (validated)
+            mbedtls_platform_zeroize(validated, sizeof(*validated));
         free(validated);
         return error;
     }
@@ -122,6 +151,8 @@ esp_err_t app_loxone_home_store_save(const lx_home_config_t *config)
         (void)unlink(HOME_TMP);
     app_storage_unlock();
     free(body);
+    if (validated)
+        mbedtls_platform_zeroize(validated, sizeof(*validated));
     free(validated);
     return ok ? ESP_OK : ESP_FAIL;
 }

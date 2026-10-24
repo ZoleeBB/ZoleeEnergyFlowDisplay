@@ -7,6 +7,22 @@
 #include "esp_http_server.h"
 #include "app_slave_presence_service.h"
 #include "app_templates.h"
+#include "app_intercom_audio.h"
+static unsigned speaker_test_requests, speaker_test_volume;
+static bool speaker_test_active;
+void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
+{
+    *out = (app_intercom_audio_status_t){.state=speaker_test_active ? APP_INTERCOM_AUDIO_TESTING : APP_INTERCOM_AUDIO_IDLE,
+                                       .speaker_test=speaker_test_active};
+}
+bool app_intercom_audio_busy(void) { return speaker_test_active; }
+esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume)
+{
+    speaker_test_requests++;
+    speaker_test_active = enabled;
+    speaker_test_volume = volume;
+    return ESP_OK;
+}
 static bool home_resources_installed;
 bool app_templates_home_info(app_template_info_t *info, unsigned *generation)
 {
@@ -78,6 +94,12 @@ static void post(const char *body)
     httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/home",.content_len=strlen(body)};
     loxone_home_post(&request);
 }
+static void test_post(const char *body)
+{
+    input=body;position=0;status_code=200;
+    httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/intercom/speaker-test",.content_len=strlen(body)};
+    intercom_speaker_test_post(&request);
+}
 static void slave_post_size(const char *body, size_t size)
 {
     input = body;
@@ -116,7 +138,7 @@ static void slave_tests(void)
     assert(cJSON_GetObjectItemCaseSensitive(json,"revision")->valuedouble == UINT32_MAX);
     assert(cJSON_GetObjectItemCaseSensitive(json,"saved_revision")->valuedouble == 123);
     assert(cJSON_GetObjectItemCaseSensitive(json,"save_error")->valuedouble == ESP_FAIL);
-    assert(!strstr(response,"password") && !strstr(response,"counter") && !strstr(response,"address"));
+    assert(!strstr(response,"\"video_password\"") && !strstr(response,"\"password\"") && !strstr(response,"counter") && !strstr(response,"address"));
     cJSON_Delete(json);
     authorized = false;
     slave_get(); assert(status_code == 401);
@@ -198,7 +220,14 @@ int main(void)
     s_config.data_recept_mode=APP_DATA_HTTP;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_SLAVE;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_MQTT;assert(loxone_register(NULL)==ESP_OK&&!registered);
-    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==8);
+    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==9);
+    authorized=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==401&&!speaker_test_requests);
+    authorized=true;header_ok=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==400&&!speaker_test_requests);
+    header_ok=true;
+    test_post("{\"enabled\":true,\"volume\":101}");assert(status_code==400&&!speaker_test_requests);
+    test_post("{\"enabled\":true,\"volume\":70} trailing");assert(status_code==400&&!speaker_test_requests);
+    test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==202&&speaker_test_active&&speaker_test_volume==70);
+    test_post("{\"enabled\":false,\"volume\":0}");assert(status_code==202&&!speaker_test_active&&speaker_test_requests==2);
     authorized=false;post("{\"schema\":1}");assert(status_code==401&&!requested);
     authorized=true;header_ok=false;post("{\"schema\":1}");assert(status_code==400&&!requested);
     header_ok=true;broken=true;post("{\"schema\":1}");assert(status_code==400&&!requested);broken=false;
@@ -209,7 +238,7 @@ int main(void)
     post(large);assert(status_code==400&&requested==before);free(large);
     httpd_req_t request={.method=HTTP_GET,.uri="/api/loxone/home"};
     authorized=false;status_code=200;loxone_home_get(&request);assert(status_code==401);
-    authorized=true;status_code=200;loxone_home_get(&request);assert(status_code==200&&strstr(response,"consumers")&&!strstr(response,"password"));
+    authorized=true;status_code=200;loxone_home_get(&request);assert(status_code==200&&strstr(response,"consumers")&&!strstr(response,"\"video_password\"") && !strstr(response,"\"password\""));
     cJSON *home_state = cJSON_Parse(response);
     assert(cJSON_IsFalse(cJSON_GetObjectItem(home_state,"resources_installed")));
     cJSON_Delete(home_state);

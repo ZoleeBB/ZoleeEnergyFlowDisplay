@@ -6,6 +6,16 @@
 #include <string.h>
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
+static bool test_audio_active;
+static unsigned gate_audio_stops;
+bool app_intercom_audio_active_for(unsigned revision)
+{
+    return test_audio_active && revision == s_intercom_generation;
+}
+void app_intercom_audio_gate_opened(unsigned revision)
+{
+    if (app_intercom_audio_active_for(revision)) gate_audio_stops++;
+}
 
 /* A hálózati teszt a valódi jelenléttermelőt használja, RTOS/NVS nélkül. */
 static app_slave_presence_table_t presence_fixture;
@@ -28,7 +38,13 @@ QueueHandle_t xQueueCreate(unsigned count,size_t item){queue_t *q=calloc(1,sizeo
 int xQueueSend(QueueHandle_t handle,const void *item,TickType_t ticks){(void)ticks;queue_t *q=handle;if(q->count==q->capacity)return 0;memcpy(q->data+q->tail*q->item,item,q->item);q->tail=(q->tail+1)%q->capacity;q->count++;return 1;}
 int xQueueReceive(QueueHandle_t handle,void *item,TickType_t ticks){queue_t *q=handle;if(!q->count){(void)ticks;return 0;}memcpy(item,q->data+q->head*q->item,q->item);q->head=(q->head+1)%q->capacity;q->count--;return 1;}
 unsigned uxQueueMessagesWaiting(QueueHandle_t handle){return ((queue_t*)handle)->count;}
-int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout){(void)mutex;(void)timeout;return 1;}
+static bool test_mutex_busy;
+int xSemaphoreTake(SemaphoreHandle_t mutex,unsigned timeout)
+{
+    (void)mutex;
+    if (test_mutex_busy) { assert(timeout == 0); return 0; }
+    return 1;
+}
 int xSemaphoreGive(SemaphoreHandle_t mutex){(void)mutex;return 1;}
 static bool home_store_error;
 esp_err_t app_loxone_home_store_save(const lx_home_config_t *home)
@@ -242,6 +258,69 @@ static void home_control_test(lx_config_t *energy)
     invalidate(true);
     assert(app_loxone_assistant_snapshot(&minimal));
     assert(!minimal.connected && !minimal.consumers[0].valid);
+    /* A csengetés reteszét nem törli a kapunyitás vagy a kapcsolatvesztés. */
+    s_home->intercom.enabled = true;
+    strcpy(s_home->intercom.bell_uuid, "00000000-0000-0000-0000000000000000");
+    s_home->intercom.gate = *card;
+    strcpy(s_home->intercom.gate.id, LX_INTERCOM_GATE_ID);
+    s_home->intercom.gate.type = LX_HOME_CARD_PULSE;
+    s_home_live = true; s_dead = false; mark_response();
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    app_intercom_snapshot_t door;
+    assert(app_loxone_intercom_snapshot(&door) && door.ringing && door.gate_supported);
+    unsigned generation = door.revision;
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    sent = home_command_count;
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == sent + 1 && s_intercom_ringing && !s_command_pending);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    home_command_poll(esp_timer_get_time());
+    assert(home_command_count == sent + 1 && !s_intercom_ringing && !s_command_pending);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    test_audio_active = true;
+    unsigned active_generation = s_intercom_generation;
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    memcpy(packet + 16, &idle, sizeof(idle));
+    assert(update_values(2, packet, sizeof(packet)));
+    assert(s_intercom_generation == active_generation);
+    assert(app_loxone_intercom_snapshot(&door) && !door.ringing && door.audio_active);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    /* A bontás már a sorba vételkor indul, nem a Miniserver nyugtája után. */
+    assert(gate_audio_stops == 1);
+    home_command_poll(esp_timer_get_time());
+    assert(gate_audio_stops == 1);
+    reject_home_command = true;
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) == ESP_OK);
+    assert(gate_audio_stops == 2);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    assert(gate_audio_stops == 2);
+    home_command_poll(esp_timer_get_time());
+    assert(gate_audio_stops == 2);
+    reject_home_command = false;
+    s_dead = false;
+    mark_response();
+    test_audio_active = false;
+    assert(app_loxone_intercom_snapshot(&door) && !door.ringing && !door.audio_active);
+    assert(app_loxone_intercom_test_permitted(door.revision));
+    assert(app_loxone_intercom_call_permitted(door.revision, true));
+    assert(!app_loxone_intercom_call_permitted(door.revision, false));
+    assert(!app_loxone_intercom_call_permitted(door.revision + 1, true));
+    assert(!app_loxone_intercom_test_permitted(door.revision + 1));
+    test_mutex_busy = true;
+    /* Foglalt Loxone-lock nem késleltetheti a következő I2S blokkot. */
+    assert(app_loxone_intercom_test_permitted(door.revision));
+    assert(app_loxone_intercom_call_permitted(door.revision, true));
+    test_mutex_busy = false;
+    memcpy(packet + 16, &on, sizeof(on));
+    assert(update_values(2, packet, sizeof(packet)));
+    invalidate(true);
+    assert(app_loxone_intercom_snapshot(&door) && door.ringing && !door.connected && door.revision != generation);
+    assert(app_loxone_home_command(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE) != ESP_OK);
+    s_intercom_ringing = false;
     cJSON_Delete(s_catalog); s_catalog = original_catalog;
     free(s_home); s_home = NULL; s_session_config = NULL; s_home_live = false;
 }

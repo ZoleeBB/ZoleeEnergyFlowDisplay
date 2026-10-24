@@ -35,3 +35,8 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
                            const char *card_id, lx_home_command_t action,
                            char out[96]);
 bool lx_home_control_supported(const char *type, bool secured, bool pulse);
+
+/* Csak egy kifejezett 0/1 módosítja a csengetés reteszét. Hiányzó állapot,
+ * más delta, NaN és kapcsolatvesztés nem jelent csengetésvéget. */
+bool lx_intercom_bell_update(bool *ringing, const lx_intercom_config_t *config,
+                             int type, const uint8_t *data, size_t size);

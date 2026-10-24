@@ -63,3 +63,5 @@ else()
     target_link_libraries(zolee_simulator PRIVATE m)
 endif()
 add_test(NAME simulator_demo COMMAND zolee_simulator --self-test)
+
+add_test(NAME simulator_intercom COMMAND zolee_simulator --intercom-test)
