@@ -104,3 +104,7 @@ Gyártói források:
 
 - [Hardver](https://docs.waveshare.com/ESP32-P4-WIFI6-Touch-LCD-4B)
 - [BSP, példák, kapcsolási rajz](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-4B)
+
+## Kaputelefon
+
+A Masteren kezelt kaputelefon beállításait a párosított 4B automatikusan átveszi. A kisebb élőkép mellett beszélgetés és kapunyitás is használható; egyidejűleg csak egy készülék beszélhet. A csengőhanghoz sincs szükség helyi SD-kártyára. [Működés, csengőhangok és hardveres átvétel](../../docs/slave-intercom.md).

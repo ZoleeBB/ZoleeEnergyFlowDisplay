@@ -35,8 +35,14 @@ static void slave_setup_next(void);
 static void slave_stats_reset(void);
 static void slave_stats_poll(int64_t now);
 static bool slave_stats_busy(void);
+#ifdef APP_INTERCOM_SLAVE
+static bool slave_stats_transport_busy(void);
+#endif
 
 #include "app_ble_presence_client.inc"
+#ifdef APP_INTERCOM_SLAVE
+#include "app_ble_intercom_client.inc"
+#endif
 
 static void slave_diagnostics(void)
 {
@@ -55,6 +61,9 @@ static void slave_reset(void)
 {
     slave_stats_reset();
     slave_presence_reset();
+#ifdef APP_INTERCOM_SLAVE
+    slave_intercom_reset();
+#endif
     s_master = BLE_HS_CONN_HANDLE_NONE;
     s_connecting = s_slave_ready = false;
     s_service_start = s_service_end = 0;
@@ -334,6 +343,15 @@ static int slave_characteristic(uint16_t conn,
         return 0;
     if (error->status == 0)
     {
+#ifdef APP_INTERCOM_SLAVE
+        if (ble_uuid_cmp(&chr->uuid.u, &s_intercom_uuid.u) == 0 &&
+            (chr->properties & BLE_GATT_CHR_PROP_READ) && (chr->properties & BLE_GATT_CHR_PROP_WRITE))
+            s_remote_intercom = chr->val_handle;
+        if (ble_uuid_cmp(&chr->uuid.u, &s_intercom_profile_uuid.u) == 0 && (chr->properties & BLE_GATT_CHR_PROP_READ))
+            s_remote_intercom_profile = chr->val_handle;
+        if (ble_uuid_cmp(&chr->uuid.u, &s_intercom_extras_uuid.u) == 0 && (chr->properties & BLE_GATT_CHR_PROP_READ))
+            s_remote_intercom_extras = chr->val_handle;
+#endif
         const ble_uuid128_t *uuids[] = {&s_energy_uuid, &s_weather_uuid, &s_clock_uuid};
         if (ble_uuid_cmp(&chr->uuid.u, &s_presence_uuid.u) == 0 &&
             (chr->properties & BLE_GATT_CHR_PROP_READ))
@@ -510,7 +528,12 @@ static void slave_poll(int64_t now)
 {
     if (s_master != BLE_HS_CONN_HANDLE_NONE)
     {
+#ifdef APP_INTERCOM_SLAVE
+        slave_intercom_poll(now);
+        if (!s_intercom_reading && !s_presence_reading && s_intercom_next > now)
+#else
         if (!s_presence_reading)
+#endif
             slave_stats_poll(now);
         if (s_profile_waiting && app_ble_profile_ready())
         {
@@ -522,7 +545,11 @@ static void slave_poll(int64_t now)
                 slave_setup_next();
             }
         }
-        if (s_slave_ready && !s_profile_reading && !s_profile_waiting && !s_presence_reading && !slave_stats_busy() && now >= s_profile_next_read)
+        if (
+#ifdef APP_INTERCOM_SLAVE
+            !s_intercom_reading &&
+#endif
+            s_slave_ready && !s_profile_reading && !s_profile_waiting && !s_presence_reading && !slave_stats_busy() && now >= s_profile_next_read)
             slave_read_profile();
         if ((!s_slave_ready && now >= s_setup_deadline_us) ||
             (s_slave_ready &&
@@ -533,7 +560,10 @@ static void slave_poll(int64_t now)
             return;
         }
         slave_try_frame(now);
-        slave_presence_poll(now);
+#ifdef APP_INTERCOM_SLAVE
+        if (!s_intercom_reading)
+#endif
+            slave_presence_poll(now);
         int8_t rssi;
         if (ble_gap_conn_rssi(s_master, &rssi) == 0)
             s_master_rssi = rssi;

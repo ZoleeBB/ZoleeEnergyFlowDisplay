@@ -158,3 +158,5 @@ még nem ismeri; kizárólag ezt a szintaktikai diagnosztikát hagyjuk ki, a que
 cancel-in-progress összeillőséget külön teszt védi.
 Hivatalos háttér: [újrafelhasználható workflow-k](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows),
 [párhuzamosság és sorba állítás](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+
+A kiadások a firmware-ek mellett mindig tartalmazzák a verziózott `templates.zip` gyűjtőcsomagot és a `ringtones.zip` kezdőcsomagot. Mindkettő a firmware-rel azonos forrásból készül, SHA-256 ellenőrzőösszeggel. Részletek: [Slave kaputelefon és csengőhangok](slave-intercom.md).

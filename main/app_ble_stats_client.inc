@@ -9,6 +9,10 @@ static bool s_stats_inflight;
 static int64_t s_stats_next_us, s_stats_deadline_us;
 
 static void slave_stats_next(void);
+#ifdef APP_INTERCOM_SLAVE
+static bool s_stats_page_pending;
+static bool slave_stats_transport_busy(void) { return s_stats_inflight; }
+#endif
 static bool slave_stats_busy(void)
 {
     return s_stats_active || s_stats_inflight;
@@ -130,6 +134,13 @@ static int slave_stats_written(uint16_t conn,
 
 static void slave_stats_next(void)
 {
+#ifdef APP_INTERCOM_SLAVE
+    if (s_remote_intercom && (s_intercom_reading || esp_timer_get_time() >= s_intercom_next)) {
+        s_stats_page_pending = true;
+        return;
+    }
+    s_stats_page_pending = false;
+#endif
     uint8_t command[8];
     app_ble_stats_request(
         command, s_stats_page_index == 0, s_stats_page_index, s_stats_transfer_id);
@@ -165,6 +176,10 @@ static void slave_stats_poll(int64_t now)
     {
         if (now >= s_stats_deadline_us)
             slave_stats_failed();
+#ifdef APP_INTERCOM_SLAVE
+        else if (s_stats_page_pending && !s_stats_inflight)
+            slave_stats_next();
+#endif
         return;
     }
     if (s_stats_inflight)

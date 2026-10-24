@@ -941,7 +941,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 32;
+    http_cfg.max_uri_handlers = 40;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 

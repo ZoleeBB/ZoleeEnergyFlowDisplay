@@ -85,6 +85,15 @@ class ReleaseTests(unittest.TestCase):
                 relative = f'sd-card/templates/{descriptor.parent.name}/preview-{mode}.png'
                 self.assertEqual((unpack/relative).read_bytes(),
                                  (descriptor.parent/f'preview-{mode}.png').read_bytes())
+        for suffix in ('templates', 'ringtones'):
+            media = self.out / f'ZoleeEnergyFlowDisplay-{self.tag}-{suffix}.zip'
+            self.assertTrue(media.is_file())
+        with zipfile.ZipFile(self.out / f'ZoleeEnergyFlowDisplay-{self.tag}-templates.zip') as media:
+            self.assertIn('loxone-home.zip', media.namelist())
+            self.assertEqual(len(media.namelist()), len(list((ROOT / 'templates').glob('*/template.json'))) + 1)
+        with zipfile.ZipFile(self.out / f'ZoleeEnergyFlowDisplay-{self.tag}-ringtones.zip') as media:
+            self.assertEqual(sum(name.endswith('.wav') for name in media.namelist()), 3)
+            self.assertIn('ringtone.json', media.namelist())
         # Documentation and example links must resolve in the offline installer.
         import re
         for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:
@@ -151,7 +160,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('zolee_slave_4b', (unpack/'firmware/slave-waveshare-4b/README.md').read_text())
         command(unpack, 'COM5', DEFAULT_BAUD, no_stub=True, manual_boot=True)
         checks = dict(line.split('  ', 1)[::-1] for line in (self.out/'SHA256SUMS.txt').read_text().splitlines())
-        self.assertEqual(len(checks), 6)
+        self.assertEqual(len(checks), 8)
         for name, expected in checks.items():
             self.assertEqual(hashlib.sha256((self.out/name).read_bytes()).hexdigest(), expected)
         assets = []
@@ -171,16 +180,16 @@ class ReleaseTests(unittest.TestCase):
                     'upload_url': 'https://uploads.github.com/assets{?name}'}
         with patch('publish.api', api):
             publish(self.out, 'owner/repo', self.tag, self.sha, 1)
-            self.assertEqual(len(assets), 7)
+            self.assertEqual(len(assets), 9)
             publish(self.out, 'owner/repo', self.tag, self.sha, 1)
-            self.assertEqual(len(assets), 7)
+            self.assertEqual(len(assets), 9)
             info_path = self.out/'slave-4b-build-info.json'
             info = json.loads(info_path.read_text())
             info['commit'] = 'b'*40
             info_path.write_text(json.dumps(info))
             with self.assertRaises(ValueError):
                 publish(self.out, 'owner/repo', self.tag, self.sha, 1)
-            self.assertEqual(len(assets), 7)
+            self.assertEqual(len(assets), 9)
         image[80] = ord('X')
         (self.build/'app.bin').write_bytes(image)
         with self.assertRaises(ValueError):
@@ -209,15 +218,15 @@ class ReleaseTests(unittest.TestCase):
             return {'tag_name':self.tag,'draft':False,'immutable':immutable,'upload_url':'https://uploads.github.com/assets{?name}'}
         with patch('publish.api',api):
             publish(self.out,'owner/repo',self.tag,self.sha,1)
-            self.assertEqual(len(posted),4)
+            self.assertEqual(len(posted),6)
             immutable=True
             publish(self.out,'owner/repo',self.tag,self.sha,1)
-            self.assertEqual(len(posted),4)
+            self.assertEqual(len(posted),6)
             assets[0]['digest']='sha256:wrong'
             with self.assertRaises(ValueError):publish(self.out,'owner/repo',self.tag,self.sha,1)
             assets.clear()
             with self.assertRaises(ValueError):publish(self.out,'owner/repo',self.tag,self.sha,1)
-            self.assertEqual(len(posted),4)
+            self.assertEqual(len(posted),6)
 
 
 if __name__=='__main__':unittest.main()

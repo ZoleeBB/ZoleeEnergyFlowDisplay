@@ -125,6 +125,7 @@ jobs:
           export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
           export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
           cd .preview-images
+          ../.preview-build/slave_intercom_preview
           ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ../.preview-build/ui_preview

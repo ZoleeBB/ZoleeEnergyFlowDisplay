@@ -1997,10 +1997,12 @@ static void energy_disabled_screen(void)
     lv_obj_t *logo = lv_image_create(s_screen);
     lv_image_set_src(logo, &loxone_wordmark);
     lv_obj_set_pos(logo, (W - 400) / 2, H / 2 - 90);
-    lv_obj_t *caption = lbl(s_screen, tr("Energiaáramlás letiltve", "Energy flow disabled"),
+    lv_obj_t *caption = lbl(s_screen, tr("Kaputelefon üzemmód", "Intercom mode"),
                             40, H / 2 + 30, APP_FONT_28, 0xFFFFFF);
     lv_obj_set_width(caption, W - 80);
     lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *credit = lbl(s_screen, "Készítette: Légrádi Zoltán", 0, 0, APP_FONT_18, 0xFFFFFF);
+    lv_obj_align(credit, LV_ALIGN_BOTTOM_RIGHT, -20, -16);
     s_view = VIEW_ENERGY_DISABLED;
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
@@ -2203,6 +2205,9 @@ static void runtime(void *arg)
             }
         }
 
+#ifdef APP_INTERCOM_DISTRIBUTED
+        app_intercom_audio_poll();
+#endif
         bool intercom_active = intercom_prepare();
         master_display_update(have, s.night_mode, intercom_active);
 

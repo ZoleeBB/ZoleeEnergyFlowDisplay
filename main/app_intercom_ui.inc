@@ -313,12 +313,13 @@ static void intercom_render(void)
                       stopping ? tr("Hang leállítása...", "Stopping audio...") :
                       tr("Beszélgetés", "Start conversation"));
     lv_obj_set_style_bg_color(intercom_audio, c(talking || connecting ? 0xa53030 : 0x246696), 0);
-    if (stopping || (!intercom_next.connected && !talking && !connecting)) {
+    if (intercom_next.audio_elsewhere || stopping || (!intercom_next.connected && !talking && !connecting)) {
         lv_obj_add_state(intercom_audio, LV_STATE_DISABLED);
     } else {
         lv_obj_remove_state(intercom_audio, LV_STATE_DISABLED);
     }
     lv_label_set_text(intercom_audio_message,
+                      intercom_next.audio_elsewhere ? tr("Beszélgetés másik kijelzőn / várakozás a Masterre", "Conversation on another display / waiting for Master") :
                       audio.revision == intercom_revision && !talking ? audio.message : "");
     if (gate)
     {

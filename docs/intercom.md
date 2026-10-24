@@ -184,3 +184,5 @@ más hardveren/kaputelefonon a működés külön ellenőrzendő.
 - [Espressif ESP-SR visszhangkioltás](https://docs.espressif.com/projects/esp-sr/en/latest/esp32p4/acoustic_echo_cancellation/README.html)
 - [RFC 3550 – RTP](https://www.rfc-editor.org/rfc/rfc3550)
 - [Rögzített Waveshare BSP](https://github.com/waveshareteam/Waveshare-ESP32-components/tree/0694fdb9fa7751cc2719a9d1927de70547b89ba0/bsp/esp32_p4_wifi6_touch_lcd_x)
+
+A párosított 4B kijelzők és a csengőhangcsomag működése: [Slave kaputelefon](slave-intercom.md).

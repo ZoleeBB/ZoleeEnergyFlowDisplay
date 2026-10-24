@@ -186,12 +186,12 @@ class AutomaticReleaseTests(unittest.TestCase):
         self.pack();call=self.mock_api()
         with patch('auto_release.api',call),patch('publish.api',call):
             finish(self.out,'owner/repo',3,self.sha,self.tag)
-            self.assertEqual(self.events,['create-tag','create-draft']+['upload']*4+['publish'])
+            self.assertEqual(self.events,['create-tag','create-draft']+['upload']*6+['publish'])
             self.assertFalse(self.releases[0]['draft'])
             self.assertEqual(prepare('owner/repo',3,self.sha),{'tag':self.tag,'needed':'false'})
             self.assertEqual(len(self.releases),1)
             finish(self.out,'owner/repo',3,self.sha,self.tag)
-            self.assertEqual(self.events.count('upload'),4)
+            self.assertEqual(self.events.count('upload'),6)
             self.assertEqual(self.events.count('publish'),1)
 
     def test_failed_upload_stays_draft_and_resumes(self):

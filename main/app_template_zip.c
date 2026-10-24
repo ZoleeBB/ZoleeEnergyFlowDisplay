@@ -7,6 +7,7 @@
  */
 #include "app_template_zip.h"
 #include "app_templates.h"
+#include "app_ringtone_wav.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +31,7 @@ static bool fail(char *error, const char *message)
     return false;
 }
 
-bool app_template_unzip(const char *archive, const char *directory, char error[160])
+static bool unzip(const char *archive, const char *directory, char error[160], bool ringtone)
 {
     FILE *f = fopen(archive, "rb");
     if (!f)
@@ -96,7 +97,10 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
             goto done;
         names[i][n] = 0;
         if (strlen(names[i]) != n ||
-            (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i])))
+            (ringtone ? (strcmp(names[i], "ringtone.json") && !app_ringtone_name(names[i])) :
+             (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i]))))
+            goto done;
+        if (ringtone && size > (!strcmp(names[i], "ringtone.json") ? 16384U : APP_RINGTONE_MAX))
             goto done;
         for (unsigned j = 0; j < i; j++)
             if (!strcmp(names[i], names[j]))
@@ -170,7 +174,8 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
     ok = next == (long)((uint64_t)cd + cd_size);
     /* A nagyobb fájlszám kizárólag a fenntartott, külön validált home-csomagé.
      * Normál témának ugyanúgy legfeljebb 34 ZIP-bejegyzése lehet. */
-    if (ok && entries > 34)
+    if (ok && ringtone && entries > 33) ok = false;
+    if (ok && !ringtone && entries > 34)
     {
         char manifest[256];
         snprintf(manifest, sizeof(manifest), "%s/template.json", directory);
@@ -217,4 +222,14 @@ done:
     if (!ok)
         fail(error, "Hibás vagy nem támogatott ZIP: útvonal, méret, CRC vagy tömörítés.");
     return ok;
+}
+
+bool app_template_unzip(const char *archive, const char *directory, char error[160])
+{
+    return unzip(archive, directory, error, false);
+}
+
+bool app_ringtone_unzip(const char *archive, const char *directory, char error[160])
+{
+    return unzip(archive, directory, error, true);
 }

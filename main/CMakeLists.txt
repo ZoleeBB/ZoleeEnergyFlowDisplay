@@ -73,6 +73,10 @@ idf_component_register(
         "app_mqtt.c"
         "app_loxone.c"
         "app_intercom.c"
+        "app_intercom_control.c"
+        "app_intercom_arbiter.c"
+        "app_ringtones.c"
+        "app_ringtone_wav.c"
         "app_intercom_stream.c"
         "app_intercom_audio.c"
         "app_intercom_i2s.c"
@@ -152,3 +156,5 @@ target_link_options(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=i2s_new_channel"
     "-Wl,-u,__wrap_i2s_new_channel"
 )
+
+target_compile_definitions(${COMPONENT_LIB} PRIVATE APP_INTERCOM_DISTRIBUTED=1)

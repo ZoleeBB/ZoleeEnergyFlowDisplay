@@ -10,6 +10,7 @@ const LoxoneHome = (() => {
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
     let revision = 0, saveRevision = 0, currentSection = '';
     let resourcesInstalled = false, resourcesVersion = 0;
+    let ringtoneFiles = [];
     let speakerTestActive = false, audioBusy = false, speakerTestPending = false;
     const domId = (entry, key) => 'home-' + currentSection + '-' + entry.id + '-' + key;
     const controls = [];
@@ -172,7 +173,11 @@ const LoxoneHome = (() => {
         door.microphone_gain ??= 80;
         const gain = field(target, 'Mikrofon erősítése (0–100%, 0 = némítás)', door, 'microphone_gain', 'number');
         gain.id = 'intercom-microphone-gain'; gain.min = 0; gain.max = 100; gain.step = 1;
-        const enabled = field(target, 'Kaputelefon engedélyezése', door, 'enabled', 'checkbox');
+        const ringtone = select(target, 'Csengőhang', door, 'ringtone', [['', 'Nincs csengőhang'], ...ringtoneFiles.map(name => [name, name.replace(/\.wav$/, '').replace(/[-_]/g, ' ')])]);
+        ringtone.id = 'intercom-ringtone';
+        const repeat = field(target, 'Csengőhang folyamatos ismétlése', door, 'ringtone_repeat', 'checkbox');
+        repeat.id = 'intercom-ringtone-repeat';
+        const enabled = field(target, 'Kaputelefon engedélyezése' , door, 'enabled', 'checkbox');
         enabled.id = 'intercom-enabled';
         const url = field(target, 'Kaputelefon MJPEG-videócíme (HTTP)', door, 'stream_url');
         url.id = 'intercom-stream-url'; url.placeholder = 'http://192.168.1.50/mjpg/video.mjpg';
@@ -329,6 +334,22 @@ const LoxoneHome = (() => {
         }
         return '';
     }
+    async function uploadRingtones() {
+        const file = get('ringtone-file')?.files?.[0], status = get('ringtone-status');
+        if (!file || !file.name.toLowerCase().endsWith('.zip') || file.size > 8 * 1024 * 1024) {
+            status.textContent = 'Válassz legfeljebb 8 MiB méretű ZIP csomagot.'; return;
+        }
+        const button = get('ringtone-upload'); button.disabled = true;
+        status.textContent = 'Csengőhangcsomag feltöltése…';
+        try {
+            const response = await apiFetch('/api/loxone/intercom/ringtones', {method: 'POST', headers: {'X-Zolee-Loxone': '1', 'Content-Type': 'application/zip'}, body: file});
+            const text = await response.text();
+            if (!response.ok) throw Error(text);
+            status.textContent = text;
+            await refresh(catalog, connectionBusy);
+        } catch (error) { status.textContent = 'Sikertelen feltöltés: ' + error.message; }
+        finally { button.disabled = false; }
+    }
     async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = energyFlowDisabled) {
         energyFlowDisabled = energyDisabled;
         if (get('consumers-section')) get('consumers-section').hidden = energyDisabled;
@@ -339,6 +360,8 @@ const LoxoneHome = (() => {
             const response = await apiFetch('/api/loxone/home', {cache: 'no-store'});
             if (!response.ok) throw Error(await response.text());
             const state = await response.json();
+            const previousRingtones = JSON.stringify(ringtoneFiles);
+            ringtoneFiles = Array.isArray(state.ringtones) ? state.ringtones.slice().sort() : [];
             speakerTestActive = !!state.speaker_test_active;
             audioBusy = !!state.audio_busy;
             if (get('intercom-speaker-test-status')) get('intercom-speaker-test-status').textContent = state.speaker_test_message || '';
@@ -375,7 +398,7 @@ const LoxoneHome = (() => {
                 notify(state.status || (revision > saveRevision ? 'Otthon-beállítások elmentve.' : 'A mentés nem fejeződött be.'), revision <= saveRevision);
             } else if (first) notify(state.status || 'Legfeljebb 12 fogyasztó és 8 elnevezhető oldal, oldalanként 12 kártyával.');
             const nextKey = JSON.stringify(nextCatalog);
-            if (first || nextKey !== catalogKey || previousResources !== resourcesInstalled || previousVersion !== resourcesVersion) {
+            if (first || previousRingtones !== JSON.stringify(ringtoneFiles) || nextKey !== catalogKey || previousResources !== resourcesInstalled || previousVersion !== resourcesVersion) {
                 catalog = nextCatalog; catalogKey = nextKey; filters(); render();
             }
         } catch (error) {
@@ -422,6 +445,7 @@ const LoxoneHome = (() => {
         get('home-add-card').onclick = () => add('cards');
         get('home-save').onclick = () => save('pages');
         if (get('consumers-save')) get('consumers-save').onclick = () => save('consumers');
+        if (get('ringtone-upload')) get('ringtone-upload').onclick = uploadRingtones;
         if (get('intercom-save')) get('intercom-save').onclick = () => save('intercom');
         if (get('intercom-speaker-test')) get('intercom-speaker-test').onclick = toggleSpeakerTest;
         get('home-room').onchange = get('home-category').onchange = render;
