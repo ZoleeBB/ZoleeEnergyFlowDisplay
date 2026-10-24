@@ -166,6 +166,7 @@ const click=id=>nodes.get(id).onclick();
     assert(nodes.get('home-add-page').disabled);assert.equal(nodes.get('home-page-select').children.length,8);
     click('home-remove-page');assert(!nodes.get('home-add-page').disabled);
     await sandbox.home.refresh(catalog,false,true);assert.equal(nodes.get('consumers-section').hidden,true);
+    await sandbox.home.refresh(catalog,false);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

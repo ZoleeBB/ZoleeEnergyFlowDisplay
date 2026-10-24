@@ -29,8 +29,9 @@ kívül a korábbi működés marad érvényes.
 - [x] Szakaszonkénti mentés és szerveroldali adatmegőrzés, NightMode-only feldolgozás.
 - [x] Master Otthon-alapnézet, navigáció és témakezelő korlátozása.
 - [x] BLE módjelzés, mindkét Slave-kijelző logós nézete.
-- [ ] C/JS regressziós tesztek, szimulátor, firmware build és méretellenőrzés.
-- [ ] Felhasználói dokumentáció, README, feltöltés és PR.
+- [x] C/JS regressziós tesztek, Master és Slave szimulátor, tényleges LVGL megjelenítés.
+- [ ] ESP-IDF firmware build és méretellenőrzés: PR CI.
+- [x] Felhasználói dokumentáció, README, feltöltés és [PR #22](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/22).
 
 ## Ellenőrizendő határesetek
 
@@ -47,5 +48,7 @@ visszatérés normál energiaadatokra; SD nélküli és 720×720 Slave.
 - Valódi Loxone részleges mentési regresszió: sikeres.
 - Valódi Master LVGL teljes vizuális és 100 életciklusos regresszió, új logó/kaputelefon/PWM próba: sikeres.
 - 4B szimulátor build és logós állapotpróba: sikeres.
-- Teljes C/JS tesztcsomag: folyamatban; az offline USB-csomag új SVG-hivatkozásának csomagolását javítottuk.
+- Teljes C/JS tesztcsomag és offline USB-csomag ellenőrzése: sikeres.
+- Chromium desktop és mobil: a PR CI-ben sikeres, tiltott és normál módban is.
+- Mentés utáni belső webfrissítés is megőrzi a rejtett fogyasztói szakaszt; külön regresszió védi.
 - ESP-IDF firmware és méret/partíció: a PR CI-fordítása ellenőrzi. Fizikai eszközpróba szükséges.

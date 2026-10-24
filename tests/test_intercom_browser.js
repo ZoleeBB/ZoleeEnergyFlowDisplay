@@ -88,6 +88,7 @@ const catalog = [
             await page.locator('#intercom-save').click();
             await page.waitForFunction(() => document.querySelector('#intercom-status').textContent.includes('Elmentve'));
             assert.equal(posts.length, 1);
+            assert.equal(await page.locator('#consumers-section').isVisible(), !energyDisabled);
             assert.equal(posts[0].section,'intercom');assert(!('pages' in posts[0]));assert(!('consumers' in posts[0]));
             assert.equal(posts[0].intercom.video_username, 'admin');
             assert.equal(posts[0].intercom.video_password, 'Separate-camera-secret');

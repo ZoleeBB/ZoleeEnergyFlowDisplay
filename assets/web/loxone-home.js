@@ -4,7 +4,7 @@ const LoxoneHome = (() => {
     const icons = /*HOME_ICONS*/;
     const get = id => document.getElementById(id);
     let model = {schema: 2, consumers: [], pages: [], intercom: {enabled: false, stream_url: '', bell_uuid: '', gate: null}};
-    let selectedPage = 0, saveSection = 'pages';
+    let selectedPage = 0, saveSection = 'pages', energyFlowDisabled = false;
     const activeCards = () => model.pages[selectedPage]?.cards || [];
     let catalog = [], catalogKey = '', loaded = false, fetching = false;
     let pending = false, waiting = false, remoteBusy = false, connectionBusy = false;
@@ -329,7 +329,8 @@ const LoxoneHome = (() => {
         }
         return '';
     }
-    async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = false) {
+    async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = energyFlowDisabled) {
+        energyFlowDisabled = energyDisabled;
         if (get('consumers-section')) get('consumers-section').hidden = energyDisabled;
         if (get('home-resource-warning')) get('home-resource-warning').textContent = energyDisabled ? 'A Loxone Otthon közös erőforráscsomag nincs telepítve. A csempék megjelenítéséhez telepítsd a loxone-home.zip csomagot a sablonkezelőben. Üres Otthonnál a logós készenlét csomag nélkül is működik.' : 'A Loxone Otthon közös erőforráscsomag nincs telepítve. Az Otthon és a ház fogyasztói képernyő a csomag telepítéséig nem fog működni. Telepítsd a loxone-home.zip csomagot a sablonkezelőben.';
         if (!get('home-editor') || fetching) return;
@@ -398,8 +399,8 @@ const LoxoneHome = (() => {
         finally { speakerTestPending = false; buttons(); }
     }
     async function save(scope = 'pages') {
-        saveSection = scope;
         if (busy()) return;
+        saveSection = scope;
         let error;
         try { error = validate(scope); }
         catch (failure) { notify('A böngésző nem tudta ellenőrizni a beállításokat: ' + failure.message, true); return; }
