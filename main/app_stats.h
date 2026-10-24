@@ -147,3 +147,12 @@ void app_stats_break_continuity(void);
 #include "app_energy_assistant.h"
 /* Csak Master/Loxone, 00..04 helyi órák igazolt mérései. Régi fájl nem referencia. */
 bool app_stats_get_night_reference(app_assistant_night_t *out);
+
+/* Kis webes pillanatkép: a teljes napi grafikont nem másolja a HTTP vermére. */
+typedef struct {
+    app_battery_report_t report;
+    double nominal_kwh, charge_kwh, discharge_kwh;
+} app_stats_battery_t;
+bool app_stats_get_battery(app_stats_battery_t *out);
+/* Siker csak a nullázott diagnosztika atomi SD-mentése után. */
+esp_err_t app_stats_reset_battery(void);

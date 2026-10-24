@@ -132,7 +132,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Nyugodt otthon – megújult nappali/éjszakai téma](docs/calm-home.md)
 - [Energiakör – megújult téma és 24 órás napállás-idővonal](docs/energy-orbit.md)
 - [Nap pálya – működés, energiautak és ellenőrzés](docs/solar-journey-acceptance.md)
-- [Akku diagnosztika – energia/SOC, kapacitásbecslés és hatásfok](docs/battery-diagnostics.md)
+- [Akku diagnosztika – energia/SOC, kapacitásbecslés, hatásfok és webes statisztika/nullázás](docs/battery-diagnostics.md)
 - [Akku diagnosztika – fejlesztési és folytatási állapot](docs/battery-diagnostics-plan.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Külső témák kompatibilitási ellenőrzése](docs/external-template-review.md)
