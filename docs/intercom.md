@@ -206,3 +206,8 @@ A webes hangminta külön, belső vermű háttérfeladatból válaszol aszinkron
 HTTP-kérésre: a lassú vagy szüneteltetett lejátszó nem tartja fel a fő
 HTTP-kezelőt és az ikonok kiszolgálását. Legfeljebb négy hangletöltés futhat
 párhuzamosan. Az SD-zár csak a fájl RAM-ba olvasásáig él, hálózati küldés alatt nem.
+
+A csengőhang-ZIP feltöltésére és ellenőrzésére a böngésző 3 percet enged;
+a normál API-kérések 15 másodperces korlátja erre nem vonatkozik.
+Az új csomag azonos nevű hangjai felülírják a régieket. A csomag teljes
+hangkészletet cserél; hibás feltöltés/ellenőrzés esetén a korábbi készlet megmarad.

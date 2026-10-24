@@ -365,14 +365,14 @@ const LoxoneHome = (() => {
             status.textContent = 'Válassz legfeljebb 8 MiB méretű ZIP csomagot.'; return;
         }
         const button = get('ringtone-upload'); button.disabled = true;
-        status.textContent = 'Csengőhangcsomag feltöltése…';
+        status.textContent = 'Csengőhangcsomag feltöltése és ellenőrzése… Ez akár néhány percig tarthat.';
         try {
-            const response = await apiFetch('/api/loxone/intercom/ringtones', {method: 'POST', headers: {'X-Zolee-Loxone': '1', 'Content-Type': 'application/zip'}, body: file});
+            const response = await apiFetch('/api/loxone/intercom/ringtones', {method: 'POST', headers: {'X-Zolee-Loxone': '1', 'Content-Type': 'application/zip'}, body: file}, 180000);
             const text = await response.text();
             if (!response.ok) throw Error(text);
             status.textContent = text;
             await refresh(catalog, connectionBusy);
-        } catch (error) { status.textContent = 'Sikertelen feltöltés: ' + error.message; }
+        } catch (error) { status.textContent = 'Sikertelen feltöltés: ' + (error.name === 'AbortError' || error.name === 'TimeoutError' ? 'A feltöltés 3 perces időkerete lejárt. Ellenőrizd az eszköz kapcsolatát és az SD-kártyát.' : error.message); }
         finally { button.disabled = false; }
     }
     async function refresh(nextCatalog = [], otherBusy = false, energyDisabled = energyFlowDisabled) {

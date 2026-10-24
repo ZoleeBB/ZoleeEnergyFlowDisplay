@@ -8,7 +8,7 @@ function options(){const room=$('room-filter').value,category=$('category-filter
 function values(){const mappings={};for(const [key] of fields){if(energyDisabled&&key!=='NightMode')continue;mappings[key]={uuid:$(key+'_uuid').value,scale:Number($(key+'_scale').value),offset:Number($(key+'_offset').value)};}return {host:$('host').value.trim(),port:Number($('port').value),tls:$('tls').checked,ca_pem:$('ca_pem').value.trim(),username:$('username').value,password:$('password').value||null,mappings};}
 function message(text,error=false){const changed=$('status').textContent!==text;for(const id of ['status','save-status','connection-status']){const el=$(id);if(el){el.textContent=text;el.className=error?'feedback-error':'';}}if(error&&changed)$('status').scrollIntoView?.({block:'nearest',behavior:'smooth'});}
 function buttons(){if($('connection-save'))$('connection-save').disabled=serverBusy||requestPending;busy=serverBusy||requestPending;$('test').disabled=busy;$('save').disabled=busy;}
-async function apiFetch(url,options={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);try{return await fetch(url,{...options,signal:controller.signal});}finally{clearTimeout(timer);}}
+async function apiFetch(url,options={},timeoutMs=15000){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{return await fetch(url,{...options,signal:controller.signal});}finally{clearTimeout(timer);}}
 function validate(action,scope='mappings'){
  const data=values();
  if(scope==='connection'){

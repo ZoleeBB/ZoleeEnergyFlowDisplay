@@ -123,6 +123,12 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         result = lib.app_ringtones_install(str(archive).encode(), error)
         assert (result == 0) == success, error.value.decode()
     install(sounds)
+    # Azonos fájlnév új hanggal: ne legyen névütközés vagy régi tartalom.
+    name = next(iter(sounds))
+    replacement = pcm(1)
+    install({name: replacement})
+    assert (folder / 'ringtones' / name).read_bytes() == replacement
+    install(sounds)
     original = {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()}
     for bad in ({'../escape.wav': next(iter(sounds.values()))}, {'song.mp3': b'not-wav'},
                 {'fake.wav': b'not-wav'}, {'big.wav': b'x' * 300000},

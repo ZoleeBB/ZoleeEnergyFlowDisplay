@@ -10,7 +10,7 @@ class Element {
     removeAttribute(key) { delete this[key]; }
     replaceChildren() { this.children=[];this.value=''; }
 }
-for(const id of ['consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['ringtone-file','ringtone-upload','ringtone-status','consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
@@ -21,7 +21,13 @@ const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nap
     {uuid,control_uuid:'eeeeeeee-5566-7788-99aabbccddeeff00',action_uuid:'',name:'Hibás parancscím',type:'Switch',secured:false}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
-const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
+let uploadAbort=false, uploads=0;
+const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={},timeoutMs)=>{
+    if(url==='/api/loxone/intercom/ringtones') {
+        assert.equal(timeoutMs,180000); assert.equal(options.method,'POST'); uploads++;
+        if(uploadAbort) throw Object.assign(Error('signal is aborted without reason'),{name:'AbortError'});
+        return {ok:true,text:async()=>'Telepítve.'};
+    }
     assert.equal(url,'/api/loxone/home');
     if(offline)throw Error('kapcsolat megszakadt');
     if(options.method==='POST') {
@@ -157,5 +163,21 @@ const click=id=>nodes.get(id).onclick();
     await sandbox.home.refresh(catalog,false,true);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
+    nodes.get('ringtone-file').files=[{name:'private.zip',size:2716219}];
+    await nodes.get('ringtone-upload').onclick();
+    assert.equal(uploads,1); assert.equal(nodes.get('ringtone-status').textContent,'Telepítve.');
+    uploadAbort=true;
+    await nodes.get('ringtone-upload').onclick();
+    assert.equal(uploads,2); assert.match(nodes.get('ringtone-status').textContent,/3 perces/);
+    assert.equal(nodes.get('ringtone-upload').disabled,false);
+    // A valódi fetch-segéd normál kérései továbbra is 15 másodpercesek.
+    const fetchSource=fs.readFileSync('assets/web/loxone.js','utf8');
+    const timers=[];
+    const fetchContext={AbortController,setTimeout:(fn,ms)=>{timers.push(ms);return 1;},clearTimeout:()=>{},fetch:async()=>({ok:true})};
+    vm.createContext(fetchContext);
+    vm.runInContext(fetchSource.slice(fetchSource.indexOf('async function apiFetch('),fetchSource.indexOf('function validate(')),fetchContext);
+    await fetchContext.apiFetch('/api/loxone');
+    await fetchContext.apiFetch('/upload',{},180000);
+    assert.deepEqual(timers,[15000,180000]);
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});
