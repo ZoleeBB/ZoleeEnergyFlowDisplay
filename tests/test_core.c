@@ -619,6 +619,33 @@ static void test_battery_diagnostics_storage(void)
         feed(fake_epoch + 600, 0, 0, 2);
         app_stats_get_snapshot(&snapshot);
         near(snapshot.battery.cycles, cycles); /* A reboot utáni szünet nem energia. */
+        app_stats_battery_t view;
+        bool local = modes[mode] != APP_DATA_SLAVE;
+        assert(app_stats_get_battery(&view) == local);
+        if (local) {
+            assert(view.nominal_kwh == 10 && view.report.capacity_valid);
+            app_energy_totals_t totals = snapshot.totals;
+            sd_ok = false;
+            assert(app_stats_reset_battery() != ESP_OK);
+            sd_ok = true;
+            assert(app_stats_get_battery(&view) && view.report.cycles == cycles);
+            rename_fail_at = 1; rename_calls = 0;
+            assert(app_stats_reset_battery() != ESP_OK);
+            rename_fail_at = 0; sd_ok = true;
+            assert(app_stats_get_battery(&view) && view.report.cycles == cycles);
+            assert(app_stats_reset_battery() == ESP_OK);
+            assert(app_stats_get_battery(&view) && view.nominal_kwh == 10);
+            assert(view.report.cycles == 0 && !view.report.capacity_valid && !view.report.active_direction);
+            assert(view.charge_kwh == 0 && view.discharge_kwh == 0);
+            app_stats_get_snapshot(&snapshot);
+            assert(!memcmp(&snapshot.totals, &totals, sizeof(totals)));
+            assert(app_stats_init(&cfg) == ESP_OK);
+            assert(app_stats_get_battery(&view) && view.report.cycles == 0 && !view.report.capacity_valid);
+            feed(fake_epoch + 1200, 0, 0, 2);
+            assert(app_stats_get_battery(&view) && view.report.cycles == 0);
+        } else {
+            assert(app_stats_reset_battery() != ESP_OK);
+        }
         cfg.energy.battery_capacity_kwh = 15;
         assert(app_stats_init(&cfg) == ESP_OK);
         app_stats_get_snapshot(&snapshot);

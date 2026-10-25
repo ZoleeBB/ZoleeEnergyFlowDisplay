@@ -44,7 +44,7 @@ A fogyasztók, Otthon-kártyák és kaputelefon külön menthetők.
 Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
 opcionális, nagy kapunyitó nyomógombbal és külön gombbal indítható kétirányú
 hangkapcsolattal. A weben külön menthető a hangszóró hangereje és a mikrofon
-erősítése; kézzel indítható helyi hangszóróteszt is elérhető.
+erősítése. A kiválasztott csengőhang böngészős hangmintával ellenőrizhető; ez a számítógépen vagy telefonon szólal meg, nem a kijelzőn.
 
 Az aktív beszélgetés a csengetés megszűnése után is nyitva tartja a videót.
 Elfogadott kapunyitás után 5 másodperccel a hang automatikusan bontódik;
@@ -53,8 +53,39 @@ nincsenek folyamatos diagnosztikai feliratok, csak kapcsolódási állapot és h
 A videó, a kétirányú hang és az időzített bontás készüléken visszaigazolt.
 
 [Beállítás, működés és korlátok](docs/intercom.md).
-A #20 PR mainre összevonásának célverziója **v3.1.0**;
+A korábbi #20 PR mainre összevonásának egyszeri célverziója **v3.1.0** volt;
 [kiadási folyamat](docs/releases.md#automatikus-kiadás-pr-merge-után).
+
+## Párosított 4B kaputelefon és csengőhangok – PR #23
+
+A Masteren mentett kaputelefont a párosított 720×720-as Waveshare 4B Slave-ek
+is használják, külön Slave-konfiguráció és SD-kártya nélkül. A kamera adatai
+védett BLE-profilon érkeznek; a videó és hang közvetlen Wi-Fi-kapcsolat.
+A Master egyetlen kijelzőnek enged beszélgetést, így nincs párhuzamos SIP-hívás.
+Kapunyitás minden kijelzőn elnémítja a csengőhangot, az aktív beszélgetés
+5 másodperc után bontódik. A Master és a Slave firmware-ét is frissíteni kell.
+
+A Master Loxone-oldalán legfeljebb **8 MiB ZIP és 32 hang** tölthető fel:
+**PCM WAV, 16 bit, mono, 16 kHz, hangonként legfeljebb 60 másodperc**.
+A feltöltés először törli a teljes korábbi hangkészletet, majd egyenként
+ellenőrzi és menti a fájlokat. A hibás fájlt kihagyja, a végén névvel és
+indokkal felsorolja; megszakításkor a régi csomag nem áll vissza.
+A választott hang és az ismétlés külön menthető. A Slave a hangot a Mastertől
+kapja, a lejátszás RAM-ból történik. A repóban tárolt készlet jelenleg 18 hangot tartalmaz; a kiadási ZIP és az
+USB-kezdőkészlet a `ringtone.json` teljes listájából készül. A hangok eredeti
+forrás- és licencadatai a manifestben változatlanul megmaradnak.
+
+A kiadás külön `-ringtones.zip` és `-templates.zip` mellékletet is készít,
+SHA-256 összegekkel; a Master USB-csomagjában SD-kezdőkészlet található.
+Az eszköz főoldalának alján akkumulátor-statisztika és megerősítést kérő
+nullázás érhető el: a napi grafikonok és a névleges kapacitás megmaradnak.
+
+[Master/Slave működés és telepítés](docs/slave-intercom.md) ·
+[SD- és feltöltési működés](docs/intercom.md#csengőhang-betöltés-és-csomagcsere) ·
+[Akkumulátor-statisztika és nullázás](docs/battery-diagnostics.md#webes-akkumulátor-statisztika-és-nullázás) ·
+[PR #23 átadási állapot és ellenőrzések](docs/slave-intercom-handover.md).
+A #23 összevonása a normál patch-kiadási szabályt használja;
+a korábbi #20 egyszeri v3.1.0 szabálya erre nem érvényes.
 
 ## v3.0.0 újdonságai
 
@@ -67,7 +98,7 @@ A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb v
 | Helyi energiaasszisztens | Külön engedélyezhető indításjavaslat 100%-os akkunál és legalább kétperces elegendő napelemes többletnél; magasabb éjszakai fogyasztás jelzése mért referencia alapján. A jelzés nem kapcsol fogyasztót. [Feltételek és működés](docs/energy-assistant.md). |
 | Slave-jelenlét és saját fényerő | Nappal saját nappali fényerő; engedélyezett éjszakai sötétítésnél jelenlét vagy érintés ébreszt a saját éjszakai fényerőre, időkorlát után újra sötétít. Az első teljes érintés csak ébreszt. [Felhasználói beállítás](docs/loxone-direct.md), [profil és BLE-protokoll](docs/slave-presence-protocol.md). |
 | Megújult témák | Új nappali/éjszakai megjelenés: [Nyugodt otthon](docs/calm-home.md) és [Energiakör](docs/energy-orbit.md); utóbbiban 00:00–24:00 napállás-idővonal. |
-| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI és négy kiadási csomag. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
+| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI, Master/Slave OTA és USB telepítő, külön telepíthető témacsomagok. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
 
 A fogyasztói/Otthon-oldalak és az energiaasszisztens **csak Masteren, közvetlen Loxone módban** érhetők el. A kijelzőoldalakhoz működő SD és telepített `loxone-home.zip` szükséges. A Slave jelenlétfunkciójához a Master és a Slave megfelelő firmware-e is kell.
 
@@ -121,6 +152,8 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Energiaáramlás tiltás – Otthon, logós készenlét, 10% fényerő és Slave-ek](docs/energy-flow-disable.md)
 - [Energiaáramlás tiltás – fejlesztési terv és ellenőrzési állapot](docs/energy-flow-disable-plan.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](docs/intercom.md)
+- [4B Slave kaputelefon, központi hívásfoglalás és csengőhangcsomagok](docs/slave-intercom.md)
+- [PR #23 átadás – SD-javítások, ellenőrzések és összevonás](docs/slave-intercom-handover.md)
 - [Loxone fogyasztók és lapozható Otthon-kártyák – beállítás és mintaprofil](docs/v3-home-config.md)
 - [Helyi energiaasszisztens – napelemes indításjavaslat és éjszakai fogyasztás](docs/energy-assistant.md)
 - [Slave-jelenlétprofil, éjszakai sötétítés és BLE-protokoll](docs/slave-presence-protocol.md)
@@ -131,7 +164,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Nyugodt otthon – megújult nappali/éjszakai téma](docs/calm-home.md)
 - [Energiakör – megújult téma és 24 órás napállás-idővonal](docs/energy-orbit.md)
 - [Nap pálya – működés, energiautak és ellenőrzés](docs/solar-journey-acceptance.md)
-- [Akku diagnosztika – energia/SOC, kapacitásbecslés és hatásfok](docs/battery-diagnostics.md)
+- [Akku diagnosztika – energia/SOC, kapacitásbecslés, hatásfok és webes statisztika/nullázás](docs/battery-diagnostics.md)
 - [Akku diagnosztika – fejlesztési és folytatási állapot](docs/battery-diagnostics-plan.md)
 - [Saját sablon készítése](docs/template-authoring.md)
 - [Külső témák kompatibilitási ellenőrzése](docs/external-template-review.md)

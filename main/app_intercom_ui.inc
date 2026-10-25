@@ -84,17 +84,7 @@ static bool intercom_prepare(void)
         /* Először megszűnnek a háttér widgetjei, utána a képek és cache-ek.
          * A kiválasztott téma és a kért Otthon-oldal megmarad, csak a RAM-beli
          * pillanatkép ürül ki. A kamera még nem foglalhat előtte memóriát. */
-#ifdef ESP_PLATFORM
-        size_t psram_before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-        size_t internal_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-#endif
         home_reset_theme();
-#ifdef ESP_PLATFORM
-        ESP_LOGI("intercom", "Background released: PSRAM=%u->%u DMA=%u->%u bytes",
-                 (unsigned)psram_before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-                 (unsigned)internal_before,
-                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
-#endif
         home_page = 0;
         template_loading_requested = true;
         template_waiting_for_load = true;
@@ -313,12 +303,13 @@ static void intercom_render(void)
                       stopping ? tr("Hang leállítása...", "Stopping audio...") :
                       tr("Beszélgetés", "Start conversation"));
     lv_obj_set_style_bg_color(intercom_audio, c(talking || connecting ? 0xa53030 : 0x246696), 0);
-    if (stopping || (!intercom_next.connected && !talking && !connecting)) {
+    if (intercom_next.audio_elsewhere || stopping || (!intercom_next.connected && !talking && !connecting)) {
         lv_obj_add_state(intercom_audio, LV_STATE_DISABLED);
     } else {
         lv_obj_remove_state(intercom_audio, LV_STATE_DISABLED);
     }
     lv_label_set_text(intercom_audio_message,
+                      intercom_next.audio_elsewhere ? tr("Beszélgetés másik kijelzőn / várakozás a Masterre", "Conversation on another display / waiting for Master") :
                       audio.revision == intercom_revision && !talking ? audio.message : "");
     if (gate)
     {

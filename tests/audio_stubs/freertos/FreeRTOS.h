@@ -7,3 +7,5 @@ typedef pthread_mutex_t portMUX_TYPE;
 #define portEXIT_CRITICAL(lock) pthread_mutex_unlock(lock)
 #define pdMS_TO_TICKS(value) (value)
 #define pdPASS 1
+
+typedef uint32_t TickType_t;

@@ -12,9 +12,10 @@ class Element {
 }
 for(const id of ['host','port','username','password','ca_pem','room-filter','category-filter','tls','test','save','status','save-status','mappings']){const e=new Element();e.id=id;}
 const keys=['PowerGrid','PowerBat','PowerPV','PowerFull','SocBat','Status','NightMode','BatteryTemperature','Temperature','WindSpeed','HasSunRadiation','HasPrecipitation','SunAzimuth','SunAltitude','Sunrise','Sunset'];
-const id='11223344-5566-7788-99aabbccddeeff00';const sent=[];let rejectPost=false;
+const id='11223344-5566-7788-99aabbccddeeff00';const sent=[];let rejectPost=false,blockGet=false,rejectGet=null,getCalls=0;
 const state={host:'',port:80,tls:false,ca_pem:'',username:'',has_password:false,busy:false,status:'Paraméterezés szükséges.',catalog:[],mappings:Object.fromEntries(keys.map(k=>[k,{uuid:'',scale:1,offset:0}]))};
 const sandbox={console,structuredClone,AbortController,setTimeout,clearTimeout,setInterval:()=>0,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},fetch:async(url,options={})=>{
+ if(options.method!=='POST'){getCalls++;if(blockGet)return await new Promise((resolve,reject)=>{rejectGet=reject;});}
  if(options.method==='POST'){
   if(rejectPost)return {ok:false,text:async()=>'A felhasználó vagy jelszó érvénytelen.'};
   sent.push({url,body:JSON.parse(options.body),headers:options.headers});
@@ -24,8 +25,9 @@ const sandbox={console,structuredClone,AbortController,setTimeout,clearTimeout,s
  }
  return {ok:true,json:async()=>structuredClone(state)};
 }};
-vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js','utf8')+'\nglobalThis.api={refresh,values,options,submit};',sandbox);
+vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js','utf8')+'\nglobalThis.api={refresh,values,options,submit,setLoxoneTransferBusy};',sandbox);
 (async()=>{
+ await new Promise(resolve=>setImmediate(resolve));
  await sandbox.api.refresh();assert.equal(nodes.get('port').value,'80');assert.equal(nodes.get('Status_uuid').options.length,1);
  nodes.get('host').value='192.168.2.10';nodes.get('username').value='display';nodes.get('password').value='test-password';
  nodes.get('tls').checked=true;nodes.get('tls').onchange();assert.equal(nodes.get('port').value,'443');
@@ -70,5 +72,14 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
  const disabledValues=sandbox.api.values();assert.deepEqual(Object.keys(disabledValues.mappings),['NightMode']);
  state.energy_flow_disabled=false;await sandbox.api.refresh();
  assert.equal(nodes.get('mapping-row-PowerGrid').hidden,false);
+ const previousStatus=nodes.get('status').textContent;
+ const beforeCalls=getCalls;
+ sandbox.api.setLoxoneTransferBusy(true);await sandbox.api.refresh();assert.equal(getCalls,beforeCalls);
+ sandbox.api.setLoxoneTransferBusy(false);
+ blockGet=true;const pendingRefresh=sandbox.api.refresh();await sandbox.api.refresh();assert.equal(getCalls,beforeCalls+1);
+ sandbox.api.setLoxoneTransferBusy(true);sandbox.api.setLoxoneTransferBusy(false);
+ rejectGet(new Error('régi lekérés időtúllépése'));await pendingRefresh;
+ assert.equal(nodes.get('status').textContent,previousStatus);
+ blockGet=false;await sandbox.api.refresh();
  console.log('PASS: visible persistent WSS/server errors, no invalid POST, and actual Loxone web JS, discovery, retained test password, mapping/filter, transforms, optional fields, save and busy state');
 })().catch(e=>{console.error(e);process.exitCode=1;});

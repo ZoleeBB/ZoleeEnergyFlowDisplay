@@ -9,13 +9,12 @@ typedef enum {
     APP_INTERCOM_AUDIO_ACTIVE,
     APP_INTERCOM_AUDIO_STOPPING,
     APP_INTERCOM_AUDIO_ERROR,
-    APP_INTERCOM_AUDIO_TESTING
+    APP_INTERCOM_AUDIO_RINGING
 } app_intercom_audio_state_t;
 
 typedef struct {
     app_intercom_audio_state_t state;
     unsigned revision;
-    bool speaker_test;
     char message[160];
 } app_intercom_audio_status_t;
 
@@ -29,5 +28,6 @@ bool app_intercom_audio_busy(void);
 bool app_intercom_audio_active_for(unsigned revision);
 /* Az elfogadott kapunyitási kérés után 5 s; hálózati nyugtára nem várunk. */
 void app_intercom_audio_gate_opened(unsigned revision);
-/* Helyi hangszóróteszt, SIP/mikrofon/AEC nélkül; ugyanaz a worker birtokolja a kodeket. */
-esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume);
+
+/* Hívása a runtime háttérciklusában, LVGL-lock nélkül. */
+void app_intercom_audio_poll(void);

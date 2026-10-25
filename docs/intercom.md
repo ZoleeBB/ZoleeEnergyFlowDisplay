@@ -1,9 +1,11 @@
-# Loxone kaputelefon – Master kijelző
+# Loxone kaputelefon – Master és 4B Slave kijelző
 
 A Loxone adatfogadási módban működő Master csengetéskor teljes képernyős
 HTTP/MJPEG-kameraképet nyit, kézzel indítható kétirányú beszélgetéssel és
-opcionális kapunyitással. A funkció alapértelmezetten kikapcsolt; a Slave-ek
-nem kapnak videót vagy hangot. Nem kell külön SIP-szerver, NAS vagy új SD-csomag.
+opcionális kapunyitással. A funkció alapértelmezetten kikapcsolt. A párosított
+4B Slave ugyanazt a kaputelefont használja, a beállításokat a Mastertől kapja;
+egyidejűleg csak egy kijelző beszélhet. Nem kell külön SIP-szerver vagy NAS.
+A választható csengőhangok külön SD-csomagként telepíthetők a Masterre.
 
 Az [Energiaáramlás tiltás](energy-flow-disable.md) mellett is használható.
 Üres Otthon esetén a Master 10%-os logós készenlétből a napszakhoz beállított
@@ -12,7 +14,7 @@ A Kaputelefon saját mentésgombja csak a kaputelefon-szakaszt módosítja.
 
 ## Beállítás
 
-A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
+A **Loxone beállítások → Kaputelefon (Master és Slave kijelzők)** részben:
 
 1. Engedélyezd a kaputelefont.
 2. Add meg a kaputelefon saját helyi videócímét, például
@@ -27,7 +29,8 @@ A **Loxone beállítások → Kaputelefon (Master kijelző)** részben:
    TimedSwitch célok használhatók. Az állapot UUID-je nem parancscél.
 6. Állítsd be a **Hangszóró hangereje** és **Mikrofon erősítése** értékét.
    Mindkettő 0–100 közötti egész szám; 0 némítást jelent.
-7. Ments a közös **Kaputelefon és Otthon-beállítások mentése** gombbal.
+7. Válassz csengőhangot és opcionálisan ismétlést a feltöltött hangcsomagból.
+8. Ments a külön **Kaputelefon mentése** gombbal.
 
 A hangszóró alapértéke 55%, a mikrofoné 80%. A mikrofon százaléka a kodek
 0–37,5 dB-es erősítési tartományát skálázza: 80% = 30 dB, 100% = 37,5 dB;
@@ -79,17 +82,14 @@ kapcsolat bontódik, érthető üzenettel. A részletes RTP-hibaszámlálók ily
 a soros naplóba kerülnek. A napló és a váratlan hang-újraindulás webes
 eseménybejegyzése segíti a hibakeresést; jelszót vagy hangmintát nem tárolnak.
 
-## Helyi hangszóróteszt
+## Csengőhang és böngészős hangminta
 
-A webes **Hangszóróteszt indítása** gomb az ott megadott hangerővel folyamatos
-1000 Hz-es szinuszt játszik; újabb kattintás leállítja. Ehhez nem kell menteni
-a hangerőt. A beszélgetés továbbra is a mentett értéket használja.
-
-A teszt ugyanazt az I2S/ES8311/hangszóró-erősítő útvonalat használja, de nem
-nyit mikrofont, SIP/RTP-kapcsolatot vagy AEC-t. Aktív hívással nem futhat együtt;
-csengetéskor vagy konfigurációcserekor automatikusan leáll. A webes állapot jelzi
-a foglaltságot és a hibát. A végpont hitelesített és korlátos.
-A teszt kézzel indítható diagnosztikai lehetőségként megmarad, nem indul el magától.
+A Kaputelefon-kártya külön csoportban mutatja a kamerát, a Loxone-párosításokat
+és a hangbeállításokat. A kiválasztott csengőhang a **Hangminta** lejátszójával
+mentés nélkül meghallgatható a böngészőben, a számítógép vagy telefon hangszóróján.
+Ez nem indít hívást és nem szólaltatja meg a kijelzőt. A kijelző a mentett hangot
+játssza le csengetéskor; az ismétlés hívásindításra vagy kapunyitásra megszűnik.
+A csomagfeltöltés külön lenyitható részben található. A korábbi debug-hangteszt megszűnt.
 
 ## Hálózat és hitelesítés
 
@@ -151,10 +151,12 @@ régi profilnál a funkció kikapcsolt, a hangerők alapértékei automatikusak.
 
 ## Ellenőrzés és kiadás
 
-A felhasználó 2026-10-24-én készüléken visszaigazolta a működő videót, folyamatos
-helyi teszthangot, megfelelő kétirányú beszédet és a kapunyitás utáni automatikus
-bontást. Ezt követi a kijelző diagnosztikai feliratainak eltávolítása; a médiaút,
-a hangerők és a hangbontás szabályai változatlanok.
+A felhasználó 2026-10-24-én készüléken visszaigazolta a működő videót, megfelelő
+kétirányú beszédet és a kapunyitás utáni automatikus bontást. 2026-10-25-én
+a javított csomagfeltöltést és SD-/csengőhang-működést is megfelelőnek jelezte.
+A korábbi helyi teszthang nem része a végleges felületnek. A fejlesztői
+memória-, kamera- és normál RTP-naplók eltávolítása nem változtat a médiaúton;
+a tényleges hibák és kapcsolódási folyamatjelzések megmaradnak.
 
 - `python3 tests/run_tests.py`: teljes C/JS/protokoll/kiadási regresszió.
 - `python3 tests/test_intercom_audio.py`: valódi SIP/SDP/RTP/G.711 és
@@ -165,15 +167,17 @@ a hangerők és a hangbontás szabályai változatlanok.
   JPEG-fixture, nagy és darabolt képek, hibás címek, csengetésmodell.
 - Loxone-protokoll-, HTTP-, tároló- és JS-tesztek: mentés, titkosított jelszó,
   hangerőhatárok/alapértékek, kapunyitási sor és nyugtától független időzítés.
-- Chromium desktop/mobil: tényleges beágyazott kaputelefon-szerkesztő és hangteszt.
+- Chromium desktop/mobil: tényleges beágyazott kaputelefon-szerkesztő,
+  böngészős hangminta és fájlonkénti feltöltési hibajelentés.
 - LVGL/ASan 32 bit és RGB565: korai és legfrissebb kép, másolási tulajdonjog,
   generációk, gyors újracsengés és késleltetett felszabadítás.
 - A `simulator_intercom` CTest a valódi LVGL-elrendezést, kézi hívásindítást,
   csengetés utáni nyitva tartást és az aktív hívás üres státuszsorát is ellenőrzi.
 - ESP-IDF 5.5.4 CI: Master/Slave firmware, partíció-/OTA-méret és USB-csomag.
 
-A saját **#20 PR mainre összevonása v3.1.0 kiadást** készít, a szokásos
-patch-növelés helyett. Összevonás nélküli lezárás nem ad ki verziót.
+A korábbi **#20 PR egyszeri célverziója v3.1.0** volt. A mostani
+**#23 PR a normál patch-növelést** használja. Összevonás nélküli lezárás
+nem ad ki verziót. [Aktuális átadási jegyzet](slave-intercom-handover.md).
 A pontos szabály és ütközésvédelem: [Automatikus kiadás](releases.md).
 A záró módosítás után az aktuális PR checks eredménye az irányadó;
 más hardveren/kaputelefonon a működés külön ellenőrzendő.
@@ -184,3 +188,68 @@ más hardveren/kaputelefonon a működés külön ellenőrzendő.
 - [Espressif ESP-SR visszhangkioltás](https://docs.espressif.com/projects/esp-sr/en/latest/esp32p4/acoustic_echo_cancellation/README.html)
 - [RFC 3550 – RTP](https://www.rfc-editor.org/rfc/rfc3550)
 - [Rögzített Waveshare BSP](https://github.com/waveshareteam/Waveshare-ESP32-components/tree/0694fdb9fa7751cc2719a9d1927de70547b89ba0/bsp/esp32_p4_wifi6_touch_lcd_x)
+
+A párosított 4B kijelzők és a csengőhangcsomag működése: [Slave kaputelefon](slave-intercom.md).
+
+## Csengőhang-betöltés és csomagcsere
+
+Az SD-életciklus, csatolás, konfiguráció, valamint a témák HTTP-feltöltője és
+ZIP-kibontója a `main` ág megoldását használja. A hangcsomagot külön modul
+bontja ki; a témák telepítéséhez nincs csengőhang-specifikus elágazás.
+A WAV olvasása pufferelt stdio műveletekkel, 2048 bájtos darabokban történik,
+egyedi DMA-puffer és `setvbuf` nélkül. A teljes hang PSRAM-ba kerül.
+A kodek, SIP/RTP/AEC és a hívásvezérlés változatlan.
+
+### Törlés, feltöltés, fájlonkénti telepítés
+
+A hitelesített feltöltési kérés a méret és a hívásállapot ellenőrzése után
+**először törli a teljes régi hangkészletet**, a `.new` és `.old`
+maradványokat is. Csak sikeres törlés után kezdődik a ZIP fogadása.
+Nincs régi készletre visszaállás; megszakítás vagy újraindulás után a
+már sikeresen telepített fájlok maradnak, vagy üres lesz a hangkészlet.
+A böngésző ezt már a feltöltés előtt jelzi. A csengőhangválasztás és a többi
+beállítás nem törlődik; hiányzó hang helyett a telepítés után újat kell választani.
+
+A hang ZIP-fogadója minden hálózati olvasás előtt elengedi az SD-zárat és
+lezárja az SD-fájlt. A kapott darabot külön megnyitás/írás/lezárás menti.
+Így a hálózati várakozás nem tartja fogva az SD-kártyát, és a helyreállító
+feladat sem talál nyitott feltöltési fájlt. Három rövid socket-időtúllépést
+újrapróbál; megszakadáskor bájtszámot és hálózati hibakódot jelez.
+
+A kibontó egyszerre egy fájlt olvas, CRC- és PCM WAV-ellenőrzést végez,
+majd ment és lezár. Nincs külön fsync vagy könyvtárátnevezés.
+Hibás formátum, CRC, útvonal, fájlmegnyitás, írás vagy lezárás esetén az
+érintett fájl kimarad, és a következő feldolgozása folytatódik. Félkész WAV
+nem maradhat a listában. Legfeljebb 32 hang és 8 MiB kibontott adat fogadható.
+Az opcionális `ringtone.json` nem szükséges a hangok telepítéséhez.
+Sérült központi ZIP-könyvtár esetén a biztonságos bejárás nem folytatható;
+a már telepített fájlok ekkor is megmaradnak.
+
+A válasz JSON-jában az `installed` a sikeres hangok száma, a `failed`
+tömb minden kihagyott elem `name` és `reason` mezőjét tartalmazza.
+A `complete` a bejárás sikerét, az `error` az esetleges végzetes hibát jelzi.
+A weboldal a végén felsorolja az összes kihagyott fájlt és okát, és frissíti
+a választható hangok listáját. A feltöltésre 3 perc áll rendelkezésre;
+közben a Loxone-oldal automatikus lekérdezése szünetel.
+
+### Lejátszás és hibajelzés
+
+A webes hangminta külön, belső vermű háttérfeladatból válaszol aszinkron
+HTTP-kérésre. Legfeljebb négy hangletöltés futhat párhuzamosan; hálózati
+küldés alatt nincs SD-zár. A csengőhang-feladat 8 KiB belső RAM-os vermet,
+a beszélgetés 16 KiB PSRAM-vermet használ.
+
+A Master átmeneti SD-foglaltság esetén legfeljebb 5 másodpercig próbál újra;
+hívásindítás, kapunyitás és a csengetés vége ezt megszakítja.
+A betöltés megkülönbözteti a hiányzó fájlt, memóriahiányt, fájlmegnyitási,
+méretlekérési, adatolvasási és PCM-hibát. A részletes üzenet kérésenként
+külön pufferben él; a párhuzamos webes előnézet nem írhatja felül.
+A hostteszt önmagában nem igazolja az ESP32/FatFS adatutat: a készülékes
+csomagfeltöltést, témaváltást és csengetést a firmware-rel is ellenőrizni kell.
+
+A lejátszási sorrend ellenőrzésének gyártói referenciái:
+[Espressif BSP audio API](https://github.com/espressif/esp-bsp/blob/master/docu/how_to_use.md#-audio)
+és [Waveshare P4 I2S/ES8311 példa](https://github.com/waveshareteam/ESP32-P4-Platform/blob/main/examples/esp-idf/12_I2SCodec/main/i2s_es8311_example.c).
+A RIFF-fejléc helyett csak a PCM-adat kerül a megfelelő mintavétellel,
+csatornaszámmal és bitmélységgel megnyitott kodekbe. A SIP/RTP/AEC-hívásút
+nem került lecserélésre a fájllejátszó miatt.

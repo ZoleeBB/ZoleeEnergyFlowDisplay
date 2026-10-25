@@ -30,7 +30,9 @@ const catalog = [
         for (const width of [390, 1280]) for (const energyDisabled of [false, true]) {
             const context = await browser.newContext({viewport:{width, height:900}});
             const posts = [], errors = [];
-            let home = {schema:2, revision:1, busy:false, consumers:[], pages:[], resources_installed:true,
+            let uploads = 0;
+            const samples = [];
+            let home = {schema:2, revision:1, busy:false, consumers:[], pages:[], resources_installed:true, ringtones:['tubular-chime.wav'],
                 intercom:{enabled:false, stream_url:'', bell_uuid:'', gate:null}};
             await context.route('http://loxone-device.test/**', async route => {
                 const url = new URL(route.request().url());
@@ -48,12 +50,18 @@ const catalog = [
                         delete home.intercom.video_password;
                         body = {accepted:true};
                     } else body = home;
-                } else if (url.pathname === '/api/loxone/intercom/speaker-test') {
-                    const value = route.request().postDataJSON();
-                    assert.equal(value.volume, value.enabled ? 72 : 0);
-                    home.speaker_test_active = value.enabled;
-                    home.audio_busy = value.enabled;
-                    body = {accepted:true};
+                } else if (url.pathname === '/api/loxone/intercom/ringtones') {
+                    assert.equal(route.request().headers()['x-zolee-loxone'], '1');
+                    assert.equal(route.request().method(), 'POST');
+                    assert.equal(route.request().postDataBuffer().toString(), 'fixture-zip');
+                    uploads++;
+                    home.ringtones = ['tubular-chime.wav', 'new-door.wav'];
+                    return route.fulfill({contentType:'application/json', body:JSON.stringify({complete:true, installed:2, failed:[{name:'broken.wav', reason:'PCM WAV-ellenőrzés'}], error:''})});
+                } else if (url.pathname === '/api/intercom/ringtone') {
+                    assert.equal(route.request().method(), 'GET');
+                    samples.push(url.searchParams.get('name'));
+                    const wave = fs.readFileSync('assets/ringtones/tubular-chime.wav');
+                    return route.fulfill({contentType:'audio/wav', body:wave});
                 } else if (url.pathname === '/api/loxone/slaves') {
                     body = {ready:true, profiles:[], revision:1, busy:false};
                 } else if (url.pathname === '/api/loxone') {
@@ -75,10 +83,33 @@ const catalog = [
             assert.equal(await page.locator('#connection-save').isVisible(), true);
             await page.locator('#intercom-speaker-volume').fill('72');
             await page.locator('#intercom-microphone-gain').fill('90');
-            await page.locator('#intercom-speaker-test').click();
-            await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('leállítása'));
-            await page.locator('#intercom-speaker-test').click();
-            await page.waitForFunction(() => document.querySelector('#intercom-speaker-test').textContent.includes('indítása'));
+            assert.equal(await page.locator('#home-room').evaluate(node => node.closest('section')?.id), 'cards-section');
+            assert.equal(await page.locator('#home-category').evaluate(node => node.closest('section')?.id), 'cards-section');
+            assert.equal(await page.locator('#intercom-ringtone').inputValue(), '');
+            assert.equal(await page.locator('#intercom-ringtone-repeat').isChecked(), false);
+            await page.locator('#intercom-ringtone').selectOption('tubular-chime.wav');
+            await page.locator('#intercom-ringtone-repeat').check();
+            await page.locator('#intercom-section details').filter({has:page.locator('#ringtone-file')}).locator('summary').click();
+            await page.locator('#ringtone-file').setInputFiles({name:'ringtones.zip', mimeType:'application/zip', buffer:Buffer.from('fixture-zip')});
+            await page.locator('#ringtone-upload').click();
+            await page.waitForFunction(() => [...document.querySelector('#intercom-ringtone').options].some(option => option.value === 'new-door.wav'));
+            assert.equal(uploads, 1);
+            assert.match(await page.locator('#ringtone-status').textContent(), /Telepített hangok: 2/);
+            assert.match(await page.locator('#ringtone-status').textContent(), /broken.wav: PCM WAV-ellenőrzés/);
+            assert.equal(await page.locator('#intercom-speaker-volume').inputValue(), '72');
+            assert.equal(await page.locator('#intercom-ringtone').inputValue(), 'tubular-chime.wav');
+            assert.equal(await page.locator('#intercom-ringtone-repeat').isChecked(), true);
+            await page.locator('#intercom-ringtone').selectOption('new-door.wav');
+            assert.equal(await page.locator('#intercom-speaker-test').count(), 0);
+            assert.equal(await page.locator('#intercom-config fieldset legend').allTextContents().then(t => t.join('|')), 'Kapcsolat és kamera|Csengetés és kapunyitás|Hang és csengőhang');
+            await page.locator('#intercom-ringtone-preview').evaluate(async audio => { audio.muted = true; await audio.play(); });
+            assert.equal(samples.at(-1), 'new-door.wav');
+            assert.equal(posts.length, 0);
+            const oldAudio = await page.locator('#intercom-ringtone-preview').elementHandle();
+            await page.locator('#intercom-ringtone').selectOption('');
+            assert.equal(await oldAudio.evaluate(audio => audio.paused), true);
+            assert.equal(await page.locator('#intercom-ringtone-preview').isVisible(), false);
+            await page.locator('#intercom-ringtone').selectOption('new-door.wav');
             await page.locator('#intercom-enabled').check();
             await page.locator('#intercom-stream-url').fill(' \u00a0http://192.168.2.21/mjpg/video.mjpg\u00a0 ');
             await page.locator('#intercom-video-username').fill('admin');
@@ -97,6 +128,8 @@ const catalog = [
             assert.equal(posts[0].intercom.bell_uuid, bell);
             assert.equal(posts[0].intercom.speaker_volume, 72);
             assert.equal(posts[0].intercom.microphone_gain, 90);
+            assert.equal(posts[0].intercom.ringtone, 'new-door.wav');
+            assert.equal(posts[0].intercom.ringtone_repeat, true);
             assert.equal(posts[0].intercom.gate.control_uuid, gate);
             assert.equal(await page.locator('#intercom-stream-url').inputValue(), posts[0].intercom.stream_url);
             await page.locator('#intercom-stream-url').fill('http://192.168.2.21/mjpg/video.mjpg');

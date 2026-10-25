@@ -9,7 +9,6 @@
 #include "esp_http_client.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
-#include "esp_log.h"
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -32,7 +31,6 @@ static void reap_video(void)
     }
 }
 static int64_t s_next_attempt;
-static const char *TAG = "intercom_video";
 static jpeg_decoder_handle_t s_decoder;
 
 esp_err_t app_intercom_prepare_video(void)
@@ -44,13 +42,7 @@ esp_err_t app_intercom_prepare_video(void)
      * hívásonkénti létrehozás a Wi-Fi/I2S mellett töredezett heapre futott.
      * Egyetlen videóworker használja; hívás végén csak a nagy képpufferek szűnnek meg. */
     const jpeg_decode_engine_cfg_t engine = {.timeout_ms = 100};
-    size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-    esp_err_t error = jpeg_new_decoder_engine(&engine, &s_decoder);
-    ESP_LOGI(TAG, "JPEG prepare: result=%d DMA before=%u after=%u largest=%u", error,
-             (unsigned)before,
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
-    return error;
+    return jpeg_new_decoder_engine(&engine, &s_decoder);
 }
 
 #define VIDEO_WIDTH 1280U
@@ -235,7 +227,6 @@ static void video_session(const app_intercom_snapshot_t *state)
             goto done;
         }
         code = esp_http_client_get_status_code(http);
-        ESP_LOGI(TAG, "Camera HTTP status=%d attempt=%u authentication=%s", code, attempt + 1, authentication);
         if (code != 401 || attempt != 0) {
             break;
         }
@@ -275,8 +266,6 @@ static void video_session(const app_intercom_snapshot_t *state)
         /* A stream nem veheti el a CPU0-t a közös Loxone-kapcsolattól. */
         vTaskDelay(1);
     }
-    ESP_LOGI(TAG, "Camera bytes=%u JPEG=%u starts=%u oversized=%u displayed=%d", (unsigned)received,
-             video.jpeg_frames, stream.frame_starts, stream.oversized_frames, video.last_frame != 0);
     if (view_still_open(state->revision) && (video.last_frame || !video.jpeg_frames)) {
         app_intercom_ui_status(video.last_frame ? "A videó megszakadt. Újracsatlakozás..." :
             received ? "Nem érkezett teljes MJPEG-kép (max. 2 MiB/kép). Újrapróbálás..." :

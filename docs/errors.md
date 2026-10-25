@@ -152,8 +152,9 @@ A [kaputelefon](intercom.md) működő videónál és létrejött beszélgetésn
 mutat folyamatos diagnosztikai adatokat. Kapcsolódáskor rövid folyamatjelzés,
 hibánál hitelesítési/hálózati/kép-/hanghardver-üzenet jelenik meg. Ha tíz
 másodpercig nincs elfogadott bejövő hangcsomag, a beszélgetés bontódik;
-a részletes RTP-számlálók a soros naplóba kerülnek. A webes hangszóróteszt
-a helyi lejátszási út külön ellenőrzésére használható.
+a részletes RTP-számlálók a soros naplóba kerülnek. A webes csengőhangminta
+a böngészőben szólal meg. Hiányzó vagy hibás SD-hangfájlnál a kijelző
+érthető hibaüzenetet mutat.
 
 Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg. A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik; a szükséges állapotok visszaérkezésekor automatikusan folytatódik a kijelzés. A token előzetes megújítása normál esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál a webfelület a konkrét fázist és hibakódot mutatja. [Hibaelhárítás és korlátok](loxone-direct.md).
 
@@ -168,3 +169,22 @@ között ismételt koordináta nem törli a húzás teljes elmozdulását; az 50
 távolságküszöb megmarad. Az új indulási regresszió minden témán Otthon-nyitás
 nélkül is ellenőriz lassú húzásokat. A tényleges paneles javulás és terhelés
 újra ellenőrizendő.
+
+## Csengőhangfeltöltés és SD-foglaltság
+
+A böngészős hangminta a számítógép/telefon hangszóróján szól. Sikeres előnézet
+önmagában nem bizonyítja a csengetéskori készülékes lejátszást. A kijelző
+betöltési hibája külön jelzi a foglaltságot, hiányzó fájlt, memóriahiányt,
+olvasási műveletet/errno-t vagy érvénytelen PCM WAV-ot.
+
+Feltöltéskor a korábbi hangcsomag először törlődik. Fájlonkénti hiba esetén
+a többi hang telepítése folytatódik; a weboldalon minden kihagyott fájl neve és
+oka látható. Egyetlen telepíthető hang hiánya vagy sérült központi ZIP-könyvtár
+esetén a művelet hibával zárul. A már telepített jó fájlok megmaradnak.
+Megszakadt hálózati feltöltés után újra fel kell tölteni a csomagot.
+
+A 2026-10-25-i javítás megszüntette a hálózati fogadás alatti hosszú SD-zárat,
+különválasztotta a téma- és hangkibontást, és pufferelt stdio hangolvasásra
+állt vissza. Az SD-driver/csatolás változatlan. A több változtatásból álló
+javítás nem bizonyít külön hardverhibát vagy önmagában hibás DMA-kezelést.
+[Részletes javítási és átadási jegyzet](slave-intercom-handover.md).

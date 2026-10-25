@@ -45,7 +45,7 @@ add_executable(zolee_simulator simulator.c
     "${APP_ROOT}/main/app_slave_display.c" "${APP_ROOT}/main/app_slave_display_input.c"
     "${APP_ROOT}/main/app_events.c" "${APP_ROOT}/main/app_diagnostics.c" "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
     "${APP_ROOT}/main/app_payload.c" "${APP_ROOT}/main/app_ingest.c"
-    "${APP_ROOT}/main/app_state.c" "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/simulator/battery_fixture.c" "${APP_ROOT}/main/app_battery_diagnostics.c" "${APP_ROOT}/main/app_energy_assistant.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" ${FONT_SOURCES} ${PNG_SOURCES})
+    "${APP_ROOT}/main/app_state.c" "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/simulator/battery_fixture.c" "${APP_ROOT}/main/app_battery_diagnostics.c" "${APP_ROOT}/main/app_energy_assistant.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_zip.c" "${APP_ROOT}/main/app_ringtone_wav.c" ${FONT_SOURCES} ${PNG_SOURCES})
 target_include_directories(zolee_simulator BEFORE PRIVATE "${cjson_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/compat" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main" "${CMAKE_CURRENT_BINARY_DIR}")
 target_include_directories(zolee_simulator PRIVATE "${zlib_SOURCE_DIR}" "${zlib_BINARY_DIR}")
 target_compile_definitions(zolee_simulator PRIVATE APP_TEMPLATE_DESKTOP APP_TEMPLATE_DEFAULT_ROOT="${CMAKE_CURRENT_BINARY_DIR}/templates")

@@ -31,7 +31,8 @@ def publish(directory, repository, tag, commit, release_id, allow_draft=False):
     info = json.loads((directory / 'build-info.json').read_text())
     if info['tag'] != tag or info['commit'] != commit:
         raise ValueError('Artifact provenance does not match this release')
-    expected_names = {f'ZoleeEnergyFlowDisplay-{tag}-ota.bin', f'ZoleeEnergyFlowDisplay-{tag}-usb.zip', 'build-info.json'}
+    expected_names = {f'ZoleeEnergyFlowDisplay-{tag}-ota.bin', f'ZoleeEnergyFlowDisplay-{tag}-usb.zip', 'build-info.json',
+                      f'ZoleeEnergyFlowDisplay-{tag}-templates.zip', f'ZoleeEnergyFlowDisplay-{tag}-ringtones.zip'}
     # Két cél közös kiadásakor mindkét forrásazonosságot ellenőrizzük feltöltés előtt.
     slave_info = directory / 'slave-4b-build-info.json'
     if slave_info.exists():

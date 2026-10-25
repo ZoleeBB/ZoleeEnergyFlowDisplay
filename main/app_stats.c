@@ -1407,3 +1407,65 @@ void app_stats_break_continuity(void)
     app_battery_break(&s_today.battery);
     xSemaphoreGive(s_mutex);
 }
+
+bool app_stats_get_battery(app_stats_battery_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    if (!s_mutex)
+        return false;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    bool local = s_today.valid && s_cfg.data_recept_mode != APP_DATA_SLAVE;
+    if (local) {
+        app_battery_report(&s_today.battery, time(NULL), &out->report);
+        out->nominal_kwh = s_cfg.energy.battery_capacity_kwh;
+        out->charge_kwh = s_today.battery.charge_kwh;
+        out->discharge_kwh = s_today.battery.discharge_kwh;
+    }
+    xSemaphoreGive(s_mutex);
+    return local;
+}
+
+esp_err_t app_stats_reset_battery(void)
+{
+    if (!s_mutex || !s_save_mutex || !app_storage_is_ok())
+        return ESP_ERR_INVALID_STATE;
+    day_data_t *copy = malloc(sizeof(*copy));
+    if (!copy)
+        return ESP_ERR_NO_MEM;
+    xSemaphoreTake(s_save_mutex, portMAX_DELAY);
+    esp_err_t error = app_storage_lock();
+    if (error == ESP_OK) {
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        bool allowed = s_today.valid && s_cfg.data_recept_mode != APP_DATA_SLAVE;
+        *copy = s_today;
+        double nominal = s_cfg.energy.battery_capacity_kwh;
+        xSemaphoreGive(s_mutex);
+        if (!allowed) {
+            error = ESP_ERR_INVALID_STATE;
+        } else {
+            app_battery_init(&copy->battery, nominal);
+            copy->revision++;
+            error = save_day_file(copy);
+            if (error == ESP_OK) {
+                xSemaphoreTake(s_mutex, portMAX_DELAY);
+                /* A mérések közben tovább futhattak. Csak a diagnosztikát
+                 * cseréljük; új éjfél/kapacitás esetén a kérés megismételhető. */
+                if (!strcmp(copy->date, s_today.date) && nominal == s_cfg.energy.battery_capacity_kwh) {
+                    app_battery_init(&s_today.battery, nominal);
+                    s_today.revision++;
+                    if (s_today.revision == copy->revision)
+                        s_today.saved_revision = copy->revision;
+                } else {
+                    error = ESP_ERR_INVALID_STATE;
+                }
+                xSemaphoreGive(s_mutex);
+            }
+        }
+        app_storage_unlock();
+    }
+    xSemaphoreGive(s_save_mutex);
+    free(copy);
+    return error;
+}

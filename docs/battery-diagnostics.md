@@ -141,3 +141,23 @@ Utómunka: 1280×800-ra méretezés, 256 színre kvantálás után RGB PNG kódo
   kapacitásának egyezését készülékes próbával kell ellenőrizni.
 
 [Fejlesztési és folytatási állapot](battery-diagnostics-plan.md).
+
+## Webes akkumulátor-statisztika és nullázás
+
+Az eszköz főoldalának legalján külön kártya mutatja a névleges kapacitást,
+a megfigyelt töltési/kisütési energiát, az egyenértékű ciklusokat, a becsült
+kapacitást és hatásfokot, az értékelt kisütési szakaszok számát és az aktuális
+mérési irányt. A kártya 10 másodpercenként frissül. Elégséges mérés nélkül
+a becslések helyén gondolatjel látható, nem hamis nulla vagy 100%.
+
+Az **Akkumulátor-statisztika nullázása** gomb megerősítés után törli a
+megfigyelt diagnosztikai energiákat, szakaszokat, kapacitás-/hatásfokbecslést
+és a részben futó mérést. A névleges kapacitás, a napi energiaösszegek és a
+grafikonok megmaradnak. A következő valódi mintával új mérési sorozat indul;
+a nullázás előtti mintával nem történik visszamenőleges integrálás.
+
+Sikeres válasz csak az SD-re atomikusan elmentett nullázás után érkezik.
+SD-/mentési hiba esetén a RAM-beli korábbi diagnosztika megmarad és a webes
+felület hibát jelez. Slave módban helyi nullázás nem engedélyezett: a műveletet
+a Master főoldalán kell elvégezni. A végpontok a meglévő webes hitelesítést
+használják; a nullázó POST külön szándékjelző fejlécet is kér.

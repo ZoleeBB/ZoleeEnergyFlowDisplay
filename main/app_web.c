@@ -269,6 +269,8 @@ static void html_escape(
 }
 
 /* A fő információs oldal összeállítása az aktuális runtime állapotból. */
+#include "app_battery_web.inc"
+
 static esp_err_t root_handler(httpd_req_t *req)
 {
     if (!authorize(req)) {
@@ -516,6 +518,8 @@ static esp_err_t root_handler(httpd_req_t *req)
         req,
         "</div>",
         HTTPD_RESP_USE_STRLEN);
+
+    battery_section(req);
 
     /* A műveletgombok már az oldal tetején, a Beállítások mellett szerepelnek. */
 
@@ -941,7 +945,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 32;
+    http_cfg.max_uri_handlers = 40;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -1015,8 +1019,10 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
-        {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get}};
-    for(unsigned i=0;i<2;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
+        {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get},
+        {.uri="/api/battery",.method=HTTP_GET,.handler=battery_get},
+        {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post}};
+    for(unsigned i=0;i<4;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
     app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(

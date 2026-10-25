@@ -3,26 +3,78 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "app_loxone.h"
 #include "esp_http_server.h"
 #include "app_slave_presence_service.h"
 #include "app_templates.h"
 #include "app_intercom_audio.h"
-static unsigned speaker_test_requests, speaker_test_volume;
-static bool speaker_test_active;
-void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
+#include "app_ringtones.h"
+#include "app_storage.h"
+#include "app_intercom_control.h"
+esp_err_t app_storage_lock(void) { return ESP_OK; }
+bool app_storage_is_ok(void) { return true; }
+const char *app_templates_root(void) { return "/tmp"; }
+void app_storage_unlock(void) {}
+cJSON *app_ringtones_list(void) { return cJSON_CreateArray(); }
+static unsigned ringtone_resets;
+static bool ringtone_all_failed, require_ringtone_reset;
+esp_err_t app_ringtones_reset(char error[160])
 {
-    *out = (app_intercom_audio_status_t){.state=speaker_test_active ? APP_INTERCOM_AUDIO_TESTING : APP_INTERCOM_AUDIO_IDLE,
-                                       .speaker_test=speaker_test_active};
-}
-bool app_intercom_audio_busy(void) { return speaker_test_active; }
-esp_err_t app_intercom_audio_test_request(bool enabled, unsigned volume)
-{
-    speaker_test_requests++;
-    speaker_test_active = enabled;
-    speaker_test_volume = volume;
+    (void)error;
+    ++ringtone_resets;
     return ESP_OK;
 }
+esp_err_t app_ringtones_install_prepared(const char *path, cJSON **report, char error[160])
+{
+    (void)path;
+    assert(ringtone_resets);
+    *report = cJSON_CreateObject();
+    cJSON_AddNumberToObject(*report, "installed", ringtone_all_failed ? 0 : 2);
+    cJSON *failed = cJSON_AddArrayToObject(*report, "failed");
+    cJSON *file = cJSON_CreateObject();
+    cJSON_AddStringToObject(file, "name", "broken.wav");
+    cJSON_AddStringToObject(file, "reason", "PCM WAV-ellenőrzés");
+    cJSON_AddItemToArray(failed, file);
+    if (ringtone_all_failed)
+        snprintf(error, 160, "%s", "Egyetlen hangot sem sikerült telepíteni.");
+    return ringtone_all_failed ? ESP_ERR_INVALID_ARG : ESP_OK;
+}
+static bool ringtone_query, ringtone_file = true, task_fail, async_fail;
+static unsigned media_loads, media_sends, async_complete, deleted_tasks, queued;
+static void (*media_worker[4])(void *);
+static void *media_arguments[4];
+uint8_t *app_ringtones_load(const char *name, size_t *size) {
+    assert(!strcmp(name, "tubular-chime.wav"));
+    media_loads++;
+    if (!ringtone_file) return NULL;
+    *size = 64;
+    return calloc(1, *size);
+}
+bool app_intercom_control_media_key(const char *key) { (void)key; return false; }
+bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out) { memset(out, 0, sizeof(*out)); return true; }
+esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) {
+    (void)r; snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
+}
+esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) {
+    (void)q; (void)k; snprintf(v, n, "tubular-chime.wav"); return ESP_OK;
+}
+esp_err_t httpd_resp_send(httpd_req_t *r, const char *b, int n) {
+    (void)r; assert(b && n == 64); media_sends++; return ESP_OK;
+}
+esp_err_t httpd_req_async_handler_begin(httpd_req_t *request, httpd_req_t **copy) {
+    if (async_fail) return ESP_FAIL;
+    *copy = malloc(sizeof(**copy)); assert(*copy); **copy = *request; return ESP_OK;
+}
+esp_err_t httpd_req_async_handler_complete(httpd_req_t *request) {
+    async_complete++; free(request); return ESP_OK;
+}
+int xTaskCreate(void (*function)(void *), const char *name, unsigned stack, void *arg, unsigned priority, void *handle) {
+    (void)name; (void)handle; assert(stack == 4096 && priority == 3);
+    if (task_fail) return 0;
+    assert(queued < 4); media_worker[queued] = function; media_arguments[queued++] = arg; return 1;
+}
+void vTaskDelete(void *handle) { assert(!handle); deleted_tasks++; }
 static bool home_resources_installed;
 bool app_templates_home_info(app_template_info_t *info, unsigned *generation)
 {
@@ -35,6 +87,7 @@ static bool authorized = true, header_ok = true, broken;
 static int status_code, requested, registered;
 static const char *input;
 static size_t position;
+static unsigned receive_timeouts;
 static char response[4096];
 static bool authorize(httpd_req_t *req) { (void)req; if (!authorized) status_code=401; return authorized; }
 esp_err_t httpd_resp_set_type(httpd_req_t *r,const char *s) { (void)r;(void)s;return ESP_OK; }
@@ -55,8 +108,8 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
     return ESP_OK;
 }
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
-esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
-int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
+esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
+int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(require_ringtone_reset)assert(ringtone_resets);if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *route) { (void)server;assert(route->handler);registered++;return ESP_OK; }
 cJSON *app_loxone_web_state(void) { return cJSON_CreateObject(); }
 esp_err_t app_loxone_request(const cJSON *root,bool save) { (void)root;(void)save;return ESP_OK; }
@@ -93,12 +146,6 @@ static void post(const char *body)
     input=body;position=0;status_code=200;response[0]=0;
     httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/home",.content_len=strlen(body)};
     loxone_home_post(&request);
-}
-static void test_post(const char *body)
-{
-    input=body;position=0;status_code=200;
-    httpd_req_t request={.method=HTTP_POST,.uri="/api/loxone/intercom/speaker-test",.content_len=strlen(body)};
-    intercom_speaker_test_post(&request);
 }
 static void slave_post_size(const char *body, size_t size)
 {
@@ -220,14 +267,7 @@ int main(void)
     s_config.data_recept_mode=APP_DATA_HTTP;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_SLAVE;assert(loxone_register(NULL)==ESP_OK&&!registered);
     s_config.data_recept_mode=APP_DATA_MQTT;assert(loxone_register(NULL)==ESP_OK&&!registered);
-    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==9);
-    authorized=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==401&&!speaker_test_requests);
-    authorized=true;header_ok=false;test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==400&&!speaker_test_requests);
-    header_ok=true;
-    test_post("{\"enabled\":true,\"volume\":101}");assert(status_code==400&&!speaker_test_requests);
-    test_post("{\"enabled\":true,\"volume\":70} trailing");assert(status_code==400&&!speaker_test_requests);
-    test_post("{\"enabled\":true,\"volume\":70}");assert(status_code==202&&speaker_test_active&&speaker_test_volume==70);
-    test_post("{\"enabled\":false,\"volume\":0}");assert(status_code==202&&!speaker_test_active&&speaker_test_requests==2);
+    s_config.data_recept_mode=APP_DATA_LOXONE;assert(loxone_register(NULL)==ESP_OK&&registered==10);
     authorized=false;post("{\"schema\":1}");assert(status_code==401&&!requested);
     authorized=true;header_ok=false;post("{\"schema\":1}");assert(status_code==400&&!requested);
     header_ok=true;broken=true;post("{\"schema\":1}");assert(status_code==400&&!requested);broken=false;
@@ -249,5 +289,58 @@ int main(void)
     assert(cJSON_GetObjectItem(home_state,"resources_version")->valueint == 3);
     cJSON_Delete(home_state);
     slave_tests();
+    char upload_path[] = "/tmp/ringtone-upload-test-XXXXXX";
+    int upload_fd = mkstemp(upload_path); assert(upload_fd >= 0); close(upload_fd);
+    char upload_error[160] = "";
+    input = "0123456789abcdefghij"; position = 0;
+    request.content_len = 20;
+    receive_timeouts = 2;
+    assert(receive_ringtone_zip(&request, upload_path, upload_error));
+    FILE *uploaded = fopen(upload_path, "rb"); assert(uploaded);
+    char uploaded_bytes[21] = {0}; assert(fread(uploaded_bytes, 1, 20, uploaded) == 20); fclose(uploaded);
+    assert(!strcmp(uploaded_bytes, input));
+    position = 0; broken = true;
+    assert(!receive_ringtone_zip(&request, upload_path, upload_error) && strstr(upload_error, "fogadása"));
+    broken = false; position = 0; receive_timeouts = 4;
+    assert(!receive_ringtone_zip(&request, upload_path, upload_error) && receive_timeouts == 0);
+    assert(!receive_ringtone_zip(&request, "/missing-directory/upload.zip", upload_error) && strstr(upload_error, "errno="));
+    remove(upload_path); request.content_len = 0;
+    input = "0123456789abcdefghijklmn";
+    request.content_len = strlen(input); request.method = HTTP_POST;
+    position = 0; require_ringtone_reset = true;
+    status_code = 200;
+    assert(ringtone_upload(&request) == ESP_OK);
+    assert(ringtone_resets == 1 && status_code == 200);
+    cJSON *uploaded_report = cJSON_Parse(response);
+    assert(cJSON_GetObjectItem(uploaded_report, "installed")->valueint == 2);
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(uploaded_report, "failed")) == 1);
+    cJSON_Delete(uploaded_report);
+    ringtone_all_failed = true; position = 0; status_code = 200;
+    assert(ringtone_upload(&request) == ESP_OK && status_code == 400);
+    assert(strstr(response, "broken.wav") && strstr(response, "Egyetlen hangot"));
+    ringtone_all_failed = false; require_ringtone_reset = false; request.content_len = 0;
+    ringtone_query = true;
+    status_code = 200;
+    unsigned completed = async_complete;
+    assert(ringtone_get(&request) == ESP_OK && queued == 1);
+    assert(!media_loads && !media_sends); /* A HTTP-kezelő nem vár SD-re vagy hangküldésre. */
+    loxone_home_get(&request); /* Más webes kérés a függő hangküldés mellett kiszolgálható. */
+    assert(status_code == 200);
+    media_worker[0](media_arguments[0]); queued = 0;
+    assert(media_loads == 1 && media_sends == 1 && async_complete == completed + 1 && deleted_tasks == 1);
+    for (unsigned i = 0; i < 4; i++) assert(ringtone_get(&request) == ESP_OK);
+    assert(queued == 4 && atomic_load(&s_ringtone_responses) == 4);
+    ringtone_get(&request); assert(queued == 4 && atomic_load(&s_ringtone_responses) == 4);
+    for (unsigned i = 0; i < 4; i++) media_worker[i](media_arguments[i]);
+    queued = 0;
+    assert(atomic_load(&s_ringtone_responses) == 0);
+    task_fail = true; ringtone_get(&request); task_fail = false;
+    assert(!queued && atomic_load(&s_ringtone_responses) == 0);
+    async_fail = true; ringtone_get(&request); async_fail = false;
+    assert(!queued && atomic_load(&s_ringtone_responses) == 0);
+    ringtone_file = false; ringtone_get(&request);
+    media_worker[0](media_arguments[0]); queued = 0;
+    assert(status_code == 404 && atomic_load(&s_ringtone_responses) == 0);
+    puts("PASS: actual async ringtone HTTP, no SD/send on server task, concurrent requests, bounded workers and balanced failure cleanup");
     puts("PASS: actual home HTTP handlers, MQTT/HTTP/Slave exclusion, authorization, header, partial receive, bounds, strict JSON, validation details and async 202");
 }

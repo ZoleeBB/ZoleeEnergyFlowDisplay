@@ -6,9 +6,11 @@ class Element {
     set id(value) { this._id=value;nodes.set(value,this); } get id() { return this._id; }
     set value(value) { this._value=String(value); } get value() { return this._value; }
     append(child) { child.parentNode=this;this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value; }
+    setAttribute(key,value) { this[key]=value; }
+    removeAttribute(key) { delete this[key]; }
     replaceChildren() { this.children=[];this.value=''; }
 }
-for(const id of ['consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','intercom-speaker-test','intercom-speaker-test-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['ringtone-file','ringtone-upload','ringtone-status','consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
@@ -19,13 +21,14 @@ const catalog=[{uuid,control_uuid:control,name:'<img src=x> Hőmérő',room:'Nap
     {uuid,control_uuid:'eeeeeeee-5566-7788-99aabbccddeeff00',action_uuid:'',name:'Hibás parancscím',type:'Switch',secured:false}];
 let state={schema:1,consumers:[],cards:[],busy:false,revision:0,status:'',resources_installed:false,resources_version:0}, reject=false, offline=false, hold=false;
 const posts=[];
-const tonePosts=[];
-const sandbox={console,TextEncoder,URL,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={})=>{
-    if (url === '/api/loxone/intercom/speaker-test') {
-        assert.equal(options.headers['X-Zolee-Loxone'], '1');
-        const value = JSON.parse(options.body); tonePosts.push(value);
-        state.speaker_test_active = value.enabled; state.audio_busy = value.enabled;
-        return {ok:true};
+let uploadAbort=false, uploads=0, transferBusy=false;
+let uploadReport = false;
+const sandbox={console,TextEncoder,URL,setLoxoneTransferBusy:active=>{transferBusy=active;},document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},apiFetch:async(url,options={},timeoutMs)=>{
+    if(url==='/api/loxone/intercom/ringtones') {
+        assert.equal(transferBusy,true);
+        assert.equal(timeoutMs,180000); assert.equal(options.method,'POST'); uploads++;
+        if(uploadAbort) throw Object.assign(Error('signal is aborted without reason'),{name:'AbortError'});
+        return {ok:true,text:async()=>uploadReport ? JSON.stringify({installed:1, failed:[{name:'broken.wav', reason:'CRC-hiba'}], complete:true, error:''}) : 'Telepítve.'};
     }
     assert.equal(url,'/api/loxone/home');
     if(offline)throw Error('kapcsolat megszakadt');
@@ -47,14 +50,8 @@ const click=id=>nodes.get(id).onclick();
     await sandbox.home.refresh(catalog);assert(!nodes.get('home-save').disabled);
     edit('intercom-speaker-volume', '73');
     edit('intercom-microphone-gain', '90');
-    await click('intercom-speaker-test');
-    assert.deepEqual(tonePosts[0], {enabled:true, volume:73});
-    assert.equal(nodes.get('intercom-speaker-test').textContent, 'Hangszóróteszt leállítása');
-    await click('intercom-speaker-test');
-    assert.deepEqual(tonePosts[1], {enabled:false, volume:0});
-    edit('intercom-speaker-volume', '101');
-    await click('intercom-speaker-test'); assert.equal(tonePosts.length, 2);
-    edit('intercom-speaker-volume', '73');
+    assert.equal(nodes.get('intercom-ringtone-preview').parentNode.hidden,true);
+    assert(!nodes.has('intercom-speaker-test'));
     assert.equal(nodes.get('home-resource-warning').hidden,false);
     const enabled=nodes.get('intercom-enabled'); enabled.checked=true;enabled.onchange();
     await click('intercom-save');assert.equal(posts.length,0);
@@ -168,5 +165,25 @@ const click=id=>nodes.get(id).onclick();
     await sandbox.home.refresh(catalog,false,true);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
+    nodes.get('ringtone-file').files=[{name:'private.zip',size:2716219}];
+    await nodes.get('ringtone-upload').onclick();
+    assert.equal(uploads,1); assert.equal(transferBusy,false); assert.equal(nodes.get('ringtone-status').textContent,'Telepítve.');
+    uploadReport=true;
+    await click('ringtone-upload');
+    assert.equal(uploads,2); assert.match(nodes.get('ringtone-status').textContent,/Telepített hangok: 1/);
+    assert.match(nodes.get('ringtone-status').textContent,/broken.wav: CRC-hiba/);
+    uploadAbort=true;
+    await nodes.get('ringtone-upload').onclick();
+    assert.equal(uploads,3); assert.equal(transferBusy,false); assert.match(nodes.get('ringtone-status').textContent,/3 perces/);
+    assert.equal(nodes.get('ringtone-upload').disabled,false);
+    // A valódi fetch-segéd normál kérései továbbra is 15 másodpercesek.
+    const fetchSource=fs.readFileSync('assets/web/loxone.js','utf8');
+    const timers=[];
+    const fetchContext={AbortController,setTimeout:(fn,ms)=>{timers.push(ms);return 1;},clearTimeout:()=>{},fetch:async()=>({ok:true})};
+    vm.createContext(fetchContext);
+    vm.runInContext(fetchSource.slice(fetchSource.indexOf('async function apiFetch('),fetchSource.indexOf('function validate(')),fetchContext);
+    await fetchContext.apiFetch('/api/loxone');
+    await fetchContext.apiFetch('/upload',{},180000);
+    assert.deepEqual(timers,[15000,180000]);
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

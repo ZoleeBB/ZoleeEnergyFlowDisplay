@@ -9,10 +9,12 @@ import sys
 import zipfile
 from version import validate_tag
 from flash_usb import ESPTOOL_VERSION
+from media import package_media
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 from prepare_home_resources import home_resource_files
+from prepare_ringtones import ringtone_files
 
 
 def digest(data):
@@ -103,6 +105,8 @@ def package(build, output, tag, commit, board="main"):
         if path.is_file() and path.suffix in ('.json','.png'):
             files['sd-card/templates/'+path.relative_to(ROOT/'templates').as_posix()] = path.read_bytes()
     if not slave:
+        for name, data in ringtone_files().items():
+            files["sd-card/ringtones/" + name] = data
         for name, data in home_resource_files().items():
             files['sd-card/templates/loxone-home/' + name] = data
     # The repository keeps templates at its root; the portable installer keeps
@@ -144,7 +148,7 @@ def package(build, output, tag, commit, board="main"):
             entry.external_attr = 0o100644 << 16
             archive.writestr(entry, data)
     (output / info_name).write_bytes(encoded(info))
-    checks = [ota, usb, output / info_name]
+    checks = [ota, usb, output / info_name] + package_media(output, tag)
     if other_info.exists():
         checks += other_checks
     # A másik cél korábban elkészült csomagja csak azonos forrásból vehető át.

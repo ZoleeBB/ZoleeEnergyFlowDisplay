@@ -3,6 +3,7 @@
 #include "app_loxone_page.h"
 #include "app_templates.h"
 #include "app_intercom_audio.h"
+#include "app_ringtone_web.inc"
 static esp_err_t loxone_page(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
@@ -46,14 +47,7 @@ static esp_err_t loxone_home_get(httpd_req_t *req)
     if (!authorize(req))
         return ESP_OK;
     cJSON *root = app_loxone_home_web_state();
-    app_intercom_audio_status_t audio;
-    app_intercom_audio_snapshot(&audio);
-    if (root) {
-        cJSON_AddBoolToObject(root, "speaker_test_active", audio.speaker_test &&
-            (audio.state == APP_INTERCOM_AUDIO_TESTING || audio.state == APP_INTERCOM_AUDIO_STOPPING));
-        cJSON_AddBoolToObject(root, "audio_busy", app_intercom_audio_busy());
-        cJSON_AddStringToObject(root, "speaker_test_message", audio.speaker_test ? audio.message : "");
-    }
+    if (root) cJSON_AddItemToObject(root, "ringtones", app_ringtones_list());
     app_template_info_t resources;
     unsigned resource_generation = 0;
     bool installed = app_templates_home_info(&resources, &resource_generation);
@@ -114,49 +108,20 @@ static esp_err_t loxone_home_post(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"accepted\":true}");
 }
 
-static esp_err_t intercom_speaker_test_post(httpd_req_t *req)
-{
-    if (!authorize(req)) return ESP_OK;
-    char header[8], body[96] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Zolee-Loxone", header, sizeof(header)) != ESP_OK ||
-        strcmp(header, "1") || req->content_len < 2 || req->content_len >= sizeof(body))
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen hangteszt-kérés.");
-    size_t position = 0;
-    while (position < req->content_len) {
-        int count = httpd_req_recv(req, body + position, req->content_len - position);
-        if (count <= 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "A kérés megszakadt.");
-        position += (size_t)count;
-    }
-    cJSON *root = lx_home_document_parse(body, req->content_len);
-    const cJSON *enabled = cJSON_GetObjectItemCaseSensitive(root, "enabled");
-    const cJSON *volume = cJSON_GetObjectItemCaseSensitive(root, "volume");
-    bool valid = cJSON_IsObject(root) && cJSON_IsBool(enabled) && cJSON_IsNumber(volume) &&
-                 volume->valuedouble >= 0 && volume->valuedouble <= 100 &&
-                 volume->valuedouble == (int)volume->valuedouble;
-    esp_err_t result = valid ? app_intercom_audio_test_request(cJSON_IsTrue(enabled),
-                                    (unsigned)volume->valuedouble) : ESP_ERR_INVALID_ARG;
-    cJSON_Delete(root);
-    if (result != ESP_OK)
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
-            "A hangteszt nem indítható. Ellenőrizd a hangerőt, és állítsd le az aktív hívást vagy várd meg a bontást.");
-    httpd_resp_set_status(req, "202 Accepted");
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"accepted\":true}");
-}
-
 #include "app_slave_presence_web.inc"
 
 static esp_err_t loxone_register(httpd_handle_t server)
 {
     if(s_config.data_recept_mode!=APP_DATA_LOXONE)return ESP_OK;
     const httpd_uri_t routes[]={
+        {.uri="/api/loxone/intercom/ringtones",.method=HTTP_POST,.handler=ringtone_upload},
+        {.uri="/api/intercom/ringtone",.method=HTTP_GET,.handler=ringtone_get},
         {.uri="/loxone",.method=HTTP_GET,.handler=loxone_page},
         {.uri="/api/loxone",.method=HTTP_GET,.handler=loxone_get},
         {.uri="/api/loxone/test",.method=HTTP_POST,.handler=loxone_post},
         {.uri="/api/loxone/save",.method=HTTP_POST,.handler=loxone_post},
         {.uri="/api/loxone/home",.method=HTTP_GET,.handler=loxone_home_get},
         {.uri="/api/loxone/home",.method=HTTP_POST,.handler=loxone_home_post},
-        {.uri="/api/loxone/intercom/speaker-test",.method=HTTP_POST,.handler=intercom_speaker_test_post},
         {.uri="/api/loxone/slaves",.method=HTTP_GET,.handler=slave_presence_get},
         {.uri="/api/loxone/slaves",.method=HTTP_POST,.handler=slave_presence_post}};
     for(unsigned i=0;i<sizeof(routes)/sizeof(routes[0]);i++) {

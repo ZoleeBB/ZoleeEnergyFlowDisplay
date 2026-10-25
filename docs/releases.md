@@ -39,7 +39,7 @@ a függőségi gráfot, jogosultságokat és artifact-átadást ellenőrzi.
 | Artifact | Tartalom | Felhasználás |
 | --- | --- | --- |
 | `zolee-firmware-<commit>` | Mindkét hardver OTA-ja és teljes USB ZIP-je, két build-info, közös SHA256SUMS | OTA, USB és a két kiadási publikáló |
-| `zolee-templates-<commit>` | Kilenc téma és a közös `loxone-home.zip`, előnézetekkel | Master SD-s telepítés/frissítés |
+| `zolee-templates-<commit>` | Tíz téma és a közös `loxone-home.zip`, előnézetekkel | Master SD-s telepítés/frissítés |
 | `zolee-simulator-master-windows-<commit>` | Fő kijelző Windows EXE és az összes szükséges SD-erőforrás | Helyi kipróbálás |
 | `zolee-simulator-slave-4b-windows-<commit>` | 4B Slave Windows EXE | Helyi kipróbálás |
 
@@ -64,13 +64,16 @@ patch-növelés helyett. A szabály kizárólag a saját `feature/loxone-interco
 verziót. Meglévő stabil v3.1.0 vagy újabb verziónál ütközési hibával leáll;
 a korábbi saját foglalást újrafuttatáskor megőrzi. Más PR marad patch-kiadás.
 
-A kaputelefonos PR összevonása előtt az aktuális commit teljes Actions-futása
-legyen sikeres, beleértve a Master/Slave firmware-t, a méret-/OTA-ellenőrzést,
-a böngészős és LVGL/szimulátoros teszteket. A videót, kétirányú hangot és az
-5 másodperces bontást a felhasználó 2026-10-24-én készüléken visszaigazolta.
-A végső felirattisztítás a médiakezelést nem módosítja. Az összevonás utáni
-main-futás külön építi és teszteli a v3.1.0 csomagokat, majd publikál;
-a PR jóváhagyása önmagában még nem indít kiadást.
+A **#23 Slave-kaputelefon/csengőhang PR** a normál patch-növelést használja,
+a #20 egyszeri v3.1.0 szabályát nem örökli. Összevonás előtt az aktuális
+commit teljes Actions-futása legyen sikeres, beleértve a Master/Slave
+firmware-t, a méret-/OTA-ellenőrzést, a böngészős és LVGL/szimulátoros teszteket.
+A felhasználó 2026-10-24-én a videót, kétirányú hangot és 5 másodperces bontást,
+2026-10-25-én a javított SD-/csengőhang- és csomagfeltöltési működést igazolta
+vissza. A végső naplótisztítás nem módosítja a médiakezelést.
+[Átadási állapot és ellenőrzések](slave-intercom-handover.md).
+Az összevonás utáni main-futás a kiválasztott verzióval ismét tesztel és épít,
+majd publikál. A PR jóváhagyása vagy összevonás nélküli lezárása nem indít kiadást.
 
 A v3 fejlesztés egyszeri célverziója **v3.0.0**. Kizárólag a
 `ZoleeBB/ZoleeEnergyFlowDisplay` saját `feature/v3-loxone-home` ágából igazoltan
@@ -158,3 +161,5 @@ még nem ismeri; kizárólag ezt a szintaktikai diagnosztikát hagyjuk ki, a que
 cancel-in-progress összeillőséget külön teszt védi.
 Hivatalos háttér: [újrafelhasználható workflow-k](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows),
 [párhuzamosság és sorba állítás](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+
+A kiadások a firmware-ek mellett mindig tartalmazzák a verziózott `templates.zip` gyűjtőcsomagot és a `ringtones.zip` kezdőcsomagot. Mindkettő a firmware-rel azonos forrásból készül, SHA-256 ellenőrzőösszeggel. Részletek: [Slave kaputelefon és csengőhangok](slave-intercom.md).

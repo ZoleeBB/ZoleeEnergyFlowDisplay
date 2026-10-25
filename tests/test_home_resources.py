@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='home-resources-') as directory:
     subprocess.run([os.environ.get('CC','cc'),'-std=gnu11','-O1','-Wall','-Wextra','-Werror',
         '-Wno-misleading-indentation','-Werror=frame-larger-than=8192','-fsanitize=undefined',
         '-fno-sanitize-recover=all','-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
-        'tests/test_home_resources.c','main/app_templates.c','main/app_template_zip.c',
+        'tests/test_home_resources.c','main/app_templates.c','main/app_template_zip.c','main/app_ringtone_wav.c',
         '-lz','-lm','-l:libcjson.so.1','-o',binary],cwd=ROOT,check=True)
     sd=folder/'sd';sd.mkdir()
     subprocess.run([binary,str(archive),str(sd),*invalid,str(legacy_path)],check=True,timeout=30)

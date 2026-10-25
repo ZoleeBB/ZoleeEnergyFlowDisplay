@@ -34,3 +34,13 @@ annak konfigurációját a következő újraindítás használja. Részletek és
 [BLE adatmegosztás](ble-data-seed.md#sd-nélküli-slave--csak-rendszer-téma).
 
 A közvetlen Loxone mód `loxone.json` konfigurációt is tárol. A jelszó eszközhöz kötött; másik kijelzőn újra megadandó. A diagnosztika az SD foglalt/teljes méretét és százalékos telítettségi sávját mutatja. A kapacitás legfeljebb percenként frissül; induláskor rövid ideig még nem áll rendelkezésre.
+
+## Csengőhangcsomagok
+
+A Master `/sdcard/ringtones` könyvtára külön hangkészlet. A Loxone-oldali
+ZIP-feltöltés első lépése a régi készlet és a `.new`/`.old` maradványok törlése;
+ez nem érinti a témákat, konfigurációt vagy napi statisztikát. A telepítő
+fájlonként ellenőriz, a hibás hangokat kihagyja és a végén felsorolja.
+Megszakításkor a régi hangkészlet nem áll vissza. A Slave innen nem közvetlen
+SD-hozzáféréssel, hanem a Master hitelesített médiaútján kapja a választott WAV-ot.
+[A feltöltés működése és korlátai](intercom.md#csengőhang-betöltés-és-csomagcsere).

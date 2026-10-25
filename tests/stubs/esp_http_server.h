@@ -25,3 +25,9 @@ int httpd_req_recv(httpd_req_t *req,char *out,size_t length);
 esp_err_t httpd_resp_send_chunk(httpd_req_t *req,const char *body,int length);
 esp_err_t httpd_resp_sendstr(httpd_req_t *req,const char *body);
 esp_err_t httpd_resp_send_err(httpd_req_t *req,int status,const char *body);
+
+esp_err_t httpd_req_get_url_query_str(httpd_req_t *, char *, size_t);
+esp_err_t httpd_query_key_value(const char *, const char *, char *, size_t);
+
+esp_err_t httpd_req_async_handler_begin(httpd_req_t *, httpd_req_t **);
+esp_err_t httpd_req_async_handler_complete(httpd_req_t *);
