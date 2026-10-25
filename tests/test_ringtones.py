@@ -83,6 +83,11 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
         '-Wformat-truncation=2', '-Itests/stubs', '-Imain', '-c', 'main/app_template_zip.c',
         '-o', str(folder / 'zip-release.o')], cwd=ROOT, check=True)
+    # A Windows ág ne kapjon POSIX-only fejlécet vagy fsync-hívást.
+    (folder / 'io.h').write_text('#pragma once\n#include <stdio.h>\nint _commit(int);\nint _fileno(FILE *);\n')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
+        '-D_WIN32', '-D__cdecl=', '-D__stdcall=', '-D__declspec(x)=', '-I' + directory, '-Itests/stubs', '-Imain', '-c', 'main/app_template_zip.c',
+        '-o', str(folder / 'zip-windows-api.o')], cwd=ROOT, check=True)
     lib = C.CDLL(str(libpath))
     lib.app_ringtone_wav.argtypes = [C.c_char_p, C.c_size_t, C.POINTER(C.c_size_t), C.POINTER(C.c_size_t)]
     lib.app_ringtone_wav.restype = C.c_bool

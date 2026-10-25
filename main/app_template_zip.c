@@ -14,7 +14,21 @@
 #include <sys/stat.h>
 #include <zlib.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
+
+/* A készüléken fsync, a Windows-szimulátorban annak CRT megfelelője. */
+static int sync_output_file(FILE *file)
+{
+#ifdef _WIN32
+    return _commit(_fileno(file));
+#else
+    return fsync(fileno(file));
+#endif
+}
 
 /* A ZIP-formátum többyte-os mezői little-endian sorrendben vannak. */
 static unsigned u16(const unsigned char *p)
@@ -181,7 +195,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
         bool written = fwrite(output, 1, size, out) == size;
         if (ringtone && written) {
             stage = "kibontott hang SD-szinkronizálása";
-            written = fflush(out) == 0 && fsync(fileno(out)) == 0;
+            written = fflush(out) == 0 && sync_output_file(out) == 0;
         }
         if (fclose(out))
             written = false;
