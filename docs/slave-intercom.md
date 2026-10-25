@@ -36,7 +36,13 @@ A nyilvános kezdőcsomag a marlocarlo-féle „Doorbell” / `tubular-chime.wav
 
 A release két közös melléklete: `ZoleeEnergyFlowDisplay-<verzió>-templates.zip` (a témák és a Loxone Otthon külön telepíthető ZIP-jei) és `ZoleeEnergyFlowDisplay-<verzió>-ringtones.zip` (közvetlenül feltölthető csengőhangcsomag). Mindkettő SHA-256 ellenőrzőösszeget kap. A Master USB-csomag SD-kezdőkészlete is tartalmazza a hangokat.
 
-## Fizikai átvétel
+## Ellenőrzött állapot és fizikai átvétel
+
+A felhasználó 2026-10-25-én a javítás után megfelelő működést jelzett.
+A konkrét bizonyítékok, az SD-hiba értelmezése és a további hardvervariációkra
+vonatkozó próbák: [PR #23 átadási jegyzet](slave-intercom-handover.md).
+Az alábbi lista a teljes Master/Slave átvételi mátrix; nem minden pontja
+tekinthető külön, készüléken dokumentált próbának.
 
 - Master és legalább két Slave: egyidejű csengetés, aránytartó videó, nappali/éjszakai fényerő és visszatérés.
 - Egyidejű beszélgetésgomb: egyetlen SIP-hívás és mikrofon; a többi gomb tiltott. Bontás és sikertelen hívás után újraindítható.

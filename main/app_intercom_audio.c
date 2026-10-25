@@ -551,8 +551,6 @@ static bool handle_message(audio_call_t *call, char *message, int tcp, const str
     call->media = call->peer;
     call->media.sin_port = htons(port);
     call->established = true;
-    ESP_LOGI(TAG, "RTP negotiated: local=%u remote=%u tx_payload=%u formats=%u",
-             call->rtp_port, port, call->payload, call->formats);
     return true;
 }
 
@@ -711,7 +709,6 @@ static bool open_hardware(audio_call_t *call)
                         frame > 0 && frame <= AUDIO_FRAME_MAX && frame % 8 == 0 ? ESP_OK : ESP_ERR_INVALID_SIZE)) {
         return false;
     }
-    ESP_LOGI(TAG, "AEC VoIP: DSP rate=%u frame=%d; I2S rate=%u", AUDIO_DSP_RATE, frame, AUDIO_RATE);
     call->frame_samples = (unsigned)frame;
     call->buffers = heap_caps_aligned_calloc(16, frame * (AUDIO_DECIMATION * (2 + AUDIO_CAPTURE_CHANNELS) + 4), sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!hardware_check(call, "Hangpuffer memória", call->buffers ? ESP_OK : ESP_ERR_NO_MEM) ||
@@ -780,8 +777,6 @@ static bool receive_audio(audio_call_t *call, const struct sockaddr_in *source,
     }
     if (!call->receive_port) {
         call->receive_port = source->sin_port;
-        ESP_LOGI(TAG, "RTP receive source=%u (SDP destination=%u), payload=%u",
-                 ntohs(source->sin_port), ntohs(call->media.sin_port), payload);
     }
     call->rx_accepted++;
     return true;
@@ -883,9 +878,6 @@ static void media_session(audio_call_t *call)
         }
         /* Az I2S órája adja az ütemet, nincs keretenkénti további várakozás. */
     }
-    ESP_LOGI(TAG, "RTP totals: rx=%u accepted=%u peer=%u format=%u invalid=%u tx=%u",
-             call->rx_packets, call->rx_accepted, call->rx_peer_rejected,
-             call->rx_format_rejected, call->rx_invalid, call->tx_packets);
 }
 
 static void close_call(audio_call_t *call)

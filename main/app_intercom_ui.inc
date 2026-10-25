@@ -84,17 +84,7 @@ static bool intercom_prepare(void)
         /* Először megszűnnek a háttér widgetjei, utána a képek és cache-ek.
          * A kiválasztott téma és a kért Otthon-oldal megmarad, csak a RAM-beli
          * pillanatkép ürül ki. A kamera még nem foglalhat előtte memóriát. */
-#ifdef ESP_PLATFORM
-        size_t psram_before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-        size_t internal_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-#endif
         home_reset_theme();
-#ifdef ESP_PLATFORM
-        ESP_LOGI("intercom", "Background released: PSRAM=%u->%u DMA=%u->%u bytes",
-                 (unsigned)psram_before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-                 (unsigned)internal_before,
-                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
-#endif
         home_page = 0;
         template_loading_requested = true;
         template_waiting_for_load = true;

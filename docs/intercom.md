@@ -151,10 +151,12 @@ régi profilnál a funkció kikapcsolt, a hangerők alapértékei automatikusak.
 
 ## Ellenőrzés és kiadás
 
-A felhasználó 2026-10-24-én készüléken visszaigazolta a működő videót, folyamatos
-helyi teszthangot, megfelelő kétirányú beszédet és a kapunyitás utáni automatikus
-bontást. Ezt követi a kijelző diagnosztikai feliratainak eltávolítása; a médiaút,
-a hangerők és a hangbontás szabályai változatlanok.
+A felhasználó 2026-10-24-én készüléken visszaigazolta a működő videót, megfelelő
+kétirányú beszédet és a kapunyitás utáni automatikus bontást. 2026-10-25-én
+a javított csomagfeltöltést és SD-/csengőhang-működést is megfelelőnek jelezte.
+A korábbi helyi teszthang nem része a végleges felületnek. A fejlesztői
+memória-, kamera- és normál RTP-naplók eltávolítása nem változtat a médiaúton;
+a tényleges hibák és kapcsolódási folyamatjelzések megmaradnak.
 
 - `python3 tests/run_tests.py`: teljes C/JS/protokoll/kiadási regresszió.
 - `python3 tests/test_intercom_audio.py`: valódi SIP/SDP/RTP/G.711 és
@@ -165,15 +167,17 @@ a hangerők és a hangbontás szabályai változatlanok.
   JPEG-fixture, nagy és darabolt képek, hibás címek, csengetésmodell.
 - Loxone-protokoll-, HTTP-, tároló- és JS-tesztek: mentés, titkosított jelszó,
   hangerőhatárok/alapértékek, kapunyitási sor és nyugtától független időzítés.
-- Chromium desktop/mobil: tényleges beágyazott kaputelefon-szerkesztő és hangteszt.
+- Chromium desktop/mobil: tényleges beágyazott kaputelefon-szerkesztő,
+  böngészős hangminta és fájlonkénti feltöltési hibajelentés.
 - LVGL/ASan 32 bit és RGB565: korai és legfrissebb kép, másolási tulajdonjog,
   generációk, gyors újracsengés és késleltetett felszabadítás.
 - A `simulator_intercom` CTest a valódi LVGL-elrendezést, kézi hívásindítást,
   csengetés utáni nyitva tartást és az aktív hívás üres státuszsorát is ellenőrzi.
 - ESP-IDF 5.5.4 CI: Master/Slave firmware, partíció-/OTA-méret és USB-csomag.
 
-A saját **#20 PR mainre összevonása v3.1.0 kiadást** készít, a szokásos
-patch-növelés helyett. Összevonás nélküli lezárás nem ad ki verziót.
+A korábbi **#20 PR egyszeri célverziója v3.1.0** volt. A mostani
+**#23 PR a normál patch-növelést** használja. Összevonás nélküli lezárás
+nem ad ki verziót. [Aktuális átadási jegyzet](slave-intercom-handover.md).
 A pontos szabály és ütközésvédelem: [Automatikus kiadás](releases.md).
 A záró módosítás után az aktuális PR checks eredménye az irányadó;
 más hardveren/kaputelefonon a működés külön ellenőrzendő.
