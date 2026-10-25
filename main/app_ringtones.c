@@ -1,6 +1,6 @@
 #include "app_ringtones.h"
 #include "app_storage.h"
-#include "app_template_zip.h"
+#include "app_ringtone_zip.h"
 #include "app_template_dir.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,21 +16,59 @@
 #define APP_RINGTONE_ROOT APP_SD_MOUNT_POINT "/ringtones"
 #endif
 
-static void clean(const char* directory)
+/* Kizárólag a dedikált hangkönyvtárakat töröljük. Hibát nem rejtünk el. */
+static bool clean_depth(const char *directory, unsigned depth)
 {
-    DIR* dir = opendir(directory);
-    if (dir) {
-        struct dirent* entry;
-        while ((entry = readdir(dir))) {
-            if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
-                continue;
-            char path[512];
-            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-            remove(path);
-        }
-        closedir(dir);
+    if (depth > 4) {
+        errno = ELOOP;
+        return false;
     }
-    rmdir(directory);
+    DIR *dir = opendir(directory);
+    if (!dir)
+        return errno == ENOENT || (errno == ENOTDIR && remove(directory) == 0);
+    bool ok = true;
+    struct dirent *entry;
+    while ((entry = readdir(dir))) {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        char path[512];
+        if (snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name) >= (int)sizeof(path)) {
+            ok = false;
+            break;
+        }
+        struct stat info;
+#if defined(_WIN32) || defined(ESP_PLATFORM)
+        int result = stat(path, &info);
+#else
+        int result = lstat(path, &info);
+#endif
+        if (result || (S_ISDIR(info.st_mode) ? !clean_depth(path, depth + 1) : remove(path) != 0)) {
+            ok = false;
+            break;
+        }
+    }
+    closedir(dir);
+    return ok && rmdir(directory) == 0;
+}
+
+static bool clean(const char *directory)
+{
+    return clean_depth(directory, 0);
+}
+
+esp_err_t app_ringtones_reset(char error[160])
+{
+    error[0] = 0;
+    if (app_storage_lock() != ESP_OK) {
+        snprintf(error, 160, "%s", "Az SD-zár nem érhető el a régi hangcsomag törléséhez.");
+        return ESP_ERR_INVALID_STATE;
+    }
+    bool ok = clean(APP_RINGTONE_ROOT) && clean(APP_RINGTONE_ROOT ".new")
+        && clean(APP_RINGTONE_ROOT ".old") && mkdir(APP_RINGTONE_ROOT, 0775) == 0;
+    if (!ok)
+        snprintf(error, 160, "A régi hangcsomag törlése/üres könyvtár létrehozása sikertelen (errno=%d).", errno);
+    app_storage_unlock();
+    return ok ? ESP_OK : ESP_FAIL;
 }
 
 static uint8_t* load(const char* directory, const char* name, size_t* size,
@@ -53,10 +91,7 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
         if (error) snprintf(error, 160, "WAV megnyitás: %.64s (errno=%d).", name, errno);
         return NULL;
     }
-    /* Az SD-hez használt kis belső puffert ne kerülje meg a stdio saját puffere. */
-    setvbuf(file, NULL, _IONBF, 0);
     uint8_t* data = NULL;
-    uint8_t* transfer = NULL;
     struct stat info;
     *status = APP_RINGTONE_LOAD_IO;
     stage = "méretlekérés / stat";
@@ -81,30 +116,17 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     *status = APP_RINGTONE_LOAD_MEMORY;
     if (!data)
         goto done;
-    /* A PSRAM és a P4 cache-vonal nem közvetlen SD-DMA célpont.
-     * A fájl mindig igazított belső pufferbe érkezik, onnan másoljuk a hangot. */
-    stage = "belső DMA-puffer foglalása";
-#ifdef ESP_PLATFORM
-    transfer = heap_caps_aligned_calloc(128, 1, 512,
-        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
-#else
-    transfer = calloc(1, 512);
-#endif
-    if (!transfer)
-        goto done;
+    /* A főági fájlkezeléshez hasonló, pufferelt stdio. A driver kezeli az
+     * SD adatút memóriaigazítását; nincs saját DMA-puffer vagy setvbuf. */
     *status = APP_RINGTONE_LOAD_IO;
-    /* A több MB-os egyetlen fread az SD-driverben nagy átmeneti DMA-
-     * puffert igényelhet éppen a kamerakép indulásakor. Szektoronként
-     * olvasunk: az SD átmeneti memóriaigénye nem nő a hang hosszával. */
     stage = "adatolvasás";
     errno = 0;
-    while (position < (size_t)length) {
-        size_t chunk = (size_t)length - position;
-        if (chunk > 512)
-            chunk = 512;
-        if (fread(transfer, 1, chunk, file) != chunk)
+    while (position < length) {
+        size_t chunk = length - position;
+        if (chunk > 2048)
+            chunk = 2048;
+        if (fread(data + position, 1, chunk, file) != chunk)
             goto done;
-        memcpy(data + position, transfer, chunk);
         position += chunk;
     }
     size_t offset, bytes;
@@ -118,7 +140,6 @@ done:
     if (*status != APP_RINGTONE_LOAD_OK && error)
         snprintf(error, 160, "WAV %s (errno=%d, bájt=%u): %.64s",
             stage, errno, (unsigned)position, name);
-    free(transfer);
     fclose(file);
     if (*status != APP_RINGTONE_LOAD_OK) {
         free(data);
@@ -138,9 +159,6 @@ uint8_t* app_ringtones_load_detailed(const char* name, size_t* size,
     /* A hangfeladat újrapróbálhatja, közben hívásra azonnal megszakítható. */
     if (!app_storage_try_lock())
         return NULL;
-    struct stat st;
-    if (stat(APP_RINGTONE_ROOT, &st))
-        rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT);
     uint8_t* data = load(APP_RINGTONE_ROOT, name, size, status, error);
     app_storage_unlock();
     return data;
@@ -162,9 +180,6 @@ cJSON* app_ringtones_list(void)
     cJSON* list = cJSON_CreateArray();
     if (!list || app_storage_lock() != ESP_OK)
         return list;
-    struct stat st;
-    if (stat(APP_RINGTONE_ROOT, &st))
-        rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT);
     DIR* dir = opendir(APP_RINGTONE_ROOT);
     struct dirent* entry;
     unsigned count = 0;
@@ -180,68 +195,37 @@ cJSON* app_ringtones_list(void)
     return list;
 }
 
-esp_err_t app_ringtones_install(const char* archive, char error[160])
+/* A törlés külön, a HTTP-törzs fogadása ELŐTT történik. A készletet nem
+ * nevezzük át és nem állítjuk vissza egy korábbi, esetleg hibás mentésből. */
+esp_err_t app_ringtones_install_prepared(const char *archive, cJSON **report, char error[160])
 {
     error[0] = 0;
+    *report = cJSON_CreateObject();
+    if (!*report || !cJSON_AddArrayToObject(*report, "failed")) {
+        cJSON_Delete(*report);
+        *report = NULL;
+        snprintf(error, 160, "%s", "Nincs memória a telepítési jelentéshez.");
+        return ESP_ERR_NO_MEM;
+    }
     if (app_storage_lock() != ESP_OK) {
         snprintf(error, 160, "%s", "Az SD-zár nem érhető el a csomag telepítéséhez.");
         return ESP_ERR_INVALID_STATE;
     }
-    clean(APP_RINGTONE_ROOT ".new");
-    bool ok = mkdir(APP_RINGTONE_ROOT ".new", 0775) == 0;
-    if (!ok) snprintf(error, 160, "Hangcsomag: ideiglenes könyvtár létrehozása sikertelen (errno=%d).", errno);
-    if (ok) ok = app_ringtone_unzip(archive, APP_RINGTONE_ROOT ".new", error);
-    unsigned count = 0;
-    DIR* dir = ok ? opendir(APP_RINGTONE_ROOT ".new") : NULL;
-    if (ok && !dir) {
-        snprintf(error, 160, "Hangcsomag: kibontott könyvtár megnyitása sikertelen (errno=%d).", errno);
-        ok = false;
-    }
-    struct dirent* entry;
-    while (ok && dir && (entry = readdir(dir))) {
-        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")
-            || !strcmp(entry->d_name, "ringtone.json"))
-            continue;
-        size_t size;
-        app_ringtone_load_status_t status;
-        uint8_t* data = load(APP_RINGTONE_ROOT ".new", entry->d_name, &size, &status, error);
-        ok = data != NULL;
-        free(data);
-        count++;
-    }
-    if (dir)
-        closedir(dir);
-    if (ok && (!count || count > 32)) {
-        snprintf(error, 160, "A csomagban %u hang található; 1–32 szükséges.", count);
-        ok = false;
-    }
-    if (ok) {
-        struct stat st;
-        if (stat(APP_RINGTONE_ROOT, &st) && stat(APP_RINGTONE_ROOT ".old", &st) == 0
-            && rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT))
-            ok = false;
-        if (!ok) {
-            clean(APP_RINGTONE_ROOT ".new");
-            app_storage_unlock();
-            snprintf(error, 160, "%s", "Az előző csengőhangcsomag nem állítható vissza; SD-hiba.");
-            return ESP_FAIL;
-        }
-        clean(APP_RINGTONE_ROOT ".old");
-        bool previous = stat(APP_RINGTONE_ROOT, &st) == 0;
-        ok = !previous || rename(APP_RINGTONE_ROOT, APP_RINGTONE_ROOT ".old") == 0;
-        if (!ok) snprintf(error, 160, "A régi hangkönyvtár átnevezése sikertelen (errno=%d).", errno);
-        if (ok && rename(APP_RINGTONE_ROOT ".new", APP_RINGTONE_ROOT)) {
-            snprintf(error, 160, "Az új hangkönyvtár aktiválása sikertelen (errno=%d).", errno);
-            if (previous)
-                rename(APP_RINGTONE_ROOT ".old", APP_RINGTONE_ROOT);
-            ok = false;
-        }
-        if (ok)
-            clean(APP_RINGTONE_ROOT ".old");
-    }
-    clean(APP_RINGTONE_ROOT ".new");
+    bool ok = app_ringtone_unpack(archive, APP_RINGTONE_ROOT, *report, error);
     app_storage_unlock();
-    if (!ok && !error[0])
-        snprintf(error, 160, "%s", "Ismeretlen hangcsomag-telepítési hiba; a korábbi készlet megmaradt.");
+    if (ok && cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(*report, "installed")) == 0) {
+        snprintf(error, 160, "%s", "Egyetlen hangot sem sikerült telepíteni.");
+        ok = false;
+    }
     return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
+}
+
+esp_err_t app_ringtones_install(const char *archive, char error[160])
+{
+    esp_err_t result = app_ringtones_reset(error);
+    cJSON *report = NULL;
+    if (result == ESP_OK)
+        result = app_ringtones_install_prepared(archive, &report, error);
+    cJSON_Delete(report);
+    return result;
 }

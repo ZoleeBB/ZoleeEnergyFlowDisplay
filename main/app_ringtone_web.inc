@@ -22,16 +22,32 @@ static esp_err_t ringtone_upload(httpd_req_t* req)
             req, HTTPD_400_BAD_REQUEST, "Várd meg a csengetés vagy beszélgetés végét.");
     char path[256], error[160] = "Csengőhang telepítése sikertelen.";
     snprintf(path, sizeof(path), "%s/.ringtone-upload.zip", app_templates_root());
-    bool ok = receive_sd_zip(req, path, error);
-    esp_err_t result = ok ? app_ringtones_install(path, error) : ESP_FAIL;
+    if (!app_storage_is_ok())
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Az SD-kártya nem érhető el.");
+    /* A felhasználó kérése szerint a törlés megelőzi a ZIP fogadását. */
+    if (app_ringtones_reset(error) != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, error);
+    bool ok = receive_ringtone_zip(req, path, error);
+    cJSON *report = NULL;
+    esp_err_t result = ok ? app_ringtones_install_prepared(path, &report, error) : ESP_FAIL;
     if (app_storage_lock() == ESP_OK) {
         remove(path);
         app_storage_unlock();
     }
+    if (!report)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, error);
+    cJSON_AddBoolToObject(report, "complete", result == ESP_OK);
+    cJSON_AddStringToObject(report, "error", error);
+    char *json = cJSON_PrintUnformatted(report);
+    cJSON_Delete(report);
+    if (!json)
+        return ESP_ERR_NO_MEM;
     if (result != ESP_OK)
-        return httpd_resp_send_err(req, ok ? HTTPD_400_BAD_REQUEST : HTTPD_500_INTERNAL_SERVER_ERROR, error);
-    return httpd_resp_sendstr(
-        req, "Csengőhangcsomag telepítve. Válassz hangot, majd mentsd a kaputelefon beállításait.");
+        httpd_resp_set_status(req, "400 Bad Request");
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    esp_err_t sent = httpd_resp_sendstr(req, json);
+    free(json);
+    return sent;
 }
 
 /* A böngésző csak lejátszási ütemben kérheti a WAV bájtjait. A szinkron

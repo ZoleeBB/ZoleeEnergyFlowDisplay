@@ -187,64 +187,61 @@ más hardveren/kaputelefonon a működés külön ellenőrzendő.
 
 A párosított 4B kijelzők és a csengőhangcsomag működése: [Slave kaputelefon](slave-intercom.md).
 
-## Csengőhang-betöltési hibák
+## Csengőhang-betöltés és csomagcsere
 
-A csengőhang nagy puffere kifejezetten PSRAM-ba kerül a Masteren és a Slave-en,
-megőrizve a belső memóriát a kamera/hang DMA számára. Az SD-olvasás legfeljebb
-512 bájtos darabokat kér, így a driver átmeneti puffere nem nő a WAV hosszával. A Master az SD átmeneti
-foglaltságára legfeljebb 5 másodpercig próbál újra; hívásindítás, kapunyitás vagy
-a csengetés vége ezt megszakítja. Hiányzó/hibás fájlt nem próbál folyamatosan újraolvasni.
-A kijelző külön jelzi a foglaltságot, memóriahiányt, hiányzó vagy hibás WAV-ot,
-olvasási hibát, illetve a Slave Master-letöltési és hozzáférési hibáját.
-A webes előnézet és a kijelző betöltése külön kérésenként kap hibaállapotot;
-egy párhuzamos előnézet nem írhatja felül a kijelző hibáját.
+Az SD-életciklus, csatolás, konfiguráció, valamint a témák HTTP-feltöltője és
+ZIP-kibontója a `main` ág megoldását használja. A hangcsomagot külön modul
+bontja ki; a témák telepítéséhez nincs csengőhang-specifikus elágazás.
+A WAV olvasása pufferelt stdio műveletekkel, 2048 bájtos darabokban történik,
+egyedi DMA-puffer és `setvbuf` nélkül. A teljes hang PSRAM-ba kerül.
+A kodek, SIP/RTP/AEC és a hívásvezérlés változatlan.
 
-Az SD adatút a WAV-ot 128 bájtra igazított, 512 bájtos belső DMA-pufferen
-keresztül olvassa, majd PSRAM-ba másolja. A nagy PSRAM-hangpuffer nem kerül
-közvetlenül az SD olvasási műveletéhez. A kis belső puffer minden hibánál is felszabadul.
+### Törlés, feltöltés, fájlonkénti telepítés
+
+A hitelesített feltöltési kérés a méret és a hívásállapot ellenőrzése után
+**először törli a teljes régi hangkészletet**, a `.new` és `.old`
+maradványokat is. Csak sikeres törlés után kezdődik a ZIP fogadása.
+Nincs régi készletre visszaállás; megszakítás vagy újraindulás után a
+már sikeresen telepített fájlok maradnak, vagy üres lesz a hangkészlet.
+A böngésző ezt már a feltöltés előtt jelzi. A csengőhangválasztás és a többi
+beállítás nem törlődik; hiányzó hang helyett a telepítés után újat kell választani.
+
+A hang ZIP-fogadója minden hálózati olvasás előtt elengedi az SD-zárat és
+lezárja az SD-fájlt. A kapott darabot külön megnyitás/írás/lezárás menti.
+Így a hálózati várakozás nem tartja fogva az SD-kártyát, és a helyreállító
+feladat sem talál nyitott feltöltési fájlt. Három rövid socket-időtúllépést
+újrapróbál; megszakadáskor bájtszámot és hálózati hibakódot jelez.
+
+A kibontó egyszerre egy fájlt olvas, CRC- és PCM WAV-ellenőrzést végez,
+majd ment és lezár. Nincs külön fsync vagy könyvtárátnevezés.
+Hibás formátum, CRC, útvonal, fájlmegnyitás, írás vagy lezárás esetén az
+érintett fájl kimarad, és a következő feldolgozása folytatódik. Félkész WAV
+nem maradhat a listában. Legfeljebb 32 hang és 8 MiB kibontott adat fogadható.
+Az opcionális `ringtone.json` nem szükséges a hangok telepítéséhez.
+Sérült központi ZIP-könyvtár esetén a biztonságos bejárás nem folytatható;
+a már telepített fájlok ekkor is megmaradnak.
+
+A válasz JSON-jában az `installed` a sikeres hangok száma, a `failed`
+tömb minden kihagyott elem `name` és `reason` mezőjét tartalmazza.
+A `complete` a bejárás sikerét, az `error` az esetleges végzetes hibát jelzi.
+A weboldal a végén felsorolja az összes kihagyott fájlt és okát, és frissíti
+a választható hangok listáját. A feltöltésre 3 perc áll rendelkezésre;
+közben a Loxone-oldal automatikus lekérdezése szünetel.
+
+### Lejátszás és hibajelzés
+
 A webes hangminta külön, belső vermű háttérfeladatból válaszol aszinkron
-HTTP-kérésre: a lassú vagy szüneteltetett lejátszó nem tartja fel a fő
-HTTP-kezelőt és az ikonok kiszolgálását. Legfeljebb négy hangletöltés futhat
-párhuzamosan. Az SD-zár csak a fájl RAM-ba olvasásáig él, hálózati küldés alatt nem.
+HTTP-kérésre. Legfeljebb négy hangletöltés futhat párhuzamosan; hálózati
+küldés alatt nincs SD-zár. A csengőhang-feladat 8 KiB belső RAM-os vermet,
+a beszélgetés 16 KiB PSRAM-vermet használ.
 
-A csengőhang-ZIP feltöltésére és ellenőrzésére a böngésző 3 percet enged;
-a normál API-kérések 15 másodperces korlátja erre nem vonatkozik.
-Az új csomag azonos nevű hangjai felülírják a régieket. A csomag teljes
-hangkészletet cserél; hibás feltöltés/ellenőrzés esetén a korábbi készlet megmarad.
-
-### Feltöltés és webes kapcsolatjelzés
-
-A csengőhang és a téma azonos, 2048 bájtos SD ZIP-fogadósegédet használ.
-A fogadó három egymást követő rövid socket-időtúllépést újrapróbál;
-megszakadáskor a fogadott bájtok számát és a hálózati hibakódot,
-SD-megnyitási/írási/lezárási hibánál pedig külön műveletet és errno-t jelez.
-A csengőhang ideiglenes ZIP-je a működő témakönyvtárba kerül, a hangkészlet
-csak sikeres kicsomagolás és WAV-ellenőrzés után cserélődik.
-
-A Loxone-oldal automatikus lekérdezése a csengőhang feltöltésének idejére
-szünetel. Az előző lekérdezés későn visszaérkező hibája sem görgeti fel az oldalt.
-Az „Az eszköz nem válaszolt 15 másodpercen belül” böngészős üzenet az eszköz
-HTTP-kiszolgálójára vonatkozik, önmagában nem bizonyít Miniserver-bontást.
-
-A csengőhang-feladat 8 KiB belső RAM-os vermet használ a fájlrendszer/
-SD/ROM útvonalhoz, a beszélgetés 16 KiB-os verme változatlanul PSRAM-ban él.
-A hangadatok PSRAM-ban, az SD adatpuffere kis belső DMA-területen maradnak.
-
-### Pontos telepítési és fájlbetöltési hibák
-
-A telepítő a ZIP-, könyvtár-, WAV-olvasási és aktiválási hibát nem cseréli le
-általános „hibás PCM WAV” szövegre. A hiba megnevezi az érintett fájlt és lépést;
-fájlrendszerhibánál errno is látható. A csengetéskori betöltés megkülönbözteti
-a megnyitást, stat-alapú méretlekérést, memóriafoglalást,
-adatolvasást (bájtpozícióval) és a PCM-ellenőrzést. A hiba a kérés saját
-pufferében él, így a párhuzamos webes lejátszás nem írhatja felül.
-A részletes üzenet a készülékes ok feltárását szolgálja; egy sikeres hostteszt
-önmagában nem igazolja az ESP32/FatFS adatutat.
-
-A WAV-betöltő stat-alapú méretlekérést és szekvenciális olvasást használ,
-nem függ a fájl végére és elejére történő seek művelettől. A kibontott hangok
-aktiválás előtt fflush/fsync szinkronizálást kapnak; ennek hibájánál a régi
-csomag marad aktív. A témák telepítési és hanghívási útvonala változatlan.
+A Master átmeneti SD-foglaltság esetén legfeljebb 5 másodpercig próbál újra;
+hívásindítás, kapunyitás és a csengetés vége ezt megszakítja.
+A betöltés megkülönbözteti a hiányzó fájlt, memóriahiányt, fájlmegnyitási,
+méretlekérési, adatolvasási és PCM-hibát. A részletes üzenet kérésenként
+külön pufferben él; a párhuzamos webes előnézet nem írhatja felül.
+A hostteszt önmagában nem igazolja az ESP32/FatFS adatutat: a készülékes
+csomagfeltöltést, témaváltást és csengetést a firmware-rel is ellenőrizni kell.
 
 A lejátszási sorrend ellenőrzésének gyártói referenciái:
 [Espressif BSP audio API](https://github.com/espressif/esp-bsp/blob/master/docu/how_to_use.md#-audio)

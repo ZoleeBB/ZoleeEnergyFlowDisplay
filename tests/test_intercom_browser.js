@@ -56,7 +56,7 @@ const catalog = [
                     assert.equal(route.request().postDataBuffer().toString(), 'fixture-zip');
                     uploads++;
                     home.ringtones = ['tubular-chime.wav', 'new-door.wav'];
-                    return route.fulfill({body:'Csengőhangcsomag telepítve.'});
+                    return route.fulfill({contentType:'application/json', body:JSON.stringify({complete:true, installed:2, failed:[{name:'broken.wav', reason:'PCM WAV-ellenőrzés'}], error:''})});
                 } else if (url.pathname === '/api/intercom/ringtone') {
                     assert.equal(route.request().method(), 'GET');
                     samples.push(url.searchParams.get('name'));
@@ -94,6 +94,8 @@ const catalog = [
             await page.locator('#ringtone-upload').click();
             await page.waitForFunction(() => [...document.querySelector('#intercom-ringtone').options].some(option => option.value === 'new-door.wav'));
             assert.equal(uploads, 1);
+            assert.match(await page.locator('#ringtone-status').textContent(), /Telepített hangok: 2/);
+            assert.match(await page.locator('#ringtone-status').textContent(), /broken.wav: PCM WAV-ellenőrzés/);
             assert.equal(await page.locator('#intercom-speaker-volume').inputValue(), '72');
             assert.equal(await page.locator('#intercom-ringtone').inputValue(), 'tubular-chime.wav');
             assert.equal(await page.locator('#intercom-ringtone-repeat').isChecked(), true);

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Valódi RIFF-parser és SD ZIP-telepítő: visszaállítás és hibás archívumok."""
+"""Valódi RIFF-parser: törlés, fájlonkénti telepítés és részletes hibajelentés."""
 import ctypes as C
 import io
 import json
 import os
 from pathlib import Path
-import shutil
 import struct
 import subprocess
 import tempfile
@@ -18,10 +17,7 @@ with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
 #include <stddef.h>
 #define MALLOC_CAP_SPIRAM 4
 #define MALLOC_CAP_8BIT 2
-#define MALLOC_CAP_INTERNAL 1
-#define MALLOC_CAP_DMA 8
 void *heap_caps_malloc(size_t size, unsigned caps);
-void *heap_caps_aligned_calloc(size_t, size_t, size_t, unsigned);
 ''')
     stub = folder / 'stub.c'
     stub.write_text('''
@@ -30,26 +26,35 @@ void *heap_caps_aligned_calloc(size_t, size_t, size_t, unsigned);
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 #include "app_storage.h"
 #include "app_ringtone_wav.h"
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
 uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
-static int fault, calls;
-static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer, fail_seek, fail_sync;
-void fail_flush(bool value) { fail_sync = value; }
-int __real_fsync(int);
-int __wrap_fsync(int fd) { if (fail_sync) { errno = EIO; return -1; } return __real_fsync(fd); }
+static bool busy, bounded_reads, fail_reads, fail_memory, fail_seek, locked;
+static bool fail_create, fail_close;
+static FILE *close_target;
+void file_faults(bool create, bool close) { fail_create = create; fail_close = close; }
+FILE *__real_fopen(const char *, const char *);
+FILE *__wrap_fopen(const char *path, const char *mode) {
+    if (fail_create && strstr(path, "write-fails.wav") && !strcmp(mode, "wb")) { errno = EIO; return NULL; }
+    FILE *file = __real_fopen(path, mode);
+    if (fail_close && strstr(path, "close-fails.wav") && !strcmp(mode, "wb")) close_target = file;
+    return file;
+}
+int __real_fclose(FILE *);
+int __wrap_fclose(FILE *file) {
+    bool fail = file == close_target;
+    if (fail) close_target = NULL;
+    int result = __real_fclose(file);
+    if (fail) { errno = EIO; return EOF; }
+    return result;
+}
+bool storage_locked(void) { return locked; }
 void fail_position(bool value) { fail_seek = value; }
 int __real_fseek(FILE *, long, int);
 int __wrap_fseek(FILE *file, long position, int origin) {
     return fail_seek ? -1 : __real_fseek(file, position, origin);
-}
-static void *dma_buffer;
-void fail_dma(bool value) { fail_transfer = value; }
-void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps) {
-    assert(alignment == 128 && count == 1 && size == 512 && caps == (1 | 8 | 2));
-    dma_buffer = fail_transfer ? NULL : aligned_alloc(alignment, size);
-    return dma_buffer;
 }
 void fail_allocation(bool value) { fail_memory = value; }
 void *heap_caps_malloc(size_t size, unsigned caps) {
@@ -60,38 +65,38 @@ void limit_reads(bool value) { bounded_reads = value; }
 void fail_read(bool value) { fail_reads = value; }
 size_t __real_fread(void *, size_t, size_t, FILE *);
 size_t __wrap_fread(void *data, size_t size, size_t count, FILE *file) {
-    if (bounded_reads) assert(data == dma_buffer && ((size_t)data % 128) == 0);
-    if (fail_reads || (bounded_reads && size * count > 512)) return 0;
+    if (fail_reads || (bounded_reads && size * count > 2048)) return 0;
     return __real_fread(data, size, count, file);
 }
 void storage_busy(bool value) { busy = value; }
-void fail_rename(int n) { fault = n; calls = 0; }
-int __real_rename(const char *, const char *);
-int __wrap_rename(const char *a, const char *b) { if (++calls == fault) return -1; return __real_rename(a, b); }
-esp_err_t app_storage_lock(void) { return ESP_OK; }
-bool app_storage_try_lock(void) { return !busy; }
-void app_storage_unlock(void) {}
+esp_err_t app_storage_lock(void) { assert(!locked); locked = true; return ESP_OK; }
+bool app_storage_try_lock(void) { if (busy) return false; assert(!locked); locked = true; return true; }
+void app_storage_unlock(void) { assert(locked); locked = false; }
 bool app_templates_safe_asset(const char *name) { (void)name; return false; }
 ''')
     libpath = folder / 'ringtones.so'
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-shared', '-fPIC', '-g', '-O1',
         '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-fsanitize=undefined', '-fno-sanitize-recover=all',
         '-DESP_PLATFORM', '-I' + directory, '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
-        'main/app_ringtone_wav.c', 'main/app_template_zip.c', 'main/app_ringtones.c', str(stub),
-        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-Wl,--wrap=fsync', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
-    # A CI Release-fordításának figyelmeztetése is legyen helyben regresszió.
+        'main/app_ringtone_wav.c', 'main/app_ringtone_zip.c', 'main/app_ringtones.c', str(stub),
+        '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-Wl,--wrap=fopen', '-Wl,--wrap=fclose', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+    # A külön kibontó és a visszaállított témakibontó Release buildben is forduljon.
+    for source in ('main/app_template_zip.c', 'main/app_ringtone_zip.c'):
+        subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
+            '-Wformat-truncation=2', '-Werror=frame-larger-than=' + ('4096' if 'ringtone' in source else '8192'), '-Itests/stubs', '-Imain', '-c', source,
+            '-o', str(folder / (Path(source).stem + '.o'))], cwd=ROOT, check=True)
+    receiver = folder / 'receive'
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
-        '-Wformat-truncation=2', '-Itests/stubs', '-Imain', '-c', 'main/app_template_zip.c',
-        '-o', str(folder / 'zip-release.o')], cwd=ROOT, check=True)
-    # A Windows ág ne kapjon POSIX-only fejlécet vagy fsync-hívást.
-    (folder / 'io.h').write_text('#pragma once\n#include <stdio.h>\nint _commit(int);\nint _fileno(FILE *);\n')
-    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
-        '-D_WIN32', '-D__cdecl=', '-D__stdcall=', '-D__declspec(x)=', '-I' + directory, '-Itests/stubs', '-Imain', '-c', 'main/app_template_zip.c',
-        '-o', str(folder / 'zip-windows-api.o')], cwd=ROOT, check=True)
+        '-fsanitize=undefined', '-fno-sanitize-recover=all', '-Itests/stubs', '-Imain',
+        'tests/test_ringtone_receive.c', '-o', str(receiver)], cwd=ROOT, check=True)
+    subprocess.run([str(receiver), str(folder / 'received.zip')], check=True)
     lib = C.CDLL(str(libpath))
     lib.app_ringtone_wav.argtypes = [C.c_char_p, C.c_size_t, C.POINTER(C.c_size_t), C.POINTER(C.c_size_t)]
     lib.app_ringtone_wav.restype = C.c_bool
     lib.app_ringtones_install.argtypes = [C.c_char_p, C.c_char_p]
+    lib.app_ringtones_install_prepared.argtypes = [C.c_char_p, C.POINTER(C.c_void_p), C.c_char_p]
+    lib.app_ringtones_reset.argtypes = [C.c_char_p]
+    lib.storage_locked.restype = C.c_bool
     lib.app_ringtones_load.argtypes = [C.c_char_p, C.POINTER(C.c_size_t)]
     lib.app_ringtones_load.restype = C.c_void_p
     lib.app_ringtones_load_ex.argtypes = [C.c_char_p, C.POINTER(C.c_size_t), C.POINTER(C.c_int)]
@@ -150,25 +155,67 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     install({name: replacement})
     assert (folder / 'ringtones' / name).read_bytes() == replacement
     install(sounds)
-    original = {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()}
+    def reported(files, success=True):
+        pack(files)
+        assert lib.app_ringtones_reset(error) == 0, error.value
+        report = C.c_void_p()
+        result = lib.app_ringtones_install_prepared(str(archive).encode(), C.byref(report), error)
+        encoded = lib.cJSON_PrintUnformatted(report)
+        parsed = json.loads(C.string_at(encoded))
+        libc.free(encoded); lib.cJSON_Delete(report)
+        assert (result == 0) == success, (error.value, parsed)
+        assert not lib.storage_locked()
+        return parsed
+
+    # A régi és félbemaradt készlet a feltöltés előtt teljesen törlődik.
+    for suffix in ('', '.old', '.new'):
+        path = folder / ('ringtones' + suffix) / 'nested'
+        path.mkdir(parents=True, exist_ok=True)
+        (path / 'old.wav').write_bytes(b'old')
+    assert lib.app_ringtones_reset(error) == 0
+    assert list((folder / 'ringtones').iterdir()) == []
+    assert not (folder / 'ringtones.old').exists() and not (folder / 'ringtones.new').exists()
     for bad in ({'../escape.wav': next(iter(sounds.values()))}, {'song.mp3': b'not-wav'},
                 {'fake.wav': b'not-wav'}, {'big.wav': b'x' * 300000},
                 {f'sound-{i}.wav': b'invalid' for i in range(34)}):
-        install(bad, False)
-        assert error.value and not error.value.startswith('Hibás csengőhangcsomag'.encode())
-        assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
-    lib.fail_flush(1)
-    install({'new.wav': next(iter(sounds.values()))}, False)
-    assert 'szinkronizálása' in error.value.decode(), error.value
-    lib.fail_flush(0)
-    assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
-    for fail in (1, 2):
-        lib.fail_rename(fail)
-        install({'new.wav': next(iter(sounds.values()))}, False)
-        lib.fail_rename(0)
-        assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
-    # Simulated interruption between directory renames: a read restores the old complete set.
-    (folder / 'ringtones').rename(folder / 'ringtones.old')
+        report = reported(bad, False)
+        assert report['installed'] == 0 and len(report['failed']) == len(bad)
+        assert list((folder / 'ringtones').iterdir()) == []
+        assert not (folder / 'escape.wav').exists()
+    # Érvénytelen hang / SD-fájlmegnyitás / lezárás után is sorra kerülnek a jó fájlok.
+    lib.file_faults(1, 1)
+    report = reported({'before.wav': replacement, 'bad.wav': b'invalid',
+                       'write-fails.wav': replacement, 'close-fails.wav': replacement,
+                       'after.wav': replacement})
+    lib.file_faults(0, 0)
+    assert report['installed'] == 2, report
+    assert {f['name'] for f in report['failed']} == {'bad.wav', 'write-fails.wav', 'close-fails.wav'}
+    assert {p.name for p in (folder / 'ringtones').iterdir()} == {'before.wav', 'after.wav'}
+    # A ZIP CRC-hibás eleme sem akadályozhatja a következő hangot.
+    pack({'first.wav': replacement, 'crc.wav': replacement, 'last.wav': replacement})
+    raw = bytearray(archive.read_bytes())
+    with zipfile.ZipFile(archive) as zip:
+        entry = zip.getinfo('crc.wav')
+        struct.pack_into('<I', raw, entry.header_offset + 14, entry.CRC ^ 1)
+    central = 0
+    while True:
+        central = raw.find(b'PK\x01\x02', central)
+        if central < 0: break
+        length = struct.unpack_from('<H', raw, central + 28)[0]
+        if raw[central + 46:central + 46 + length] == b'crc.wav':
+            struct.pack_into('<I', raw, central + 16, entry.CRC ^ 1)
+        central += 46
+    archive.write_bytes(raw)
+    assert lib.app_ringtones_reset(error) == 0
+    report = C.c_void_p()
+    assert lib.app_ringtones_install_prepared(str(archive).encode(), C.byref(report), error) == 0
+    encoded = lib.cJSON_PrintUnformatted(report); parsed = json.loads(C.string_at(encoded))
+    libc.free(encoded); lib.cJSON_Delete(report)
+    assert parsed['installed'] == 2 and parsed['failed'][0]['name'] == 'crc.wav', parsed
+    # 33 hangból az első 32 marad, a többlet külön megnevezett hiba.
+    report = reported({f'sound-{i}.wav': replacement for i in range(33)})
+    assert report['installed'] == 32 and report['failed'][0]['name'] == 'sound-32.wav'
+    install(sounds)
     name, data = next(iter(sounds.items()))
     pointer = lib.app_ringtones_load(name.encode(), C.byref(size))
     assert pointer and C.string_at(pointer, size.value) == data; libc.free(pointer)
@@ -191,10 +238,6 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     pointer, result = load_status(name.encode())
     assert pointer is None and result == 3 and size.value == 0
     lib.fail_allocation(0)
-    lib.fail_dma(1)
-    pointer, result = load_status(name.encode())
-    assert pointer is None and result == 3 and size.value == 0
-    lib.fail_dma(0)
     lib.fail_read(1)
     pointer, result = load_status(name.encode())
     assert pointer is None and result == 4 and size.value == 0, (pointer, result, size.value)
@@ -208,9 +251,9 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert C.string_at(pointer, size.value) == data
     libc.free(pointer)
     lib.fail_position(0)
-    # A kamerával osztozó SD/DMA útvonal csak szektoronkénti olvasást enged.
+    # Pufferelt stdio: korlátozott olvasások egyedi DMA-kezelés nélkül.
     lib.limit_reads(1)
     pointer, result = load_status(name.encode())
     assert pointer and result == 0 and C.string_at(pointer, size.value) == data
     libc.free(pointer)
-    print('PASS: tubular-chime CC0 WAV, strict PCM/rate/channel/depth/RIFF limits, ZIP traversal/type/count/size rejection, atomic rollback and power-loss recovery, safe list/load')
+    print('PASS: strict WAV, delete before install, per-file CRC/PCM/SD error recovery, complete failure report, 32 sound limit, safe buffered list/load')

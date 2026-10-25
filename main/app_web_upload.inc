@@ -5,48 +5,49 @@
 #include <stdio.h>
 #include <errno.h>
 
-/* A témák és hangok azonos SD-fogadóútja. A hálózati hiba nem csomaghiba;
- * rövid socket-időtúllépést ismétlünk, minden hibánál lezárjuk az állományt/zárat. */
-static bool receive_sd_zip(httpd_req_t *req, const char *path, char error[160])
+/* Csak a hangcsomagé. Minden írás lezárul a zár elengedése előtt:
+ * hálózati várakozáskor nincs nyitott SD-fájl és nincs fogva az SD-zár. */
+static bool append_ringtone_zip(const char *path, const char *mode,
+                                const char *data, size_t size, char error[160])
 {
-    if (!app_storage_is_ok() || app_storage_lock() != ESP_OK) {
-        snprintf(error, 160, "%s", "Az SD-kártya nem érhető el.");
+    if (app_storage_lock() != ESP_OK) {
+        snprintf(error, 160, "%s", "Az SD-zár nem érhető el.");
         return false;
     }
-    FILE *file = fopen(path, "wb");
-    if (!file) {
-        snprintf(error, 160, "A feltöltési fájl nem nyitható meg (SD, errno=%d).", errno);
-        app_storage_unlock();
-        return false;
+    FILE *file = app_storage_is_ok() ? fopen(path, mode) : NULL;
+    bool ok = file != NULL;
+    if (file) {
+        ok = fwrite(data, 1, size, file) == size;
+        if (fclose(file))
+            ok = false;
     }
+    if (!ok)
+        snprintf(error, 160, "A ZIP SD-írása/lezárása sikertelen (errno=%d).", errno);
+    app_storage_unlock();
+    return ok;
+}
+
+static bool receive_ringtone_zip(httpd_req_t *req, const char *path, char error[160])
+{
+    if (!append_ringtone_zip(path, "wb", "", 0, error))
+        return false;
     char buffer[2048];
     size_t left = req->content_len;
     unsigned timeouts = 0;
-    bool ok = true;
     while (left) {
         int count = httpd_req_recv(req, buffer, left > sizeof(buffer) ? sizeof(buffer) : left);
         if (count == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= 3)
             continue;
         if (count <= 0) {
-            snprintf(error, 160, "A ZIP fogadása megszakadt (%u/%u bájt, hálózati kód: %d).",
+            snprintf(error, 160, "A ZIP fogadása megszakadt (%u/%u bájt, hálózati kód: %d). A régi hangcsomag már törölve lett.",
                 (unsigned)(req->content_len - left), (unsigned)req->content_len, count);
-            ok = false;
-            break;
+            return false;
         }
         timeouts = 0;
-        if (fwrite(buffer, 1, count, file) != (size_t)count) {
-            snprintf(error, 160, "A ZIP SD-írása sikertelen (%u bájt után, errno=%d).",
-                (unsigned)(req->content_len - left), errno);
-            ok = false;
-            break;
-        }
+        if (!append_ringtone_zip(path, "ab", buffer, (size_t)count, error))
+            return false;
         left -= (size_t)count;
     }
-    if (fclose(file) && ok) {
-        snprintf(error, 160, "A ZIP SD-mentése/lezárása sikertelen (errno=%d).", errno);
-        ok = false;
-    }
-    app_storage_unlock();
-    return ok;
+    return true;
 }
 #endif

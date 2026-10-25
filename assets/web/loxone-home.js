@@ -366,14 +366,25 @@ const LoxoneHome = (() => {
         }
         const button = get('ringtone-upload'); button.disabled = true;
         if (typeof setLoxoneTransferBusy === 'function') setLoxoneTransferBusy(true);
-        status.textContent = 'Csengőhangcsomag feltöltése és ellenőrzése… Ez akár néhány percig tarthat.';
+        status.textContent = 'Régi hangcsomag törlése, ZIP feltöltése, majd fájlonkénti telepítés…';
         try {
             const response = await apiFetch('/api/loxone/intercom/ringtones', {method: 'POST', headers: {'X-Zolee-Loxone': '1', 'Content-Type': 'application/zip'}, body: file}, 180000);
             const text = await response.text();
-            if (!response.ok) throw Error(text);
-            status.textContent = text;
-            await refresh(catalog, connectionBusy);
-        } catch (error) { status.textContent = 'Sikertelen feltöltés: ' + (error.name === 'AbortError' || error.name === 'TimeoutError' ? 'A feltöltés 3 perces időkerete lejárt. Ellenőrizd az eszköz kapcsolatát és az SD-kártyát.' : error.message); }
+            let report = null;
+            try { report = JSON.parse(text); } catch (_) { /* Régebbi firmware szöveges válasza. */ }
+            const failures = Array.isArray(report?.failed) ? report.failed : [];
+            const message = report ? [
+                'Telepített hangok: ' + (Number(report.installed) || 0) + '.',
+                failures.length ? 'Kihagyott fájlok (' + failures.length + '):' : (report.complete ? 'Minden hangfájl telepítve.' : 'A telepítés megszakadt.'),
+                ...failures.map(file => file.name + ': ' + file.reason),
+                report.error || '',
+                'Válassz telepített hangot, majd mentsd a kaputelefon beállításait.'
+            ].filter(Boolean).join('\n') : text;
+            status.textContent = message;
+            if (report) await refresh(catalog, connectionBusy);
+            if (!response.ok) throw Error(message);
+            if (!report) await refresh(catalog, connectionBusy);
+        } catch (error) { status.textContent = 'Sikertelen feltöltés: ' + (error.name === 'AbortError' || error.name === 'TimeoutError' ? 'A feltöltés 3 perces időkerete lejárt. A korábbi hangcsomag törölve lett; próbáld újra a feltöltést.' : error.message); }
         finally {
             if (typeof setLoxoneTransferBusy === 'function') setLoxoneTransferBusy(false);
             button.disabled = false;

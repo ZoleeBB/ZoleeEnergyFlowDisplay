@@ -17,7 +17,29 @@ bool app_storage_is_ok(void) { return true; }
 const char *app_templates_root(void) { return "/tmp"; }
 void app_storage_unlock(void) {}
 cJSON *app_ringtones_list(void) { return cJSON_CreateArray(); }
-esp_err_t app_ringtones_install(const char *path, char error[160]) { (void)path; (void)error; return ESP_OK; }
+static unsigned ringtone_resets;
+static bool ringtone_all_failed, require_ringtone_reset;
+esp_err_t app_ringtones_reset(char error[160])
+{
+    (void)error;
+    ++ringtone_resets;
+    return ESP_OK;
+}
+esp_err_t app_ringtones_install_prepared(const char *path, cJSON **report, char error[160])
+{
+    (void)path;
+    assert(ringtone_resets);
+    *report = cJSON_CreateObject();
+    cJSON_AddNumberToObject(*report, "installed", ringtone_all_failed ? 0 : 2);
+    cJSON *failed = cJSON_AddArrayToObject(*report, "failed");
+    cJSON *file = cJSON_CreateObject();
+    cJSON_AddStringToObject(file, "name", "broken.wav");
+    cJSON_AddStringToObject(file, "reason", "PCM WAV-ellenőrzés");
+    cJSON_AddItemToArray(failed, file);
+    if (ringtone_all_failed)
+        snprintf(error, 160, "%s", "Egyetlen hangot sem sikerült telepíteni.");
+    return ringtone_all_failed ? ESP_ERR_INVALID_ARG : ESP_OK;
+}
 static bool ringtone_query, ringtone_file = true, task_fail, async_fail;
 static unsigned media_loads, media_sends, async_complete, deleted_tasks, queued;
 static void (*media_worker[4])(void *);
@@ -87,7 +109,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
 }
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
-int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
+int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(require_ringtone_reset)assert(ringtone_resets);if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *route) { (void)server;assert(route->handler);registered++;return ESP_OK; }
 cJSON *app_loxone_web_state(void) { return cJSON_CreateObject(); }
 esp_err_t app_loxone_request(const cJSON *root,bool save) { (void)root;(void)save;return ESP_OK; }
@@ -273,16 +295,30 @@ int main(void)
     input = "0123456789abcdefghij"; position = 0;
     request.content_len = 20;
     receive_timeouts = 2;
-    assert(receive_sd_zip(&request, upload_path, upload_error));
+    assert(receive_ringtone_zip(&request, upload_path, upload_error));
     FILE *uploaded = fopen(upload_path, "rb"); assert(uploaded);
     char uploaded_bytes[21] = {0}; assert(fread(uploaded_bytes, 1, 20, uploaded) == 20); fclose(uploaded);
     assert(!strcmp(uploaded_bytes, input));
     position = 0; broken = true;
-    assert(!receive_sd_zip(&request, upload_path, upload_error) && strstr(upload_error, "fogadása"));
+    assert(!receive_ringtone_zip(&request, upload_path, upload_error) && strstr(upload_error, "fogadása"));
     broken = false; position = 0; receive_timeouts = 4;
-    assert(!receive_sd_zip(&request, upload_path, upload_error) && receive_timeouts == 0);
-    assert(!receive_sd_zip(&request, "/missing-directory/upload.zip", upload_error) && strstr(upload_error, "errno="));
+    assert(!receive_ringtone_zip(&request, upload_path, upload_error) && receive_timeouts == 0);
+    assert(!receive_ringtone_zip(&request, "/missing-directory/upload.zip", upload_error) && strstr(upload_error, "errno="));
     remove(upload_path); request.content_len = 0;
+    input = "0123456789abcdefghijklmn";
+    request.content_len = strlen(input); request.method = HTTP_POST;
+    position = 0; require_ringtone_reset = true;
+    status_code = 200;
+    assert(ringtone_upload(&request) == ESP_OK);
+    assert(ringtone_resets == 1 && status_code == 200);
+    cJSON *uploaded_report = cJSON_Parse(response);
+    assert(cJSON_GetObjectItem(uploaded_report, "installed")->valueint == 2);
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(uploaded_report, "failed")) == 1);
+    cJSON_Delete(uploaded_report);
+    ringtone_all_failed = true; position = 0; status_code = 200;
+    assert(ringtone_upload(&request) == ESP_OK && status_code == 400);
+    assert(strstr(response, "broken.wav") && strstr(response, "Egyetlen hangot"));
+    ringtone_all_failed = false; require_ringtone_reset = false; request.content_len = 0;
     ringtone_query = true;
     status_code = 200;
     unsigned completed = async_complete;

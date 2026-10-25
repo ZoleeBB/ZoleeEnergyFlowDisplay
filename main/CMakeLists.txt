@@ -52,6 +52,7 @@ idf_component_register(
         "app_chart.c"
         "app_templates.c"
         "app_template_zip.c"
+        "app_ringtone_zip.c"
         "fonts/app_font_numbers_48.c"
         "fonts/app_font_numbers_96.c"
         "fonts/app_font_12.c"
