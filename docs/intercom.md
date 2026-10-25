@@ -235,8 +235,20 @@ A hangadatok PSRAM-ban, az SD adatpuffere kis belső DMA-területen maradnak.
 A telepítő a ZIP-, könyvtár-, WAV-olvasási és aktiválási hibát nem cseréli le
 általános „hibás PCM WAV” szövegre. A hiba megnevezi az érintett fájlt és lépést;
 fájlrendszerhibánál errno is látható. A csengetéskori betöltés megkülönbözteti
-a megnyitást, méretlekérést, SEEK_END/SEEK_SET műveletet, memóriafoglalást,
+a megnyitást, stat-alapú méretlekérést, memóriafoglalást,
 adatolvasást (bájtpozícióval) és a PCM-ellenőrzést. A hiba a kérés saját
 pufferében él, így a párhuzamos webes lejátszás nem írhatja felül.
 A részletes üzenet a készülékes ok feltárását szolgálja; egy sikeres hostteszt
 önmagában nem igazolja az ESP32/FatFS adatutat.
+
+A WAV-betöltő stat-alapú méretlekérést és szekvenciális olvasást használ,
+nem függ a fájl végére és elejére történő seek művelettől. A kibontott hangok
+aktiválás előtt fflush/fsync szinkronizálást kapnak; ennek hibájánál a régi
+csomag marad aktív. A témák telepítési és hanghívási útvonala változatlan.
+
+A lejátszási sorrend ellenőrzésének gyártói referenciái:
+[Espressif BSP audio API](https://github.com/espressif/esp-bsp/blob/master/docu/how_to_use.md#-audio)
+és [Waveshare P4 I2S/ES8311 példa](https://github.com/waveshareteam/ESP32-P4-Platform/blob/main/examples/esp-idf/12_I2SCodec/main/i2s_es8311_example.c).
+A RIFF-fejléc helyett csak a PCM-adat kerül a megfelelő mintavétellel,
+csatornaszámmal és bitmélységgel megnyitott kodekbe. A SIP/RTP/AEC-hívásút
+nem került lecserélésre a fájllejátszó miatt.

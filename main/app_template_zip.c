@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <zlib.h>
 #include <errno.h>
+#include <unistd.h>
 
 /* A ZIP-formátum többyte-os mezői little-endian sorrendben vannak. */
 static unsigned u16(const unsigned char *p)
@@ -105,7 +106,7 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
         if (fread(names[i], 1, n, f) != n)
             goto done;
         names[i][n] = 0;
-        snprintf(current_name, sizeof(current_name), "%s", names[i]);
+        memcpy(current_name, names[i], n + 1U);
         if (strlen(names[i]) != n ||
             (ringtone ? (strcmp(names[i], "ringtone.json") && !app_ringtone_name(names[i])) :
              (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i]))))
@@ -178,6 +179,10 @@ static bool unzip(const char *archive, const char *directory, char error[160], b
             goto done;
         stage = "kibontott fájl írása/lezárása";
         bool written = fwrite(output, 1, size, out) == size;
+        if (ringtone && written) {
+            stage = "kibontott hang SD-szinkronizálása";
+            written = fflush(out) == 0 && fsync(fileno(out)) == 0;
+        }
         if (fclose(out))
             written = false;
         if (!written)

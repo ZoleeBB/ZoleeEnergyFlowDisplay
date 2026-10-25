@@ -53,26 +53,26 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
         if (error) snprintf(error, 160, "WAV megnyitás: %.64s (errno=%d).", name, errno);
         return NULL;
     }
-    /* Ne a stdio válasszon nagyobb rejtett olvasópuffert a szektorok helyett. */
+    /* Az SD-hez használt kis belső puffert ne kerülje meg a stdio saját puffere. */
     setvbuf(file, NULL, _IONBF, 0);
     uint8_t* data = NULL;
     uint8_t* transfer = NULL;
+    struct stat info;
     *status = APP_RINGTONE_LOAD_IO;
-    stage = "méretlekérés / SEEK_END";
+    stage = "méretlekérés / stat";
     errno = 0;
-    if (fseek(file, 0, SEEK_END))
-        goto done;
-    long length = ftell(file);
-    stage = "pozicionálás / SEEK_SET";
-    if (length < 0 || fseek(file, 0, SEEK_SET))
+    /* Az SD-zár alatt a fájl nem cserélődhet. Méretet stat-tal kérünk,
+     * az adatot az elejétől sorban olvassuk, nincs SEEK_END/rewind. */
+    if (stat(path, &info))
         goto done;
     *status = APP_RINGTONE_LOAD_INVALID;
     stage = "fájlméret-ellenőrzés";
-    if (length < 44 || length > APP_RINGTONE_MAX)
+    if (info.st_size < 44 || info.st_size > APP_RINGTONE_MAX)
         goto done;
+    size_t length = (size_t)info.st_size;
     /* A videóval együtt akár 1,9 MB hangot is fogadunk; ez nem a belső
      * DMA-memóriából vehető el. A puffer free()-vel felszabadítható. */
-stage = "PSRAM-puffer foglalása";
+    stage = "PSRAM-puffer foglalása";
 #ifdef ESP_PLATFORM
     data = heap_caps_malloc((size_t)length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 #else
@@ -83,7 +83,7 @@ stage = "PSRAM-puffer foglalása";
         goto done;
     /* A PSRAM és a P4 cache-vonal nem közvetlen SD-DMA célpont.
      * A fájl mindig igazított belső pufferbe érkezik, onnan másoljuk a hangot. */
-stage = "belső DMA-puffer foglalása";
+    stage = "belső DMA-puffer foglalása";
 #ifdef ESP_PLATFORM
     transfer = heap_caps_aligned_calloc(128, 1, 512,
         MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);

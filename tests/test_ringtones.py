@@ -29,12 +29,16 @@ void *heap_caps_aligned_calloc(size_t, size_t, size_t, unsigned);
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 #include "app_storage.h"
 #include "app_ringtone_wav.h"
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
 uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source_frame(frame, rate); }
 static int fault, calls;
-static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer, fail_seek;
+static bool busy, bounded_reads, fail_reads, fail_memory, fail_transfer, fail_seek, fail_sync;
+void fail_flush(bool value) { fail_sync = value; }
+int __real_fsync(int);
+int __wrap_fsync(int fd) { if (fail_sync) { errno = EIO; return -1; } return __real_fsync(fd); }
 void fail_position(bool value) { fail_seek = value; }
 int __real_fseek(FILE *, long, int);
 int __wrap_fseek(FILE *file, long position, int origin) {
@@ -74,7 +78,11 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-fsanitize=undefined', '-fno-sanitize-recover=all',
         '-DESP_PLATFORM', '-I' + directory, '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
         'main/app_ringtone_wav.c', 'main/app_template_zip.c', 'main/app_ringtones.c', str(stub),
-        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+        '-Wl,--wrap=rename', '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-Wl,--wrap=fsync', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+    # A CI Release-fordításának figyelmeztetése is legyen helyben regresszió.
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
+        '-Wformat-truncation=2', '-Itests/stubs', '-Imain', '-c', 'main/app_template_zip.c',
+        '-o', str(folder / 'zip-release.o')], cwd=ROOT, check=True)
     lib = C.CDLL(str(libpath))
     lib.app_ringtone_wav.argtypes = [C.c_char_p, C.c_size_t, C.POINTER(C.c_size_t), C.POINTER(C.c_size_t)]
     lib.app_ringtone_wav.restype = C.c_bool
@@ -144,6 +152,11 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         install(bad, False)
         assert error.value and not error.value.startswith('Hibás csengőhangcsomag'.encode())
         assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
+    lib.fail_flush(1)
+    install({'new.wav': next(iter(sounds.values()))}, False)
+    assert 'szinkronizálása' in error.value.decode(), error.value
+    lib.fail_flush(0)
+    assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == original
     for fail in (1, 2):
         lib.fail_rename(fail)
         install({'new.wav': next(iter(sounds.values()))}, False)
@@ -184,8 +197,11 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert 'adatolvasás' in detail.value.decode() and name in detail.value.decode()
     lib.fail_read(0)
     lib.fail_position(1)
-    assert not lib.app_ringtones_load_detailed(name.encode(), C.byref(size), C.byref(status), detail)
-    assert 'SEEK_END' in detail.value.decode()
+    # Az SD olvasó akkor is működjön, ha a seek nem támogatott.
+    pointer = lib.app_ringtones_load_detailed(name.encode(), C.byref(size), C.byref(status), detail)
+    assert pointer and status.value == 0 and not detail.value
+    assert C.string_at(pointer, size.value) == data
+    libc.free(pointer)
     lib.fail_position(0)
     # A kamerával osztozó SD/DMA útvonal csak szektoronkénti olvasást enged.
     lib.limit_reads(1)
