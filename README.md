@@ -71,8 +71,9 @@ A feltöltés először törli a teljes korábbi hangkészletet, majd egyenként
 ellenőrzi és menti a fájlokat. A hibás fájlt kihagyja, a végén névvel és
 indokkal felsorolja; megszakításkor a régi csomag nem áll vissza.
 A választott hang és az ismétlés külön menthető. A Slave a hangot a Mastertől
-kapja, a lejátszás RAM-ból történik. A nyilvános kezdőcsomag egy CC0
-`tubular-chime.wav` hangot tartalmaz; a privát hangok nem részei a repónak.
+kapja, a lejátszás RAM-ból történik. A repóban tárolt készlet jelenleg 18 hangot tartalmaz; a kiadási ZIP és az
+USB-kezdőkészlet a `ringtone.json` teljes listájából készül. A hangok eredeti
+forrás- és licencadatai a manifestben változatlanul megmaradnak.
 
 A kiadás külön `-ringtones.zip` és `-templates.zip` mellékletet is készít,
 SHA-256 összegekkel; a Master USB-csomagjában SD-kezdőkészlet található.

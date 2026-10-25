@@ -32,7 +32,7 @@ A legördülőben a telepített hangok választhatók; alapból „Nincs csengő
 
 A Slave a kiválasztott WAV-ot a Mastertől tölti le egy BLE-n kapott, véletlen, Master-bootonként cserélődő médiakulccsal; a lejátszás RAM-ból történik. Foglalt SD-kártya, letöltési/SD-hiba vagy hiányzó hang nem akadályozza a kamerát és a beszélgetést.
 
-A nyilvános kezdőcsomag a marlocarlo-féle „Doorbell” / `tubular-chime.wav` CC0 hangot tartalmazza. A forrás, licenc, eredeti SHA-256 és az átalakítás a `ringtone.json` fájlban szerepel. Saját hangok külön csomagban tölthetők fel; a firmware nem ad hozzájuk terjesztési jogot. Kiadáskor nincs hálózati hangletöltés.
+A repó készlete jelenleg 18 WAV: a marlocarlo-féle „Doorbell” / `tubular-chime.wav` CC0 hang és a felhasználó által hozzáadott 17 hang. A forrás, eredeti licenc, SHA-256 és átalakítás a `ringtone.json` fájlban szerepel. A kiadási ZIP és az USB SD-kezdőkészlete a manifest minden hangját tartalmazza, az eredeti metaadatokkal. A csomagoló a formátumot, darabszámot, méretet és biztonságos fájlneveket ellenőrzi; nem követeli meg, hogy minden forrás CC0 legyen. Kiadáskor nincs hálózati hangletöltés.
 
 A release két közös melléklete: `ZoleeEnergyFlowDisplay-<verzió>-templates.zip` (a témák és a Loxone Otthon külön telepíthető ZIP-jei) és `ZoleeEnergyFlowDisplay-<verzió>-ringtones.zip` (közvetlenül feltölthető csengőhangcsomag). Mindkettő SHA-256 ellenőrzőösszeget kap. A Master USB-csomag SD-kezdőkészlete is tartalmazza a hangokat.
 

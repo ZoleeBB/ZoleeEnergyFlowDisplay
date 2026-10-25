@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 import wave
 import zipfile
@@ -121,7 +122,47 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert lib.test_source(1439999, 24000) == 959999
     offset, size = C.c_size_t(), C.c_size_t()
     sounds = {p.name: p.read_bytes() for p in (ROOT / 'assets/ringtones').glob('*.wav')}
-    assert set(sounds) == {'tubular-chime.wav'}
+    manifest = json.loads((ROOT / 'assets/ringtones/ringtone.json').read_text())
+    expected = [entry['file'] for entry in manifest['sounds']]
+    assert 1 <= len(expected) <= 32 and len(expected) == len(set(expected))
+    assert set(sounds) == set(expected), 'Manifest and checked-in WAV set must match'
+    sys.path.insert(0, str(ROOT / 'tools'))
+    from prepare_ringtones import package_ringtones, ringtone_files
+    shipped = ringtone_files()
+    assert set(shipped) == set(sounds) | {'ringtone.json'}
+    package = folder / 'release-ringtones.zip'
+    package_ringtones(package)
+    first_package = package.read_bytes()
+    package_ringtones(package)
+    assert package.read_bytes() == first_package
+    with zipfile.ZipFile(package) as z:
+        assert {name: z.read(name) for name in z.namelist()} == shipped
+    # A nem CC0 metaadatot is változtatás nélkül őrizzük meg. A technikai korlátok élnek.
+    fixture = folder / 'packaging'; fixture.mkdir()
+    fixture_sound = next(iter(sounds))
+    (fixture / fixture_sound).write_bytes(sounds[fixture_sound])
+    metadata = {'sounds': [{'file': fixture_sound, 'license': 'User supplied; original source license'}]}
+    def package_metadata(value):
+        (fixture / 'ringtone.json').write_text(json.dumps(value))
+        return ringtone_files(fixture)
+    assert json.loads(package_metadata(metadata)['ringtone.json']) == metadata
+    for invalid in ({'sounds': []}, {'sounds': metadata['sounds'] * 33},
+                    {'sounds': metadata['sounds'] * 2},
+                    {'sounds': [{'file': '../escape.wav', 'license': 'test'}]},
+                    {'sounds': [{'file': fixture_sound}]}):
+        try:
+            package_metadata(invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Invalid package metadata accepted: ' + str(invalid))
+    (fixture / fixture_sound).write_bytes(sounds[fixture_sound][:-1])
+    try:
+        package_metadata(metadata)
+    except (ValueError, EOFError, wave.Error):
+        pass
+    else:
+        raise AssertionError('Truncated source WAV accepted')
     for data in sounds.values():
         assert lib.app_ringtone_wav(data, len(data), C.byref(offset), C.byref(size))
         assert 0 < size.value <= 1920000
@@ -148,6 +189,9 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         pack(files)
         result = lib.app_ringtones_install(str(archive).encode(), error)
         assert (result == 0) == success, error.value.decode()
+    # A tényleges kiadási csomagot a valódi C-telepítő is fogadja, mindegyik WAV egyezzen.
+    assert lib.app_ringtones_install(str(package).encode(), error) == 0, error.value
+    assert {p.name: p.read_bytes() for p in (folder / 'ringtones').iterdir()} == sounds
     install(sounds)
     # Azonos fájlnév új hanggal: ne legyen névütközés vagy régi tartalom.
     name = next(iter(sounds))

@@ -12,8 +12,9 @@ megfelelő működést jelzett. Az összevonást a felhasználó végzi.
   nem hagyhat nyitva mikrofont. A médiaút, az AEC és a kapunyitás szabályai
   a naplótisztításkor változatlanok.
 - A hangcsomag legfeljebb 8 MiB ZIP és 32 PCM16/mono/16 kHz WAV;
-  egy hang legfeljebb 60 másodperc. A nyilvános kezdőkészlet egy CC0 hang.
-  A privát, 18 WAV-os csomag nem része a nyilvános repónak.
+  egy hang legfeljebb 60 másodperc. A repó 18 WAV-os készletét a
+  `ringtone.json` sorolja fel; a kiadás és az USB SD-kezdőkészlete mindegyiket
+  tartalmazza, az eredeti forrás- és licencmetaadatok megőrzésével.
 - A feltöltés először törli a teljes régi hangkönyvtárat és a félbemaradt
   `.new`/`.old` készletet. Ezután fogadja a ZIP-et, majd egyenként ellenőrzi
   és menti a hangokat. Hibánál kihagy és folytat; a végén fájlnév és ok látható.
@@ -50,7 +51,7 @@ voltak, nem egy megváltoztatott SD-driverben:
 Az alap `app_storage` modul, a csatolás és az SD-konfiguráció megegyezett a
 főággal. Több változtatást együtt alkalmaztunk, ezért az egyedi DMA-puffer
 vagy a korábbi külön szinkronizálás önálló szerepe nem bizonyított.
-A privát csomag hoston kétszer, mind a 18 WAV bájtpontos egyezésével települt;
+A felhasználó csomagja hoston kétszer, mind a 18 WAV bájtpontos egyezésével települt;
 ez nem utal a csomag egészének hibás WAV-formátumára. A készülékes javulást
 a felhasználó visszajelzése igazolja, nem önmagában a hostteszt.
 
@@ -92,3 +93,18 @@ ellenőrzését nem helyettesíti.
 
 Részletek: [Kaputelefon](intercom.md), [Slave és hangcsomag](slave-intercom.md),
 [SD-kártya](sd-card.md), [akkumulátor-statisztika](battery-diagnostics.md).
+
+## Manifest szerinti készlet és regresszió
+
+A felhasználó `d14b081` commitja a teljes 18 hangos készletet a repóba tette.
+Az ezt követő CI regressziója egy elavult tesztelváráson állt meg: csak a
+`tubular-chime.wav` jelenlétét engedte. A kiadási csomagolóban is megmaradt
+a korábbi, kizárólag CC0 készletre vonatkozó korlát.
+
+A teszt a manifest és a tényleges WAV-készlet egyezését ellenőrzi, valamennyi
+hangot átadja a valódi C WAV-parsernek, és a tényleges kiadási ZIP-et is
+telepíti a C-telepítővel. A csomagoló megőrzi az eredeti licencszövegeket;
+ellenőrzi a biztonságos és egyedi fájlneveket, az 1–32 hangos keretet,
+a PCM16/mono/16 kHz formátumot, a 60 másodperces határt, a hiányos WAV-ot
+és a 8 MiB-os csomagméretet. A kiadási teszt minden ZIP-bejegyzést bájtra
+összevet a forrásával, így az új hangok sem maradhatnak ki az artifactból.
