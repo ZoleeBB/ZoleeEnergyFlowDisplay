@@ -20,7 +20,7 @@ Master: 16 kHz, kétcsatornás STD I2S. 4B Slave: a rögzített 3.0.1 BSP 24 kHz
 
 ## Csengőhangcsomag
 
-A Master Loxone beállításaiban ZIP tölthető fel, a készülék a `/sdcard/ringtones` könyvtárba bontja. Legfeljebb 8 MiB ZIP, legfeljebb 32 hang. A ZIP gyökerébe kerüljenek a fájlok, alkönyvtár nélkül. Fájlnév: kisbetű, szám, kötőjel vagy aláhúzás és `.wav` végződés, legfeljebb 64 karakter. Opcionális `ringtone.json` a források és licencek leírásához. A csomag a korábbi hangkészletet cseréli; hibás vagy megszakadt telepítés a korábbi teljes készletet hagyja meg. A mentett csengőhang-választás ettől külön beállítás.
+A Master Loxone beállításaiban ZIP tölthető fel, a készülék a `/sdcard/ringtones` könyvtárba bontja. Legfeljebb 8 MiB ZIP, legfeljebb 32 hang. A ZIP gyökerébe kerüljenek a fájlok, alkönyvtár nélkül. Fájlnév: kisbetű, szám, kötőjel vagy aláhúzás és `.wav` végződés, legfeljebb 64 karakter. Opcionális `ringtone.json` a források és licencek leírásához. A feltöltés első lépése a teljes korábbi hangkészlet és a félbemaradt `.new`/`.old` könyvtárak törlése. Ezután a ZIP fogadása és a hangok fájlonkénti ellenőrzése/mentése következik. A hibás fájl kimarad, a telepítés a többivel folytatódik; a weboldal a végén felsorolja a kihagyott fájlokat és az okokat. Megszakításkor a régi készlet nem áll vissza, a már telepített jó hangok maradnak meg. A mentett csengőhang-választás ettől külön beállítás.
 
 A közös lejátszási formátum **WAV, tömörítetlen PCM signed 16 bit little-endian, mono, 16000 Hz**, legfeljebb **60 másodperc**. MP3, float WAV, sztereó vagy más mintavételű fájl feltöltése hibát ad. Példa átalakítás számítógépen:
 
