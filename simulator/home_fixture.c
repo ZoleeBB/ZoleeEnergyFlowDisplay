@@ -78,6 +78,14 @@ esp_err_t app_loxone_home_command(const char *id,lx_home_command_t action)
     app_sim_home_commands++;app_sim_home_last_action=action;app_sim_home_pending=true;return ESP_OK;
 }
 
+/* Jelenlét és postaláda: alapból nincs párosítva, a teszt explicit állítja. */
+app_loxone_signals_t app_sim_signals;
+bool app_loxone_signals(app_loxone_signals_t *out)
+{
+    *out = app_sim_signals;
+    return true;
+}
+
 /* A desktop bemutató nem szimulál csendben valódi energiaajánlást.
  * A render-teszt külön, explicit szintetikus bemenettel lépteti a modellt. */
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)

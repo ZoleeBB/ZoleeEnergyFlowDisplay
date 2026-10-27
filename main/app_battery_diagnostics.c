@@ -335,3 +335,81 @@ bool app_battery_from_json(const cJSON *json, app_battery_diagnostics_t *out)
     *out = parsed;
     return true;
 }
+
+void app_battery_eta_reset(app_battery_eta_state_t *state)
+{
+    if (state)
+        memset(state, 0, sizeof(*state));
+}
+
+void app_battery_eta_update(app_battery_eta_state_t *state, const app_energy_sample_t *sample)
+{
+    if (!state || !sample || !isfinite(sample->power_bat_kw) || !isfinite(sample->power_full_kw))
+        return;
+    int64_t now = sample->received_monotonic_us;
+    if (state->valid && now == state->last_us)
+        return;
+    double dt = state->valid ? (double)(now - state->last_us) / 1e6 : 0;
+    /* Első minta, időugrás visszafelé vagy hosszú adatrés: tiszta újrakezdés,
+     * a régi átlag nem húzhatja el az új szakasz becslését. */
+    if (!state->valid || dt <= 0 || dt > APP_BATTERY_ETA_GAP_S)
+    {
+        state->battery_kw = sample->power_bat_kw;
+        state->load_kw = sample->power_full_kw;
+    }
+    else
+    {
+        double alpha = 1.0 - exp(-dt / APP_BATTERY_ETA_TAU_S);
+        state->battery_kw += alpha * (sample->power_bat_kw - state->battery_kw);
+        state->load_kw += alpha * (sample->power_full_kw - state->load_kw);
+    }
+    state->valid = true;
+    state->last_us = now;
+}
+
+static app_battery_eta_t eta_minutes(app_battery_eta_kind_t kind, double energy_kwh, double power_kw)
+{
+    app_battery_eta_t result = {.kind = kind};
+    double minutes = power_kw > 0 ? energy_kwh / power_kw * 60.0 : INFINITY;
+    if (!isfinite(minutes) || minutes > APP_BATTERY_ETA_MAX_MINUTES)
+    {
+        result.minutes = APP_BATTERY_ETA_MAX_MINUTES;
+        result.capped = true;
+    }
+    else
+        result.minutes = (unsigned)lround(fmax(1, minutes));
+    return result;
+}
+
+app_battery_eta_t app_battery_eta_estimate(const app_battery_eta_state_t *state,
+                                           const app_energy_sample_t *sample,
+                                           double capacity_kwh, double min_soc_pct)
+{
+    app_battery_eta_t unknown = {.kind = APP_BATTERY_ETA_UNKNOWN};
+    if (!state || !sample || !state->valid || !isfinite(capacity_kwh) || capacity_kwh <= 0 ||
+        !isfinite(sample->soc_bat_pct))
+        return unknown;
+    double floor_pct = isfinite(min_soc_pct) ? fmin(90, fmax(0, min_soc_pct)) : 0;
+    double soc = fmin(100, fmax(0, sample->soc_bat_pct));
+    double usable_kwh = capacity_kwh * fmax(0, soc - floor_pct) / 100.0;
+    /* Felkészülés áramszünetre: a ház mostani (simított) fogyasztásával
+     * számolunk, mert kiesés után ezt az akkunak kell fedeznie. */
+    if (sample->status == 2)
+    {
+        if (usable_kwh <= 0)
+            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY};
+        return eta_minutes(APP_BATTERY_ETA_BACKUP, usable_kwh, fmax(0, state->load_kw));
+    }
+    if (state->battery_kw > APP_BATTERY_ETA_IDLE_KW)
+    {
+        if (usable_kwh <= 0)
+            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY};
+        return eta_minutes(APP_BATTERY_ETA_TO_EMPTY, usable_kwh, state->battery_kw);
+    }
+    if (soc >= 99.5)
+        return (app_battery_eta_t){.kind = APP_BATTERY_ETA_FULL};
+    if (state->battery_kw < -APP_BATTERY_ETA_IDLE_KW)
+        return eta_minutes(APP_BATTERY_ETA_TO_FULL, capacity_kwh * (100 - soc) / 100.0,
+                           -state->battery_kw);
+    return (app_battery_eta_t){.kind = APP_BATTERY_ETA_IDLE};
+}

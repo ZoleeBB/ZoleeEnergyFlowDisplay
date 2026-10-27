@@ -447,6 +447,7 @@ static bool validate_scene(const cJSON *scene)
                                           "battery_diag_cycles",
                                           "battery_diag_c_rate",
                                           "battery_diag_soc_error",
+                                          "battery_eta",
 
                                           "solar_savings_day",
                                           "solar_value_today",

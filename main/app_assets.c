@@ -37,6 +37,19 @@ PNG_IMAGE(app_img_weather_rain, weather_rain_png, APP_PNG_WEATHER_RAIN_SIZE);
 PNG_IMAGE(app_img_weather_snow, weather_snow_png, APP_PNG_WEATHER_SNOW_SIZE);
 PNG_IMAGE(app_img_weather_moon, weather_moon_png, APP_PNG_WEATHER_MOON_SIZE);
 PNG_IMAGE(app_img_wind, wind_png, APP_PNG_WIND_SIZE);
+
+/* A postaláda-jelvény natív méretben készül (tools/prepare_mail_icon.py),
+ * így a fejlécben nincs futásidejű skálázás. */
+extern const uint8_t _binary_mail_box_png_start[];
+const lv_image_dsc_t app_img_mail_box = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 52, .h = 52, .stride = 0,
+    },
+    .data_size = APP_PNG_MAIL_BOX_SIZE,
+    .data = _binary_mail_box_png_start,
+};
 PNG_IMAGE(app_img_wifi_off, wifi_off_png, APP_PNG_WIFI_OFF_SIZE);
 PNG_IMAGE(app_img_grid_off, grid_off_png, APP_PNG_GRID_OFF_SIZE);
 PNG_IMAGE(app_img_status_normal, status_normal_png, APP_PNG_STATUS_NORMAL_SIZE);

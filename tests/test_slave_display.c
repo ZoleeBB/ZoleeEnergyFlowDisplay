@@ -8,7 +8,7 @@
 
 int main(void)
 {
-    app_slave_display_profile_t profile = {83, 17, true, 30};
+    app_slave_display_profile_t profile = {83, 17, true, 30, false};
     app_slave_display_t state;
     assert(app_slave_display_init(&state, &profile, 0));
     assert(app_slave_display_brightness(&state, 0) == 83);
@@ -74,7 +74,7 @@ int main(void)
     assert(!app_slave_display_init(&state, &profile, 0));
 
     /* Előző napi időzítő nem ébreszt; ténylegesen aktív jel igen. */
-    profile = (app_slave_display_profile_t){77, 9, true, 30};
+    profile = (app_slave_display_profile_t){77, 9, true, 30, false};
     assert(app_slave_display_init(&state, &profile, 0));
     app_slave_display_pointer(&state, true, SECONDS(1));
     app_slave_display_pointer(&state, false, SECONDS(2));
@@ -121,6 +121,30 @@ int main(void)
     app_slave_display_pointer(&state, false, INT64_MAX - 50);
     assert(app_slave_display_brightness(&state, INT64_MAX - 1) == 9);
     assert(app_slave_display_brightness(&state, INT64_MAX) == 0);
+    /* Master jelenlétvezérlés: 1 -> 0 él azonnal sötétít, érintés időkorlátig ébreszt,
+     * nappal a jelenlét nem sötétít, 1 érték azonnal az éjszakai fényerőre világosít. */
+    app_slave_display_profile_t master = {70, 25, true, 60, true};
+    app_slave_display_t lobby;
+    assert(app_slave_display_init(&lobby, &master, SECONDS(1)));
+    app_slave_display_presence(&lobby, true, true, SECONDS(1));
+    assert(app_slave_display_brightness(&lobby, SECONDS(2)) == 70);
+    app_slave_display_presence(&lobby, true, false, SECONDS(3));
+    assert(app_slave_display_brightness(&lobby, SECONDS(4)) == 70);
+    app_slave_display_night(&lobby, true, SECONDS(5));
+    assert(app_slave_display_brightness(&lobby, SECONDS(5)) == 0);
+    app_slave_display_presence(&lobby, true, true, SECONDS(6));
+    assert(app_slave_display_brightness(&lobby, SECONDS(6)) == 25);
+    app_slave_display_presence(&lobby, true, false, SECONDS(7));
+    assert(app_slave_display_brightness(&lobby, SECONDS(7)) == 0);
+    assert(app_slave_display_pointer(&lobby, true, SECONDS(8)));
+    assert(app_slave_display_brightness(&lobby, SECONDS(8)) == 25);
+    assert(app_slave_display_pointer(&lobby, false, SECONDS(9)));
+    assert(app_slave_display_brightness(&lobby, SECONDS(68)) == 25);
+    assert(app_slave_display_brightness(&lobby, SECONDS(70)) == 0);
+    /* Ismeretlen jelenlét (kapcsolatvesztés) nem sötétít a látható hibaképernyőn. */
+    app_slave_display_keep_visible(&lobby, true, SECONDS(71));
+    assert(app_slave_display_brightness(&lobby, SECONDS(72)) == 25);
+    printf("PASS: Master presence blanks immediately on 1->0, wakes on 1 and touch, day unaffected\n");
     printf("PASS: Slave day/night brightness, pulse/held presence, wake-only first touch, "
            "timeout, reconnect expiry, invalid profiles, monotonic/overflow; state=%zu bytes\n", sizeof(state));
 }

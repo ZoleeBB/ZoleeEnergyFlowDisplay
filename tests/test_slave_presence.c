@@ -242,7 +242,7 @@ static void runtime_tests(void)
 {
     app_slave_presence_peer_t peer = peer_fixture();
     app_slave_presence_receiver_t receiver = {0};
-    app_slave_display_profile_t own = {83, 17, false, 30};
+    app_slave_display_profile_t own = {83, 17, false, 30, false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
@@ -327,7 +327,7 @@ static void replay_and_lease_tests(void)
 {
     app_slave_presence_peer_t peer = peer_fixture();
     app_slave_presence_receiver_t receiver = {0};
-    app_slave_display_profile_t own = {80, 10, false, 1};
+    app_slave_display_profile_t own = {80, 10, false, 1, false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
@@ -435,7 +435,7 @@ static void actual_delta_to_display_test(void)
     profile.timeout_seconds = 5;
     memcpy(profile.presence_uuid, UUID_A, 36);
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
-    app_slave_display_profile_t own = {92, 13, false, 30};
+    app_slave_display_profile_t own = {92, 13, false, 30, false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);

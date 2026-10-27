@@ -43,11 +43,13 @@ static cJSON *settings_json(const app_config_t *v)
     OBJ(display);NUM(display,"day_brightness",v->display.day_brightness);
     NUM(display,"night_brightness",v->display.night_brightness);
     NUM(display,"rotation_degrees",v->display.rotation_degrees);
+    NUM(display,"touch_wake_seconds",v->display.touch_wake_seconds);
     OBJ(statistics);
     NUM(statistics,"save_interval_minutes",v->statistics.save_interval_minutes);
     NUM(statistics,"max_integration_gap_seconds",v->statistics.max_integration_gap_seconds);
     OBJ(energy);
     NUM(energy,"battery_capacity_kwh",v->energy.battery_capacity_kwh);
+    NUM(energy,"battery_min_soc_pct",v->energy.battery_min_soc_pct);
     NUM(energy,"electricity_purchase_price",v->energy.electricity_purchase_price);
     NUM(energy,"feed_in_price",v->energy.feed_in_price);
     NUM(energy,"co2_factor_kg_per_kwh",v->energy.co2_factor_kg_per_kwh);

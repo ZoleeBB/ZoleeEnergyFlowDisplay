@@ -98,6 +98,8 @@ static unsigned char s_aes_key[32],s_iv[16];
 static char s_salt[17];
 static char *s_public_key;
 static lx_values_t s_values;
+/* A UI-task csak ezt a zár alatti, kis másolatot olvassa, s_values-t nem. */
+static app_loxone_signals_t s_signals;
 static const lx_config_t *s_session_config;
 static int64_t s_last_response,s_token_refresh_us;
 
@@ -496,6 +498,10 @@ static void invalidate(bool configured)
     app_state_set_loxone(configured,false);app_state_clear_sample();app_stats_break_continuity();
     memset(&s_values,0,sizeof(s_values));
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    /* Kapcsolatvesztéskor a jelzések ismeretlenek: nincs régi postaláda-jel,
+     * és a jelenlét sem sötétíthet el egy hibát mutató kijelzőt. */
+    s_signals.presence.valid = s_signals.presence.active = false;
+    s_signals.mail.valid = s_signals.mail.active = false;
     s_home_live = false;
     s_home_session++;
     memset(&s_home_values, 0, sizeof(s_home_values));
@@ -708,8 +714,11 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
             const cJSON *input = cJSON_GetObjectItemCaseSensitive(body, "mappings");
             for (int i = 0; ok && i < LX_FIELD_COUNT; i++)
             {
-                if (s_energy_disabled && i != 6) continue;
-                cJSON *value = cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(input, lx_fields[i].name), true);
+                if (!lx_field_enabled(s_energy_disabled, i)) continue;
+                const cJSON *field = cJSON_GetObjectItemCaseSensitive(input, lx_fields[i].name);
+                /* Régebbi oldal az új, opcionális kijelzőmezőket nem küldi: maradjon a mentett. */
+                if (!field && i >= LX_AUX_FIRST) continue;
+                cJSON *value = cJSON_Duplicate(field, true);
                 ok = value && cJSON_ReplaceItemInObjectCaseSensitive(maps, lx_fields[i].name, value);
                 if (!ok) cJSON_Delete(value);
             }
@@ -824,6 +833,17 @@ static bool update_values(int type, const uint8_t *data, size_t size)
     if (!lx_values_update(&s_values, s_session_config, type, data, size))
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    /* A 0 inaktív, a pozitív véges érték aktív; a szorzó/eltolás már alkalmazva. */
+    if (s_values.seen[LX_FIELD_PRESENCE])
+    {
+        s_signals.presence.valid = true;
+        s_signals.presence.active = s_values.value[LX_FIELD_PRESENCE] > 0;
+    }
+    if (s_values.seen[LX_FIELD_MAIL])
+    {
+        s_signals.mail.valid = true;
+        s_signals.mail.active = s_values.value[LX_FIELD_MAIL] > 0;
+    }
     bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);
     if (ok && s_home)
     {
@@ -1071,4 +1091,20 @@ bool app_loxone_intercom_credentials(unsigned revision, char username[96], char 
     bool valid = username[0] && password[0];
     xSemaphoreGive(s_lock);
     return valid;
+}
+
+bool app_loxone_signals(app_loxone_signals_t *out)
+{
+    if (!s_lock || !out)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    *out = s_signals;
+    out->presence.configured = s_saved.map[LX_FIELD_PRESENCE].uuid[0] != 0;
+    out->mail.configured = s_saved.map[LX_FIELD_MAIL].uuid[0] != 0;
+    if (!out->presence.configured)
+        out->presence.valid = out->presence.active = false;
+    if (!out->mail.configured)
+        out->mail.valid = out->mail.active = false;
+    xSemaphoreGive(s_lock);
+    return true;
 }

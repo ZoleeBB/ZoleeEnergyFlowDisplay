@@ -1193,6 +1193,67 @@ static void test_energy_assistant_ui(const app_energy_sample_t *original)
         update(original, &fixture);
 }
 
+/* Postaláda-jel: minden gyári témán és a Rendszer nézeten látható, nem takar
+ * adatelemet és az energiaasszisztens területét; kikapcsolva/kapcsolatvesztéskor
+ * rejtett, és frissítéskor nem hoz létre új widgetet. */
+static void test_mail_ui(const app_energy_sample_t *original)
+{
+    bool night = original->night_mode;
+    app_data_mode_t original_mode = s_cfg.data_recept_mode;
+    s_cfg.data_recept_mode = APP_DATA_LOXONE;
+    app_sim_signals = (app_loxone_signals_t){.mail = {.configured = true, .valid = true, .active = true}};
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(mail_badge && !lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_update_layout(s_screen);
+    int x = lv_obj_get_x(mail_badge), y = lv_obj_get_y(mail_badge);
+    assert(x >= 0 && y >= 0 && x + MAIL_BADGE_SIZE <= W && y + MAIL_BADGE_SIZE <= H);
+    assert(y < 110); /* A fejlécben marad. */
+    int ax, ay, aw, ah;
+    if (assistant_area(&ax, &ay, &aw, &ah))
+        assert(x + MAIL_BADGE_SIZE <= ax || ax + aw <= x || y + MAIL_BADGE_SIZE <= ay || ay + ah <= y);
+    if (template_is_active())
+    {
+        const cJSON *scene = cJSON_GetObjectItem(template_view.document, night ? "dark" : "light");
+        const cJSON *element;
+        cJSON_ArrayForEach(element, cJSON_GetObjectItem(scene, "elements"))
+        {
+            const char *type = ts(element, "type");
+            if (strcmp(type, "value") && strcmp(type, "weather") && strcmp(type, "bar") &&
+                strcmp(type, "chart") && strcmp(type, "gauge") && strcmp(type, "solar_timeline"))
+                continue;
+            /* A rejtett normál státusz nem foglal helyet. */
+            if (!strcmp(ts(element, "source"), "status") && cJSON_IsTrue(cJSON_GetObjectItem(element, "hide_when_normal")))
+                continue;
+            int ex = tn(element, "x", 0), ey = tn(element, "y", 0);
+            int ew = tn(element, "w", 0), eh = tn(element, "h", 0);
+            if (!(x + MAIL_BADGE_SIZE <= ex || ex + ew <= x || y + MAIL_BADGE_SIZE <= ey || ey + eh <= y))
+            {
+                printf("mail badge %d,%d overlaps %s %s at %d,%d %dx%d\n", x, y, type,
+                       ts(element, "source"), ex, ey, ew, eh);
+                assert(false);
+            }
+        }
+    }
+    char file[96];
+    snprintf(file, sizeof(file), "mail-%s-%s", template_is_active() ? template_view.id : "builtin",
+             night ? "dark" : "light");
+    save_frame(file);
+    lv_obj_t *badge = mail_badge;
+    mail_render();
+    assert(mail_badge == badge);
+    app_sim_signals.mail.active = false;
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    app_sim_signals.mail = (app_loxone_signals_t){0}.mail;
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    s_cfg.data_recept_mode = original_mode;
+    memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
+}
+
 static unsigned widget_count(const lv_obj_t *root)
 {
     unsigned count = 1;
@@ -2146,6 +2207,32 @@ int main(void)
                     assert(strstr(text, "névleges"));
                     s_cfg.energy.battery_capacity_kwh = saved_nominal;
                     free(empty);
+                    /* Hátralévő idő: valódi szöveg és kiemelő szín szigetüzemben. */
+                    {
+                        app_energy_sample_t eta = sample;
+                        double saved_floor = s_cfg.energy.battery_min_soc_pct;
+                        s_cfg.energy.battery_min_soc_pct = 10;
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.soc_bat_pct = 60; eta.power_bat_kw = 2.5; eta.status = 3;
+                        eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Szigetüzem · Még kb. 3 óráig bírja (10%-ig)"));
+                        template_update(&eta, &fixture);
+                        for (unsigned n = 0; n < template_node_count; n++)
+                            if (!strcmp(ts(template_nodes[n].spec, "source"), "battery_eta"))
+                                assert(lv_color_eq(lv_obj_get_style_text_color(template_nodes[n].obj, 0),
+                                                   c(night ? 0xFFB45C : 0xC25A00)));
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.status = 2; eta.power_full_kw = 0.8; eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Áramszünetkor kb. 9 óra 23 percig bírná (10%-ig)"));
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.status = 1; eta.power_bat_kw = -3; eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Kb. 2 óra múlva tele"));
+                        s_cfg.energy.battery_min_soc_pct = saved_floor;
+                        app_battery_eta_reset(&template_battery_eta_state);
+                    }
                     sample.soc_bat_pct = 60;
                     sample.power_bat_kw = 2.76;
                     sample.battery_temperature_c = 29;
@@ -2158,6 +2245,7 @@ int main(void)
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);
                 }
                 test_energy_assistant_ui(&sample);
+                test_mail_ui(&sample);
                 rt.wifi_connected=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_WIFI_ERROR);
                 rt.wifi_connected=true;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
                 assert(!strcmp(template_view.id,list[i].id));assert(s_last_night==(bool)night);
@@ -2226,6 +2314,7 @@ int main(void)
         builtin_sample.status = 1;
         update(&builtin_sample, &fixture);
         test_energy_assistant_ui(&builtin_sample);
+        test_mail_ui(&builtin_sample);
     }
     clear();
     memset(&template_pending,0,sizeof(template_pending));memset(&template_view,0,sizeof(template_view));
@@ -2444,6 +2533,82 @@ int main(void)
     clear();template_release_cache();app_templates_view_free(&template_view);
     puts("PASS: actual LVGL consumer/cards light/dark pages, 7-item centering, real grayscale, separate command/feedback, pending/offline controls, resource cleanup and exact theme return");
     app_test_slave_display_input(display);
+    {
+        /* Master jelenlétvezérlés a tényleges runtime-úton: párosítás nélkül
+         * változatlan, éjjel 0 -> teljes sötét, 1 -> éjszakai fényerő, az első
+         * érintés csak ébreszt, hibaoldal és kapcsolatvesztés látható marad. */
+        config.data_recept_mode = APP_DATA_LOXONE;
+        config.energy_flow_disabled = false;
+        config.display.day_brightness = 74;
+        config.display.night_brightness = 21;
+        config.display.touch_wake_seconds = 30;
+        app_ui_set_config(&config);
+        assert(s_master_display_ready && s_slave_display.profile.blank_on_presence_loss &&
+               s_slave_display.profile.presence_timeout_seconds == 30);
+        lv_indev_t *master_input = lv_indev_create();
+        lv_indev_set_type(master_input, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_display(master_input, display);
+        lv_indev_set_read_cb(master_input, touch_read);
+        app_runtime_state_t master_rt = {
+            .data_recept_mode = APP_DATA_LOXONE, .loxone_connected = true, .loxone_configured = true,
+            .wifi_connected = true, .has_valid_sample = true, .last_valid_packet_monotonic_us = ticks,
+        };
+        runtime_view_t saved_view = s_view;
+        s_view = VIEW_DASHBOARD;
+        sample.night_mode = true;
+        sample.received_monotonic_us = ticks;
+        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks);
+        assert(!s_presence_control && !s_slave_input.input); /* Nincs párosítás: régi működés. */
+        app_sim_signals.presence = (app_loxone_signal_t){.configured = true, .valid = true, .active = true};
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks);
+        assert(s_presence_control && s_slave_input.input == master_input);
+        /* A nappali -> éjszakai átmenet fokozatos (1%/kör), ahogy eddig is. */
+        assert(s_brightness == 73);
+        for (int i = 0; i < 60; ++i)
+            master_presence_update(&master_rt, &sample, true, ticks + i);
+        assert(s_brightness == 21 && last_pwm_brightness == 21);
+        app_sim_signals.presence.active = false;
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 1000);
+        assert(s_brightness == 0 && last_pwm_brightness == 0);
+        /* Az első érintés csak ébreszt, és az ébrenléti idő után újra sötét. */
+        assert(app_slave_display_pointer(&s_slave_display, true, ticks + 2000));
+        assert(app_slave_display_pointer(&s_slave_display, false, ticks + 3000));
+        master_presence_update(&master_rt, &sample, true, ticks + 4000);
+        assert(s_brightness == 21 && last_pwm_brightness == 21);
+        master_presence_update(&master_rt, &sample, true, ticks + 31000000);
+        assert(s_brightness == 0);
+        /* Ismeretlen jelenlét vagy hibaoldal mellett nincs sötét kijelző. */
+        app_sim_signals.presence.valid = false;
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 31100000);
+        assert(s_brightness == 21);
+        app_sim_signals.presence.valid = true;
+        (void)app_loxone_signals(&s_loxone_signals);
+        s_view = VIEW_WIFI_ERROR;
+        master_presence_update(&master_rt, &sample, true, ticks + 31200000);
+        assert(s_brightness == 21);
+        s_view = VIEW_DASHBOARD;
+        master_presence_update(&master_rt, &sample, true, ticks + 31300000);
+        assert(s_brightness == 0);
+        /* Nappal a jelenlét nem sötétít; a fényerő fokozatosan éri el a nappali értéket. */
+        sample.night_mode = false;
+        master_presence_update(&master_rt, &sample, true, ticks + 31400000);
+        assert(s_brightness == 74);
+        /* A párosítás törlése visszaadja az eredeti vezérlést. */
+        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 31500000);
+        assert(!s_presence_control);
+        s_view = saved_view;
+        lv_indev_delete(master_input);
+        assert(!s_slave_input.input);
+        memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
+        puts("PASS: actual Master Loxone presence: unpaired unchanged, night 0 blanks, 1 and touch wake to night PWM, wake-only touch, error/unknown visible, day unaffected");
+    }
     /* A tényleges Master-hardver Slave runtime-ja, külön napszak- és PWM-ellenőrzéssel. */
     config.data_recept_mode = APP_DATA_SLAVE;
     config.display.day_brightness = 83;

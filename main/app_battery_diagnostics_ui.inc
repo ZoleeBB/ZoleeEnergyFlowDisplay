@@ -1,3 +1,81 @@
+/* Hátralévő idő: a simítás mintánként egyszer lép, a 200 ms-os UI-kör csak olvassa. */
+static app_battery_eta_state_t template_battery_eta_state;
+
+/* Magyarul ragozva („6 óra 20 percig”, „45 percig”, „2 óráig”), angolul rövidítve. */
+static void template_battery_duration(char *out, size_t size, const app_battery_eta_t *eta, bool until)
+{
+    unsigned hours = eta->minutes / 60, minutes = eta->minutes % 60;
+    if (!hu())
+    {
+        if (eta->capped)
+            snprintf(out, size, "over 99 h");
+        else if (!hours)
+            snprintf(out, size, "%u min", minutes);
+        else if (!minutes)
+            snprintf(out, size, "%u h", hours);
+        else
+            snprintf(out, size, "%u h %u min", hours, minutes);
+        return;
+    }
+    if (eta->capped)
+        snprintf(out, size, "%s", until ? "több mint 99 óráig" : "több mint 99 óra");
+    else if (!hours)
+        snprintf(out, size, until ? "%u percig" : "%u perc", minutes);
+    else if (!minutes)
+        snprintf(out, size, until ? "%u óráig" : "%u óra", hours);
+    else
+        snprintf(out, size, until ? "%u óra %u percig" : "%u óra %u perc", hours, minutes);
+}
+
+/* Egysoros, emberi nyelvű becslés. Szigetüzemben és áramszünetre készülve
+ * a szöveg maga is jelzi a helyzetet; a kiemelő színt a hívó adja. */
+static void template_battery_eta_text(char out[128], const app_energy_sample_t *sample)
+{
+    double nominal = s_cfg.energy.battery_capacity_kwh;
+    app_battery_eta_update(&template_battery_eta_state, sample);
+    app_battery_eta_t eta = app_battery_eta_estimate(&template_battery_eta_state, sample, nominal,
+                                                     s_cfg.energy.battery_min_soc_pct);
+    char duration[40], until[40];
+    template_battery_duration(duration, sizeof(duration), &eta, false);
+    template_battery_duration(until, sizeof(until), &eta, true);
+    char floor_text[32] = "";
+    if (s_cfg.energy.battery_min_soc_pct > 0)
+    {
+        char number[16];
+        fmt_dec(number, sizeof(number), s_cfg.energy.battery_min_soc_pct, 0);
+        snprintf(floor_text, sizeof(floor_text), hu() ? " (%s%%-ig)" : " (to %s%%)", number);
+    }
+    bool island = sample->status == 3;
+    switch (eta.kind)
+    {
+    case APP_BATTERY_ETA_TO_FULL:
+        snprintf(out, 128, hu() ? "%sKb. %s múlva tele" : "%sFull in about %s",
+                 island ? tr("Szigetüzem · ", "Island mode · ") : "", duration);
+        break;
+    case APP_BATTERY_ETA_TO_EMPTY:
+        snprintf(out, 128, hu() ? "%sMég kb. %s bírja%s" : "%sLasts about %s%s",
+                 island ? tr("Szigetüzem · ", "Island mode · ") : "", hu() ? until : duration, floor_text);
+        break;
+    case APP_BATTERY_ETA_BACKUP:
+        snprintf(out, 128, hu() ? "Áramszünetkor kb. %s bírná%s" : "In an outage about %s%s",
+                 hu() ? until : duration, floor_text);
+        break;
+    case APP_BATTERY_ETA_FULL:
+        snprintf(out, 128, "%s", tr("Az akkumulátor tele", "Battery is full"));
+        break;
+    case APP_BATTERY_ETA_EMPTY:
+        snprintf(out, 128, "%s", tr("Elérte az alsó töltöttségi határt", "Reached the minimum charge level"));
+        break;
+    case APP_BATTERY_ETA_IDLE:
+        snprintf(out, 128, "%s", tr("Készenlét: nincs töltés vagy kisütés", "Idle: not charging or discharging"));
+        break;
+    default:
+        snprintf(out, 128, "%s", nominal <= 0 ? tr("Add meg a névleges kapacitást!", "Set nominal capacity first")
+                                              : tr("Becslés az első mérés után", "Estimate after first sample"));
+        break;
+    }
+}
+
 /* Közös sablonadatok: az üres referencia mindig szöveg/—, sohasem kitalált nulla. */
 static void template_battery_text(char out[128], const char *source,
                                   const app_energy_sample_t *sample,
@@ -5,6 +83,11 @@ static void template_battery_text(char out[128], const char *source,
 {
     const app_battery_report_t *report = &stats->battery;
     double nominal = s_cfg.energy.battery_capacity_kwh;
+    if (!strcmp(source, "battery_eta"))
+    {
+        template_battery_eta_text(out, sample);
+        return;
+    }
     if (!strcmp(source, "battery_diag_assessment"))
     {
         const char *message = nominal <= 0 ? tr("Add meg a névleges kapacitást!", "Set nominal capacity first") :

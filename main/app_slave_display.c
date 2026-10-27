@@ -81,8 +81,15 @@ void app_slave_display_presence(app_slave_display_t *state, bool valid, bool act
     int64_t now = monotonic(state, now_us);
     bool was_active = state->presence_active;
     state->presence_active = valid && active;
-    if (state->presence_active || (valid && was_active))
+    if (state->presence_active)
         wake(state, now);
+    else if (valid && was_active)
+    {
+        if (state->profile.blank_on_presence_loss)
+            state->awake_until_us = 0;
+        else
+            wake(state, now);
+    }
 }
 
 void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, int64_t now_us)

@@ -251,7 +251,7 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
-    if (!strncmp(source, "battery_diag_", 13)) {
+    if (!strncmp(source, "battery_diag_", 13) || !strcmp(source, "battery_eta")) {
         template_battery_text(out, source, s, st);
         return;
     }
@@ -907,7 +907,12 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         }
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);
             if(!strcmp(source,"battery_temp")&&!strcmp(template_view.id,"09-solar-journey")){char number[64];fmt_dec(number,sizeof(number),s->battery_temperature_c,0);snprintf(text,sizeof(text),"%s °C",number);}
-            label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
+            label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);
+            /* Szigetüzemben és áramszünetre készülve a hátralévő idő kiemelt színű. */
+            if(!strcmp(source,"battery_eta")){
+                bool alert=s->status==2||s->status==3;
+                text_color_if_changed(node->obj,c(alert?(s->night_mode?0xFFB45C:0xC25A00):tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
+            }}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
             if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);

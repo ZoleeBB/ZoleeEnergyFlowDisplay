@@ -4,9 +4,15 @@
 #include <stdint.h>
 #include "cJSON.h"
 
-#define LX_FIELD_COUNT 16
+#define LX_FIELD_COUNT 18
 #define LX_SUN_FIRST 12
 #define LX_SUN_COUNT 4
+#define LX_SUN_END (LX_SUN_FIRST + LX_SUN_COUNT)
+/* Kijelzővezérlő, nem energiaadat: a mintába nem kerülnek, és energiaáramlás
+ * tiltás mellett is párosíthatók. */
+#define LX_AUX_FIRST LX_SUN_END
+#define LX_FIELD_PRESENCE 16
+#define LX_FIELD_MAIL 17
 #define LX_UUID_LEN 37
 #define LX_PASSWORD_MAX 128
 #define LX_CATALOG_MAX 512
@@ -19,6 +25,11 @@ typedef struct
     bool digital;
 } lx_field_t;
 extern const lx_field_t lx_fields[LX_FIELD_COUNT];
+/* Tiltott energiaáramlásnál csak a NightMode és a kijelzővezérlő mezők élnek. */
+static inline bool lx_field_enabled(bool energy_flow_disabled, int index)
+{
+    return !energy_flow_disabled || index == 6 || index >= LX_AUX_FIRST;
+}
 typedef struct
 {
     char uuid[LX_UUID_LEN];
