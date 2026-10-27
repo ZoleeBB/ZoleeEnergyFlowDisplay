@@ -53,10 +53,19 @@ static void battery_eta(void)
     app_energy_sample_t sample = eta_sample(10, 2, 2, 60, 1);
     assert(app_battery_eta_estimate(&eta, &sample, 10, 0).kind == APP_BATTERY_ETA_UNKNOWN);
     app_battery_eta_update(&eta, &sample);
-    /* 6 kWh / 2 kW = 3 óra a 0%-ig; 10%-os alsó határral 5 kWh = 2,5 óra. */
+    /* Beállítatlan határ: normál üzemben 15%, azaz 4,5 kWh / 2 kW = 2 ó 15 p. */
     app_battery_eta_t value = app_battery_eta_estimate(&eta, &sample, 10, 0);
-    assert(value.kind == APP_BATTERY_ETA_TO_EMPTY && value.minutes == 180 && !value.capped);
+    assert(value.kind == APP_BATTERY_ETA_TO_EMPTY && value.minutes == 135 && !value.capped);
+    assert(value.floor_pct == APP_BATTERY_ETA_FLOOR_NORMAL_PCT);
+    /* Szigetüzemben ugyanez 5%-ig: 5,5 kWh / 2 kW = 2 ó 45 p. */
+    app_energy_sample_t island = eta_sample(10, 2, 2, 60, 3);
+    value = app_battery_eta_estimate(&eta, &island, 10, 0);
+    assert(value.kind == APP_BATTERY_ETA_TO_EMPTY && value.minutes == 165);
+    assert(value.floor_pct == APP_BATTERY_ETA_FLOOR_BACKUP_PCT);
+    /* Kézzel megadott határ mindkét üzemmódban felülírja az alapértelmezést. */
     assert(app_battery_eta_estimate(&eta, &sample, 10, 10).minutes == 150);
+    assert(app_battery_eta_estimate(&eta, &island, 10, 10).minutes == 150);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 10).floor_pct == 10);
     assert(app_battery_eta_estimate(&eta, &sample, 0, 0).kind == APP_BATTERY_ETA_UNKNOWN);
     /* Ugyanaz a minta nem számít újra, egy rövid kiugrás csak részben hat. */
     app_battery_eta_update(&eta, &sample);
@@ -70,6 +79,9 @@ static void battery_eta(void)
     assert(eta.battery_kw == -3);
     value = app_battery_eta_estimate(&eta, &sample, 10, 0);
     assert(value.kind == APP_BATTERY_ETA_TO_FULL && value.minutes == 120); /* 6 kWh / 3 kW */
+    /* Áramszünetre készülve beállítatlan határnál 5%: 4,5 kWh / 1 kW = 4 ó 30 p. */
+    app_energy_sample_t backup = eta_sample(400, -3, 1, 50, 2);
+    assert(app_battery_eta_estimate(&eta, &backup, 10, 0).minutes == 270);
     sample = eta_sample(401, -3, 1, 99.6, 1);
     assert(app_battery_eta_estimate(&eta, &sample, 10, 0).kind == APP_BATTERY_ETA_FULL);
     /* Status 2: a házfogyasztással számol, töltés közben is. */

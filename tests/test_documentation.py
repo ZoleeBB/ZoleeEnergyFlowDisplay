@@ -26,4 +26,12 @@ for name in filter(None, tracked):
             failures.append(f'{name}: {target}')
 if failures:
     raise AssertionError('Broken local documentation links:\n' + '\n'.join(failures))
+
+# Minden dokumentum érhető el a README-ből: új leírás ne maradjon hivatkozás nélkül.
+readme = (ROOT / 'README.md').read_text()
+linked = set(re.findall(r'docs/[A-Za-z0-9._-]+\.md', readme))
+missing = sorted(f'docs/{path.name}' for path in sorted((ROOT / 'docs').glob('*.md'))
+                 if f'docs/{path.name}' not in linked)
+if missing:
+    raise AssertionError('Documents missing from README.md:\n' + '\n'.join(missing))
 print(f'PASS: {count} local Markdown links resolve in {sum(bool(n) for n in tracked)} tracked documents')

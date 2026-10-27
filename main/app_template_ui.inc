@@ -22,6 +22,9 @@ static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 static bool template_enter_transition;
 static bool template_loading_requested;
 static bool template_waiting_for_load;
+/* A legutóbb megépített nappali/éjszakai változat; a váltáskori
+ * gyorsítótár-ürítéshez kell (lásd template_build). */
+static bool template_built_night, template_built_valid;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
@@ -480,6 +483,7 @@ static void template_apply(void){
     if(template_pending.generation==template_view.generation)return;
     template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
+    template_built_valid=false;
     template_view=template_pending;memset(&template_pending,0,sizeof(template_pending));template_pending.generation=template_view.generation;
     for(unsigned i=0;i<template_view.asset_count;i++){
         app_template_asset_t *a=&template_view.assets[i];
@@ -488,6 +492,16 @@ static void template_apply(void){
 }
 static void template_build(bool night){
     clear();template_flow_release_paths();template_node_count=0;template_chart_time=0;
+    /*
+     * Nappali/éjszakai váltáskor az előző változat dekódolt képei (1280x800
+     * ARGB8888 = 4 MiB háttérképenként) még az LVGL kép-gyorsítótárban
+     * ülnek, és lefoglalják azt a PSRAM-ot, amit az új háttér dekódolása
+     * igényelne. Sikertelen dekódolásnál a háttér egyszerűen elmarad, ezért
+     * a már törölt objektumok után, az új felépítés előtt ürítünk. Az SD-ről
+     * beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
+     */
+    if(template_built_valid&&template_built_night!=night)template_release_cache();
+    template_built_night=night;template_built_valid=true;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
     /*
      * A régebbi SD-kártyán lévő három gyári téma még sávos RGB565
@@ -1261,14 +1275,15 @@ static void diagnostics_render(app_runtime_state_t rt)
                 ? tr("Lejárt adat", "Stale data")
                 : tr("Érvényes adat", "Valid data"));
     label_text_if_changed(s_diagnostic_values[2], text);
-    unsigned sd_used = s_diagnostics.sd_space_valid
-                         ? (unsigned)((s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) *
-                                      100 / s_diagnostics.sd_total_bytes)
-                         : 0;
+    /* Két tizedes: nagy kártyán a sablonok néhány tized százalékos változása is látszódjon. */
+    double sd_used = s_diagnostics.sd_space_valid
+                       ? (double)(s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) * 100. /
+                             (double)s_diagnostics.sd_total_bytes
+                       : 0.;
     if (rt.sd_ok && s_diagnostics.sd_space_valid)
         snprintf(text,
                  sizeof(text),
-                 "%u%% · %.1f / %.1f GiB",
+                 "%.2f%% · %.1f / %.1f GiB",
                  sd_used,
                  (double)(s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) / 1073741824.,
                  (double)s_diagnostics.sd_total_bytes / 1073741824.);
@@ -1282,7 +1297,7 @@ static void diagnostics_render(app_runtime_state_t rt)
         snprintf(text, sizeof(text), "%s\n%s", tr("SD nélkül · belső tár", "No SD · internal storage"),
                  rt.remote_stats_valid ? tr("Master stat.: friss", "Master stats: current") : tr("Master stat.: várakozás", "Master stats: waiting"));
     label_text_if_changed(s_diagnostic_values[3], text);
-    lv_bar_set_value(s_diagnostic_bars[0], sd_used, LV_ANIM_OFF);
+    lv_bar_set_value(s_diagnostic_bars[0], (int32_t)(sd_used + 0.5), LV_ANIM_OFF);
     if (rt.sd_ok && s_diagnostics.sd_space_valid)
         lv_obj_remove_flag(s_diagnostic_bars[0], LV_OBJ_FLAG_HIDDEN);
     else

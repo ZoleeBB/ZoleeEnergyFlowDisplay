@@ -18,6 +18,7 @@
 #include "app_templates.h"
 #include "app_diagnostics.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -856,7 +857,7 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON_AddNumberToObject(o,"total_internal_kib",d.total_internal_kib);
     cJSON_AddNumberToObject(o,"total_psram_kib",d.total_psram_kib);cJSON_AddNumberToObject(o,"free_psram_kib",d.free_psram_kib);
     if(d.sd_space_valid){cJSON_AddNumberToObject(o,"sd_total_bytes",d.sd_total_bytes);cJSON_AddNumberToObject(o,"sd_free_bytes",d.sd_free_bytes);
-        cJSON_AddNumberToObject(o,"sd_used_percent",(double)(d.sd_total_bytes-d.sd_free_bytes)*100/d.sd_total_bytes);}
+        cJSON_AddNumberToObject(o,"sd_used_percent",round((double)(d.sd_total_bytes-d.sd_free_bytes)*10000/d.sd_total_bytes)/100);}
     else{cJSON_AddNullToObject(o,"sd_total_bytes");cJSON_AddNullToObject(o,"sd_free_bytes");cJSON_AddNullToObject(o,"sd_used_percent");}
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
     cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
@@ -875,7 +876,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
         "ble_enabled:'Bluetooth',ble_role:'BT szerep / Role',ble_ready:'BT kész / Ready',ble_advertising:'BT hirdetés / Advertising',ble_scanning:'Master keresés / Scanning',ble_address:'Saját BT cím / Local address',ble_peer:'BT partner / Peer',ble_slaves:'Kapcsolódó slave-ek / Connected slaves',slave_connected:'Master kapcsolat / Master connected',ble_rssi_dbm:'BT RSSI (dBm)',"
         "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
-        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':v;if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
+        "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':(k==='sd_used_percent'?Number(v).toFixed(2):v);if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>", s_hu);
 }
 

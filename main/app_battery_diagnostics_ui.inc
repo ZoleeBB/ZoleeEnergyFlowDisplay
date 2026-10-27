@@ -38,11 +38,13 @@ static void template_battery_eta_text(char out[128], const app_energy_sample_t *
     char duration[40], until[40];
     template_battery_duration(duration, sizeof(duration), &eta, false);
     template_battery_duration(until, sizeof(until), &eta, true);
+    /* A ténylegesen használt határ látszik, akkor is, ha az alapértelmezés
+     * (normál 15%, áramszünet/szigetüzem 5%) lépett életbe. */
     char floor_text[32] = "";
-    if (s_cfg.energy.battery_min_soc_pct > 0)
+    if (eta.floor_pct > 0)
     {
         char number[16];
-        fmt_dec(number, sizeof(number), s_cfg.energy.battery_min_soc_pct, 0);
+        fmt_dec(number, sizeof(number), eta.floor_pct, 0);
         snprintf(floor_text, sizeof(floor_text), hu() ? " (%s%%-ig)" : " (to %s%%)", number);
     }
     bool island = sample->status == 3;

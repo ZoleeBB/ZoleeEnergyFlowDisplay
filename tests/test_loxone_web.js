@@ -56,11 +56,19 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
  category.value=JSON.stringify('Klíma');category.onchange();assert.deepEqual(nodes.get('Temperature_uuid').options.map(o=>o.value),['',third]);
  assert.equal(nodes.get('mappings').children[0].children[0].textContent,'Hálózati teljesítmény (kW) *');
  assert(nodes.get('mappings').children[7].children[0].textContent.includes('(°C)'));
- assert(!nodes.has('SunPosition_uuid'));assert(!nodes.get('SunAzimuth_scale').disabled);
+ assert(!nodes.has('SunPosition_uuid'));
+ // Az időjárás, a nappálya, a jelenlét és a posta soraiban nincs szorzó/eltolás mező.
+ for(const key of ['WindSpeed','HasSunRadiation','HasPrecipitation','SunAzimuth','SunAltitude','Sunrise','Sunset','Presence','MailArrived']){
+  assert(!nodes.has(key+'_scale'),key);assert(!nodes.has(key+'_offset'),key);
+  const row=nodes.get('mapping-row-'+key);assert.equal(row.children[2].textContent,'—');assert.equal(row.children[3].textContent,'—');
+ }
+ assert(!nodes.get('PowerGrid_scale').disabled);
  nodes.get('SunAzimuth_uuid').value=id;await sandbox.api.submit('save');assert.equal(sent.length,2);assert(nodes.get('status').textContent.includes('mind a négy'));
  for(const key of keys.slice(12,16))nodes.get(key+'_uuid').value=second;
- nodes.get('Sunrise_scale').value='0.016666666666666666';
- await sandbox.api.submit('save');assert.equal(sent.length,3);assert.equal(sent[2].body.mappings.Sunrise.scale,1/60);assert(!('SunPosition' in sent[2].body.mappings));
+ await sandbox.api.submit('save');assert.equal(sent.length,3);
+ assert.equal(sent[2].body.mappings.Sunrise.scale,1);assert.equal(sent[2].body.mappings.Sunrise.offset,0);
+ assert.equal(sent[2].body.mappings.Presence.scale,1);assert.equal(sent[2].body.mappings.MailArrived.offset,0);
+ assert(!('SunPosition' in sent[2].body.mappings));
  rejectPost=true;await sandbox.api.submit('test');assert(nodes.get('status').textContent.includes('jelszó érvénytelen'));
  await sandbox.api.refresh();assert(nodes.get('status').textContent.includes('jelszó érvénytelen'));assert(!nodes.get('test').disabled);rejectPost=false;
  nodes.get('password').value='';assert.equal(sandbox.api.values().password,null);

@@ -63,6 +63,13 @@ bool app_battery_from_json(const cJSON *json, app_battery_diagnostics_t *out);
 #define APP_BATTERY_ETA_GAP_S 120.0      /* Ennél hosszabb adatrésnél újrakezdés. */
 #define APP_BATTERY_ETA_IDLE_KW 0.05     /* Ez alatt az akku készenlétben van. */
 #define APP_BATTERY_ETA_MAX_MINUTES 5999 /* 99 ó 59 p; e fölött „több mint”. */
+/*
+ * Beállítatlan (0%) alsó határ esetén a hibridinverterek szokásos tartalékával
+ * számolunk: normál üzemben a hálózati tartalék miatt 15% marad az akkuban,
+ * áramszünetre készülve és szigetüzemben (bypass) viszont 5%-ig használható.
+ */
+#define APP_BATTERY_ETA_FLOOR_NORMAL_PCT 15.0
+#define APP_BATTERY_ETA_FLOOR_BACKUP_PCT 5.0
 
 typedef struct
 {
@@ -88,12 +95,17 @@ typedef struct
     app_battery_eta_kind_t kind;
     unsigned minutes; /* Csak TO_FULL, TO_EMPTY és BACKUP esetén érvényes. */
     bool capped;      /* A valós érték nagyobb, mint APP_BATTERY_ETA_MAX_MINUTES. */
+    double floor_pct; /* A számításhoz ténylegesen használt alsó határ. */
 } app_battery_eta_t;
 
 void app_battery_eta_reset(app_battery_eta_state_t *state);
 /* Mintánként egyszer hívható; ugyanaz a minta (azonos monoton idő) nem számít újra. */
 void app_battery_eta_update(app_battery_eta_state_t *state, const app_energy_sample_t *sample);
-/* capacity_kwh <= 0 esetén UNKNOWN. A min_soc_pct az inverter/BMS alsó határa (0–90). */
+/*
+ * capacity_kwh <= 0 esetén UNKNOWN. A min_soc_pct az inverter/BMS alsó határa
+ * (0–90). 0 (beállítatlan) esetén a fenti alapértelmezések lépnek életbe:
+ * normál üzemben 15%, áramszünetre készülve és szigetüzemben 5%.
+ */
 app_battery_eta_t app_battery_eta_estimate(const app_battery_eta_state_t *state,
                                            const app_energy_sample_t *sample,
                                            double capacity_kwh, double min_soc_pct);

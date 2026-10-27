@@ -367,9 +367,10 @@ void app_battery_eta_update(app_battery_eta_state_t *state, const app_energy_sam
     state->last_us = now;
 }
 
-static app_battery_eta_t eta_minutes(app_battery_eta_kind_t kind, double energy_kwh, double power_kw)
+static app_battery_eta_t eta_minutes(app_battery_eta_kind_t kind, double energy_kwh,
+                                     double power_kw, double floor_pct)
 {
-    app_battery_eta_t result = {.kind = kind};
+    app_battery_eta_t result = {.kind = kind, .floor_pct = floor_pct};
     double minutes = power_kw > 0 ? energy_kwh / power_kw * 60.0 : INFINITY;
     if (!isfinite(minutes) || minutes > APP_BATTERY_ETA_MAX_MINUTES)
     {
@@ -389,7 +390,13 @@ app_battery_eta_t app_battery_eta_estimate(const app_battery_eta_state_t *state,
     if (!state || !sample || !state->valid || !isfinite(capacity_kwh) || capacity_kwh <= 0 ||
         !isfinite(sample->soc_bat_pct))
         return unknown;
-    double floor_pct = isfinite(min_soc_pct) ? fmin(90, fmax(0, min_soc_pct)) : 0;
+    /* Áramszünetre készülve (2) és szigetüzemben (3) az akku mélyebbre
+     * használható, mint hálózaton; beállítatlan határnál ezzel számolunk. */
+    bool backup = sample->status == 2 || sample->status == 3;
+    double floor_pct = isfinite(min_soc_pct) && min_soc_pct > 0
+                         ? fmin(90, min_soc_pct)
+                         : (backup ? APP_BATTERY_ETA_FLOOR_BACKUP_PCT
+                                   : APP_BATTERY_ETA_FLOOR_NORMAL_PCT);
     double soc = fmin(100, fmax(0, sample->soc_bat_pct));
     double usable_kwh = capacity_kwh * fmax(0, soc - floor_pct) / 100.0;
     /* Felkészülés áramszünetre: a ház mostani (simított) fogyasztásával
@@ -397,19 +404,19 @@ app_battery_eta_t app_battery_eta_estimate(const app_battery_eta_state_t *state,
     if (sample->status == 2)
     {
         if (usable_kwh <= 0)
-            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY};
-        return eta_minutes(APP_BATTERY_ETA_BACKUP, usable_kwh, fmax(0, state->load_kw));
+            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY, .floor_pct = floor_pct};
+        return eta_minutes(APP_BATTERY_ETA_BACKUP, usable_kwh, fmax(0, state->load_kw), floor_pct);
     }
     if (state->battery_kw > APP_BATTERY_ETA_IDLE_KW)
     {
         if (usable_kwh <= 0)
-            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY};
-        return eta_minutes(APP_BATTERY_ETA_TO_EMPTY, usable_kwh, state->battery_kw);
+            return (app_battery_eta_t){.kind = APP_BATTERY_ETA_EMPTY, .floor_pct = floor_pct};
+        return eta_minutes(APP_BATTERY_ETA_TO_EMPTY, usable_kwh, state->battery_kw, floor_pct);
     }
     if (soc >= 99.5)
-        return (app_battery_eta_t){.kind = APP_BATTERY_ETA_FULL};
+        return (app_battery_eta_t){.kind = APP_BATTERY_ETA_FULL, .floor_pct = floor_pct};
     if (state->battery_kw < -APP_BATTERY_ETA_IDLE_KW)
         return eta_minutes(APP_BATTERY_ETA_TO_FULL, capacity_kwh * (100 - soc) / 100.0,
-                           -state->battery_kw);
-    return (app_battery_eta_t){.kind = APP_BATTERY_ETA_IDLE};
+                           -state->battery_kw, floor_pct);
+    return (app_battery_eta_t){.kind = APP_BATTERY_ETA_IDLE, .floor_pct = floor_pct};
 }

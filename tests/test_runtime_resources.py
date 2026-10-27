@@ -55,17 +55,25 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run([str(path/'test')],check=True)
 config=(ROOT/'sdkconfig.defaults').read_text()
 cache=int(re.search(r'^CONFIG_LV_CACHE_DEF_SIZE=(\d+)$',config,re.M)[1])
-working_sets=[]
+working_sets=[];both_variants=[]
 for descriptor in (ROOT/'templates').glob('*/template.json'):
     doc=json.loads(descriptor.read_text())
+    pair=0
     for mode in ('light','dark'):
         # All referenced variants together are a conservative upper bound.
         scene=json.dumps(doc[mode]);total=0
         for image in descriptor.parent.glob('*.png'):
             if image.name in scene:
                 w,h=struct.unpack('>II',image.read_bytes()[16:24]);total+=w*h*4
-        working_sets.append(total)
+        working_sets.append(total);pair+=total
+    both_variants.append(pair)
 assert 6*1024*1024<max(working_sets)<cache
+# A nappali és az éjszakai jelenet dekódolt képei együtt nem férnek a cache-be,
+# ezért a felépítés a változat váltásakor üríti a gyorsítótárat; enélkül az új
+# háttér dekódolása PSRAM hiányában elmaradhat.
+assert max(both_variants)>cache
+build=(ROOT/'main/app_template_ui.inc').read_text().split('static void template_build(bool night){',1)[1]
+assert 'template_release_cache();' in build.split('cJSON_ArrayForEach',1)[0]
 assert 'CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0' in config
 reserve=int(re.search(r'^CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=(\d+)$',config,re.M)[1])
 # Physical startup report: 64 KiB aborts before app_main; previous 32 KiB boots.

@@ -20,7 +20,8 @@ a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
 - Ikonokhoz valódi alfaátlátszóságú, 8 bites RGBA PNG ajánlott, 128×128 px.
 - A háttér lehet RGB/RGBA, legfeljebb 1280×800 px; ne süsd bele az élő
-  adatokat, mozgó pontokat, diagramokat vagy szövegeket.
+  adatokat, mozgó pontokat, diagramokat vagy szövegeket. A pontosan 1280×800-as
+  háttér a leggyorsabb: kisebb képnél belépéskor teljes képernyős méretezés fut.
 - Kisbetűs fájlnevek, alkönyvtár nélkül: például `solar.png`, `day.png`.
 - Az `image` elem a megadott `w`/`h` méretre skáláz; azonos oldalaránnyal
   dolgozz, különben torzul. Világos és sötét háttéren is ellenőrizd az éleket.

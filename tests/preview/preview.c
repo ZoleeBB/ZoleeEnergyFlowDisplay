@@ -1254,6 +1254,56 @@ static void test_mail_ui(const app_energy_sample_t *original)
     memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
 }
 
+/*
+ * Nappal/éjjel váltás után a jelenet minden képe a saját változatára mutasson,
+ * és a teljes képernyős háttér valóban dekódolt képpontokat adjon. A hibás
+ * (elmaradó) sötét háttérnél a kirajzolt kép egyszínű marad.
+ */
+static void test_scene_images(bool night)
+{
+    if (!template_is_active())
+        return;
+    const cJSON *scene = cJSON_GetObjectItem(template_view.document, night ? "dark" : "light");
+    const cJSON *element;
+    bool background = false;
+    cJSON_ArrayForEach(element, cJSON_GetObjectItem(scene, "elements"))
+    {
+        if (strcmp(ts(element, "type"), "image"))
+            continue;
+        const char *file = ts(element, "file");
+        unsigned asset = template_view.asset_count;
+        for (unsigned i = 0; i < template_view.asset_count; i++)
+            if (!strcmp(template_view.assets[i].name, file))
+            {
+                asset = i;
+                break;
+            }
+        assert(asset < template_view.asset_count);
+        for (unsigned n = 0; n < template_node_count; n++)
+        {
+            if (template_nodes[n].spec != element || !template_nodes[n].obj)
+                continue;
+            const void *src = lv_image_get_src(template_nodes[n].obj);
+            bool bound = src == &template_images[asset];
+#if LV_USE_SNAPSHOT
+            for (unsigned r = 0; !bound && r < template_raster_count; r++)
+                bound = src == &template_rasters[r].image && template_rasters[r].asset == asset;
+#endif
+            assert(bound);
+            if (tn(element, "w", 0) == 1280 && tn(element, "h", 0) == 800)
+                background = true;
+        }
+    }
+    if (!background)
+        return;
+    uint32_t first = pixel_rgb(400 * 1280 + 40);
+    unsigned different = 0;
+    for (unsigned y = 120; y < 760; y += 40)
+        if (pixel_rgb(y * 1280 + 40) != first)
+            different++;
+    assert(different >= 4);
+}
+
 static unsigned widget_count(const lv_obj_t *root)
 {
     unsigned count = 1;
@@ -1867,7 +1917,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH"))
+    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1898,6 +1948,8 @@ int main(void)
             test_render_work(runtime, sample);
         else if (getenv("ZOLEE_THEME_SWITCH_BENCH"))
             test_theme_switch_bench(runtime, sample);
+        else if (getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
+            export_scaled_backgrounds(runtime, sample, getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"));
         else
         {
             test_startup_navigation(runtime, sample);
@@ -2240,6 +2292,7 @@ int main(void)
                     template_update(&sample, &fixture);
                 }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
+                test_scene_images(night);
                 sample=preview_saved;s_animation_sample=sample;
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);

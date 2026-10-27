@@ -17,7 +17,7 @@ const definitions=[
 ['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation'],['display.touch_wake_seconds','Ébrenlét érintés után (mp, Loxone jelenlétvezérlésnél)','integer']]],
 ['Statisztika', [['statistics.save_interval_minutes','Mentési időköz (perc, maximum 15)','integer'],['statistics.max_integration_gap_seconds','Maximális mintaköz (másodperc)','integer']]],
 ['Energia és költség',[
-['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.battery_min_soc_pct','Akku alsó SOC-határa a hátralévő időhöz (%)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],
+['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.battery_min_soc_pct','Akku alsó SOC-határa a hátralévő időhöz (%, 0 = alapértelmezés: 15%, szigetüzemben 5%)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],
 ['energy.co2_factor_kg_per_kwh','CO₂ tényező (kg/kWh)','number'],['energy.tree_absorption_kg_per_year','Fa elnyelés (kg/év)','number']]],
 ['Frissítés', [['ota.auto_update','Automatikus rendszerfrissítés éjfélkor','bool']]],
 ['Webes hozzáférés', [['ota.username','Adminisztrátori felhasználónév'],['ota.password','Adminisztrátori jelszó','secret']]]];

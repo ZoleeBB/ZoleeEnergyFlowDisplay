@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 10,
+  "version": 11,
   "light": {
     "home_hotspot": {"x": 440, "y": 205, "w": 100, "h": 90},
     "background": "#E8E9FA",

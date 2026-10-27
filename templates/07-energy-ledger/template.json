@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 12,
+  "version": 13,
   "light": {
     "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
     "background": "#F6F2EA",

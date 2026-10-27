@@ -54,7 +54,7 @@ bírja az akkumulátor (`battery_eta` sablonforrás):
 | Helyzet | Kijelzés (példa) | Számítás |
 |---|---|---|
 | Töltés | Kb. 1 óra 40 perc múlva tele | `C × (100 − SOC) / 100 / |P̄bat|` |
-| Kisütés | Még kb. 6 óra 20 percig bírja (10%-ig) | `C × (SOC − SOCmin) / 100 / P̄bat` |
+| Kisütés | Még kb. 6 óra 20 percig bírja (15%-ig) | `C × (SOC − SOCmin) / 100 / P̄bat` |
 | Szigetüzem (Status 3) | Szigetüzem · Még kb. 3 óráig bírja | mint fent, kiemelt (narancs) színnel |
 | Felkészülés áramszünetre (Status 2) | Áramszünetkor kb. 9 óra 23 percig bírná | `C × (SOC − SOCmin) / 100 / P̄ház`, kiemelt színnel |
 | ±50 W alatt | Készenlét: nincs töltés vagy kisütés | – |
@@ -64,7 +64,11 @@ a valódi mintaközzel súlyozva), így egy rövid fogyasztói kiugrás nem ugr�
 kijelzett időt. Ugyanaz a minta nem számít kétszer, és 2 percnél hosszabb adatrés
 után a simítás újraindul. `SOCmin` az inverter/BMS alsó határa: a Beállítások
 **Akku alsó SOC-határa a hátralévő időhöz** mezője (`energy.battery_min_soc_pct`,
-0–90%, alapértelmezés 0). Névleges kapacitás nélkül nincs becslés. A töltés a
+0–90%, alapértelmezés 0). A 0 azt jelenti, hogy a kijelző a hibridinvertereknél
+szokásos tartalékkal számol: normál üzemben (Status 1, 4, 5) **15%**, áramszünetre
+készülve és szigetüzemben (Status 2 és 3, bypass) **5%**. Nullánál nagyobb érték
+mindkét üzemmódban felülírja ezt. A kijelzett szöveg zárójelben mindig az éppen
+használt határt mutatja, például „(15%-ig)”. Névleges kapacitás nélkül nincs becslés. A töltés a
 végén lassulhat, ezért a „tele” idő inkább alsó becslés. 99 óra felett
 „több mint 99 óra” jelenik meg.
 
