@@ -229,6 +229,9 @@ static uint32_t be32(const unsigned char *p)
  * CRC-je, ismeretlen kritikus chunk tiltása és a fájlvégi IEND.
  * Ha a compressed puffer meg van adva, az IDAT-tartalmat egymás után oda
  * másolja a későbbi zlib-ellenőrzéshez; NULL esetén csak a hosszt összegzi.
+ * A verify_crc=false csak olyan hívónak való, amely a képet közvetlenül
+ * utána az LVGL lodepng-dekóderével teljesen kitömöríti: az a chunk-CRC-t és
+ * az Adler-32-t is ellenőrzi, és a hibát a hívó ugyanúgy kezeli.
  * Igazat ad, ha a szerkezet hibátlan és van tömörített képadat.
  */
 static bool png_scan(const unsigned char *p,
@@ -237,7 +240,8 @@ static bool png_scan(const unsigned char *p,
                      unsigned *h,
                      unsigned *channels_out,
                      unsigned char *compressed,
-                     size_t *compressed_out)
+                     size_t *compressed_out,
+                     bool verify_crc)
 {
     if (size < 45 || memcmp(p, "\211PNG\r\n\032\n", 8))
         return false;
@@ -248,7 +252,9 @@ static bool png_scan(const unsigned char *p,
     {
         uint32_t n = be32(p + pos);
         const unsigned char *type = p + pos + 4, *data = p + pos + 8;
-        if (n > size - pos - 12 || (uint32_t)crc32(0, type, n + 4) != be32(data + n))
+        if (n > size - pos - 12)
+            break;
+        if (verify_crc && (uint32_t)crc32(0, type, n + 4) != be32(data + n))
             break;
         if (pos == 8)
         {
@@ -293,7 +299,7 @@ static bool png_valid(const unsigned char *p, size_t size, unsigned *w, unsigned
     unsigned channels = 0;
     size_t compressed_size = 0;
     bool ok = false;
-    if (png_scan(p, size, w, h, &channels, compressed, &compressed_size))
+    if (png_scan(p, size, w, h, &channels, compressed, &compressed_size, true))
     {
         size_t stride = (size_t)*w * channels + 1;
         uLongf expected = stride * (*h), actual = expected;
@@ -1390,7 +1396,7 @@ bool app_templates_load_pending(app_template_view_t *out)
                  * kártyaadatot a chunk-CRC ugyanúgy kiszűri, mint eddig. */
                 unsigned width = 0, height = 0, channels = 0;
                 size_t compressed = 0;
-                if (!png_scan(a->bytes, a->size, &width, &height, &channels, NULL, &compressed))
+                if (!png_scan(a->bytes, a->size, &width, &height, &channels, NULL, &compressed, true))
                 {
                     validated_forget(selected);
                     ok = false;
@@ -1687,7 +1693,18 @@ bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, 
         snprintf(asset->name, sizeof(asset->name), "%s", filename);
         path_join(path, directory, filename);
         asset->bytes = read_file(path, i < 2 ? APP_TEMPLATE_PNG_MAX : 32768, &asset->size);
-        ok = asset->bytes && png_valid(asset->bytes, asset->size, &asset->width, &asset->height);
+        /*
+         * A csomagot a scan() már teljesen (zlib-kitömörítéssel) ellenőrizte.
+         * Itt csak a szerkezetet és a méretet nézzük: a kép az Otthon-oldal
+         * home_decode_images() hívásában azonnal teljesen dekódolódik, a
+         * lodepng a CRC-t és az Adler-32-t is ellenőrzi, és a hiba ugyanazt a
+         * betöltőképes újrapróbálást váltja ki. Így egy oldalváltásnál a
+         * háttér nem tömörítődik ki kétszer.
+         */
+        unsigned channels = 0;
+        size_t compressed = 0;
+        ok = asset->bytes && png_scan(asset->bytes, asset->size, &asset->width, &asset->height,
+                                      &channels, NULL, &compressed, false);
         if (ok && i >= 2)
             ok = asset->width == 96 && asset->height == 96;
     }

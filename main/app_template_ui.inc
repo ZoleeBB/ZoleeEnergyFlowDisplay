@@ -1086,22 +1086,37 @@ static void template_animate(float dt){
     }
 }
 
-/* A naplópuffer rövid mutexét az LVGL-lock előtt kérjük el. */
-static void diagnostics_capture(void){
+/* A naplópuffer rövid mutexét az LVGL-lock előtt kérjük el.
+ * A pillanatképet csak a megnyitott diagnosztikai nézet használja. Zárt nézetnél
+ * nem kérdezzük le 200 ms-onként a heap-statisztikát (a legnagyobb szabad blokk
+ * a teljes DMA-heapet bejárja) és a Wi-Fi RSSI-t (esp_hosted RPC a C6 felé). */
+static bool s_diagnostics_captured;
+static void diagnostics_snapshot(void){
     app_diagnostics_capture(&s_diagnostics);
-    if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
+    s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
+    s_diagnostics_captured=true;
+}
+static void diagnostics_capture(void){
+    if(!s_diagnostics_requested){s_diagnostics_captured=false;return;}
+    diagnostics_snapshot();
 }
 /* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
 static void diagnostics_close(lv_event_t *event)
 {
     (void)event;
     s_diagnostics_requested = false;
+    s_diagnostics_captured = false;
     template_loading_requested = !s_cfg.energy_flow_disabled;
     if (event) lv_event_stop_bubbling(event);
 }
 
 static void diagnostics_render(app_runtime_state_t rt)
 {
+    /* Ritka eset: a felfelé húzás a kör pillanatképe után érkezett. Ilyenkor
+     * egyszer itt kérjük le, hogy a nézet ne elavult vagy üres adattal épüljön.
+     * A következő körtől a lekérdezés ismét az LVGL-lock előtt fut. */
+    if (!s_diagnostics_captured)
+        diagnostics_snapshot();
     if (s_view != VIEW_DIAGNOSTICS)
     {
         clear();

@@ -173,6 +173,22 @@ A javítás a működést és a megjelenített képpontokat nem változtatja:
 - Az elfogadott gesztus bináris szemaforral azonnal felébreszti a runtime
   taskot, nem kell kivárni a ciklus végi 200 ms-ot.
 
+Két további, a felületet lassító felesleges ellenőrzés is kikerült:
+
+- Az Otthon-oldalak betöltése (`app_templates_home_load_for`) minden
+  oldalváltáskor teljesen kitömörítette a háttér- és ikon-PNG-ket egy
+  ideiglenes pufferbe, majd a `home_decode_images()` az LVGL lodepng-
+  dekóderével még egyszer. A csomagot a `scan()` már teljesen ellenőrizte, a
+  lodepng a chunk-CRC-t és az Adler-32-t is vizsgálja, és dekódolási hibánál
+  ugyanaz a betöltőképes újrapróbálás fut (ezt a preview sérült háttér/ikon
+  tesztje lefedi). A betöltés ezért csak a PNG-szerkezetet és a méretet nézi.
+- A runtime task 200 ms-onként, zárt diagnosztikai nézet mellett is lekérte a
+  teljes diagnosztikai pillanatképet: heap-statisztikát (a legnagyobb szabad
+  DMA-blokk a heap bejárásával) és a Wi-Fi RSSI-t, ami az `esp_hosted` miatt
+  SDIO-s RPC a C6 felé. Most csak a megnyitott nézet kéri le, változatlan
+  tartalommal. A CPU-terhelés első értéke megnyitás után legfeljebb 2 s-ig a
+  legutóbbi mintavétel óta eltelt idő átlaga.
+
 A `tests/preview` `ZOLEE_THEME_SWITCH_BENCH=1` módja a valódi UI-kódon méri
 a betöltőkép, az előkészítés, a nézetépítés, az első kép és az áttűnés idejét,
 és a végső kép ellenőrzőösszegét is kiírja. Hoston (RGB565, 33 váltás) az

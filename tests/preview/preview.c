@@ -1866,7 +1866,14 @@ int main(void)
     assert(app_diagnostics_cpu_percent(1000000,2000000)==50);
     assert(app_diagnostics_cpu_percent(2000001,2000000)==0);
     assert(app_diagnostics_cpu_percent(0,0)==0);
-    s_diagnostics_requested=true;diagnostics_capture();
+    /* Zárt nézetnél nincs 200 ms-onkénti diagnosztikai lekérdezés. */
+    s_diagnostics_requested=false;s_diagnostic_event_count=0;diagnostics_capture();
+    assert(!s_diagnostics_captured&&s_diagnostic_event_count==0);
+    /* A kör pillanatképe utáni kérés is friss adattal nyit. */
+    s_diagnostics_requested=true;
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
+    assert(s_diagnostics_captured&&s_diagnostic_event_count==15);
+    diagnostics_capture();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DIAGNOSTICS);
     assert(s_diagnostic_event_count==15);
     assert(strstr(lv_label_get_text(s_diagnostic_log[0]),"19"));
