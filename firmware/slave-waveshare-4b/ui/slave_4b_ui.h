@@ -23,7 +23,7 @@ typedef struct
     double self_sufficiency_pct, self_consumption_pct;
     bool money_valid; /* A master ár- és pénznemadata megérkezett. */
     double purchase_cost, export_revenue, savings, net_cost;
-    char currency[8];
+    char currency[APP_CURRENCY_MAX];
 } slave_4b_summary_t;
 
 /* Vízszintes húzással vált az energiaáramlás és az összesítő között. */
