@@ -90,6 +90,13 @@ PNG cache: 10 MiB. Két tömörített háttér: kb. 4 MiB flash. A dekódolt ké
 dekódolási átmeneti memória a 32 MiB PSRAM-ból foglal. A generátor csak beágyaz,
 a PNG képeket nem módosítja.
 
+A 33 ms-os `refresh` és a kaputelefon-fedőréteg csak tényleges változáskor ír
+LVGL-feliratot, képforrást és színt: az LVGL 9.5 ezeket azonos értéknél is
+újrarajzolná. Korábban változatlan adat mellett is kb. 40 terület
+érvénytelenedett képkockánként (az árnyékolt feliratok kétszer rajzolódnak),
+most nulla. A mozgó energiapontok és a valódi változások ugyanúgy frissülnek. A
+szimulátor és a `tests/preview/slave_intercom_preview.c` ezt számlálja.
+
 ## Hardveres átvételi próba
 
 Ellenőrizendő: chip revízió, kép/érintés, háttérfény, első PIN, újraindítás utáni

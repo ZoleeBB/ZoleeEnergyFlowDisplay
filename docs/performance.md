@@ -203,8 +203,45 @@ A `tests/preview` `ZOLEE_THEME_SWITCH_BENCH=1` módja a valódi UI-kódon méri
 a betöltőkép, az előkészítés, a nézetépítés, az első kép és az áttűnés idejét,
 és a végső kép ellenőrzőösszegét is kiírja. Hoston (RGB565, 33 váltás) az
 előkészítés ideje kb. 580 ms-ról 57 ms-ra csökkent; mind a 11 téma végső
-képe és a preview mind a 143 mentett képe bájtra azonos. A host lemezcache
+képe és a preview mind a 143 mentett képe bájtra azonos (a később
+hozzáadott, csak változáskor rajzoló frissítésnél lásd a lenti összevetési
+módszert). A host lemezcache
 miatt ez az SD-olvasás javulását nem tartalmazza; a sablononként beolvasott
 adat kb. 48 MB-ról 22 MB-ra (a tíz gyári témán összesen), a szektoronkénti
 parancsok helyett klaszterenkénti átvitelre változik. A készüléken elért
 váltási időt fizikai panelen kell visszamérni.
+
+## Csak változáskor rajzoló frissítés – Master és 4B Slave
+
+Az LVGL 9.5-ben az `lv_label_set_text()`, az `lv_image_set_src()` és az
+`lv_obj_set_style_*()` színbeállítók azonos értéknél is érvénytelenítik az
+objektumot. A pozíció-, méret-, flag-, állapot- és `lv_bar_set_value()` beállítók
+már maguk kihagyják a változatlan értéket. Periodikus frissítésben ezért minden
+szöveget, képforrást és színt a `*_if_changed` segédekkel vagy az
+`lv_image_get_src()` összevetésével kell írni.
+
+- **4B Slave (`firmware/slave-waveshare-4b/ui`)**: a 33 ms-os `refresh`
+  változatlan adat mellett is kb. 40 területet érvénytelenített képkockánként
+  (négy érték-, akku-, hőmérséklet-, szél-, óra-, üzenet- és diagnosztikai felirat
+  kétszeres, árnyékolt rajzolással, az időjárásikon, a gyűrűk, utak és pontok
+  színe). Most nulla; a mozgó energiapontok és a valódi változások ugyanúgy
+  frissülnek. A kaputelefon-fedőréteg (állapot, gombfeliratok, gombszín) a
+  hívás alatt sem rajzol újra feleslegesen, így nem versenyez a videókép
+  frissítésével.
+- **Master sablonok**: a 200 ms-os `template_update` a nap/hold korong
+  árnyékszínét, a műszerek (03) ívszínét és a beépített időjárásikont is csak
+  változáskor írja.
+
+Ellenőrzés: a 4B szimulátor 30, a Slave kaputelefon-preview 10 üresjárati
+frissítésen át számolja az `LV_EVENT_INVALIDATE_AREA` eseményeket (elvárt: 0).
+A régi kód mindkét teszten megbukik.
+
+**Képpont-összevetés részleges frissítésnél.** Az LVGL szoftveres renderelője a
+részletekben rajzolt átméretezett képeknél és élsimított íveknél 1–2 (ritkán
+több) egységnyi eltérést adhat a teljes újrarajzoláshoz képest; ez a régi kódban
+is megvolt. Ha egy változtatás csökkenti a felesleges érvénytelenítést, a mentett
+képek ezért néhány képpontban eltérhetnek, holott az UI-állapot azonos. Ilyenkor
+a mentés előtt teljes újrarajzolással (`lv_obj_invalidate(lv_screen_active())`,
+`lv_refr_now()`) kell összevetni: a 143 Master- és 9 Slave-kép így bájtra
+azonos volt a változtatás előtt és után. A részleges és a teljes rajzolás
+közötti eltérés az érintett képeken csökkent.

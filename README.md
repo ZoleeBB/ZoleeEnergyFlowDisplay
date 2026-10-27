@@ -212,4 +212,4 @@ Kijelzőindítási hibánál lásd a [fekete képernyő hibakeresését](docs/er
 
 Az NTP `sys_timeout` újraindulását a 10 napos SDK időzítő és fordítási korlátellenőrzés javítja; a kézi szinkron továbbra is a konfigurált periódust használja.
 
-A [memória- és képfrissítési optimalizálás](docs/performance.md) ismerteti a Waveshare/Espressif példák alapján alkalmazott fix SDIO DMA-ablakot, PSRAM geometriát, natív képcache-t és a hardveres mérés korlátait. A webes diagnosztika külön mutatja a belső RAM és a legnagyobb DMA-blokk állapotát.
+A [memória- és képfrissítési optimalizálás](docs/performance.md) ismerteti a Waveshare/Espressif példák alapján alkalmazott fix SDIO DMA-ablakot, PSRAM geometriát, natív képcache-t és a hardveres mérés korlátait, valamint a gyors témaváltást (igazított SD-olvasás, egyszeri PNG-ellenőrzés), az Otthon-kártyák háttér-újraolvasás nélküli lapozását és a csak változáskor rajzoló Master/4B Slave frissítést. A fejlesztői teljesítményszabályok az [AGENTS.md](AGENTS.md) fájlban vannak. A webes diagnosztika külön mutatja a belső RAM és a legnagyobb DMA-blokk állapotát.
