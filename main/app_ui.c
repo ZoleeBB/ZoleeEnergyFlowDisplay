@@ -1847,6 +1847,8 @@ void app_ui_set_config(const app_config_t *cfg)
     s_display_energy = cfg->energy;
     s_cfg.display.rotation_degrees = app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok = true;
+    /* Kikapcsolt kísérleti JPEG-háttérnél a kísérő fájlok be sem töltődnek. */
+    app_templates_set_jpeg_backgrounds(s_cfg.display.jpeg_backgrounds);
 
     s_target = s_cfg.display.day_brightness;
     s_brightness = s_target;

@@ -93,6 +93,13 @@ typedef struct
     uint16_t rotation_degrees; /* Csak 270 (jobb) vagy 90 (bal) */
     /* Master jelenlétvezérlésnél ennyi ideig marad ébren egy érintés után. */
     uint16_t touch_wake_seconds;
+    /*
+     * Kísérleti: ha a sablon mappájában a PNG mellett azonos nevű .jpg is van,
+     * az átlátszatlan hátteret a P4 hardveres JPEG-motorja dekódolja. Alapból
+     * kikapcsolt; kikapcsolva minden a PNG-úton marad, így egy kattintással
+     * visszavonható.
+     */
+    bool jpeg_backgrounds;
 } app_display_config_t;
 
 /* Statisztika mentési és integrálási paraméterek. */

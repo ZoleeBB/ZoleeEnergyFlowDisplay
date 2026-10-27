@@ -31,7 +31,8 @@
     "day_brightness": 80,
     "night_brightness": 20,
     "rotation_degrees": 270,
-    "touch_wake_seconds": 60
+    "touch_wake_seconds": 60,
+    "jpeg_backgrounds": 0
   },
   "statistics": {
     "save_interval_minutes": 15,

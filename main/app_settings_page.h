@@ -19,7 +19,7 @@ static const char app_settings_page[] =
 "['mqtt.broker','Broker cím'],['mqtt.port','Port','integer'],['mqtt.topic','Topic'],['mqtt.username','Felhasználónév'],\n"
 "['mqtt.password','MQTT jelszó','secret'],['mqtt.data_timeout_seconds','Adat időtúllépés (másodperc)','integer'],['mqtt.reconnect_seconds','Újracsatlakozás (másodperc)','integer']]],\n"
 "['HTTP adatfogadás', [['http.data_timeout_seconds','Adat időtúllépés (másodperc)','integer']]],\n"
-"['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation'],['display.touch_wake_seconds','Ébrenlét érintés után (mp, Loxone jelenlétvezérlésnél)','integer']]],\n"
+"['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation'],['display.touch_wake_seconds','Ébrenlét érintés után (mp, Loxone jelenlétvezérlésnél)','integer'],['display.jpeg_backgrounds','Hardveres JPEG háttérdekódolás (kísérleti, ha a sablon tartalmaz JPEG hátteret)','bool']]],\n"
 "['Statisztika', [['statistics.save_interval_minutes','Mentési időköz (perc, maximum 15)','integer'],['statistics.max_integration_gap_seconds','Maximális mintaköz (másodperc)','integer']]],\n"
 "['Energia és költség',[\n"
 "['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.battery_min_soc_pct','Akku alsó SOC-határa a hátralévő időhöz (%, 0 = alapértelmezés: 15%, szigetüzemben 5%)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],\n"

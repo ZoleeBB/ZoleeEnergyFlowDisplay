@@ -1,6 +1,7 @@
 /* Az app_ui.c része: ugyanazok az adatok, formázók és LVGL-lock szabályok.
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
+#include "app_jpeg_background.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
@@ -66,11 +67,60 @@ static const lv_image_dsc_t *template_raster(unsigned asset,int w,int h){
     return &r->image;
 }
 #endif
+/*
+ * Kísérleti (#17): átlátszatlan háttér hardveres JPEG-dekóderrel. A sablon
+ * PNG-je mellett álló azonos nevű `.jpg` csak akkor kerül elő, ha a
+ * beállítás be van kapcsolva, a méretek egyeznek, és a dekódolás sikerül.
+ * A kész kép RGB565, így feleannyi PSRAM-ot foglal, mint a PNG ARGB8888
+ * változata. Minden hibánál a megszokott PNG-út fut tovább.
+ */
+#define TEMPLATE_JPEG_SLOTS 4
+typedef struct { unsigned asset;app_jpeg_image_t decoded;lv_image_dsc_t image; } template_jpeg_t;
+static TEMPLATE_RAM template_jpeg_t template_jpegs[TEMPLATE_JPEG_SLOTS];
+static unsigned template_jpeg_count;
+static void template_jpeg_release(void){
+    for(unsigned i=0;i<template_jpeg_count;i++){
+        lv_image_cache_drop(&template_jpegs[i].image);
+        app_jpeg_background_free(&template_jpegs[i].decoded);
+    }
+    memset(template_jpegs,0,sizeof(template_jpegs));template_jpeg_count=0;
+}
+static const lv_image_dsc_t *template_jpeg(unsigned asset,int w,int h){
+    if(!s_cfg.display.jpeg_backgrounds)return NULL;
+    const app_template_asset_t *png=&template_view.assets[asset];
+    if((unsigned)w!=png->width||(unsigned)h!=png->height)return NULL;
+    size_t length=strlen(png->name);
+    if(length<5||length>64||strcmp(png->name+length-4,".png"))return NULL;
+    char jpeg_name[66];snprintf(jpeg_name,sizeof(jpeg_name),"%.*s.jpg",(int)(length-4),png->name);
+    unsigned source=template_view.asset_count;
+    for(unsigned i=0;i<template_view.asset_count;i++)
+        if(!strcmp(template_view.assets[i].name,jpeg_name)){source=i;break;}
+    if(source==template_view.asset_count)return NULL;
+    if(template_view.assets[source].width!=png->width||template_view.assets[source].height!=png->height)return NULL;
+    for(unsigned i=0;i<template_jpeg_count;i++)if(template_jpegs[i].asset==source)return &template_jpegs[i].image;
+    if(template_jpeg_count>=TEMPLATE_JPEG_SLOTS)return NULL;
+    template_jpeg_t *slot=&template_jpegs[template_jpeg_count];
+    if(!app_jpeg_background_decode(template_view.assets[source].bytes,template_view.assets[source].size,
+                                   png->width,png->height,&slot->decoded))return NULL;
+    slot->asset=source;
+    slot->image=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,
+                                          .w=slot->decoded.width,.h=slot->decoded.height,
+                                          .stride=slot->decoded.stride},
+                                 /* Csak a látható sorok; a hardver 16 képpontos kitöltése marad a pufferben. */
+                                 .data_size=(uint32_t)slot->decoded.stride*slot->decoded.height,
+                                 .data=slot->decoded.pixels};
+    template_jpeg_count++;
+    /* A PNG dekódolt változatára így nincs szükség. */
+    lv_image_cache_drop(&template_images[asset]);
+    return &slot->image;
+}
 static void template_image(lv_obj_t *obj,const char *file,int w,int h){
     for(unsigned i=0;i<template_view.asset_count;i++)if(!strcmp(file,template_view.assets[i].name)){
         const lv_image_dsc_t *image=&template_images[i];bool native=false;
+        const lv_image_dsc_t *jpeg=template_jpeg(i,w,h);
+        if(jpeg){image=jpeg;native=true;}
 #if LV_USE_SNAPSHOT
-        if((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height){
+        if(!native&&((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height)){
             const lv_image_dsc_t *r=template_raster(i,w,h);if(r){image=r;native=true;}
         }
 #endif
@@ -402,6 +452,7 @@ static void navigation_bind_inputs(void)
 }
 static void template_release_cache(void){
     template_flow_release_paths();
+    template_jpeg_release();
 #if LV_USE_SNAPSHOT
     for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;

@@ -36,6 +36,10 @@ typedef struct
 } app_template_view_t;
 
 esp_err_t app_templates_init(void);
+/* Kísérleti (#17): a PNG melletti azonos nevű `.jpg` kísérő betöltése. */
+void app_templates_set_jpeg_backgrounds(bool enabled);
+/* Kísérleti (#17): elfogadható JPEG kísérő fájlnév (a PNG meglétét a validálás nézi). */
+bool app_templates_safe_jpeg(const char *path);
 unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char active[33]);
 esp_err_t app_templates_select(const char *id);
 /* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */

@@ -14,7 +14,7 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
 | `http` | HTTP módban adatkimaradási timeout |
 | `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
-| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90; `touch_wake_seconds` 5–3600 (alapból 60): Loxone-jelenlétvezérlésnél ennyi ideig marad ébren érintés után |
+| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90; `touch_wake_seconds` 5–3600 (alapból 60): Loxone-jelenlétvezérlésnél ennyi ideig marad ébren érintés után ; `jpeg_backgrounds` 0/1 (alapból 0): kísérleti hardveres JPEG háttérdekódolás, lásd [sablonok](templates.md#kísérleti-jpeg-háttér-opcionális) |
 | `statistics` | Mentési időköz és maximális integrálási adatrés |
 | `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen), `battery_min_soc_pct` 0–90 (az akku hátralévő idejének alsó határa; 0 = alapértelmezés: normál üzemben 15%, áramszünetre készülve és szigetüzemben 5%) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
