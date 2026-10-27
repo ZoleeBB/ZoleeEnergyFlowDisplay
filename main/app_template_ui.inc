@@ -365,6 +365,8 @@ static void template_gesture(lv_event_t *event)
     }
     else
         return;
+    /* Az elfogadott navigációs kérést a runtime task azonnal feldolgozza. */
+    runtime_wake();
     /* A gesztusnak indult érintésből nem lehet vezérlőgomb-kattintás. */
     lv_indev_wait_release(input);
 }
