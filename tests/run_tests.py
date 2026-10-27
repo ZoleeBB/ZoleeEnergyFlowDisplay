@@ -36,6 +36,29 @@ with tempfile.TemporaryDirectory(prefix='battery-diagnostics-') as directory:
         'main/app_battery_diagnostics.c', '-l:libcjson.so.1', '-lm', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-backup-') as directory:
+    binary = str(Path(directory) / 'test_backup')
+    sd = Path(directory) / 'sd'
+    sd.mkdir()
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-Werror=frame-larger-than=8192', '-fsanitize=undefined,address',
+                    '-fno-sanitize-recover=all', '-Itests/ble_profile_stubs', '-Itests/stubs', '-Imain',
+                    'tests/test_backup.c', 'main/app_backup.c', 'main/app_config.c',
+                    'main/app_loxone_model.c', 'main/app_loxone_home_model.c',
+                    '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary, str(sd), 'examples/config.loxone.sample.json',
+                    'examples/loxone-home.sample.json'], cwd=ROOT, check=True, timeout=20)
+with tempfile.TemporaryDirectory(prefix='zolee-template-remote-') as directory:
+    binary = str(Path(directory) / 'test_template_remote')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-Wno-misleading-indentation', '-fsanitize=undefined,address',
+                    '-fno-sanitize-recover=all', '-DAPP_TEMPLATE_DESKTOP', '-Isimulator/compat',
+                    '-Itests/stubs', '-Imain', 'tests/test_template_remote.c',
+                    'main/app_template_remote.c', 'main/app_templates.c', 'main/app_template_zip.c',
+                    'main/app_ringtone_wav.c', 'main/app_ota_release.c', '-lz', '-lm',
+                    '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary, 'templates/10-battery-diagnostics/template.json'], cwd=ROOT,
+                   check=True, timeout=20)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_display.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service.py')], check=True)

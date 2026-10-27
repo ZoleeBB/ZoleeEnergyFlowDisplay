@@ -53,6 +53,8 @@ idf_component_register(
         "app_chart.c"
         "app_templates.c"
         "app_template_zip.c"
+        "app_template_remote.c"
+        "app_template_update.c"
         "app_ringtone_zip.c"
         "fonts/app_font_numbers_48.c"
         "fonts/app_font_numbers_96.c"
@@ -67,6 +69,8 @@ idf_component_register(
         "fonts/app_font_22.c"
         "fonts/app_font_28.c"
         "app_config.c"
+        "app_backup.c"
+        "app_backup_flash.c"
         "app_boot_config.c"
         "app_ble_stats_protocol.c"
         "app_events.c"
@@ -112,6 +116,7 @@ idf_component_register(
         esp_websocket_client
         esp_http_server
         esp_netif
+        esp_partition
         esp_timer
         esp_wifi
         fatfs

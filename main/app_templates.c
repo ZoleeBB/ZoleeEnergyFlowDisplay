@@ -1428,28 +1428,16 @@ bool app_templates_load_pending(app_template_view_t *out)
     xSemaphoreGive(lock);
     return true;
 }
-esp_err_t app_templates_install(const char *zip, char error[160])
+/* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy
+ * egy ZIP kibontásával, vagy a GitHubról letöltött fájlokkal áll elő. A teljes
+ * validálás itt fut, a régi téma csak sikeres csere után törlődik. */
+static esp_err_t install_stage(const char *stage, char error[160])
 {
-    if (!lock)
-    {
-        error_set(error, "Sablonkezelő nem elérhető");
-        return ESP_ERR_INVALID_STATE;
-    }
-    xSemaphoreTake(lock, portMAX_DELAY);
-    if (STORAGE_TAKE() != ESP_OK)
-    {
-        xSemaphoreGive(lock);
-        error_set(error, "SD unavailable");
-        return ESP_FAIL;
-    }
-    char stage[256], dest[256], backup[256];
-    path_join(stage, app_templates_root(), ".install");
-    remove_stage(stage);
-    MKDIR(stage);
+    char dest[256], backup[256];
     path_join(backup, app_templates_root(), ".replace");
     cJSON *doc = NULL;
     esp_err_t result = ESP_FAIL;
-    if (!app_template_unzip(zip, stage, error) || !app_templates_validate(stage, &doc, error))
+    if (!app_templates_validate(stage, &doc, error))
         goto done;
     path_join(dest, app_templates_root(), str(doc, "id"));
     struct stat st;
@@ -1459,7 +1447,7 @@ esp_err_t app_templates_install(const char *zip, char error[160])
         error_set(error, "A sablonlista megtelt");
         goto done;
     }
-    /* A validált ZIP csak most kerülhet a helyére. A régi téma teljes
+    /* A validált csomag csak most kerülhet a helyére. A régi téma teljes
      * könyvtárát megőrizzük mindaddig, amíg az új rename nem sikerült. */
     if (exists)
     {
@@ -1486,11 +1474,75 @@ esp_err_t app_templates_install(const char *zip, char error[160])
         remove_stage(backup);
 done:
     cJSON_Delete(doc);
+    return result;
+}
+
+esp_err_t app_templates_install(const char *zip, char error[160])
+{
+    if (!lock)
+    {
+        error_set(error, "Sablonkezelő nem elérhető");
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(lock, portMAX_DELAY);
+    if (STORAGE_TAKE() != ESP_OK)
+    {
+        xSemaphoreGive(lock);
+        error_set(error, "SD unavailable");
+        return ESP_FAIL;
+    }
+    char stage[256];
+    path_join(stage, app_templates_root(), ".install");
+    remove_stage(stage);
+    MKDIR(stage);
+    esp_err_t result = ESP_FAIL;
+    if (app_template_unzip(zip, stage, error))
+        result = install_stage(stage, error);
     remove_stage(stage);
     STORAGE_GIVE();
     xSemaphoreGive(lock);
     return result;
 }
+
+const char *app_templates_download_stage(void)
+{
+    static char stage[256];
+    path_join(stage, app_templates_root(), ".download");
+    return stage;
+}
+
+esp_err_t app_templates_install_downloaded(char error[160])
+{
+    if (!lock)
+    {
+        error_set(error, "Sablonkezelő nem elérhető");
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(lock, portMAX_DELAY);
+    if (STORAGE_TAKE() != ESP_OK)
+    {
+        xSemaphoreGive(lock);
+        error_set(error, "SD unavailable");
+        return ESP_FAIL;
+    }
+    const char *stage = app_templates_download_stage();
+    esp_err_t result = install_stage(stage, error);
+    remove_stage(stage);
+    STORAGE_GIVE();
+    xSemaphoreGive(lock);
+    return result;
+}
+
+void app_templates_download_reset(void)
+{
+    if (STORAGE_TAKE() != ESP_OK)
+        return;
+    const char *stage = app_templates_download_stage();
+    remove_stage(stage);
+    MKDIR(stage);
+    STORAGE_GIVE();
+}
+
 esp_err_t app_templates_delete(const char *id, char error[160])
 {
     if (!lock || !app_templates_safe_id(id))

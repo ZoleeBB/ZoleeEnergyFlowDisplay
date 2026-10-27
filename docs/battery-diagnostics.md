@@ -45,6 +45,31 @@ százalékpontban, `Ebe` a betöltött és `Eki` a leadott kWh.
 | Megfigyelt ciklusok | `(összes megfigyelt Ebe + Eki) / (2 × C)`, EFC. Csak a diagnosztika indulása óta megmért energia; nem a BMS élettartam-ciklusszáma. |
 
 Az élő SOC, teljesítmény és akkuhőmérséklet a bal alsó kártyán jelenik meg.
+
+## Hátralévő idő
+
+Az **Élő akkumulátor** kártya felső sora becsli, mikor lesz tele, illetve meddig
+bírja az akkumulátor (`battery_eta` sablonforrás):
+
+| Helyzet | Kijelzés (példa) | Számítás |
+|---|---|---|
+| Töltés | Kb. 1 óra 40 perc múlva tele | `C × (100 − SOC) / 100 / |P̄bat|` |
+| Kisütés | Még kb. 6 óra 20 percig bírja (10%-ig) | `C × (SOC − SOCmin) / 100 / P̄bat` |
+| Szigetüzem (Status 3) | Szigetüzem · Még kb. 3 óráig bírja | mint fent, kiemelt (narancs) színnel |
+| Felkészülés áramszünetre (Status 2) | Áramszünetkor kb. 9 óra 23 percig bírná | `C × (SOC − SOCmin) / 100 / P̄ház`, kiemelt színnel |
+| ±50 W alatt | Készenlét: nincs töltés vagy kisütés | – |
+
+`P̄` a mért teljesítmény exponenciálisan simított értéke (3 perces időállandó,
+a valódi mintaközzel súlyozva), így egy rövid fogyasztói kiugrás nem ugráltatja a
+kijelzett időt. Ugyanaz a minta nem számít kétszer, és 2 percnél hosszabb adatrés
+után a simítás újraindul. `SOCmin` az inverter/BMS alsó határa: a Beállítások
+**Akku alsó SOC-határa a hátralévő időhöz** mezője (`energy.battery_min_soc_pct`,
+0–90%, alapértelmezés 0). Névleges kapacitás nélkül nincs becslés. A töltés a
+végén lassulhat, ezért a „tele” idő inkább alsó becslés. 99 óra felett
+„több mint 99 óra” jelenik meg.
+
+A becslés nem foglal memóriát, nem ír SD-t, és a 200 ms-os frissítésben csak
+változáskor írja a feliratot.
 PowerBat negatív: töltés; pozitív: kisütés. Az előjelváltást a nullátmetszésnél
 kettévágjuk, így a két irány energiája nem oltja ki egymást.
 

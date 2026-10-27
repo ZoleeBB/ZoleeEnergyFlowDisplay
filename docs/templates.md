@@ -41,6 +41,26 @@ aktuális elrendezés az adatcsomag szerinti témával tér vissza. A sablonok a
 közös SD-hibajelzést is megkapják. Minden adat a meglévő fogadási/statisztikai
 útvonalból jön, a sablon nem fogad külön csomagokat és nem számol külön előzményt.
 
+## Gyári témák frissítése a GitHubról
+
+A Sablonok oldal **Gyári témák frissítése a GitHubról** részén a **Frissítések
+keresése** gomb a futó firmware kiadási tagjéhez (fejlesztői buildnél a
+legutóbbi stabil kiadáshoz) tartozó `templates/` könyvtárat nézi meg a GitHubon,
+és témánként összeveti a `template.json` `version` mezőjét a telepítettel. A
+frissíthető témák mellett **Frissítés**, a még nem telepített gyári témák mellett
+**Telepítés** gomb jelenik meg, és egy gombbal az összes frissíthető téma is
+telepíthető.
+
+- A letöltés az eszközön fut (a böngészőnek nem kell internet), a
+  `raw.githubusercontent.com` és az `api.github.com` HTTPS-kapcsolatán, a
+  tanúsítványlánc ellenőrzésével.
+- A fájlok a `templates/.download` könyvtárba kerülnek, majd ugyanaz a teljes
+  validálás és atomi csere fut, mint a kézi ZIP-telepítésnél. Hiba esetén a régi
+  téma változatlan marad.
+- Csak kérésre fut, saját háttérfeladatban, az OTA-val közös kizárással; a
+  kijelzőt és a témaváltást nem lassítja. Wi-Fi és internetkapcsolat szükséges.
+- A saját (külső) témákat nem érinti.
+
 ## Webes kezelés
 
 Nyisd meg: `http://zolee-energy-flow-display.local/templates`
@@ -366,3 +386,8 @@ Ezek `value` elemekhez valók; az adatminőséget is kezelő szöveget adnak.
 A `capacity` számmező 48 px-es lehet; a hiányzó eredmény `--`.
 A többihez teljes karakterkészletű 12/16/20/28 px fontot használj.
 A képletek és a referencia érvényessége: [Akku diagnosztika](battery-diagnostics.md).
+
+A `battery_eta` forrás (v2-es Akku diagnosztika téma) az akku becsült hátralévő
+idejét adja egy sorban; szigetüzemben és áramszünetre készülve kiemelt színnel.
+A régebbi firmware ezt a forrást nem ismeri, ezért a `10-battery-diagnostics`
+v2 csomag előtt a firmware-t kell frissíteni.

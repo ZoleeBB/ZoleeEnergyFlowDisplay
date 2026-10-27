@@ -638,12 +638,12 @@
   },
   {
     "asset": "templates/10-battery-diagnostics/preview-dark.png",
-    "sha256": "4122749e942f2780813fff08c7c4c547e84be7b024353166db89007e1e010e61",
+    "sha256": "95d554e0e8030d212f93d127c71442d59e3f723f27f97514146b97fcd3ac62ab",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/10-battery-diagnostics/preview-light.png",
-    "sha256": "02de6f0a4ef90bf48b5b731472abe85be10f9bbb97c1a1787b6f32b41efdaa08",
+    "sha256": "81e8059e127b63690575e2f30ac1d0aa64afee5c0cdfce33c1c150fd5f0c74b9",
     "generator": "LVGL simulator screenshot, 480x300"
   }
 ]

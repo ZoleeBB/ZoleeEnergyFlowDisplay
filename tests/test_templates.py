@@ -223,10 +223,31 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert not (sd/'.replace').exists()
     assert lib.app_templates_load_pending(view)
     lib.app_templates_view_free(view)
+    # GitHubról letöltött téma: ugyanaz a stage-validálás és atomi csere, mint ZIP-nél.
+    lib.app_templates_download_stage.restype=C.c_char_p
+    stage=Path(os.fsdecode(lib.app_templates_download_stage()))
+    lib.app_templates_download_reset()
+    assert stage.is_dir() and not any(stage.iterdir())
+    with zipfile.ZipFile(upgraded) as z:
+        z.extractall(stage)
+    downloaded=json.loads((stage/'template.json').read_text());downloaded['version']=3
+    (stage/'template.json').write_text(json.dumps(downloaded))
+    assert lib.app_templates_install_downloaded(error)==0,error.value
+    assert json.loads((sd/'test-layout/template.json').read_text())['version']==3
+    assert not stage.exists() and not (sd/'.replace').exists()
+    lib.app_templates_download_reset()
+    with zipfile.ZipFile(upgraded) as z:
+        z.extractall(stage)
+    (stage/'template.json').write_text(json.dumps(dict(downloaded,version=4,schema=99)))
+    assert lib.app_templates_install_downloaded(error)!=0
+    assert json.loads((sd/'test-layout/template.json').read_text())['version']==3
+    assert not stage.exists()
+    assert lib.app_templates_load_pending(view)
+    lib.app_templates_view_free(view)
     # A hibás új csomag soha nem változtathatja meg a meglévőt.
     broken=archive('broken',dict(updated,schema=99))
     assert lib.app_templates_install(os.fsencode(broken),error)!=0
-    assert json.loads((sd/'test-layout/template.json').read_text())['version']==2
+    assert json.loads((sd/'test-layout/template.json').read_text())['version']==3
     for field,value in [('source','unknown'),('x',1280),('w',-1),('font',13),('shadow','true'),('shadow_color','invalid'),('foreground',True)]:
         bad=copy.deepcopy(doc);bad['id']='invalid'
         element=dict(type='value',x=0,y=0,w=100,h=40,source='pv',font=20)

@@ -1,5 +1,6 @@
 /* Korlátos, egy kapcsolatos Loxone kliens. A UI és HTTP feladat nem vár hálózatra. */
 #include "app_loxone.h"
+#include "app_backup.h"
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
 #ifdef APP_INTERCOM_DISTRIBUTED
@@ -530,6 +531,8 @@ static bool configured(const lx_config_t *cfg)
 static void save_home_request(const lx_home_config_t *home)
 {
     esp_err_t saved = app_loxone_home_store_save(home);
+    if (saved == ESP_OK)
+        app_backup_flash_request();
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (saved == ESP_OK)
     {
@@ -569,7 +572,7 @@ static void worker(void *arg)
             }
             *active=request->config;testing=!request->save;
             if(request->save) {
-                if(app_loxone_store_save(active)==ESP_OK) {
+                if(app_loxone_store_save(active)==ESP_OK) {app_backup_flash_request();
                     xSemaphoreTake(s_lock,portMAX_DELAY);s_saved=*active;s_password=true;s_intercom_generation++;xSemaphoreGive(s_lock);
                     status("Beállítások elmentve. Kapcsolódás...");
                 }else {status("Az SD-mentés sikertelen. A korábbi beállítások maradtak érvényben.");*active=s_saved;}

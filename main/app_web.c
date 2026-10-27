@@ -12,6 +12,7 @@
  */
 #include "app_web.h"
 #include "app_support_web.h"
+#include "app_web_style.h"
 #include "app_http.h"
 #include "app_loxone.h"
 #include "app_templates.h"
@@ -29,6 +30,7 @@
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -338,21 +340,11 @@ static esp_err_t root_handler(httpd_req_t *req)
         req,
         "<!doctype html><html lang='hu'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<style>"
-        "body{font-family:system-ui;margin:28px;max-width:900px;background:#f7f8fa;color:#17202a}"
-        ".card{background:#fff;border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 2px 12px #0001}"
-        "table{border-collapse:collapse;width:100%}"
-        "td{padding:7px;border-bottom:1px solid #eee}"
-        "button,a{padding:10px 15px;border:0;border-radius:9px;background:#176b45;color:white;text-decoration:none;cursor:pointer}"
-        ".actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:8px 0 22px}"
-        ".actions>a,.actions button{display:flex;align-items:center;justify-content:center;min-width:0;height:56px;padding:8px;box-sizing:border-box;margin:0;text-align:center;font:inherit;line-height:1.2}"
-        ".actions button:disabled{background:#c4c9ce;color:#626a71;cursor:not-allowed}"
-        "@media(max-width:640px){.actions{grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto;padding-bottom:6px}}"
-        ".actions .restart{background:#DE790E;color:white;font-weight:600}"
-        ".actions .restart:hover{background:#B85E06}"
-        ".muted{color:#6e7c83}.error{color:#b42318}.warning{color:#b66b00}"
-        "</style></head><body>",
+        "<title>Zolee Energy Flow Display</title><style>" APP_WEB_CSS
+        ".events td:first-child{white-space:nowrap;width:1%}.events td:nth-child(2){font-weight:600;width:1%}"
+        "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN, HTTPD_RESP_USE_STRLEN);
 
     if (app_web_send_support(req, s_hu) != ESP_OK) {
         return ESP_FAIL;
@@ -367,68 +359,60 @@ static esp_err_t root_handler(httpd_req_t *req)
         sizeof(safe_title));
 
     sendf(req, "<h1>%s</h1>", safe_title);
-    /* Az öt főművelet közös sorban; a Loxone minden módban látható. */
-    httpd_resp_send_chunk(req,s_hu?
-        "<nav class='actions' aria-label='Eszközműveletek'><a href='/settings'>Beállítások</a>":
-        "<nav class='actions' aria-label='Device actions'><a href='/settings'>Settings</a>",HTTPD_RESP_USE_STRLEN);
-    if(s_config.data_recept_mode==APP_DATA_LOXONE)
-        httpd_resp_send_chunk(req,s_hu?"<a href='/loxone'>Loxone beállítások</a>":"<a href='/loxone'>Loxone settings</a>",HTTPD_RESP_USE_STRLEN);
-    else
-        httpd_resp_send_chunk(req,s_hu?
-            "<button type='button' disabled aria-disabled='true' title='Csak Loxone adatfogadási módban érhető el'>Loxone beállítások</button>":
-            "<button type='button' disabled aria-disabled='true' title='Available only in Loxone input mode'>Loxone settings</button>",HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req,s_hu?
-        "<a href='/templates'>Sablonkezelő</a>"
-        "<a href='/update'>Firmware frissítés</a>"
-        "<button class='restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button>"
-        "</nav>":
-        "<a href='/templates'>Templates</a>"
-        "<a href='/update'>Firmware update</a>"
-        "<button class='restart' type='button' onclick='restartDevice()'>Restart device</button>"
-        "</nav>",HTTPD_RESP_USE_STRLEN);
+    /* A navigáció a felső menüben van; itt csak az állapot és a gyakori műveletek. */
+    httpd_resp_send_chunk(req, s_hu ?
+        "<p class='lead'>Eszközállapot, legutóbbi események és gyors műveletek.</p>"
+        "<div class='actions'><a class='button secondary' href='/settings'>Beállítások</a>"
+        "<a class='button secondary' href='/backup'>Mentés és visszaállítás</a>"
+        "<button class='danger restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button></div>" :
+        "<p class='lead'>Device status, recent events and quick actions.</p>"
+        "<div class='actions'><a class='button secondary' href='/settings'>Settings</a>"
+        "<a class='button secondary' href='/backup'>Backup and restore</a>"
+        "<button class='danger restart' type='button' onclick='restartDevice()'>Restart device</button></div>",
+        HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
     httpd_resp_send_chunk(
         req,
         s_hu
-            ? "<div class='card'><h2>Eszközinformáció</h2><table>"
-            : "<div class='card'><h2>Device information</h2><table>",
+            ? "<div class='card'><h2>Eszközinformáció</h2><div class='kv'>"
+            : "<div class='card'><h2>Device information</h2><div class='kv'>",
         HTTPD_RESP_USE_STRLEN);
 
     sendf(
         req,
-        "<tr><td>Firmware</td><td>%s</td></tr>",
+        "<div><span class='k'>Firmware</span><div class='v'>%s</div></div>",
         description ? description->version : "-");
 
     sendf(
         req,
         s_hu
-            ? "<tr><td>Üzemidő</td><td>%d nap %02d:%02d:%02d</td></tr>"
-            : "<tr><td>Uptime</td><td>%d days %02d:%02d:%02d</td></tr>",
+            ? "<div><span class='k'>Üzemidő</span><div class='v'>%d nap %02d:%02d:%02d</div></div>"
+            : "<div><span class='k'>Uptime</span><div class='v'>%d days %02d:%02d:%02d</div></div>",
         days,
         hours,
         minutes,
         seconds);
 
-    sendf(req, "<tr><td>IP</td><td>%s</td></tr>", ip);
+    sendf(req, "<div><span class='k'>IP</span><div class='v'>%s</div></div>", ip);
 
     sendf(
         req,
-        "<tr><td>Wi-Fi RSSI</td><td>%d dBm</td></tr>",
+        "<div><span class='k'>Wi-Fi RSSI</span><div class='v'>%d dBm</div></div>",
         runtime.wifi_connected ? rssi : 0);
 
     const char *mode = runtime.data_recept_mode == APP_DATA_SLAVE ? "Slave (BLE)" : runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
-    sendf(req, "<tr><td>%s</td><td>%s</td></tr>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
-    sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", mode,
+    sendf(req, "<div><span class='k'>%s</span><div class='v'>%s</div></div>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
+    sendf(req, "<div><span class='k'>%s %s</span><div class='v'>%s</div></div>", mode,
         s_hu ? "adatfogadó" : "receiver",
         app_state_data_ready(&runtime) ? (s_hu ? "Készen áll" : "Ready") : (s_hu ? "Nem elérhető" : "Unavailable"));
-    sendf(req, "<tr><td>%s %s</td><td>%s</td></tr>", s_hu ? "Utolsó érvényes csomag:" : "Last valid packet:", mode, packet_time);
+    sendf(req, "<div><span class='k'>%s %s</span><div class='v'>%s</div></div>", s_hu ? "Utolsó érvényes csomag:" : "Last valid packet:", mode, packet_time);
 
     sendf(
         req,
         s_hu
-            ? "<tr><td>SD-kártya</td><td>%s</td></tr>"
-            : "<tr><td>SD card</td><td>%s</td></tr>",
+            ? "<div><span class='k'>SD-kártya</span><div class='v'>%s</div></div>"
+            : "<div><span class='k'>SD card</span><div class='v'>%s</div></div>",
         app_storage_is_ok()
             ? (s_hu ? "Rendben" : "OK")
             : (s_hu ? "Hiba" : "Error"));
@@ -436,13 +420,13 @@ static esp_err_t root_handler(httpd_req_t *req)
     sendf(
         req,
         s_hu
-            ? "<tr><td>Reset oka</td><td>%s</td></tr>"
-            : "<tr><td>Reset reason</td><td>%s</td></tr>",
+            ? "<div><span class='k'>Reset oka</span><div class='v'>%s</div></div>"
+            : "<div><span class='k'>Reset reason</span><div class='v'>%s</div></div>",
         reset_text(esp_reset_reason()));
 
     httpd_resp_send_chunk(
         req,
-        "</table></div>",
+        "</div></div>",
         HTTPD_RESP_USE_STRLEN);
 
     /* Legutóbbi RAM események táblázata. */
@@ -463,7 +447,7 @@ static esp_err_t root_handler(httpd_req_t *req)
     } else {
         httpd_resp_send_chunk(
             req,
-            "<table>",
+            "<table class='events'>",
             HTTPD_RESP_USE_STRLEN);
 
         for (size_t i = 0; i < event_count; i++) {
@@ -572,13 +556,12 @@ static esp_err_t update_get(httpd_req_t *req)
     if(!authorize(req))return ESP_OK;
     static const char page_hu[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
-        ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
-        "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body><!--APP_SUPPORT-->"
-        "<a href='/'>← Eszköz</a><h1>Firmware frissítés</h1><div class='card'>"
-        "<div><button id='auto' onclick='autoNow()'>Automatikus frissítés most</button><p>A legújabb stabil GitHub-kiadás ellenőrzése. <a href='/'>Rendszernapló megnyitása</a></p></div>"
+        "<title>Firmware frissítés</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
+        "<h1>Firmware frissítés</h1><p class='lead'>Új firmware a GitHubról automatikusan vagy kézzel, .bin fájlból. A frissítés után az eszköz újraindul; az SD-s témákat a Sablonok oldalon frissítheted.</p>"
+        "<section><h2>Automatikus frissítés</h2><p>A legújabb stabil GitHub-kiadás ellenőrzése és telepítése. <a href='/'>Rendszernapló megnyitása</a></p><button id='auto' onclick='autoNow()'>Automatikus frissítés most</button></section>"
+        "<section><h2>Kézi frissítés</h2>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
-        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></div>"
+        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"GitHub-ellenőrzés indítása…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Kapcsolati hiba; ellenőrizd a rendszernaplót.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
         "function reconnectAfterOta(){"
@@ -603,13 +586,12 @@ static esp_err_t update_get(httpd_req_t *req)
         "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<style>body{font:16px system-ui;max-width:760px;margin:35px auto;padding:20px;background:#edf3f5;color:#14202a}"
-        ".card{background:white;padding:22px;border-radius:16px}button{padding:12px 18px;border:0;border-radius:9px;background:#176b45;color:white;cursor:pointer}"
-        "progress{width:100%;margin-top:15px}#s{font-weight:600}</style></head><body><!--APP_SUPPORT-->"
-        "<a href='/'>← Device</a><h1>Firmware update</h1><div class='card'>"
-        "<div><button id='auto' onclick='autoNow()'>Check for automatic update now</button><p>Check the latest stable GitHub release. <a href='/'>Open system log</a></p></div>"
+        "<title>Firmware update</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_EN "<!--APP_SUPPORT-->"
+        "<h1>Firmware update</h1><p class='lead'>Install new firmware from GitHub automatically or manually from a .bin file. The device restarts afterwards; update SD themes on the Templates page.</p>"
+        "<section><h2>Automatic update</h2><p>Check and install the latest stable GitHub release. <a href='/'>Open system log</a></p><button id='auto' onclick='autoNow()'>Check for automatic update now</button></section>"
+        "<section><h2>Manual update</h2>"
         "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
-        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></div>"
+        "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"Starting GitHub check…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Connection error; check the system log.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
         "function reconnectAfterOta(){"
@@ -887,8 +869,8 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     return app_web_send_page(req,"<!doctype html><html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Diagnostics</title>"
-        "<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#eef4f7}table{width:100%;background:white;border-radius:16px;padding:18px}td{padding:12px}</style><!--APP_SUPPORT-->"
-        "<a href='/'>← Eszköz / Device</a> · <a href='/templates'>Sablonok / Templates</a><h1>Diagnosztika / Diagnostics</h1><table id='values'></table>"
+        "<style>" APP_WEB_CSS "#values td:first-child{color:var(--muted);width:45%}</style><body data-page='diagnostics'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
+        "<h1>Diagnosztika / Diagnostics</h1><p class='lead'>Élő rendszerértékek, 3 másodpercenként frissül.</p><section><table id='values'></table></section>"
         "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
         "ble_enabled:'Bluetooth',ble_role:'BT szerep / Role',ble_ready:'BT kész / Ready',ble_advertising:'BT hirdetés / Advertising',ble_scanning:'Master keresés / Scanning',ble_address:'Saját BT cím / Local address',ble_peer:'BT partner / Peer',ble_slaves:'Kapcsolódó slave-ek / Connected slaves',slave_connected:'Master kapcsolat / Master connected',ble_rssi_dbm:'BT RSSI (dBm)',"
         "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
@@ -901,6 +883,8 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
 #include "app_template_web.inc"
 #include "app_settings_web.inc"
 #include "app_loxone_web.inc"
+#include "app_backup_web.inc"
+#include "app_template_update_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
 {
     if (!cfg) {
@@ -945,7 +929,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
-    http_cfg.max_uri_handlers = 40;
+    http_cfg.max_uri_handlers = 64;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -1017,6 +1001,8 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
     if ((err = settings_register(s_server)) != ESP_OK) goto failed;
     if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
+    if ((err = backup_register(s_server)) != ESP_OK) goto failed;
+    if ((err = template_updates_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get},

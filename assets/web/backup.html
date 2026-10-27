@@ -1,0 +1,14 @@
+<!doctype html><html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zolee – Mentés és visszaállítás</title><style>/*COMMON_CSS*/
+.drop{display:flex;flex-direction:column;gap:12px}.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.meta>div{background:var(--bg);border-radius:12px;padding:10px 14px}.meta span{display:block;font-size:13px;color:var(--muted)}.meta b{overflow-wrap:anywhere}
+</style></head><body data-page="backup"><!--APP_NAV--><!--APP_SUPPORT--><h1>Mentés és visszaállítás</h1>
+<p class="lead">A beállításokat (általános beállítások, Loxone-párosítás, Otthon-kártyák és fogyasztók, témasorrend) egyetlen fájlba mentheted, és később vagy új SD-kártyára visszatöltheted. A statisztika, a témák képei és a csengőhangok nem részei a mentésnek.</p>
+<section><h2>Mentés letöltése</h2><p>A letöltött fájlban a Wi-Fi-, MQTT- és webes jelszó nem szerepel; visszaállításkor az eszközön lévő jelszavak maradnak. A Loxone- és a kamerajelszó csak ezen a kijelzőn használható (eszközkulccsal titkosított), másik kijelzőn a Loxone oldalon újra meg kell adni.</p>
+<div class="actions"><a class="button" id="download" href="/api/backup" download>Beállítások letöltése</a></div></section>
+<section><h2>Visszaállítás fájlból</h2><div class="drop"><label>Mentésfájl (.json, legfeljebb 256 KiB)<input id="file" type="file" accept=".json,application/json"></label>
+<div class="actions"><button id="check" type="button" class="secondary" disabled>Ellenőrzés</button><button id="restore" type="button" disabled>Visszaállítás és újraindítás</button></div>
+<p id="message" role="status" aria-live="polite"></p></div></section>
+<section><h2>Belső tartalék</h2><p>A kijelző a beállítások egy példányát a saját flash-tárában is őrzi. Új vagy üres SD-kártyával induláskor automatikusan innen állítja vissza a beállításokat. A tartalék csak változáskor íródik.</p>
+<div class="meta" id="flash-meta"><div><span>Állapot</span><b id="flash-state">Betöltés…</b></div><div><span>Utolsó mentés</span><b id="flash-time">—</b></div><div><span>Méret</span><b id="flash-size">—</b></div></div>
+<div class="actions"><button id="flash-save" type="button" class="secondary">Belső tartalék frissítése most</button><button id="flash-restore" type="button" class="danger">Visszaállítás a belső tartalékból</button></div>
+<p id="flash-message" role="status" aria-live="polite"></p></section>
+<script>/*BACKUP_JS*/</script></body></html>

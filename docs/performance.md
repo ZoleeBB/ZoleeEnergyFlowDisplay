@@ -245,3 +245,24 @@ a mentés előtt teljes újrarajzolással (`lv_obj_invalidate(lv_screen_active()
 `lv_refr_now()`) kell összevetni: a 143 Master- és 9 Slave-kép így bájtra
 azonos volt a változtatás előtt és után. A részleges és a teljes rajzolás
 közötti eltérés az érintett képeken csökkent.
+
+## Felhasználói élmény bővítések – terhelési szerződés
+
+A `feature/ux-improvements` funkciói a meglévő teljesítményszabályokat követik:
+
+- **Akku hátralévő idő:** mintánként egy exponenciális simítás (néhány
+  lebegőpontos művelet), memória- és SD-hozzáférés nélkül; a felirat csak
+  változáskor íródik.
+- **Postaláda-jelvény:** egyetlen, natív méretű (52×52) beágyazott PNG, egyszer
+  dekódolva; a 200 ms-os kör csak a láthatóságot/helyet írja változáskor.
+- **Jelenlétvezérlés:** a közös, allokációmentes fényerő-állapotgép; a Loxone
+  jeleket egy kis, zár alatti pillanatkép adja (nincs új kapcsolat vagy kérés).
+- **4B Mai összesítő:** a 45 KiB-os statisztika-pillanatkép PSRAM-ban, csak
+  látható nézetnél, legfeljebb másodpercenként; üresjáratban 0 érvénytelenítés
+  (szimulátorteszt).
+- **Belső beállítás-tartalék:** csak tartalomváltozáskor ír flash-t, alacsony
+  prioritású feladatban, 15 s-os összevonással; a témaváltás nem indít írást.
+- **GitHub-témafrissítés:** csak kérésre, saját feladatban; a nagy PNG-k PSRAM-ba
+  töltődnek, az SD-zár csak a rövid írások idejére foglalt.
+- **Webfelület:** a közös stíluslap oldalanként beágyazva (nincs plusz HTTP-kérés),
+  a firmware-ben kb. 3,5 KiB oldalanként.

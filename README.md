@@ -29,6 +29,23 @@ számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablak
 
 Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
 
+## Újdonságok – felhasználói élmény (`feature/ux-improvements`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Akku hátralévő idő | Az Akku diagnosztika témán: „Kb. 1 óra 40 perc múlva tele”, „Még kb. 6 óra 20 percig bírja (10%-ig)”; szigetüzemben és áramszünetre készülve kiemelve. [Részletek](docs/battery-diagnostics.md#hátralévő-idő) |
+| Jelenlétvezérelt Master | Loxone módban opcionális *Jelenlét* adat: éjjel 0 → teljes sötét, érintés vagy 1 → éjszakai fényerő. Párosítás nélkül minden a régi. [Részletek](docs/loxone-direct.md#jelenlét-és-postaláda-a-master-kijelzőn) |
+| Postaláda-jelzés | Loxone *Posta érkezett* (0/1) állapot: 1-nél postaláda-ikon minden téma fejlécében. |
+| 4B Mai összesítő | A 4B Slave-en vízszintes húzással napi termelés, fogyasztás, hálózat, akku és pénzügy. [Részletek](docs/slave-waveshare-4b.md#mai-összesítő) |
+| Mentés és visszaállítás | Beállítások letöltése/visszatöltése egy fájlban, belső flash-tartalék és automatikus visszaállítás új SD-kártyára. [Részletek](docs/backup.md) |
+| Témafrissítés GitHubról | A Sablonok oldalon jelzi az elavult gyári témákat, és egy kattintással frissíti őket. [Részletek](docs/templates.md#gyári-témák-frissítése-a-githubról) |
+| Új webes felület | Egységes, világos/sötét megjelenés, felső menü minden oldalon, mobilbarát elrendezés. |
+| Kezelési útmutató | Minden gesztus és érintés egy helyen: [Kezelés és gesztusok](docs/gestures.md) |
+
+A Master és a 4B Slave firmware-ét is frissíteni kell; az Akku diagnosztika v2
+témához előbb a firmware, majd a `10-battery-diagnostics.zip` (vagy a Sablonok
+oldal GitHub-frissítése) szükséges.
+
 ## Loxone Otthon kaputelefon-kijelzőként
 
 Az alapból kikapcsolt **Energiaáramlás tiltás** csak Loxone módban engedélyezhető.
@@ -119,7 +136,7 @@ beállítás nem kell. [Párosítás és átállítás](docs/ble-data-seed.md).
 
 Az I1–I12 bemenetek sorrendje fix; I13 az időjárási jelenlétmaszk, T1 pedig az opcionális, `#`-elválasztott nappályaadat. Mindkét Pico C változat (MQTT és HTTP) ezt a kiosztást használja. A négy időjáráskulcs kötelező, de értékük lehet `null`; ilyenkor a kapcsolódó adatok egyik témában sem jelennek meg. A Loxone minták I13 jelenlétmaszkját a bekötésnek megfelelően kell beállítani, mert a Pico C API nem tudja automatikusan felismerni a bekötetlen vezetéket. [Teljes mérés](examples/mqtt-payload.sample.json), [időjárás nélküli mérés](examples/mqtt-payload.no-weather.sample.json).
 
-A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a tíz sablon között; SD nélkül csak a Rendszer nézet érhető el. Felfelé húzás nyitja a diagnosztikát, jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-lapokat, a ház érintése a fogyasztókat nyitja meg, ha a szükséges csomag és konfiguráció elérhető. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés, `/settings` beállítások (SD-n vagy belső NVS-ben), `/diagnostics` diagnosztika. A Slave webfelületéhez a mastertől örökölt Wi-Fi-n kapott saját IP-cím használható. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mind a négy adatfogadási módot jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot, SD- vagy belsőtár-állapotot és Bluetooth-adatokat mutat.
+A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben átrendezhetők, de a Rendszer nézet mindig az első helyen marad. Balra/jobbra húzás lapoz a rendszernézet és a tíz sablon között; SD nélkül csak a Rendszer nézet érhető el. Felfelé húzás nyitja a diagnosztikát, jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-lapokat, a ház érintése a fogyasztókat nyitja meg, ha a szükséges csomag és konfiguráció elérhető. A helyi weboldal: `http://zolee-energy-flow-display.local/` vagy az eszköz IP-címe; `/update` firmware-frissítés, `/templates` sablonkezelés és GitHub-témafrissítés, `/settings` beállítások (SD-n vagy belső NVS-ben), `/backup` mentés és visszaállítás, `/diagnostics` diagnosztika. A gesztusok teljes listája: [Kezelés és gesztusok](docs/gestures.md). A Slave webfelületéhez a mastertől örökölt Wi-Fi-n kapott saját IP-cím használható. HTTP módban az adatfogadó: `POST /api/energy`. A diagnosztika mind a négy adatfogadási módot jelzi, magonkénti CPU-terhelést, belső RAM-/PSRAM-használatot, SD- vagy belsőtár-állapotot és Bluetooth-adatokat mutat.
 
 | Téma | Nappal | Éjjel |
 | --- | --- | --- |
@@ -144,6 +161,8 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 ## Dokumentáció
 
 - [Önkéntes fejlesztői támogatás – Revolut.me és Ko-fi, kizárólag a webfelületen](docs/voluntary-support.md)
+- [Kezelés és gesztusok](docs/gestures.md)
+- [Beállítások mentése és visszaállítása](docs/backup.md)
 - [Hardver](docs/hardware.md)
 - [Konfiguráció](docs/configuration.md)
 - [JSON és MQTT](docs/mqtt.md)

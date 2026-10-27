@@ -22,6 +22,7 @@
 
 #include "app_config.h"
 #include "app_ble_seed.h"
+#include "app_backup.h"
 #include "app_events.h"
 #include "app_mqtt.h"
 #include "app_loxone.h"
@@ -196,6 +197,15 @@ void app_main(void)
             if (rename(CONFIG_BACKUP_PATH, CONFIG_PATH) == 0)
                 app_events_add(APP_EVENT_WARNING, "Konfiguráció helyreállítva a mentésből.");
         }
+        /* Új vagy üres SD-kártya: ha a belső flash-tartalékban van korábbi
+         * beállítás, azt írjuk vissza (config, Loxone, Otthon, témasorrend). */
+        if (access(CONFIG_PATH, F_OK) != 0) {
+            unsigned restored = 0;
+            char restore_error[APP_BACKUP_ERROR_SIZE] = {0};
+            if (app_backup_flash_restore_sd(&restored, restore_error) == ESP_OK)
+                app_events_add(APP_EVENT_WARNING,
+                               "Üres SD-kártya: %u beállításfájl visszaállítva a belső tartalékból.", restored);
+        }
         err = app_config_load_file(CONFIG_PATH, &s_config, config_error, sizeof(config_error));
         if (err != ESP_OK) fatal_forever("Konfigurációs hiba", config_error);
         if (app_boot_config_remember(&s_config) != ESP_OK)
@@ -368,6 +378,10 @@ void app_main(void)
             cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
     }
     app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+    /* Belső beállítás-tartalék: induláskor egyszer összeveti az SD-vel, és csak
+     * eltérésnél ír. SD nélküli Slave-nél nincs mit menteni. */
+    if (!s_config.cardless_slave && app_backup_flash_start() != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "A belső beállítás-tartalék feladata nem indult el.");
     if (slave) app_ble_profile_boot_complete();
 
     /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */

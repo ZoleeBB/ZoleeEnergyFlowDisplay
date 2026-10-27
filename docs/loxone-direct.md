@@ -112,6 +112,30 @@ Forrás: [Communicating with the Miniserver v17](https://www.loxone.com/enen/kb/
 - Valódi Miniserver és fizikai panel: még nincs ellenőrizve.
 
 
+## Jelenlét és postaláda a Master kijelzőn
+
+Az **Adatpárosítás** két új, opcionális sora:
+
+| Mező | Érték | Hatás |
+| --- | --- | --- |
+| **Jelenlét a Master előtt** (`Presence`) | 0 / 1 (a pozitív érték aktív) | Éjszaka (NightMode = 1) a 0 / false teljesen elsötétíti a Master kijelzőt. Érintésre vagy amikor a jel 1 / true lesz, a beállított éjszakai fényerőre világosodik. Érintés után a *Kijelző → Ébrenlét érintés után* ideig (`display.touch_wake_seconds`, alapból 60 s) marad világos. Nappal a fényerő nem változik. |
+| **Posta érkezett** (`MailArrived`) | 0 / 1 | 1 / true értéknél postaláda-ikon jelenik meg minden téma fejlécében. |
+
+- Mindkettő opcionális. Párosítás nélkül a kijelző pontosan úgy működik, mint
+  korábban.
+- A jeleket ugyanaz a Loxone-kapcsolat hozza, azonnal (nem az 5 másodperces
+  energiaminta-ciklusban). Kapcsolatvesztéskor ismeretlenné válnak: a kijelző
+  ilyenkor nem sötétedik el, és a postaláda-ikon eltűnik.
+- Hibaoldal (Wi-Fi, adatkimaradás, Loxone-hiba), kaputelefon-hívás és
+  ismeretlen jelenlét mellett a kijelző mindig látható marad.
+- Az ébresztő első érintés nem nyom meg közben gombot és nem lapoz.
+- Energiaáramlás tiltás módban a két mező párosítható; a postaláda-jelzés ott a
+  témák helyett nem jelenik meg, a jelenlétvezérlés ebben a módban nem aktív (a
+  logós készenlét saját, 10%-os fényerejét használja).
+
+A szorzó és eltolás itt is használható, például invertáláshoz: szorzó −1,
+eltolás 1.
+
 ## Slave-kijelzők jelenlétbeállítása (v3 fejlesztési ág)
 
 A Masteren kapcsold be az **Adat seed – master kijelző (BLE)** funkciót, majd a

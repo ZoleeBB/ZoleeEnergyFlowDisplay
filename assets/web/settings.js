@@ -100,5 +100,5 @@ form.addEventListener('submit',async event=>{event.preventDefault();if(!state)re
  if(!result.restart){fill();save.disabled=false;}
  }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}
 });
-async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.textContent='Loxone beállítások';document.body.prepend(a);}}catch{}}
+async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.className='button secondary';a.textContent='Loxone beállítások';const p=document.createElement('p');p.append(a);document.querySelector('h1').after(p);}}catch{}}
 loxoneLink();load();

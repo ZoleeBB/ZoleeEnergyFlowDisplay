@@ -238,6 +238,28 @@ ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.
 A v3 külső témák célzott kompatibilitási áttekintése és a tesztek pontos
 határai: [external-template-review.md](external-template-review.md).
 
+## Hely a postaláda-jelnek (Master/Loxone)
+
+Ha a Loxone **Posta érkezett** állapota 1, egy 52×52 pixeles postaláda-jelvény
+jelenik meg a téma fejlécében. Külső téma `light` és `dark` jelenetében a bal felső
+sarka megadható:
+
+```json
+"mail_area": {"x": 614, "y": 28}
+```
+
+Hiányzó mező esetén a gyári témák saját, ellenőrzött helyet használnak, az
+ismeretlen külső témák a felső középső sávot (614, 6). Válassz olyan helyet, ahol
+a jelvény nem takar órát, értéket, időjárást, diagramot és az `assistant_area`
+területét.
+
+## Akku hátralévő idő
+
+A `battery_eta` forrású `value` elem egysoros szöveget ad (például „Még kb. 6 óra
+20 percig bírja (10%-ig)”). Szigetüzemben és áramszünetre készüléskor a firmware
+narancs kiemelő színnel írja felül a megadott színt. Részletek:
+[Akku diagnosztika](battery-diagnostics.md#hátralévő-idő).
+
 ## 24 órás napállás-idővonal
 
 Az új firmware `solar_timeline` elemet is kezel. Példa a világos jelenetben:
