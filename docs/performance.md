@@ -189,6 +189,16 @@ Két további, a felületet lassító felesleges ellenőrzés is kikerült:
   tartalommal. A CPU-terhelés első értéke megnyitás után legfeljebb 2 s-ig a
   legutóbbi mintavétel óta eltelt idő átlaga.
 
+Az Otthon-kártyák közötti lapozás eddig minden lapnál újra beolvasta és
+dekódolta a háttérképet (kb. 0,9–1,1 MB PNG, 1280×800-as ARGB8888 dekódolás és
+RGB565-átalakítás) és a logót, pedig a háttér csak a módtól (kártyák vagy
+fogyasztók), a napszaktól és az erőforráscsomag generációjától függ. Ha ezek
+változatlanok, a dekódolt háttér- és logópuffer megmarad, és az új
+`app_templates_home_load_icons()` csak az adott lap ikonjait olvassa be. A
+betöltőkép és a megjelenített képpontok változatlanok. Bármilyen hibánál
+(sérült ikon, foglalt SD, közben cserélt csomag) a teljes oldal felszabadul, és
+a következő próbálkozás a hátteret is teljesen újratölti.
+
 A `tests/preview` `ZOLEE_THEME_SWITCH_BENCH=1` módja a valódi UI-kódon méri
 a betöltőkép, az előkészítés, a nézetépítés, az első kép és az áttűnés idejét,
 és a végső kép ellenőrzőösszegét is kiírja. Hoston (RGB565, 33 váltás) az

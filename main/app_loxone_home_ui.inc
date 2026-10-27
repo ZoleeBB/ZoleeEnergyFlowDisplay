@@ -16,6 +16,10 @@ static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
 static bool home_empty = true;
 static unsigned home_revision, home_resource_generation;
 static unsigned home_load_attempts;
+/* Kártyalapozásnál a már dekódolt háttér (0.) és logó (1.) megmarad; ilyenkor
+ * csak az ikonokat olvassuk be és dekódoljuk újra. Minden teljes felszabadítás
+ * törli, így hibánál a következő próbálkozás ismét a teljes oldalt tölti. */
+static bool home_keep_background;
 static TEMPLATE_RAM lx_home_config_t home_config, home_next_config;
 static TEMPLATE_RAM lx_home_values_t home_values, home_next_values;
 static bool home_next_connected, home_next_wait;
@@ -80,26 +84,68 @@ static void home_release(void)
     app_templates_view_free(&home_assets);
     memset(home_images, 0, sizeof(home_images));
     home_ready_to_draw = false;
+    home_keep_background = false;
 }
-static void home_reset_theme(void)
+/* A 2. helytől az ikonok PNG-adatainak felszabadítása; LVGL-objektumhoz nem
+ * nyúl, ezért lock nélkül is hívható. A háttér és a logó megmarad. */
+static void home_assets_trim_icons(void)
+{
+    for (unsigned i = 2; i < home_assets.asset_count; i++)
+    {
+        free(home_assets.assets[i].bytes);
+        memset(&home_assets.assets[i], 0, sizeof(home_assets.assets[i]));
+    }
+    if (home_assets.asset_count > 2)
+        home_assets.asset_count = 2;
+}
+/* Csak az ikonok dekódolt pufferei és PNG-adatai szabadulnak fel. LVGL-lock alatt. */
+static void home_release_icons(void)
+{
+    for (unsigned i = 2; i < 14; i++)
+    {
+        lv_image_cache_drop(&home_images[i]);
+        if (home_buffers[i])
+        {
+            lv_draw_buf_destroy(home_buffers[i]);
+            home_buffers[i] = NULL;
+        }
+        if (home_gray_buffers[i])
+        {
+            lv_image_cache_drop(&home_gray_images[i]);
+            lv_draw_buf_destroy(home_gray_buffers[i]);
+            home_gray_buffers[i] = NULL;
+        }
+    }
+    home_assets_trim_icons();
+    memset(&home_images[2], 0, sizeof(home_images) - 2 * sizeof(home_images[0]));
+    home_ready_to_draw = false;
+}
+static void home_reset_theme_keep(bool keep_background)
 {
     clear();
     template_release_cache();
     app_templates_view_free(&template_view);
     app_templates_view_free(&template_pending);
-    home_release();
+    if (keep_background)
+        home_release_icons();
+    else
+        home_release();
     /* A beépített téma képei is maradhatnak a globális cache-ben. A PNG
      * dekóder az új képet még a cache helyfelszabadítása előtt foglalja le. */
     lv_image_cache_drop(NULL);
     template_node_count = 0;
 }
+static void home_reset_theme(void)
+{
+    home_reset_theme_keep(false);
+}
 /* Kész képpontokból épül az oldal: a rajzolás közben nincs PNG-dekódolás,
  * cache-kilökés vagy új nagy foglalás. A háttér RGB565-ben pontosan 2 048 000
  * bájt, az ikonok ARGB8888 alakban őrzik az átlátszóságukat. LVGL-lock alatt. */
-static bool home_decode_images(void)
+static bool home_decode_images(unsigned first)
 {
     const lv_image_decoder_args_t args = {.no_cache = true};
-    for (unsigned i = 0; i < home_assets.asset_count; i++)
+    for (unsigned i = first; i < home_assets.asset_count; i++)
     {
         lv_image_decoder_dsc_t decoder;
         if (lv_image_decoder_open(&decoder, &home_images[i], &args) != LV_RESULT_OK)
@@ -212,8 +258,16 @@ static bool home_prepare(bool night)
         return true;
     if (!same_page)
     {
+        /* Ugyanazon az Otthon-nézeten belüli kártyalapozás: a háttér a módtól,
+         * a napszaktól és az erőforráscsomagtól függ, a kártyáktól nem. Ilyenkor
+         * a dekódolt háttér és logó megmarad, nem olvassuk be újra az SD-ről.
+         * Gyors egymás utáni húzásnál a még be nem fejezett lap is megtartja. */
+        bool keep = (home_ready_to_draw || home_keep_background) && home_page == mode && home_night == night &&
+                    home_resource_generation == resource_generation &&
+                    home_assets.asset_count >= 2 && home_buffers[0] && home_buffers[1];
         if (bsp_display_lock(-1) != ESP_OK) return false;
-        home_reset_theme();
+        home_reset_theme_keep(keep);
+        home_keep_background = keep;
         template_loading_screen();
         home_page = mode;
         home_card_page = index;
@@ -229,10 +283,39 @@ static bool home_prepare(bool night)
     const char *icons[12];
     for (unsigned i = 0; i < count; i++)
         icons[i] = requested == 1 ? home_next_config.consumers[i].icon : home_next_config.cards[first + i].icon;
-    bool loaded = app_templates_home_load_for(icons, count, night, requested == 1, &home_assets);
+    bool keep = home_keep_background;
+    unsigned first_image = keep ? 2 : 0;
+    bool loaded;
+    if (keep)
+    {
+        /* Csak az ikonok: a megtartott 0. és 1. hely tulajdonosa továbbra is a home_assets. */
+        app_template_view_t *loaded_icons = calloc(1, sizeof(*loaded_icons));
+        loaded = loaded_icons && app_templates_home_load_icons(icons, count, loaded_icons);
+        if (loaded && loaded_icons->generation != home_resource_generation)
+        {
+            /* Közben cserélődött a csomag: a következő kör teljes oldalt tölt. */
+            loaded = false;
+            if (bsp_display_lock(-1) == ESP_OK)
+            {
+                home_release();
+                bsp_display_unlock();
+            }
+        }
+        if (loaded)
+        {
+            for (unsigned i = 2; i < loaded_icons->asset_count; i++)
+                home_assets.assets[i] = loaded_icons->assets[i];
+            home_assets.asset_count = loaded_icons->asset_count;
+        }
+        else if (loaded_icons)
+            app_templates_view_free(loaded_icons);
+        free(loaded_icons);
+    }
+    else
+        loaded = app_templates_home_load_for(icons, count, night, requested == 1, &home_assets);
     if (loaded)
     {
-        for (unsigned i = 0; i < home_assets.asset_count; i++)
+        for (unsigned i = first_image; i < home_assets.asset_count; i++)
         {
             app_template_asset_t *asset = &home_assets.assets[i];
             home_images[i] = (lv_image_dsc_t){
@@ -242,10 +325,13 @@ static bool home_prepare(bool night)
         }
         if (bsp_display_lock(-1) != ESP_OK)
         {
-            app_templates_view_free(&home_assets);
+            if (keep)
+                home_assets_trim_icons();
+            else
+                app_templates_view_free(&home_assets);
             return true;
         }
-        loaded = home_decode_images();
+        loaded = home_decode_images(first_image);
         if (loaded && requested == 1)
         {
             for (unsigned i = 2; loaded && i < home_assets.asset_count; i++)

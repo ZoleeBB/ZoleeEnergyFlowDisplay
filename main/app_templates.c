@@ -1651,8 +1651,13 @@ bool app_templates_home_info(app_template_info_t *info, unsigned *version)
     return ready;
 }
 
-bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
-                                  bool consumers, app_template_view_t *out)
+/*
+ * Az Otthon-oldal képeinek beolvasása. A 0. hely a háttér, az 1. a logó, a 2.
+ * helytől jönnek az ikonok. icons_only esetén a 0. és 1. hely üres marad: a
+ * hívó a már dekódolt hátteret és logót tartja meg, és csak az ikonokat cseréli.
+ */
+static bool home_load(const char *const *icons, unsigned icon_count, bool night,
+                      bool consumers, bool icons_only, app_template_view_t *out)
 {
     if (!out || icon_count > 12 || (!icons && icon_count) || !lock || !xSemaphoreTake(lock, 0))
         return false;
@@ -1665,7 +1670,14 @@ bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, 
     bool ok = next != NULL;
     char directory[256], path[256];
     path_join(directory, app_templates_root(), APP_HOME_RESOURCE_ID);
-    for (unsigned i = 0; ok && i < icon_count + 2; i++)
+    unsigned start = 0;
+    if (ok && icons_only)
+    {
+        /* Üres háttér- és logóhely: a view_free a NULL puffert kihagyja. */
+        next->asset_count = 2;
+        start = 2;
+    }
+    for (unsigned i = start; ok && i < icon_count + 2; i++)
     {
         char filename[65];
         if (i == 0)
@@ -1720,6 +1732,18 @@ bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, 
     STORAGE_GIVE();
     xSemaphoreGive(lock);
     return ok;
+}
+
+bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
+                                  bool consumers, app_template_view_t *out)
+{
+    return home_load(icons, icon_count, night, consumers, false, out);
+}
+
+bool app_templates_home_load_icons(const char *const *icons, unsigned icon_count,
+                                    app_template_view_t *out)
+{
+    return home_load(icons, icon_count, false, false, true, out);
 }
 
 /* A korábbi C-hívók az Otthon-hátteret kapják; a régi SD-csomag is betölthető. */

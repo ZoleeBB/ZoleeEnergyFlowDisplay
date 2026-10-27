@@ -75,6 +75,33 @@ bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count
     }
     return ok;
 }
+/* Kártyalapozás: csak az ikonok olvasása, a háttér és a logó megmarad. */
+static unsigned home_icon_reads;
+static unsigned home_icon_blocked;
+static bool home_icon_corrupt;
+bool __real_app_templates_home_load_icons(const char *const *icons, unsigned count,
+                                          app_template_view_t *out);
+bool __wrap_app_templates_home_load_icons(const char *const *icons, unsigned count,
+                                          app_template_view_t *out)
+{
+    home_icon_reads++;
+    assert(s_view == VIEW_THEME_LOADING);
+    if (home_icon_blocked)
+    {
+        home_icon_blocked--;
+        return false;
+    }
+    bool ok = __real_app_templates_home_load_icons(icons, count, out);
+    if (ok)
+        assert(out->asset_count >= 2 && !out->assets[0].bytes && !out->assets[1].bytes);
+    if (ok && home_icon_corrupt && out->asset_count > 2)
+    {
+        app_template_asset_t *asset = &out->assets[2];
+        asset->bytes[asset->size / 2] ^= 0x40;
+        home_icon_corrupt = false;
+    }
+    return ok;
+}
 static bool runtime_wifi_connected=true;
 static app_stats_snapshot_t fixture;
 static time_t epoch;
@@ -2304,7 +2331,21 @@ int main(void)
     touch_sample_xy(10,504,true); touch_sample_xy(10,504,false);
     assert(home_request_get() == 3 && app_sim_home_commands == 1);
     app_sim_home_values.cards[8].value = 19.8;
+    /* Lapváltáskor a dekódolt háttér és logó ugyanaz a puffer marad: nincs
+     * újabb háttérolvasás és -dekódolás, csak az ikonok cserélődnek. */
+    lv_draw_buf_t *kept_background = home_buffers[0], *kept_logo = home_buffers[1];
+    unsigned char *kept_background_png = home_assets.assets[0].bytes;
+    unsigned full_reads = home_resource_reads, icon_reads = home_icon_reads;
+    home_icon_blocked = 1;
     home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(s_view == VIEW_THEME_LOADING && !home_ready_to_draw);
+    assert(home_buffers[0] == kept_background && home_buffers[1] == kept_logo && !home_buffers[2]);
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_resource_reads == full_reads && home_icon_reads == icon_reads + 2);
+    assert(home_buffers[0] == kept_background && home_buffers[1] == kept_logo);
+    assert(home_assets.assets[0].bytes == kept_background_png);
+    lv_obj_update_layout(s_screen); lv_refr_now(display);
+    test_home_background_pixels();
     assert(home_card_page == 1 && home_first_card == 8 && home_card_count == 2);
     assert(home_assets.asset_count == 4 && !strcmp(home_assets.assets[0].name,"background-light.png"));
     assert(!strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(s_screen,1),0)),"Kert"));
@@ -2323,8 +2364,23 @@ int main(void)
     touch_sample_xy(300,650,true); touch_sample_xy(700,650,true);
     touch_sample_xy(1000,650,true); touch_sample_xy(1000,650,false);
     assert(home_request_get() == 3);
+    /* Sérült ikon a csak-ikonos betöltésben: az egész oldal felszabadul, és a
+     * következő kör a hátteret is újra betölti. */
+    home_icon_corrupt = true; full_reads = home_resource_reads;
     home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(s_view == VIEW_THEME_LOADING && !home_ready_to_draw && !home_buffers[0]);
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_resource_reads == full_reads + 1 && s_view == VIEW_HOME && home_ready_to_draw);
+    lv_obj_update_layout(s_screen); lv_refr_now(display);
+    test_home_background_pixels();
     assert(home_card_page == 1);
+    /* Napszakváltásnál a háttér más fájl: teljes betöltés. */
+    full_reads = home_resource_reads;
+    home_prepare(true); render_runtime(rt,sample,true,31000000);
+    assert(home_resource_reads == full_reads + 1 && !strcmp(home_assets.assets[0].name,"background-dark.png"));
+    home_prepare(false); render_runtime(rt,sample,true,31000000);
+    assert(home_resource_reads == full_reads + 2 && !strcmp(home_assets.assets[0].name,"background-light.png"));
+    puts("PASS: Home card paging keeps the decoded background/logo, reloads only icons, and falls back to a full load on icon failure or day/night change");
     home_gesture(LV_DIR_LEFT); home_prepare(false); render_runtime(rt,sample,true,31000000);
     home_gesture(LV_DIR_LEFT); home_prepare(false); render_runtime(rt,sample,true,31000000);
     assert(home_card_page == 0 && home_request_get() == 2);
