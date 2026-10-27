@@ -143,3 +143,42 @@ kér új frame-et. A táblázat az LVGL által újrarajzolt/forgatásra leadott 
 számolja; a baseline 2 048 000 bájtos másolatát, cache-visszaírást, panelátadást
 és hálózati munkát nem. Ez ezért nem azonos a teljes CPU- vagy memóriaforgalom
 csökkenésével. A készüléken elért FPS/inputkésés továbbra is visszamérendő.
+
+## Gyorsabb témaváltás – SD-olvasás és ismételt validálás
+
+A balra/jobbra lapozás eddig minden váltáskor kétszer olvasta be a sablon
+PNG-it: először a teljes validálás (az előnézetekkel együtt, CRC és teljes
+zlib-kitömörítés), majd a betöltés. A `read_file()` `fread()`-et használt; a
+FATFS `CONFIG_FATFS_VFS_FSTAT_BLKSIZE=0` beállításával a newlib 128 bájtos
+stdio-puffere miatt minden 512 bájtos szektor külön SD-parancs volt, és az
+igazítatlan PSRAM-cél miatt az SDMMC-meghajtó blokkonként, belső átmeneti
+pufferen át olvasott (ESP-IDF 5.5.4 `sdmmc_read_sectors`).
+
+A javítás a működést és a megjelenített képpontokat nem változtatja:
+
+- A `read_file()` POSIX `open`/`fstat`/`read` hívással, 128 bájtra igazított
+  PSRAM-pufferbe olvas. A FATFS így klaszterenként egy több blokkos DMA-
+  átvitelt kér. Foglalási hibánál a korábbi `malloc()` puffer marad.
+- A boot és minden telepítés/törlés utáni `scan()` a teljesen validált
+  sablonkönyvtárak ujjlenyomatát (név, méret, módosítási idő) megjegyzi.
+  Változatlan könyvtárnál a lapozás a `template.json` teljes sémaellenőrzését
+  futtatja, a betöltött PNG-ket pedig egyszer olvassa be, chunk-CRC-vel
+  ellenőrizve, ismételt kitömörítés nélkül. Bármilyen eltérésnél (új, törölt,
+  cserélt fájl, SD-csere) a korábbi teljes ellenőrzés fut; hibánál a
+  Rendszer nézet marad, mint eddig.
+- A `selection.txt` mentése a téma betöltése utáni, változatlan generációjú
+  `app_templates_load_pending()` hívásra kerül (kb. 200 ms-mal később), így a
+  FAT-metaadatírások nem késleltetik a lapozást. Sikertelen írást a következő
+  kör újrapróbál.
+- Az elfogadott gesztus bináris szemaforral azonnal felébreszti a runtime
+  taskot, nem kell kivárni a ciklus végi 200 ms-ot.
+
+A `tests/preview` `ZOLEE_THEME_SWITCH_BENCH=1` módja a valódi UI-kódon méri
+a betöltőkép, az előkészítés, a nézetépítés, az első kép és az áttűnés idejét,
+és a végső kép ellenőrzőösszegét is kiírja. Hoston (RGB565, 33 váltás) az
+előkészítés ideje kb. 580 ms-ról 57 ms-ra csökkent; mind a 11 téma végső
+képe és a preview mind a 143 mentett képe bájtra azonos. A host lemezcache
+miatt ez az SD-olvasás javulását nem tartalmazza; a sablononként beolvasott
+adat kb. 48 MB-ról 22 MB-ra (a tíz gyári témán összesen), a szektoronkénti
+parancsok helyett klaszterenkénti átvitelre változik. A készüléken elért
+váltási időt fizikai panelen kell visszamérni.

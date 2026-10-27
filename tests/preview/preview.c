@@ -407,6 +407,7 @@ static void test_calm_dashboard(const app_energy_sample_t *original)
 }
 
 #include "orbit_test.inc"
+#include "theme_switch_bench.inc"
 
 static void test_solar_status(const app_energy_sample_t *original)
 {
@@ -1778,7 +1779,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
+    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1807,6 +1808,8 @@ int main(void)
         }
         else if (getenv("ZOLEE_RENDER_COST_ONLY"))
             test_render_work(runtime, sample);
+        else if (getenv("ZOLEE_THEME_SWITCH_BENCH"))
+            test_theme_switch_bench(runtime, sample);
         else
         {
             test_startup_navigation(runtime, sample);
