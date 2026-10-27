@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     subprocess.run(['cc','-std=gnu11','-shared','-fPIC','-g','-O1','-Wall','-Wextra','-Werror',
                     '-Wno-misleading-indentation','-Werror=frame-larger-than=8192','-fsanitize=undefined',
                     '-fno-sanitize-recover=all','-DAPP_TEMPLATE_DESKTOP','-Isimulator/compat','-Itests/stubs','-Imain',
-                    'main/app_templates.c','main/app_template_zip.c','main/app_ringtone_wav.c','-lz','-lm','-l:libcjson.so.1',
+                    'main/app_templates.c','main/app_template_raw.c','main/app_template_zip.c','main/app_ringtone_wav.c','-lz','-lm','-l:libcjson.so.1',
                     '-o',str(tmp/'templates.so')],cwd=ROOT,check=True)
     lib=C.CDLL(str(tmp/'templates.so'))
     lib.app_templates_validate.argtypes=[C.c_char_p,C.c_void_p,C.c_char_p]
@@ -371,3 +371,52 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert load_selected('imaged')=='imaged'
     assert lib.app_templates_delete(b'imaged',error)==0
     print('PASS: unchanged validated package loads once; in-place corruption, same-size/mtime bit errors, added and replaced PNGs still fall back')
+
+    # Előre dekódolt segédfájlok: telepítéskor elkészülnek, és a betöltés
+    # dekódolás nélkül dolgozik; félkész munkafájl nem rontja el a csomagot.
+    raw_doc = dict(doc, id='raw-layout',
+                   light=dict(background='#FFFFFF',
+                              elements=[dict(type='image', file='house.png', x=0, y=0, w=64, h=64)]),
+                   dark=dict(background='#101010',
+                             elements=[dict(type='image', file='house.png', x=0, y=0, w=128, h=128)]))
+    assert lib.app_templates_install(os.fsencode(archive('raw-layout', raw_doc, {'house.png': house})), error) == 0, error.value
+    raw_dir = sd / 'raw-layout'
+    assert (raw_dir / 'house-64x64.raw').is_file() and (raw_dir / 'house-128x128.raw').is_file()
+    assert (raw_dir / 'house-128x128.raw').stat().st_size == 32 + 128 * 128 * 3
+    assert not (raw_dir / 'raw.tmp').exists()
+    class RawAsset(C.Structure):
+        _fields_ = [('name', C.c_char * 65), ('bytes', C.c_void_p), ('size', C.c_size_t),
+                    ('width', C.c_uint), ('height', C.c_uint)]
+    class RawImage(C.Structure):
+        _fields_ = [('bytes', C.c_void_p), ('size', C.c_size_t), ('width', C.c_uint16),
+                    ('height', C.c_uint16), ('stride', C.c_uint16), ('asset', C.c_uint8),
+                    ('format', C.c_uint8)]
+    class RawView(C.Structure):
+        _fields_ = [('id', C.c_char * 33), ('document', C.c_void_p), ('assets', RawAsset * 32),
+                    ('raws', RawImage * 32), ('asset_count', C.c_uint), ('raw_count', C.c_uint),
+                    ('generation', C.c_uint), ('catalogue_count', C.c_uint),
+                    ('catalogue_index', C.c_uint)]
+    raw_view = RawView()
+    assert lib.app_templates_select(b'raw-layout') == 0
+    assert lib.app_templates_load_pending(C.byref(raw_view))
+    assert raw_view.raw_count == 2 and raw_view.asset_count == 1
+    assert not raw_view.assets[0].bytes  # a PNG-t be sem olvastuk
+    assert {(raw_view.raws[i].width, raw_view.raws[i].height) for i in range(2)} == {(64, 64), (128, 128)}
+    lib.app_templates_view_free(C.byref(raw_view))
+    # Sérült segédfájl: visszaesés a PNG-útra, a téma továbbra is használható.
+    corrupt = bytearray((raw_dir / 'house-64x64.raw').read_bytes())
+    corrupt[40] ^= 0xFF
+    (raw_dir / 'house-64x64.raw').write_bytes(corrupt)
+    assert lib.app_templates_select(b'builtin') == 0
+    assert lib.app_templates_load_pending(C.byref(raw_view))
+    lib.app_templates_view_free(C.byref(raw_view))
+    assert lib.app_templates_select(b'raw-layout') == 0
+    assert lib.app_templates_load_pending(C.byref(raw_view))
+    assert raw_view.id.decode() == 'raw-layout' and raw_view.assets[0].bytes
+    lib.app_templates_view_free(C.byref(raw_view))
+    # Félkész munkafájl az áramszünet után sem teszi érvénytelenné a csomagot.
+    (raw_dir / 'raw.tmp').write_bytes(b'incomplete')
+    assert lib.app_templates_validate(os.fsencode(raw_dir), None, error), error.value
+    assert not (raw_dir / 'raw.tmp').exists()
+    assert lib.app_templates_delete(b'raw-layout', error) == 0, error.value
+    print('PASS: raw sidecars are built on install, loaded without the PNG and fall back when corrupt')

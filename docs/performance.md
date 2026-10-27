@@ -10,6 +10,35 @@ Az [Espressif GUI útmutatója](https://docs.espressif.com/projects/esp-techpedi
 
 A beépített témák háttere natív 1280×800 px. Az Energiautak, Műszerfal és Energiafőkönyv téma korábban 1024×640-es háttérrel érkezett, ezért belépéskor teljes képernyős `lv_snapshot` méretezés futott: a desktop mérésben (RGB565, `ZOLEE_THEME_SWITCH_BENCH=1`) ez 43–75 ms építési időt jelentett a többi téma ~4 ms-ával szemben. A natív képekkel a teljes témaváltás 73→51 ms (Energiautak), 92→41 ms (Műszerfal) és 50→49 ms (Energiafőkönyv); a kép a felső 797 sorban képpontra azonos a korábbival, csak az alsó két sor szélmintavételezése tér el. A natív háttereket a `ZOLEE_EXPORT_SCALED_BACKGROUNDS=<mappa>` preview-mód és a `tools/prepare_native_backgrounds.py` állítja elő a futásidejű raszterből. Saját témához is natív méretű hátteret ajánlunk.
 
+### Előre dekódolt kép-segédfájlok
+
+A panelen mért fázisidők szerint a témaváltás két nagy tétele a felépítés
+(a méretezett ikonokhoz készülő LVGL-pillanatképek) és az első képkocka
+(a háttér PNG-dekódolása): a Nap pálya témánál 7,7 s + 2,4 s. Mindkettő
+ugyanazt a képpontsort állítja elő minden belépéskor, ezért egyszer, a
+telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
+
+- A jelenetek minden kép-változatához (fájl + megjelenítési méret) tartozik egy
+  `<alap>-<szélesség>x<magasság>.raw` fájl: 32 bájtos fejléc és a képpontok.
+  Átlátszatlan képnél RGB565, egyébként RGB565A8 (LVGL elrendezés: színsík,
+  utána az alfa sík). Részletek: `main/app_template_raw.h`.
+- A fejléc a forrás PNG méretét és a képpontok CRC32-jét őrzi: csomagcsere után
+  a régi segédfájl érvénytelen, sérült kártyaadatnál pedig ugyanúgy a Rendszer
+  nézetre esünk vissza, mint a PNG chunk-CRC hibájánál.
+- Ha egy képhez minden használt mérethez van érvényes segédfájl, a PNG-t be sem
+  olvassuk: a témaváltásból kimarad a dekódolás és a méretezés is, a dekódolt
+  háttér pedig 4 MiB helyett 2–3 MiB PSRAM-ot foglal.
+- A segédfájlok telepítéskor és a GitHubos frissítéskor készülnek el; ha
+  hiányoznak (például régebbi SD-kártyán), a következő betöltés egyszer pótolja
+  őket. Sikertelen írásnál minden a megszokott PNG-úton fut tovább.
+- A segédfájlok nem kerülnek a sablon ZIP-be, az ujjlenyomatba és az előnézeti
+  képekbe; a csomag törlésekor a könyvtárral együtt eltűnnek.
+- Az ikonok átméretezése a telepítéskori bilineáris szűrővel készül, ezért az
+  ikonok képpontjai néhány egységgel eltérhetnek a korábbi LVGL-skálázástól; a
+  natív méretű háttér képpontra ugyanaz marad. A preview mindkét utat
+  lefuttatja és összeveti (`ZOLEE_DISABLE_RAW=1` kapcsolja ki az asztali
+  összehasonlításhoz).
+
 ### Témaváltás fázisidői a valódi panelen
 
 Az asztali mérés (`ZOLEE_THEME_SWITCH_BENCH=1`) a gyors SSD és a desktop CPU

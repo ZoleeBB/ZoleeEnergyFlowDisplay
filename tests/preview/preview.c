@@ -719,6 +719,8 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(template_view.assets[a].name,file)){
             const void *src=lv_image_get_src(disc->obj);
             if(src==&template_images[a])image_matches=true;
+            for(unsigned r=0;r<template_view.raw_count;r++)
+                if(template_view.raws[r].asset==a&&src==&template_raw_images[r])image_matches=true;
 #if LV_USE_SNAPSHOT
             for(unsigned r=0;r<template_raster_count;r++)
                 if(template_rasters[r].asset==a&&src==&template_rasters[r].image)image_matches=true;
@@ -948,6 +950,11 @@ static void test_template_weather(const app_energy_sample_t *sample){
             bool matched=false;
             for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[cases[k].expected]),template_view.assets[a].name)){
                 const void *actual=lv_image_get_src(node->obj);bool right=actual==&template_images[a];
+                /* Előre dekódolt segédfájl: a megjelenítési mérettel. */
+                for(unsigned r=0;r<template_view.raw_count;r++)if(template_view.raws[r].asset==a&&actual==&template_raw_images[r]){
+                    assert(template_view.raws[r].width==(unsigned)tn(node->spec,"w",128));
+                    assert(template_view.raws[r].height==(unsigned)tn(node->spec,"h",128));right=true;
+                }
 #if LV_USE_SNAPSHOT
                 for(unsigned r=0;r<template_raster_count;r++)if(template_rasters[r].asset==a&&actual==&template_rasters[r].image){
                     assert(template_rasters[r].image.header.w==(unsigned)tn(node->spec,"w",128));
@@ -1285,6 +1292,8 @@ static void test_scene_images(bool night)
                 continue;
             const void *src = lv_image_get_src(template_nodes[n].obj);
             bool bound = src == &template_images[asset];
+            for (unsigned r = 0; !bound && r < template_view.raw_count; r++)
+                bound = src == &template_raw_images[r] && template_view.raws[r].asset == asset;
 #if LV_USE_SNAPSHOT
             for (unsigned r = 0; !bound && r < template_raster_count; r++)
                 bound = src == &template_rasters[r].image && template_rasters[r].asset == asset;
@@ -1537,6 +1546,91 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
     render_runtime(runtime, sample, true, 31000000);
     assert(s_view == VIEW_DASHBOARD);
     puts("PASS: rapid paging keeps swipes, frees the previous theme before loading and recovers from a stuck loading screen");
+}
+
+/*
+ * Előre dekódolt segédfájlok: a betöltés elkészíti a hiányzókat, utána a kép
+ * PNG-dekódolás és LVGL-méretezés nélkül kerül a jelenetbe, és a kirajzolt
+ * képkocka gyakorlatilag azonos a PNG-útéval (csak az RGB565 kvantálás tér el).
+ */
+static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const char *theme = "05-calm-home";
+    sample.sun_position_valid = true;
+    s_animation_sample = sample;
+    /* Referencia a megszokott PNG-úton, segédfájlok nélkül. */
+    setenv("ZOLEE_DISABLE_RAW", "1", 1);
+    assert(app_templates_select(theme) == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(!strcmp(template_view.id, theme) && s_view == VIEW_DASHBOARD);
+    template_update(&sample, &fixture);
+    save_frame("raw-sidecar-reference");
+    static uint32_t reference[1280 * 800];
+    for (unsigned i = 0; i < 1280 * 800; i++)
+        reference[i] = pixel_rgb(i);
+    assert(!template_view.raw_count);
+    for (unsigned i = 0; i < template_view.asset_count; i++)
+        assert(template_view.assets[i].bytes);
+    unsetenv("ZOLEE_DISABLE_RAW");
+
+    /* Újratöltés: a hiányzó segédfájlok elkészülnek, és azokból dolgozunk. */
+    assert(app_templates_select("builtin") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(app_templates_select(theme) == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(!strcmp(template_view.id, theme));
+    assert(template_view.raw_count >= 2);
+    char path[512];
+    struct stat st;
+    snprintf(path, sizeof(path), "%s/%s/day-1280x800.raw", getenv("ZOLEE_TEMPLATE_ROOT"), theme);
+    assert(stat(path, &st) == 0 && st.st_size == APP_TEMPLATE_RAW_HEADER + 1280 * 800 * 2);
+    unsigned without_png = 0;
+    for (unsigned i = 0; i < template_view.asset_count; i++)
+        if (!template_view.assets[i].bytes)
+            without_png++;
+    assert(without_png >= 2);
+    /* A háttérhez nem kellett se dekódolás, se raszter. */
+#if LV_USE_SNAPSHOT
+    unsigned rasters = template_raster_count;
+#endif
+    template_update(&sample, &fixture);
+    save_frame("raw-sidecar-loaded");
+#if LV_USE_SNAPSHOT
+    assert(template_raster_count <= rasters);
+#endif
+    unsigned worst = 0, strong = 0, background = 0;
+    for (unsigned i = 0; i < 1280 * 800; i++)
+    {
+        uint32_t a = reference[i], b = pixel_rgb(i);
+        unsigned delta = 0;
+        for (unsigned shift = 0; shift <= 16; shift += 8)
+        {
+            unsigned channel = (unsigned)abs((int)((a >> shift) & 255) - (int)((b >> shift) & 255));
+            if (channel > delta)
+                delta = channel;
+        }
+        if (delta > worst)
+            worst = delta;
+        if (delta > 8)
+            strong++;
+        /* A fénykép-háttér alsó sávjában nincs ikon: ott csak az RGB565
+         * kvantálás térhet el, a kép maga képpontra ugyanaz. */
+        if (i >= 700 * 1280 && delta > 8)
+            background++;
+    }
+    printf("RAW_SIDECAR strong=%u worst=%u background=%u\n", strong, worst, background);
+    fflush(stdout);
+    /* A natív méretű háttér azonos; az ikonok átméretezése a telepítéskori
+     * bilineáris szűrővel készül, ezért az ikonok képpontjai térhetnek el. */
+    assert(!background);
+    assert(strong < 1280 * 800 / 100);
+    puts("PASS: raw sidecars are generated on load, replace the PNG path and render the same frame");
 }
 
 static void test_startup_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)
@@ -2473,6 +2567,7 @@ int main(void)
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
     lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);navigation_bind_inputs();
+    test_raw_sidecars(rt, sample);
     test_rapid_paging(rt, sample);
     test_startup_navigation(rt, sample);
     assert(app_templates_select("builtin")==ESP_OK);template_prepare();

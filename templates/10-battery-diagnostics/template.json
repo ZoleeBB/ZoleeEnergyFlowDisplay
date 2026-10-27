@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "10-battery-diagnostics",
   "name": "Akku diagnosztika",
-  "version": 2,
+  "version": 3,
   "light": {
     "background": "#E3F0F8",
     "elements": [

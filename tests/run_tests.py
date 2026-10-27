@@ -36,6 +36,19 @@ with tempfile.TemporaryDirectory(prefix='battery-diagnostics-') as directory:
         'main/app_battery_diagnostics.c', '-l:libcjson.so.1', '-lm', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='template-raw-') as directory:
+    binary = str(Path(directory) / 'test')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Werror=frame-larger-than=8192', '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/stubs', '-Imain', 'tests/test_template_raw.c', 'main/app_template_raw.c',
+        '-lz', '-lm', '-o', binary,
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary, str(ROOT / 'templates/05-calm-home/day.png'),
+                    str(ROOT / 'templates/09-solar-journey/day.png'),
+                    str(ROOT / 'main/assets/png/flow_solar.png')],
+                   check=True, cwd=directory, timeout=120)
+
 with tempfile.TemporaryDirectory(prefix='zolee-backup-') as directory:
     binary = str(Path(directory) / 'test_backup')
     sd = Path(directory) / 'sd'
@@ -54,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-remote-') as directory:
                     '-Wno-misleading-indentation', '-fsanitize=undefined,address',
                     '-fno-sanitize-recover=all', '-DAPP_TEMPLATE_DESKTOP', '-Isimulator/compat',
                     '-Itests/stubs', '-Imain', 'tests/test_template_remote.c',
-                    'main/app_template_remote.c', 'main/app_templates.c', 'main/app_template_zip.c',
+                    'main/app_template_remote.c', 'main/app_templates.c', 'main/app_template_raw.c', 'main/app_template_zip.c',
                     'main/app_ringtone_wav.c', 'main/app_ota_release.c', '-lz', '-lm',
                     '-l:libcjson.so.1', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary, 'templates/10-battery-diagnostics/template.json'], cwd=ROOT,

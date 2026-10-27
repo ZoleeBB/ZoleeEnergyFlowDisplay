@@ -34,7 +34,8 @@ def package_existing_template(folder, output):
         raise ValueError(f'{folder.name}: missing PNGs {sorted(refs-present)}; unused PNGs {sorted(present-refs)}')
     with zipfile.ZipFile(output/(folder.name+'.zip'), 'w', zipfile.ZIP_DEFLATED) as archive:
         for file in sorted(folder.iterdir()):
-            if file.is_file():
+            # A .raw segédfájlok az eszközön, telepítéskor készülnek el.
+            if file.is_file() and file.suffix != '.raw':
                 archive.write(file, file.name)
     print(folder.name, 'light/dark:',
           len(document['light']['elements']), len(document['dark']['elements']))

@@ -1,6 +1,7 @@
 /* Az app_ui.c része: ugyanazok az adatok, formázók és LVGL-lock szabályok.
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
+#include "app_template_raw.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
@@ -19,6 +20,8 @@ static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return s_cfg.cardless_slave ? 1 : template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
+/* Előre dekódolt, már a megjelenítési méretre hozott képek az SD-ről. */
+static lv_image_dsc_t template_raw_images[32];
 static bool template_enter_transition;
 static bool template_loading_requested;
 static bool template_waiting_for_load;
@@ -66,11 +69,23 @@ static const lv_image_dsc_t *template_raster(unsigned asset,int w,int h){
     return &r->image;
 }
 #endif
+/* Az adott képhez és mérethez tartozó előre dekódolt kép, ha van. */
+static const lv_image_dsc_t *template_raw_image(unsigned asset,int w,int h){
+    for(unsigned i=0;i<template_view.raw_count;i++){
+        const app_template_rawimg_t *raw=&template_view.raws[i];
+        if(raw->asset==asset&&raw->width==(unsigned)w&&raw->height==(unsigned)h&&raw->bytes)
+            return &template_raw_images[i];
+    }
+    return NULL;
+}
 static void template_image(lv_obj_t *obj,const char *file,int w,int h){
     for(unsigned i=0;i<template_view.asset_count;i++)if(!strcmp(file,template_view.assets[i].name)){
         const lv_image_dsc_t *image=&template_images[i];bool native=false;
+        /* Dekódolás és méretezés nélkül: a telepítéskor elkészített segédfájl. */
+        const lv_image_dsc_t *ready=template_raw_image(i,w,h);
+        if(ready){image=ready;native=true;}
 #if LV_USE_SNAPSHOT
-        if((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height){
+        if(!native&&((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height)){
             const lv_image_dsc_t *r=template_raster(i,w,h);if(r){image=r;native=true;}
         }
 #endif
@@ -443,6 +458,7 @@ static void template_release_cache(void){
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
 #endif
     for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);
+    for(unsigned i=0;i<template_view.raw_count;i++)lv_image_cache_drop(&template_raw_images[i]);
 }
 /*
  * Témaváltás fázisidői. Az asztali mérés (ZOLEE_THEME_SWITCH_BENCH) nem mutatja
@@ -631,6 +647,18 @@ static void template_apply(void){
     for(unsigned i=0;i<template_view.asset_count;i++){
         app_template_asset_t *a=&template_view.assets[i];
         template_images[i]=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RAW_ALPHA,.w=a->width,.h=a->height},.data_size=a->size,.data=a->bytes};
+    }
+    memset(template_raw_images,0,sizeof(template_raw_images));
+    for(unsigned i=0;i<template_view.raw_count;i++){
+        const app_template_rawimg_t *raw=&template_view.raws[i];
+        /* RGB565A8: a színsík után közvetlenül az alfa sík következik. */
+        size_t pixels=(size_t)raw->stride*raw->height;
+        if(raw->format==APP_TEMPLATE_RAW_RGB565A8)pixels+=(size_t)raw->width*raw->height;
+        template_raw_images[i]=(lv_image_dsc_t){
+            .header={.magic=LV_IMAGE_HEADER_MAGIC,
+                     .cf=raw->format==APP_TEMPLATE_RAW_RGB565A8?LV_COLOR_FORMAT_RGB565A8:LV_COLOR_FORMAT_RGB565,
+                     .w=raw->width,.h=raw->height,.stride=raw->stride},
+            .data_size=(uint32_t)pixels,.data=raw->bytes+APP_TEMPLATE_RAW_HEADER};
     }
     template_switch.apply_us+=esp_timer_get_time()-apply_started;
     snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);

@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 9,
+  "version": 10,
   "light": {
     "home_hotspot": {
       "x": 1130,

@@ -178,6 +178,15 @@ sémaellenőrzése és a betöltött PNG-k chunk-CRC-je fut, ismételt kitömör
 az előnézetek beolvasása nélkül. Sérült képnél ugyanúgy a Rendszer nézet jelenik
 meg. Részletek: [teljesítmény](performance.md#gyorsabb-témaváltás--sd-olvasás-és-ismételt-validálás).
 
+### Előre dekódolt kép-segédfájlok
+
+A telepítés a csomag mellé `<alap>-<szélesség>x<magasság>.raw` fájlokat készít a
+jelenetekben szereplő minden kép-változathoz. Ezek nem részei a ZIP-nek, nem
+számítanak a 32 képes és az 5 MiB-os kódolt keretbe, és a csomag törlésével
+együtt eltűnnek. A kijelző ezekből dekódolás és méretezés nélkül dolgozik, így a
+témaváltás érezhetően gyorsabb; hiányzó vagy sérült segédfájlnál minden a
+megszokott PNG-úton fut tovább. Részletek: [teljesítmény](performance.md).
+
 Csak Stored/Deflate ZIP támogatott. Titkosított, többkötetes, ZIP64, symlink,
 alkönyvtáras, ismétlődő fájlnevű, sérült CRC-jű és könyvtárból kilépő útvonalat
 tartalmazó ZIP elutasítva. Nincs JavaScript/Lua, tetszőleges fájlelérés vagy

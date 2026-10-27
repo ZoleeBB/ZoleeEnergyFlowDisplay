@@ -55,6 +55,7 @@ idf_component_register(
         "app_template_zip.c"
         "app_template_remote.c"
         "app_template_update.c"
+        "app_template_raw.c"
         "app_ringtone_zip.c"
         "fonts/app_font_numbers_48.c"
         "fonts/app_font_numbers_96.c"

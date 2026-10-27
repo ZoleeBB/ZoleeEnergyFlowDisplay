@@ -21,17 +21,31 @@ typedef struct
 typedef struct
 {
     char name[65];
-    uint8_t *bytes;
+    uint8_t *bytes;   /* A PNG tartalma; NULL, ha csak segédfájlokat töltöttünk be. */
     size_t size;
     unsigned width, height;
 } app_template_asset_t;
+/*
+ * Előre dekódolt (és a megjelenítési méretre hozott) kép az SD-ről: a
+ * témaváltáskor sem PNG-dekódolás, sem LVGL-méretezés nem kell hozzá.
+ * Lásd app_template_raw.h.
+ */
+typedef struct
+{
+    uint8_t *bytes;        /* A teljes segédfájl (fejléccel). */
+    size_t size;
+    uint16_t width, height, stride;
+    uint8_t asset;         /* Index az assets tömbben. */
+    uint8_t format;        /* APP_TEMPLATE_RAW_RGB565 vagy RGB565A8. */
+} app_template_rawimg_t;
 /* A UI tulajdona; a webszál soha nem módosítja ezt a pillanatképet. */
 typedef struct
 {
     char id[33];
     cJSON *document;
     app_template_asset_t assets[32];
-    unsigned asset_count;
+    app_template_rawimg_t raws[32];
+    unsigned asset_count, raw_count;
     unsigned generation, catalogue_count, catalogue_index;
 } app_template_view_t;
 
