@@ -1767,11 +1767,15 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
     }
 }
 
+/* A témaváltás fázisidőit az app_template_ui.inc összegzi. */
+static void template_switch_frame_presented(int64_t now);
+
 static void initial_refresh_report(lv_event_t *event)
 {
     static bool reported;
     (void)event;
     if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
+    else template_switch_frame_presented(esp_timer_get_time());
     if (!reported)
     {
         reported = true;

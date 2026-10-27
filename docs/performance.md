@@ -10,6 +10,29 @@ Az [Espressif GUI útmutatója](https://docs.espressif.com/projects/esp-techpedi
 
 A beépített témák háttere natív 1280×800 px. Az Energiautak, Műszerfal és Energiafőkönyv téma korábban 1024×640-es háttérrel érkezett, ezért belépéskor teljes képernyős `lv_snapshot` méretezés futott: a desktop mérésben (RGB565, `ZOLEE_THEME_SWITCH_BENCH=1`) ez 43–75 ms építési időt jelentett a többi téma ~4 ms-ával szemben. A natív képekkel a teljes témaváltás 73→51 ms (Energiautak), 92→41 ms (Műszerfal) és 50→49 ms (Energiafőkönyv); a kép a felső 797 sorban képpontra azonos a korábbival, csak az alsó két sor szélmintavételezése tér el. A natív háttereket a `ZOLEE_EXPORT_SCALED_BACKGROUNDS=<mappa>` preview-mód és a `tools/prepare_native_backgrounds.py` állítja elő a futásidejű raszterből. Saját témához is natív méretű hátteret ajánlunk.
 
+### Témaváltás fázisidői a valódi panelen
+
+Az asztali mérés (`ZOLEE_THEME_SWITCH_BENCH=1`) a gyors SSD és a desktop CPU
+miatt nem mutatja meg a tényleges SD- és dekódolási időt, ezért minden
+témaváltás végén a kijelző egyetlen összegző sort ír a soros naplóba és a webes
+eseménynaplóba (Kezdőlap → eseménynapló):
+
+```
+Témaváltás 09-solar-journey: kép 95, SD 420, csere 12, felépítés 60, 1. képkocka 380, összesen 967 ms
+```
+
+- **kép**: a betöltőképernyő megjelenítése, benne a kötelező 85 ms várakozás.
+- **SD**: a csomag beolvasása és ellenőrzése (`app_templates_load_pending`).
+- **csere**: a régi téma objektumainak és képeinek felszabadítása.
+- **felépítés**: az LVGL objektumfa összeállítása (`template_build`).
+- **1. képkocka**: a felépítés vége és az első kész frissítés között eltelt idő;
+  **ebben fut a háttér PNG-dekódolása**, ezért tipikusan ez a legnagyobb tétel.
+- **összesen**: a lapozástól az első kész képkockáig.
+
+A mérés néhány időbélyeg és váltásonként egy naplósor; a 200 ms-os frissítési
+körben nincs többletmunka. A további gyorsítás (például előre dekódolt RGB565
+háttér az SD-n) csak ezekkel a számokkal együtt érdemes.
+
 A témaváltás betöltőképernyője mögött a régi téma egyetlen objektuma sem látszik,
 ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképocka után
 elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os

@@ -62,6 +62,8 @@ static const char *english_format(const char *format)
         {"MQTT transport hiba: %s, socket=%d", "MQTT transport error: %s, socket=%d"},
         {"NTP újraszinkron sikertelen; belső óra tovább fut.",
          "NTP resynchronization failed; internal clock continues."},
+        {"Témaváltás %s: kép %lld, SD %lld, csere %lld, felépítés %lld, 1. képkocka %lld, összesen %lld ms",
+         "Theme switch %s: frame %lld, SD %lld, swap %lld, build %lld, 1st frame %lld, total %lld ms"},
     };
     for (size_t i = 0; i < sizeof(messages) / sizeof(messages[0]); i++)
         if (strcmp(format, messages[i].hu) == 0)

@@ -1501,6 +1501,19 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
     save_frame("rapid-paging");
     test_scene_images(sample.night_mode);
 
+    /* A váltás fázisidői kimérve: az eszközön ebből derül ki, hol megy el az idő. */
+    /* Asztalon az óra csak a kirajzoláskor lép, ezért a fázisok nullák lehetnek;
+     * a bekötést és a sorrendet ellenőrizzük, nem a hosszukat. */
+    assert(template_switch.started_us && !strcmp(template_switch.id, template_view.id));
+    assert(template_switch.loading_us >= 0 && template_switch.load_us >= 0);
+    assert(template_switch.build_us >= 0 && template_switch.apply_us >= 0);
+    assert(template_switch.build_done_us >= template_switch.started_us);
+    assert(!template_switch.frame_pending);
+    printf("SWITCH_PHASES %s loading=%lld us load=%lld us apply=%lld us build=%lld us\n",
+           template_switch.id, (long long)template_switch.loading_us,
+           (long long)template_switch.load_us, (long long)template_switch.apply_us,
+           (long long)template_switch.build_us);
+
     /* Elakadt betöltés: betöltőképernyő, amelyen semmi nem mozdul tovább.
      * A felépítés ilyenkor minden körben visszatér, a navigáció halott. */
     assert(app_templates_select("10-battery-diagnostics") == ESP_OK);

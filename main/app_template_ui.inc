@@ -444,6 +444,55 @@ static void template_release_cache(void){
 #endif
     for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);
 }
+/*
+ * Témaváltás fázisidői. Az asztali mérés (ZOLEE_THEME_SWITCH_BENCH) nem mutatja
+ * meg a valódi SD- és dekódolási időt, ezért a kijelző váltásonként egyetlen
+ * naplósorban összegzi: betöltőkép (benne a kötelező 85 ms), SD-olvasás és
+ * ellenőrzés, régi téma cseréje, LVGL-felépítés és az első kész képkocka
+ * (ebben fut a háttér PNG-dekódolása). Csak néhány időbélyeg és egy log sor
+ * váltásonként, a 200 ms-os körben nincs többletmunka.
+ */
+typedef struct
+{
+    bool active, frame_pending;
+    int64_t started_us, loading_us, load_us, apply_us, build_us, build_done_us;
+    char id[33];
+} template_switch_timing_t;
+static template_switch_timing_t template_switch;
+static void template_switch_begin(void)
+{
+    if (template_switch.active)
+        return;
+    memset(&template_switch, 0, sizeof(template_switch));
+    template_switch.active = true;
+    template_switch.started_us = esp_timer_get_time();
+}
+/* A kész képkockát az LVGL frissítés-vége eseménye jelzi (app_ui.c). */
+static void template_switch_frame_presented(int64_t now)
+{
+    if (!template_switch.active || !template_switch.frame_pending)
+        return;
+    int64_t first_frame = now - template_switch.build_done_us;
+    if (first_frame < 0)
+        first_frame = 0;
+    long long loading_ms = template_switch.loading_us / 1000;
+    long long load_ms = template_switch.load_us / 1000;
+    long long apply_ms = template_switch.apply_us / 1000;
+    long long build_ms = template_switch.build_us / 1000;
+    long long frame_ms = first_frame / 1000;
+    long long total_ms = (now - template_switch.started_us) / 1000;
+    ESP_LOGI("app_ui",
+             "Témaváltás %s: betöltőkép %lld ms, SD %lld ms, csere %lld ms, "
+             "felépítés %lld ms, első képkocka %lld ms, összesen %lld ms",
+             template_switch.id, loading_ms, load_ms, apply_ms, build_ms, frame_ms, total_ms);
+    /* Soros konzol nélkül is olvasható: a webes eseménynaplóba is bekerül. */
+    app_events_add(APP_EVENT_INFO,
+                   "Témaváltás %s: kép %lld, SD %lld, csere %lld, felépítés %lld, "
+                   "1. képkocka %lld, összesen %lld ms",
+                   template_switch.id, loading_ms, load_ms, apply_ms, build_ms, frame_ms, total_ms);
+    template_switch.frame_pending = false;
+    template_switch.active = false;
+}
 /* A következő képkockára az SD és képfeldolgozás előtt fekete oldal kerül. */
 static void template_loading_screen(void){
     clear();
@@ -533,6 +582,8 @@ static bool template_loading_frame(void){
     template_step_retry();
     template_loading_watchdog();
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
+    template_switch_begin();
+    int64_t loading_started=esp_timer_get_time();
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
     if(s_view!=VIEW_THEME_LOADING){
@@ -550,7 +601,11 @@ static bool template_loading_frame(void){
         template_built_valid=false;
     }
     bsp_display_unlock();
-    if (!template_loading_wait()) return false;
+    if (!template_loading_wait()){
+        template_switch.loading_us+=esp_timer_get_time()-loading_started;
+        return false;
+    }
+    template_switch.loading_us+=esp_timer_get_time()-loading_started;
     template_loading_requested=false;
     template_waiting_for_load=app_templates_has_pending(template_pending.generation);
     return true;
@@ -559,11 +614,16 @@ static void template_prepare(void){
     if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
-    if(app_templates_load_pending(&template_pending))template_waiting_for_load=false;
+    int64_t load_started=esp_timer_get_time();
+    if(app_templates_load_pending(&template_pending)){
+        template_waiting_for_load=false;
+        template_switch.load_us+=esp_timer_get_time()-load_started;
+    }
 }
 static void template_apply(void){
     if (s_cfg.cardless_slave) return;
     if(template_pending.generation==template_view.generation)return;
+    int64_t apply_started=esp_timer_get_time();
     template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
     template_built_valid=false;
@@ -572,8 +632,11 @@ static void template_apply(void){
         app_template_asset_t *a=&template_view.assets[i];
         template_images[i]=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RAW_ALPHA,.w=a->width,.h=a->height},.data_size=a->size,.data=a->bytes};
     }
+    template_switch.apply_us+=esp_timer_get_time()-apply_started;
+    snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);
 }
 static void template_build(bool night){
+    int64_t build_started=esp_timer_get_time();
     clear();template_flow_release_paths();template_node_count=0;template_chart_time=0;
     /*
      * Nappali/éjszakai váltáskor az előző változat dekódolt képei (1280x800
@@ -827,6 +890,13 @@ static void template_build(bool night){
         lv_anim_start(&anim);
     }
     template_enter_transition=false;
+    if(template_switch.active&&!template_switch.build_done_us){
+        template_switch.build_us+=esp_timer_get_time()-build_started;
+        template_switch.build_done_us=esp_timer_get_time();
+        template_switch.frame_pending=true;
+        if(!template_switch.id[0])
+            snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);
+    }
 }
 static void template_gauge_value(void *object,int32_t value){
     lv_arc_set_value(object,value);
