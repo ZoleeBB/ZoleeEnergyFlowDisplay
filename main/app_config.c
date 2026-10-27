@@ -463,9 +463,7 @@ static bool parse_config(
         if (!read_u32(display, "day_brightness", &day, 1, 100, false, error, error_len) ||
             !read_u32(display, "night_brightness", &night, 1, 100, false, error, error_len) ||
             !read_u32(display, "rotation_degrees", &rotation, 90, 270, false, error, error_len) ||
-            !read_u32(display, "touch_wake_seconds", &touch_wake, 5, 3600, false, error, error_len) ||
-            !read_bool01(display, "jpeg_backgrounds", &cfg->display.jpeg_backgrounds, false, error,
-                         error_len)) {
+            !read_u32(display, "touch_wake_seconds", &touch_wake, 5, 3600, false, error, error_len)) {
             return false;
         }
         if (rotation != 90 && rotation != 270) {

@@ -178,22 +178,6 @@ sémaellenőrzése és a betöltött PNG-k chunk-CRC-je fut, ismételt kitömör
 az előnézetek beolvasása nélkül. Sérült képnél ugyanúgy a Rendszer nézet jelenik
 meg. Részletek: [teljesítmény](performance.md#gyorsabb-témaváltás--sd-olvasás-és-ismételt-validálás).
 
-### Kísérleti JPEG háttér (opcionális)
-
-Az átlátszatlan, teljes képernyős háttér mellé a csomag tartalmazhat azonos
-nevű `.jpg` kísérőt (például `day.png` mellett `day.jpg`). A `template.json`
-változatlanul a PNG-re hivatkozik. A firmware csak akkor nyúl a JPEG-hez, ha a
-beállításokban a **Hardveres JPEG háttérdekódolás** (`display.jpeg_backgrounds`)
-be van kapcsolva, a JPEG mérete pontosan egyezik a PNG-ével, és az ESP32-P4
-hardveres JPEG-motorja szabad. Bármelyik feltétel hiányában — és régebbi
-firmware-en — a megszokott PNG-út fut, így a funkció egy kattintással
-visszavonható. A kísérő JPEG a csomag 5 MiB-os kódolt keretébe számít bele, de a
-12 MiB-os futásidejű képmemóriába nem: a kibontott kép RGB565, azaz feleakkora,
-mint a PNG ARGB8888 változata. Alfa csatornás (ráolvadó) háttérhez nem
-használható. A gyári csomagokban a `tools/prepare_jpeg_backgrounds.py` állítja
-elő őket; ahol a méretkeret nem engedi (például 01 Élő otthon), ott nem készül
-kísérő.
-
 Csak Stored/Deflate ZIP támogatott. Titkosított, többkötetes, ZIP64, symlink,
 alkönyvtáras, ismétlődő fájlnevű, sérült CRC-jű és könyvtárból kilépő útvonalat
 tartalmazó ZIP elutasítva. Nincs JavaScript/Lua, tetszőleges fájlelérés vagy

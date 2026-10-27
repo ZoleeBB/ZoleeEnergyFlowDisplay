@@ -362,73 +362,6 @@ static bool preview_asset(const char *name)
 {
     return !strcmp(name, "preview-light.png") || !strcmp(name, "preview-dark.png");
 }
-/*
- * Opcionális JPEG háttér (#17): a sablonban csak a PNG szerepel, mellette
- * állhat azonos nevű `.jpg`. A firmware kizárólag bekapcsolt
- * `display.jpeg_backgrounds` mellett használja, ezért a csomag JPEG nélkül
- * és régebbi firmware-rel is változatlanul működik.
- */
-/* Kikapcsolt kísérleti beállításnál a JPEG kísérőket be sem olvassuk. */
-static bool s_jpeg_backgrounds;
-void app_templates_set_jpeg_backgrounds(bool enabled)
-{
-    s_jpeg_backgrounds = enabled;
-}
-static bool jpeg_sibling(const char *name, char png[66])
-{
-    size_t length = name ? strlen(name) : 0;
-    if (length < 5 || length > 64 || strcmp(name + length - 4, ".jpg"))
-        return false;
-    char candidate[66];
-    snprintf(candidate, sizeof(candidate), "%.*s.png", (int)(length - 4), name);
-    if (!app_templates_safe_asset(candidate) || preview_asset(candidate))
-        return false;
-    if (png)
-        snprintf(png, 66, "%s", candidate);
-    return true;
-}
-bool app_templates_safe_jpeg(const char *path)
-{
-    return jpeg_sibling(path, NULL);
-}
-/* Baseline/progresszív JPEG mérete a SOF jelzőből; a tartalmat a hardver bontja ki. */
-static bool jpeg_size(const unsigned char *p, size_t size, unsigned *w, unsigned *h)
-{
-    if (size < 4 || p[0] != 0xFF || p[1] != 0xD8)
-        return false;
-    for (size_t i = 2; i + 9 < size;)
-    {
-        if (p[i] != 0xFF)
-            return false;
-        unsigned char marker = p[i + 1];
-        if (marker == 0xFF)
-        {
-            i++;
-            continue;
-        }
-        if (marker == 0xD8 || marker == 0xD9 || (marker >= 0xD0 && marker <= 0xD7))
-        {
-            i += 2;
-            continue;
-        }
-        size_t length = ((size_t)p[i + 2] << 8) | p[i + 3];
-        if (length < 2 || i + 2 + length > size)
-            return false;
-        /* SOF0..SOF15, a DHT/DAC/RST jelzők kivételével. */
-        if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
-        {
-            if (length < 8)
-                return false;
-            *h = ((unsigned)p[i + 5] << 8) | p[i + 6];
-            *w = ((unsigned)p[i + 7] << 8) | p[i + 8];
-            return *w && *h;
-        }
-        if (marker == 0xDA)
-            return false; /* A képadat előtt mindig van SOF. */
-        i += 2 + length;
-    }
-    return false;
-}
 static bool validate_scene(const cJSON *scene)
 {
     static const char *const types[] = {"box",
@@ -853,30 +786,6 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") ||
             !strcmp(entry->d_name, "template.json"))
             continue;
-        char sibling[66];
-        if (!resources && jpeg_sibling(entry->d_name, sibling))
-        {
-            /* A JPEG csak kísérő: a PNG-nek is meg kell lennie, és a méretek
-             * egyezését a dekódoláskor is ellenőrizzük. */
-            char png_path[256];
-            struct stat png_stat;
-            path_join(png_path, directory, sibling);
-            path_join(path, directory, entry->d_name);
-            unsigned jw = 0, jh = 0;
-            data = read_file(path, APP_TEMPLATE_PNG_MAX, &n);
-            if (stat(png_path, &png_stat) || !S_ISREG(png_stat.st_mode) || !data ||
-                !jpeg_size(data, n, &jw, &jh) || jw > 1280 || jh > 800)
-                valid = false;
-            free(data);
-            data = NULL;
-            encoded += n;
-            if (!valid || encoded > APP_TEMPLATE_ENCODED_MAX)
-            {
-                valid = false;
-                break;
-            }
-            continue;
-        }
         if (!app_templates_safe_asset(entry->d_name) || ++assets > (resources ? 72U : 32U))
         {
             valid = false;
@@ -1466,8 +1375,7 @@ bool app_templates_load_pending(app_template_view_t *out)
         ok = d != NULL;
         while (d && (e = readdir(d)))
         {
-            bool jpeg = s_jpeg_backgrounds && jpeg_sibling(e->d_name, NULL);
-            if ((!jpeg && !app_templates_safe_asset(e->d_name)) || preview_asset(e->d_name))
+            if (!app_templates_safe_asset(e->d_name) || preview_asset(e->d_name))
                 continue;
             if (next->asset_count >= 32)
             {
@@ -1482,19 +1390,6 @@ bool app_templates_load_pending(app_template_view_t *out)
             {
                 ok = false;
                 break;
-            }
-            if (jpeg)
-            {
-                /* A JPEG tartalmát a hardveres dekóder ellenőrzi; itt csak a
-                 * mérethez kell a fejléc. Hibás fejlécnél a kísérő kimarad,
-                 * a PNG-út változatlanul működik. */
-                if (!jpeg_size(a->bytes, a->size, &a->width, &a->height))
-                {
-                    free(a->bytes);
-                    next->asset_count--;
-                    continue;
-                }
-                continue;
             }
             if (trusted)
             {

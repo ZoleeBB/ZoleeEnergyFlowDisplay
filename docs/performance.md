@@ -12,20 +12,6 @@ A beépített témák háttere natív 1280×800 px. Az Energiautak, Műszerfal �
 
 Nappali/éjszakai váltáskor az előző változat dekódolt képei (háttérképenként 1280×800 ARGB8888 = 4 MiB) elfoglalnák az új háttér dekódolásához szükséges PSRAM-ot, és sikertelen dekódolásnál a háttér elmaradt. A felépítés ezért a törölt objektumok után, az új jelenet előtt üríti a kép- és raszter-gyorsítótárat; az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás. A preview minden témánál ellenőrzi, hogy a váltás után a jelenet képei a saját változatukra mutatnak, és a teljes képernyős háttér valóban dekódolt képpontokat ad.
 
-### Kísérleti: hardveres JPEG-háttér
-
-Az ESP32-P4 JPEG-motorját eddig csak a kaputelefon használta. A `display.jpeg_backgrounds`
-beállítással az átlátszatlan, teljes képernyős témahátteret a hardver bontja ki a
-lodepng helyett, és a kész kép RGB565, azaz 1280×800-nál 2 MiB a PNG 4 MiB-os
-ARGB8888 változata helyett. A motort rövid életű dekóderpéldány foglalja le, így a
-kaputelefon videója elől nem veszi el; ha a hardver foglalt, a méret nem egyezik,
-vagy a dekódolás hibára fut, a megszokott PNG-út marad. A kísérő JPEG veszteséges,
-ezért nincs képpont-azonosság: a gyári csomagok 4:4:4-es, 92-es minőségű képet
-kapnak (átlagos csatornahiba 2–3 egység, a panel RGB565 kvantálása alatt). A
-beállítás alapból kikapcsolt, és kikapcsolva a kísérő fájlok be sem töltődnek,
-ezért a funkció egy kattintással visszavonható. A tényleges nyereséget fizikai
-panelen kell megmérni.
-
 A 96 elemű sablon-geometriai tábla CPU által használt adat, nem DMA-puffer. Az ESP-IDF [külső BSS támogatásával](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-guides/external-ram.html) PSRAM-ba kerül. A desktop mérésben mérete 234 240 bájt; a célplatform pontos mérete a firmware linker-térképéből ellenőrizhető. A 32 KiB belső memória-tartalék megmarad, nem növeljük a korábban indulási abortot okozó 64 KiB-ra.
 
 Az ESP-Hosted [#144 hibajegye](https://github.com/espressif/esp-hosted-mcu/issues/144) ugyanezt az `sdio_rx_get_buffer` és TX foglalási hibát tárgyalja: az összes szabad heap mellett a DMA-képes memória fragmentációja is számít. A driver buildbeli másolatában egyetlen, statikus, 64 bájtra igazított 1 KiB belső DMA-ablak fogadja a streaming adatot; a teljes stream és a csomagmásolatok PSRAM-ban maradnak. Így a 3–6 KiB-os és nagyobb RX burstökhöz nem kell új összefüggő belső DMA-blokkot találni. A [CMD53 FIFO protokoll](https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/api-reference/protocols/esp_sdio_slave_protocol.html) szerint a cím az adott részolvasás tényleges adathosszát kódolja; a végső blokk kitöltését nem másoljuk a payloadba. PSRAM-foglalási hibánál a FIFO kiürül, az adatot eldobjuk, a következő stream fogadható. Az RX/TX sorok egyenként 8 eleműek a korábbi 20 helyett; ez csökkenti az egyidejű memóriaterhelést, nagy hálózati burstnél visszanyomást/eldobást okozhat.

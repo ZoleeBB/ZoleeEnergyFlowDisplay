@@ -96,8 +96,7 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
             goto done;
         names[i][n] = 0;
         if (strlen(names[i]) != n ||
-            (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i]) &&
-             !app_templates_safe_jpeg(names[i])))
+            (strcmp(names[i], "template.json") && !app_templates_safe_asset(names[i])))
             goto done;
         for (unsigned j = 0; j < i; j++)
             if (!strcmp(names[i], names[j]))

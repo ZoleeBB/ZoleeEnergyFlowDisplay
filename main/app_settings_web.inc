@@ -44,7 +44,6 @@ static cJSON *settings_json(const app_config_t *v)
     NUM(display,"night_brightness",v->display.night_brightness);
     NUM(display,"rotation_degrees",v->display.rotation_degrees);
     NUM(display,"touch_wake_seconds",v->display.touch_wake_seconds);
-    NUM(display,"jpeg_backgrounds",v->display.jpeg_backgrounds?1:0);
     OBJ(statistics);
     NUM(statistics,"save_interval_minutes",v->statistics.save_interval_minutes);
     NUM(statistics,"max_integration_gap_seconds",v->statistics.max_integration_gap_seconds);
