@@ -53,6 +53,13 @@ static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* pixels)
     (void)pixels;
     lv_display_flush_ready(display);
 }
+static unsigned invalidations;
+static void count_invalidation(lv_event_t* event)
+{
+    (void)event;
+    invalidations++;
+}
+
 int main(void)
 {
     lv_init();
@@ -93,7 +100,16 @@ int main(void)
         lv_obj_send_event(gate, LV_EVENT_CLICKED, NULL);
         lv_obj_send_event(gate, LV_EVENT_CLICKED, NULL);
         assert(audio_requests == cycle && commands == cycle);
+        /* A kapunyitás utáni első kör jogosan visszaengedélyezi a gombot. Utána
+         * új képkocka és állapotváltozás nélkül a 33 ms-os frissítés nem rajzol újra. */
+        assert(slave_4b_intercom_update());
         lv_refr_now(display);
+        invalidations = 0;
+        lv_display_add_event_cb(display, count_invalidation, LV_EVENT_INVALIDATE_AREA, NULL);
+        for (unsigned i = 0; i < 10; i++)
+            assert(slave_4b_intercom_update());
+        lv_display_remove_event_cb_with_user_data(display, count_invalidation, NULL);
+        assert(invalidations == 0);
         fixture.ringing = false;
         assert(!slave_4b_intercom_update());
         slave_4b_intercom_prepare();
