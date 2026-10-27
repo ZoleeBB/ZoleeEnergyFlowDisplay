@@ -1401,20 +1401,21 @@ static unsigned collect_variants(const cJSON *doc, template_variant_t *out, unsi
     return total;
 }
 
-/* A segédfájl fejlécének beolvasása; a teljes ellenőrzés a betöltéskor fut. */
+/* A segédfájl fejlécének beolvasása; a teljes ellenőrzés a betöltéskor fut.
+ * Hordozható stdio: a Windowsos szimulátor is ezt fordítja. */
 static bool raw_header(const char *path, uint8_t header[APP_TEMPLATE_RAW_HEADER], size_t *size)
 {
-    int fd = open(path, O_RDONLY);
-    if (fd < 0)
-        return false;
     struct stat st;
-    bool ok = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
-              (size_t)st.st_size > APP_TEMPLATE_RAW_HEADER &&
-              (size_t)st.st_size <= APP_TEMPLATE_RAW_MAX &&
-              read(fd, header, APP_TEMPLATE_RAW_HEADER) == (ssize_t)APP_TEMPLATE_RAW_HEADER;
+    if (stat(path, &st) || !S_ISREG(st.st_mode) || (size_t)st.st_size <= APP_TEMPLATE_RAW_HEADER ||
+        (size_t)st.st_size > APP_TEMPLATE_RAW_MAX)
+        return false;
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return false;
+    bool ok = fread(header, 1, APP_TEMPLATE_RAW_HEADER, f) == APP_TEMPLATE_RAW_HEADER;
+    fclose(f);
     if (ok && size)
         *size = (size_t)st.st_size;
-    close(fd);
     return ok;
 }
 

@@ -563,6 +563,9 @@ static void template_loading_watchdog(void)
     template_waiting_for_load = false;
     template_loading_requested = true;
     template_loading_started_us = now;
+    /* Az újrakezdéssel a fázismérés is nulláról indul: különben a naplóban az
+     * összesen a korábbi, félbemaradt próbálkozások idejét is tartalmazná. */
+    memset(&template_switch, 0, sizeof(template_switch));
 }
 /* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
  * a 0.6.4-es adapter az ISR-ből ennek a tasknak küld pufferértesítést.
