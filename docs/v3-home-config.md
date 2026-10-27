@@ -207,7 +207,10 @@ A ház megérintése a fogyasztókat, lefelé húzás az Otthon-kártyákat nyit
 Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált fogyasztó / legalább egy Otthon-oldal kell.
 A jobb felső X pontosan az előző témát állítja vissza. Speciális oldalon a
 függőleges/diagnosztikagesztus nem indít másik műveletet. Otthon nézetben a jobbra/balra húzás a saját oldalai között lapoz, körbefordulással; a témaválasztás változatlan. Több oldalnál alul pontok mutatják az aktív lapot, a fejlécben annak saját címe látható. Az egyes oldalak képei
-csak aktív állapotuk alatt maradnak betöltve.
+csak aktív állapotuk alatt maradnak betöltve. Kártyalapozáskor a háttér és a logó
+már dekódolt puffere megmarad (a háttér csak a nézettől, a napszaktól és a
+csomagtól függ), csak az új lap ikonjai töltődnek be. Napszak-, nézet- vagy
+csomagváltásnál és bármilyen betöltési hibánál a teljes oldal újratöltődik.
 
 A pillanatnyi gomb egyszer küld; a kérést kapcsolatvesztés után nem ismételjük.
 A kapcsoló a visszaérkező értéket mutatja, nyugta vagy érintés nem változtatja meg

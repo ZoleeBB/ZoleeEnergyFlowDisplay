@@ -365,6 +365,8 @@ static void template_gesture(lv_event_t *event)
     }
     else
         return;
+    /* Az elfogadott navigációs kérést a runtime task azonnal feldolgozza. */
+    runtime_wake();
     /* A gesztusnak indult érintésből nem lehet vezérlőgomb-kattintás. */
     lv_indev_wait_release(input);
 }
@@ -887,10 +889,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             if(!*ts(e,"file")){
                 uint32_t disc_color=daylight?0xFFD23B:0x78BFEF;
                 bg_color_if_changed(node->obj,c(disc_color),0);
-                lv_obj_set_style_shadow_color(node->obj,c(disc_color),0);
+                shadow_color_if_changed(node->obj,c(disc_color),0);
             }
             if(node->detail){
-                lv_obj_set_style_shadow_color(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
+                shadow_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
                 border_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
                 bg_color_if_changed(node->detail,c(daylight?0xFFD23B:0x78BFEF),0);
             }
@@ -920,7 +922,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                     lv_anim_set_values(&anim,lv_arc_get_value(node->obj),target);lv_anim_set_duration(&anim,tn(e,"animate_ms",280));lv_anim_set_path_cb(&anim,lv_anim_path_ease_out);lv_anim_start(&anim);
                 }else template_gauge_value(node->obj,target);
             }
-            lv_obj_set_style_arc_color(node->obj,c(tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE))),LV_PART_INDICATOR);
+            /* A 200 ms-os frissítés változatlan színnél ne érvénytelenítse a mutatót. */
+            arc_color_if_changed(node->obj,c(tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE))),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"weather")){
             const cJSON *files=cJSON_GetObjectItem(e,"files");
@@ -928,7 +931,10 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 static const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night"};
                 template_image(node->obj,ts(files,keys[weather_kind(s)]),tn(e,"w",128),tn(e,"h",128));
             }else{
-                lv_image_set_src(node->obj,weather_asset(weather_kind(s)));lv_image_set_pivot(node->obj,0,0);
+                /* Az lv_image_set_src azonos képnél is újrarajzol (LVGL 9.5). */
+                const lv_image_dsc_t *weather=weather_asset(weather_kind(s));
+                if(lv_image_get_src(node->obj)!=weather)lv_image_set_src(node->obj,weather);
+                lv_image_set_pivot(node->obj,0,0);
                 lv_image_set_scale_x(node->obj,tn(e,"w",128)*256/128);lv_image_set_scale_y(node->obj,tn(e,"h",128)*256/128);
             }
         }else if(!strcmp(type,"chart")&&redraw){
@@ -1084,22 +1090,37 @@ static void template_animate(float dt){
     }
 }
 
-/* A naplópuffer rövid mutexét az LVGL-lock előtt kérjük el. */
-static void diagnostics_capture(void){
+/* A naplópuffer rövid mutexét az LVGL-lock előtt kérjük el.
+ * A pillanatképet csak a megnyitott diagnosztikai nézet használja. Zárt nézetnél
+ * nem kérdezzük le 200 ms-onként a heap-statisztikát (a legnagyobb szabad blokk
+ * a teljes DMA-heapet bejárja) és a Wi-Fi RSSI-t (esp_hosted RPC a C6 felé). */
+static bool s_diagnostics_captured;
+static void diagnostics_snapshot(void){
     app_diagnostics_capture(&s_diagnostics);
-    if(s_diagnostics_requested)s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
+    s_diagnostic_event_count=app_events_snapshot(s_diagnostic_events,15);
+    s_diagnostics_captured=true;
+}
+static void diagnostics_capture(void){
+    if(!s_diagnostics_requested){s_diagnostics_captured=false;return;}
+    diagnostics_snapshot();
 }
 /* Közös oldal: tömör adatok balra, a legfrissebb RAM-események jobbra. */
 static void diagnostics_close(lv_event_t *event)
 {
     (void)event;
     s_diagnostics_requested = false;
+    s_diagnostics_captured = false;
     template_loading_requested = !s_cfg.energy_flow_disabled;
     if (event) lv_event_stop_bubbling(event);
 }
 
 static void diagnostics_render(app_runtime_state_t rt)
 {
+    /* Ritka eset: a felfelé húzás a kör pillanatképe után érkezett. Ilyenkor
+     * egyszer itt kérjük le, hogy a nézet ne elavult vagy üres adattal épüljön.
+     * A következő körtől a lekérdezés ismét az LVGL-lock előtt fut. */
+    if (!s_diagnostics_captured)
+        diagnostics_snapshot();
     if (s_view != VIEW_DIAGNOSTICS)
     {
         clear();

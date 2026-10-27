@@ -29,7 +29,9 @@ Közvetlen kártyamásolás után indítsd újra az eszközt.
 A kijelzőn balra húzás a következő, jobbra húzás az előző elrendezésre lép.
 A lista körbeér; a Rendszer nézet az első, nem törölhető és nem mozgatható. A többi sablon sorrendje a webes sablonkezelőben a fel/le gombokkal módosítható; az SD-kártyán az `order.txt` őrzi a sorrendet. Nincs időzített vagy automatikus
 elrendezésváltás. A választás a `/templates/selection.txt` fájlba kerül,
-ideiglenes fájllal és biztonsági másolattal. Hiányzó/sérült kiválasztott csomagnál
+ideiglenes fájllal és biztonsági másolattal. A mentés a téma megjelenése után,
+a következő runtime-körben (kb. 200 ms-mal később) fut, így a FAT-metaadatírás
+nem késlelteti a lapozást; sikertelen írást a következő kör újrapróbál. Hiányzó/sérült kiválasztott csomagnál
 a beépített nézet jelenik meg. SD-íráshiba esetén az aktuális munkamenetben a
 választás működik, de az újraindítás utáni megőrzés nem garantálható.
 
@@ -148,7 +150,13 @@ végződéssel, legfeljebb 64 karakter.
 ZIP maximum 8 MiB, kibontva maximum 8 MiB; képfájl maximum 2,5 MiB,
 összes kódolt kép maximum 5 MiB, számított futásidejű RGBA képmemória összesen 12 MiB (a két webes előnézet nélkül).
 PNG: maximum 1280×800, 8 bites RGB/RGBA, nem interlace. A PNG-k teljes CRC- és
-zlib-dekódolási ellenőrzést kapnak, nem csak a kiterjesztést vizsgáljuk.
+zlib-dekódolási ellenőrzést kapnak, nem csak a kiterjesztést vizsgáljuk. Ez
+telepítéskor, induláskor és a csomagkönyvtár bármilyen változása után fut. A
+teljesen ellenőrzött könyvtár ujjlenyomatát (fájlnév, méret, módosítási idő,
+típus) a firmware megjegyzi: lapozáskor változatlan csomagnál a `template.json`
+sémaellenőrzése és a betöltött PNG-k chunk-CRC-je fut, ismételt kitömörítés és
+az előnézetek beolvasása nélkül. Sérült képnél ugyanúgy a Rendszer nézet jelenik
+meg. Részletek: [teljesítmény](performance.md#gyorsabb-témaváltás--sd-olvasás-és-ismételt-validálás).
 
 Csak Stored/Deflate ZIP támogatott. Titkosított, többkötetes, ZIP64, symlink,
 alkönyvtáras, ismétlődő fájlnevű, sérült CRC-jű és könyvtárból kilépő útvonalat

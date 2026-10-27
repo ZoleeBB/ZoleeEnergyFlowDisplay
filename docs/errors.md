@@ -170,6 +170,22 @@ távolságküszöb megmarad. Az új indulási regresszió minden témán Otthon-
 nélkül is ellenőriz lassú húzásokat. A tényleges paneles javulás és terhelés
 újra ellenőrizendő.
 
+## Lassú téma- vagy Otthon-oldalváltás
+
+A fő okok ezek voltak:
+- a `fread()` szektoronkénti SD-olvasása,
+- a PNG-k kétszeri beolvasása és kitömörítése lapozáskor,
+- az Otthon-háttér újraolvasása minden kártyalapnál,
+- az azonos értékkel újraírt LVGL-feliratok, -képek és -színek okozta
+  folyamatos újrarajzolás (különösen a 4B Slave 33 ms-os frissítésén),
+- a zárt diagnosztikai nézethez is 200 ms-onként futó heap- és RSSI-lekérdezés.
+
+Mind javítva van; a mérési módszer és a megmaradt lehetőségek a
+[teljesítményleírásban](performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave)
+szerepelnek, a fejlesztői szabályok az [AGENTS.md](../AGENTS.md) fájlban. Ha újra
+lassulást látsz, először azt nézd meg, hogy egy új kód nem ír-e minden ciklusban
+változatlan LVGL-értéket, és nem olvas-e újra változatlan SD-fájlt.
+
 ## Csengőhangfeltöltés és SD-foglaltság
 
 A böngészős hangminta a számítógép/telefon hangszóróján szól. Sikeres előnézet

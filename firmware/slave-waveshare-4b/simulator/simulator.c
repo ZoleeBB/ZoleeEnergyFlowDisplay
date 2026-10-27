@@ -84,6 +84,13 @@ static void step(unsigned ms)
     lv_refr_now(display);
 }
 
+static unsigned invalidations;
+static void count_invalidation(lv_event_t *event)
+{
+    (void)event;
+    invalidations++;
+}
+
 static int save(const char *path)
 {
     FILE *file = fopen(path, "wb");
@@ -219,6 +226,14 @@ static int self_test(void)
     step(200);
     CHECK(hash() == disconnected);
     CHECK(save("slave-4b-disconnected.ppm") == 0);
+    /* Változatlan adatnál a 33 ms-os refresh nem érvényteleníthet: a feliratok,
+     * a képek és a színek csak tényleges változáskor íródnak újra. */
+    invalidations = 0;
+    lv_display_add_event_cb(display, count_invalidation, LV_EVENT_INVALIDATE_AREA, NULL);
+    for (unsigned i = 0; i < 30; i++)
+        step(33);
+    lv_display_remove_event_cb_with_user_data(display, count_invalidation, NULL);
+    CHECK(invalidations == 0 && hash() == disconnected);
     scene(false);
     pairing = (app_ble_pairing_status_t){.pin_required = true, .token = 77, .seconds = 60};
     step(33);

@@ -34,7 +34,17 @@ int main(int argc, char **argv)
     assert(app_templates_home_load_for(icons,3,true,true,view));
     assert(!strcmp(view->assets[0].name,"consumers-dark.png"));
     app_templates_view_free(view);
+    /* Kártyalapozás: csak az ikonok, üres háttér- és logóhellyel. */
+    assert(app_templates_home_load_icons(icons,3,view));
+    assert(view->asset_count==4&&view->generation==generation);
+    assert(!view->assets[0].bytes&&!view->assets[1].bytes&&!view->assets[0].name[0]);
+    assert(!strcmp(view->assets[2].name,"icon-washing-machine.png")&&view->assets[2].width==96);
+    assert(!strcmp(view->assets[3].name,"icon-refrigerator.png"));
+    app_templates_view_free(view);
+    assert(app_templates_home_load_icons(NULL,0,view)&&view->asset_count==2);
+    app_templates_view_free(view);
     const char *bad[]={"../unsafe"};
+    assert(!app_templates_home_load_icons(bad,1,view)&&!view->asset_count);
     assert(!app_templates_home_load(bad,1,false,view)&&!view->asset_count);
     for(int i=3;i<argc-1;i++) {
         assert(app_templates_install(argv[i],error)!=ESP_OK);

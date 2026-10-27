@@ -49,7 +49,8 @@ if(ZOLEE_PREVIEW_ASAN)
     endif()
 endif()
 target_link_libraries(ui_preview PRIVATE lvgl m z -l:libcjson.so.1)
-target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for")
+target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for"
+    "-Wl,--wrap=app_templates_home_load_icons")
 
 if(UNIX)
     add_executable(slave_intercom_preview slave_intercom_preview.c

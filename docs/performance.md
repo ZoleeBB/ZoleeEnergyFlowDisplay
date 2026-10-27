@@ -143,3 +143,105 @@ kér új frame-et. A táblázat az LVGL által újrarajzolt/forgatásra leadott 
 számolja; a baseline 2 048 000 bájtos másolatát, cache-visszaírást, panelátadást
 és hálózati munkát nem. Ez ezért nem azonos a teljes CPU- vagy memóriaforgalom
 csökkenésével. A készüléken elért FPS/inputkésés továbbra is visszamérendő.
+
+## Gyorsabb témaváltás – SD-olvasás és ismételt validálás
+
+A balra/jobbra lapozás eddig minden váltáskor kétszer olvasta be a sablon
+PNG-it: először a teljes validálás (az előnézetekkel együtt, CRC és teljes
+zlib-kitömörítés), majd a betöltés. A `read_file()` `fread()`-et használt; a
+FATFS `CONFIG_FATFS_VFS_FSTAT_BLKSIZE=0` beállításával a newlib 128 bájtos
+stdio-puffere miatt minden 512 bájtos szektor külön SD-parancs volt, és az
+igazítatlan PSRAM-cél miatt az SDMMC-meghajtó blokkonként, belső átmeneti
+pufferen át olvasott (ESP-IDF 5.5.4 `sdmmc_read_sectors`).
+
+A javítás a működést és a megjelenített képpontokat nem változtatja:
+
+- A `read_file()` POSIX `open`/`fstat`/`read` hívással, 128 bájtra igazított
+  PSRAM-pufferbe olvas. A FATFS így klaszterenként egy több blokkos DMA-
+  átvitelt kér. Foglalási hibánál a korábbi `malloc()` puffer marad.
+- A boot és minden telepítés/törlés utáni `scan()` a teljesen validált
+  sablonkönyvtárak ujjlenyomatát (név, méret, módosítási idő) megjegyzi.
+  Változatlan könyvtárnál a lapozás a `template.json` teljes sémaellenőrzését
+  futtatja, a betöltött PNG-ket pedig egyszer olvassa be, chunk-CRC-vel
+  ellenőrizve, ismételt kitömörítés nélkül. Bármilyen eltérésnél (új, törölt,
+  cserélt fájl, SD-csere) a korábbi teljes ellenőrzés fut; hibánál a
+  Rendszer nézet marad, mint eddig.
+- A `selection.txt` mentése a téma betöltése utáni, változatlan generációjú
+  `app_templates_load_pending()` hívásra kerül (kb. 200 ms-mal később), így a
+  FAT-metaadatírások nem késleltetik a lapozást. Sikertelen írást a következő
+  kör újrapróbál.
+- Az elfogadott gesztus bináris szemaforral azonnal felébreszti a runtime
+  taskot, nem kell kivárni a ciklus végi 200 ms-ot.
+
+Két további, a felületet lassító felesleges ellenőrzés is kikerült:
+
+- Az Otthon-oldalak betöltése (`app_templates_home_load_for`) minden
+  oldalváltáskor teljesen kitömörítette a háttér- és ikon-PNG-ket egy
+  ideiglenes pufferbe, majd a `home_decode_images()` az LVGL lodepng-
+  dekóderével még egyszer. A csomagot a `scan()` már teljesen ellenőrizte, a
+  lodepng a chunk-CRC-t és az Adler-32-t is vizsgálja, és dekódolási hibánál
+  ugyanaz a betöltőképes újrapróbálás fut (ezt a preview sérült háttér/ikon
+  tesztje lefedi). A betöltés ezért csak a PNG-szerkezetet és a méretet nézi.
+- A runtime task 200 ms-onként, zárt diagnosztikai nézet mellett is lekérte a
+  teljes diagnosztikai pillanatképet: heap-statisztikát (a legnagyobb szabad
+  DMA-blokk a heap bejárásával) és a Wi-Fi RSSI-t, ami az `esp_hosted` miatt
+  SDIO-s RPC a C6 felé. Most csak a megnyitott nézet kéri le, változatlan
+  tartalommal. A CPU-terhelés első értéke megnyitás után legfeljebb 2 s-ig a
+  legutóbbi mintavétel óta eltelt idő átlaga.
+
+Az Otthon-kártyák közötti lapozás eddig minden lapnál újra beolvasta és
+dekódolta a háttérképet (kb. 0,9–1,1 MB PNG, 1280×800-as ARGB8888 dekódolás és
+RGB565-átalakítás) és a logót, pedig a háttér csak a módtól (kártyák vagy
+fogyasztók), a napszaktól és az erőforráscsomag generációjától függ. Ha ezek
+változatlanok, a dekódolt háttér- és logópuffer megmarad, és az új
+`app_templates_home_load_icons()` csak az adott lap ikonjait olvassa be. A
+betöltőkép és a megjelenített képpontok változatlanok. Bármilyen hibánál
+(sérült ikon, foglalt SD, közben cserélt csomag) a teljes oldal felszabadul, és
+a következő próbálkozás a hátteret is teljesen újratölti.
+
+A `tests/preview` `ZOLEE_THEME_SWITCH_BENCH=1` módja a valódi UI-kódon méri
+a betöltőkép, az előkészítés, a nézetépítés, az első kép és az áttűnés idejét,
+és a végső kép ellenőrzőösszegét is kiírja. Hoston (RGB565, 33 váltás) az
+előkészítés ideje kb. 580 ms-ról 57 ms-ra csökkent; mind a 11 téma végső
+képe és a preview mind a 143 mentett képe bájtra azonos (a később
+hozzáadott, csak változáskor rajzoló frissítésnél lásd a lenti összevetési
+módszert). A host lemezcache
+miatt ez az SD-olvasás javulását nem tartalmazza; a sablononként beolvasott
+adat kb. 48 MB-ról 22 MB-ra (a tíz gyári témán összesen), a szektoronkénti
+parancsok helyett klaszterenkénti átvitelre változik. A készüléken elért
+váltási időt fizikai panelen kell visszamérni.
+
+## Csak változáskor rajzoló frissítés – Master és 4B Slave
+
+Az LVGL 9.5-ben az `lv_label_set_text()`, az `lv_image_set_src()` és az
+`lv_obj_set_style_*()` színbeállítók azonos értéknél is érvénytelenítik az
+objektumot. A pozíció-, méret-, flag-, állapot- és `lv_bar_set_value()` beállítók
+már maguk kihagyják a változatlan értéket. Periodikus frissítésben ezért minden
+szöveget, képforrást és színt a `*_if_changed` segédekkel vagy az
+`lv_image_get_src()` összevetésével kell írni.
+
+- **4B Slave (`firmware/slave-waveshare-4b/ui`)**: a 33 ms-os `refresh`
+  változatlan adat mellett is kb. 40 területet érvénytelenített képkockánként
+  (négy érték-, akku-, hőmérséklet-, szél-, óra-, üzenet- és diagnosztikai felirat
+  kétszeres, árnyékolt rajzolással, az időjárásikon, a gyűrűk, utak és pontok
+  színe). Most nulla; a mozgó energiapontok és a valódi változások ugyanúgy
+  frissülnek. A kaputelefon-fedőréteg (állapot, gombfeliratok, gombszín) a
+  hívás alatt sem rajzol újra feleslegesen, így nem versenyez a videókép
+  frissítésével.
+- **Master sablonok**: a 200 ms-os `template_update` a nap/hold korong
+  árnyékszínét, a műszerek (03) ívszínét és a beépített időjárásikont is csak
+  változáskor írja.
+
+Ellenőrzés: a 4B szimulátor 30, a Slave kaputelefon-preview 10 üresjárati
+frissítésen át számolja az `LV_EVENT_INVALIDATE_AREA` eseményeket (elvárt: 0).
+A régi kód mindkét teszten megbukik.
+
+**Képpont-összevetés részleges frissítésnél.** Az LVGL szoftveres renderelője a
+részletekben rajzolt átméretezett képeknél és élsimított íveknél 1–2 (ritkán
+több) egységnyi eltérést adhat a teljes újrarajzoláshoz képest; ez a régi kódban
+is megvolt. Ha egy változtatás csökkenti a felesleges érvénytelenítést, a mentett
+képek ezért néhány képpontban eltérhetnek, holott az UI-állapot azonos. Ilyenkor
+a mentés előtt teljes újrarajzolással (`lv_obj_invalidate(lv_screen_active())`,
+`lv_refr_now()`) kell összevetni: a 143 Master- és 9 Slave-kép így bájtra
+azonos volt a változtatás előtt és után. A részleges és a teljes rajzolás
+közötti eltérés az érintett képeken csökkent.

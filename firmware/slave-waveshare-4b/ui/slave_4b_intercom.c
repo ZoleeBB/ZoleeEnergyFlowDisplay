@@ -28,6 +28,25 @@ static lv_obj_t *overlay, *image, *status, *audio_status, *audio, *gate;
 static lv_image_dsc_t descriptor;
 static int64_t last_gate;
 
+/* A refresh 33 ms-onként fut, a hívás alatt is. Az LVGL azonos szövegnél és
+ * színnél is újrarajzolna, ami a videókép frissítésével versenyez; ezért csak
+ * tényleges változáskor írunk. */
+static void text_if_changed(lv_obj_t* object, const char* text)
+{
+    if (strcmp(lv_label_get_text(object), text) != 0)
+        lv_label_set_text(object, text);
+}
+
+static void bg_color_if_changed(lv_obj_t* object, lv_color_t color)
+{
+    lv_style_value_t old;
+    if (lv_obj_get_local_style_prop(object, LV_STYLE_BG_COLOR, &old, 0) == LV_STYLE_RES_FOUND
+        && lv_color_eq(old.color, color))
+        return;
+    lv_style_value_t value = { .color = color };
+    lv_obj_set_local_style_prop(object, LV_STYLE_BG_COLOR, value, 0);
+}
+
 static lv_obj_t* label(lv_obj_t* parent, const char* text, int y)
 {
     lv_obj_t* object = lv_label_create(parent);
@@ -160,7 +179,7 @@ bool slave_4b_intercom_update(void)
     if (rendered_generation != snapshot.revision) {
         rendered_generation = snapshot.revision;
         lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(status, "Kapcsolódás a kamerához...");
+        text_if_changed(status, "Kapcsolódás a kamerához...");
     }
     portENTER_CRITICAL(&frame_lock);
     bool have_frame = ready && !writing && front && generation == snapshot.revision;
@@ -187,7 +206,7 @@ bool slave_4b_intercom_update(void)
             lv_image_set_src(image, &descriptor);
             lv_obj_set_pos(image, (720 - descriptor.header.w) / 2, 90 + (460 - descriptor.header.h) / 2);
             lv_obj_remove_flag(image, LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(status, "");
+            text_if_changed(status, "");
         }
     }
     char detail[192];
@@ -195,27 +214,27 @@ bool slave_4b_intercom_update(void)
     snprintf(detail, sizeof(detail), "%s", message_revision == snapshot.revision ? message : "");
     portEXIT_CRITICAL(&frame_lock);
     if (!snapshot.connected)
-        lv_label_set_text(status, "A Master adatkapcsolata megszakadt.");
+        text_if_changed(status, "A Master adatkapcsolata megszakadt.");
     else if (detail[0])
-        lv_label_set_text(status, detail);
+        text_if_changed(status, detail);
     app_intercom_audio_status_t sound;
     app_intercom_audio_snapshot(&sound);
     bool talking = sound.state == APP_INTERCOM_AUDIO_ACTIVE || sound.state == APP_INTERCOM_AUDIO_CONNECTING;
-    lv_label_set_text(lv_obj_get_child(audio, 0), talking ? "Beszélgetés vége" : "Beszélgetés");
-    lv_obj_set_style_bg_color(audio, lv_color_hex(talking ? 0xa53030 : 0x246696), 0);
+    text_if_changed(lv_obj_get_child(audio, 0), talking ? "Beszélgetés vége" : "Beszélgetés");
+    bg_color_if_changed(audio, lv_color_hex(talking ? 0xa53030 : 0x246696));
     bool blocked
         = snapshot.audio_elsewhere || sound.state == APP_INTERCOM_AUDIO_STOPPING || !snapshot.connected;
     if (blocked)
         lv_obj_add_state(audio, LV_STATE_DISABLED);
     else
         lv_obj_remove_state(audio, LV_STATE_DISABLED);
-    lv_label_set_text(audio_status,
+    text_if_changed(audio_status,
         snapshot.audio_elsewhere ? "Beszélgetés másik kijelzőn / várakozás a Masterre"
             : sound.revision == snapshot.revision && sound.state != APP_INTERCOM_AUDIO_RINGING ? sound.message
                                                                                                : "");
     if (snapshot.gate_supported) {
         lv_obj_remove_flag(gate, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(lv_obj_get_child(gate, 0), snapshot.config.gate.name);
+        text_if_changed(lv_obj_get_child(gate, 0), snapshot.config.gate.name);
         if (!snapshot.connected || snapshot.command_pending)
             lv_obj_add_state(gate, LV_STATE_DISABLED);
         else

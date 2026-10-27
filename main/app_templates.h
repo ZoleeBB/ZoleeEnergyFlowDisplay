@@ -71,3 +71,8 @@ bool app_templates_home_load(const char *const *icons, unsigned count, bool nigh
 /* A v2 erőforráscsomagból külön fogyasztói háttér; v1 esetén közös fallback. */
 bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
                                   bool consumers, app_template_view_t *out);
+/* Csak az ikonok (2. helytől); a 0. és 1. hely üres. Kártyalapozáshoz, amikor a
+ * már dekódolt háttér és logó változatlan. A generation alapján ellenőrizhető,
+ * hogy közben nem cserélődött-e az erőforráscsomag. */
+bool app_templates_home_load_icons(const char *const *icons, unsigned icon_count,
+                                    app_template_view_t *out);

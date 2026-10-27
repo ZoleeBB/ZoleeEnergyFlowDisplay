@@ -35,6 +35,37 @@ static void visible(lv_obj_t *object, bool show)
         lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
 }
 
+/*
+ * A refresh 33 ms-onként fut. Az LVGL 9.5 lv_label_set_text(), lv_image_set_src()
+ * és stílusszín-beállítói azonos értéknél is érvénytelenítik az objektumot, így
+ * változatlan adat mellett is minden képkockán újrarajzolódnának az árnyékolt
+ * feliratok és a képek. Ezek a segédek csak tényleges változáskor írnak.
+ */
+static void text_if_changed(lv_obj_t *object, const char *text)
+{
+    if (strcmp(lv_label_get_text(object), text) != 0)
+        lv_label_set_text(object, text);
+}
+
+static void image_if_changed(lv_obj_t *object, const void *source)
+{
+    if (lv_image_get_src(object) != source)
+        lv_image_set_src(object, source);
+}
+
+/* Csak a saját, azonos selectorú lokális értéket hasonlítjuk; az öröklött
+ * egyezés nem helyettesíti az explicit beállítást. */
+static void color_if_changed(lv_obj_t *object, lv_style_prop_t property, lv_color_t color,
+                             lv_style_selector_t selector)
+{
+    lv_style_value_t old;
+    if (lv_obj_get_local_style_prop(object, property, &old, selector) == LV_STYLE_RES_FOUND &&
+        lv_color_eq(old.color, color))
+        return;
+    lv_style_value_t value = {.color = color};
+    lv_obj_set_local_style_prop(object, property, value, selector);
+}
+
 static lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h)
 {
     lv_obj_t *object = lv_obj_create(parent);
@@ -229,9 +260,9 @@ static void flow(node_t *node, double kw, bool inward, uint32_t tone, float dt)
 {
     bool active = fabs(kw) >= .0005;
     lv_color_t color = lv_color_hex(active ? tone : last_night ? 0x87A9D4 : 0x506C84);
-    lv_obj_set_style_border_color(node->ring, color, 0);
-    lv_obj_set_style_bg_color(node->path, color, 0);
-    lv_obj_set_style_text_color(node->value, color, 0);
+    color_if_changed(node->ring, LV_STYLE_BORDER_COLOR, color, 0);
+    color_if_changed(node->path, LV_STYLE_BG_COLOR, color, 0);
+    color_if_changed(node->value, LV_STYLE_TEXT_COLOR, color, 0);
     bool vertical = node->x == 360;
     int end_x = vertical ? 360 : node->x + (node->x < 360 ? node->radius : -node->radius);
     int end_y = vertical ? node->y + (node->y < 360 ? node->radius : -node->radius) : 360;
@@ -246,14 +277,14 @@ static void flow(node_t *node, double kw, bool inward, uint32_t tone, float dt)
         float fraction = fmodf(node->phase + j / 3.f, 1.f);
         lv_obj_set_pos(node->dots[j], (int)(end_x + (360 - end_x) * fraction) - 4,
                         (int)(end_y + (360 - end_y) * fraction) - 4);
-        lv_obj_set_style_border_color(node->dots[j], color, 0);
+        color_if_changed(node->dots[j], LV_STYLE_BORDER_COLOR, color, 0);
         visible(node->dots[j], active);
     }
 }
 
 void slave_4b_ui_message(const char *text)
 {
-    lv_label_set_text(message, text ? text : "");
+    text_if_changed(message, text ? text : "");
 }
 
 void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
@@ -304,26 +335,26 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
             snprintf(text, sizeof(text), "%.0f W", fabs(powers[i]) * 1000);
         else
             snprintf(text, sizeof(text), "%.1f kW", fabs(powers[i]));
-        lv_label_set_text(nodes[i].value, text);
+        text_if_changed(nodes[i].value, text);
     }
     if (available)
         snprintf(text, sizeof(text), "%.0f%% · %.0f °C", sample->soc_bat_pct, sample->battery_temperature_c);
     else
         snprintf(text, sizeof(text), "— %% · — °C");
-    lv_label_set_text(battery_detail, text);
+    text_if_changed(battery_detail, text);
     lv_bar_set_value(soc, available ? (int)lround(fmax(0, fmin(100, sample->soc_bat_pct))) : 0, LV_ANIM_OFF);
     uint32_t soc_color = sample->soc_bat_pct < 20 ? 0xEF443D : sample->soc_bat_pct < 40 ? 0xFFAF32 : 0x5BF237;
-    lv_obj_set_style_bg_color(soc, lv_color_hex(soc_color), LV_PART_INDICATOR);
+    color_if_changed(soc, LV_STYLE_BG_COLOR, lv_color_hex(soc_color), LV_PART_INDICATOR);
     if (available && sample->temperature_valid)
         snprintf(text, sizeof(text), "%.1f °C", sample->temperature_c);
     else
         snprintf(text, sizeof(text), "— °C");
-    lv_label_set_text(temperature, text);
+    text_if_changed(temperature, text);
     if (available && sample->wind_speed_valid)
         snprintf(text, sizeof(text), "%.0f km/h", sample->wind_speed_kmh);
     else
         snprintf(text, sizeof(text), "— km/h");
-    lv_label_set_text(wind, text);
+    text_if_changed(wind, text);
     const lv_image_dsc_t *icon = sample->night_mode ? &slave_4b_weather_moon : &slave_4b_weather_cloud;
     if (sample->precipitation_valid && sample->has_precipitation)
         icon = sample->temperature_valid && sample->temperature_c < -4 ? &slave_4b_weather_snow : &slave_4b_weather_rain;
@@ -331,19 +362,19 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
         icon = &slave_4b_weather_sun;
     else if (!sample->night_mode && sample->power_pv_kw > 1)
         icon = &slave_4b_weather_partly;
-    lv_image_set_src(weather, icon);
+    image_if_changed(weather, icon);
     visible(weather, available && sample->precipitation_valid);
     visible(temperature, available && sample->temperature_valid);
     visible(wind, available && sample->wind_speed_valid);
     visible(wind_icon, available && sample->wind_speed_valid);
-    lv_label_set_text(clock_label, clock ? clock : "--:--");
+    text_if_changed(clock_label, clock ? clock : "--:--");
     if (runtime)
     {
         snprintf(text, sizeof(text), "Waveshare 4B · Slave\n\nMaster: %s\nBLE: %s\nRSSI: %d dBm\nWi-Fi: %s\nIdőszinkron: %s",
                  runtime->ble_peer[0] ? runtime->ble_peer : "keresés…",
                  runtime->slave_connected ? "kapcsolódva" : "keresés…", runtime->ble_rssi,
                  runtime->wifi_connected ? "OK" : "nincs", runtime->time_synced ? "OK" : "várakozás");
-        lv_label_set_text(diagnostics, text);
+        text_if_changed(diagnostics, text);
         slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk…" : "Master keresése…");
     }
 }
@@ -415,5 +446,5 @@ void slave_4b_ui_pairing(const app_ble_pairing_status_t *status)
     }
     char countdown[64];
     snprintf(countdown, sizeof(countdown), "Hátralévő idő: %u mp", status->seconds);
-    lv_label_set_text(pin_countdown, countdown);
+    text_if_changed(pin_countdown, countdown);
 }

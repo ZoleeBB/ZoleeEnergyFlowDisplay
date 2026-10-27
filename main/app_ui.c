@@ -25,6 +25,9 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "freertos/semphr.h"
+#endif
 #include "lvgl.h"
 #include "src/draw/lv_image_decoder_private.h"
 #if LV_USE_OS != LV_OS_NONE || LV_DRAW_SW_DRAW_UNIT_CNT != 1
@@ -119,6 +122,32 @@ static app_event_entry_t s_diagnostic_events[15];
 static size_t s_diagnostic_event_count;
 static app_energy_sample_t s_animation_sample;
 static int64_t s_animation_us;
+#ifndef APP_TEMPLATE_DESKTOP
+/* Az érintéses navigáció azonnal felébreszti a runtime taskot, így a
+ * betöltőkép és az SD-olvasás nem vár a 200 ms-os ciklus végére. Bináris
+ * szemafor, nem task-értesítés: a runtime által hívott IDF-meghajtók
+ * értesítéseit nem zavarhatja. */
+static SemaphoreHandle_t s_runtime_wake;
+#endif
+static void runtime_wake(void)
+{
+#ifndef APP_TEMPLATE_DESKTOP
+    if (s_runtime_wake)
+        xSemaphoreGive(s_runtime_wake);
+#endif
+}
+/* A ciklus végi 200 ms-os pihenő; gesztus esetén korábban véget ér. */
+static void runtime_sleep(unsigned ms)
+{
+#ifndef APP_TEMPLATE_DESKTOP
+    if (s_runtime_wake)
+    {
+        (void)xSemaphoreTake(s_runtime_wake, pdMS_TO_TICKS(ms));
+        return;
+    }
+#endif
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
 static void animation_tick(lv_timer_t *timer);
 static bool template_is_active(void);
 static void template_animate(float dt);
@@ -250,6 +279,8 @@ static void style_number_if_changed(lv_obj_t *obj,
 #define text_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_TEXT_COLOR, v, s)
 #define bg_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_BG_COLOR, v, s)
 #define border_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_BORDER_COLOR, v, s)
+#define shadow_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_SHADOW_COLOR, v, s)
+#define arc_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_ARC_COLOR, v, s)
 #define opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_OPA, v, s)
 #define bg_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BG_OPA, v, s)
 #define border_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BORDER_OPA, v, s)
@@ -2254,7 +2285,7 @@ static void runtime(void *arg)
             bsp_display_unlock();
         }
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        runtime_sleep(200);
     }
 }
 /* A folyamatos UI runtime task egyszeri elindítása. */
@@ -2262,6 +2293,10 @@ esp_err_t app_ui_start_runtime(void)
 {
     if (s_started)
         return ESP_OK;
+#ifndef APP_TEMPLATE_DESKTOP
+    if (!s_runtime_wake)
+        s_runtime_wake = xSemaphoreCreateBinary();
+#endif
     if (xTaskCreate(runtime, "ui_runtime", 16384, NULL, 5, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
     s_started = true;
