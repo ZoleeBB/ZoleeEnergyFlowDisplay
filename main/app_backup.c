@@ -90,7 +90,8 @@ static char *read_all(const char *path, size_t limit, size_t *size)
 /* Tranzakciós fájlcsere FAT-on: tmp írás + fsync, a régi .bak-ra, az új a helyére. */
 static bool write_atomic(const char *path, const char *data, size_t length)
 {
-    char tmp[256], bak[256];
+    /* A hívók útvonala legfeljebb 256 bájt; a toldalékoknak külön hely jut. */
+    char tmp[272], bak[272];
     snprintf(tmp, sizeof(tmp), "%s.rstmp", path);
     snprintf(bak, sizeof(bak), "%s.rsbak", path);
     FILE *file = fopen(tmp, "wb");
