@@ -128,6 +128,69 @@ static void click(int x, int y)
     step(40);
 }
 
+static void swipe(int from_x, int to_x)
+{
+    pointer = (lv_point_t){from_x, 360};
+    pressed = true;
+    step(40);
+    for (int i = 1; i <= 6; i++)
+    {
+        pointer.x = from_x + (to_x - from_x) * i / 6;
+        step(40);
+    }
+    pressed = false;
+    step(40);
+}
+
+/* A Mai összesítő: húzással nyílik/zárul, adat nélkül —, adattal valódi értékek,
+ * és változatlan adatnál a 33 ms-os kör nem érvénytelenít. */
+static int summary_test(void)
+{
+    scene(false);
+    step(33);
+    CHECK(!slave_4b_ui_summary_visible());
+    slave_4b_summary_t summary = {0};
+    swipe(600, 150);
+    CHECK(slave_4b_ui_summary_visible());
+    slave_4b_ui_summary(&summary);
+    step(33);
+    CHECK(save("slave-4b-summary-waiting.ppm") == 0);
+    summary = (slave_4b_summary_t){
+        .available = true, .production_kwh = 17.3, .consumption_kwh = 11.8, .import_kwh = 2.1,
+        .export_kwh = 8.4, .charge_kwh = 3.2, .discharge_kwh = 1.4, .self_sufficiency_pct = 82.2,
+        .self_consumption_pct = 51.4, .money_valid = true, .purchase_cost = 136.5,
+        .export_revenue = 42, .savings = 672.5, .net_cost = 94.5, .currency = "Ft"};
+    slave_4b_ui_summary(&summary);
+    step(33);
+    CHECK(save("slave-4b-summary-day.ppm") == 0);
+    uint64_t day_summary = hash();
+    invalidations = 0;
+    lv_display_add_event_cb(display, count_invalidation, LV_EVENT_INVALIDATE_AREA, NULL);
+    runtime.slave_source_stale = true; /* Az energiaanimáció álljon meg a takart rétegben. */
+    step(33);
+    invalidations = 0;
+    for (unsigned i = 0; i < 30; i++)
+    {
+        slave_4b_ui_summary(&summary);
+        step(33);
+    }
+    lv_display_remove_event_cb_with_user_data(display, count_invalidation, NULL);
+    CHECK(invalidations == 0);
+    runtime.slave_source_stale = false;
+    scene(true);
+    step(33);
+    slave_4b_ui_summary(&summary);
+    step(33);
+    CHECK(save("slave-4b-summary-night.ppm") == 0);
+    CHECK(hash() != day_summary);
+    swipe(150, 600);
+    CHECK(!slave_4b_ui_summary_visible());
+    scene(false);
+    step(33);
+    puts("PASS: actual 4B swipe opens/closes today summary, waiting/real values, day/night and zero idle invalidations");
+    return 0;
+}
+
 static int self_test(void)
 {
     /* A master tényleges vezetékformátumán megy át a nappali demó. */
@@ -274,7 +337,7 @@ static int self_test(void)
     step(33);
     CHECK(hash() != disabled_hash);
     puts("PASS: actual 4B black logo state is stable without energy animation and returns to the energy screen");
-    return 0;
+    return summary_test();
 }
 
 #ifdef _WIN32
@@ -346,6 +409,7 @@ int main(int argc, char **argv)
     lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(input, read_pointer);
     slave_4b_ui_create(lv_screen_active());
+    slave_4b_ui_bind_input(input);
     scene(false);
     if (argc > 1 && !strcmp(argv[1], "--self-test"))
     {

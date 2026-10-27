@@ -24,6 +24,10 @@ static lv_obj_t *temperature, *wind, *clock_label, *weather, *wind_icon;
 static lv_obj_t *message, *diagnostics, *pin_pad, *pin_mask, *pin_countdown;
 static node_t nodes[4]; /* Hálózat, akku, napelem, ház. */
 static uint32_t pin_token;
+/* Mai összesítő: egyszer létrehozott, alapból rejtett, teljes képernyős réteg. */
+static lv_obj_t *summary_panel, *summary_status, *summary_tiles[6];
+static lv_obj_t *summary_names[6], *summary_values[6], *summary_details[6];
+static bool summary_night_applied, summary_colors_ready;
 static char digits[7];
 static bool last_night, layout_ready;
 
@@ -145,6 +149,179 @@ static lv_obj_t *image(const lv_image_dsc_t *source, int x, int y, int size)
     return object;
 }
 
+/* Árnyék nélküli felirat a saját, átlátszatlan hátterű összesítő réteghez. */
+static lv_obj_t *plain_label(lv_obj_t *parent, const char *text, int x, int y,
+                             int width, const lv_font_t *font)
+{
+    lv_obj_t *object = lv_label_create(parent);
+    lv_obj_set_pos(object, x, y);
+    lv_obj_set_width(object, width);
+    lv_obj_set_style_text_font(object, font, 0);
+    lv_label_set_long_mode(object, LV_LABEL_LONG_CLIP);
+    lv_label_set_text(object, text);
+    return object;
+}
+
+static void summary_create(void)
+{
+    static const char *names[6] = {"Termelés", "Fogyasztás", "Vételezés", "Visszatáplálás",
+                                   "Akkumulátor", "Megtakarítás"};
+    summary_panel = box(root, 0, 0, 720, 720);
+    lv_obj_set_style_bg_opa(summary_panel, LV_OPA_COVER, 0);
+    plain_label(summary_panel, "Mai összesítő", 36, 28, 460, &app_font_28);
+    summary_status = plain_label(summary_panel, "", 36, 72, 648, &app_font_16);
+    for (int i = 0; i < 6; i++)
+    {
+        int x = i % 2 ? 372 : 36, y = 112 + (i / 2) * 172;
+        summary_tiles[i] = box(summary_panel, x, y, 312, 156);
+        lv_obj_set_style_radius(summary_tiles[i], 18, 0);
+        lv_obj_set_style_bg_opa(summary_tiles[i], LV_OPA_COVER, 0);
+        summary_names[i] = plain_label(summary_tiles[i], names[i], 20, 16, 272, &app_font_20);
+        summary_values[i] = plain_label(summary_tiles[i], "—", 20, 54, 272, &app_font_28);
+        summary_details[i] = plain_label(summary_tiles[i], "", 20, 106, 272, &app_font_16);
+    }
+    lv_obj_t *hint = plain_label(summary_panel, "Húzd el oldalra az energiaáramláshoz", 36, 640, 648,
+                                 &app_font_16);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    visible(summary_panel, false);
+}
+
+/* Csak napszakváltáskor ír színt, így a 33 ms-os kör nem érvénytelenít. */
+static void summary_colors(bool night)
+{
+    if (summary_colors_ready && summary_night_applied == night)
+        return;
+    static const uint32_t accents_day[6] = {0x087E12, 0xC94800, 0xC94800, 0x087E12, 0x1D63A8, 0x087E12};
+    static const uint32_t accents_night[6] = {0x58E93C, 0xFFC44D, 0xFFC44D, 0x58E93C, 0x7DC3FF, 0x58E93C};
+    lv_obj_set_style_bg_color(summary_panel, lv_color_hex(night ? 0x051A35 : 0xE6EFF4), 0);
+    lv_obj_set_style_text_color(summary_panel, lv_color_hex(night ? 0xF5FAFF : 0x00183D), 0);
+    lv_obj_set_style_text_color(summary_status, lv_color_hex(night ? 0x9FB6CC : 0x4B6478), 0);
+    for (int i = 0; i < 6; i++)
+    {
+        lv_obj_set_style_bg_color(summary_tiles[i], lv_color_hex(night ? 0x10294A : 0xFFFFFF), 0);
+        lv_obj_set_style_text_color(summary_details[i], lv_color_hex(night ? 0x9FB6CC : 0x4B6478), 0);
+        lv_obj_set_style_text_color(summary_values[i], lv_color_hex(night ? accents_night[i] : accents_day[i]), 0);
+    }
+    summary_night_applied = night;
+    summary_colors_ready = true;
+}
+
+bool slave_4b_ui_summary_visible(void)
+{
+    return summary_panel && !lv_obj_has_flag(summary_panel, LV_OBJ_FLAG_HIDDEN);
+}
+
+void slave_4b_ui_show_summary(bool show)
+{
+    if (!summary_panel || slave_4b_ui_summary_visible() == show)
+        return;
+    if (show)
+        summary_colors(last_night);
+    visible(summary_panel, show);
+}
+
+/* Az input kapja a gesztust (mint a 10.1-es Masteren), így a háttérkép és a
+ * feliratok sem nyelhetik el. PIN-pad és energiaáramlás-tiltás alatt nincs váltás. */
+static void summary_gesture(lv_event_t *event)
+{
+    (void)event;
+    lv_indev_t *input = lv_indev_active();
+    if (!input || pin_pad || disabled_overlay)
+        return;
+    lv_dir_t direction = lv_indev_get_gesture_dir(input);
+    if (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT)
+        return;
+    slave_4b_ui_show_summary(!slave_4b_ui_summary_visible());
+    lv_indev_wait_release(input);
+}
+
+void slave_4b_ui_bind_input(lv_indev_t *input)
+{
+    if (!input)
+        return;
+    for (uint32_t i = 0; i < lv_indev_get_event_count(input); i++)
+        if (lv_event_dsc_get_cb(lv_indev_get_event_dsc(input, i)) == summary_gesture)
+            return;
+    /* Lassú húzás se vesszen el; az 50 px-es távolságküszöb kiszűri a remegést. */
+    lv_indev_set_gesture_min_velocity(input, 0);
+    lv_indev_add_event_cb(input, summary_gesture, LV_EVENT_GESTURE, NULL);
+}
+
+static void summary_number(char *out, size_t size, double value, const char *unit)
+{
+    snprintf(out, size, "%.1f %s", fabs(value) < 0.05 ? 0.0 : value, unit);
+}
+
+static void summary_money(char *out, size_t size, double value, const char *currency)
+{
+    snprintf(out, size, "%.0f %s", fabs(value) < 0.5 ? 0.0 : value, currency);
+}
+
+void slave_4b_ui_summary(const slave_4b_summary_t *summary)
+{
+    if (!summary_panel || !summary)
+        return;
+    summary_colors(last_night);
+    char text[96], detail[96];
+    text_if_changed(summary_status, !summary->available ? "Első szinkronra vár a mastertől…" :
+                    summary->stale ? "Utolsó ismert mai adat – a kapcsolat megszakadt" :
+                    "A master napi adatai, élő frissítéssel");
+    const char *currency = summary->currency[0] ? summary->currency : "Ft";
+    for (int i = 0; i < 6; i++)
+    {
+        text[0] = detail[0] = 0;
+        if (!summary->available)
+            snprintf(text, sizeof(text), "—");
+        else
+            switch (i)
+            {
+            case 0:
+                summary_number(text, sizeof(text), summary->production_kwh, "kWh");
+                snprintf(detail, sizeof(detail), "Saját felhasználás %.0f%%", summary->self_consumption_pct);
+                break;
+            case 1:
+                summary_number(text, sizeof(text), summary->consumption_kwh, "kWh");
+                snprintf(detail, sizeof(detail), "Önellátás %.0f%%", summary->self_sufficiency_pct);
+                break;
+            case 2:
+                summary_number(text, sizeof(text), summary->import_kwh, "kWh");
+                if (summary->money_valid)
+                {
+                    char money[48];
+                    summary_money(money, sizeof(money), summary->purchase_cost, currency);
+                    snprintf(detail, sizeof(detail), "Költség %s", money);
+                }
+                break;
+            case 3:
+                summary_number(text, sizeof(text), summary->export_kwh, "kWh");
+                if (summary->money_valid)
+                {
+                    char money[48];
+                    summary_money(money, sizeof(money), summary->export_revenue, currency);
+                    snprintf(detail, sizeof(detail), "Bevétel %s", money);
+                }
+                break;
+            case 4:
+                snprintf(text, sizeof(text), "%.1f / %.1f kWh", summary->charge_kwh, summary->discharge_kwh);
+                snprintf(detail, sizeof(detail), "töltés / leadás");
+                break;
+            default:
+                if (summary->money_valid)
+                {
+                    summary_money(text, sizeof(text), summary->savings, currency);
+                    char net[48];
+                    summary_money(net, sizeof(net), summary->net_cost, currency);
+                    snprintf(detail, sizeof(detail), "Nettó költség %s", net);
+                }
+                else
+                    snprintf(text, sizeof(text), "—");
+                break;
+            }
+        text_if_changed(summary_values[i], text);
+        text_if_changed(summary_details[i], detail);
+    }
+}
+
 static void diagnostics_toggle(lv_event_t *event)
 {
     (void)event;
@@ -253,6 +430,7 @@ void slave_4b_ui_create(lv_obj_t *screen)
     lv_obj_t *diagnostics_button = box(root, 590, 0, 130, 78);
     lv_obj_add_flag(diagnostics_button, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(diagnostics_button, diagnostics_toggle, LV_EVENT_CLICKED, NULL);
+    summary_create();
     layout(false);
 }
 
