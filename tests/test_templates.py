@@ -206,6 +206,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     # Opaque aligned view storage is deliberately larger than the public struct.
     view=(C.c_uint64*1024)()
     assert lib.app_templates_load_pending(view)
+    # A választás mentése a betöltés utáni, már változatlan generációjú hívásra marad.
+    assert not lib.app_templates_load_pending(view)
     assert (sd/'selection.txt').read_text()=='test-layout'
     lib.app_templates_view_free(view)
     assert lib.app_templates_init()==0 and active()==(2,'test-layout')
@@ -309,3 +311,42 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert lib.app_templates_load_pending(view);lib.app_templates_view_free(view)
     assert active()[1]=='builtin'
     print('PASS: install, transactional update, active reload, persistence, delete, builtin protection, fallback, stored/deflate ZIP, rejected unsafe/corrupt packages')
+    # Lapozáskor a változatlan, már ellenőrzött csomag PNG-it egyszer olvassuk.
+    # Az SD-n közvetlenül módosított vagy bit-hibás kép továbbra is az
+    # alapnézetre vált, akár azonos méret és módosítási idő mellett is.
+    house=(ROOT/'main/assets/png/flow_house.png').read_bytes()
+    imaged=dict(doc,id='imaged')
+    assert lib.app_templates_install(os.fsencode(archive('imaged',imaged,{'house.png':house})),error)==0,error.value
+    image_path=sd/'imaged/house.png'
+    def load_selected(name):
+        assert lib.app_templates_select(name.encode())==0
+        assert lib.app_templates_load_pending(view);lib.app_templates_view_free(view)
+        return active()[1]
+    assert load_selected('imaged')=='imaged'
+    assert load_selected('imaged')=='imaged'
+    stamp=image_path.stat()
+    corrupted=bytearray(house);corrupted[len(house)//2]^=0x10
+    image_path.write_bytes(corrupted);os.utime(image_path,ns=(stamp.st_atime_ns,stamp.st_mtime_ns))
+    assert image_path.stat().st_size==stamp.st_size
+    assert load_selected('imaged')=='builtin'
+    image_path.write_bytes(house);os.utime(image_path,ns=(stamp.st_atime_ns,stamp.st_mtime_ns))
+    assert load_selected('imaged')=='imaged'
+    # Érvényes CRC-jű, de sérült tömörítésű kép: az új módosítási idő miatt
+    # az ujjlenyomat eltér, ezért a teljes zlib-ellenőrzés fut és elutasítja.
+    import struct,zlib
+    position=house.index(b'IDAT');length=struct.unpack('>I',house[position-4:position])[0]
+    payload=bytearray(house[position+4:position+4+length]);payload[length//2]^=0xFF
+    recrc=bytearray(house);recrc[position+4:position+4+length]=payload
+    recrc[position+4+length:position+8+length]=struct.pack('>I',zlib.crc32(b'IDAT'+bytes(payload)))
+    image_path.write_bytes(recrc);os.utime(image_path,ns=(stamp.st_atime_ns,stamp.st_mtime_ns+2_000_000_000))
+    assert load_selected('imaged')=='builtin'
+    image_path.write_bytes(house)
+    assert load_selected('imaged')=='imaged'
+    (sd/'imaged/extra.png').write_bytes(house)
+    assert load_selected('imaged')=='imaged'
+    (sd/'imaged/extra.png').write_bytes(b'not png')
+    assert load_selected('imaged')=='builtin'
+    (sd/'imaged/extra.png').unlink()
+    assert load_selected('imaged')=='imaged'
+    assert lib.app_templates_delete(b'imaged',error)==0
+    print('PASS: unchanged validated package loads once; in-place corruption, same-size/mtime bit errors, added and replaced PNGs still fall back')

@@ -18,9 +18,13 @@
 #define MKDIR(p) _mkdir(p)
 #define RMDIR(p) _rmdir(p)
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #define MKDIR(p) mkdir(p, 0775)
 #define RMDIR(p) rmdir(p)
+#endif
+#ifndef APP_TEMPLATE_DESKTOP
+#include "esp_heap_caps.h"
 #endif
 
 #ifdef APP_TEMPLATE_DESKTOP
@@ -41,6 +45,22 @@ static bool save_selection;
 static bool home_ready;
 static app_template_info_t home_info;
 static unsigned home_generation = 1;
+/*
+ * A teljes (PNG-dekódolással járó) ellenőrzésen már átment sablonkönyvtárak
+ * ujjlenyomata. Az ujjlenyomat a könyvtár minden bejegyzésének nevéből,
+ * méretéből és módosítási idejéből készül. Ha lapozáskor változatlan, a
+ * könyvtár tartalma azonos a már ellenőrzöttel: a képeket nem kell másodszor
+ * beolvasni és kitömöríteni, elég a ténylegesen betöltött PNG-k CRC-je.
+ * Bármilyen eltérésnél (csere, törlés, új fájl, SD-csere) a korábbi teljes
+ * ellenőrzés fut. A tömböt a katalógus zárja védi; a scan() újraépíti.
+ */
+typedef struct
+{
+    char id[33];
+    uint64_t fingerprint;
+} validated_directory_t;
+static validated_directory_t validated[APP_TEMPLATE_MAX];
+static unsigned validated_count;
 const char *app_templates_root(void)
 {
 #ifdef APP_TEMPLATE_DESKTOP
@@ -92,6 +112,79 @@ bool app_templates_safe_asset(const char *path)
             return false;
     return true;
 }
+#ifndef _WIN32
+/*
+ * Fájlpuffer az SD-ről olvasott sablonadatokhoz.
+ *
+ * Az SDMMC-meghajtó csak cache-sorhoz igazított PSRAM-pufferbe olvas
+ * közvetlenül, több blokkos DMA-val. Igazítatlan célnál blokkonként
+ * (512 bájt) külön parancsot és belső átmeneti puffert használ, ami egy
+ * 1280x800-as háttér-PNG-nél több ezer SD-parancsot jelent. A 128 bájt az
+ * ESP32-P4 L2 cache-sorának legnagyobb mérete, így kisebb sorméretnél is
+ * megfelel. A puffer ugyanúgy PSRAM-ban van, mint az eddigi malloc() esetén,
+ * és a hívók változatlanul free()-vel szabadítják fel.
+ */
+#define FILE_BUFFER_ALIGNMENT 128U
+static unsigned char *file_buffer_alloc(size_t size)
+{
+#ifndef APP_TEMPLATE_DESKTOP
+    unsigned char *data = heap_caps_aligned_alloc(FILE_BUFFER_ALIGNMENT, size,
+                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (data)
+        return data;
+#endif
+    /* Foglalási hiba esetén a korábbi, igazítatlan út: lassabb, de helyes. */
+    return malloc(size);
+}
+
+/*
+ * Teljes fájl beolvasása egyetlen POSIX read() hívássorozattal.
+ *
+ * A newlib fread() a FATFS-en alapértelmezésben 128 bájtos stdio-pufferen
+ * keresztül olvas (CONFIG_FATFS_VFS_FSTAT_BLKSIZE=0), így minden SD-szektor
+ * külön parancs lenne. A read() a teljes kérést átadja a FATFS-nek, amely a
+ * klaszterhatárig közvetlenül a hívó pufferébe olvas. A méretkorlát, a
+ * lezáró nulla bájt és a hibakezelés megegyezik a korábbi változattal.
+ */
+static unsigned char *read_file(const char *path, size_t limit, size_t *size)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return NULL;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+        (uintmax_t)st.st_size > (uintmax_t)limit)
+    {
+        close(fd);
+        return NULL;
+    }
+    size_t n = (size_t)st.st_size;
+    unsigned char *data = file_buffer_alloc(n + 1);
+    if (!data)
+    {
+        close(fd);
+        return NULL;
+    }
+    size_t done = 0;
+    while (done < n)
+    {
+        ssize_t chunk = read(fd, data + done, n - done);
+        if (chunk <= 0)
+            break;
+        done += (size_t)chunk;
+    }
+    close(fd);
+    if (done != n)
+    {
+        free(data);
+        return NULL;
+    }
+    data[n] = 0;
+    *size = n;
+    return data;
+}
+#else
+/* Windowsos szimulátor: a korábbi, hordozható stdio-út. */
 static unsigned char *read_file(const char *path, size_t limit, size_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -126,21 +219,31 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     *size = (size_t)n;
     return data;
 }
+#endif
 static uint32_t be32(const unsigned char *p)
 {
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
 }
-/* Csak 8 bites, nem interlace RGB/RGBA PNG; CRC és teljes zlib-dekódolás ellenőrzés. */
-static bool png_valid(const unsigned char *p, size_t size, unsigned *w, unsigned *h)
+/*
+ * A PNG chunk-szerkezetének bejárása: aláírás, IHDR-korlátok, minden chunk
+ * CRC-je, ismeretlen kritikus chunk tiltása és a fájlvégi IEND.
+ * Ha a compressed puffer meg van adva, az IDAT-tartalmat egymás után oda
+ * másolja a későbbi zlib-ellenőrzéshez; NULL esetén csak a hosszt összegzi.
+ * Igazat ad, ha a szerkezet hibátlan és van tömörített képadat.
+ */
+static bool png_scan(const unsigned char *p,
+                     size_t size,
+                     unsigned *w,
+                     unsigned *h,
+                     unsigned *channels_out,
+                     unsigned char *compressed,
+                     size_t *compressed_out)
 {
     if (size < 45 || memcmp(p, "\211PNG\r\n\032\n", 8))
         return false;
     size_t pos = 8, compressed_size = 0;
     unsigned channels = 0;
     bool ended = false;
-    unsigned char *compressed = malloc(size);
-    if (!compressed)
-        return false;
     while (pos + 12 <= size)
     {
         uint32_t n = be32(p + pos);
@@ -160,7 +263,8 @@ static bool png_valid(const unsigned char *p, size_t size, unsigned *w, unsigned
         }
         else if (!memcmp(type, "IDAT", 4))
         {
-            memcpy(compressed + compressed_size, data, n);
+            if (compressed)
+                memcpy(compressed + compressed_size, data, n);
             compressed_size += n;
         }
         else if (!memcmp(type, "IEND", 4))
@@ -174,8 +278,22 @@ static bool png_valid(const unsigned char *p, size_t size, unsigned *w, unsigned
         } /* Ismeretlen kritikus chunk. */
         pos += 12 + n;
     }
+    *channels_out = channels;
+    *compressed_out = compressed_size;
+    return ended && channels && compressed_size;
+}
+/* Csak 8 bites, nem interlace RGB/RGBA PNG; CRC és teljes zlib-dekódolás ellenőrzés. */
+static bool png_valid(const unsigned char *p, size_t size, unsigned *w, unsigned *h)
+{
+    if (size < 45 || memcmp(p, "\211PNG\r\n\032\n", 8))
+        return false;
+    unsigned char *compressed = malloc(size);
+    if (!compressed)
+        return false;
+    unsigned channels = 0;
+    size_t compressed_size = 0;
     bool ok = false;
-    if (ended && channels && compressed_size)
+    if (png_scan(p, size, w, h, &channels, compressed, &compressed_size))
     {
         size_t stride = (size_t)*w * channels + 1;
         uLongf expected = stride * (*h), actual = expected;
@@ -572,14 +690,22 @@ static bool home_asset(const cJSON *root, const char *name, unsigned width, unsi
     return false;
 }
 
-bool app_templates_validate(const char *directory, cJSON **document, char error[160])
+/*
+ * A template.json beolvasása és teljes sémaellenőrzése a képfájlok nélkül.
+ * Sikernél a hívó tulajdonába adja a dokumentumot; hibánál NULL és ugyanaz
+ * a hibaüzenet, mint a teljes validálásnál.
+ */
+static cJSON *validate_document(const char *directory, char error[160])
 {
     char path[256];
     path_join(path, directory, "template.json");
     size_t n = 0;
     unsigned char *data = read_file(path, 65536, &n);
     if (!data)
-        return error_set(error, "Hiányzó/túl nagy template.json");
+    {
+        error_set(error, "Hiányzó/túl nagy template.json");
+        return NULL;
+    }
     /* A parser veremhasználatát a bemenettől függetlenül korlátozzuk. */
     int depth = 0;
     bool quoted = false, escaped = false, valid = true;
@@ -616,15 +742,29 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         !validate_scene(cJSON_GetObjectItem(root, "dark")))
     {
         cJSON_Delete(root);
-        return error_set(error, "Hibás sablonleírás / Invalid template schema");
+        error_set(error, "Hibás sablonleírás / Invalid template schema");
+        return NULL;
     }
     bool resources = home_package(root);
     if ((resources && !home_manifest(root)) ||
         (!resources && (cJSON_HasObjectItem(root, "kind") || !strcmp(str(root, "id"), APP_HOME_RESOURCE_ID))))
     {
         cJSON_Delete(root);
-        return error_set(error, "Hibás Loxone erőforráscsomag / Invalid home resources");
+        error_set(error, "Hibás Loxone erőforráscsomag / Invalid home resources");
+        return NULL;
     }
+    return root;
+}
+bool app_templates_validate(const char *directory, cJSON **document, char error[160])
+{
+    cJSON *root = validate_document(directory, error);
+    if (!root)
+        return false;
+    bool resources = home_package(root);
+    bool valid = true;
+    char path[256];
+    size_t n = 0;
+    unsigned char *data = NULL;
     DIR *dir = opendir(directory);
     if (!dir)
     {
@@ -714,6 +854,77 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         cJSON_Delete(root);
     return true;
 }
+static uint64_t fnv1a64(uint64_t hash, const void *data, size_t size)
+{
+    const unsigned char *bytes = data;
+    for (size_t i = 0; i < size; i++)
+    {
+        hash ^= bytes[i];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+/* A FATFS a readdir() által már beolvasott bejegyzést adja vissza a közvetlenül
+ * utána hívott stat()-nak, így ez nem jelent bejegyzésenként külön keresést. */
+static bool directory_fingerprint(const char *directory, uint64_t *out)
+{
+    DIR *dir = opendir(directory);
+    if (!dir)
+        return false;
+    uint64_t hash = 14695981039346656037ULL;
+    unsigned entries = 0;
+    bool ok = true;
+    struct dirent *entry;
+    char path[256];
+    while ((entry = readdir(dir)))
+    {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        path_join(path, directory, entry->d_name);
+        struct stat st;
+        if (!path[0] || stat(path, &st) != 0)
+        {
+            ok = false;
+            break;
+        }
+        int64_t size = (int64_t)st.st_size, mtime = (int64_t)st.st_mtime;
+        uint32_t mode = (uint32_t)st.st_mode;
+        hash = fnv1a64(hash, entry->d_name, strlen(entry->d_name) + 1);
+        hash = fnv1a64(hash, &size, sizeof(size));
+        hash = fnv1a64(hash, &mtime, sizeof(mtime));
+        hash = fnv1a64(hash, &mode, sizeof(mode));
+        entries++;
+    }
+    closedir(dir);
+    hash = fnv1a64(hash, &entries, sizeof(entries));
+    *out = hash;
+    return ok;
+}
+static void validated_forget(const char *id)
+{
+    for (unsigned i = 0; i < validated_count; i++)
+        if (!strcmp(validated[i].id, id))
+        {
+            validated[i] = validated[--validated_count];
+            return;
+        }
+}
+static void validated_remember(const char *id, uint64_t fingerprint)
+{
+    validated_forget(id);
+    if (validated_count >= APP_TEMPLATE_MAX)
+        return;
+    snprintf(validated[validated_count].id, sizeof(validated[validated_count].id), "%.32s", id);
+    validated[validated_count].fingerprint = fingerprint;
+    validated_count++;
+}
+static bool validated_matches(const char *id, uint64_t fingerprint)
+{
+    for (unsigned i = 0; i < validated_count; i++)
+        if (!strcmp(validated[i].id, id))
+            return validated[i].fingerprint == fingerprint;
+    return false;
+}
 static void remove_stage(const char *path)
 {
     DIR *d = opendir(path);
@@ -764,6 +975,7 @@ static void apply_saved_order(void)
 static void scan(void)
 {
     count = 1;
+    validated_count = 0;
     home_ready = false;
     memset(&home_info, 0, sizeof(home_info));
     snprintf(catalogue[0].id, 33, "builtin");
@@ -778,6 +990,10 @@ static void scan(void)
         if (!app_templates_safe_id(e->d_name))
             continue;
         path_join(path, app_templates_root(), e->d_name);
+        /* Az ujjlenyomat a validálás előtti állapotot rögzíti; a tárzár
+         * miatt a kettő között a könyvtár nem változhat. */
+        uint64_t fingerprint = 0;
+        bool fingerprinted = directory_fingerprint(path, &fingerprint);
         cJSON *doc = NULL;
         if (!app_templates_validate(path, &doc, error))
             continue;
@@ -793,6 +1009,8 @@ static void scan(void)
             snprintf(catalogue[count].id, 33, "%.32s", e->d_name);
             snprintf(catalogue[count].name, 81, "%s", str(doc, "name"));
             catalogue[count].version = cJSON_GetObjectItem(doc, "version")->valueint;
+            if (fingerprinted)
+                validated_remember(catalogue[count].id, fingerprint);
             count++;
         }
         cJSON_Delete(doc);
@@ -1050,12 +1268,52 @@ bool app_templates_has_pending(unsigned applied_generation)
     xSemaphoreGive(lock);
     return pending;
 }
+/*
+ * A kiválasztott sablon tartós mentése. Hívása a katalógus- és a tárzár alatt.
+ * Atomi rename csak új fájlnál garantált; a régi választás biztonsági másolat.
+ * Sikertelen írásnál a save_selection marad, a következő hívás újrapróbálja.
+ */
+static void persist_selection(void)
+{
+    char path[256], tmp[256], bak[256];
+    path_join(path, app_templates_root(), "selection.txt");
+    path_join(tmp, app_templates_root(), "selection.tmp");
+    path_join(bak, app_templates_root(), "selection.bak");
+    FILE *f = fopen(tmp, "wb");
+    if (f)
+    {
+        bool written = fwrite(selected, 1, strlen(selected), f) == strlen(selected);
+        if (fclose(f))
+            written = false;
+        if (written)
+        {
+            remove(bak);
+            rename(path, bak);
+            if (!rename(tmp, path))
+                save_selection = false;
+            else
+                rename(bak, path);
+        }
+    }
+}
 bool app_templates_load_pending(app_template_view_t *out)
 {
     if (!lock || !xSemaphoreTake(lock, 0))
         return false;
     if (out->generation == generation)
     {
+        /* A téma már betöltődött: most, a megjelenítés után mentjük a
+         * választást. Foglalt SD-nél a következő körben újra próbáljuk. */
+#ifndef APP_TEMPLATE_DESKTOP
+        bool cardless = app_storage_is_cardless();
+#else
+        bool cardless = false;
+#endif
+        if (save_selection && !cardless && STORAGE_TRY())
+        {
+            persist_selection();
+            STORAGE_GIVE();
+        }
         xSemaphoreGive(lock);
         return false;
     }
@@ -1091,8 +1349,20 @@ bool app_templates_load_pending(app_template_view_t *out)
     char directory[256], path[256], error[160];
     path_join(directory, app_templates_root(), selected);
     bool ok = !strcmp(selected, "builtin");
-    if (!ok && app_templates_validate(directory, &next->document, error))
+    /* Változatlan, már teljesen ellenőrzött könyvtárnál csak a leírót
+     * validáljuk újra; a PNG-k egyszer, a betöltéskor kerülnek beolvasásra. */
+    uint64_t fingerprint = 0;
+    bool fingerprinted = !ok && directory_fingerprint(directory, &fingerprint);
+    bool trusted = false;
+    if (fingerprinted && validated_matches(selected, fingerprint))
     {
+        next->document = validate_document(directory, error);
+        trusted = next->document != NULL;
+    }
+    if (!ok && (trusted || app_templates_validate(directory, &next->document, error)))
+    {
+        if (!trusted && fingerprinted)
+            validated_remember(selected, fingerprint);
         DIR *d = opendir(directory);
         struct dirent *e;
         ok = d != NULL;
@@ -1114,6 +1384,19 @@ bool app_templates_load_pending(app_template_view_t *out)
                 ok = false;
                 break;
             }
+            if (trusted)
+            {
+                /* Kitömörítés nélküli ellenőrzés: a sérült (bit-hibás)
+                 * kártyaadatot a chunk-CRC ugyanúgy kiszűri, mint eddig. */
+                unsigned width = 0, height = 0, channels = 0;
+                size_t compressed = 0;
+                if (!png_scan(a->bytes, a->size, &width, &height, &channels, NULL, &compressed))
+                {
+                    validated_forget(selected);
+                    ok = false;
+                    break;
+                }
+            }
             a->width = be32(a->bytes + 16);
             a->height = be32(a->bytes + 20);
         }
@@ -1129,30 +1412,8 @@ bool app_templates_load_pending(app_template_view_t *out)
         next->catalogue_count = count;
         save_selection = true;
     }
-    /* Atomi rename csak új fájlnál garantált; a régi választás biztonsági másolat. */
-    if (save_selection)
-    {
-        char tmp[256], bak[256];
-        path_join(path, app_templates_root(), "selection.txt");
-        path_join(tmp, app_templates_root(), "selection.tmp");
-        path_join(bak, app_templates_root(), "selection.bak");
-        FILE *f = fopen(tmp, "wb");
-        if (f)
-        {
-            bool written = fwrite(selected, 1, strlen(selected), f) == strlen(selected);
-            if (fclose(f))
-                written = false;
-            if (written)
-            {
-                remove(bak);
-                rename(path, bak);
-                if (!rename(tmp, path))
-                    save_selection = false;
-                else
-                    rename(bak, path);
-            }
-        }
-    }
+    /* A választás mentése (selection.txt) a következő, már betöltött témájú
+     * hívásra marad: a több FAT-metaadatírás így nem késlelteti a lapozást. */
     /* A hívó a régi képeket csak az LVGL objektumok törlése után szabadíthatja fel. */
     *out = *next;
     free(next);
