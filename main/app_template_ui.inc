@@ -337,15 +337,55 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     else{fmt_power(out,128,v);return;}
     snprintf(out,128,"%s %s",value,unit);
 }
+/*
+ * Lapozási kérés. A katalóguszárat az SD-olvasás percekig is foglalhatja,
+ * ezért a nem teljesülő kérés nem vész el: a runtime a következő körben
+ * pótolja. Előjeles összeg, így az oda-vissza húzás kioltja egymást.
+ */
+static int template_step_queue;
+static void template_step_request(int direction)
+{
+    if (!app_templates_step_available(direction, s_animation_sample.sun_position_valid))
+    {
+        if (template_step_queue > -8 && template_step_queue < 8)
+            template_step_queue += direction;
+    }
+    template_loading_requested = true;
+}
+/* A runtime taskból: az elhalasztott lapozás pótlása. */
+static void template_step_retry(void)
+{
+    while (template_step_queue)
+    {
+        int direction = template_step_queue > 0 ? 1 : -1;
+        if (!app_templates_step_available(direction, s_animation_sample.sun_position_valid))
+            return;
+        template_step_queue -= direction;
+        template_loading_requested = true;
+    }
+}
 /* Az input kapja a gesztust, nem az újraépülő objektumfa. Így kép,
  * asszisztens és lezárt buborékolás sem nyelheti el a navigációt. */
 static void template_gesture(lv_event_t *event)
 {
     (void)event;
-    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME && s_view != VIEW_HOME_SETUP && s_view != VIEW_ENERGY_DISABLED)) return;
+    /* Betöltés közben csak a lapozás él: a kérést a runtime dolgozza fel,
+     * így a gyors, egymás utáni húzások nem vesznek el. */
+    bool loading = s_view == VIEW_THEME_LOADING;
+    if (s_pair_pad || (!loading && s_view != VIEW_DASHBOARD && s_view != VIEW_HOME &&
+                       s_view != VIEW_HOME_SETUP && s_view != VIEW_ENERGY_DISABLED)) return;
     lv_indev_t *input = lv_indev_active();
     if (!input) return;
     lv_dir_t direction = lv_indev_get_gesture_dir(input);
+    if (loading)
+    {
+        if (s_cfg.cardless_slave || (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT))
+            return;
+        template_step_request(direction == LV_DIR_LEFT ? 1 : -1);
+        runtime_wake();
+        lv_indev_wait_release(input);
+        return;
+    }
     if (s_cfg.energy_flow_disabled && direction == LV_DIR_TOP)
         s_diagnostics_requested = true;
     else if (s_cfg.energy_flow_disabled && !home_is_open())
@@ -361,11 +401,7 @@ static void template_gesture(lv_event_t *event)
     else if (direction == LV_DIR_BOTTOM)
         home_cards_requested();
     else if (!s_cfg.cardless_slave && (direction == LV_DIR_LEFT || direction == LV_DIR_RIGHT))
-    {
-        app_templates_step_available(direction == LV_DIR_LEFT ? 1 : -1,
-                                     s_animation_sample.sun_position_valid);
-        template_loading_requested = true;
-    }
+        template_step_request(direction == LV_DIR_LEFT ? 1 : -1);
     else
         return;
     /* Az elfogadott navigációs kérést a runtime task azonnal feldolgozza. */
@@ -432,6 +468,37 @@ static void template_loading_screen(void){
     s_loading_frame_presented = false;
     lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
 }
+/*
+ * Ha a betöltőképernyő mögött semmi nem halad (foglalt SD, elmaradó
+ * képkocka-visszajelzés vagy már be nem illeszthető előtöltött nézet), a
+ * kijelző nem maradhat örökre a pörgő körön: ott a húzásos navigáció sem él.
+ * Néhány másodperc után eldobjuk a félkész állapotot, és tiszta lappal
+ * újrakezdjük a betöltést.
+ */
+#define TEMPLATE_LOADING_STUCK_US (6LL * 1000 * 1000)
+static int64_t template_loading_started_us;
+static void template_loading_watchdog(void)
+{
+    if (s_view != VIEW_THEME_LOADING)
+    {
+        template_loading_started_us = 0;
+        return;
+    }
+    int64_t now = esp_timer_get_time();
+    if (!template_loading_started_us)
+    {
+        template_loading_started_us = now;
+        return;
+    }
+    if (now - template_loading_started_us < TEMPLATE_LOADING_STUCK_US)
+        return;
+    ESP_LOGW("app_ui", "A témabetöltés elakadt, újrakezdés");
+    app_templates_view_free(&template_pending);
+    template_pending.generation = template_view.generation;
+    template_waiting_for_load = false;
+    template_loading_requested = true;
+    template_loading_started_us = now;
+}
 /* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
  * a 0.6.4-es adapter az ISR-ből ennek a tasknak küld pufferértesítést.
  * A runtime másik taskból lv_refr_now-val holtpontot okozhatna. A kész
@@ -462,10 +529,26 @@ static bool template_loading_wait(void)
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
 static bool template_loading_frame(void){
     if (s_cfg.cardless_slave) return true;
+    /* Minden runtime körben fut, akkor is, ha a betöltőképocka nem készült el. */
+    template_step_retry();
+    template_loading_watchdog();
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
-    if(s_view!=VIEW_THEME_LOADING)template_loading_screen();
+    if(s_view!=VIEW_THEME_LOADING){
+        template_loading_screen();
+        /*
+         * A betöltőképernyő mögött a régi téma egyetlen objektuma sem látszik,
+         * ezért a dekódolt képeit (háttérképenként 1280x800 ARGB8888 = 4 MiB)
+         * és a raszter-gyorsítótárat már itt elengedjük. Így az SD-olvasás és
+         * az új háttér dekódolása nem a régi téma mellé kér PSRAM-ot: enélkül
+         * gyors oda-vissza lapozásnál elfogyhat a hely, a háttér dekódolása
+         * minden képkockán újra elbukik, és a kijelző használhatatlanul lelassul.
+         * Az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
+         */
+        template_release_cache();
+        template_built_valid=false;
+    }
     bsp_display_unlock();
     if (!template_loading_wait()) return false;
     template_loading_requested=false;

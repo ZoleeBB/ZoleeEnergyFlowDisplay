@@ -60,7 +60,7 @@ static void test_theme_switch_bench(app_runtime_state_t runtime, app_energy_samp
         for (unsigned step = 0; step < count; step++)
         {
             double t0 = bench_now_ms();
-            app_templates_step_available(1, true);
+            assert(app_templates_step_available(1, true));
             template_loading_requested = true;
             assert(template_loading_frame());
             double t1 = bench_now_ms();

@@ -1231,10 +1231,10 @@ esp_err_t app_templates_select(const char *id)
     xSemaphoreGive(lock);
     return result;
 }
-void app_templates_step_available(int direction, bool sun_available)
+bool app_templates_step_available(int direction, bool sun_available)
 {
     if (!lock || !xSemaphoreTake(lock, 0))
-        return;
+        return false;
     unsigned i = 0;
     for (unsigned n = 0; n < count; n++)
         if (!strcmp(selected, catalogue[n].id))
@@ -1253,10 +1253,11 @@ void app_templates_step_available(int direction, bool sun_available)
         }
     }
     xSemaphoreGive(lock);
+    return true;
 }
 void app_templates_step(int direction)
 {
-    app_templates_step_available(direction, true);
+    (void)app_templates_step_available(direction, true);
 }
 void app_templates_view_free(app_template_view_t *v)
 {

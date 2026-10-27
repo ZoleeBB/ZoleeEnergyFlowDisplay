@@ -1457,6 +1457,75 @@ static void slow_swipe(int x, int y, int dx, int dy)
     touch_sample_xy(x + 8 * dx, y + 8 * dy, false);
 }
 
+/*
+ * Gyors oda-vissza lapozás: a betöltőképernyő alatt érkező húzás se vesszen
+ * el, a régi téma dekódolt képei már a betöltés előtt szabaduljanak fel, és
+ * elakadt betöltésből a kijelző magától térjen vissza.
+ */
+static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    sample.sun_position_valid = true;
+    s_animation_sample = sample;
+    assert(app_templates_select("09-solar-journey") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !strcmp(template_view.id, "09-solar-journey"));
+
+    /* Lapozás a következő témára: a betöltőképernyőn már nincs korábbi raszter. */
+    lv_obj_update_layout(s_screen);
+    slow_swipe(640, 400, -8, 0);
+    assert(template_loading_requested);
+    assert(template_loading_frame() && s_view == VIEW_THEME_LOADING);
+#if LV_USE_SNAPSHOT
+    assert(template_raster_count == 0 && template_raster_bytes == 0);
+#endif
+    /* A betöltőképernyőn érkező újabb húzás sorba kerül, nem vész el. */
+    lv_obj_update_layout(s_screen);
+    slow_swipe(640, 400, 8, 0);
+    assert(template_step_queue != 0 || template_loading_requested);
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    /* Addig futtatjuk a runtime körét, amíg a sor kiürül. */
+    for (unsigned round = 0; round < 6 && (template_step_queue || template_loading_requested ||
+                                           s_view != VIEW_DASHBOARD); round++)
+    {
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+    }
+    assert(s_view == VIEW_DASHBOARD && !template_step_queue);
+    /* Két ellentétes irányú húzás után ugyanott vagyunk, és a háttér él. */
+    assert(!strcmp(template_view.id, "09-solar-journey"));
+    template_update(&sample, &fixture);
+    save_frame("rapid-paging");
+    test_scene_images(sample.night_mode);
+
+    /* Elakadt betöltés: betöltőképernyő, amelyen semmi nem mozdul tovább.
+     * A felépítés ilyenkor minden körben visszatér, a navigáció halott. */
+    assert(app_templates_select("10-battery-diagnostics") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !strcmp(template_view.id, "10-battery-diagnostics"));
+    template_waiting_for_load = true;
+    template_loading_screen();
+    for (unsigned round = 0; round < 3; round++)
+    {
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        assert(s_view == VIEW_THEME_LOADING && template_waiting_for_load);
+    }
+    ticks += TEMPLATE_LOADING_STUCK_US + 1;
+    assert(template_loading_frame());
+    assert(!template_waiting_for_load);
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD);
+    puts("PASS: rapid paging keeps swipes, frees the previous theme before loading and recovers from a stuck loading screen");
+}
+
 static void test_startup_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)
 {
     app_template_info_t themes[16];
@@ -2391,6 +2460,7 @@ int main(void)
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
     lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);navigation_bind_inputs();
+    test_rapid_paging(rt, sample);
     test_startup_navigation(rt, sample);
     assert(app_templates_select("builtin")==ESP_OK);template_prepare();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);

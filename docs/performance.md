@@ -10,6 +10,16 @@ Az [Espressif GUI útmutatója](https://docs.espressif.com/projects/esp-techpedi
 
 A beépített témák háttere natív 1280×800 px. Az Energiautak, Műszerfal és Energiafőkönyv téma korábban 1024×640-es háttérrel érkezett, ezért belépéskor teljes képernyős `lv_snapshot` méretezés futott: a desktop mérésben (RGB565, `ZOLEE_THEME_SWITCH_BENCH=1`) ez 43–75 ms építési időt jelentett a többi téma ~4 ms-ával szemben. A natív képekkel a teljes témaváltás 73→51 ms (Energiautak), 92→41 ms (Műszerfal) és 50→49 ms (Energiafőkönyv); a kép a felső 797 sorban képpontra azonos a korábbival, csak az alsó két sor szélmintavételezése tér el. A natív háttereket a `ZOLEE_EXPORT_SCALED_BACKGROUNDS=<mappa>` preview-mód és a `tools/prepare_native_backgrounds.py` állítja elő a futásidejű raszterből. Saját témához is natív méretű hátteret ajánlunk.
 
+A témaváltás betöltőképernyője mögött a régi téma egyetlen objektuma sem látszik,
+ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképocka után
+elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
+dekódolt képei mellé kért PSRAM-ot: gyors oda-vissza lapozásnál elfogyhatott a hely,
+a háttér dekódolása minden képkockán újra elbukott, és a kijelző használhatatlanul
+lelassult. Ha a betöltőképernyő mögött hat másodpercig semmi nem halad (foglalt SD,
+elmaradó képkocka-visszajelzés), a felépítés eldobja a félkész állapotot és tiszta
+lappal újrakezd; enélkül a kijelző a pörgő körön maradt, ahol a húzásos navigáció
+sem él.
+
 Nappali/éjszakai váltáskor az előző változat dekódolt képei (háttérképenként 1280×800 ARGB8888 = 4 MiB) elfoglalnák az új háttér dekódolásához szükséges PSRAM-ot, és sikertelen dekódolásnál a háttér elmaradt. A felépítés ezért a törölt objektumok után, az új jelenet előtt üríti a kép- és raszter-gyorsítótárat; az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás. A preview minden témánál ellenőrzi, hogy a váltás után a jelenet képei a saját változatukra mutatnak, és a teljes képernyős háttér valóban dekódolt képpontokat ad.
 
 A 96 elemű sablon-geometriai tábla CPU által használt adat, nem DMA-puffer. Az ESP-IDF [külső BSS támogatásával](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-guides/external-ram.html) PSRAM-ba kerül. A desktop mérésben mérete 234 240 bájt; a célplatform pontos mérete a firmware linker-térképéből ellenőrizhető. A 32 KiB belső memória-tartalék megmarad, nem növeljük a korábban indulási abortot okozó 64 KiB-ra.

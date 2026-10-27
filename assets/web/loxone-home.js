@@ -263,7 +263,7 @@ const LoxoneHome = (() => {
                         field(grid, 'Figyelmeztetés színe', entry, 'warning_color', 'color');
                     }
                 }
-                const remove = create('button', 'Elem törlése'); remove.type = 'button';
+                const remove = create('button', 'Elem törlése'); remove.type = 'button'; remove.className = 'secondary';
                 remove.onclick = () => {
                     if (busy()) return;
                     if (section === 'consumers') model.consumers = model.consumers.filter(item => item.id !== entry.id);

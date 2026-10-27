@@ -41,8 +41,9 @@ esp_err_t app_templates_select(const char *id);
 /* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */
 esp_err_t app_templates_reorder(const cJSON *ids, char error[160]);
 void app_templates_step(int direction);
-/* Ugyanaz a lapozás, de napadat nélkül a Nap pálya sablont átugorja. */
-void app_templates_step_available(int direction, bool sun_available);
+/* Ugyanaz a lapozás, de napadat nélkül a Nap pálya sablont átugorja.
+ * Hamis érték: a katalóguszár foglalt volt, a kérést a hívó ismételje meg. */
+bool app_templates_step_available(int direction, bool sun_available);
 esp_err_t app_templates_delete(const char *id, char error[160]);
 /* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
 esp_err_t app_templates_probe(const char *zip_path, cJSON **report, char error[160]);

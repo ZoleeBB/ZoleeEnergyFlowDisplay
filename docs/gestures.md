@@ -22,7 +22,11 @@ Egy húzásnak induló érintésből nem lesz gombnyomás.
 Néhány nézet nem lapozható:
 
 - SD nélkül csak a beépített Rendszer nézet érhető el, a vízszintes húzásnak nincs hatása.
-- A PIN-pad, a diagnosztika és a téma betöltése alatt a téma nem vált.
+- A PIN-pad és a diagnosztika alatt a téma nem vált.
+- A téma betöltése közben (pörgő körös oldal) a vízszintes húzás nem vész el: a
+  kérés sorba kerül, és a betöltés után azonnal lefut. Az oda-vissza húzás
+  kioltja egymást, így a kiinduló témánál maradunk. Ugyanígy nem vész el a
+  húzás akkor sem, ha a katalógus éppen foglalt (SD-olvasás vagy -írás).
 - Energiaáramlás tiltás módban csak a felfelé húzás (diagnosztika) és az Otthon-oldalak lapozása működik.
 - A Nap pálya téma csak érvényes `SunPosition` adat mellett szerepel a lapozásban.
 

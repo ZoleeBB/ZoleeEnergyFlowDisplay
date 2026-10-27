@@ -84,6 +84,10 @@ function drawStoredPreview(canvas,bitmap){
 }
 if(typeof document!=='undefined'){
  const message=document.getElementById('message'),list=document.getElementById('list'),fileInput=document.getElementById('zip'),check=document.getElementById('check'),install=document.getElementById('install');
+ /* Három külön visszajelzés: a ZIP-telepítés a gombok alatt, a telepített
+  * témák műveletei a lista fölött, a GitHubos frissítés a saját szakaszában. */
+ const installMessage=document.getElementById('install-message')||message;
+ let activeMessage=message;
  let selected=null,verified=null,images=new Map(),generation=0,busy=false,energyDisabled=false,updateMap=new Map();
  function loadThumb(t,holder){
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
@@ -137,19 +141,19 @@ if(typeof document!=='undefined'){
    loadThumb(t,holder);
   }
  }
- function lock(value){busy=value;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=value?'working':'';fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
- async function action(path,body){if(busy)return;lock(true);message.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);message.textContent=text;await refresh();}catch(e){message.textContent=e.message;}finally{lock(false);}}
- fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
-  try{const file=fileInput.files[0];if(!file)return;message.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);if(energyDisabled&&manifest.id!=='loxone-home')throw Error('Ebben a módban csak a Loxone Otthon erőforráscsomag telepíthető.');
+ function lock(value,bar){busy=value;if(bar)activeMessage=bar;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=activeMessage===message&&value?'working':'';installMessage.className=activeMessage===installMessage&&value?'working':'';fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
+ async function action(path,body,bar){const target=bar||message;if(busy)return;lock(true,target);target.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);target.textContent=text;await refresh();}catch(e){target.textContent=e.message;}finally{lock(false);}}
+ fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false,installMessage);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
+  try{const file=fileInput.files[0];if(!file)return;installMessage.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);if(energyDisabled&&manifest.id!=='loxone-home')throw Error('Ebben a módban csak a Loxone Otthon erőforráscsomag telepíthető.');
    const next=new Map();try{for(const mode of ['light','dark']){const name=previewName(mode),data=files.get(name);if(data)next.set(name,await createImageBitmap(new Blob([data],{type:'image/png'})));}}catch(e){for(const image of next.values())image.close();throw e;}
    if(id!==generation){for(const image of next.values())image.close();return;}images=next;selected=file;
    document.getElementById('metadata').textContent=manifest.name+' · v'+manifest.version+' · PNG: '+(memory.encoded/1048576).toFixed(2)+' MiB · becsült dekódolt képmemória: '+(memory.decoded/1048576).toFixed(2)+' MiB';
    for(const mode of ['light','dark'])drawStoredPreview(document.getElementById(mode),images.get(previewName(mode)));document.getElementById('previews').hidden=false;
-   message.textContent='Helyi előnézet kész. Következő lépés: ellenőrzés az eszközön.';
-  }catch(e){if(id===generation)message.textContent='Helyi ellenőrzés sikertelen: '+e.message;}finally{if(id===generation)lock(false);}};
- check.onclick=async()=>{if(!selected||busy)return;const file=selected;verified=null;lock(true);message.textContent='Az eszköz ellenőrzi a ZIP-et, telepítés nélkül…';
-  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();message.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';install.textContent=report.updating?'3. Meglévő téma frissítése':'3. Telepítés';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){message.textContent=e.message;}finally{lock(false);}};
- install.onclick=async()=>{if(selected&&verified===selected){const file=selected;const updating=install.textContent.includes('frissítése');if(updating&&!confirm('A meglévő téma új csomaggal frissül. Folytatod?'))return;verified=null;await action('/api/templates/install',file);lock(false);}};
+   installMessage.textContent='Helyi előnézet kész. Következő lépés: ellenőrzés az eszközön.';
+  }catch(e){if(id===generation)installMessage.textContent='Helyi ellenőrzés sikertelen: '+e.message;}finally{if(id===generation)lock(false);}};
+ check.onclick=async()=>{if(!selected||busy)return;const file=selected;verified=null;lock(true,installMessage);installMessage.textContent='Az eszköz ellenőrzi a ZIP-et, telepítés nélkül…';
+  try{const r=await fetch('/api/templates/validate',{method:'POST',headers:{'X-Zolee-Template':'1'},body:file});if(!r.ok)throw Error(await r.text());const report=await r.json();installMessage.textContent=report.message+' · v'+report.version+' · '+(report.decoded_image_bytes/1048576).toFixed(2)+' MiB';install.textContent=report.updating?'3. Meglévő téma frissítése':'3. Telepítés';if(report.valid&&report.installable&&file===selected)verified=file;}catch(e){installMessage.textContent=e.message;}finally{lock(false);}};
+ install.onclick=async()=>{if(selected&&verified===selected){const file=selected;const updating=install.textContent.includes('frissítése');if(updating&&!confirm('A meglévő téma új csomaggal frissül. Folytatod?'))return;verified=null;await action('/api/templates/install',file,installMessage);lock(false);}};
  /* Gyári témák frissítése a GitHubról: az eszköz tölti le, a böngésző csak állapotot kér. */
  const updateCheck=document.getElementById('update-check'),updateAll=document.getElementById('update-all'),updateMessage=document.getElementById('update-message'),updateList=document.getElementById('update-list');
  let updatePoll=null;
