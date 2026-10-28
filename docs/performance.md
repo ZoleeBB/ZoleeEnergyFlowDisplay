@@ -366,3 +366,18 @@ mért csúcs 8308 B) vermét: ezeknél a tartalék már most is szűk. Az LVGL
 adapter 32 KiB-os verme PSRAM-ban van.
 
 Új méretezés előtt mindig a `/api/diagnostics/tasks` mért értékeiből indulj ki.
+
+### A DMA-képes keret külön szűk
+
+A veremcsökkentés után a szabad belső RAM 18 439 B-ról 41 863 B-ra nőtt, és a
+témaváltás 29 992 ms-ról 9803 ms-ra (09-solar-journey), illetve 2357-3014 ms-ra
+(10-battery-diagnostics, 01-live-home, 06-energy-orbit) gyorsult. A **DMA-képes**
+szabad memória viszont 1967 B-ról csak 2855 B-ra változott: a felszabadult
+vermek nem abból a régióból foglaltak. Az SD-olvasás és a kriptográfiai
+gyorsító kizárólag DMA-képes belső RAM-ot tud használni, ezért az OTA és a
+témafrissítés TLS-hibája megmaradt.
+
+A régiónkénti bontás a soros konzolra kerül a `/api/diagnostics/tasks`
+lekérésekor (`heap_caps_print_heap_info`), a JPEG-dekóder indulási DMA-foglalása
+és a rendszerindítás végén a szabad DMA-memória pedig az eseménynaplóba.
+Méréssel kell eldönteni, melyik fogyasztót érdemes visszavenni.

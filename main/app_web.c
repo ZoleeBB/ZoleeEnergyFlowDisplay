@@ -885,6 +885,10 @@ static esp_err_t diagnostics_tasks_get(httpd_req_t *req){
         httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Nincs elég memória a jelentéshez.");
         return ESP_OK;}
     count=uxTaskGetSystemState(status,count,NULL);
+    /* A soros konzolra a régiónkénti bontás is kimegy: a DMA-képes memória
+     * csak bizonyos régiókban van, és a HTTP-jelentés csak összesít. */
+    heap_caps_print_heap_info(MALLOC_CAP_DMA);
+    heap_caps_print_heap_info(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     multi_heap_info_t internal,dma;
     heap_caps_get_info(&internal,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     heap_caps_get_info(&dma,MALLOC_CAP_DMA);

@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "esp_event.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -232,8 +233,15 @@ void app_main(void)
 
     /* A JPEG kis belső DMA-foglalása megelőzi a Wi-Fi/BLE feladatokat.
      * Csak Loxone módban kell; hiba esetén az alkalmazás tovább fut, és a videó újrapróbálja. */
-    if (s_config.data_recept_mode == APP_DATA_LOXONE && app_intercom_prepare_video() != ESP_OK) {
-        app_events_add(APP_EVENT_WARNING, "A kaputelefon JPEG-dekóderének korai előkészítése nem sikerült.");
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
+        /* A dekóder leírói DMA-képes belső RAM-ból foglalódnak, amiből kevés
+         * van; a foglalás mértékét ezért megmérjük. */
+        unsigned dma_before = (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA);
+        esp_err_t prepared = app_intercom_prepare_video();
+        app_events_add(APP_EVENT_INFO, "JPEG-dekóder DMA-foglalás: %u -> %u B", dma_before,
+                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA));
+        if (prepared != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "A kaputelefon JPEG-dekóderének korai előkészítése nem sikerült.");
     }
     if (app_ble_profile_init(&s_config) != ESP_OK &&
         (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
@@ -377,7 +385,9 @@ void app_main(void)
         fatal_forever(cfg_tr("Memóriahiba","Memory error"),
             cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
     }
-    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött. Szabad DMA-memória: %u B (legnagyobb blokk %u B).",
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     /* Belső beállítás-tartalék: induláskor egyszer összeveti az SD-vel, és csak
      * eltérésnél ír. SD nélküli Slave-nél nincs mit menteni. */
     if (!s_config.cardless_slave && app_backup_flash_start() != ESP_OK)
