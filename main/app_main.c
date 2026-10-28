@@ -382,6 +382,10 @@ void app_main(void)
      * eltérésnél ír. SD nélküli Slave-nél nincs mit menteni. */
     if (!s_config.cardless_slave && app_backup_flash_start() != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "A belső beállítás-tartalék feladata nem indult el.");
+    /* Az előre dekódolt sablonképek a háttérben, lassú ütemben készülnek el. */
+    if (!s_config.cardless_slave && !s_config.energy_flow_disabled &&
+        app_templates_raw_start() != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "A sablonképek előkészítő feladata nem indult el.");
     if (slave) app_ble_profile_boot_complete();
 
     /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */

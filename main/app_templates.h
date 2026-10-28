@@ -50,6 +50,15 @@ typedef struct
 } app_template_view_t;
 
 esp_err_t app_templates_init(void);
+/*
+ * Egyetlen hiányzó, előre dekódolt kép-segédfájl elkészítése (app_template_raw.h).
+ * Háttérfeladatból hívandó: a lapozás, a telepítés és a webes feltöltés
+ * elsőbbséget élvez, ilyenkor hamissal tér vissza. Igaz: készült egy fájl,
+ * rövidesen újra hívható.
+ */
+bool app_templates_raw_step(void);
+/* A fenti lépéseket futtató, alacsony prioritású háttérfeladat indítása. */
+esp_err_t app_templates_raw_start(void);
 unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char active[33]);
 esp_err_t app_templates_select(const char *id);
 /* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */

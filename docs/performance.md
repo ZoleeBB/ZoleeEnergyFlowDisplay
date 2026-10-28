@@ -28,9 +28,12 @@ telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
 - Ha egy képhez minden használt mérethez van érvényes segédfájl, a PNG-t be sem
   olvassuk: a témaváltásból kimarad a dekódolás és a méretezés is, a dekódolt
   háttér pedig 4 MiB helyett 2–3 MiB PSRAM-ot foglal.
-- A segédfájlok telepítéskor és a GitHubos frissítéskor készülnek el; ha
-  hiányoznak (például régebbi SD-kártyán), a következő betöltés egyszer pótolja
-  őket. Sikertelen írásnál minden a megszokott PNG-úton fut tovább.
+- A segédfájlokat külön, alacsony prioritású háttérfeladat készíti el:
+  hívásonként egy fájl, a katalógus- és SD-zárat csak addig tartva, lapozás és
+  telepítés után néhány másodperc szünettel. Témabetöltés közben nem fut, mert
+  ott a dekódolás és a 2–3 MiB-os kiírás témánként fél percre elvenné az
+  SD-kártyát a webes feltöltéstől. Sikertelen írásnál minden a megszokott
+  PNG-úton fut tovább, a következő körben újra próbálkozik.
 - A segédfájlok nem kerülnek a sablon ZIP-be, az ujjlenyomatba és az előnézeti
   képekbe; a csomag törlésekor a könyvtárral együtt eltűnnek.
 - Az ikonok átméretezése a telepítéskori bilineáris szűrővel készül, ezért az

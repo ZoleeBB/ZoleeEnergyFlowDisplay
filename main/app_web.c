@@ -18,6 +18,7 @@
 #include "app_templates.h"
 #include "app_diagnostics.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>

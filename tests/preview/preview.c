@@ -1575,7 +1575,14 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
         assert(template_view.assets[i].bytes);
     unsetenv("ZOLEE_DISABLE_RAW");
 
-    /* Újratöltés: a hiányzó segédfájlok elkészülnek, és azokból dolgozunk. */
+    /* A segédfájlokat a háttérlépés készíti el, fájlonként egy hívásban. */
+    ticks += 4000000;
+    unsigned steps = 0;
+    while (app_templates_raw_step() && steps < 400)
+        steps++;
+    assert(steps > 10);
+
+    /* Újratöltés: most már a segédfájlokból dolgozunk. */
     assert(app_templates_select("builtin") == ESP_OK);
     assert(template_loading_frame());
     template_prepare();
@@ -1630,7 +1637,7 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
      * bilineáris szűrővel készül, ezért az ikonok képpontjai térhetnek el. */
     assert(!background);
     assert(strong < 1280 * 800 / 100);
-    puts("PASS: raw sidecars are generated on load, replace the PNG path and render the same frame");
+    puts("PASS: raw sidecars are built step by step in the background, replace the PNG path and render the same frame");
 }
 
 static void test_startup_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)

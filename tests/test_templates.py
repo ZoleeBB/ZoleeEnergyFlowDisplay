@@ -381,6 +381,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
                              elements=[dict(type='image', file='house.png', x=0, y=0, w=128, h=128)]))
     assert lib.app_templates_install(os.fsencode(archive('raw-layout', raw_doc, {'house.png': house})), error) == 0, error.value
     raw_dir = sd / 'raw-layout'
+    # A telepítés nem készít segédfájlt: a háttérlépés pótolja, fájlonként egy hívásban.
+    assert not list(raw_dir.glob('*.raw'))
+    lib.app_templates_raw_step.restype = C.c_bool
+    steps = 0
+    while lib.app_templates_raw_step() and steps < 200:
+        steps += 1
+    assert steps >= 2
     assert (raw_dir / 'house-64x64.raw').is_file() and (raw_dir / 'house-128x128.raw').is_file()
     assert (raw_dir / 'house-128x128.raw').stat().st_size == 32 + 128 * 128 * 3
     assert not (raw_dir / 'raw.tmp').exists()
@@ -419,4 +426,4 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     assert lib.app_templates_validate(os.fsencode(raw_dir), None, error), error.value
     assert not (raw_dir / 'raw.tmp').exists()
     assert lib.app_templates_delete(b'raw-layout', error) == 0, error.value
-    print('PASS: raw sidecars are built on install, loaded without the PNG and fall back when corrupt')
+    print('PASS: raw sidecars are built by the background step, loaded without the PNG and fall back when corrupt')

@@ -1,3 +1,5 @@
+#include <errno.h>
+#include <string.h>
 #include "app_support_web.h"
 #include "app_template_page.h"
 #include "app_builtin_previews.h"
@@ -170,7 +172,10 @@ static esp_err_t template_upload(httpd_req_t *req){
     if(!app_storage_is_ok())return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Az SD-kártya nem érhető el");
     if(app_storage_lock()!=ESP_OK)return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Az SD-kártya nem érhető el");
     char path[256];snprintf(path,sizeof(path),"%s/.upload.zip",app_templates_root());FILE *f=fopen(path,"wb");
-    if(!f){app_storage_unlock();return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"SD-kártya írási hiba");}
+    if(!f){
+        /* A pontos ok (hely, megnyitott fájlok, kártyahiba) a hibaüzenetben látszik. */
+        char message[96];snprintf(message,sizeof(message),"SD-kártya írási hiba (%d: %s)",errno,strerror(errno));
+        app_storage_unlock();return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,message);}
     char buffer[2048],error[160]="Telepítés sikertelen";size_t left=req->content_len;bool ok=true;
     while(left){int n=httpd_req_recv(req,buffer,left>sizeof(buffer)?sizeof(buffer):left);if(n<=0||fwrite(buffer,1,n,f)!=(size_t)n){ok=false;break;}left-=n;}
     if(fclose(f))ok=false;

@@ -5,6 +5,9 @@
 #include "app_storage.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "freertos/task.h"
+#endif
 #include <ctype.h>
 #include "app_template_dir.h"
 #include <errno.h>
@@ -26,6 +29,7 @@
 #endif
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #endif
 
 #ifdef APP_TEMPLATE_DESKTOP
@@ -1244,6 +1248,25 @@ esp_err_t app_templates_reorder(const cJSON *ids, char error[160])
         error_set(error, "A sorrend mentése sikertelen");
     return ok ? ESP_OK : ESP_FAIL;
 }
+static unsigned raw_cursor;
+#ifndef APP_TEMPLATE_DESKTOP
+static int64_t raw_pause_until_us;
+#endif
+/* Lapozás és telepítés után a háttérmunka néhány másodpercre félreáll. */
+static void raw_postpone(void)
+{
+#ifndef APP_TEMPLATE_DESKTOP
+    raw_pause_until_us = esp_timer_get_time() + 3000000;
+#endif
+}
+static bool raw_postponed(void)
+{
+#ifndef APP_TEMPLATE_DESKTOP
+    return esp_timer_get_time() < raw_pause_until_us;
+#else
+    return false;
+#endif
+}
 esp_err_t app_templates_select(const char *id)
 {
     if (!lock || !id)
@@ -1256,6 +1279,7 @@ esp_err_t app_templates_select(const char *id)
             snprintf(selected, 33, "%s", id);
             generation++;
             save_selection = true;
+            raw_postpone();
             result = ESP_OK;
             break;
         }
@@ -1280,6 +1304,7 @@ bool app_templates_step_available(int direction, bool sun_available)
             snprintf(selected, 33, "%s", catalogue[i].id);
             generation++;
             save_selection = true;
+            raw_postpone();
             break;
         }
     }
@@ -1497,19 +1522,50 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
 }
 
 /*
- * A csomag összes hiányzó segédfájljának elkészítése. Telepítés és frissítés
- * után fut, így a következő témaváltás már dekódolás nélkül dolgozik.
+ * Egyetlen hiányzó segédfájl elkészítése a háttérben.
+ *
+ * A dekódolás és a 2-3 MiB-os kiírás témánként fél percig is tarthat, ezért
+ * nem a témabetöltés közben fut: ott az SD-zárat percekre elvenné a webes
+ * feltöltéstől. Hívásonként egy fájl készül el, a zárakat csak addig tartjuk.
+ * A lapozás és a telepítés elsőbbséget élvez: akkor ez a munka kimarad.
  */
-static void raw_prepare_all(const char *directory, const cJSON *doc)
+bool app_templates_raw_step(void)
 {
-    template_variant_t *variants = calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants));
-    if (!variants)
-        return;
-    unsigned total = collect_variants(doc, variants, TEMPLATE_RAW_VARIANTS);
-    for (unsigned i = 0; i < total; i++)
-        if (!raw_current(directory, &variants[i]))
-            (void)raw_generate(directory, &variants[i]);
-    free(variants);
+    if (!lock || raw_disabled() || raw_postponed())
+        return false;
+    if (!xSemaphoreTake(lock, 0))
+        return false;
+    bool worked = false;
+    char id[33] = {0};
+    for (unsigned attempt = 0; attempt < count && !worked; attempt++)
+    {
+        unsigned index = (raw_cursor + attempt) % count;
+        if (!index || !strcmp(catalogue[index].id, "builtin"))
+            continue;
+        snprintf(id, sizeof(id), "%s", catalogue[index].id);
+        char directory[256], path[256];
+        path_join(directory, app_templates_root(), id);
+        path_join(path, directory, "template.json");
+        if (!STORAGE_TRY())
+            break;
+        size_t size = 0;
+        unsigned char *text = read_file(path, 64 * 1024, &size);
+        cJSON *doc = text ? cJSON_Parse((const char *)text) : NULL;
+        free(text);
+        template_variant_t *variants = doc ? calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants)) : NULL;
+        unsigned total = variants ? collect_variants(doc, variants, TEMPLATE_RAW_VARIANTS) : 0;
+        for (unsigned i = 0; i < total && !worked; i++)
+            if (!raw_current(directory, &variants[i]))
+                worked = raw_generate(directory, &variants[i]);
+        free(variants);
+        cJSON_Delete(doc);
+        STORAGE_GIVE();
+        /* Ha ez a téma kész, a következő körben a következő témát nézzük. */
+        if (!worked)
+            raw_cursor = (index + 1) % (count ? count : 1);
+    }
+    xSemaphoreGive(lock);
+    return worked;
 }
 
 bool app_templates_load_pending(app_template_view_t *out)
@@ -1609,11 +1665,7 @@ bool app_templates_load_pending(app_template_view_t *out)
             unsigned used = 0;
             for (unsigned i = 0; i < variant_count; i++)
                 if (!strcmp(variants[i].file, a->name))
-                {
                     used++;
-                    if (!raw_current(directory, &variants[i]))
-                        (void)raw_generate(directory, &variants[i]);
-                }
             if (used && next->raw_count + used <= 32)
             {
                 raw_only = true;
@@ -1723,6 +1775,34 @@ bool app_templates_load_pending(app_template_view_t *out)
     xSemaphoreGive(lock);
     return true;
 }
+#ifndef APP_TEMPLATE_DESKTOP
+/*
+ * Háttérfeladat az előre dekódolt kép-segédfájlokhoz.
+ *
+ * Alacsony prioritású, lassú ütemű: egyszerre egy fájl készül el, a zárakat
+ * csak addig tartja, és a lapozás vagy telepítés után három másodpercig
+ * félreáll. Így a webes feltöltés és a témaváltás nem várakozik rá. SD nélküli
+ * Slave-en el sem indul.
+ */
+static void raw_task(void *argument)
+{
+    (void)argument;
+    while (true)
+    {
+        bool worked = app_templates_raw_step();
+        vTaskDelay(pdMS_TO_TICKS(worked ? 1500 : 60000));
+    }
+}
+
+esp_err_t app_templates_raw_start(void)
+{
+    static TaskHandle_t task;
+    if (task)
+        return ESP_OK;
+    return xTaskCreate(raw_task, "template_raw", 4096, NULL, 2, &task) == pdPASS ? ESP_OK
+                                                                                 : ESP_ERR_NO_MEM;
+}
+#endif
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy
  * egy ZIP kibontásával, vagy a GitHubról letöltött fájlokkal áll elő. A teljes
  * validálás itt fut, a régi téma csak sikeres csere után törlődik. */
@@ -1760,12 +1840,6 @@ static esp_err_t install_stage(const char *stage, char error[160])
         error_set(error, "SD mentési hiba; a korábbi sablon visszaállítva");
         goto done;
     }
-    /*
-     * A friss csomaghoz most készülnek el az előre dekódolt kép-segédfájlok,
-     * amíg a kijelző még a régi témát mutatja. Hibánál marad a PNG-út.
-     */
-    if (!home_package(doc) && !raw_disabled())
-        raw_prepare_all(dest, doc);
     /* A UI régi képei memóriában élnek, a generation módosítás után
      * az aktuális téma újra beolvasódik az SD-ről. */
     scan();

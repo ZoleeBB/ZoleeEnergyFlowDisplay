@@ -180,8 +180,9 @@ meg. Részletek: [teljesítmény](performance.md#gyorsabb-témaváltás--sd-olva
 
 ### Előre dekódolt kép-segédfájlok
 
-A telepítés a csomag mellé `<alap>-<szélesség>x<magasság>.raw` fájlokat készít a
-jelenetekben szereplő minden kép-változathoz. Ezek nem részei a ZIP-nek, nem
+Az eszköz a csomag mellé `<alap>-<szélesség>x<magasság>.raw` fájlokat készít a
+jelenetekben szereplő minden kép-változathoz, telepítés után a háttérben,
+fájlonként. Ezek nem részei a ZIP-nek, nem
 számítanak a 32 képes és az 5 MiB-os kódolt keretbe, és a csomag törlésével
 együtt eltűnnek. A kijelző ezekből dekódolás és méretezés nélkül dolgozik, így a
 témaváltás érezhetően gyorsabb; hiányzó vagy sérült segédfájlnál minden a

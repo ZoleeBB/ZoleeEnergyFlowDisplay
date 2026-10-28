@@ -263,8 +263,10 @@ bool app_template_raw_build(const unsigned char *png, size_t png_size, unsigned 
     uint8_t *rgba = png_decode(png, png_size, &sw, &sh);
     if (!rgba)
         return false;
-    uint8_t *scaled = scale_rgba(rgba, sw, sh, width, height);
-    free(rgba);
+    /* Azonos méretnél (hátterek) nincs másolat: a csúcsmemória 4 MiB-tal kevesebb. */
+    uint8_t *scaled = (sw == width && sh == height) ? rgba : scale_rgba(rgba, sw, sh, width, height);
+    if (scaled != rgba)
+        free(rgba);
     if (!scaled)
         return false;
 
