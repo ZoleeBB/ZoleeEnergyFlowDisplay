@@ -126,6 +126,7 @@ static esp_http_client_handle_t open_download(const char *url, ota_trace_t *trac
     }
     snprintf(current, 2048, "%s", url);
     esp_http_client_handle_t client = NULL;
+    unsigned connect_retries = 0;
     for (unsigned attempt = 0; attempt < 5; attempt++)
     {
         if (!app_ota_download_url_allowed(current))
@@ -197,7 +198,21 @@ static esp_http_client_handle_t open_download(const char *url, ota_trace_t *trac
         if (redirect->location_too_long)
             ota_error(trace, "túl hosszú Location fejléc", ESP_ERR_INVALID_SIZE);
         else if (err != ESP_OK)
+        {
             network_error(client, trace, "HTTPS kapcsolódás/küldés sikertelen", err);
+            /* A TLS-kontextus már a kapcsolódás előtt elbukhat, ha éppen kevés a
+             * szabad belső RAM (más feladat nagy foglalást tart). Rövid szünet
+             * után kétszer újrapróbáljuk, mielőtt napváltásig feladnánk. */
+            if (++connect_retries <= 2)
+            {
+                esp_http_client_cleanup(client);
+                client = NULL;
+                app_events_add(APP_EVENT_INFO, "OTA [%s]: új kapcsolódási kísérlet 3 s múlva (%u/2).",
+                               trace->stage, connect_retries);
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                continue;
+            }
+        }
         else if (header_result < 0)
             network_error(client, trace, "HTTP fejléc olvasási hiba", (int)header_result);
         else

@@ -25,6 +25,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include <stdarg.h>
@@ -112,8 +113,9 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
     if (!redirect)
         return NULL;
     uint8_t *data = NULL;
+    unsigned connect_retries = 0;
     reason_set("ismeretlen hiba");
-    for (unsigned attempt = 0; attempt < 4 && !data; attempt++)
+    for (unsigned attempt = 0; attempt < 6 && !data; attempt++)
     {
         if (!app_template_remote_url_allowed(current))
         {
@@ -143,11 +145,16 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
             esp_http_client_set_header(client, "Accept", "application/vnd.github+json");
             esp_http_client_set_header(client, "X-GitHub-Api-Version", "2022-11-28");
         }
-        bool retry = false;
+        bool retry = false, pause = false;
         esp_err_t opened = esp_http_client_open(client, 0);
         int64_t headers = opened == ESP_OK ? esp_http_client_fetch_headers(client) : -1;
         if (opened != ESP_OK)
+        {
             reason_set("kapcsolódás: %s", esp_err_to_name(opened));
+            /* Ugyanaz, mint az OTA-nál: a TLS-kontextus pillanatnyi belső
+             * RAM-hiánytól is elbukhat, ezért rövid szünettel újrapróbáljuk. */
+            retry = pause = ++connect_retries <= 2;
+        }
         else if (headers < 0)
             reason_set("nincs válaszfejléc");
         if (opened == ESP_OK && headers >= 0)
@@ -229,6 +236,8 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
         esp_http_client_cleanup(client);
         if (!retry)
             break;
+        if (pause)
+            vTaskDelay(pdMS_TO_TICKS(3000));
     }
     free(redirect);
     return data;
@@ -303,6 +312,12 @@ static bool select_tag(char tag[32], char detail[160])
 static void check_task(void *arg)
 {
     (void)arg;
+    /* A TLS-kontextus a szabad belső RAM-tól függ, ezért a kérés előtti
+     * állapotot naplózzuk: egy „kapcsolódás” hiba így nem marad okszerűtlen. */
+    app_events_add(APP_EVENT_INFO, "Témafrissítés RAM: belső=%u B; legnagyobb belső=%u B; PSRAM=%u B",
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     char tag[32], detail[160] = "";
     if (!select_tag(tag, detail))
     {
@@ -310,7 +325,7 @@ static void check_task(void *arg)
             snprintf(detail, sizeof(detail), "A GitHub nem érhető el, vagy nincs stabil kiadás.");
         app_events_add(APP_EVENT_WARNING, "Témafrissítés sikertelen: %s", detail);
         set_state(APP_TEMPLATE_UPDATE_ERROR, detail);
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
     char url[256];
@@ -331,7 +346,7 @@ static void check_task(void *arg)
         free(ids);
         free(installed);
         free(items);
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
     unsigned local = app_templates_list(installed, APP_TEMPLATE_MAX, NULL);
@@ -379,7 +394,7 @@ static void check_task(void *arg)
     free(ids);
     free(installed);
     free(items);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 /* Egy fájl a stage-be: a teljes tartalom egyetlen írással, rövid SD-zár alatt. */
@@ -514,7 +529,10 @@ esp_err_t app_template_update_check(void)
     s_state = APP_TEMPLATE_UPDATE_CHECKING;
     snprintf(s_message, sizeof(s_message), "%s", "Témák ellenőrzése a GitHubon…");
     xSemaphoreGive(s_lock);
-    if (xTaskCreate(check_task, "tpl_check", 8192, NULL, 3, NULL) != pdPASS)
+    /* A verem PSRAM-ban: az ellenőrzés csak HTTPS-t és katalógusolvasást végez,
+     * flash-írást nem, a TLS-kontextusnak viszont kell a szabad belső RAM. */
+    if (xTaskCreateWithCaps(check_task, "tpl_check", 8192, NULL, 3, NULL,
+                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS)
     {
         set_state(APP_TEMPLATE_UPDATE_ERROR, "Nincs elegendő memória az ellenőrzéshez.");
         return ESP_ERR_NO_MEM;

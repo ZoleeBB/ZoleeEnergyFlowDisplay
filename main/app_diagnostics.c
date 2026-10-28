@@ -101,6 +101,8 @@ void app_diagnostics_capture(app_diagnostics_t *out)
     out->free_internal_kib = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024;
     out->largest_dma_block_bytes =
         heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    out->min_free_internal_kib =
+        heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024;
 
     if (out->runtime.wifi_connected)
     {

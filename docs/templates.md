@@ -70,7 +70,7 @@ csak annyi látszódjon, hogy „a GitHub nem érhető el”:
 
 | Üzenet | Jelentés |
 | --- | --- |
-| `A legutóbbi kiadás nem kérdezhető le: kapcsolódás: …` | hálózati vagy TLS-hiba; a lekérdezés 1,5 s múlva egyszer újrapróbálkozik |
+| `A legutóbbi kiadás nem kérdezhető le: kapcsolódás: …` | hálózati vagy TLS-hiba; a kapcsolódás 3 s szünettel kétszer, a kiadás lekérdezése 1,5 s múlva egyszer újrapróbálkozik ([OTA-diagnosztika](automatic-update-diagnostics.md)) |
 | `… HTTP 403 (a GitHub korlátozza a kéréseket)` | óránkénti kéréskorlát; később újra működik |
 | `… a válasz nem JSON` / `nincs tag_name a válaszban` | váratlan API-válasz |
 | `… nincs elég memória` | kevés szabad RAM; a puffer PSRAM helyett a belső RAM-ból is kérhető |
