@@ -183,29 +183,6 @@ static unsigned char *sd_chunk(void)
 }
 #endif
 
-bool app_templates_sd_write(FILE *file, const void *data, size_t size)
-{
-    if (!file || (!data && size))
-        return false;
-#ifndef APP_TEMPLATE_DESKTOP
-    unsigned char *staging = sd_chunk();
-    if (staging)
-    {
-        const unsigned char *cursor = data;
-        for (size_t done = 0; done < size;)
-        {
-            size_t take = size - done < SD_CHUNK_BYTES ? size - done : SD_CHUNK_BYTES;
-            memcpy(staging, cursor + done, take);
-            if (fwrite(staging, 1, take, file) != take)
-                return false;
-            done += take;
-        }
-        return true;
-    }
-#endif
-    return fwrite(data, 1, size, file) == size;
-}
-
 /*
  * Teljes fájl beolvasása egyetlen POSIX read() hívássorozattal.
  *
@@ -302,6 +279,34 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     return data;
 }
 #endif
+/*
+ * Nagy puffer kiírása SD-re. A definíció szándékosan a `_WIN32`-blokk után áll:
+ * a hívói (ZIP-kibontás, segédfájl-írás) minden célon fordulnak, a belső
+ * DMA-pufferes út pedig csak az eszközön létezik.
+ */
+bool app_templates_sd_write(FILE *file, const void *data, size_t size)
+{
+    if (!file || (!data && size))
+        return false;
+#if !defined(APP_TEMPLATE_DESKTOP) && !defined(_WIN32)
+    unsigned char *staging = sd_chunk();
+    if (staging)
+    {
+        const unsigned char *cursor = data;
+        for (size_t done = 0; done < size;)
+        {
+            size_t take = size - done < SD_CHUNK_BYTES ? size - done : SD_CHUNK_BYTES;
+            memcpy(staging, cursor + done, take);
+            if (fwrite(staging, 1, take, file) != take)
+                return false;
+            done += take;
+        }
+        return true;
+    }
+#endif
+    return fwrite(data, 1, size, file) == size;
+}
+
 static uint32_t be32(const unsigned char *p)
 {
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
