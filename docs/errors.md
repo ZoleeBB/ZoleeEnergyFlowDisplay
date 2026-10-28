@@ -319,6 +319,23 @@ biztonsági 270 fokra váltott, és ismételt eset után le is tiltotta a 90 fok
 A 90 fokos mód azóta stabil, ezért a próba/letiltás állapot megszűnt: az NVS
 csak a kiválasztott tájolást tárolja, a config.json marad a hiteles forrás.
 
+## `stats` veremtúlcsordulás a napi mentésnél (2026-10-28)
+
+```
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "stats" at 0x481ca428
+Stack bounds: 0x4ffaf6f0 - 0x4ffb06e0        (4080 B)
+```
+
+A `stats` feladat verme a mért csúcs alapján 6144-ről 4096 bájtra csökkent.
+A mérés a másodperces tick 1720 bájtját mutatta, a napi mentés viszont
+cJSON-nal és lebegőpontos formázással dolgozik – a veremdump is tele van
+double értékekkel –, és ez nem fért bele. A méret visszaállt 6144 bájtra.
+
+Tanulság: a `/api/diagnostics/tasks` csúcsa csak az addig bejárt utakat fedi
+le. Ritkán járt, mélyebb ágat (napi mentés, párosítás, hibaoldal) futtató
+feladatnál a mért érték nem elég a méretezéshez.
+
 ## Névtelen, „Programhiba" okú újraindulás
 
 Ha a soros konzol nincs csatlakoztatva, egy pánik csak a `Reset oka:
@@ -328,9 +345,11 @@ a vermek mért értékekhez igazulnak, és a mérés csak az addig bejárt utaka
 fedi le.
 
 Ezért a firmware percenként megnézi az összes feladat legkisebb
-veremmaradékát, és 768 bájt alatt feladatonként egyszer figyelmeztet az
-eseménynaplóban. Ha ilyen sort látsz, az adott feladat vermét kell emelni –
-ez a jelzés a pánik előtt érkezik.
+veremmaradékát, és 1024 bájt alatt feladatonként egyszer figyelmeztet az
+eseménynaplóban. Ha ilyen sort látsz, az adott feladat vermét kell emelni.
+A jelzés a fokozatosan fogyó tartalékot mutatja meg; egy egyszeri, mély ág
+(mint a `stats` napi mentése) ettől még figyelmeztetés nélkül csordulhat túl,
+ezért a méretezésnél a ritka ágakat is számításba kell venni.
 
 Gyanús újraindulás után érdemes a soros naplót is rögzíteni:
 `py -m serial.tools.miniterm COM4 115200 --raw`, majd RESET. A pánik kiírja a

@@ -158,7 +158,7 @@ esp_err_t app_storage_start_recovery_task(void)
     if (app_storage_is_cardless()) return ESP_OK;
     if (s_recovery_task_started)
         return ESP_OK;
-    if (xTaskCreate(recovery_task, "sd_recovery", 2560, NULL, 4, NULL) != pdPASS)
+    if (xTaskCreate(recovery_task, "sd_recovery", 3072, NULL, 4, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
 
     s_recovery_task_started = true;

@@ -1332,7 +1332,7 @@ static void stats_task(void *arg)
 esp_err_t app_stats_start_task(void)
 {
     if(s_task_started)return ESP_OK;
-    if(xTaskCreate(stats_task,"stats",5120,NULL,4,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
+    if(xTaskCreate(stats_task,"stats",6144,NULL,4,NULL)!=pdPASS)return ESP_ERR_NO_MEM;
     s_task_started=true;
     return ESP_OK;
 }

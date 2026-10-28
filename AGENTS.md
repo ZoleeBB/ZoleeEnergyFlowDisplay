@@ -59,6 +59,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   Felhasználói inputra a runtime task ne fix `vTaskDelay`-jel várjon: a
   gesztus a bináris szemaforral ébresszen. Task-értesítést ne használj, mert
   ütközhet az IDF-meghajtókkal.
+- **A mért veremcsúcs nem elég a méretezéshez.** A
+  `/api/diagnostics/tasks` értéke csak az addig bejárt utakat fedi le; a
+  ritkán járt ág (napi mentés, párosítás, hibaoldal) ennél jóval mélyebb
+  lehet. JSON-t, lebegőpontos formázást vagy harmadik féltől származó kódot
+  futtató feladat vermét ne csökkentsd mérés alapján (`stats`, 2026-10-28).
 - **Méretezd a feladatvermet a legmélyebb hívási lánchoz.** A `template_raw`
   4 KiB-os verme a PNG-dekódolás és SD-írás láncán túlcsordult
   (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos

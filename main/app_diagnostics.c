@@ -38,7 +38,7 @@ static bool s_cpu_valid;
  * legkisebb maradékot, és feladatonként egyszer figyelmeztetünk, mielőtt baj
  * lenne. A mérés csak a FreeRTOS saját táblájából olvas.
  */
-#define STACK_WARN_BYTES 768U
+#define STACK_WARN_BYTES 1024U
 static void stack_watch(int64_t now)
 {
     static int64_t next;

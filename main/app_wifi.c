@@ -231,7 +231,7 @@ esp_err_t app_wifi_start(const app_config_t *cfg)
      */
     ESP_RETURN_ON_ERROR(esp_wifi_set_ps(WIFI_PS_NONE), TAG, "set power save failed");
 
-    if (xTaskCreate(reconnect_task, "wifi_reconnect", 2560, NULL, 5, &s_reconnect_task) != pdPASS)
+    if (xTaskCreate(reconnect_task, "wifi_reconnect", 3072, NULL, 5, &s_reconnect_task) != pdPASS)
     {
         return ESP_ERR_NO_MEM;
     }

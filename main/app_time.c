@@ -229,7 +229,7 @@ esp_err_t app_time_start_background_task(void)
         return ESP_OK;
     if (s_background_started)
         return ESP_OK;
-    if (xTaskCreate(time_sync_task, "time_sync_task", 2560, NULL, 4, NULL) != pdPASS)
+    if (xTaskCreate(time_sync_task, "time_sync_task", 3072, NULL, 4, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
     s_background_started = true;
     return ESP_OK;

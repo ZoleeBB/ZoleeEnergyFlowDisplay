@@ -1908,7 +1908,7 @@ esp_err_t app_templates_raw_start(void)
      * és a szűkös belső RAM-ból nem köt le feleslegesen 8 KiB-ot. A feladat a
      * maradékot minden új mélypontnál naplózza.
      */
-    return xTaskCreate(raw_task, "template_raw", 5120, NULL, 2, &task) == pdPASS ? ESP_OK
+    return xTaskCreate(raw_task, "template_raw", 6144, NULL, 2, &task) == pdPASS ? ESP_OK
                                                                                   : ESP_ERR_NO_MEM;
 }
 #endif

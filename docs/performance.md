@@ -348,14 +348,20 @@ jelentés alapján a túlméretezett vermeket a mért csúcshoz igazítottuk:
 | Feladat | Mért csúcs | Régi | Új |
 | --- | --- | --- | --- |
 | `ui_runtime` | 6212 B | 16384 | 12288 |
-| `main` (ESP-IDF) | 5064 B | 12288 | 9216 |
-| `stats` | 1720 B | 6144 | 4096 |
-| `sd_recovery` | 576 B | 4096 | 2560 |
-| `presence_nvs` | 1192 B | 4096 | 3072 |
-| `time_sync_task` | 320 B | 4096 | 2560 |
-| `wifi_reconnect` | 292 B | 4096 | 2560 |
-| `template_raw` | 2288 B | 8192 | 5120 |
+| `main` (ESP-IDF) | 5064 B | 12288 | 10240 |
+| `sd_recovery` | 576 B | 4096 | 3072 |
+| `time_sync_task` | 320 B | 4096 | 3072 |
+| `wifi_reconnect` | 292 B | 4096 | 3072 |
+| `template_raw` | 2288 B | 8192 | 6144 |
 | `auto_ota` | 296 B üresjáratban | 8192 állandó | napváltáskor indul |
+
+**A mért csúcs csak az addig bejárt utakat fedi le.** A `stats` feladatnál ez
+félrevezetett: a másodperces tick 1720 B-ot használ, a napi mentés viszont
+cJSON-nal és lebegőpontos formázással dolgozik, és a 4096 bájtos verem
+túlcsordult (`Stack protection fault`, task `stats`). Ezért a JSON-t,
+lebegőpontos formázást vagy harmadik féltől származó, ritkán járt ágat futtató
+feladatok megtartották az eredeti méretüket: `stats` 6144, `backup_sync` 6144,
+NimBLE host 8192, `presence_nvs` 4096, `websocket_task` 5120, `mdns` 3328.
 
 Az `auto_ota` korábban állandóan élt, és napi egy ellenőrzésért kötött le
 8 KiB-ot; most a napváltás indítja, és lefutás után megszűnik. Együtt kb.
