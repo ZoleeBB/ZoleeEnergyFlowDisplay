@@ -235,7 +235,7 @@ esp_err_t app_backup_flash_start(void)
         s_request = xSemaphoreCreateBinary();
         if (!s_request)
             return ESP_ERR_NO_MEM;
-        if (xTaskCreate(sync_task, "backup_sync", 5120, NULL, 2, NULL) != pdPASS)
+        if (xTaskCreate(sync_task, "backup_sync", 6144, NULL, 2, NULL) != pdPASS)
             return ESP_ERR_NO_MEM;
     }
     app_backup_flash_request();

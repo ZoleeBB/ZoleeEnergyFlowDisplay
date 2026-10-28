@@ -21,7 +21,10 @@ képgyorsítótára, az SD-olvasás és a felépítés pedig az előre dekódolt
 kép-segédfájlokból dolgozik, ha azok elkészültek. A segédfájlokat külön,
 alacsony prioritású háttérfeladat (`template_raw`) állítja elő fájlonként, a
 katalógus- és SD-zárat csak addig tartva; a lapozás, a telepítés és a webes
-feltöltés elsőbbséget élvez. Részletek: [teljesítmény](performance.md).
+feltöltés elsőbbséget élvez. Hibásra jelölt vagy 64 MiB-nál kevesebb szabad
+hellyel rendelkező kártyán a generálás kimarad. Az SD-olvasás egyetlen,
+induláskor foglalt belső DMA-pufferen keresztül megy, mert az SD-vezérlő
+DMA-ja a PSRAM-ot nem éri el. Részletek: [teljesítmény](performance.md).
 
 A beépített nézet és tíz SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás témát vált; Master/Loxone Otthon-nézetben a saját oldalak között lapoz. Felfelé húzás nyitja a diagnosztikát, a jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-oldalakat, a ház érintése a fogyasztókat nyitja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
@@ -32,6 +35,14 @@ A MIPI LVGL képpufferei PSRAM-ban vannak. A Waveshare BSP 2.0.3 belső RAM-ra r
 A 4B-n továbbra is használt triple-partial pufferfoglalás is a PSRAM-beállítást követi: a CMake egy kizárólag buildkönyvtárbeli másolatot javít és fordít. Az eredeti managed component változatlan marad; ismeretlen vagy kétértelmű forrásváltozatnál a build megáll.
 
 A MIPI-profil PPA gyorsítása tiltott. Az adapter 0.6.4 regisztrációja és két forgatási ága ezt eredetileg figyelmen kívül hagyja; a buildbeli `lvgl_bridge_v9.c` másolat a profilhoz köti a PPA használatát és a CPU út cache-visszaírását. A 270°-os forgatás így a meglévő CPU ágon fut, elkerülve az ESP32-P4 PPA részleges frissítésének dokumentált megakadását. Az SDK forrásait nem patch-eljük. A fizikai panelen a sebességet és az első kép megjelenését ellenőrizni kell.
+
+A belső RAM három részre oszlik, és csak egy része DMA-képes: a TCM és az RTC
+terület sem az SD-vezérlőnek, sem a kriptográfiai gyorsítónak nem használható.
+A feladatvermek, az lwIP pufferei és a meghajtók ugyanabból a szűk,
+DMA-képes keretből foglalnak, ezért a vermek méretezése mért értékekből
+történik (`/api/diagnostics/tasks`), és a napi egyszeri OTA-ellenőrzés
+feladata csak a művelet idejére jön létre. Részletek:
+[teljesítmény](performance.md), [hibák](errors.md).
 
 Az LVGL `OS_NONE` módban egy szoftveres rajzolóegységet használ, ugyanúgy, mint a szimulátor. A FreeRTOS és az adapter LVGL-feladata továbbra is fut; az összes UI-hozzáférést az adapter recursive mutexe sorosítja. Külön LVGL OSAL rajzolószálak és azok task-notification szinkronizációja nincsenek. A szinkron PNG/vector rajzolás miatt az adapter feladat 32 KiB-os stackje PSRAM-ban van, hogy a belső RAM a DMA és a hálózat számára megmaradjon. A párhuzamos rajzolás elvesztésének teljesítményhatását fizikai panelen kell mérni.
 

@@ -318,3 +318,20 @@ másodperc hibátlan működés után vált véglegessé. Ha az eszköz ezen bel
 biztonsági 270 fokra váltott, és ismételt eset után le is tiltotta a 90 fokot.
 A 90 fokos mód azóta stabil, ezért a próba/letiltás állapot megszűnt: az NVS
 csak a kiválasztott tájolást tárolja, a config.json marad a hiteles forrás.
+
+## Névtelen, „Programhiba" okú újraindulás
+
+Ha a soros konzol nincs csatlakoztatva, egy pánik csak a `Reset oka:
+Programhiba` mezőben látszik, az okáról semmi. A leggyakoribb ok a
+veremtúlcsordulás egy ritkán járt hívási láncon: a belső RAM szűkössége miatt
+a vermek mért értékekhez igazulnak, és a mérés csak az addig bejárt utakat
+fedi le.
+
+Ezért a firmware percenként megnézi az összes feladat legkisebb
+veremmaradékát, és 768 bájt alatt feladatonként egyszer figyelmeztet az
+eseménynaplóban. Ha ilyen sort látsz, az adott feladat vermét kell emelni –
+ez a jelzés a pánik előtt érkezik.
+
+Gyanús újraindulás után érdemes a soros naplót is rögzíteni:
+`py -m serial.tools.miniterm COM4 115200 --raw`, majd RESET. A pánik kiírja a
+feladat nevét és a veremhatárokat.

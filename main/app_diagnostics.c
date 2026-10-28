@@ -10,6 +10,7 @@
 #include <string.h>
 
 #ifndef APP_TEMPLATE_DESKTOP
+#include "app_events.h"
 #include "app_wifi.h"
 #include "esp_app_desc.h"
 #include "esp_system.h"
@@ -18,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdatomic.h>
+#include <stdlib.h>
 #endif
 
 #ifndef APP_TEMPLATE_DESKTOP
@@ -28,6 +30,47 @@ static int64_t s_cpu_time;
 static uint64_t s_idle[2];
 static unsigned s_cpu[2];
 static bool s_cpu_valid;
+
+/*
+ * Veremfigyelés. A belső RAM szűk, ezért a feladatvermek mérete mért
+ * értékekhez igazul; egy ritkán járt, mélyebb hívási lánc így túlcsordulhat,
+ * és a készülék pánikkal újraindul, névtelenül. Percenként megnézzük a
+ * legkisebb maradékot, és feladatonként egyszer figyelmeztetünk, mielőtt baj
+ * lenne. A mérés csak a FreeRTOS saját táblájából olvas.
+ */
+#define STACK_WARN_BYTES 768U
+static void stack_watch(int64_t now)
+{
+    static int64_t next;
+    static char reported[8][configMAX_TASK_NAME_LEN];
+    static unsigned reported_count;
+    if (next && now < next)
+        return;
+    next = now + 60000000LL;
+    UBaseType_t total = uxTaskGetNumberOfTasks();
+    TaskStatus_t *status = total ? calloc(total, sizeof(*status)) : NULL;
+    if (!status)
+        return;
+    total = uxTaskGetSystemState(status, total, NULL);
+    for (UBaseType_t i = 0; i < total; i++)
+    {
+        const char *name = status[i].pcTaskName;
+        if (!name || status[i].usStackHighWaterMark >= STACK_WARN_BYTES)
+            continue;
+        bool known = false;
+        for (unsigned j = 0; j < reported_count; j++)
+            if (!strcmp(reported[j], name))
+                known = true;
+        if (known)
+            continue;
+        if (reported_count < 8)
+            snprintf(reported[reported_count++], configMAX_TASK_NAME_LEN, "%s", name);
+        app_events_add(APP_EVENT_WARNING,
+                       "Kevés a verem: %s feladat, %u B szabad. Firmware-javítás kell.",
+                       name, (unsigned)status[i].usStackHighWaterMark);
+    }
+    free(status);
+}
 
 /* A magonkénti értékeket legfeljebb két másodpercenként frissítjük. */
 static void cpu_capture(app_diagnostics_t *out, int64_t now)
@@ -91,6 +134,7 @@ void app_diagnostics_capture(app_diagnostics_t *out)
     snprintf(out->firmware, sizeof(out->firmware), "%.32s", esp_app_get_description()->version);
 
     cpu_capture(out, now);
+    stack_watch(now);
 
     out->sd_space_valid = app_storage_space(&out->sd_total_bytes, &out->sd_free_bytes);
     out->total_internal_kib =

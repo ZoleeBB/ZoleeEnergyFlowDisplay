@@ -1131,6 +1131,9 @@ esp_err_t app_templates_init(void)
         return ESP_ERR_NO_MEM;
     xSemaphoreTake(lock, portMAX_DELAY);
     #ifndef APP_TEMPLATE_DESKTOP
+    /* Az SD olvasási DMA-pufferét indulás közben foglaljuk, amikor még van
+     * szabad DMA-keret, és több feladat sem versenghet az első foglaláson. */
+    (void)sd_chunk();
     if (app_storage_is_cardless()) {
         memset(catalogue, 0, sizeof(catalogue));
         snprintf(catalogue[0].id, sizeof(catalogue[0].id), "builtin");

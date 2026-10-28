@@ -367,6 +367,13 @@ adapter 32 KiB-os verme PSRAM-ban van.
 
 Új méretezés előtt mindig a `/api/diagnostics/tasks` mért értékeiből indulj ki.
 
+A mért csúcs csak az addig bejárt utakat fedi le, ezért a firmware percenként
+megnézi az összes feladat legkisebb veremmaradékát, és feladatonként egyszer
+figyelmeztet (`Kevés a verem: <feladat>, <n> B szabad`), ha 768 bájt alá esik.
+Így egy ritkán járt, mélyebb hívási lánc időben kiderül, nem pedig névtelen
+pánikkal. A ténylegesen szűk tartalékú feladatoknál (`backup_sync`, NimBLE
+host, `stats`, `websocket_task`, `mdns`) ezért vissza is emeltük a méretet.
+
 ### A DMA-képes keret külön szűk
 
 A veremcsökkentés után a szabad belső RAM 18 439 B-ról 41 863 B-ra nőtt, és a
