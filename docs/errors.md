@@ -210,3 +210,22 @@ különválasztotta a téma- és hangkibontást, és pufferelt stdio hangolvasá
 állt vissza. Az SD-driver/csatolás változatlan. A több változtatásból álló
 javítás nem bizonyít külön hardverhibát vagy önmagában hibás DMA-kezelést.
 [Részletes javítási és átadási jegyzet](slave-intercom-handover.md).
+
+## „A GitHub nem érhető el, vagy nincs stabil kiadás.”
+
+A gyári témák frissítése fejlesztői (előzetes jelölésű) firmware-en a GitHub
+legutóbbi kiadását kérdezi le. Ez az üzenet korábban minden hibát összevont:
+nem derült ki, hogy hálózati hiba, HTTP-állapot, váratlan válasz vagy
+memóriahiány volt-e. Mostantól a visszajelző sáv és az **Eseménynapló** a
+pontos okot mutatja (lásd a [témák dokumentációját](templates.md)), és két
+valódi hibalehetőség is megszűnt:
+
+- a válaszpuffer PSRAM hiányában a belső RAM-ból is kérhető (témaváltás után a
+  PSRAM-ban kevés a hely),
+- a kiadás lekérdezése 1,5 s múlva egyszer újrapróbálkozik, egy sikeres
+  feloldás után pedig egy átmeneti API-hiba sem tiltja le a frissítést.
+
+Fejlesztői ZIP-ből telepített téma lehet újabb a legutóbbi kiadásnál; ilyenkor
+a lista **Helyi újabb** állapotot ír, és nincs frissíthető téma. Az „Összes
+frissítése (0)” gomb mostantól valóban rejtve marad: a `[hidden]` szabály
+erősebb a gombok `display` beállításánál.

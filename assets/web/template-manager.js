@@ -170,7 +170,7 @@ if(typeof document!=='undefined'){
    row.insertCell().textContent='v'+item.available;
    const cell=row.insertCell();
    if(item.update||!item.installed){const button=document.createElement('button');button.type='button';button.textContent=item.installed?'Frissítés':'Telepítés';button.className=item.installed?'':'secondary';button.disabled=running;button.onclick=()=>startUpdate(item.id);cell.append(button);}
-   else cell.textContent=item.status||'Naprakész';
+   else cell.textContent=item.status||(item.installed>item.available?'Helyi újabb':'Naprakész');
   }
  }
  async function pollUpdates(){
