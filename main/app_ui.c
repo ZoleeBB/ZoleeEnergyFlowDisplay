@@ -39,6 +39,9 @@
 #include "app_templates.h"
 #include "app_diagnostics.h"
 #include "app_loxone.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "app_ota.h"
+#endif
 #include "app_loxone_home_layout.h"
 #ifndef _MSC_VER
 #include <stdatomic.h>
@@ -167,6 +170,7 @@ typedef enum
     VIEW_NONE = 0,
     VIEW_DASHBOARD,
     VIEW_THEME_LOADING,
+    VIEW_BUSY,
     VIEW_DIAGNOSTICS,
     VIEW_HOME,
     VIEW_HOME_SETUP,
@@ -2052,6 +2056,33 @@ static void loxone_screen(runtime_view_t view)
     s_view = view;
 }
 /* Ugyanaz a beégetett SVG-változat SD-vel és SD nélkül is használható. */
+/*
+ * Nehéz háttérművelet (OTA, csomagtelepítés, frissítés) alatt a kijelző
+ * statikus üzenetre vált: nincs témabetöltés, animáció és SD-olvasás, így a
+ * CPU, az SD és a hálózat a művelet rendelkezésére áll. Szándékosan nincs
+ * rajta animáció vagy pörgő kör, hogy a rajzolás ne terhelje a magot.
+ */
+static void busy_screen(void)
+{
+    if (s_view == VIEW_BUSY) return;
+    clear();
+    screen_style(s_screen, true);
+    lv_obj_set_style_bg_color(s_screen, c(0x000000), 0);
+    lv_obj_set_style_bg_grad_dir(s_screen, LV_GRAD_DIR_NONE, 0);
+    lv_obj_t *caption = lbl(s_screen,
+                            tr("Háttérfeladat miatt foglalt...", "Busy with a background task..."),
+                            0, H / 2 - 40, APP_FONT_28, 0xFFFFFF);
+    lv_obj_set_width(caption, W);
+    lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *hint = lbl(s_screen,
+                         tr("A kijelző a művelet után magától visszatér.",
+                            "The display returns on its own when it finishes."),
+                         0, H / 2 + 10, APP_FONT_20, 0x9DB0BE);
+    lv_obj_set_width(hint, W);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    s_view = VIEW_BUSY;
+}
+
 static void energy_disabled_screen(void)
 {
     if (s_view == VIEW_ENERGY_DISABLED) return;
@@ -2354,6 +2385,22 @@ static void runtime(void *arg)
             intercom_render();
             bsp_display_unlock();
         }
+        /* OTA, csomagtelepítés vagy frissítés alatt nem dolgozunk a kijelzőn:
+         * a statikus üzenet mellett a mag, az SD és a hálózat a művelethez
+         * marad. A következő körben a szokásos nézet magától felépül.
+         * A szimulátorban nincs OTA, ott a képernyőt közvetlenül teszteljük. */
+#ifndef APP_TEMPLATE_DESKTOP
+        if (app_ota_operation_active())
+        {
+            if (bsp_display_lock(-1) == ESP_OK)
+            {
+                busy_screen();
+                bsp_display_unlock();
+            }
+            vTaskDelay(pdMS_TO_TICKS(250));
+            continue;
+        }
+#endif
         diagnostics_capture();
         assistant_prepare();
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */

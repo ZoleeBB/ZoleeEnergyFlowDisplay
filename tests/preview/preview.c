@@ -2588,7 +2588,13 @@ int main(void)
     render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_ERROR);save_frame("loxone-disconnected-hu");
     rt.loxone_connected=true;rt.has_valid_sample=true;
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
-    puts("PASS: Loxone setup, initial connection, lost connection and automatic dashboard recovery");
+    /* Nehéz háttérművelet alatt statikus üzenet; ismételt hívás nem épít újra,
+     * a művelet után a megszokott nézet magától visszatér. */
+    busy_screen();assert(s_view==VIEW_BUSY);
+    lv_obj_t *busy_root=s_screen;
+    busy_screen();assert(s_view==VIEW_BUSY && s_screen==busy_root);
+    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    puts("PASS: Loxone setup, initial connection, lost connection, background-busy screen and automatic dashboard recovery");
     clear();
 
     const char *home_zip=getenv("ZOLEE_HOME_RESOURCE_ZIP");

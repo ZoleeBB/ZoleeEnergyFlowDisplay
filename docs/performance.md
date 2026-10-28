@@ -393,3 +393,13 @@ enélkül minden olvasás futásidőben foglalna átmeneti belső puffert.
 A betöltőkép megjelenésére a futtató feladat zár nélkül vár (illékony
 jelzőbit), mert a korábbi 20 ms-os zárpróbálkozások váltásonként több
 `Failed to acquire LVGL lock` adapter-hibasort írtak a naplóba.
+
+### Kijelző háttérműveletek alatt
+
+OTA, csomagtelepítés és GitHubos frissítés alatt a kijelző statikus
+„Háttérfeladat miatt foglalt..." üzenetre vált (`app_ota_operation_active()`).
+Ilyenkor nincs témabetöltés, animáció és SD-olvasás, így a mag, az SD és a
+hálózat a művelet rendelkezésére áll; a kaputelefon csengetése továbbra is
+elsőbbséget élvez. A művelet végén a megszokott nézet magától felépül.
+Memóriát ez nem szabadít fel (a kijelző pufferei PSRAM-ban vannak), a CPU- és
+SD-versengést viszont megszünteti.

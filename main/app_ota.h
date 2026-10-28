@@ -12,6 +12,8 @@ esp_err_t app_ota_start_auto_update(const app_config_t *cfg);
 /* Kézi OTA, automatikus OTA és webes újraindítás nem futhat párhuzamosan. */
 bool app_ota_try_begin_operation(void);
 void app_ota_end_operation(void);
+/* Igaz, amíg ilyen művelet fut: a kijelző ilyenkor statikus üzenetre vált. */
+bool app_ota_operation_active(void);
 
 /* Ugyanazon GitHub-ellenőrzés azonnali, aszinkron indítása; az éjszakai
  * kapcsolót nem módosítja, kikapcsolt automatikánál is tesztelhető. */

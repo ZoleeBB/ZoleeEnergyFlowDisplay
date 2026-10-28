@@ -28,14 +28,26 @@ static volatile bool s_auto_busy;
 static bool s_auto_enabled;
 static uint32_t s_settle_seconds;
 
+/* A kijelző runtime feladata olvassa; az atomic_flag nem kérdezhető le. */
+static volatile bool s_operation_active;
+
 bool app_ota_try_begin_operation(void)
 {
-    return !atomic_flag_test_and_set(&s_operation);
+    bool acquired = !atomic_flag_test_and_set(&s_operation);
+    if (acquired)
+        s_operation_active = true;
+    return acquired;
 }
 
 void app_ota_end_operation(void)
 {
+    s_operation_active = false;
     atomic_flag_clear(&s_operation);
+}
+
+bool app_ota_operation_active(void)
+{
+    return s_operation_active;
 }
 
 /* Egy ellenőrzés diagnosztikája: a rövid összegzésben is megmarad a hibafázis.
