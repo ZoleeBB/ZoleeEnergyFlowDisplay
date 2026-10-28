@@ -230,16 +230,31 @@ a lista **Helyi újabb** állapotot ír, és nincs frissíthető téma. Az „Ö
 frissítése (0)” gomb mostantól valóban rejtve marad: a `[hidden]` szabály
 erősebb a gombok `display` beállításánál.
 
-## Indulás közbeni újraindulás és OTA-visszaállás (2026-10-28)
+## Bootciklus: `template_raw` veremtúlcsordulás (2026-10-28)
 
-A `template_raw` háttérfeladat verme kísérletileg PSRAM-ba került
-(`xTaskCreateWithCaps`, `MALLOC_CAP_SPIRAM`), hogy a szűkös belső RAM a
-TLS-nek és a DMA-nak maradjon. Az eszközön ez az indulás első képernyőjén
-pánikot és újraindulást okozott, ezért az OTA-visszaállás (rollback) a
-korábbi firmware-t indította vissza – a védelem tehát működött. A verem
-visszakerült a belső RAM-ba. Újbóli próbálkozás előtt soros konzolos
-pánik-napló kell az ok igazolásához; a `main/app_intercom.c` PSRAM-vermű
-videófeladata ezen a hardveren vélhetően nem is indult el, így nem bizonyít.
+Soros konzolon a pánik egyértelmű:
+
+```
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "template_raw" at 0x481ca0ae
+Stack pointer: 0x301002f0
+Stack bounds: 0x30100318 - 0x30101310
+```
+
+A veremmutató a 4 KiB-os tartomány alá csúszott: a feladat verme kevés volt a
+`app_templates_raw_step → raw_generate → png_decode/scale_rgba` láncra, ahol
+a `fopen/fwrite` és a FAT-réteg is a vermen dolgozik. A lánc három szintjén
+összesen ~2,5 KiB-nyi 256–320 bájtos helyi útvonalpuffer volt; ezek a kupacba
+kerültek, a verem pedig 8 KiB lett. A feladat minden új mélypontnál naplózza
+a szabad vermet (`template_raw szabad verem: … B`).
+
+A hiba akkor jött elő, amikor hiányzó segédfájl miatt a mélyebb `raw_generate`
+ág futott; a csak ellenőrző `raw_current` ág belefért a 4 KiB-ba. Az
+OTA-visszaállás (rollback) közben rendben működött.
+
+Ugyanennek a feladatnak a verme egy kísérletben PSRAM-ba került
+(`xTaskCreateWithCaps`); a pánik ettől függetlenül jelentkezett, tehát nem a
+PSRAM-verem volt az ok. A verem azóta belső RAM-ban van.
 
 ## SD-hiba nem akadályozhatja az aktiválást és az újraindítást
 

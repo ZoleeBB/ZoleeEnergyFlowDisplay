@@ -6,7 +6,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #ifndef APP_TEMPLATE_DESKTOP
+#include "esp_log.h"
 #include "freertos/task.h"
+#define RAW_TAG "templates"
 #endif
 #include <ctype.h>
 #include "app_template_dir.h"
@@ -1478,45 +1480,73 @@ static uint32_t raw_le32(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
+/*
+ * Az útvonalpufferek a kupacban: a segédfájlokat generáló feladat verme
+ * belső RAM, és a 3×320 bájtos helyi tömbök egymásba ágyazva túlcsordulást
+ * okoztak (lásd docs/errors.md, 2026-10-28).
+ */
+typedef struct
+{
+    char raw[320], tmp[320], png[320], directory[256], json[256], name[80];
+} raw_paths_t;
+
 static bool raw_current(const char *directory, const template_variant_t *variant)
 {
-    char raw_path[320], png_path[320], name[80];
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
+        return false;
     struct stat png_stat;
-    if (!app_template_raw_name(variant->file, variant->width, variant->height, name, sizeof(name)))
-        return false;
-    path_join(png_path, directory, variant->file);
-    path_join(raw_path, directory, name);
-    if (stat(png_path, &png_stat) || !S_ISREG(png_stat.st_mode))
-        return false;
     uint8_t header[APP_TEMPLATE_RAW_HEADER];
+    bool ok = app_template_raw_name(variant->file, variant->width, variant->height, paths->name,
+                                   sizeof(paths->name));
+    if (ok)
+    {
+        path_join(paths->png, directory, variant->file);
+        path_join(paths->raw, directory, paths->name);
+        ok = !stat(paths->png, &png_stat) && S_ISREG(png_stat.st_mode);
+    }
     /* Csak a fejlécet olvassuk: a képpontok CRC-je a betöltéskor fut le, itt
      * feleslegesen több MiB-ot olvasnánk. */
-    if (!raw_header(raw_path, header, NULL))
-        return false;
-    return raw_le32(header) == APP_TEMPLATE_RAW_MAGIC &&
-           raw_le32(header + 8) == variant->width && raw_le32(header + 12) == variant->height &&
-           raw_le32(header + 24) == (uint32_t)png_stat.st_size;
+    ok = ok && raw_header(paths->raw, header, NULL) &&
+         raw_le32(header) == APP_TEMPLATE_RAW_MAGIC &&
+         raw_le32(header + 8) == variant->width && raw_le32(header + 12) == variant->height &&
+         raw_le32(header + 24) == (uint32_t)png_stat.st_size;
+    free(paths);
+    return ok;
 }
 
 /* Hiányzó vagy elavult segédfájl elkészítése. Hibánál a PNG-út marad. */
 static bool raw_generate(const char *directory, const template_variant_t *variant)
 {
-    char raw_path[320], tmp_path[320], png_path[320], name[80];
-    if (!app_template_raw_name(variant->file, variant->width, variant->height, name, sizeof(name)))
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
         return false;
+    if (!app_template_raw_name(variant->file, variant->width, variant->height, paths->name,
+                               sizeof(paths->name)))
+    {
+        free(paths);
+        return false;
+    }
+    char *raw_path = paths->raw, *tmp_path = paths->tmp, *png_path = paths->png;
     path_join(png_path, directory, variant->file);
-    path_join(raw_path, directory, name);
+    path_join(raw_path, directory, paths->name);
     path_join(tmp_path, directory, "raw.tmp");
     size_t png_size = 0;
     unsigned char *png = read_file(png_path, APP_TEMPLATE_PNG_MAX, &png_size);
     if (!png)
+    {
+        free(paths);
         return false;
+    }
     uint8_t *raw = NULL;
     size_t raw_size = 0;
     bool ok = app_template_raw_build(png, png_size, variant->width, variant->height, &raw, &raw_size);
     free(png);
     if (!ok)
+    {
+        free(paths);
         return false;
+    }
     remove(tmp_path);
     FILE *f = fopen(tmp_path, "wb");
     ok = f != NULL;
@@ -1534,6 +1564,7 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     }
     if (!ok)
         remove(tmp_path);
+    free(paths);
     return ok;
 }
 
@@ -1551,16 +1582,20 @@ bool app_templates_raw_step(void)
         return false;
     if (!xSemaphoreTake(lock, 0))
         return false;
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
+    {
+        xSemaphoreGive(lock);
+        return false;
+    }
     bool worked = false;
-    char id[33] = {0};
     for (unsigned attempt = 0; attempt < count && !worked; attempt++)
     {
         unsigned index = (raw_cursor + attempt) % count;
         if (!index || !strcmp(catalogue[index].id, "builtin"))
             continue;
-        snprintf(id, sizeof(id), "%s", catalogue[index].id);
-        char directory[256], path[256];
-        path_join(directory, app_templates_root(), id);
+        char *directory = paths->directory, *path = paths->json;
+        path_join(directory, app_templates_root(), catalogue[index].id);
         path_join(path, directory, "template.json");
         if (!STORAGE_TRY())
             break;
@@ -1582,6 +1617,7 @@ bool app_templates_raw_step(void)
     }
     if (!worked)
         raw_cursor = 0;
+    free(paths);
     xSemaphoreGive(lock);
     return worked;
 }
@@ -1805,9 +1841,18 @@ bool app_templates_load_pending(app_template_view_t *out)
 static void raw_task(void *argument)
 {
     (void)argument;
+    UBaseType_t lowest = 0;
     while (true)
     {
         bool worked = app_templates_raw_step();
+        /* A 4 KiB-os verem túlcsordult és újraindulást okozott, ezért a
+         * maradékot minden új mélypontnál naplózzuk (lásd docs/errors.md). */
+        UBaseType_t left = uxTaskGetStackHighWaterMark(NULL);
+        if (!lowest || left < lowest)
+        {
+            lowest = left;
+            ESP_LOGI(RAW_TAG, "template_raw szabad verem: %u B", (unsigned)left);
+        }
         vTaskDelay(pdMS_TO_TICKS(worked ? 1500 : 60000));
     }
 }
@@ -1817,10 +1862,13 @@ esp_err_t app_templates_raw_start(void)
     static TaskHandle_t task;
     if (task)
         return ESP_OK;
-    /* A verem belső RAM-ban marad: a feladat SD-t ír, és a PSRAM-verem
-     * indulás közben újraindulást okozott (lásd docs/errors.md). */
-    return xTaskCreate(raw_task, "template_raw", 4096, NULL, 2, &task) == pdPASS ? ESP_OK
-                                                                                 : ESP_ERR_NO_MEM;
+    /*
+     * 8 KiB: a 4 KiB-os verem a PNG-dekódolás és az SD-írás hívási láncán
+     * túlcsordult (vermvédelmi pánik, bootciklus). Az útvonalpufferek azóta a
+     * kupacban vannak, a maradékot a feladat naplózza is.
+     */
+    return xTaskCreate(raw_task, "template_raw", 8192, NULL, 2, &task) == pdPASS ? ESP_OK
+                                                                                  : ESP_ERR_NO_MEM;
 }
 #endif
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy

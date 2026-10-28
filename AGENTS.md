@@ -59,11 +59,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   Felhasználói inputra a runtime task ne fix `vTaskDelay`-jel várjon: a
   gesztus a bináris szemaforral ébresszen. Task-értesítést ne használj, mert
   ütközhet az IDF-meghajtókkal.
-- **Feladatverem ne kerüljön PSRAM-ba.** Az `xTaskCreateWithCaps(...,
-  MALLOC_CAP_SPIRAM)` ezen a hardveren indulás közben újraindulást okozott
-  (`template_raw`, 2026-10-28), ezért SD-t, flash-t vagy DMA-t érintő
-  feladatnál maradjon a belső RAM-os `xTaskCreate`. Újbóli próbához soros
-  konzolos pánik-naplóval kell igazolni az okot.
+- **Méretezd a feladatvermet a legmélyebb hívási lánchoz.** A `template_raw`
+  4 KiB-os verme a PNG-dekódolás és SD-írás láncán túlcsordult
+  (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos
+  útvonalpuffer ne legyen helyi tömb a láncban: foglald a kupacból. Hosszan
+  futó háttérfeladat naplózza a `uxTaskGetStackHighWaterMark` mélypontját.
 - **SD-hiba ne blokkolja a kiutat.** A firmware aktiválása és az újraindítás
   akkor is fusson le, ha a statisztika mentése nem sikerült; a hiba naplóba
   kerül. Különben hibás kártyánál csak hardveres reset marad.
