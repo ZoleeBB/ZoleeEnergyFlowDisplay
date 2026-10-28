@@ -636,12 +636,14 @@ static esp_err_t reboot_post_locked(httpd_req_t *req)
         return ESP_OK;
     }
 
+    /* SD-hiba nem akadályozhatja az újraindítást: mentés nélkül is a napi
+     * statisztika veszne el, amit hibás kártyán úgysem lehet kiírni, viszont
+     * a hardveres reset marad az egyetlen kiút. A hiba naplóba kerül. */
     esp_err_t saved=app_stats_save_now();
-    if(saved!=ESP_OK){
-        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
-            "A statisztika mentése sikertelen. Az újraindítás elmaradt.");
-        return ESP_OK;
-    }
+    if(saved!=ESP_OK)
+        app_events_add(APP_EVENT_WARNING,
+            "Újraindítás előtt a statisztika mentése sikertelen (%s); az újraindítás folytatódik.",
+            esp_err_to_name(saved));
     if(xTaskCreate(reboot_task,"reboot",2048,NULL,8,NULL)!=pdPASS){
         httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
             s_hu?"Az újraindítás nem ütemezhető.":"Could not schedule restart.");
@@ -769,13 +771,14 @@ static esp_err_t ota_post_locked(httpd_req_t *req)
     err = esp_ota_end(ota_handle);
 
     if (err == ESP_OK) {
+        /* A már ellenőrzött firmware aktiválását SD-hiba nem akadályozhatja:
+         * a statisztika hibás kártyára úgysem írható, a frissítés viszont
+         * éppen ilyenkor kell. A sikertelen mentés naplóba kerül. */
         esp_err_t saved=app_stats_save_now();
-        if(saved!=ESP_OK){
-            app_events_add(APP_EVENT_ERROR,"OTA előtt a statisztika mentése sikertelen.");
-            httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
-                "Az SD-statisztika mentése sikertelen; a firmware aktiválása elmaradt.");
-            return ESP_OK;
-        }
+        if(saved!=ESP_OK)
+            app_events_add(APP_EVENT_WARNING,
+                "OTA előtt a statisztika mentése sikertelen (%s); az aktiválás folytatódik.",
+                esp_err_to_name(saved));
         err = esp_ota_set_boot_partition(target);
     }
 

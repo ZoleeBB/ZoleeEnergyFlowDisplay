@@ -229,3 +229,34 @@ Fejlesztői ZIP-ből telepített téma lehet újabb a legutóbbi kiadásnál; il
 a lista **Helyi újabb** állapotot ír, és nincs frissíthető téma. Az „Összes
 frissítése (0)” gomb mostantól valóban rejtve marad: a `[hidden]` szabály
 erősebb a gombok `display` beállításánál.
+
+## Indulás közbeni újraindulás és OTA-visszaállás (2026-10-28)
+
+A `template_raw` háttérfeladat verme kísérletileg PSRAM-ba került
+(`xTaskCreateWithCaps`, `MALLOC_CAP_SPIRAM`), hogy a szűkös belső RAM a
+TLS-nek és a DMA-nak maradjon. Az eszközön ez az indulás első képernyőjén
+pánikot és újraindulást okozott, ezért az OTA-visszaállás (rollback) a
+korábbi firmware-t indította vissza – a védelem tehát működött. A verem
+visszakerült a belső RAM-ba. Újbóli próbálkozás előtt soros konzolos
+pánik-napló kell az ok igazolásához; a `main/app_intercom.c` PSRAM-vermű
+videófeladata ezen a hardveren vélhetően nem is indult el, így nem bizonyít.
+
+## SD-hiba nem akadályozhatja az aktiválást és az újraindítást
+
+Hibásra jelölt SD-kártyánál az `app_stats_save_now()` azonnal
+`ESP_ERR_INVALID_STATE` hibát ad. A kézi OTA emiatt nem aktiválta a már
+ellenőrzött firmware-t („Az SD-statisztika mentése sikertelen; a firmware
+aktiválása elmaradt.”), a webes újraindítás pedig elmaradt – csak hardveres
+reset maradt. Mindkét útvonal most naplózza a sikertelen mentést
+(`APP_EVENT_WARNING`, a hibakóddal), de folytatja a műveletet: hibás kártyára
+a napi statisztika úgysem írható ki, a frissítés és az újraindítás viszont
+éppen ilyenkor kell.
+
+## Melyik tesztcsomag fut az eszközön?
+
+Minden PR- és kézi CI-build verziója korábban `v0.0.0-ci` volt, ezért a
+készülék információs oldalán nem lehetett megkülönböztetni két egymás utáni
+tesztcsomagot. A verzió mostantól a commit rövid azonosítóját is tartalmazza:
+`v0.0.0-ci.g<commit>`. A szabály változatlan: előzetes jelölésű verzió nem
+stabil kiadás, ezért az OTA és a témafrissítés továbbra is a GitHub legutóbbi
+kiadását keresi.

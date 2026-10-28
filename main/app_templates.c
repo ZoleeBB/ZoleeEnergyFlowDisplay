@@ -6,7 +6,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #ifndef APP_TEMPLATE_DESKTOP
-#include "freertos/idf_additions.h"
 #include "freertos/task.h"
 #endif
 #include <ctype.h>
@@ -1802,12 +1801,10 @@ esp_err_t app_templates_raw_start(void)
     static TaskHandle_t task;
     if (task)
         return ESP_OK;
-    /* A verem PSRAM-ban: a feladat csak SD-t olvas/ír és PSRAM-ban dekódol,
-     * flash-írást nem végez, így a szűkös belső RAM a DMA-nak és a TLS-nek marad. */
-    return xTaskCreateWithCaps(raw_task, "template_raw", 4096, NULL, 2, &task,
-                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS
-               ? ESP_OK
-               : ESP_ERR_NO_MEM;
+    /* A verem belső RAM-ban marad: a feladat SD-t ír, és a PSRAM-verem
+     * indulás közben újraindulást okozott (lásd docs/errors.md). */
+    return xTaskCreate(raw_task, "template_raw", 4096, NULL, 2, &task) == pdPASS ? ESP_OK
+                                                                                 : ESP_ERR_NO_MEM;
 }
 #endif
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy

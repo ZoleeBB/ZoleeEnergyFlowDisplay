@@ -85,7 +85,7 @@ Meglévő stabil v3.0.0 vagy újabb verziót a szabály nem ír felül.
 
 A main push egyetlen workflow-t indít. A sikeres tesztek után a verzióválasztó
 eldönti, hogy igazolt merge vagy közvetlen main push történt. Utóbbinál
-`v0.0.0-ci` tesztcsomag készül, publikálás nélkül. Merge-nél a kiválasztott
+`v0.0.0-ci.g<commit>` tesztcsomag készül, publikálás nélkül. Merge-nél a kiválasztott
 verzióval egyszer fordul mindkét firmware. Minden ellenőrzés, mindkét build és
 az USB-telepítő dry-run sikere kell a publikáláshoz. Nincs külön main CI-build
 és ugyanarra a változásra újabb automatikus release-build.
@@ -127,7 +127,7 @@ A `.github/workflows/release-manual.yml` a GitHub **Publish release** eseményé
 
 Az OTA és az USB csomag alkalmazásképe bájtra azonos. A ZIP a build összes flash-bemenetét tartalmazza, az eredeti címekkel és hordozható fájlutakkal. A rögzített esptool verzió `5.5.0`; [USB útmutató](usb-install.md).
 
-A release-verziót a generált `version.txt` adja az ESP-IDF-nek; a csomagoló a binárisba írt verziót is ellenőrzi. Helyi, verziófájl nélküli fejlesztői build alapértéke `0.1.0`. A PR, a kézi CI és a közvetlen main push `v0.0.0-ci` tesztcsomagot készít; igazolt main merge-nél a közös build már a végleges kiválasztott verzióval fut.
+A release-verziót a generált `version.txt` adja az ESP-IDF-nek; a csomagoló a binárisba írt verziót is ellenőrzi. Helyi, verziófájl nélküli fejlesztői build alapértéke `0.1.0`. A PR, a kézi CI és a közvetlen main push `v0.0.0-ci.g<commit>` tesztcsomagot készít (a rövid commit-azonosítóval, hogy az eszközön is látszódjon, melyik build fut); igazolt main merge-nél a közös build már a végleges kiválasztott verzióval fut.
 
 ## Újrafuttatás és hozzáférés
 

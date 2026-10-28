@@ -25,7 +25,6 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/idf_additions.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include <stdarg.h>
@@ -325,7 +324,7 @@ static void check_task(void *arg)
             snprintf(detail, sizeof(detail), "A GitHub nem érhető el, vagy nincs stabil kiadás.");
         app_events_add(APP_EVENT_WARNING, "Témafrissítés sikertelen: %s", detail);
         set_state(APP_TEMPLATE_UPDATE_ERROR, detail);
-        vTaskDeleteWithCaps(NULL);
+        vTaskDelete(NULL);
         return;
     }
     char url[256];
@@ -346,7 +345,7 @@ static void check_task(void *arg)
         free(ids);
         free(installed);
         free(items);
-        vTaskDeleteWithCaps(NULL);
+        vTaskDelete(NULL);
         return;
     }
     unsigned local = app_templates_list(installed, APP_TEMPLATE_MAX, NULL);
@@ -394,7 +393,7 @@ static void check_task(void *arg)
     free(ids);
     free(installed);
     free(items);
-    vTaskDeleteWithCaps(NULL);
+    vTaskDelete(NULL);
 }
 
 /* Egy fájl a stage-be: a teljes tartalom egyetlen írással, rövid SD-zár alatt. */
@@ -529,10 +528,7 @@ esp_err_t app_template_update_check(void)
     s_state = APP_TEMPLATE_UPDATE_CHECKING;
     snprintf(s_message, sizeof(s_message), "%s", "Témák ellenőrzése a GitHubon…");
     xSemaphoreGive(s_lock);
-    /* A verem PSRAM-ban: az ellenőrzés csak HTTPS-t és katalógusolvasást végez,
-     * flash-írást nem, a TLS-kontextusnak viszont kell a szabad belső RAM. */
-    if (xTaskCreateWithCaps(check_task, "tpl_check", 8192, NULL, 3, NULL,
-                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS)
+    if (xTaskCreate(check_task, "tpl_check", 8192, NULL, 3, NULL) != pdPASS)
     {
         set_state(APP_TEMPLATE_UPDATE_ERROR, "Nincs elegendő memória az ellenőrzéshez.");
         return ESP_ERR_NO_MEM;
