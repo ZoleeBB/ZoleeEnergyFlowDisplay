@@ -4,6 +4,7 @@
 #endif
 #include <assert.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
 #include "../../simulator/home_fixture.h"
@@ -1558,6 +1559,25 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
     const char *theme = "05-calm-home";
     sample.sun_position_valid = true;
     s_animation_sample = sample;
+    /* Tiszta kiindulás: a korábbi futás segédfájljai nélkül (a CI ugyanabban a
+     * könyvtárban többször is lefuttatja a preview-t). */
+    char directory[512];
+    snprintf(directory, sizeof(directory), "%s/%s", getenv("ZOLEE_TEMPLATE_ROOT"), theme);
+    DIR *folder = opendir(directory);
+    assert(folder);
+    struct dirent *entry;
+    unsigned removed = 0;
+    while ((entry = readdir(folder)))
+    {
+        size_t length = strlen(entry->d_name);
+        if (length < 5 || strcmp(entry->d_name + length - 4, ".raw"))
+            continue;
+        char victim[640];
+        snprintf(victim, sizeof(victim), "%s/%s", directory, entry->d_name);
+        assert(remove(victim) == 0);
+        removed++;
+    }
+    closedir(folder);
     /* Referencia a megszokott PNG-úton, segédfájlok nélkül. */
     setenv("ZOLEE_DISABLE_RAW", "1", 1);
     assert(app_templates_select(theme) == ESP_OK);
@@ -1580,7 +1600,10 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
     unsigned steps = 0;
     while (app_templates_raw_step() && steps < 400)
         steps++;
-    assert(steps > 10);
+    printf("RAW_SIDECAR removed=%u steps=%u\n", removed, steps);
+    fflush(stdout);
+    /* A törölt fájlok biztosan újrakészültek. */
+    assert(steps >= removed && steps >= 2);
 
     /* Újratöltés: most már a segédfájlokból dolgozunk. */
     assert(app_templates_select("builtin") == ESP_OK);

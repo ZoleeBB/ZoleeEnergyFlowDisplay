@@ -1560,10 +1560,12 @@ bool app_templates_raw_step(void)
         free(variants);
         cJSON_Delete(doc);
         STORAGE_GIVE();
-        /* Ha ez a téma kész, a következő körben a következő témát nézzük. */
-        if (!worked)
-            raw_cursor = (index + 1) % (count ? count : 1);
+        /* A következő hívás ugyanennél a témánál folytatja. */
+        if (worked)
+            raw_cursor = index;
     }
+    if (!worked)
+        raw_cursor = 0;
     xSemaphoreGive(lock);
     return worked;
 }
