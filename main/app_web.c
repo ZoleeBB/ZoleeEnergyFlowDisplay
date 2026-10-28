@@ -871,15 +871,54 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");
     esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }
+/*
+ * Honnan fogy a szűkös belső RAM: feladatonkénti szabad verem és a belső
+ * heap összesítője. A feladatvermek mindig belső RAM-ból foglalódnak, ezért
+ * a mérés nélküli tippelgetés helyett ez mutatja meg a nagy fogyasztókat.
+ */
+static esp_err_t diagnostics_tasks_get(httpd_req_t *req){
+    if(!authorize(req))return ESP_OK;
+    UBaseType_t count=uxTaskGetNumberOfTasks();
+    TaskStatus_t *status=count?calloc(count,sizeof(*status)):NULL;
+    char *body=malloc(2048);
+    if(!status||!body){free(status);free(body);
+        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Nincs elég memória a jelentéshez.");
+        return ESP_OK;}
+    count=uxTaskGetSystemState(status,count,NULL);
+    multi_heap_info_t internal,dma;
+    heap_caps_get_info(&internal,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    heap_caps_get_info(&dma,MALLOC_CAP_DMA);
+    size_t used=0;
+    used+=(size_t)snprintf(body+used,2048-used,
+        "belso: szabad=%u B; legkisebb=%u B; legnagyobb blokk=%u B; foglalt=%u B\n"
+        "DMA:   szabad=%u B; legnagyobb blokk=%u B\n"
+        "feladatok (%u) – szabad verem bajtban:\n",
+        (unsigned)internal.total_free_bytes,(unsigned)internal.minimum_free_bytes,
+        (unsigned)internal.largest_free_block,(unsigned)internal.total_allocated_bytes,
+        (unsigned)dma.total_free_bytes,(unsigned)dma.largest_free_block,(unsigned)count);
+    for(UBaseType_t i=0;i<count&&used<2000;i++)
+        used+=(size_t)snprintf(body+used,2048-used,"  %-16s %6u\n",
+            status[i].pcTaskName?status[i].pcTaskName:"?",
+            (unsigned)status[i].usStackHighWaterMark);
+    free(status);
+    httpd_resp_set_type(req,"text/plain; charset=utf-8");
+    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    esp_err_t result=httpd_resp_sendstr(req,body);
+    free(body);
+    return result;
+}
+
 static esp_err_t diagnostics_page(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     return app_web_send_page(req,"<!doctype html><html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Diagnostics</title>"
         "<style>" APP_WEB_CSS "#values td:first-child{color:var(--muted);width:45%}</style><body data-page='diagnostics'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
         "<h1>Diagnosztika / Diagnostics</h1><p class='lead'>Élő rendszerértékek, 3 másodpercenként frissül.</p><section><table id='values'></table></section>"
+        "<section><h2>Belső RAM és feladatvermek</h2><pre id='tasks' style='white-space:pre-wrap;overflow-x:auto'>Betöltés…</pre></section>"
         "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
         "ble_enabled:'Bluetooth',ble_role:'BT szerep / Role',ble_ready:'BT kész / Ready',ble_advertising:'BT hirdetés / Advertising',ble_scanning:'Master keresés / Scanning',ble_address:'Saját BT cím / Local address',ble_peer:'BT partner / Peer',ble_slaves:'Kapcsolódó slave-ek / Connected slaves',slave_connected:'Master kapcsolat / Master connected',ble_rssi_dbm:'BT RSSI (dBm)',"
         "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)',min_free_internal_kib:'Legkisebb szabad belső RAM (KiB) / Minimum free internal RAM (KiB)'};"
+        "fetch('/api/diagnostics/tasks',{cache:'no-store'}).then(r=>r.text()).then(t=>document.getElementById('tasks').textContent=t).catch(()=>document.getElementById('tasks').textContent='A jelentés nem olvasható.');"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':(k==='sd_used_percent'?Number(v).toFixed(2):v);if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>", s_hu);
@@ -1013,8 +1052,9 @@ esp_err_t app_web_start(const app_config_t *cfg)
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get},
         {.uri="/api/battery",.method=HTTP_GET,.handler=battery_get},
-        {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post}};
-    for(unsigned i=0;i<4;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
+        {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post},
+        {.uri="/api/diagnostics/tasks",.method=HTTP_GET,.handler=diagnostics_tasks_get}};
+    for(unsigned i=0;i<5;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
     app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(

@@ -1863,11 +1863,13 @@ esp_err_t app_templates_raw_start(void)
     if (task)
         return ESP_OK;
     /*
-     * 8 KiB: a 4 KiB-os verem a PNG-dekódolás és az SD-írás hívási láncán
+     * 5 KiB: a 4 KiB-os verem a PNG-dekódolás és az SD-írás hívási láncán
      * túlcsordult (vermvédelmi pánik, bootciklus). Az útvonalpufferek azóta a
-     * kupacban vannak, a maradékot a feladat naplózza is.
+     * kupacban vannak: eszközön mérve 2572 B a csúcs, így 5 KiB bőven elég,
+     * és a szűkös belső RAM-ból nem köt le feleslegesen 8 KiB-ot. A feladat a
+     * maradékot minden új mélypontnál naplózza.
      */
-    return xTaskCreate(raw_task, "template_raw", 8192, NULL, 2, &task) == pdPASS ? ESP_OK
+    return xTaskCreate(raw_task, "template_raw", 5120, NULL, 2, &task) == pdPASS ? ESP_OK
                                                                                   : ESP_ERR_NO_MEM;
 }
 #endif
