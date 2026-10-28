@@ -10,7 +10,10 @@ tőlük lesz gyorsabb a témaváltás. Együtt a tíz gyári témánál nagyjáb
 helyet foglalnak, a `.tmp`/`.bak` állományokhoz hasonlóan a készülék kezeli őket,
 és a csomag törlésével eltűnnek. Kézzel nem kell másolni vagy pótolni őket; ha
 letörlöd, a kijelző a PNG-kkel dolgozik tovább, és a háttérben újra elkészíti
-őket. [Részletek](performance.md).
+őket. A háttérgenerálás kihagyja a lépést, ha a kártya hibásra van jelölve
+vagy 64 MiB-nál kevesebb a szabad hely: betelt vagy haldokló kártyát nem
+terhel tovább, és a statisztika írása marad az elsőbbség.
+[Részletek](performance.md).
 
 A statisztikát a firmware maga hozza létre és 35 helyi naptári napig őrzi. Egy nap 288 ötperces időablakot tartalmaz. A `.tmp` és `.bak` fájlok helyreállítási állományok: működés közben ne töröld őket. Induláskor a legújabb érvényes revízió kerül betöltésre. [Adatformátum és számítás](statistics.md).
 

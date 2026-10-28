@@ -36,10 +36,26 @@
 #define STORAGE_TAKE() ESP_OK
 #define STORAGE_GIVE() ((void)0)
 #define STORAGE_TRY() true
+#define STORAGE_READY() true
 #else
 #define STORAGE_TAKE() app_storage_lock()
 #define STORAGE_GIVE() app_storage_unlock()
 #define STORAGE_TRY() app_storage_try_lock()
+#define STORAGE_READY() raw_storage_ready()
+/*
+ * Hibásra jelölt vagy majdnem tele kártyára nem írunk segédfájlt: a dekódolt
+ * képek csak gyorsítások, a statisztika és a konfiguráció viszont nem. Egy
+ * haldokló vagy betelt kártyát a háttérgenerálás csak tovább terhelne.
+ */
+static bool raw_storage_ready(void)
+{
+    if (!app_storage_is_ok())
+        return false;
+    uint64_t total = 0, free_bytes = 0;
+    if (!app_storage_space(&total, &free_bytes))
+        return true;
+    return free_bytes >= 64ULL * 1024 * 1024;
+}
 #endif
 
 static SemaphoreHandle_t lock;
@@ -1531,7 +1547,7 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
  */
 bool app_templates_raw_step(void)
 {
-    if (!lock || raw_disabled() || raw_postponed())
+    if (!lock || raw_disabled() || raw_postponed() || !STORAGE_READY())
         return false;
     if (!xSemaphoreTake(lock, 0))
         return false;
