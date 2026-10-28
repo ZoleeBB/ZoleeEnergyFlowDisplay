@@ -2062,9 +2062,24 @@ static void loxone_screen(runtime_view_t view)
  * CPU, az SD és a hálózat a művelet rendelkezésére áll. Szándékosan nincs
  * rajta animáció vagy pörgő kör, hogy a rajzolás ne terhelje a magot.
  */
+/*
+ * A panel három pufferrel, részleges frissítéssel dolgozik: egyetlen
+ * kirajzolás után a másik két puffer még a korábbi képet tartja, és a
+ * statikus oldal villogni látszik. Néhány körön át teljes érvénytelenítéssel
+ * mindhárom puffer megkapja az új képet, utána már nincs rajzolás.
+ */
+static unsigned s_busy_refreshes;
 static void busy_screen(void)
 {
-    if (s_view == VIEW_BUSY) return;
+    if (s_view == VIEW_BUSY)
+    {
+        if (s_busy_refreshes < 4)
+        {
+            s_busy_refreshes++;
+            lv_obj_invalidate(s_screen);
+        }
+        return;
+    }
     clear();
     screen_style(s_screen, true);
     lv_obj_set_style_bg_color(s_screen, c(0x000000), 0);
@@ -2081,6 +2096,7 @@ static void busy_screen(void)
     lv_obj_set_width(hint, W);
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
     s_view = VIEW_BUSY;
+    s_busy_refreshes = 0;
 }
 
 static void energy_disabled_screen(void)
@@ -2441,7 +2457,7 @@ esp_err_t app_ui_start_runtime(void)
     if (!s_runtime_wake)
         s_runtime_wake = xSemaphoreCreateBinary();
 #endif
-    if (xTaskCreate(runtime, "ui_runtime", 12288, NULL, 5, NULL) != pdPASS)
+    if (xTaskCreate(runtime, "ui_runtime", 10240, NULL, 5, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
     s_started = true;
     return ESP_OK;

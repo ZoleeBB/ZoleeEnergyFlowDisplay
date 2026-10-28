@@ -483,7 +483,7 @@ static bool connect_server(const lx_config_t *cfg)
     phase("Loxone WebSocket kapcsolat felépítése");
     char uri[192];snprintf(uri,sizeof(uri),"%s://%s:%u/ws/rfc6455",cfg->tls?"wss":"ws",cfg->host,(unsigned)cfg->port);
     esp_websocket_client_config_t ws={.uri=uri,.subprotocol="remotecontrol",.disable_auto_reconnect=true,
-        .buffer_size=2048,.task_stack=6144,.network_timeout_ms=LX_TIMEOUT_MS,
+        .buffer_size=2048,.task_stack=4096,.network_timeout_ms=LX_TIMEOUT_MS,
         .cert_pem=cfg->tls?cfg->ca_pem:NULL};
     s_rx_failure=LX_RX_OK;s_dead=false;s_ws=esp_websocket_client_init(&ws);if(!s_ws)return failed("A WebSocket kliens nem indítható (memóriahiba).",0);
     if(esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,receive_event,NULL)!=ESP_OK||esp_websocket_client_start(s_ws)!=ESP_OK)return failed("A WebSocket feladat nem indítható.",0);

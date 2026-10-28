@@ -169,7 +169,7 @@ static unsigned char *file_buffer_alloc(size_t size)
  * Egyetlen, indulás közben foglalt darabon keresztül olvasunk: a futásidejű
  * foglalás megszűnik, a betöltés pedig nem függ a pillanatnyi DMA-helyzettől.
  */
-#define SD_CHUNK_BYTES 8192U
+#define SD_CHUNK_BYTES 4096U
 static unsigned char *sd_chunk(void)
 {
     static unsigned char *buffer;

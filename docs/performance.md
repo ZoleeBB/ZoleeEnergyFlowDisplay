@@ -403,3 +403,26 @@ hálózat a művelet rendelkezésére áll; a kaputelefon csengetése továbbra 
 elsőbbséget élvez. A művelet végén a megszokott nézet magától felépül.
 Memóriát ez nem szabadít fel (a kijelző pufferei PSRAM-ban vannak), a CPU- és
 SD-versengést viszont megszünteti.
+
+### Második kör: a DMA-keret tágítása (2026-10-28)
+
+A régiós bontás szerint a 217 KiB DMA-képes belső RAM-ból ~210 KiB foglalt, és
+ebből a feladatvermek teszik ki a java részt. A `/api/diagnostics/tasks` mért
+csúcsai alapján tovább szűkítettük azokat, amelyeknél bőven volt tartalék, és
+csökkentettük a kapcsolatonkénti TCP-puffereket:
+
+| Tétel | Mért használat | Régi | Új |
+| --- | --- | --- | --- |
+| `ui_runtime` | 6196 B | 12288 | 10240 |
+| `websocket_task` (Loxone) | 1848 B | 6144 | 4096 |
+| `ble_seed` (NimBLE host) | 3188 B | 8192 | 5120 |
+| `backup_sync` | 3832 B | 6144 | 5120 |
+| `mdns` | ~1000 B | 4096 | 2816 |
+| SD olvasási DMA-puffer | — | 8192 | 4096 |
+| `LWIP_TCP_SND_BUF`/`WND` | — | 5744 | 2880 |
+
+A TLS kriptográfiai gyorsítója DMA-képes belső RAM-ot igényel: amikor abból
+672 B a legnagyobb szabad blokk, a `mbedtls_ctr_drbg_seed` általános hibával
+elbukik (`TLS=0x8011`, `mbedTLS=1`), és a kapcsolat létre sem jön. A mérés
+szerint az első HTTPS-kapcsolat (api.github.com) még sikerült, a következő
+(github.com, SHA256SUMS.txt) már nem – tehát nem a kiszolgálóval van baj.
