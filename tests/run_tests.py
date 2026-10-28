@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run actual C modules with mocked time, RTOS locks and SD fault injection."""
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -176,7 +177,31 @@ with tempfile.TemporaryDirectory(prefix='zolee-orientation-') as directory:
     subprocess.run([binary],check=True,timeout=10)
 main_source=(ROOT/'main/app_main.c').read_text()
 assert main_source.index('app_ui_init(s_active_rotation)') < main_source.index('app_storage_boot_mount()') < main_source.index('app_config_load_file(')
-assert 'app_display_boot_sync(' in main_source and 'orientation_verified_task' in main_source
+assert 'app_display_boot_sync(' in main_source
+# A 90 fokos próba/letiltás védelmet eltávolítottuk: indulás közbeni újraindítás
+# mindig visszaállította 270 fokra, pedig a 90 fokos mód stabil.
+assert 'orientation_verified_task' not in main_source and 'blocked' not in main_source
+# A Windows-szimulátor a POSIX olvasási úttól külön ágon fordul. A fejlécben
+# meghirdetett függvények definíciója ezért nem állhat `_WIN32`-függő blokkban:
+# ott az MSVC-s build linkelésnél bukik (LNK2019: unresolved external symbol).
+templates_header=(ROOT/'main/app_templates.h').read_text()
+exported={name for name in re.findall(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', templates_header, re.M)}
+assert 'app_templates_sd_write' in exported
+win32_stack=[]
+for source_line in (ROOT/'main/app_templates.c').read_text().splitlines():
+    text=source_line.strip()
+    if text.startswith('#if'):
+        win32_stack.append('_WIN32' in text)
+    elif text.startswith('#elif'):
+        if win32_stack:
+            win32_stack[-1]=win32_stack[-1] or '_WIN32' in text
+    elif text.startswith('#endif'):
+        if win32_stack:
+            win32_stack.pop()
+    elif not text.startswith('static'):
+        found=re.match(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', text)
+        if found and found.group(1) in exported and text.endswith(')'):
+            assert not any(win32_stack), f'{found.group(1)} definicioja _WIN32-fuggo blokkban van'
 ui_source=(ROOT/'main/app_ui.c').read_text()
 assert 'lv_display_set_rotation(s_panel_display' not in ui_source
 assert 'ESP_LV_ADAPTER_ROTATE_90' in ui_source and 'ESP_LV_ADAPTER_ROTATE_270' in ui_source

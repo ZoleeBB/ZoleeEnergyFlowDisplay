@@ -60,6 +60,25 @@ telepíthető.
 - Csak kérésre fut, saját háttérfeladatban, az OTA-val közös kizárással; a
   kijelzőt és a témaváltást nem lassítja. Wi-Fi és internetkapcsolat szükséges.
 - A saját (külső) témákat nem érinti.
+- A telepített téma lehet újabb is a kiadásnál (fejlesztői ZIP-ből telepítve):
+  ilyenkor a lista **Helyi újabb** állapotot ír, és nem ajánl visszalépést.
+
+### Hibajelzés
+
+A hibák okát a visszajelző sáv és az **Eseménynapló** is megmutatja, hogy ne
+csak annyi látszódjon, hogy „a GitHub nem érhető el”:
+
+| Üzenet | Jelentés |
+| --- | --- |
+| `A legutóbbi kiadás nem kérdezhető le: kapcsolódás: …` | hálózati vagy TLS-hiba; a kapcsolódás 3 s szünettel kétszer, a kiadás lekérdezése 1,5 s múlva egyszer újrapróbálkozik ([OTA-diagnosztika](automatic-update-diagnostics.md)) |
+| `… HTTP 403 (a GitHub korlátozza a kéréseket)` | óránkénti kéréskorlát; később újra működik |
+| `… a válasz nem JSON` / `nincs tag_name a válaszban` | váratlan API-válasz |
+| `… nincs elég memória` | kevés szabad RAM; a puffer PSRAM helyett a belső RAM-ból is kérhető |
+| `A témalista nem tölthető le (v…): …` | a kiadás megvan, a `templates/` listája nem |
+| `<fájl>: SD-írási hiba` | a letöltés sikerült, az SD-kártyára írás nem |
+
+A sikeresen feloldott kiadást az eszköz megjegyzi: egy későbbi átmeneti
+API-hiba után ugyanazt a kiadást használja, és ezt a naplóban is jelzi.
 
 ## Webes kezelés
 

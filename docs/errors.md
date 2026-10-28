@@ -210,3 +210,188 @@ különválasztotta a téma- és hangkibontást, és pufferelt stdio hangolvasá
 állt vissza. Az SD-driver/csatolás változatlan. A több változtatásból álló
 javítás nem bizonyít külön hardverhibát vagy önmagában hibás DMA-kezelést.
 [Részletes javítási és átadási jegyzet](slave-intercom-handover.md).
+
+## „A GitHub nem érhető el, vagy nincs stabil kiadás.”
+
+A gyári témák frissítése fejlesztői (előzetes jelölésű) firmware-en a GitHub
+legutóbbi kiadását kérdezi le. Ez az üzenet korábban minden hibát összevont:
+nem derült ki, hogy hálózati hiba, HTTP-állapot, váratlan válasz vagy
+memóriahiány volt-e. Mostantól a visszajelző sáv és az **Eseménynapló** a
+pontos okot mutatja (lásd a [témák dokumentációját](templates.md)), és két
+valódi hibalehetőség is megszűnt:
+
+- a válaszpuffer PSRAM hiányában a belső RAM-ból is kérhető (témaváltás után a
+  PSRAM-ban kevés a hely),
+- a kiadás lekérdezése 1,5 s múlva egyszer újrapróbálkozik, egy sikeres
+  feloldás után pedig egy átmeneti API-hiba sem tiltja le a frissítést.
+
+Fejlesztői ZIP-ből telepített téma lehet újabb a legutóbbi kiadásnál; ilyenkor
+a lista **Helyi újabb** állapotot ír, és nincs frissíthető téma. Az „Összes
+frissítése (0)” gomb mostantól valóban rejtve marad: a `[hidden]` szabály
+erősebb a gombok `display` beállításánál.
+
+## Bootciklus: `template_raw` veremtúlcsordulás (2026-10-28)
+
+Soros konzolon a pánik egyértelmű:
+
+```
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "template_raw" at 0x481ca0ae
+Stack pointer: 0x301002f0
+Stack bounds: 0x30100318 - 0x30101310
+```
+
+A veremmutató a 4 KiB-os tartomány alá csúszott: a feladat verme kevés volt a
+`app_templates_raw_step → raw_generate → png_decode/scale_rgba` láncra, ahol
+a `fopen/fwrite` és a FAT-réteg is a vermen dolgozik. A lánc három szintjén
+összesen ~2,5 KiB-nyi 256–320 bájtos helyi útvonalpuffer volt; ezek a kupacba
+kerültek, a verem pedig 8 KiB lett. A feladat minden új mélypontnál naplózza
+a szabad vermet (`template_raw szabad verem: … B`).
+
+A hiba akkor jött elő, amikor hiányzó segédfájl miatt a mélyebb `raw_generate`
+ág futott; a csak ellenőrző `raw_current` ág belefért a 4 KiB-ba. Az
+OTA-visszaállás (rollback) közben rendben működött.
+
+Ugyanennek a feladatnak a verme egy kísérletben PSRAM-ba került
+(`xTaskCreateWithCaps`); a pánik ettől függetlenül jelentkezett, tehát nem a
+PSRAM-verem volt az ok. A verem azóta belső RAM-ban van.
+
+## SD-hiba nem akadályozhatja az aktiválást és az újraindítást
+
+Hibásra jelölt SD-kártyánál az `app_stats_save_now()` azonnal
+`ESP_ERR_INVALID_STATE` hibát ad. A kézi OTA emiatt nem aktiválta a már
+ellenőrzött firmware-t („Az SD-statisztika mentése sikertelen; a firmware
+aktiválása elmaradt.”), a webes újraindítás pedig elmaradt – csak hardveres
+reset maradt. Mindkét útvonal most naplózza a sikertelen mentést
+(`APP_EVENT_WARNING`, a hibakóddal), de folytatja a műveletet: hibás kártyára
+a napi statisztika úgysem írható ki, a frissítés és az újraindítás viszont
+éppen ilyenkor kell.
+
+## Melyik tesztcsomag fut az eszközön?
+
+Minden PR- és kézi CI-build verziója korábban `v0.0.0-ci` volt, ezért a
+készülék információs oldalán nem lehetett megkülönböztetni két egymás utáni
+tesztcsomagot. A verzió mostantól a commit rövid azonosítóját is tartalmazza:
+`v0.0.0-ci.g<commit>`. A szabály változatlan: előzetes jelölésű verzió nem
+stabil kiadás, ezért az OTA és a témafrissítés továbbra is a GitHub legutóbbi
+kiadását keresi.
+
+## DMA-képes belső RAM: a valódi szűk keresztmetszet (2026-10-28)
+
+A `/api/diagnostics/tasks` soros konzolra írt régiós bontása szerint a belső
+RAM nem egyforma:
+
+```
+Heap summary for capabilities 0x00000008 (DMA):
+  At 0x4ffa2b40 len  32767  free   651  allocated  31360
+  At 0x4ffbafc0 len  19440  free    28  allocated  18204
+  At 0x4ff92c10 len 164784  free  2192  allocated 161064
+  Totals: free 2871 allocated 210628
+Heap summary for capabilities 0x00000804 (belső, 8 bites):
+  … + At 0x30100198 (TCM, 7784 B) és 0x501081ac (RTC, 32340 B): allocated 0
+  Totals: free 41879
+```
+
+A TCM és az RTC terület DMA-ra alkalmatlan, ezért a veremcsökkentéssel
+felszabadított ~23 KiB oda került, és a DMA-keretet nem növelte. Az SD-vezérlő
+és a kriptográfiai gyorsító viszont csak a DMA-képes régiókból tud foglalni,
+ahol 210 KiB-ból mindössze ~2,8 KiB maradt szabadon.
+
+Mérések ebből a körből:
+
+- A JPEG-dekóder indulási foglalása mindössze 416 B (113 103 -> 112 687),
+  tehát nem ő a fogyasztó; a korai létrehozás maradhat.
+- A rendszerindítás végén még 23 875 B szabad DMA-memória van, üzem közben
+  2871 B-ra csökken: a különbséget a hálózati kapcsolatok (Loxone WSS,
+  böngészőkapcsolatok) pufferei kötik le.
+
+Ezért a webszerver legfeljebb négy nyitott kapcsolatot tart (a legrégebbit
+magától bontja), a sablonfájlok olvasása pedig egyetlen, induláskor foglalt
+8 KiB-os belső DMA-pufferen keresztül fut, így a betöltés nem függ a
+pillanatnyi DMA-helyzettől.
+
+## A 90 fokos tájolás próbaidőszaka megszűnt
+
+A 90 fokos indulás korábban „próba" jelet kapott az NVS-ben, és csak 15
+másodperc hibátlan működés után vált véglegessé. Ha az eszköz ezen belül
+újraindult (például frissítés vagy kézi reset miatt), a következő indulás
+biztonsági 270 fokra váltott, és ismételt eset után le is tiltotta a 90 fokot.
+A 90 fokos mód azóta stabil, ezért a próba/letiltás állapot megszűnt: az NVS
+csak a kiválasztott tájolást tárolja, a config.json marad a hiteles forrás.
+
+## `stats` veremtúlcsordulás a napi mentésnél (2026-10-28)
+
+```
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "stats" at 0x481ca428
+Stack bounds: 0x4ffaf6f0 - 0x4ffb06e0        (4080 B)
+```
+
+A `stats` feladat verme a mért csúcs alapján 6144-ről 4096 bájtra csökkent.
+A mérés a másodperces tick 1720 bájtját mutatta, a napi mentés viszont
+cJSON-nal és lebegőpontos formázással dolgozik – a veremdump is tele van
+double értékekkel –, és ez nem fért bele. A méret visszaállt 6144 bájtra.
+
+Tanulság: a `/api/diagnostics/tasks` csúcsa csak az addig bejárt utakat fedi
+le. Ritkán járt, mélyebb ágat (napi mentés, párosítás, hibaoldal) futtató
+feladatnál a mért érték nem elég a méretezéshez.
+
+## Névtelen, „Programhiba" okú újraindulás
+
+Ha a soros konzol nincs csatlakoztatva, egy pánik csak a `Reset oka:
+Programhiba` mezőben látszik, az okáról semmi. A leggyakoribb ok a
+veremtúlcsordulás egy ritkán járt hívási láncon: a belső RAM szűkössége miatt
+a vermek mért értékekhez igazulnak, és a mérés csak az addig bejárt utakat
+fedi le.
+
+Ezért a firmware percenként megnézi az összes feladat legkisebb
+veremmaradékát, és 1024 bájt alatt feladatonként egyszer figyelmeztet az
+eseménynaplóban. Ha ilyen sort látsz, az adott feladat vermét kell emelni.
+A jelzés a fokozatosan fogyó tartalékot mutatja meg; egy egyszeri, mély ág
+(mint a `stats` napi mentése) ettől még figyelmeztetés nélkül csordulhat túl,
+ezért a méretezésnél a ritka ágakat is számításba kell venni.
+
+Gyanús újraindulás után érdemes a soros naplót is rögzíteni:
+`py -m serial.tools.miniterm COM4 115200 --raw`, majd RESET. A pánik kiírja a
+feladat nevét és a veremhatárokat.
+
+## A DMA-keret kimerülése üzem közben (2026-10-28, este)
+
+Tömeges sablonfrissítés (`Összes frissítése`) közben a napló ezt mutatta:
+
+```
+E esp-aes: Failed to allocate memory for the array of DMA descriptors
+E esp-aes: Generating input DMA descriptors failed
+E esp-tls-mbedtls: mbedtls_ctr_drbg_seed returned -0x0001
+E sdmmc_cmd: sdmmc_read_sectors: not enough mem, err=0x101
+```
+
+Ez a hiányzó láncszem: a **hardveres AES** a TLS-hez DMA-leírókat foglal
+DMA-képes belső RAM-ból, és ugyanabból a keretből dolgozik az SD-vezérlő is.
+Amikor a keret elfogy, egyszerre áll le a TLS (Loxone WSS, GitHub) és az
+SD-olvasás, a kijelző pedig 200 ms-onként újrapróbálja a témabetöltést.
+Újraindítás után is azonnal visszaállt, mert a kiindulási keret volt kevés
+(10 307 B), nem szivárgás okozta.
+
+Két javítás:
+
+- A hosszú életű, DMA-t nem igénylő feladatok verme és vezérlőblokkja az
+  addig üresen álló **RTC-területre** került (`app_task_mem.h`): `stats`,
+  `backup_sync`, `presence_nvs`, `time_sync_task`, `wifi_reconnect`. Egyik
+  verem sem lett kisebb, a DMA-képes keret mégis ~22 KiB-tal nő. Az RTC
+  memória nincs a gyorsítótár mögött, ezért flash-írás közben is biztonságos –
+  a PSRAM-mal ellentétben. Ha az RTC-terület betelne, a régi, belső RAM-os
+  foglalás a tartalék.
+- Az SD **írása** is a rögzített belső DMA-pufferen keresztül megy
+  (`app_templates_sd_write`): a letöltött és a kibontott tartalom PSRAM-ban
+  van, onnan a vezérlő nem tud közvetlenül írni, ezért a tömeges
+  sablonfrissítés `sdmmc_write_sectors: not enough mem` hibával és „SD-írási
+  hiba” / „Hiányzó, sérült vagy túl nagy PNG” üzenettel állt le.
+- Két letöltés között a telepítő megvárja, míg a DMA-keret 6 KiB fölé
+  kerül (legfeljebb 5 s): a sok egymás utáni TLS-kapcsolat leírói csak
+  késleltetve szabadulnak fel. Az SD-írási hiba üzenete a szabad DMA-t is
+  kiírja.
+- A FATFS ablak- és munkapufferei nem PSRAM-ból foglalódnak
+  (`CONFIG_FATFS_ALLOC_PREFER_EXTRAM` kikapcsolva): PSRAM-ból az SD-vezérlő
+  nem tud közvetlenül olvasni, így minden FAT-hozzáférés futásidejű átmeneti
+  puffert kért.

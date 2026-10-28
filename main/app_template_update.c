@@ -27,6 +27,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,22 @@ static char s_tag[32], s_message[160], s_target[33];
 static item_t s_items[APP_TEMPLATE_REMOTE_MAX_IDS];
 static unsigned s_count;
 static const char *TAG = "tpl_update";
+
+/*
+ * A legutóbbi letöltés hibájának rövid, felhasználónak is megmutatható oka.
+ * Enélkül a webes felületen csak annyi látszott, hogy „a GitHub nem érhető el”,
+ * és nem derült ki, hogy hálózati hiba, HTTP-állapot vagy memória okozta-e.
+ */
+static char s_reason[96];
+/* A legutóbb sikeresen feloldott kiadás, hogy egy átmeneti API-hiba ne tiltsa le a frissítést. */
+static char s_cached_tag[32];
+static void reason_set(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vsnprintf(s_reason, sizeof(s_reason), format, args);
+    va_end(args);
+}
 
 static bool ensure_lock(void)
 {
@@ -95,10 +112,15 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
     if (!redirect)
         return NULL;
     uint8_t *data = NULL;
-    for (unsigned attempt = 0; attempt < 4 && !data; attempt++)
+    unsigned connect_retries = 0;
+    reason_set("ismeretlen hiba");
+    for (unsigned attempt = 0; attempt < 6 && !data; attempt++)
     {
         if (!app_template_remote_url_allowed(current))
+        {
+            reason_set("nem engedélyezett cím");
             break;
+        }
         redirect->location[0] = 0;
         esp_http_client_config_t config = {
             .url = current,
@@ -113,23 +135,48 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
         };
         esp_http_client_handle_t client = esp_http_client_init(&config);
         if (!client)
+        {
+            reason_set("HTTP kliens nem indult");
             break;
+        }
         if (!strncmp(current, "https://api.github.com/", 23))
         {
             esp_http_client_set_header(client, "Accept", "application/vnd.github+json");
             esp_http_client_set_header(client, "X-GitHub-Api-Version", "2022-11-28");
         }
-        bool retry = false;
-        if (esp_http_client_open(client, 0) == ESP_OK && esp_http_client_fetch_headers(client) >= 0)
+        bool retry = false, pause = false;
+        esp_err_t opened = esp_http_client_open(client, 0);
+        int64_t headers = opened == ESP_OK ? esp_http_client_fetch_headers(client) : -1;
+        if (opened != ESP_OK)
+        {
+            reason_set("kapcsolódás: %s", esp_err_to_name(opened));
+            /* Ugyanaz, mint az OTA-nál: a TLS-kontextus pillanatnyi belső
+             * RAM-hiánytól is elbukhat, ezért rövid szünettel újrapróbáljuk. */
+            retry = pause = ++connect_retries <= 2;
+        }
+        else if (headers < 0)
+            reason_set("nincs válaszfejléc");
+        if (opened == ESP_OK && headers >= 0)
         {
             int status = esp_http_client_get_status_code(client);
             if (status == 200)
             {
                 int64_t expected = esp_http_client_get_content_length(client);
                 size_t capacity = expected > 0 && (uint64_t)expected <= limit ? (size_t)expected : limit;
+                /*
+                 * A puffer PSRAM-ból a legjobb, de a kijelző témái is ott élnek:
+                 * ha ott nincs hely, a belső RAM-ból is elfogadjuk, különben a
+                 * teljes ellenőrzés elhasal („a GitHub nem érhető el”).
+                 */
                 uint8_t *buffer = heap_caps_malloc(capacity + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!buffer)
+                    buffer = malloc(capacity + 1);
                 size_t used = 0;
                 bool ok = buffer && (expected <= 0 || (uint64_t)expected <= limit);
+                if (!buffer)
+                    reason_set("nincs elég memória (%u B)", (unsigned)(capacity + 1));
+                else if (!ok)
+                    reason_set("túl nagy válasz (%lld B)", (long long)expected);
                 int64_t deadline = esp_timer_get_time() + 60000000LL;
                 while (ok && esp_timer_get_time() < deadline)
                 {
@@ -139,7 +186,7 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
                         if (expected > 0 || capacity >= limit)
                             break;
                         size_t grown = capacity * 2 > limit ? limit : capacity * 2;
-                        uint8_t *next = heap_caps_realloc(buffer, grown + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                        uint8_t *next = realloc(buffer, grown + 1);
                         if (!next)
                         {
                             ok = false;
@@ -162,9 +209,14 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
                     buffer[used] = 0;
                     data = buffer;
                     *size = used;
+                    reason_set("rendben");
                 }
                 else
+                {
+                    if (buffer)
+                        reason_set("hiányos válasz (%u B)", (unsigned)used);
                     free(buffer);
+                }
             }
             else if ((status == 301 || status == 302 || status == 307 || status == 308) &&
                      redirect->location[0])
@@ -173,11 +225,18 @@ static uint8_t *download(const char *url, size_t limit, size_t *size)
                 retry = true;
             }
             else
+            {
+                reason_set(status == 403 || status == 429 ? "HTTP %d (a GitHub korlátozza a kéréseket)"
+                                                          : "HTTP %d",
+                           status);
                 ESP_LOGW(TAG, "HTTP %d", status);
+            }
         }
         esp_http_client_cleanup(client);
         if (!retry)
             break;
+        if (pause)
+            vTaskDelay(pdMS_TO_TICKS(3000));
     }
     free(redirect);
     return data;
@@ -188,29 +247,90 @@ static cJSON *download_json(const char *url, size_t limit)
     size_t size = 0;
     uint8_t *text = download(url, limit, &size);
     cJSON *json = text ? cJSON_ParseWithLength((const char *)text, size) : NULL;
+    if (text && !json)
+        reason_set("a válasz nem JSON (%u B)", (unsigned)size);
     free(text);
     return json;
 }
 
-static bool select_tag(char tag[32])
+/*
+ * Melyik kiadás témáit keressük. Kiadott firmware-nél a saját tagjét, hálózat
+ * nélkül is. Fejlesztői (előzetes jelölésű) buildnél a GitHub legutóbbi stabil
+ * kiadását; ennek hibáját a felhasználónak is megmutatjuk, mert eddig csak
+ * annyi látszott, hogy „a GitHub nem érhető el”.
+ */
+static bool select_tag(char tag[32], char detail[160])
 {
     const esp_app_desc_t *app = esp_app_get_description();
+    const char *running = app && app->version[0] ? app->version : "ismeretlen";
     if (app_template_remote_tag(app ? app->version : NULL, NULL, tag))
+    {
+        app_events_add(APP_EVENT_INFO, "Témafrissítés: a futó kiadás témái (%s).", tag);
         return true;
-    cJSON *release = download_json(APP_TEMPLATE_REMOTE_LATEST, JSON_LIMIT);
-    const cJSON *name = cJSON_GetObjectItemCaseSensitive(release, "tag_name");
-    bool ok = cJSON_IsString(name) && app_template_remote_tag(NULL, name->valuestring, tag);
-    cJSON_Delete(release);
+    }
+    app_events_add(APP_EVENT_INFO, "Témafrissítés: fejlesztői firmware (%s), legutóbbi kiadás lekérése.",
+                   running);
+    bool ok = false;
+    /* Egy ismétlés: a Wi-Fi/DNS közvetlenül indulás vagy témaváltás után gyakran
+     * csak másodpercekkel később válaszol. */
+    for (unsigned attempt = 0; attempt < 2 && !ok; attempt++)
+    {
+        if (attempt)
+            vTaskDelay(pdMS_TO_TICKS(1500));
+        cJSON *release = download_json(APP_TEMPLATE_REMOTE_LATEST, JSON_LIMIT);
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(release, "tag_name");
+        ok = cJSON_IsString(name) && app_template_remote_tag(NULL, name->valuestring, tag);
+        if (!ok)
+        {
+            const char *why = !release ? s_reason
+                              : !cJSON_IsString(name)
+                                  ? "nincs tag_name a válaszban"
+                                  : "a legutóbbi kiadás nem stabil vMAJOR.MINOR.PATCH";
+            snprintf(detail, 160, "A legutóbbi kiadás nem kérdezhető le: %.64s (firmware: %.31s).",
+                     why, running);
+        }
+        cJSON_Delete(release);
+    }
+    if (ok)
+    {
+        snprintf(s_cached_tag, sizeof(s_cached_tag), "%s", tag);
+        app_events_add(APP_EVENT_INFO, "Témafrissítés: legutóbbi kiadás %s.", tag);
+    }
+    else if (s_cached_tag[0])
+    {
+        /* Átmeneti hiba (pl. a GitHub kéréskorlátja) ne vegye el a már ismert kiadást. */
+        snprintf(tag, 32, "%s", s_cached_tag);
+        app_events_add(APP_EVENT_WARNING, "Témafrissítés: %s Korábbi kiadás: %s.", detail,
+                       s_cached_tag);
+        detail[0] = 0;
+        ok = true;
+    }
     return ok;
 }
 
 static void check_task(void *arg)
 {
     (void)arg;
-    char tag[32];
-    if (!select_tag(tag))
+    /* A korábbi találatok azonnal eltűnnek: megszakadt vagy sikertelen
+     * ellenőrzés után ne maradjon a weben félkész vagy elavult lista. */
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memset(s_items, 0, sizeof(s_items));
+    s_count = 0;
+    s_tag[0] = 0;
+    xSemaphoreGive(s_lock);
+    /* A TLS-kontextus a szabad belső RAM-tól függ, ezért a kérés előtti
+     * állapotot naplózzuk: egy „kapcsolódás” hiba így nem marad okszerűtlen. */
+    app_events_add(APP_EVENT_INFO, "Témafrissítés RAM: belső=%u B; legnagyobb belső=%u B; PSRAM=%u B",
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    char tag[32], detail[160] = "";
+    if (!select_tag(tag, detail))
     {
-        set_state(APP_TEMPLATE_UPDATE_ERROR, "A GitHub nem érhető el, vagy nincs stabil kiadás.");
+        if (!detail[0])
+            snprintf(detail, sizeof(detail), "A GitHub nem érhető el, vagy nincs stabil kiadás.");
+        app_events_add(APP_EVENT_WARNING, "Témafrissítés sikertelen: %s", detail);
+        set_state(APP_TEMPLATE_UPDATE_ERROR, detail);
         vTaskDelete(NULL);
         return;
     }
@@ -224,7 +344,11 @@ static void check_task(void *arg)
     cJSON_Delete(listing);
     if (!ids || !installed || !items || !count)
     {
-        set_state(APP_TEMPLATE_UPDATE_ERROR, "A témalista nem tölthető le a GitHubról.");
+        char message[160];
+        snprintf(message, sizeof(message), "A témalista nem tölthető le (%.31s): %.90s.", tag,
+                 ids && installed && items ? s_reason : "nincs elég memória");
+        app_events_add(APP_EVENT_WARNING, "Témafrissítés sikertelen: %s", message);
+        set_state(APP_TEMPLATE_UPDATE_ERROR, message);
         free(ids);
         free(installed);
         free(items);
@@ -238,6 +362,9 @@ static void check_task(void *arg)
         if (!app_template_remote_url(url, sizeof(url), tag, ids[i], "template.json"))
             continue;
         cJSON *document = download_json(url, JSON_LIMIT);
+        if (!document)
+            app_events_add(APP_EVENT_WARNING, "Témafrissítés: %s leírója nem tölthető le: %s",
+                           ids[i], s_reason);
         const cJSON *version = cJSON_GetObjectItemCaseSensitive(document, "version");
         const cJSON *name = cJSON_GetObjectItemCaseSensitive(document, "name");
         if (cJSON_IsNumber(version) && version->valuedouble >= 1 && version->valuedouble < 100000)
@@ -263,6 +390,10 @@ static void check_task(void *arg)
     s_state = APP_TEMPLATE_UPDATE_READY;
     if (updates)
         snprintf(s_message, sizeof(s_message), "%u téma frissíthető (%s).", updates, tag);
+    else if (found < count)
+        snprintf(s_message, sizeof(s_message),
+                 "Minden telepített téma naprakész (%s); %u téma leírója nem volt letölthető.",
+                 tag, count - found);
     else
         snprintf(s_message, sizeof(s_message), "Minden telepített téma naprakész (%s).", tag);
     xSemaphoreGive(s_lock);
@@ -270,6 +401,23 @@ static void check_task(void *arg)
     free(installed);
     free(items);
     vTaskDelete(NULL);
+}
+
+/*
+ * Két letöltés között kivárás. A sok egymás utáni TLS-kapcsolat leírói és a
+ * hálózati pufferek ugyanabból a szűk, DMA-képes keretből mennek, mint az SD
+ * írása; felszabadulni időbe telik. Legfeljebb 5 másodpercet várunk rá.
+ */
+#define DMA_FLOOR_BYTES 6144U
+static void download_settle(void)
+{
+    vTaskDelay(pdMS_TO_TICKS(150));
+    for (unsigned waited = 0; waited < 20; waited++)
+    {
+        if (heap_caps_get_free_size(MALLOC_CAP_DMA) >= DMA_FLOOR_BYTES)
+            return;
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
 }
 
 /* Egy fájl a stage-be: a teljes tartalom egyetlen írással, rövid SD-zár alatt. */
@@ -280,7 +428,7 @@ static bool stage_file(const char *name, const uint8_t *data, size_t size)
     if (app_storage_lock() != ESP_OK)
         return false;
     FILE *file = fopen(path, "wb");
-    bool ok = file && fwrite(data, 1, size, file) == size;
+    bool ok = file && app_templates_sd_write(file, data, size);
     if (file && fclose(file) != 0)
         ok = false;
     app_storage_unlock();
@@ -307,16 +455,24 @@ static bool install_one(const char *tag, const char *id, char error[160])
     cJSON_Delete(document);
     free(json);
     if (!ok)
-        snprintf(error, 160, "%s", "A template.json nem tölthető le vagy hibás");
+        snprintf(error, 160, "A template.json nem tölthető le vagy hibás (%.90s)", s_reason);
     for (unsigned i = 0; ok && i < count; i++)
     {
+        download_settle();
         uint8_t *data = NULL;
         if (app_template_remote_url(url, sizeof(url), tag, id, files[i]))
             data = download(url, APP_TEMPLATE_PNG_MAX, &size);
-        ok = data && stage_file(files[i], data, size);
+        bool fetched = data != NULL;
+        ok = fetched && stage_file(files[i], data, size);
         free(data);
         if (!ok)
-            snprintf(error, 160, "Letöltési vagy SD-hiba: %s", files[i]);
+        {
+            if (fetched)
+                snprintf(error, 160, "%.64s: SD-írási hiba (szabad DMA: %u B)", files[i],
+                         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA));
+            else
+                snprintf(error, 160, "%.64s: %.80s", files[i], s_reason);
+        }
     }
     free(files);
     if (ok && app_templates_install_downloaded(error) != ESP_OK)

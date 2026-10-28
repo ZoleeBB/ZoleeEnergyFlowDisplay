@@ -59,6 +59,27 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   Felhasználói inputra a runtime task ne fix `vTaskDelay`-jel várjon: a
   gesztus a bináris szemaforral ébresszen. Task-értesítést ne használj, mert
   ütközhet az IDF-meghajtókkal.
+- **A mért veremcsúcs nem elég a méretezéshez.** A
+  `/api/diagnostics/tasks` értéke csak az addig bejárt utakat fedi le; a
+  ritkán járt ág (napi mentés, párosítás, hibaoldal) ennél jóval mélyebb
+  lehet. JSON-t, lebegőpontos formázást vagy harmadik féltől származó kódot
+  futtató feladat vermét ne csökkentsd mérés alapján (`stats`, 2026-10-28).
+- **Méretezd a feladatvermet a legmélyebb hívási lánchoz.** A `template_raw`
+  4 KiB-os verme a PNG-dekódolás és SD-írás láncán túlcsordult
+  (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos
+  útvonalpuffer ne legyen helyi tömb a láncban: foglald a kupacból. Hosszan
+  futó háttérfeladat naplózza a `uxTaskGetStackHighWaterMark` mélypontját.
+- **Hosszú életű, DMA-t nem igénylő feladat verme az RTC-területre való**
+  (`app_task_create_lp`). Így a verem mérete marad, a DMA-képes keret mégis
+  felszabadul. PSRAM-verem nem jó erre: a gyorsítótár mögött van, és
+  flash-írás közben elérhetetlen.
+- **A belső RAM szűk, és csak egy része DMA-képes.** Új állandó feladat,
+  verembővítés vagy belső puffer előtt nézd meg a `/api/diagnostics/tasks`
+  jelentést: a `DMA: szabad` érték dönti el, marad-e elég az SD-olvasásnak és
+  a TLS-nek. Napi/ritka munkához ne tarts életben feladatot, indítsd kérésre.
+- **SD-hiba ne blokkolja a kiutat.** A firmware aktiválása és az újraindítás
+  akkor is fusson le, ha a statisztika mentése nem sikerült; a hiba naplóba
+  kerül. Különben hibás kártyánál csak hardveres reset marad.
 - **Ezeket szándékosan ne kapcsold ki:** a témaváltáskori chunk-CRC-t (csak ez
   biztosítja a Rendszer nézetre való visszaesést sérült képnél), a
   `template.json` sémaellenőrzését és a 85 ms-os betöltőkép-várakozást. Utóbbin
@@ -77,5 +98,10 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
 
 - A célzott változás előtt és után ellenőrizd, hogy a műveletek, konstansok, stringek és előfeldolgozó direktívák változatlanok.
 - Futtasd a `python3 tests/run_tests.py` teszteket, a firmware ESP-IDF buildjét, valamint az érintett szimulátor- és regressziós teszteket, ha a környezet elérhető.
+- Új, fejlécben meghirdetett függvényt ne tegyél `#ifndef _WIN32` vagy
+  `#ifndef APP_TEMPLATE_DESKTOP` blokkba, ha minden célon hívják: az
+  `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott
+  `app_templates_sd_write` az MSVC-s szimulátorban linkelési hibát adott
+  (`LNK2019: unresolved external symbol`). A `tests/run_tests.py` ezt ellenőrzi.
 - Ellenőrizd az alkalmazás bináris méretét és a partíciós/OTA korlátokat; méretösszehasonlítás nélkül ne állítsd, hogy a két firmware bájtra azonos.
 - Formázási célú PR nem tartalmazhat funkciómódosítást, konfigurációváltozást, tömörítetlen webes állományt vagy új beágyazott erőforrást.

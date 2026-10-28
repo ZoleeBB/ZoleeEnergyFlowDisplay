@@ -9,6 +9,7 @@
  * az SD-n); a Loxone- és kamerajelszó eszközkulccsal titkosított marad.
  */
 #include "app_backup.h"
+#include "app_task_mem.h"
 #include "app_events.h"
 #include "app_storage.h"
 #include "esp_app_desc.h"
@@ -235,7 +236,7 @@ esp_err_t app_backup_flash_start(void)
         s_request = xSemaphoreCreateBinary();
         if (!s_request)
             return ESP_ERR_NO_MEM;
-        if (xTaskCreate(sync_task, "backup_sync", 6144, NULL, 2, NULL) != pdPASS)
+        if (app_task_create_lp(sync_task, "backup_sync", 6144, NULL, 2, NULL) != pdPASS)
             return ESP_ERR_NO_MEM;
     }
     app_backup_flash_request();

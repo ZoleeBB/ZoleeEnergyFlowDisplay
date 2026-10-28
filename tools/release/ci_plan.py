@@ -14,7 +14,9 @@ def plan(repository, commit, event, ref, tag='', automatic=False):
         raise ValueError('Invalid repository')
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('Invalid source commit')
-    result = {'tag': validate_tag(tag or 'v0.0.0-ci'), 'pr': '0',
+    # A commit rövid azonosítója a verzióba is bekerül, különben minden
+    # tesztcsomag `v0.0.0-ci`, és az eszközön nem látszik, melyik build fut.
+    result = {'tag': validate_tag(tag or f'v0.0.0-ci.g{commit[:7]}'), 'pr': '0',
               'publish': 'false', 'build': 'true'}
     if not automatic:
         return result

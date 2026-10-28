@@ -6,8 +6,10 @@ A Beállítások → Frissítés → **Automatikus rendszerfrissítés éjfélko
 engedélyezhető. A `config.json` mezője `ota.auto_update` (0/1), alapértéke **0**.
 A kapcsoló mentése újraindítást kér, de induláskor nem keres és nem telepít frissítést.
 
-A működő kijelző minden előrehaladó **helyi napváltáskor** egyszer ébreszti a
-frissítő háttérfeladatot. A statisztikai integrálási mintaköz végét megvárja
+A működő kijelző minden előrehaladó **helyi napváltáskor** egyszer elindítja a
+frissítő háttérfeladatot, amely lefutás után meg is szűnik: napi egy
+ellenőrzésért nem köt le állandóan 8 KiB-nyi, DMA-képes belső RAM-ot
+([teljesítmény](performance.md)). A statisztikai integrálási mintaköz végét megvárja
 (alapból 31 másodperc), majd a beégetett
 `https://api.github.com/repos/ZoleeBB/ZoleeEnergyFlowDisplay/releases/latest`
 végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy URL-beállítás.
@@ -22,8 +24,11 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
 - A letöltés közvetlenül az inaktív OTA-partícióra kerül, korlátozott pufferrel;
   ellenőrzi a méretet, a firmware projektnevét és verzióját, a teljes fájl SHA-256
   ellenőrzőösszegét és az ESP-IDF image-validációját.
-- SD-s eszközön csak sikeres, közvetlenül aktiválás előtti SD-statisztikamentés után állítja át
-  a bootpartíciót, majd újraindul. A már meglévő háromperces OTA-visszaállítási
+- SD-s eszközön az aktiválás előtt elmenti a statisztikát, de **SD-hiba nem
+  akadályozza meg a frissítést**: a sikertelen mentés naplóba kerül, a már
+  ellenőrzött firmware aktiválása és az újraindítás lefut. Hibás kártyára a
+  napi statisztika úgysem írható ki, viszont enélkül korábban csak hardveres
+  reset maradt. A már meglévő háromperces OTA-visszaállítási
   védelem megmarad. Korábban visszagörgetett azonos verziót automatikusan nem
   próbál újra; a következő újabb release-re vár, vagy kézi OTA használható.
   SD nélküli Slave-nél a mastertől kapott statisztika csak a Slave RAM-jában él;
@@ -31,9 +36,18 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
   tartós NVS-ben vannak.
 - Nincs párhuzamos kézi OTA, konfigurációmentés vagy webes újraindítás: ilyenkor
   a webes módosítás 409 választ ad, illetve a foglalt éjféli ellenőrzés kimarad.
-- Internet/Wi-Fi hiányakor, GitHub limitnél, hibás/csonka letöltésnél vagy SD-s eszköz SD-hibájánál
+- A kapcsolódási hiba nem azonnal végleges: a letöltő 3 másodperc szünettel
+  kétszer újrapróbálkozik, és ezt naplózza is. A TLS-kontextus pillanatnyi
+  belső RAM-hiánytól is elbukhat, ezért érdemes megnézni a hiba melletti
+  `OTA RAM` sort ([diagnosztika](automatic-update-diagnostics.md)).
+- Internet/Wi-Fi hiányakor, GitHub limitnél, hibás/csonka letöltésnél
   a jelenlegi firmware marad. A következő helyi napváltáskor próbálkozik újra;
   nincs nappali ismétlés és nincs bekapcsoláskori bepótlás.
+
+A művelet ideje alatt a kijelző statikus „Háttérfeladat miatt foglalt…”
+üzenetre vált: nincs témabetöltés, animáció és SD-olvasás, így a mag, az SD és
+a hálózat a letöltés rendelkezésére áll. A kaputelefon csengetése ilyenkor is
+elsőbbséget kap, és a művelet végén a megszokott nézet magától felépül.
 
 A naplóban megjelenik az ellenőrzés, az új verzió letöltése, a siker vagy a hiba.
 Slave módban is használható, **de saját Wi-Fi és internet kell hozzá**; a master

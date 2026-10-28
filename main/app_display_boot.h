@@ -2,34 +2,28 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/*
+ * A kijelző tájolása az NVS-ben a korai (config.json előtti) indításhoz.
+ * A korábbi 90 fokos „próba/letiltás" védelmet eltávolítottuk: a 90 fokos
+ * mód stabil, az indulás közbeni újraindítás viszont mindig visszaállította
+ * 270 fokra, mert a 15 másodperces igazolás nem futott le.
+ */
 typedef struct
 {
     uint16_t rotation_degrees; /* NVS-ben gyorsindításhoz tárolt érték */
-    uint8_t trial;             /* 90 fokos boot még nem igazolt */
-    uint8_t blocked;           /* előző sikertelen 90 fokos indítás */
 } app_display_boot_state_t;
 
-static inline uint16_t app_display_boot_select(app_display_boot_state_t *state)
+static inline uint16_t app_display_boot_select(const app_display_boot_state_t *state)
 {
-    if (state->rotation_degrees != 90 || state->blocked)
-        return 270;
-    if (state->trial)
-    {
-        state->trial = 0;
-        state->blocked = 1;
-        return 270;
-    }
-    state->trial = 1;
-    return 90;
+    return state->rotation_degrees == 90 ? 90 : 270;
 }
 
+/* Igaz, ha a config.json eltér az NVS-től: ekkor mentés és vezérelt újraindulás. */
 static inline bool app_display_boot_sync(app_display_boot_state_t *state, uint16_t desired)
 {
     desired = desired == 90 ? 90 : 270;
     if (state->rotation_degrees == desired)
         return false;
     state->rotation_degrees = desired;
-    state->trial = 0;
-    state->blocked = 0;
     return true;
 }

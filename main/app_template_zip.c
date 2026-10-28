@@ -155,7 +155,7 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
         FILE *out = fopen(path, "wb");
         if (!out)
             goto done;
-        bool written = fwrite(output, 1, size, out) == size;
+        bool written = app_templates_sd_write(out, output, size);
         if (fclose(out))
             written = false;
         if (!written)

@@ -25,7 +25,7 @@ class BuildPlanTests(unittest.TestCase):
             for event, ref in [('pull_request', 'refs/pull/20/merge'),
                                ('workflow_dispatch', 'refs/heads/main')]:
                 result = plan(self.repository, self.sha, event, ref)
-                self.assertEqual(result, {'tag': 'v0.0.0-ci', 'pr': '0',
+                self.assertEqual(result, {'tag': f'v0.0.0-ci.g{self.sha[:7]}', 'pr': '0',
                                           'publish': 'false', 'build': 'true'})
             manual = plan(self.repository, self.sha, 'release', 'refs/tags/v3.0.0', 'v3.0.0')
             self.assertEqual(manual['tag'], 'v3.0.0')

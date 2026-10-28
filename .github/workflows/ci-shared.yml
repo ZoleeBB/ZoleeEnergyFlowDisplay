@@ -266,7 +266,18 @@ jobs:
       - name: Configure MSVC Debug simulator
         run: cmake -S . -B out/simulator -DZOLEE_SIMULATOR=ON -A x64
       - name: Build
-        run: cmake --build out/simulator --config Debug --parallel 4
+        shell: pwsh
+        run: |
+          cmake --build out/simulator --config Debug --parallel 4 2>&1 | Tee-Object -FilePath build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            # Az MSVC hibasorai annotacioként is megjelennek, így a futás
+            # összegzésében olvashatók, nem csak a teljes naplóban.
+            Select-String -Path build.log -Pattern 'error [A-Z]+[0-9]+|fatal error' |
+              Select-Object -First 20 |
+              ForEach-Object { Write-Host ("::error::" + $_.Line.Trim()) }
+          }
+          exit $code
       - name: Prepare common Loxone resources
         run: |
           python tools/prepare_home_resources.py

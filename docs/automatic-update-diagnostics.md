@@ -90,3 +90,28 @@ a PSRAM-ból foglaljanak, több belső RAM-ot hagyva a Wi-Fi-nek és DMA-nak.
 A hálózati hiba utáni memóriaállapot is naplózott, hogy a tényleges
 eszközteszt ezt az okot megerősíthesse vagy kizárhassa. A változtatás
 nem kapcsolja ki a TLS-, tanúsítvány- vagy firmware-ellenőrzést.
+
+## TLS-kontextus hibája a kapcsolódás előtt (`0x8011`)
+
+Az ESP-IDF 5.5.4 `0x8011` kódja `ESP_ERR_MBEDTLS_CTR_DRBG_SEED_FAILED`: a TLS
+kontextusa még a kapcsolódás *előtt* elbukott. Ilyenkor a `kód=28674`
+(`ESP_ERR_HTTP_CONNECT`), az `errno=0` és a `cert=0x0` is ezt erősíti: nem a
+GitHub, nem a névfeloldás és nem a tanúsítvány a hibás. A `mbedTLS=1`
+(`MBEDTLS_ERR_ERROR_GENERIC_ERROR`) általános kriptográfiai hiba, amelynek
+leggyakoribb oka a kevés szabad belső RAM — a hiba melletti `OTA RAM` sor
+ezt mutatja meg (`int=` és `max-int=`).
+
+Ennek kezelésére:
+
+- a kapcsolódási hiba után a letöltő 3 másodperc szünettel **kétszer
+  újrapróbálkozik**, és ezt naplózza is; csak ezután adja fel,
+- a `/diagnostics` és az `/api/diagnostics` a bekapcsolás óta mért
+  **legkisebb szabad belső RAM**-ot is mutatja (`min_free_internal_kib`), így
+  kiderül, hogy tartós szűkösségről vagy pillanatnyi mélypontról van-e szó,
+- a témafrissítés ellenőrzése is naplózza a kérés előtti memóriaállapotot,
+  és a háttérfeladatai (`tpl_check`, `template_raw`) PSRAM-ban tartják a
+  vermüket, mert sem flash-írást, sem DMA-t nem végeznek onnan.
+
+Ha a `min_free_internal_kib` tartósan alacsony, a TLS-hez kell belső RAM-ot
+felszabadítani; a frissítés addig közvetlenül indulás után a legmegbízhatóbb,
+amikor a legtöbb a szabad belső RAM.

@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "esp_event.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -49,8 +50,8 @@ static app_config_t s_config;
 static app_display_boot_state_t s_boot_orientation = {.rotation_degrees=270};
 static uint16_t s_active_rotation = 270;
 
-/* Az NVS mentés csak a tájolás korai indításához és a bootloop elleni védelemhez kell.
- * A felhasználói beállítás továbbra is a config.json-ban van. */
+/* Az NVS mentés csak a tájolás korai indításához kell; a felhasználói
+ * beállítás továbbra is a config.json-ban van. */
 static esp_err_t orientation_read(app_display_boot_state_t *state)
 {
     nvs_handle_t h;
@@ -58,8 +59,6 @@ static esp_err_t orientation_read(app_display_boot_state_t *state)
     if(err==ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
     if(err!=ESP_OK) return err;
     (void)nvs_get_u16(h,"rotation",&state->rotation_degrees);
-    (void)nvs_get_u8(h,"trial",&state->trial);
-    (void)nvs_get_u8(h,"blocked",&state->blocked);
     nvs_close(h);
     state->rotation_degrees=state->rotation_degrees==90?90:270;
     return ESP_OK;
@@ -70,28 +69,9 @@ static esp_err_t orientation_write(const app_display_boot_state_t *state)
     esp_err_t err=nvs_open("display_ui",NVS_READWRITE,&h);
     if(err!=ESP_OK) return err;
     err=nvs_set_u16(h,"rotation",state->rotation_degrees);
-    if(err==ESP_OK) err=nvs_set_u8(h,"trial",state->trial);
-    if(err==ESP_OK) err=nvs_set_u8(h,"blocked",state->blocked);
     if(err==ESP_OK) err=nvs_commit(h);
     nvs_close(h);
     return err;
-}
-
-/* Csak a már stabilan frissülő 90 fokos kijelzőt tekintjük sikeresnek.
- * Ha előbb összeomlik, a következő boot 270-re tér vissza. */
-static void orientation_verified_task(void *arg)
-{
-    (void)arg;
-    vTaskDelay(pdMS_TO_TICKS(15000));
-    app_display_boot_state_t current={.rotation_degrees=270};
-    if(orientation_read(&current)==ESP_OK &&
-       current.rotation_degrees==90 && current.trial && !current.blocked) {
-        current.trial=0;
-        esp_err_t err=orientation_write(&current);
-        ESP_LOGI(TAG,"90-degree orientation trial %s",
-                 err==ESP_OK?"verified":"could not be persisted");
-    }
-    vTaskDelete(NULL);
 }
 
 /* A konfiguráció betöltése után használt egyszerű HU/EN szövegválasztó. */
@@ -157,26 +137,15 @@ void app_main(void)
     /* Indítási memóriahiba esetén újraindulunk; pending OTA-nál a bootloader rollbackel. */
     ESP_ERROR_CHECK(app_ota_start_validation_task());
 
-    /* Az első UI-képkocka előtt kiválasztjuk az NVS-ben eltárolt tájolást.
-     * Sikertelen korábbi 90 fokos boot után visszaállunk 270-re. */
+    /* Az első UI-képkocka előtt kiválasztjuk az NVS-ben eltárolt tájolást. */
     if(orientation_read(&s_boot_orientation)!=ESP_OK)
         app_events_add(APP_EVENT_WARNING,"Tájolási NVS nem olvasható; 270 fokkal indulunk.");
-    const bool failed_trial=s_boot_orientation.rotation_degrees==90 && s_boot_orientation.trial;
     s_active_rotation=app_display_boot_select(&s_boot_orientation);
-    if((s_active_rotation==90 || failed_trial) &&
-       orientation_write(&s_boot_orientation)!=ESP_OK) {
-        s_active_rotation=270; /* NVS védelem nélkül 90 fokban nem indulunk. */
-        app_events_add(APP_EVENT_WARNING,"A tájolási biztonsági állapot nem menthető; 270 fok.");
-    }
-    if(failed_trial)
-        app_events_add(APP_EVENT_WARNING,"A 90 fokos kijelzőindítás korábban meghiúsult, biztonsági 270 fok.");
     ESP_LOGI(TAG,"Display startup rotation: %u degrees",(unsigned)s_active_rotation);
 
     /* Eredeti indulás: a kijelző már az SD-kártya ellenőrzését is mutatja. */
     if (app_ui_init(s_active_rotation) != ESP_OK) {
         ESP_LOGE(TAG, "Display initialization failed");
-        /* A sikertelen 90 fokos kísérletet a következő indulás letiltja. */
-        if(s_active_rotation==90) esp_restart();
         /* Az OTA-rollback validáció tovább futhat. */
         while (true) vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -224,16 +193,17 @@ void app_main(void)
             app_events_add(APP_EVENT_WARNING,"Tájolási NVS írása sikertelen; jelenlegi állás marad.");
         }
     }
-    if(s_boot_orientation.blocked && s_config.display.rotation_degrees==90)
-        app_events_add(APP_EVENT_WARNING,"90 fokos mód letiltva korábbi kijelzőhiba után. Válassz 270 fokot a beállításokban.");
-    if(s_active_rotation==90 &&
-       xTaskCreate(orientation_verified_task,"orientation_ok",3072,NULL,3,NULL)!=pdPASS)
-        app_events_add(APP_EVENT_WARNING,"90 fokos kijelző ellenőrző feladat nem indult el.");
-
     /* A JPEG kis belső DMA-foglalása megelőzi a Wi-Fi/BLE feladatokat.
      * Csak Loxone módban kell; hiba esetén az alkalmazás tovább fut, és a videó újrapróbálja. */
-    if (s_config.data_recept_mode == APP_DATA_LOXONE && app_intercom_prepare_video() != ESP_OK) {
-        app_events_add(APP_EVENT_WARNING, "A kaputelefon JPEG-dekóderének korai előkészítése nem sikerült.");
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
+        /* A dekóder leírói DMA-képes belső RAM-ból foglalódnak, amiből kevés
+         * van; a foglalás mértékét ezért megmérjük. */
+        unsigned dma_before = (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA);
+        esp_err_t prepared = app_intercom_prepare_video();
+        app_events_add(APP_EVENT_INFO, "JPEG-dekóder DMA-foglalás: %u -> %u B", dma_before,
+                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA));
+        if (prepared != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "A kaputelefon JPEG-dekóderének korai előkészítése nem sikerült.");
     }
     if (app_ble_profile_init(&s_config) != ESP_OK &&
         (s_config.data_seed_enabled || s_config.data_recept_mode == APP_DATA_SLAVE))
@@ -377,7 +347,9 @@ void app_main(void)
         fatal_forever(cfg_tr("Memóriahiba","Memory error"),
             cfg_tr("A kijelző feladata nem indítható.","The display task could not start."));
     }
-    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött.");
+    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött. Szabad DMA-memória: %u B (legnagyobb blokk %u B).",
+                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     /* Belső beállítás-tartalék: induláskor egyszer összeveti az SD-vel, és csak
      * eltérésnél ír. SD nélküli Slave-nél nincs mit menteni. */
     if (!s_config.cardless_slave && app_backup_flash_start() != ESP_OK)

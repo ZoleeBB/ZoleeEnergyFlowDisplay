@@ -109,7 +109,7 @@ a CI ASan-ja a memóriahozzáférést és szivárgást is vizsgálja.
 
 A regressziós tesztek a tényleges RX patch kódblokkjait fordítják, majd 3072, 5632, 5633, 7 és 32768 bájtos burstöt, blokkvégi kitöltést, foglalási hibát, FIFO-ürítést és helyreállást vizsgálnak. A raster-cache előtti és utáni 16 teljes render összevetésében 11 kép képpontra azonos, az öt másikban a csatornánkénti eltérés maximum 1–2 színérték (alfa-kerekítés). A valódi LVGL preview mind a 18 témaváltozatot, időjárási variánsokat és ismételt lapozást ellenőrzi. Ezek nem mérnek fizikai panel-FPS-t vagy tartós Wi-Fi terhelést.
 
-A `/diagnostics` és `/api/diagnostics` az összes szabad memória mellett a szabad belső RAM-ot (`free_internal_kib`) és a legnagyobb szabad belső DMA-blokkot (`largest_dma_block_bytes`) is mutatja. Hardveren ezek értékeit érdemes összevetni indulás után és legalább 100 témaváltás, böngészős oldalfrissítések és adatküldés után. Az összes memória magas értéke önmagában nem bizonyítja a DMA-foglalások működését. Animációs FPS és késleltetés csak a készüléken végzett méréssel állítható.
+A `/diagnostics` és `/api/diagnostics` az összes szabad memória mellett a szabad belső RAM-ot (`free_internal_kib`), a bekapcsolás óta mért legkisebb szabad belső RAM-ot (`min_free_internal_kib`) és a legnagyobb szabad belső DMA-blokkot (`largest_dma_block_bytes`) is mutatja. A legkisebb érték azért kell, mert egy pillanatnyi mélypont (például egy TLS-kapcsolat felépítése) a 3 másodpercenkénti pillanatfelvételből nem látszik. A `/diagnostics` oldal alján, illetve a `/api/diagnostics/tasks` végponton a belső heap összesítője (szabad, valaha legkisebb, legnagyobb blokk, foglalt), a DMA-képes szabad memória és feladatonként a szabad verem is lekérdezhető. A feladatvermek mindig belső RAM-ból foglalódnak, ezért ez mutatja meg, hol fogy a szűkös belső RAM; tippelés helyett ezzel kell méretezni. Hardveren ezek értékeit érdemes összevetni indulás után és legalább 100 témaváltás, böngészős oldalfrissítések és adatküldés után. Az összes memória magas értéke önmagában nem bizonyítja a DMA-foglalások működését. Animációs FPS és késleltetés csak a készüléken végzett méréssel állítható.
 
 A csomagban tárolt `preview-light.png` és `preview-dark.png` csak a webes
 sablonkezelő képe. A runtime előtöltő kihagyja őket, nem foglalnak LVGL
@@ -335,3 +335,119 @@ A `feature/ux-improvements` funkciói a meglévő teljesítményszabályokat kö
   töltődnek, az SD-zár csak a rövid írások idejére foglalt.
 - **Webfelület:** a közös stíluslap oldalanként beágyazva (nincs plusz HTTP-kérés),
   a firmware-ben kb. 3,5 KiB oldalanként.
+
+## Belső RAM: feladatvermek méretezése (2026-10-28)
+
+Az eszközön mérve a belső heap 234 KiB-ot tartott foglalva, és a **DMA-képes**
+szabad memória 1967 B-ra, a legnagyobb DMA-blokk 1088 B-ra csökkent. Ettől
+bukott el az SD olvasása (`sdmmc_read_sectors: not enough mem`), a TLS-kontextus
+létrehozása (OTA és témafrissítés), és ezért lassult a témaváltás 30-49 s-ra.
+A feladatvermek mindig belső RAM-ból foglalódnak, ezért a `/api/diagnostics/tasks`
+jelentés alapján a túlméretezett vermeket a mért csúcshoz igazítottuk:
+
+| Feladat | Mért csúcs | Régi | Új |
+| --- | --- | --- | --- |
+| `ui_runtime` | 6212 B | 16384 | 12288 |
+| `main` (ESP-IDF) | 5064 B | 12288 | 10240 |
+| `sd_recovery` | 576 B | 4096 | 3072 |
+| `time_sync_task` | 320 B | 4096 | 3072 |
+| `wifi_reconnect` | 292 B | 4096 | 3072 |
+| `template_raw` | 2288 B | 8192 | 6144 |
+| `auto_ota` | 296 B üresjáratban | 8192 állandó | napváltáskor indul |
+
+**A mért csúcs csak az addig bejárt utakat fedi le.** A `stats` feladatnál ez
+félrevezetett: a másodperces tick 1720 B-ot használ, a napi mentés viszont
+cJSON-nal és lebegőpontos formázással dolgozik, és a 4096 bájtos verem
+túlcsordult (`Stack protection fault`, task `stats`). Ezért a JSON-t,
+lebegőpontos formázást vagy harmadik féltől származó, ritkán járt ágat futtató
+feladatok megtartották az eredeti méretüket: `stats` 6144, `backup_sync` 6144,
+NimBLE host 8192, `presence_nvs` 4096, `websocket_task` 5120, `mdns` 3328.
+
+Az `auto_ota` korábban állandóan élt, és napi egy ellenőrzésért kötött le
+8 KiB-ot; most a napváltás indítja, és lefutás után megszűnik. Együtt kb.
+26 KiB belső RAM szabadul fel.
+
+Nem csökkentettük a `httpd` (12288, mért csúcs 9884 B) és a `loxone` (12288,
+mért csúcs 8308 B) vermét: ezeknél a tartalék már most is szűk. Az LVGL
+adapter 32 KiB-os verme PSRAM-ban van.
+
+Új méretezés előtt mindig a `/api/diagnostics/tasks` mért értékeiből indulj ki.
+
+A mért csúcs csak az addig bejárt utakat fedi le, ezért a firmware percenként
+megnézi az összes feladat legkisebb veremmaradékát, és feladatonként egyszer
+figyelmeztet (`Kevés a verem: <feladat>, <n> B szabad`), ha 768 bájt alá esik.
+Így egy ritkán járt, mélyebb hívási lánc időben kiderül, nem pedig névtelen
+pánikkal. A ténylegesen szűk tartalékú feladatoknál (`backup_sync`, NimBLE
+host, `stats`, `websocket_task`, `mdns`) ezért vissza is emeltük a méretet.
+
+### A DMA-képes keret külön szűk
+
+A veremcsökkentés után a szabad belső RAM 18 439 B-ról 41 863 B-ra nőtt, és a
+témaváltás 29 992 ms-ról 9803 ms-ra (09-solar-journey), illetve 2357-3014 ms-ra
+(10-battery-diagnostics, 01-live-home, 06-energy-orbit) gyorsult. A **DMA-képes**
+szabad memória viszont 1967 B-ról csak 2855 B-ra változott: a felszabadult
+vermek nem abból a régióból foglaltak. Az SD-olvasás és a kriptográfiai
+gyorsító kizárólag DMA-képes belső RAM-ot tud használni, ezért az OTA és a
+témafrissítés TLS-hibája megmaradt.
+
+A régiónkénti bontás a soros konzolra kerül a `/api/diagnostics/tasks`
+lekérésekor (`heap_caps_print_heap_info`), a JPEG-dekóder indulási DMA-foglalása
+és a rendszerindítás végén a szabad DMA-memória pedig az eseménynaplóba.
+Méréssel kell eldönteni, melyik fogyasztót érdemes visszavenni.
+
+### Mit terhel még a DMA-keret
+
+A webes felület legfeljebb négy egyidejű kapcsolatot tart (`max_open_sockets`,
+LRU bontással), mert minden kapcsolat lwIP-puffereket köt le a DMA-képes belső
+RAM-ból. A sablonfájlok olvasása egyetlen, induláskor foglalt 8 KiB-os belső
+DMA-pufferen keresztül megy: az SD-vezérlő DMA-ja a PSRAM-ot nem éri el, így
+enélkül minden olvasás futásidőben foglalna átmeneti belső puffert.
+
+A betöltőkép megjelenésére a futtató feladat zár nélkül vár (illékony
+jelzőbit), mert a korábbi 20 ms-os zárpróbálkozások váltásonként több
+`Failed to acquire LVGL lock` adapter-hibasort írtak a naplóba.
+
+### Kijelző háttérműveletek alatt
+
+OTA, csomagtelepítés és GitHubos frissítés alatt a kijelző statikus
+„Háttérfeladat miatt foglalt..." üzenetre vált (`app_ota_operation_active()`).
+Ilyenkor nincs témabetöltés, animáció és SD-olvasás, így a mag, az SD és a
+hálózat a művelet rendelkezésére áll; a kaputelefon csengetése továbbra is
+elsőbbséget élvez. A művelet végén a megszokott nézet magától felépül.
+Memóriát ez nem szabadít fel (a kijelző pufferei PSRAM-ban vannak), a CPU- és
+SD-versengést viszont megszünteti.
+
+### Második kör: a DMA-keret tágítása (2026-10-28)
+
+A régiós bontás szerint a 217 KiB DMA-képes belső RAM-ból ~210 KiB foglalt, és
+ebből a feladatvermek teszik ki a java részt. A `/api/diagnostics/tasks` mért
+csúcsai alapján tovább szűkítettük azokat, amelyeknél bőven volt tartalék, és
+csökkentettük a kapcsolatonkénti TCP-puffereket:
+
+| Tétel | Mért használat | Régi | Új |
+| --- | --- | --- | --- |
+| `ui_runtime` | 6196 B | 12288 | 10240 |
+| `websocket_task` (Loxone) | 1848 B | 6144 | 4096 |
+| `ble_seed` (NimBLE host) | 3188 B | 8192 | 5120 |
+| `backup_sync` | 3832 B | 6144 | 5120 |
+| `mdns` | ~1000 B | 4096 | 2816 |
+| SD olvasási DMA-puffer | — | 8192 | 4096 |
+| `LWIP_TCP_SND_BUF`/`WND` | — | 5744 | 2880 |
+
+A TLS kriptográfiai gyorsítója DMA-képes belső RAM-ot igényel: amikor abból
+672 B a legnagyobb szabad blokk, a `mbedtls_ctr_drbg_seed` általános hibával
+elbukik (`TLS=0x8011`, `mbedTLS=1`), és a kapcsolat létre sem jön. A mérés
+szerint az első HTTPS-kapcsolat (api.github.com) még sikerült, a következő
+(github.com, SHA256SUMS.txt) már nem – tehát nem a kiszolgálóval van baj.
+
+### Feladatvermek az RTC-területen
+
+A veremméret és a DMA-keret ellentmondását nem lehet méretezéssel feloldani:
+a nagyobb verem biztonságos, de elveszi a DMA-képes memóriát, a kisebb pedig
+túlcsordul. A megoldás az, hogy a hosszú életű, DMA-t nem igénylő feladatok
+verme a teljesen kihasználatlan RTC-területre kerül (`app_task_mem.h`,
+`MALLOC_CAP_RTCRAM`): `stats`, `backup_sync`, `presence_nvs`,
+`time_sync_task`, `wifi_reconnect`, összesen ~22 KiB. Az RTC memória nincs a
+gyorsítótár mögött, ezért flash-írás (NVS) közben is használható – ez a PSRAM
+verem esetében nem lenne igaz. Megszűnő feladathoz nem való, mert
+`vTaskDeleteWithCaps` kellene hozzá.

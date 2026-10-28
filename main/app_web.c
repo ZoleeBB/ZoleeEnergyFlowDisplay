@@ -519,7 +519,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "async function restartDevice(){"
         "const hu=document.documentElement.lang!=='en';"
         "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
-        "const m=document.getElementById('reboot-mask');m.style.display='flex';"
+        "const m=document.getElementById('reboot-mask');m.hidden=false;m.style.display='flex';"
         "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
         "const status=document.getElementById('reboot-state');"
         "const counter=document.getElementById('reboot-countdown');"
@@ -636,12 +636,14 @@ static esp_err_t reboot_post_locked(httpd_req_t *req)
         return ESP_OK;
     }
 
+    /* SD-hiba nem akadályozhatja az újraindítást: mentés nélkül is a napi
+     * statisztika veszne el, amit hibás kártyán úgysem lehet kiírni, viszont
+     * a hardveres reset marad az egyetlen kiút. A hiba naplóba kerül. */
     esp_err_t saved=app_stats_save_now();
-    if(saved!=ESP_OK){
-        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
-            "A statisztika mentése sikertelen. Az újraindítás elmaradt.");
-        return ESP_OK;
-    }
+    if(saved!=ESP_OK)
+        app_events_add(APP_EVENT_WARNING,
+            "Újraindítás előtt a statisztika mentése sikertelen (%s); az újraindítás folytatódik.",
+            esp_err_to_name(saved));
     if(xTaskCreate(reboot_task,"reboot",2048,NULL,8,NULL)!=pdPASS){
         httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
             s_hu?"Az újraindítás nem ütemezhető.":"Could not schedule restart.");
@@ -769,13 +771,14 @@ static esp_err_t ota_post_locked(httpd_req_t *req)
     err = esp_ota_end(ota_handle);
 
     if (err == ESP_OK) {
+        /* A már ellenőrzött firmware aktiválását SD-hiba nem akadályozhatja:
+         * a statisztika hibás kártyára úgysem írható, a frissítés viszont
+         * éppen ilyenkor kell. A sikertelen mentés naplóba kerül. */
         esp_err_t saved=app_stats_save_now();
-        if(saved!=ESP_OK){
-            app_events_add(APP_EVENT_ERROR,"OTA előtt a statisztika mentése sikertelen.");
-            httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,
-                "Az SD-statisztika mentése sikertelen; a firmware aktiválása elmaradt.");
-            return ESP_OK;
-        }
+        if(saved!=ESP_OK)
+            app_events_add(APP_EVENT_WARNING,
+                "OTA előtt a statisztika mentése sikertelen (%s); az aktiválás folytatódik.",
+                esp_err_to_name(saved));
         err = esp_ota_set_boot_partition(target);
     }
 
@@ -863,19 +866,63 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON_AddNumberToObject(o,"free_heap_kib",d.free_heap_kib);
     cJSON_AddNumberToObject(o,"free_internal_kib",d.free_internal_kib);
     cJSON_AddNumberToObject(o,"largest_dma_block_bytes",d.largest_dma_block_bytes);
+    cJSON_AddNumberToObject(o,"min_free_internal_kib",d.min_free_internal_kib);
     char *json=cJSON_PrintUnformatted(o);cJSON_Delete(o);if(!json)return ESP_ERR_NO_MEM;
     httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");
     esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }
+/*
+ * Honnan fogy a szűkös belső RAM: feladatonkénti szabad verem és a belső
+ * heap összesítője. A feladatvermek mindig belső RAM-ból foglalódnak, ezért
+ * a mérés nélküli tippelgetés helyett ez mutatja meg a nagy fogyasztókat.
+ */
+static esp_err_t diagnostics_tasks_get(httpd_req_t *req){
+    if(!authorize(req))return ESP_OK;
+    UBaseType_t count=uxTaskGetNumberOfTasks();
+    TaskStatus_t *status=count?calloc(count,sizeof(*status)):NULL;
+    char *body=malloc(2048);
+    if(!status||!body){free(status);free(body);
+        httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"Nincs elég memória a jelentéshez.");
+        return ESP_OK;}
+    count=uxTaskGetSystemState(status,count,NULL);
+    /* A soros konzolra a régiónkénti bontás is kimegy: a DMA-képes memória
+     * csak bizonyos régiókban van, és a HTTP-jelentés csak összesít. */
+    heap_caps_print_heap_info(MALLOC_CAP_DMA);
+    heap_caps_print_heap_info(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    multi_heap_info_t internal,dma;
+    heap_caps_get_info(&internal,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    heap_caps_get_info(&dma,MALLOC_CAP_DMA);
+    size_t used=0;
+    used+=(size_t)snprintf(body+used,2048-used,
+        "belso: szabad=%u B; legkisebb=%u B; legnagyobb blokk=%u B; foglalt=%u B\n"
+        "DMA:   szabad=%u B; legnagyobb blokk=%u B\n"
+        "feladatok (%u) – szabad verem bajtban:\n",
+        (unsigned)internal.total_free_bytes,(unsigned)internal.minimum_free_bytes,
+        (unsigned)internal.largest_free_block,(unsigned)internal.total_allocated_bytes,
+        (unsigned)dma.total_free_bytes,(unsigned)dma.largest_free_block,(unsigned)count);
+    for(UBaseType_t i=0;i<count&&used<2000;i++)
+        used+=(size_t)snprintf(body+used,2048-used,"  %-16s %6u\n",
+            status[i].pcTaskName?status[i].pcTaskName:"?",
+            (unsigned)status[i].usStackHighWaterMark);
+    free(status);
+    httpd_resp_set_type(req,"text/plain; charset=utf-8");
+    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    esp_err_t result=httpd_resp_sendstr(req,body);
+    free(body);
+    return result;
+}
+
 static esp_err_t diagnostics_page(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     return app_web_send_page(req,"<!doctype html><html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Diagnostics</title>"
         "<style>" APP_WEB_CSS "#values td:first-child{color:var(--muted);width:45%}</style><body data-page='diagnostics'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
         "<h1>Diagnosztika / Diagnostics</h1><p class='lead'>Élő rendszerértékek, 3 másodpercenként frissül.</p><section><table id='values'></table></section>"
+        "<section><h2>Belső RAM és feladatvermek</h2><pre id='tasks' style='white-space:pre-wrap;overflow-x:auto'>Betöltés…</pre></section>"
         "<script>const names={cpu0_percent:'CPU0 (%)',cpu1_percent:'CPU1 (%)',total_internal_kib:'Belső RAM összesen (KiB)',total_psram_kib:'PSRAM összesen (KiB)',free_psram_kib:'PSRAM szabad (KiB)',sd_total_bytes:'SD összesen (bájt)',sd_free_bytes:'SD szabad (bájt)',sd_used_percent:'SD foglaltság (%)',wifi_connected:'Wi-Fi',ip:'IP',rssi_dbm:'RSSI (dBm)',data_mode:'Adatforrás / Input',data_ready:'Adatkapcsolat / Input ready',"
         "ble_enabled:'Bluetooth',ble_role:'BT szerep / Role',ble_ready:'BT kész / Ready',ble_advertising:'BT hirdetés / Advertising',ble_scanning:'Master keresés / Scanning',ble_address:'Saját BT cím / Local address',ble_peer:'BT partner / Peer',ble_slaves:'Kapcsolódó slave-ek / Connected slaves',slave_connected:'Master kapcsolat / Master connected',ble_rssi_dbm:'BT RSSI (dBm)',"
-        "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)'};"
+        "mqtt_connected:'MQTT',sd_ok:'SD',cardless_slave:'SD nélküli Slave / Cardless Slave',remote_stats_valid:'Friss master-statisztika / Current master stats',time_synced:'Időszinkron / Time sync',packet_age_seconds:'Csomag kora (s) / Packet age (s)',firmware:'Firmware',uptime_seconds:'Üzemidő (s) / Uptime (s)',free_heap_kib:'Szabad memória (KiB) / Free memory (KiB)',free_internal_kib:'Szabad belső RAM (KiB) / Free internal RAM (KiB)',largest_dma_block_bytes:'Legnagyobb DMA-blokk (bájt) / Largest DMA block (bytes)',min_free_internal_kib:'Legkisebb szabad belső RAM (KiB) / Minimum free internal RAM (KiB)'};"
+        "fetch('/api/diagnostics/tasks',{cache:'no-store'}).then(r=>r.text()).then(t=>document.getElementById('tasks').textContent=t).catch(()=>document.getElementById('tasks').textContent='A jelentés nem olvasható.');"
         "async function refresh(){try{let r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error(r.status);let data=await r.json(),table=document.getElementById('values');table.replaceChildren();"
         "for(let [k,v] of Object.entries(data)){let row=table.insertRow();row.insertCell().textContent=names[k]||k;let cell=row.insertCell();cell.textContent=v===null?'—':(k==='sd_used_percent'?Number(v).toFixed(2):v);if(k==='sd_used_percent'&&v!==null){let bar=document.createElement('progress');bar.max=100;bar.value=v;bar.style.width='100%';cell.append(bar);}}}catch(e){document.getElementById('values').textContent='Kapcsolati hiba / Connection failed';}}"
         "refresh();setInterval(refresh,3000);</script></html>", s_hu);
@@ -932,6 +979,11 @@ esp_err_t app_web_start(const app_config_t *cfg)
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
     http_cfg.max_uri_handlers = 64;
+    /* Minden nyitott kapcsolat lwIP-puffereket köt le a szűk, DMA-képes belső
+     * RAM-ból; a böngésző hatot is nyit. Négy elég a felülethez, a legrégebbit
+     * a szerver magától bontja, így marad keret az SD-nek és a TLS-nek. */
+    http_cfg.max_open_sockets = 4;
+    http_cfg.lru_purge_enable = true;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
@@ -1009,8 +1061,9 @@ esp_err_t app_web_start(const app_config_t *cfg)
         {.uri="/diagnostics",.method=HTTP_GET,.handler=diagnostics_page},
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get},
         {.uri="/api/battery",.method=HTTP_GET,.handler=battery_get},
-        {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post}};
-    for(unsigned i=0;i<4;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
+        {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post},
+        {.uri="/api/diagnostics/tasks",.method=HTTP_GET,.handler=diagnostics_tasks_get}};
+    for(unsigned i=0;i<5;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
     app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(

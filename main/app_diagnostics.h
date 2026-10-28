@@ -11,6 +11,9 @@ typedef struct
     uint64_t sd_total_bytes, sd_free_bytes;
     unsigned total_internal_kib, total_psram_kib, free_psram_kib;
     unsigned free_heap_kib, free_internal_kib, largest_dma_block_bytes;
+    /* A bekapcsolás óta mért legkisebb szabad belső RAM: egy pillanatnyi
+     * mélypont (pl. TLS-kapcsolat) a pillanatfelvételből nem látszana. */
+    unsigned min_free_internal_kib;
 } app_diagnostics_t;
 /* Rövid snapshot; nem olvas SD-t és nem tartja az LVGL zárat. */
 void app_diagnostics_capture(app_diagnostics_t *out);

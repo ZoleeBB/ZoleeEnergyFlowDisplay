@@ -1,6 +1,7 @@
 /* Az állapotzár sosem tart NVS/LVGL/BLE I/O-t. Csak a háttértask ír flash-t,
  * és csak a konfiguráció revízióját követi, nem a jelenlétmintákat. */
 #include "app_slave_presence_service.h"
+#include "app_task_mem.h"
 #include "app_events.h"
 #include "esp_timer.h"
 #include "esp_random.h"
@@ -206,7 +207,7 @@ esp_err_t app_slave_presence_service_init(bool master)
     s_presence_source_revision = 0;
     s_presence_mutex = mutex;
     s_presence_queue = queue;
-    if (master && xTaskCreate(presence_save_task, "presence_nvs", 4096, NULL, 3, NULL) != pdPASS)
+    if (master && app_task_create_lp(presence_save_task, "presence_nvs", 4096, NULL, 3, NULL) != pdPASS)
     {
         vQueueDelete(queue);
         vSemaphoreDelete(mutex);

@@ -18,7 +18,7 @@ CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_CACHE_L2_CACHE_256KB=y
 CONFIG_CACHE_L2_CACHE_LINE_128B=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
 CONFIG_ESP_TASK_WDT_EN=y
@@ -54,6 +54,10 @@ CONFIG_LV_FONT_MONTSERRAT_26=y
 CONFIG_LV_FONT_MONTSERRAT_28=y
 CONFIG_LV_FONT_MONTSERRAT_48=y
 CONFIG_LV_USE_FONT_COMPRESSED=y
+# A FATFS ablak- és munkapufferei maradjanak belső, DMA-képes RAM-ban: PSRAM-ból
+# az SD-vezérlő nem tud közvetlenül olvasni, és minden FAT-hozzáférés futásidejű
+# átmeneti puffert foglalna („sdmmc_read_sectors: not enough mem”).
+# CONFIG_FATFS_ALLOC_PREFER_EXTRAM is not set
 CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_API_ENCODING_UTF_8=y
 CONFIG_FATFS_MAX_LFN=128
@@ -64,6 +68,13 @@ CONFIG_FATFS_FS_LOCK=4
 # A korábbi 14 nap SNTP induláskor/szinkronkor assertet és rebootot okozott.
 # A web, Loxone WS, MJPEG, mDNS és a külön SIP/RTP socketek közös kerete.
 CONFIG_LWIP_MAX_SOCKETS=24
+# Kapcsolatonkénti TCP-pufferek a szűk, DMA-képes belső RAM-ból foglalódnak.
+# Felezve is két MSS fölött marad; cserébe üzem közben több marad az SD-nek
+# és a TLS kriptográfiai DMA-jának. LAN-on a letöltési sebesség elég.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
+CONFIG_LWIP_TCP_WND_DEFAULT=2880
+# Az mDNS feladata mérve ~1 KiB vermet használ a 4 KiB-ból.
+CONFIG_MDNS_TASK_STACK_SIZE=3328
 CONFIG_LWIP_SNTP_UPDATE_DELAY=864000000
 
 # A korábbi vektoros rajzolási konfiguráció kompatibilitásból megmarad.

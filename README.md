@@ -29,6 +29,25 @@ számát és a párosítási PIN-t is mutatja. Új párosítás kétperces ablak
 
 Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott minden témában; a Nap pálya v21 nappal és éjjel nagyobb, zöld felirattal, kontrasztos buborékban, a Rendszer téma új hálózati ikonnal jelzi. Normál üzemben a Nap pálya státuszbuborékja rejtett. [Státuszok, frissítés és adatprotokoll](docs/mqtt.md#status).
 
+## Javítások – GitHub-frissítés és memória (`fix/template-update`)
+
+> **A v3.1.4 kiadást ne telepítsd.** A benne lévő kép-segédfájl feladat 4 KiB-os
+> verme túlcsordul, és a készülék indulás közben újraindul. Másik OTA-partícióval
+> a rendszer magától visszaáll, friss USB-telepítés után viszont csak újabb
+> USB-telepítés segít. A javítás ebben a körben van; a következő kiadás már jó.
+
+| Funkció | Röviden |
+| --- | --- |
+| Működő GitHub-frissítés | Az OTA és a gyári témák frissítése ismét lefut. A hibák okát a visszajelző sáv és az eseménynapló is megmutatja (kapcsolódás, HTTP-állapot, kéréskorlát, memória), kapcsolódási hibánál pedig kétszer újrapróbálkozik. [Részletek](docs/automatic-update-diagnostics.md) |
+| Stabil indulás | A kép-segédfájlokat előállító háttérfeladat verme túlcsordult, és az eszköz bootciklusba került. Az útvonalpufferek a kupacba kerültek, a feladat pedig naplózza a szabad vermét. [Részletek](docs/errors.md) |
+| Gyorsabb témaváltás | Az SD-olvasás egyetlen, induláskor foglalt belső DMA-pufferen megy: nem függ a pillanatnyi memóriahelyzettől, és elmaradnak a megszakadt betöltések. |
+| Háttérfeladat-képernyő | Frissítés és telepítés alatt a kijelző statikus „Háttérfeladat miatt foglalt…” üzenetet mutat, így a mag, az SD és a hálózat a műveleté. A csengetés ilyenkor is elsőbbséget kap. |
+| Memóriadiagnosztika | A Diagnosztika oldal alján a belső heap és feladatonként a szabad verem is látszik; a `/api/diagnostics/tasks` a régiós bontást a soros konzolra is kiírja. [Részletek](docs/performance.md) |
+| SD-hiba nem zár ki | Hibás kártyánál is lefut a firmware aktiválása és a webes újraindítás; a sikertelen statisztikamentés csak naplóba kerül. |
+| 90°-os tájolás | Megszűnt a 15 másodperces próbaidőszak: indulás közbeni újraindítás már nem állítja vissza 270°-ra. [Részletek](docs/configuration.md) |
+| Rendezett sablonkezelő | Az előnézetek betöltése alatt a telepítés és a frissítéskeresés gombjai zárva; a keresés mindig üres listával indul. |
+| Azonosítható tesztcsomag | A CI-buildek verziója a commitot is tartalmazza (`v0.0.0-ci.g<commit>`), így az információs oldalon látszik, melyik fut. [Részletek](docs/releases.md) |
+
 ## Újdonságok – felhasználói élmény (`feature/ux-improvements`)
 
 | Funkció | Röviden |

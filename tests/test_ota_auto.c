@@ -21,6 +21,8 @@ static size_t written_size;
 static char metadata[1500], sums[200];
 static int begins, aborts, ends, saves, boots, restarts, requests;
 static int fail_request, open_error, http_status;
+/* Tartós kapcsolódási hiba: az újrapróbálkozás sem talál működő kapcsolatot. */
+static bool fail_repeat;
 static bool header_error, read_error, fail_begin, fail_write, fail_boot;
 static size_t fail_after;
 static int expire_request;
@@ -90,7 +92,8 @@ esp_err_t esp_http_client_open(esp_http_client_handle_t c, int n)
     /* A valódi kliens is visszautasítja a TX-pufferbe nem férő kérősort. */
     if (strlen(c->config.url) + 16 >= (size_t)c->config.buffer_size_tx)
         return 0x7003;
-    return c->request == fail_request ? open_error : ESP_OK;
+    return c->request == fail_request || (fail_repeat && c->request >= fail_request) ? open_error
+                                                                                      : ESP_OK;
 }
 int64_t esp_http_client_fetch_headers(esp_http_client_handle_t c)
 {
@@ -308,6 +311,7 @@ static void reset(void)
     begins = aborts = ends = saves = boots = restarts = requests = 0;
     written_size = 0;
     fail_request = open_error = http_status = expire_request = 0;
+    fail_repeat = false;
     header_error = read_error = fail_begin = fail_write = fail_boot = false;
     fail_after = log_size = 0;
     logs[0] = 0;
@@ -413,10 +417,24 @@ int main(void)
     redirect_target = "https://release-assets.githubusercontent.com/firmware?token=SECRET";
     fail_request = 2;
     open_error = 0x7003;
+    fail_repeat = true;
     ota_trace_t trace = {.stage = "redirect-teszt"};
     assert(!open_download(APP_OTA_RELEASE_API, &trace));
+    /* Tartós hiba: két újrapróbálkozás után adja fel, az okot megtartva. */
+    assert(strstr(logs, "új kapcsolódási kísérlet 3 s múlva (2/2)"));
+    assert(!strstr(logs, "túl sok átirányítás"));
     assert(strstr(logs, "release-assets.githubusercontent.com"));
     assert(!strstr(logs, "SECRET") && !strstr(logs, "token="));
+    reset();
+    /* Átmeneti kapcsolódási hiba (pl. pillanatnyi belső RAM-hiány) után a
+     * következő kísérlet már sikerül, nem kell napváltásig várni. */
+    fail_request = 1;
+    open_error = 0x7003;
+    ota_trace_t flaky = {.stage = "átmeneti hiba"};
+    esp_http_client_handle_t recovered = open_download(APP_OTA_RELEASE_API, &flaky);
+    assert(recovered && requests == 2);
+    close_download(recovered);
+    assert(strstr(logs, "új kapcsolódási kísérlet 3 s múlva (1/2)"));
     reset();
     char long_redirect[1800];
     strcpy(long_redirect, "https://release-assets.githubusercontent.com/firmware?token=SECRET");
@@ -455,6 +473,7 @@ int main(void)
         reset();
         fail_request = request;
         open_error = 0x7003;
+        fail_repeat = true;
         check_release();
         const char *stage = request == 1 ? "[release]" : request == 2 ? "[SHA256-lista]" : "[firmware]";
         assert(strstr(logs, stage) && strstr(logs, "kód=28675"));
@@ -495,6 +514,7 @@ int main(void)
     check_release();
     assert(strstr(logs, "esp_ota_set_boot_partition") && !restarts);
     puts("PASS: actual auto OTA short reads, SHA256, version, SD/flash errors, rollback "
-         "suppression, HTTPS redirect, per-stage logs, TLS/socket codes, timeouts and exclusive operation");
+         "suppression, HTTPS redirect, per-stage logs, TLS/socket codes, timeouts, bounded "
+         "connection retry and exclusive operation");
     return 0;
 }

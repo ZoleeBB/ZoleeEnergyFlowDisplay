@@ -89,16 +89,24 @@ if(typeof document!=='undefined'){
  const installMessage=document.getElementById('install-message')||message;
  let activeMessage=message;
  let selected=null,verified=null,images=new Map(),generation=0,busy=false,energyDisabled=false,updateMap=new Map();
+ /* Az előnézetek SD-ről olvasása lassú; amíg tart, a telepítés és a GitHubos
+  * frissítés gombjai zárva maradnak, hogy a két SD/hálózati munka ne akadjon össze. */
+ let thumbs=0;
+ function thumbDone(){if(thumbs>0&&--thumbs===0)lock(busy);}
  function loadThumb(t,holder){
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
   img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);
-  img.onload=()=>{img.style.opacity=1;};
-  img.onerror=()=>{img.remove();}; // Régi csomag: szándékosan üres keret.
+  thumbs++;
+  img.onload=()=>{img.style.opacity=1;thumbDone();};
+  img.onerror=()=>{img.remove();thumbDone();}; // Régi csomag: szándékosan üres keret.
   img.src='/api/templates/preview?id='+encodeURIComponent(t.id)+'&mode=light&v='+encodeURIComponent(t.version??0);
  }
  async function refresh(){
   const r=await fetch('/api/templates',{cache:'no-store'});if(!r.ok)throw Error(r.status);
-  const data=await r.json();list.replaceChildren();
+  const data=await r.json();
+  /* A korábbi kérések képei eldobásra kerülnek; a lecserélt elemek már nem
+   * biztos, hogy jeleznek, ezért a számlálót minden listafrissítés nullázza. */
+  thumbs=0;list.replaceChildren();
   energyDisabled=!!data.energy_flow_disabled;
   const warning=document.getElementById('energy-disabled-warning');if(warning)warning.hidden=!energyDisabled;
   for(const resource of data.resources||[]){
@@ -140,8 +148,18 @@ if(typeof document!=='undefined'){
    info.append(title,caption,actions);article.append(holder,info);list.append(article);
    loadThumb(t,holder);
   }
+  /* Az előnézetek még töltenek: a telepítés és a GitHubos frissítés zárva. */
+  lock(busy);
  }
- function lock(value,bar){busy=value;if(bar)activeMessage=bar;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=activeMessage===message&&value?'working':'';installMessage.className=activeMessage===installMessage&&value?'working':'';fileInput.disabled=value;check.disabled=value||!selected;install.disabled=value||verified!==selected||!selected;}
+ function lock(value,bar){busy=value;if(bar)activeMessage=bar;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=activeMessage===message&&value?'working':'';installMessage.className=activeMessage===installMessage&&value?'working':'';
+  const held=value||thumbs>0;
+  fileInput.disabled=held;check.disabled=held||!selected;install.disabled=held||verified!==selected||!selected;
+  const updateCheckButton=document.getElementById('update-check'),updateAllButton=document.getElementById('update-all');
+  if(updateCheckButton)updateCheckButton.disabled=held||!!updatePoll;
+  if(updateAllButton)updateAllButton.disabled=held||!!updatePoll;
+  const updateBar=document.getElementById('update-message');
+  if(updateBar&&thumbs>0&&!updateBar.textContent)updateBar.textContent='Előnézeti képek betöltése…';
+  else if(updateBar&&thumbs===0&&updateBar.textContent==='Előnézeti képek betöltése…')updateBar.textContent='';}
  async function action(path,body,bar){const target=bar||message;if(busy)return;lock(true,target);target.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);target.textContent=text;await refresh();}catch(e){target.textContent=e.message;}finally{lock(false);}}
  fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false,installMessage);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
   try{const file=fileInput.files[0];if(!file)return;installMessage.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);if(energyDisabled&&manifest.id!=='loxone-home')throw Error('Ebben a módban csak a Loxone Otthon erőforráscsomag telepíthető.');
@@ -161,8 +179,8 @@ if(typeof document!=='undefined'){
   updateMap=new Map((state.items||[]).map(item=>[item.id,item]));
   const running=state.state==='checking'||state.state==='installing';
   updateMessage.textContent=state.error||state.message||'';updateMessage.className=running?'working':'';
-  updateCheck.disabled=running;const pending=(state.items||[]).filter(item=>item.update);
-  updateAll.hidden=!pending.length;updateAll.disabled=running;updateAll.textContent='Összes frissítése ('+pending.length+')';
+  updateCheck.disabled=running||busy||thumbs>0;const pending=(state.items||[]).filter(item=>item.update);
+  updateAll.hidden=!pending.length;updateAll.disabled=running||busy||thumbs>0;updateAll.textContent='Összes frissítése ('+pending.length+')';
   const body=updateList.tBodies[0]||updateList.createTBody();body.replaceChildren();updateList.hidden=!(state.items||[]).length;
   for(const item of state.items||[]){
    const row=body.insertRow();row.insertCell().textContent=item.name;
@@ -170,7 +188,7 @@ if(typeof document!=='undefined'){
    row.insertCell().textContent='v'+item.available;
    const cell=row.insertCell();
    if(item.update||!item.installed){const button=document.createElement('button');button.type='button';button.textContent=item.installed?'Frissítés':'Telepítés';button.className=item.installed?'':'secondary';button.disabled=running;button.onclick=()=>startUpdate(item.id);cell.append(button);}
-   else cell.textContent=item.status||'Naprakész';
+   else cell.textContent=item.status||(item.installed>item.available?'Helyi újabb':'Naprakész');
   }
  }
  async function pollUpdates(){
@@ -189,7 +207,8 @@ if(typeof document!=='undefined'){
  /* Régebbi/egyszerűsített oldalon (és a tesztkörnyezetben) a frissítési rész hiányozhat.
   * Oldalbetöltéskor nincs plusz kérés: az állapot csak a gomb megnyomására töltődik. */
  if(updateCheck&&updateAll&&updateList&&updateMessage){
-  updateCheck.onclick=()=>updateRequest('/api/templates/updates/check');
+  updateCheck.onclick=()=>{renderUpdates({state:'checking',message:'Ellenőrzés a GitHubon…',items:[]});
+   updateRequest('/api/templates/updates/check');};
   updateAll.onclick=()=>startUpdate('all');
  }
  refresh().catch(()=>message.textContent='A sablonlista nem olvasható');

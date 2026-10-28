@@ -6,7 +6,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #ifndef APP_TEMPLATE_DESKTOP
+#include "esp_log.h"
 #include "freertos/task.h"
+#define RAW_TAG "templates"
 #endif
 #include <ctype.h>
 #include "app_template_dir.h"
@@ -36,10 +38,26 @@
 #define STORAGE_TAKE() ESP_OK
 #define STORAGE_GIVE() ((void)0)
 #define STORAGE_TRY() true
+#define STORAGE_READY() true
 #else
 #define STORAGE_TAKE() app_storage_lock()
 #define STORAGE_GIVE() app_storage_unlock()
 #define STORAGE_TRY() app_storage_try_lock()
+#define STORAGE_READY() raw_storage_ready()
+/*
+ * Hibásra jelölt vagy majdnem tele kártyára nem írunk segédfájlt: a dekódolt
+ * képek csak gyorsítások, a statisztika és a konfiguráció viszont nem. Egy
+ * haldokló vagy betelt kártyát a háttérgenerálás csak tovább terhelne.
+ */
+static bool raw_storage_ready(void)
+{
+    if (!app_storage_is_ok())
+        return false;
+    uint64_t total = 0, free_bytes = 0;
+    if (!app_storage_space(&total, &free_bytes))
+        return true;
+    return free_bytes >= 64ULL * 1024 * 1024;
+}
 #endif
 
 static SemaphoreHandle_t lock;
@@ -142,6 +160,29 @@ static unsigned char *file_buffer_alloc(size_t size)
     return malloc(size);
 }
 
+#ifndef APP_TEMPLATE_DESKTOP
+/*
+ * Az SD-vezérlő DMA-ja nem éri el közvetlenül a PSRAM-ot, ezért a PSRAM-ba
+ * irányuló olvasáshoz az illesztő futásidőben foglal belső átmeneti puffert.
+ * Ez pont abból a szűk DMA-keretből megy, ami üzem közben elfogyhat; ilyenkor
+ * `sdmmc_read_sectors: not enough mem` hibával megszakad a témabetöltés.
+ * Egyetlen, indulás közben foglalt darabon keresztül olvasunk: a futásidejű
+ * foglalás megszűnik, a betöltés pedig nem függ a pillanatnyi DMA-helyzettől.
+ */
+#define SD_CHUNK_BYTES 4096U
+static unsigned char *sd_chunk(void)
+{
+    static unsigned char *buffer;
+    static bool tried;
+    if (!buffer && !tried)
+    {
+        tried = true;
+        buffer = heap_caps_malloc(SD_CHUNK_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    }
+    return buffer;
+}
+#endif
+
 /*
  * Teljes fájl beolvasása egyetlen POSIX read() hívássorozattal.
  *
@@ -171,13 +212,26 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
         return NULL;
     }
     size_t done = 0;
-    while (done < n)
+#ifndef APP_TEMPLATE_DESKTOP
+    unsigned char *staging = sd_chunk();
+    while (staging && done < n)
     {
-        ssize_t chunk = read(fd, data + done, n - done);
+        size_t want = n - done < SD_CHUNK_BYTES ? n - done : SD_CHUNK_BYTES;
+        ssize_t chunk = read(fd, staging, want);
         if (chunk <= 0)
             break;
+        memcpy(data + done, staging, (size_t)chunk);
         done += (size_t)chunk;
     }
+    if (!staging)
+#endif
+        while (done < n)
+        {
+            ssize_t chunk = read(fd, data + done, n - done);
+            if (chunk <= 0)
+                break;
+            done += (size_t)chunk;
+        }
     close(fd);
     if (done != n)
     {
@@ -225,6 +279,34 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     return data;
 }
 #endif
+/*
+ * Nagy puffer kiírása SD-re. A definíció szándékosan a `_WIN32`-blokk után áll:
+ * a hívói (ZIP-kibontás, segédfájl-írás) minden célon fordulnak, a belső
+ * DMA-pufferes út pedig csak az eszközön létezik.
+ */
+bool app_templates_sd_write(FILE *file, const void *data, size_t size)
+{
+    if (!file || (!data && size))
+        return false;
+#if !defined(APP_TEMPLATE_DESKTOP) && !defined(_WIN32)
+    unsigned char *staging = sd_chunk();
+    if (staging)
+    {
+        const unsigned char *cursor = data;
+        for (size_t done = 0; done < size;)
+        {
+            size_t take = size - done < SD_CHUNK_BYTES ? size - done : SD_CHUNK_BYTES;
+            memcpy(staging, cursor + done, take);
+            if (fwrite(staging, 1, take, file) != take)
+                return false;
+            done += take;
+        }
+        return true;
+    }
+#endif
+    return fwrite(data, 1, size, file) == size;
+}
+
 static uint32_t be32(const unsigned char *p)
 {
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
@@ -1077,6 +1159,9 @@ esp_err_t app_templates_init(void)
         return ESP_ERR_NO_MEM;
     xSemaphoreTake(lock, portMAX_DELAY);
     #ifndef APP_TEMPLATE_DESKTOP
+    /* Az SD olvasási DMA-pufferét indulás közben foglaljuk, amikor még van
+     * szabad DMA-keret, és több feladat sem versenghet az első foglaláson. */
+    (void)sd_chunk();
     if (app_storage_is_cardless()) {
         memset(catalogue, 0, sizeof(catalogue));
         snprintf(catalogue[0].id, sizeof(catalogue[0].id), "builtin");
@@ -1462,51 +1547,79 @@ static uint32_t raw_le32(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
+/*
+ * Az útvonalpufferek a kupacban: a segédfájlokat generáló feladat verme
+ * belső RAM, és a 3×320 bájtos helyi tömbök egymásba ágyazva túlcsordulást
+ * okoztak (lásd docs/errors.md, 2026-10-28).
+ */
+typedef struct
+{
+    char raw[320], tmp[320], png[320], directory[256], json[256], name[80];
+} raw_paths_t;
+
 static bool raw_current(const char *directory, const template_variant_t *variant)
 {
-    char raw_path[320], png_path[320], name[80];
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
+        return false;
     struct stat png_stat;
-    if (!app_template_raw_name(variant->file, variant->width, variant->height, name, sizeof(name)))
-        return false;
-    path_join(png_path, directory, variant->file);
-    path_join(raw_path, directory, name);
-    if (stat(png_path, &png_stat) || !S_ISREG(png_stat.st_mode))
-        return false;
     uint8_t header[APP_TEMPLATE_RAW_HEADER];
+    bool ok = app_template_raw_name(variant->file, variant->width, variant->height, paths->name,
+                                   sizeof(paths->name));
+    if (ok)
+    {
+        path_join(paths->png, directory, variant->file);
+        path_join(paths->raw, directory, paths->name);
+        ok = !stat(paths->png, &png_stat) && S_ISREG(png_stat.st_mode);
+    }
     /* Csak a fejlécet olvassuk: a képpontok CRC-je a betöltéskor fut le, itt
      * feleslegesen több MiB-ot olvasnánk. */
-    if (!raw_header(raw_path, header, NULL))
-        return false;
-    return raw_le32(header) == APP_TEMPLATE_RAW_MAGIC &&
-           raw_le32(header + 8) == variant->width && raw_le32(header + 12) == variant->height &&
-           raw_le32(header + 24) == (uint32_t)png_stat.st_size;
+    ok = ok && raw_header(paths->raw, header, NULL) &&
+         raw_le32(header) == APP_TEMPLATE_RAW_MAGIC &&
+         raw_le32(header + 8) == variant->width && raw_le32(header + 12) == variant->height &&
+         raw_le32(header + 24) == (uint32_t)png_stat.st_size;
+    free(paths);
+    return ok;
 }
 
 /* Hiányzó vagy elavult segédfájl elkészítése. Hibánál a PNG-út marad. */
 static bool raw_generate(const char *directory, const template_variant_t *variant)
 {
-    char raw_path[320], tmp_path[320], png_path[320], name[80];
-    if (!app_template_raw_name(variant->file, variant->width, variant->height, name, sizeof(name)))
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
         return false;
+    if (!app_template_raw_name(variant->file, variant->width, variant->height, paths->name,
+                               sizeof(paths->name)))
+    {
+        free(paths);
+        return false;
+    }
+    char *raw_path = paths->raw, *tmp_path = paths->tmp, *png_path = paths->png;
     path_join(png_path, directory, variant->file);
-    path_join(raw_path, directory, name);
+    path_join(raw_path, directory, paths->name);
     path_join(tmp_path, directory, "raw.tmp");
     size_t png_size = 0;
     unsigned char *png = read_file(png_path, APP_TEMPLATE_PNG_MAX, &png_size);
     if (!png)
+    {
+        free(paths);
         return false;
+    }
     uint8_t *raw = NULL;
     size_t raw_size = 0;
     bool ok = app_template_raw_build(png, png_size, variant->width, variant->height, &raw, &raw_size);
     free(png);
     if (!ok)
+    {
+        free(paths);
         return false;
+    }
     remove(tmp_path);
     FILE *f = fopen(tmp_path, "wb");
     ok = f != NULL;
     if (f)
     {
-        ok = fwrite(raw, 1, raw_size, f) == raw_size;
+        ok = app_templates_sd_write(f, raw, raw_size);
         if (fclose(f))
             ok = false;
     }
@@ -1518,6 +1631,7 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     }
     if (!ok)
         remove(tmp_path);
+    free(paths);
     return ok;
 }
 
@@ -1531,20 +1645,24 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
  */
 bool app_templates_raw_step(void)
 {
-    if (!lock || raw_disabled() || raw_postponed())
+    if (!lock || raw_disabled() || raw_postponed() || !STORAGE_READY())
         return false;
     if (!xSemaphoreTake(lock, 0))
         return false;
+    raw_paths_t *paths = malloc(sizeof(*paths));
+    if (!paths)
+    {
+        xSemaphoreGive(lock);
+        return false;
+    }
     bool worked = false;
-    char id[33] = {0};
     for (unsigned attempt = 0; attempt < count && !worked; attempt++)
     {
         unsigned index = (raw_cursor + attempt) % count;
         if (!index || !strcmp(catalogue[index].id, "builtin"))
             continue;
-        snprintf(id, sizeof(id), "%s", catalogue[index].id);
-        char directory[256], path[256];
-        path_join(directory, app_templates_root(), id);
+        char *directory = paths->directory, *path = paths->json;
+        path_join(directory, app_templates_root(), catalogue[index].id);
         path_join(path, directory, "template.json");
         if (!STORAGE_TRY())
             break;
@@ -1566,6 +1684,7 @@ bool app_templates_raw_step(void)
     }
     if (!worked)
         raw_cursor = 0;
+    free(paths);
     xSemaphoreGive(lock);
     return worked;
 }
@@ -1789,9 +1908,18 @@ bool app_templates_load_pending(app_template_view_t *out)
 static void raw_task(void *argument)
 {
     (void)argument;
+    UBaseType_t lowest = 0;
     while (true)
     {
         bool worked = app_templates_raw_step();
+        /* A 4 KiB-os verem túlcsordult és újraindulást okozott, ezért a
+         * maradékot minden új mélypontnál naplózzuk (lásd docs/errors.md). */
+        UBaseType_t left = uxTaskGetStackHighWaterMark(NULL);
+        if (!lowest || left < lowest)
+        {
+            lowest = left;
+            ESP_LOGI(RAW_TAG, "template_raw szabad verem: %u B", (unsigned)left);
+        }
         vTaskDelay(pdMS_TO_TICKS(worked ? 1500 : 60000));
     }
 }
@@ -1801,8 +1929,15 @@ esp_err_t app_templates_raw_start(void)
     static TaskHandle_t task;
     if (task)
         return ESP_OK;
-    return xTaskCreate(raw_task, "template_raw", 4096, NULL, 2, &task) == pdPASS ? ESP_OK
-                                                                                 : ESP_ERR_NO_MEM;
+    /*
+     * 5 KiB: a 4 KiB-os verem a PNG-dekódolás és az SD-írás hívási láncán
+     * túlcsordult (vermvédelmi pánik, bootciklus). Az útvonalpufferek azóta a
+     * kupacban vannak: eszközön mérve 2572 B a csúcs, így 5 KiB bőven elég,
+     * és a szűkös belső RAM-ból nem köt le feleslegesen 8 KiB-ot. A feladat a
+     * maradékot minden új mélypontnál naplózza.
+     */
+    return xTaskCreate(raw_task, "template_raw", 6144, NULL, 2, &task) == pdPASS ? ESP_OK
+                                                                                  : ESP_ERR_NO_MEM;
 }
 #endif
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy
