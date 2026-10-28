@@ -98,5 +98,10 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
 
 - A célzott változás előtt és után ellenőrizd, hogy a műveletek, konstansok, stringek és előfeldolgozó direktívák változatlanok.
 - Futtasd a `python3 tests/run_tests.py` teszteket, a firmware ESP-IDF buildjét, valamint az érintett szimulátor- és regressziós teszteket, ha a környezet elérhető.
+- Új, fejlécben meghirdetett függvényt ne tegyél `#ifndef _WIN32` vagy
+  `#ifndef APP_TEMPLATE_DESKTOP` blokkba, ha minden célon hívják: az
+  `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott
+  `app_templates_sd_write` az MSVC-s szimulátorban linkelési hibát adott
+  (`LNK2019: unresolved external symbol`). A `tests/run_tests.py` ezt ellenőrzi.
 - Ellenőrizd az alkalmazás bináris méretét és a partíciós/OTA korlátokat; méretösszehasonlítás nélkül ne állítsd, hogy a két firmware bájtra azonos.
 - Formázási célú PR nem tartalmazhat funkciómódosítást, konfigurációváltozást, tömörítetlen webes állományt vagy új beágyazott erőforrást.
