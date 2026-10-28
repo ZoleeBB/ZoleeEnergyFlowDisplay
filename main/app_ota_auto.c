@@ -23,7 +23,9 @@
 #include "mbedtls/sha256.h"
 
 static atomic_flag s_operation = ATOMIC_FLAG_INIT;
-static TaskHandle_t s_auto_task;
+/* Napváltáskor egyszer fut le; állandó feladat nem köti le a belső RAM-ot. */
+static volatile bool s_auto_busy;
+static bool s_auto_enabled;
 static uint32_t s_settle_seconds;
 
 bool app_ota_try_begin_operation(void)
@@ -582,48 +584,58 @@ esp_err_t app_ota_request_auto_update(void)
     return ESP_OK;
 }
 
+static void auto_update_task(void *arg);
+
 static void day_changed(void)
 {
-    if (s_auto_task)
-        xTaskNotifyGive(s_auto_task);
+    if (s_auto_busy)
+        return;
+    s_auto_busy = true;
+    if (xTaskCreate(auto_update_task, "auto_ota", 8192, NULL, 3, NULL) != pdPASS)
+    {
+        s_auto_busy = false;
+        ota_memory("napváltás");
+        app_events_add(APP_EVENT_WARNING,
+                       "Automatikus frissítés kihagyva: nincs memória a feladathoz. "
+                       "Új próba a következő napváltáskor.");
+    }
 }
 
+/*
+ * Napváltáskor induló, egyszer lefutó feladat. Korábban állandóan élt, és
+ * napi egy ellenőrzésért 8 KiB belső RAM-ot kötött le; a kijelzőnek, az SD
+ * DMA-nak és a TLS-nek viszont pont ez a szűk keret hiányzott.
+ */
 static void auto_update_task(void *arg)
 {
     (void)arg;
-    for (;;)
+    /* A napváltást átfedő, megengedett mintaköz végét megvárjuk.
+     * Ezalatt a statisztika, a BLE és a kijelző zavartalanul fut. */
+    vTaskDelay(pdMS_TO_TICKS((s_settle_seconds + 1) * 1000U));
+    if (!app_wifi_is_connected())
+        app_events_add(
+            APP_EVENT_WARNING,
+            "Automatikus frissítés kihagyva: nincs Wi-Fi. Új próba a következő napváltáskor.");
+    else if (!app_ota_try_begin_operation())
+        app_events_add(APP_EVENT_WARNING,
+                       "Automatikus frissítés kihagyva: másik OTA/újraindítás folyamatban.");
+    else
     {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        /* A napváltást átfedő, megengedett mintaköz végét megvárjuk.
-         * Ezalatt a statisztika, a BLE és a kijelző zavartalanul fut. */
-        vTaskDelay(pdMS_TO_TICKS((s_settle_seconds + 1) * 1000U));
-        if (!app_wifi_is_connected())
-        {
-            app_events_add(
-                APP_EVENT_WARNING,
-                "Automatikus frissítés kihagyva: nincs Wi-Fi. Új próba a következő napváltáskor.");
-            continue;
-        }
-        if (!app_ota_try_begin_operation())
-        {
-            app_events_add(APP_EVENT_WARNING,
-                           "Automatikus frissítés kihagyva: másik OTA/újraindítás folyamatban.");
-            continue;
-        }
         check_release();
         app_ota_end_operation();
     }
+    s_auto_busy = false;
+    vTaskDelete(NULL);
 }
 
 esp_err_t app_ota_start_auto_update(const app_config_t *cfg)
 {
     if (!cfg)
         return ESP_ERR_INVALID_ARG;
-    if (!cfg->ota.auto_update || s_auto_task)
+    if (!cfg->ota.auto_update || s_auto_enabled)
         return ESP_OK;
     s_settle_seconds = cfg->statistics.max_integration_gap_seconds;
-    if (xTaskCreate(auto_update_task, "auto_ota", 8192, NULL, 3, &s_auto_task) != pdPASS)
-        return ESP_ERR_NO_MEM;
+    s_auto_enabled = true;
     app_stats_set_day_change_callback(day_changed);
     return ESP_OK;
 }

@@ -102,7 +102,7 @@ int xQueueReceive(QueueHandle_t queue, void *data, TickType_t timeout)
 int xTaskCreate(void (*function)(void *), const char *name, unsigned stack,
                  void *arg, unsigned priority, void *handle)
 {
-    assert(function == presence_save_task && !strcmp(name, "presence_nvs") && stack == 4096);
+    assert(function == presence_save_task && !strcmp(name, "presence_nvs") && stack == 3072);
     (void)arg;
     (void)priority;
     (void)handle;

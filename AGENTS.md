@@ -64,6 +64,10 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos
   útvonalpuffer ne legyen helyi tömb a láncban: foglald a kupacból. Hosszan
   futó háttérfeladat naplózza a `uxTaskGetStackHighWaterMark` mélypontját.
+- **A belső RAM szűk, és csak egy része DMA-képes.** Új állandó feladat,
+  verembővítés vagy belső puffer előtt nézd meg a `/api/diagnostics/tasks`
+  jelentést: a `DMA: szabad` érték dönti el, marad-e elég az SD-olvasásnak és
+  a TLS-nek. Napi/ritka munkához ne tarts életben feladatot, indítsd kérésre.
 - **SD-hiba ne blokkolja a kiutat.** A firmware aktiválása és az újraindítás
   akkor is fusson le, ha a statisztika mentése nem sikerült; a hiba naplóba
   kerül. Különben hibás kártyánál csak hardveres reset marad.

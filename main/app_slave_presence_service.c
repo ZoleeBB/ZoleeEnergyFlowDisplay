@@ -206,7 +206,7 @@ esp_err_t app_slave_presence_service_init(bool master)
     s_presence_source_revision = 0;
     s_presence_mutex = mutex;
     s_presence_queue = queue;
-    if (master && xTaskCreate(presence_save_task, "presence_nvs", 4096, NULL, 3, NULL) != pdPASS)
+    if (master && xTaskCreate(presence_save_task, "presence_nvs", 3072, NULL, 3, NULL) != pdPASS)
     {
         vQueueDelete(queue);
         vSemaphoreDelete(mutex);

@@ -2394,7 +2394,7 @@ esp_err_t app_ui_start_runtime(void)
     if (!s_runtime_wake)
         s_runtime_wake = xSemaphoreCreateBinary();
 #endif
-    if (xTaskCreate(runtime, "ui_runtime", 16384, NULL, 5, NULL) != pdPASS)
+    if (xTaskCreate(runtime, "ui_runtime", 12288, NULL, 5, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
     s_started = true;
     return ESP_OK;

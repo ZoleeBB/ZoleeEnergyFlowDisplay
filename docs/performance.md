@@ -335,3 +335,34 @@ A `feature/ux-improvements` funkciói a meglévő teljesítményszabályokat kö
   töltődnek, az SD-zár csak a rövid írások idejére foglalt.
 - **Webfelület:** a közös stíluslap oldalanként beágyazva (nincs plusz HTTP-kérés),
   a firmware-ben kb. 3,5 KiB oldalanként.
+
+## Belső RAM: feladatvermek méretezése (2026-10-28)
+
+Az eszközön mérve a belső heap 234 KiB-ot tartott foglalva, és a **DMA-képes**
+szabad memória 1967 B-ra, a legnagyobb DMA-blokk 1088 B-ra csökkent. Ettől
+bukott el az SD olvasása (`sdmmc_read_sectors: not enough mem`), a TLS-kontextus
+létrehozása (OTA és témafrissítés), és ezért lassult a témaváltás 30-49 s-ra.
+A feladatvermek mindig belső RAM-ból foglalódnak, ezért a `/api/diagnostics/tasks`
+jelentés alapján a túlméretezett vermeket a mért csúcshoz igazítottuk:
+
+| Feladat | Mért csúcs | Régi | Új |
+| --- | --- | --- | --- |
+| `ui_runtime` | 6212 B | 16384 | 12288 |
+| `main` (ESP-IDF) | 5064 B | 12288 | 9216 |
+| `stats` | 1720 B | 6144 | 4096 |
+| `sd_recovery` | 576 B | 4096 | 2560 |
+| `presence_nvs` | 1192 B | 4096 | 3072 |
+| `time_sync_task` | 320 B | 4096 | 2560 |
+| `wifi_reconnect` | 292 B | 4096 | 2560 |
+| `template_raw` | 2288 B | 8192 | 5120 |
+| `auto_ota` | 296 B üresjáratban | 8192 állandó | napváltáskor indul |
+
+Az `auto_ota` korábban állandóan élt, és napi egy ellenőrzésért kötött le
+8 KiB-ot; most a napváltás indítja, és lefutás után megszűnik. Együtt kb.
+26 KiB belső RAM szabadul fel.
+
+Nem csökkentettük a `httpd` (12288, mért csúcs 9884 B) és a `loxone` (12288,
+mért csúcs 8308 B) vermét: ezeknél a tartalék már most is szűk. Az LVGL
+adapter 32 KiB-os verme PSRAM-ban van.
+
+Új méretezés előtt mindig a `/api/diagnostics/tasks` mért értékeiből indulj ki.
