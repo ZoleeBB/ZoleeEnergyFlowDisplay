@@ -69,6 +69,10 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos
   útvonalpuffer ne legyen helyi tömb a láncban: foglald a kupacból. Hosszan
   futó háttérfeladat naplózza a `uxTaskGetStackHighWaterMark` mélypontját.
+- **Hosszú életű, DMA-t nem igénylő feladat verme az RTC-területre való**
+  (`app_task_create_lp`). Így a verem mérete marad, a DMA-képes keret mégis
+  felszabadul. PSRAM-verem nem jó erre: a gyorsítótár mögött van, és
+  flash-írás közben elérhetetlen.
 - **A belső RAM szűk, és csak egy része DMA-képes.** Új állandó feladat,
   verembővítés vagy belső puffer előtt nézd meg a `/api/diagnostics/tasks`
   jelentést: a `DMA: szabad` érték dönti el, marad-e elég az SD-olvasásnak és

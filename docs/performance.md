@@ -439,3 +439,15 @@ A TLS kriptográfiai gyorsítója DMA-képes belső RAM-ot igényel: amikor abb�
 elbukik (`TLS=0x8011`, `mbedTLS=1`), és a kapcsolat létre sem jön. A mérés
 szerint az első HTTPS-kapcsolat (api.github.com) még sikerült, a következő
 (github.com, SHA256SUMS.txt) már nem – tehát nem a kiszolgálóval van baj.
+
+### Feladatvermek az RTC-területen
+
+A veremméret és a DMA-keret ellentmondását nem lehet méretezéssel feloldani:
+a nagyobb verem biztonságos, de elveszi a DMA-képes memóriát, a kisebb pedig
+túlcsordul. A megoldás az, hogy a hosszú életű, DMA-t nem igénylő feladatok
+verme a teljesen kihasználatlan RTC-területre kerül (`app_task_mem.h`,
+`MALLOC_CAP_RTCRAM`): `stats`, `backup_sync`, `presence_nvs`,
+`time_sync_task`, `wifi_reconnect`, összesen ~22 KiB. Az RTC memória nincs a
+gyorsítótár mögött, ezért flash-írás (NVS) közben is használható – ez a PSRAM
+verem esetében nem lenne igaz. Megszűnő feladathoz nem való, mert
+`vTaskDeleteWithCaps` kellene hozzá.

@@ -354,3 +354,35 @@ ezért a méretezésnél a ritka ágakat is számításba kell venni.
 Gyanús újraindulás után érdemes a soros naplót is rögzíteni:
 `py -m serial.tools.miniterm COM4 115200 --raw`, majd RESET. A pánik kiírja a
 feladat nevét és a veremhatárokat.
+
+## A DMA-keret kimerülése üzem közben (2026-10-28, este)
+
+Tömeges sablonfrissítés (`Összes frissítése`) közben a napló ezt mutatta:
+
+```
+E esp-aes: Failed to allocate memory for the array of DMA descriptors
+E esp-aes: Generating input DMA descriptors failed
+E esp-tls-mbedtls: mbedtls_ctr_drbg_seed returned -0x0001
+E sdmmc_cmd: sdmmc_read_sectors: not enough mem, err=0x101
+```
+
+Ez a hiányzó láncszem: a **hardveres AES** a TLS-hez DMA-leírókat foglal
+DMA-képes belső RAM-ból, és ugyanabból a keretből dolgozik az SD-vezérlő is.
+Amikor a keret elfogy, egyszerre áll le a TLS (Loxone WSS, GitHub) és az
+SD-olvasás, a kijelző pedig 200 ms-onként újrapróbálja a témabetöltést.
+Újraindítás után is azonnal visszaállt, mert a kiindulási keret volt kevés
+(10 307 B), nem szivárgás okozta.
+
+Két javítás:
+
+- A hosszú életű, DMA-t nem igénylő feladatok verme és vezérlőblokkja az
+  addig üresen álló **RTC-területre** került (`app_task_mem.h`): `stats`,
+  `backup_sync`, `presence_nvs`, `time_sync_task`, `wifi_reconnect`. Egyik
+  verem sem lett kisebb, a DMA-képes keret mégis ~22 KiB-tal nő. Az RTC
+  memória nincs a gyorsítótár mögött, ezért flash-írás közben is biztonságos –
+  a PSRAM-mal ellentétben. Ha az RTC-terület betelne, a régi, belső RAM-os
+  foglalás a tartalék.
+- A FATFS ablak- és munkapufferei nem PSRAM-ból foglalódnak
+  (`CONFIG_FATFS_ALLOC_PREFER_EXTRAM` kikapcsolva): PSRAM-ból az SD-vezérlő
+  nem tud közvetlenül olvasni, így minden FAT-hozzáférés futásidejű átmeneti
+  puffert kért.
