@@ -45,6 +45,17 @@ alatt memóriában marad; saját fényerőinek korábbi NVS-beállítása nem v�
 Részletes szerződés: [Slave jelenlétprofil](slave-presence-protocol.md).
 Fizikai paneles próba még szükséges.
 
+## Mai összesítő
+
+Vízszintes húzással a 4B két nézet között vált: energiaáramlás és **Mai
+összesítő**. Az összesítő a mastertől a védett `1005` karakterisztikán kapott
+napi adatokat mutatja (termelés, fogyasztás, vételezés, visszatáplálás, akku
+töltés/leadás, önellátás, saját felhasználás, költség, bevétel, megtakarítás).
+Első szinkronig `—`, kapcsolatvesztéskor az utolsó ismert mai kép látszik
+elavultságjelzéssel. A napi statisztika-pillanatképet a firmware PSRAM-ba, csak
+látható nézetnél és legfeljebb másodpercenként kéri le; üresjáratban a 33 ms-os
+kör nem érvénytelenít. Kezelés: [gesztusok](gestures.md#waveshare-4b-slave-720720).
+
 ## Kaputelefon
 
 A Masteren kezelt kamera, hang, kapunyitás és csengőhang a 4B-n is elérhető; a hívásfoglalás központi. [Részletes működés és hardveres átvétel](slave-intercom.md).

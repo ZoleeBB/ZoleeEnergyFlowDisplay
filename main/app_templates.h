@@ -21,32 +21,61 @@ typedef struct
 typedef struct
 {
     char name[65];
-    uint8_t *bytes;
+    uint8_t *bytes;   /* A PNG tartalma; NULL, ha csak segédfájlokat töltöttünk be. */
     size_t size;
     unsigned width, height;
 } app_template_asset_t;
+/*
+ * Előre dekódolt (és a megjelenítési méretre hozott) kép az SD-ről: a
+ * témaváltáskor sem PNG-dekódolás, sem LVGL-méretezés nem kell hozzá.
+ * Lásd app_template_raw.h.
+ */
+typedef struct
+{
+    uint8_t *bytes;        /* A teljes segédfájl (fejléccel). */
+    size_t size;
+    uint16_t width, height, stride;
+    uint8_t asset;         /* Index az assets tömbben. */
+    uint8_t format;        /* APP_TEMPLATE_RAW_RGB565 vagy RGB565A8. */
+} app_template_rawimg_t;
 /* A UI tulajdona; a webszál soha nem módosítja ezt a pillanatképet. */
 typedef struct
 {
     char id[33];
     cJSON *document;
     app_template_asset_t assets[32];
-    unsigned asset_count;
+    app_template_rawimg_t raws[32];
+    unsigned asset_count, raw_count;
     unsigned generation, catalogue_count, catalogue_index;
 } app_template_view_t;
 
 esp_err_t app_templates_init(void);
+/*
+ * Egyetlen hiányzó, előre dekódolt kép-segédfájl elkészítése (app_template_raw.h).
+ * Háttérfeladatból hívandó: a lapozás, a telepítés és a webes feltöltés
+ * elsőbbséget élvez, ilyenkor hamissal tér vissza. Igaz: készült egy fájl,
+ * rövidesen újra hívható.
+ */
+bool app_templates_raw_step(void);
+/* A fenti lépéseket futtató, alacsony prioritású háttérfeladat indítása. */
+esp_err_t app_templates_raw_start(void);
 unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char active[33]);
 esp_err_t app_templates_select(const char *id);
 /* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */
 esp_err_t app_templates_reorder(const cJSON *ids, char error[160]);
 void app_templates_step(int direction);
-/* Ugyanaz a lapozás, de napadat nélkül a Nap pálya sablont átugorja. */
-void app_templates_step_available(int direction, bool sun_available);
+/* Ugyanaz a lapozás, de napadat nélkül a Nap pálya sablont átugorja.
+ * Hamis érték: a katalóguszár foglalt volt, a kérést a hívó ismételje meg. */
+bool app_templates_step_available(int direction, bool sun_available);
 esp_err_t app_templates_delete(const char *id, char error[160]);
 /* ZIP ellenőrzése telepítés és katalógusmódosítás nélkül. */
 esp_err_t app_templates_probe(const char *zip_path, cJSON **report, char error[160]);
 esp_err_t app_templates_install(const char *zip_path, char error[160]);
+/* GitHubról letöltött téma: a fájlok a download stage-be kerülnek (az SD-n a
+ * sablongyökér alatt), majd ugyanaz a validálás és atomi csere fut, mint ZIP-nél. */
+const char *app_templates_download_stage(void);
+void app_templates_download_reset(void);
+esp_err_t app_templates_install_downloaded(char error[160]);
 /* Visszaadja a telepített téma JSON-ját (malloc); a hívó szabadítja fel. */
 char *app_templates_manifest_json(const char *id);
 /* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */

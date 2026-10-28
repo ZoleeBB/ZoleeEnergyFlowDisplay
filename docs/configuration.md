@@ -14,9 +14,9 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
 | `http` | HTTP módban adatkimaradási timeout |
 | `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
-| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90 |
+| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90; `touch_wake_seconds` 5–3600 (alapból 60): Loxone-jelenlétvezérlésnél ennyi ideig marad ébren érintés után |
 | `statistics` | Mentési időköz és maximális integrálási adatrés |
-| `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen) |
+| `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen), `battery_min_soc_pct` 0–90 (az akku hátralévő idejének alsó határa; 0 = alapértelmezés: normál üzemben 15%, áramszünetre készülve és szigetüzemben 5%) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
 
 HTTP módban MQTT broker nem szükséges. A kiválasztott mód adatkimaradási időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli.
@@ -67,3 +67,9 @@ FreeRTOS mellett sem rövidül a 6 óra körülbelül 125 másodpercre.
 
 A helyiség-/funkciószűrés, mértékegységek és a négy nappályamező részletei:
 [Loxone adatkapcsolat](loxone-direct.md).
+
+## Mentés és visszaállítás
+
+A beállítások a webfelület **Mentés** oldalán egy fájlba menthetők és
+visszatölthetők; a kijelző a saját flash-tárában is őriz egy példányt, amelyből
+új SD-kártyánál automatikusan visszaállít. Részletek: [Mentés és visszaállítás](backup.md).

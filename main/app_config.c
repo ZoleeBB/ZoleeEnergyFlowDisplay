@@ -79,11 +79,13 @@ void app_config_set_defaults(app_config_t *cfg)
     cfg->display.day_brightness = 80;
     cfg->display.night_brightness = 20;
     cfg->display.rotation_degrees = 270;
+    cfg->display.touch_wake_seconds = 60;
     cfg->statistics.save_interval_minutes = 15;
     cfg->statistics.max_integration_gap_seconds = 30;
 
     /* Pénzügyi és környezeti számítások. */
     cfg->energy.battery_capacity_kwh = 0; /* ismeretlen, amíg a felhasználó nem adja meg */
+    cfg->energy.battery_min_soc_pct = 0; /* teljes kapacitásig, amíg nincs megadva */
     cfg->energy.electricity_purchase_price = 65;
     cfg->energy.feed_in_price = 5;
     cfg->energy.co2_factor_kg_per_kwh = 0.381;
@@ -456,10 +458,12 @@ static bool parse_config(
         uint32_t day = cfg->display.day_brightness;
         uint32_t night = cfg->display.night_brightness;
         uint32_t rotation = cfg->display.rotation_degrees;
+        uint32_t touch_wake = cfg->display.touch_wake_seconds;
 
         if (!read_u32(display, "day_brightness", &day, 1, 100, false, error, error_len) ||
             !read_u32(display, "night_brightness", &night, 1, 100, false, error, error_len) ||
-            !read_u32(display, "rotation_degrees", &rotation, 90, 270, false, error, error_len)) {
+            !read_u32(display, "rotation_degrees", &rotation, 90, 270, false, error, error_len) ||
+            !read_u32(display, "touch_wake_seconds", &touch_wake, 5, 3600, false, error, error_len)) {
             return false;
         }
         if (rotation != 90 && rotation != 270) {
@@ -470,6 +474,7 @@ static bool parse_config(
         cfg->display.day_brightness = (uint8_t)day;
         cfg->display.night_brightness = (uint8_t)night;
         cfg->display.rotation_degrees = (uint16_t)rotation;
+        cfg->display.touch_wake_seconds = (uint16_t)touch_wake;
     } else if (error && *error) {
         return false;
     }
@@ -493,6 +498,7 @@ static bool parse_config(
     cJSON *energy = get_object_section(root, "energy", false, error, error_len);
     if (energy) {
         if (!read_double(energy, "battery_capacity_kwh", &cfg->energy.battery_capacity_kwh, 0, 1000, false, error, error_len) ||
+            !read_double(energy, "battery_min_soc_pct", &cfg->energy.battery_min_soc_pct, 0, 90, false, error, error_len) ||
             !read_double(energy, "electricity_purchase_price", &cfg->energy.electricity_purchase_price, 0, 100000, false, error, error_len) ||
             !read_double(energy, "feed_in_price", &cfg->energy.feed_in_price, 0, 100000, false, error, error_len) ||
             !read_double(energy, "co2_factor_kg_per_kwh", &cfg->energy.co2_factor_kg_per_kwh, 0, 100, false, error, error_len) ||

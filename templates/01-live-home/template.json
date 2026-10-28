@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 11,
+  "version": 12,
   "light": {
     "home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230},
     "background": "#F0F5F3",

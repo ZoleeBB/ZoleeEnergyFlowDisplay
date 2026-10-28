@@ -69,7 +69,7 @@ void app_test_slave_display_input(lv_display_t *display)
     lv_indev_set_user_data(input, &user_data);
     lv_indev_set_driver_data(input, &driver_data);
     app_slave_display_t state;
-    app_slave_display_profile_t profile = {83, 17, true, 30};
+    app_slave_display_profile_t profile = {83, 17, true, 30, false};
     assert(app_slave_display_init(&state, &profile, s_now));
     app_slave_display_night(&state, true, s_now);
     app_slave_display_input_t gate = {0}, duplicate = {0};

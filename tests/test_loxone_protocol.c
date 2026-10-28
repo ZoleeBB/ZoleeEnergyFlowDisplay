@@ -187,6 +187,8 @@ static unsigned home_command_count;
 void app_state_set_loxone(bool configured, bool connected) { (void)configured; (void)connected; }
 void app_state_clear_sample(void) {}
 void app_stats_break_continuity(void) {}
+static unsigned backup_requests;
+void app_backup_flash_request(void) { backup_requests++; }
 static const char *catalog_reply="{\"controls\":{\"pv\":{\"name\":\"PV\",\"type\":\"InfoOnlyAnalog\",\"states\":{\"value\":\"11223344-5566-7788-99aabbccddeeff00\"}}}}";
 static void frame(const unsigned char *data,size_t length,int opcode,bool fin)
 {
@@ -298,6 +300,33 @@ static void home_control_test(lx_config_t *energy)
     mark_response(); assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
     invalidate(true);
     assert(!s_command_pending && !uxQueueMessagesWaiting(s_home_commands));
+    {
+        /* Jelenlét/postaláda: azonnal a WS-deltából, kapcsolatvesztésnél ismeretlen. */
+        const lx_config_t *saved_session = s_session_config;
+        static lx_config_t signal_config;
+        signal_config = *saved_session;
+        strcpy(signal_config.map[LX_FIELD_PRESENCE].uuid, "00000000-0000-0000-0000000000000000");
+        strcpy(signal_config.map[LX_FIELD_MAIL].uuid, "00000000-0000-0000-0000000000000001");
+        lx_mapping_t saved_presence = s_saved.map[LX_FIELD_PRESENCE], saved_mail = s_saved.map[LX_FIELD_MAIL];
+        s_saved.map[LX_FIELD_PRESENCE] = signal_config.map[LX_FIELD_PRESENCE];
+        s_saved.map[LX_FIELD_MAIL] = signal_config.map[LX_FIELD_MAIL];
+        s_session_config = &signal_config;
+        app_loxone_signals_t signals;
+        assert(app_loxone_signals(&signals) && signals.presence.configured && !signals.presence.valid);
+        uint8_t delta[24] = {0}; double present = 1; memcpy(delta + 16, &present, sizeof(present));
+        assert(update_values(2, delta, sizeof(delta)));
+        assert(app_loxone_signals(&signals) && signals.presence.valid && signals.presence.active);
+        assert(signals.mail.configured && !signals.mail.valid && !signals.mail.active);
+        delta[15] = 1; present = 0; memcpy(delta + 16, &present, sizeof(present));
+        assert(update_values(2, delta, sizeof(delta)));
+        assert(app_loxone_signals(&signals) && signals.mail.valid && !signals.mail.active);
+        invalidate(true);
+        assert(app_loxone_signals(&signals) && !signals.presence.valid && !signals.mail.valid);
+        s_session_config = saved_session;
+        s_saved.map[LX_FIELD_PRESENCE] = saved_presence;
+        s_saved.map[LX_FIELD_MAIL] = saved_mail;
+        assert(app_loxone_signals(&signals) && !signals.presence.configured && !signals.mail.configured);
+    }
     s_home_live = true; mark_response(); home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
     /* A másik kapcsolatból származó, illetve túl régi kérés nem hajtható végre. */
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);

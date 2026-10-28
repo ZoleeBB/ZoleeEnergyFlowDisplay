@@ -1,6 +1,7 @@
 /* Az app_ui.c része: ugyanazok az adatok, formázók és LVGL-lock szabályok.
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
+#include "app_template_raw.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
@@ -19,9 +20,14 @@ static app_template_view_t template_view,template_pending;
 static unsigned template_catalogue_count(void){return s_cfg.cardless_slave ? 1 : template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
+/* Előre dekódolt, már a megjelenítési méretre hozott képek az SD-ről. */
+static lv_image_dsc_t template_raw_images[32];
 static bool template_enter_transition;
 static bool template_loading_requested;
 static bool template_waiting_for_load;
+/* A legutóbb megépített nappali/éjszakai változat; a váltáskori
+ * gyorsítótár-ürítéshez kell (lásd template_build). */
+static bool template_built_night, template_built_valid;
 static void template_opacity(void *obj,int32_t value){opa_if_changed(obj,value,0);}
 static bool template_is_active(void){return !s_cfg.cardless_slave && template_view.document!=NULL;}
 static bool template_heavy_animation(void){
@@ -63,11 +69,23 @@ static const lv_image_dsc_t *template_raster(unsigned asset,int w,int h){
     return &r->image;
 }
 #endif
+/* Az adott képhez és mérethez tartozó előre dekódolt kép, ha van. */
+static const lv_image_dsc_t *template_raw_image(unsigned asset,int w,int h){
+    for(unsigned i=0;i<template_view.raw_count;i++){
+        const app_template_rawimg_t *raw=&template_view.raws[i];
+        if(raw->asset==asset&&raw->width==(unsigned)w&&raw->height==(unsigned)h&&raw->bytes)
+            return &template_raw_images[i];
+    }
+    return NULL;
+}
 static void template_image(lv_obj_t *obj,const char *file,int w,int h){
     for(unsigned i=0;i<template_view.asset_count;i++)if(!strcmp(file,template_view.assets[i].name)){
         const lv_image_dsc_t *image=&template_images[i];bool native=false;
+        /* Dekódolás és méretezés nélkül: a telepítéskor elkészített segédfájl. */
+        const lv_image_dsc_t *ready=template_raw_image(i,w,h);
+        if(ready){image=ready;native=true;}
 #if LV_USE_SNAPSHOT
-        if((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height){
+        if(!native&&((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height)){
             const lv_image_dsc_t *r=template_raster(i,w,h);if(r){image=r;native=true;}
         }
 #endif
@@ -251,7 +269,7 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
-    if (!strncmp(source, "battery_diag_", 13)) {
+    if (!strncmp(source, "battery_diag_", 13) || !strcmp(source, "battery_eta")) {
         template_battery_text(out, source, s, st);
         return;
     }
@@ -334,15 +352,55 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     else{fmt_power(out,128,v);return;}
     snprintf(out,128,"%s %s",value,unit);
 }
+/*
+ * Lapozási kérés. A katalóguszárat az SD-olvasás percekig is foglalhatja,
+ * ezért a nem teljesülő kérés nem vész el: a runtime a következő körben
+ * pótolja. Előjeles összeg, így az oda-vissza húzás kioltja egymást.
+ */
+static int template_step_queue;
+static void template_step_request(int direction)
+{
+    if (!app_templates_step_available(direction, s_animation_sample.sun_position_valid))
+    {
+        if (template_step_queue > -8 && template_step_queue < 8)
+            template_step_queue += direction;
+    }
+    template_loading_requested = true;
+}
+/* A runtime taskból: az elhalasztott lapozás pótlása. */
+static void template_step_retry(void)
+{
+    while (template_step_queue)
+    {
+        int direction = template_step_queue > 0 ? 1 : -1;
+        if (!app_templates_step_available(direction, s_animation_sample.sun_position_valid))
+            return;
+        template_step_queue -= direction;
+        template_loading_requested = true;
+    }
+}
 /* Az input kapja a gesztust, nem az újraépülő objektumfa. Így kép,
  * asszisztens és lezárt buborékolás sem nyelheti el a navigációt. */
 static void template_gesture(lv_event_t *event)
 {
     (void)event;
-    if (s_pair_pad || (s_view != VIEW_DASHBOARD && s_view != VIEW_HOME && s_view != VIEW_HOME_SETUP && s_view != VIEW_ENERGY_DISABLED)) return;
+    /* Betöltés közben csak a lapozás él: a kérést a runtime dolgozza fel,
+     * így a gyors, egymás utáni húzások nem vesznek el. */
+    bool loading = s_view == VIEW_THEME_LOADING;
+    if (s_pair_pad || (!loading && s_view != VIEW_DASHBOARD && s_view != VIEW_HOME &&
+                       s_view != VIEW_HOME_SETUP && s_view != VIEW_ENERGY_DISABLED)) return;
     lv_indev_t *input = lv_indev_active();
     if (!input) return;
     lv_dir_t direction = lv_indev_get_gesture_dir(input);
+    if (loading)
+    {
+        if (s_cfg.cardless_slave || (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT))
+            return;
+        template_step_request(direction == LV_DIR_LEFT ? 1 : -1);
+        runtime_wake();
+        lv_indev_wait_release(input);
+        return;
+    }
     if (s_cfg.energy_flow_disabled && direction == LV_DIR_TOP)
         s_diagnostics_requested = true;
     else if (s_cfg.energy_flow_disabled && !home_is_open())
@@ -358,11 +416,7 @@ static void template_gesture(lv_event_t *event)
     else if (direction == LV_DIR_BOTTOM)
         home_cards_requested();
     else if (!s_cfg.cardless_slave && (direction == LV_DIR_LEFT || direction == LV_DIR_RIGHT))
-    {
-        app_templates_step_available(direction == LV_DIR_LEFT ? 1 : -1,
-                                     s_animation_sample.sun_position_valid);
-        template_loading_requested = true;
-    }
+        template_step_request(direction == LV_DIR_LEFT ? 1 : -1);
     else
         return;
     /* Az elfogadott navigációs kérést a runtime task azonnal feldolgozza. */
@@ -404,6 +458,56 @@ static void template_release_cache(void){
     memset(template_rasters,0,sizeof(template_rasters));template_raster_count=0;template_raster_bytes=0;
 #endif
     for(unsigned i=0;i<template_view.asset_count;i++)lv_image_cache_drop(&template_images[i]);
+    for(unsigned i=0;i<template_view.raw_count;i++)lv_image_cache_drop(&template_raw_images[i]);
+}
+/*
+ * Témaváltás fázisidői. Az asztali mérés (ZOLEE_THEME_SWITCH_BENCH) nem mutatja
+ * meg a valódi SD- és dekódolási időt, ezért a kijelző váltásonként egyetlen
+ * naplósorban összegzi: betöltőkép (benne a kötelező 85 ms), SD-olvasás és
+ * ellenőrzés, régi téma cseréje, LVGL-felépítés és az első kész képkocka
+ * (ebben fut a háttér PNG-dekódolása). Csak néhány időbélyeg és egy log sor
+ * váltásonként, a 200 ms-os körben nincs többletmunka.
+ */
+typedef struct
+{
+    bool active, frame_pending;
+    int64_t started_us, loading_us, load_us, apply_us, build_us, build_done_us;
+    char id[33];
+} template_switch_timing_t;
+static template_switch_timing_t template_switch;
+static void template_switch_begin(void)
+{
+    if (template_switch.active)
+        return;
+    memset(&template_switch, 0, sizeof(template_switch));
+    template_switch.active = true;
+    template_switch.started_us = esp_timer_get_time();
+}
+/* A kész képkockát az LVGL frissítés-vége eseménye jelzi (app_ui.c). */
+static void template_switch_frame_presented(int64_t now)
+{
+    if (!template_switch.active || !template_switch.frame_pending)
+        return;
+    int64_t first_frame = now - template_switch.build_done_us;
+    if (first_frame < 0)
+        first_frame = 0;
+    long long loading_ms = template_switch.loading_us / 1000;
+    long long load_ms = template_switch.load_us / 1000;
+    long long apply_ms = template_switch.apply_us / 1000;
+    long long build_ms = template_switch.build_us / 1000;
+    long long frame_ms = first_frame / 1000;
+    long long total_ms = (now - template_switch.started_us) / 1000;
+    ESP_LOGI("app_ui",
+             "Témaváltás %s: betöltőkép %lld ms, SD %lld ms, csere %lld ms, "
+             "felépítés %lld ms, első képkocka %lld ms, összesen %lld ms",
+             template_switch.id, loading_ms, load_ms, apply_ms, build_ms, frame_ms, total_ms);
+    /* Soros konzol nélkül is olvasható: a webes eseménynaplóba is bekerül. */
+    app_events_add(APP_EVENT_INFO,
+                   "Témaváltás %s: kép %lld, SD %lld, csere %lld, felépítés %lld, "
+                   "1. képkocka %lld, összesen %lld ms",
+                   template_switch.id, loading_ms, load_ms, apply_ms, build_ms, frame_ms, total_ms);
+    template_switch.frame_pending = false;
+    template_switch.active = false;
 }
 /* A következő képkockára az SD és képfeldolgozás előtt fekete oldal kerül. */
 static void template_loading_screen(void){
@@ -428,6 +532,40 @@ static void template_loading_screen(void){
     s_view=VIEW_THEME_LOADING;
     s_loading_frame_presented = false;
     lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
+}
+/*
+ * Ha a betöltőképernyő mögött semmi nem halad (foglalt SD, elmaradó
+ * képkocka-visszajelzés vagy már be nem illeszthető előtöltött nézet), a
+ * kijelző nem maradhat örökre a pörgő körön: ott a húzásos navigáció sem él.
+ * Néhány másodperc után eldobjuk a félkész állapotot, és tiszta lappal
+ * újrakezdjük a betöltést.
+ */
+#define TEMPLATE_LOADING_STUCK_US (6LL * 1000 * 1000)
+static int64_t template_loading_started_us;
+static void template_loading_watchdog(void)
+{
+    if (s_view != VIEW_THEME_LOADING)
+    {
+        template_loading_started_us = 0;
+        return;
+    }
+    int64_t now = esp_timer_get_time();
+    if (!template_loading_started_us)
+    {
+        template_loading_started_us = now;
+        return;
+    }
+    if (now - template_loading_started_us < TEMPLATE_LOADING_STUCK_US)
+        return;
+    ESP_LOGW("app_ui", "A témabetöltés elakadt, újrakezdés");
+    app_templates_view_free(&template_pending);
+    template_pending.generation = template_view.generation;
+    template_waiting_for_load = false;
+    template_loading_requested = true;
+    template_loading_started_us = now;
+    /* Az újrakezdéssel a fázismérés is nulláról indul: különben a naplóban az
+     * összesen a korábbi, félbemaradt próbálkozások idejét is tartalmazná. */
+    memset(&template_switch, 0, sizeof(template_switch));
 }
 /* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
  * a 0.6.4-es adapter az ISR-ből ennek a tasknak küld pufferértesítést.
@@ -459,12 +597,34 @@ static bool template_loading_wait(void)
  * kap látható képkockát az SD I/O előtt. A katalóguslekérdezés csak lockol. */
 static bool template_loading_frame(void){
     if (s_cfg.cardless_slave) return true;
+    /* Minden runtime körben fut, akkor is, ha a betöltőképocka nem készült el. */
+    template_step_retry();
+    template_loading_watchdog();
     if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
+    template_switch_begin();
+    int64_t loading_started=esp_timer_get_time();
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
-    if(s_view!=VIEW_THEME_LOADING)template_loading_screen();
+    if(s_view!=VIEW_THEME_LOADING){
+        template_loading_screen();
+        /*
+         * A betöltőképernyő mögött a régi téma egyetlen objektuma sem látszik,
+         * ezért a dekódolt képeit (háttérképenként 1280x800 ARGB8888 = 4 MiB)
+         * és a raszter-gyorsítótárat már itt elengedjük. Így az SD-olvasás és
+         * az új háttér dekódolása nem a régi téma mellé kér PSRAM-ot: enélkül
+         * gyors oda-vissza lapozásnál elfogyhat a hely, a háttér dekódolása
+         * minden képkockán újra elbukik, és a kijelző használhatatlanul lelassul.
+         * Az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
+         */
+        template_release_cache();
+        template_built_valid=false;
+    }
     bsp_display_unlock();
-    if (!template_loading_wait()) return false;
+    if (!template_loading_wait()){
+        template_switch.loading_us+=esp_timer_get_time()-loading_started;
+        return false;
+    }
+    template_switch.loading_us+=esp_timer_get_time()-loading_started;
     template_loading_requested=false;
     template_waiting_for_load=app_templates_has_pending(template_pending.generation);
     return true;
@@ -473,21 +633,52 @@ static void template_prepare(void){
     if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
-    if(app_templates_load_pending(&template_pending))template_waiting_for_load=false;
+    int64_t load_started=esp_timer_get_time();
+    if(app_templates_load_pending(&template_pending)){
+        template_waiting_for_load=false;
+        template_switch.load_us+=esp_timer_get_time()-load_started;
+    }
 }
 static void template_apply(void){
     if (s_cfg.cardless_slave) return;
     if(template_pending.generation==template_view.generation)return;
+    int64_t apply_started=esp_timer_get_time();
     template_enter_transition=s_dash_created&&s_view==VIEW_DASHBOARD;
     clear();template_release_cache();app_templates_view_free(&template_view);
+    template_built_valid=false;
     template_view=template_pending;memset(&template_pending,0,sizeof(template_pending));template_pending.generation=template_view.generation;
     for(unsigned i=0;i<template_view.asset_count;i++){
         app_template_asset_t *a=&template_view.assets[i];
         template_images[i]=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RAW_ALPHA,.w=a->width,.h=a->height},.data_size=a->size,.data=a->bytes};
     }
+    memset(template_raw_images,0,sizeof(template_raw_images));
+    for(unsigned i=0;i<template_view.raw_count;i++){
+        const app_template_rawimg_t *raw=&template_view.raws[i];
+        /* RGB565A8: a színsík után közvetlenül az alfa sík következik. */
+        size_t pixels=(size_t)raw->stride*raw->height;
+        if(raw->format==APP_TEMPLATE_RAW_RGB565A8)pixels+=(size_t)raw->width*raw->height;
+        template_raw_images[i]=(lv_image_dsc_t){
+            .header={.magic=LV_IMAGE_HEADER_MAGIC,
+                     .cf=raw->format==APP_TEMPLATE_RAW_RGB565A8?LV_COLOR_FORMAT_RGB565A8:LV_COLOR_FORMAT_RGB565,
+                     .w=raw->width,.h=raw->height,.stride=raw->stride},
+            .data_size=(uint32_t)pixels,.data=raw->bytes+APP_TEMPLATE_RAW_HEADER};
+    }
+    template_switch.apply_us+=esp_timer_get_time()-apply_started;
+    snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);
 }
 static void template_build(bool night){
+    int64_t build_started=esp_timer_get_time();
     clear();template_flow_release_paths();template_node_count=0;template_chart_time=0;
+    /*
+     * Nappali/éjszakai váltáskor az előző változat dekódolt képei (1280x800
+     * ARGB8888 = 4 MiB háttérképenként) még az LVGL kép-gyorsítótárban
+     * ülnek, és lefoglalják azt a PSRAM-ot, amit az új háttér dekódolása
+     * igényelne. Sikertelen dekódolásnál a háttér egyszerűen elmarad, ezért
+     * a már törölt objektumok után, az új felépítés előtt ürítünk. Az SD-ről
+     * beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
+     */
+    if(template_built_valid&&template_built_night!=night)template_release_cache();
+    template_built_night=night;template_built_valid=true;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
     /*
      * A régebbi SD-kártyán lévő három gyári téma még sávos RGB565
@@ -730,6 +921,13 @@ static void template_build(bool night){
         lv_anim_start(&anim);
     }
     template_enter_transition=false;
+    if(template_switch.active&&!template_switch.build_done_us){
+        template_switch.build_us+=esp_timer_get_time()-build_started;
+        template_switch.build_done_us=esp_timer_get_time();
+        template_switch.frame_pending=true;
+        if(!template_switch.id[0])
+            snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);
+    }
 }
 static void template_gauge_value(void *object,int32_t value){
     lv_arc_set_value(object,value);
@@ -907,7 +1105,12 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         }
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);
             if(!strcmp(source,"battery_temp")&&!strcmp(template_view.id,"09-solar-journey")){char number[64];fmt_dec(number,sizeof(number),s->battery_temperature_c,0);snprintf(text,sizeof(text),"%s °C",number);}
-            label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);}
+            label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);
+            /* Szigetüzemben és áramszünetre készülve a hátralévő idő kiemelt színű. */
+            if(!strcmp(source,"battery_eta")){
+                bool alert=s->status==2||s->status==3;
+                text_color_if_changed(node->obj,c(alert?(s->night_mode?0xFFB45C:0xC25A00):tc(e,"color",s->night_mode?TEXT_DARK:TEXT_LIGHT)),0);
+            }}
         else if(!strcmp(type,"bar")){
             lv_bar_set_value(node->obj,(int)fabs(value),LV_ANIM_OFF);
             if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);
@@ -1256,14 +1459,15 @@ static void diagnostics_render(app_runtime_state_t rt)
                 ? tr("Lejárt adat", "Stale data")
                 : tr("Érvényes adat", "Valid data"));
     label_text_if_changed(s_diagnostic_values[2], text);
-    unsigned sd_used = s_diagnostics.sd_space_valid
-                         ? (unsigned)((s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) *
-                                      100 / s_diagnostics.sd_total_bytes)
-                         : 0;
+    /* Két tizedes: nagy kártyán a sablonok néhány tized százalékos változása is látszódjon. */
+    double sd_used = s_diagnostics.sd_space_valid
+                       ? (double)(s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) * 100. /
+                             (double)s_diagnostics.sd_total_bytes
+                       : 0.;
     if (rt.sd_ok && s_diagnostics.sd_space_valid)
         snprintf(text,
                  sizeof(text),
-                 "%u%% · %.1f / %.1f GiB",
+                 "%.2f%% · %.1f / %.1f GiB",
                  sd_used,
                  (double)(s_diagnostics.sd_total_bytes - s_diagnostics.sd_free_bytes) / 1073741824.,
                  (double)s_diagnostics.sd_total_bytes / 1073741824.);
@@ -1277,7 +1481,7 @@ static void diagnostics_render(app_runtime_state_t rt)
         snprintf(text, sizeof(text), "%s\n%s", tr("SD nélkül · belső tár", "No SD · internal storage"),
                  rt.remote_stats_valid ? tr("Master stat.: friss", "Master stats: current") : tr("Master stat.: várakozás", "Master stats: waiting"));
     label_text_if_changed(s_diagnostic_values[3], text);
-    lv_bar_set_value(s_diagnostic_bars[0], sd_used, LV_ANIM_OFF);
+    lv_bar_set_value(s_diagnostic_bars[0], (int32_t)(sd_used + 0.5), LV_ANIM_OFF);
     if (rt.sd_ok && s_diagnostics.sd_space_valid)
         lv_obj_remove_flag(s_diagnostic_bars[0], LV_OBJ_FLAG_HIDDEN);
     else

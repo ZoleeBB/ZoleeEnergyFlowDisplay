@@ -1,4 +1,5 @@
 /* Dedikált 4B Slave: nincs SD, konfigurálható adatforrás vagy master indítás. */
+#include <math.h>
 #include "slave_4b_ui.h"
 #include "slave_4b_intercom.h"
 #include "app_intercom.h"
@@ -20,6 +21,7 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -31,6 +33,48 @@ static int last_brightness = -1;
 static app_slave_display_t display_state;
 static app_slave_display_input_t input_gate;
 static atomic_bool boot_complete;
+/* A napi statisztika-pillanatkép (288 ötperces sáv) PSRAM-ban, csak látható
+ * összesítőnél és legfeljebb másodpercenként frissül a 33 ms-os körben. */
+static app_stats_snapshot_t *summary_snapshot;
+
+static void summary_refresh(int64_t now)
+{
+    static int64_t last;
+    static bool was_visible;
+    bool visible = slave_4b_ui_summary_visible();
+    bool due = visible && (!was_visible || now - last >= 1000000);
+    was_visible = visible;
+    if (!due || !atomic_load(&boot_complete))
+        return;
+    if (!summary_snapshot)
+        summary_snapshot = heap_caps_calloc(1, sizeof(*summary_snapshot), MALLOC_CAP_SPIRAM);
+    if (!summary_snapshot)
+        return;
+    last = now;
+    app_stats_get_snapshot(summary_snapshot);
+    const app_stats_snapshot_t *st = summary_snapshot;
+    const app_energy_totals_t *t = &st->totals;
+    slave_4b_summary_t summary = {
+        .available = st->remote_available,
+        .stale = st->remote_stale,
+        .production_kwh = t->production_kwh,
+        .consumption_kwh = t->consumption_kwh,
+        .import_kwh = t->grid_import_kwh,
+        .export_kwh = t->grid_export_kwh,
+        .charge_kwh = t->battery_charge_kwh,
+        .discharge_kwh = t->battery_discharge_kwh,
+        .money_valid = st->reference_valid,
+    };
+    app_stats_metrics_t metrics = app_stats_metrics(t, &st->reference_energy);
+    summary.self_sufficiency_pct = metrics.self_sufficiency_pct;
+    summary.self_consumption_pct = metrics.self_consumption_pct;
+    summary.purchase_cost = metrics.purchase_cost;
+    summary.export_revenue = metrics.export_revenue;
+    summary.savings = metrics.savings;
+    summary.net_cost = metrics.net_cost;
+    snprintf(summary.currency, sizeof(summary.currency), "%s", st->reference_currency);
+    slave_4b_ui_summary(&summary);
+}
 
 static void refresh(lv_timer_t *timer)
 {
@@ -56,6 +100,7 @@ static void refresh(lv_timer_t *timer)
     if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
         visible_runtime.slave_source_stale = true;
     slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
+    summary_refresh(now);
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
     slave_4b_ui_pairing(&pairing);
@@ -150,6 +195,7 @@ void app_main(void)
         {
             ESP_ERROR_CHECK(app_slave_display_input_bind(&input_gate, input, &display_state,
                                                          esp_timer_get_time) ? ESP_OK : ESP_FAIL);
+            slave_4b_ui_bind_input(input);
             break;
         }
     }

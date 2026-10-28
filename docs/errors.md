@@ -199,6 +199,12 @@ oka látható. Egyetlen telepíthető hang hiánya vagy sérült központi ZIP-k
 esetén a művelet hibával zárul. A már telepített jó fájlok megmaradnak.
 Megszakadt hálózati feltöltés után újra fel kell tölteni a csomagot.
 
+Sablon ZIP feltöltésénél az „SD-kártya írási hiba” mostantól az `errno` számát
+és szövegét is mutatja, így elkülöníthető a tele kártya, a megnyitott fájlok
+korlátja és a kártyahiba. Ha a kijelző éppen hosszú SD-műveletet végez, a
+feltöltés megvárja; a dekódolt kép-segédfájlokat ezért külön háttérfeladat
+készíti, fájlonként, rövid zárral ([teljesítmény](performance.md)).
+
 A 2026-10-25-i javítás megszüntette a hálózati fogadás alatti hosszú SD-zárat,
 különválasztotta a téma- és hangkibontást, és pufferelt stdio hangolvasásra
 állt vissza. Az SD-driver/csatolás változatlan. A több változtatásból álló

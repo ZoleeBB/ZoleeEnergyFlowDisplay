@@ -21,7 +21,9 @@ const lx_field_t lx_fields[LX_FIELD_COUNT] = {{"PowerGrid", true, false},
                                               {"SunAzimuth", false, false},
                                               {"SunAltitude", false, false},
                                               {"Sunrise", false, false},
-                                              {"Sunset", false, false}};
+                                              {"Sunset", false, false},
+                                              {"Presence", false, true},
+                                              {"MailArrived", false, true}};
 static const char *str(const cJSON *o, const char *key)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
@@ -115,7 +117,7 @@ bool lx_config_parse(const cJSON *root, lx_config_t *cfg, bool require_mappings)
         cfg->map[i].offset = offset->valuedouble;
     }
     int solar = 0;
-    for (int i = LX_SUN_FIRST; i < LX_FIELD_COUNT; i++)
+    for (int i = LX_SUN_FIRST; i < LX_SUN_END; i++)
         if (cfg->map[i].uuid[0])
             solar++;
     if (require_mappings && solar && solar != LX_SUN_COUNT)
@@ -210,7 +212,8 @@ bool lx_values_update(
         lx_uuid_string(data + p, uuid);
         size_t n = type == 2 ? 0 : le32(data + p + 32);
         for (int i = 0; i < LX_FIELD_COUNT; i++)
-            if ((!cfg->energy_flow_disabled || i == 6) && strcmp(uuid, cfg->map[i].uuid) == 0)
+            if (lx_field_enabled(cfg->energy_flow_disabled, i) && cfg->map[i].uuid[0] &&
+                strcmp(uuid, cfg->map[i].uuid) == 0)
             {
                 if (type == 2)
                 {
@@ -248,7 +251,7 @@ cJSON *lx_values_payload(const lx_values_t *v, const lx_config_t *cfg)
             cJSON_AddNumberToObject(root, f->name, v->value[i]);
     }
     bool solar = true;
-    for (int i = LX_SUN_FIRST; i < LX_FIELD_COUNT; i++)
+    for (int i = LX_SUN_FIRST; i < LX_SUN_END; i++)
         if (!cfg->map[i].uuid[0] || !v->seen[i])
             solar = false;
     /* Csak a belső közös adatfeldolgozónak állítjuk össze a régi formátumot.

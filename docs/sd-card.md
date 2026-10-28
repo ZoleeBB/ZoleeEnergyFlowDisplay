@@ -4,6 +4,14 @@ FAT32 fájlrendszer szükséges; exFAT nem támogatott. A gyökérben legyen `co
 
 A tíz választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
 
+A készülék a csomagok mellé `<alap>-<szélesség>x<magasság>.raw` segédfájlokat
+készít a háttérben: ezek a már dekódolt és a megjelenítési méretre hozott képek,
+tőlük lesz gyorsabb a témaváltás. Együtt a tíz gyári témánál nagyjából 45–90 MiB
+helyet foglalnak, a `.tmp`/`.bak` állományokhoz hasonlóan a készülék kezeli őket,
+és a csomag törlésével eltűnnek. Kézzel nem kell másolni vagy pótolni őket; ha
+letörlöd, a kijelző a PNG-kkel dolgozik tovább, és a háttérben újra elkészíti
+őket. [Részletek](performance.md).
+
 A statisztikát a firmware maga hozza létre és 35 helyi naptári napig őrzi. Egy nap 288 ötperces időablakot tartalmaz. A `.tmp` és `.bak` fájlok helyreállítási állományok: működés közben ne töröld őket. Induláskor a legújabb érvényes revízió kerül betöltésre. [Adatformátum és számítás](statistics.md).
 
 MQTT, HTTP és közvetlen Loxone módban induláskor az SD és a konfiguráció szükséges. Futás közben SD-hibánál a mérés és a RAM-beli statisztika tovább működik; a hiba a diagnosztikában látható. Újracsatlakoztatáskor a firmware ismét próbál menteni. Kártyacsere és kézi fájlmódosítás előtt kapcsold ki a készüléket.
@@ -33,7 +41,7 @@ SD nélküli indulás után nincs háttérbeli kártyacsatolás; a behelyezett S
 annak konfigurációját a következő újraindítás használja. Részletek és párosítás:
 [BLE adatmegosztás](ble-data-seed.md#sd-nélküli-slave--csak-rendszer-téma).
 
-A közvetlen Loxone mód `loxone.json` konfigurációt is tárol. A jelszó eszközhöz kötött; másik kijelzőn újra megadandó. A diagnosztika az SD foglalt/teljes méretét és százalékos telítettségi sávját mutatja. A kapacitás legfeljebb percenként frissül; induláskor rövid ideig még nem áll rendelkezésre.
+A közvetlen Loxone mód `loxone.json` konfigurációt is tárol. A jelszó eszközhöz kötött; másik kijelzőn újra megadandó. A diagnosztika az SD foglalt/teljes méretét és két tizedesre kerekített, százalékos telítettségi sávját mutatja (a kijelzőn és a webes diagnosztikán is). A kapacitás legfeljebb percenként frissül; induláskor rövid ideig még nem áll rendelkezésre.
 
 ## Csengőhangcsomagok
 

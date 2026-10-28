@@ -137,6 +137,15 @@ Az UUID-k szemléltetők, nem egy telepítés valós vezérlői. Az ikonkulcsok 
 példakulcsok szemléltetők); a modell még csak a kulcs biztonságos
 alakját vizsgálja, a tényleges fájlok meglétét a csomagkezelő fogja ellenőrizni.
 
+## A szerkesztő elrendezése
+
+Minden fogyasztó és Otthon-kártya saját, világosabb hátterű kártyalapot kap, a
+nevével címkézve. A mezők 12 oszlopos rácsban sorakoznak: első sorban a név, az
+ikon (mellette az ikon előnézete) és a Loxone visszajelző állapot, alatta a
+számítási és megjelenítési mezők, a kapcsolók külön keretes sorban, a törlés
+pedig a kártya jobb alsó sarkában. Keskenyebb ablakban két, mobilon egy oszlopra
+rendeződik.
+
 ## Korlátok és hibák
 
 - Legfeljebb 12 fogyasztó és 8 elnevezhető Otthon-oldal, oldalanként legfeljebb 12 kártya.

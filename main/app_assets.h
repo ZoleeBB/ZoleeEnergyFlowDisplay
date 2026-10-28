@@ -28,6 +28,7 @@ extern const lv_image_dsc_t app_img_weather_rain;
 extern const lv_image_dsc_t app_img_weather_snow;
 extern const lv_image_dsc_t app_img_weather_moon;
 extern const lv_image_dsc_t app_img_wind;
+extern const lv_image_dsc_t app_img_mail_box;
 
 extern const lv_image_dsc_t app_img_status_normal;
 extern const lv_image_dsc_t app_img_status_prepare;

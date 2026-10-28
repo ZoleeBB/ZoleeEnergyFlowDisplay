@@ -319,7 +319,7 @@ int main(void)
         .used = true, .identity = {0, {1, 2, 3, 4, 5, 6}}, .revision = 1,
         .profile = {.name = "Slave", .timeout_seconds = 5, .blank_at_night = true},
     };
-    app_slave_display_profile_t own = {83, 17, false, 30};
+    app_slave_display_profile_t own = {83, 17, false, 30, false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);

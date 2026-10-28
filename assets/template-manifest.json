@@ -71,15 +71,15 @@
   },
   {
     "asset": "templates/02-energy-paths/background-day.png",
-    "sha256": "0f77c45661753be19e12a4c546213fbacb4ac10a7d6241ea0c47e8c234d2b035",
-    "generator": "built-in image_gen",
+    "sha256": "85fce0b8c6b1adebe868525496528d68cf3d1ea3e8e510563478f2d812ffd631",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Use case: photorealistic-natural. Asset: landscape background for an energy monitor. Photorealistic modern detached home with rooftop solar panels in lush green suburban garden, mature trees, lawn, calm daylight, wide 16:10 composition, no people, no text, no graphics. Image will be faint behind UI so balanced unobtrusive detail. High quality architectural photography.",
     "original_sha256": "ee8ce953c47f8c399f1f8fa1cf3251313fb2050acf39a1611a648da6726e4f78"
   },
   {
     "asset": "templates/02-energy-paths/background-night.png",
-    "sha256": "126c0fd2630d21bf3011023fe3ac9b0fa39ea3517ee3ad581b7e43ecacf5884b",
-    "generator": "built-in image_gen",
+    "sha256": "ff2c5d89b583f4053340068917ddd1759ac883b781fa219d4a2f9508cb8d0081",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Use case: photorealistic-natural. Create a night-time version of the reference home photograph. Preserve exactly the house, camera, garden and composition. Dark blue night sky, illuminated windows, gentle garden lighting. No text.",
     "original_sha256": "5a04fd79f473c8b18d5af1f7af5281590c88806af076e0f2f264329ea9208ee9"
   },
@@ -172,15 +172,15 @@
   },
   {
     "asset": "templates/03-instruments/background-day.png",
-    "sha256": "185a8d8fbf1f425e69d4d0bb8d2ee1eec6f5f994831278b85e2572abbc203ea5",
-    "generator": "built-in image_gen",
+    "sha256": "980cbee70d30223caa87be266f54f3222f6d1a0ca0a7bc7f96ff055e9645a3a4",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Use case: stylized-concept. Landscape 16:10 subtle photorealistic premium technology background for an energy instrument dashboard, metallic circuit board with fine cyan traces and microelectronics, tasteful restrained detail, no text or gauges.",
     "original_sha256": "6ccb066ceb83b6a8840273eedba99f4197ee8073e83b9b283f12e1503eb06f71"
   },
   {
     "asset": "templates/03-instruments/background-night.png",
-    "sha256": "a369824ae1650831509726ed673ccd59c8c7e37a5d9b930c2d87679a81835986",
-    "generator": "built-in image_gen",
+    "sha256": "87a0a313895924654116e2e88274d8be56324e4fa32d163fd3eb937c0d1e0b61",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Change only the lighting of this reference photograph to a dark nighttime technology scene, subtle luminous cyan circuit traces, dark metallic surfaces. Preserve all circuit board components and exact composition, no added text.",
     "original_sha256": "b168fa3602cc7fd8a6b30d6ee4f602013ea4022304a24c795484679968e98481"
   },
@@ -379,15 +379,15 @@
   },
   {
     "asset": "templates/07-energy-ledger/background-day.png",
-    "sha256": "08bac6b817d0dee8cfd2a4735946727cc1a6b30d4f99b667b9dcd1891003c279",
-    "generator": "built-in image_gen",
+    "sha256": "b341982560753d2575fb68ecdd00c6988df0d09e86ded957cb2262628a92c446",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Use case: photorealistic-natural. Landscape 16:10 panoramic green European residential cityscape, abundant trees, elegant houses and low buildings, streets, rooftop solar panels, peaceful daylight, realistic architectural photograph, no text.",
     "original_sha256": "14990705b882178332f41dda30c04cf41f50222363b98f4e396c45314622a102"
   },
   {
     "asset": "templates/07-energy-ledger/background-night.png",
-    "sha256": "51fa0a864eac8c151f2d75fe8aca27f7b72361ddf73fb151039e3d228b4aed51",
-    "generator": "built-in image_gen",
+    "sha256": "322b6912f3921728743960eb0abb579482dab4b481d2f5445aae76e71b113c81",
+    "generator": "built-in image_gen; LVGL rasterizer rescale to native 1280x800",
     "prompt": "Change only the time of day of this reference city photograph to realistic nighttime. Preserve exactly all houses, trees, street layout, camera and composition. Deep blue night sky, warmly illuminated house windows, street lamps lighting streets, subtle reflections. Photorealistic night cityscape, no text.",
     "original_sha256": "f833bacfb706b7934edb479ecfd4531367aa0f9159e340529272032c8d30e00a"
   },
@@ -638,12 +638,12 @@
   },
   {
     "asset": "templates/10-battery-diagnostics/preview-dark.png",
-    "sha256": "4122749e942f2780813fff08c7c4c547e84be7b024353166db89007e1e010e61",
+    "sha256": "95d554e0e8030d212f93d127c71442d59e3f723f27f97514146b97fcd3ac62ab",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/10-battery-diagnostics/preview-light.png",
-    "sha256": "02de6f0a4ef90bf48b5b731472abe85be10f9bbb97c1a1787b6f32b41efdaa08",
+    "sha256": "81e8059e127b63690575e2f30ac1d0aa64afee5c0cdfce33c1c150fd5f0c74b9",
     "generator": "LVGL simulator screenshot, 480x300"
   }
 ]

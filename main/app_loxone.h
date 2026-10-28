@@ -36,6 +36,18 @@ bool app_loxone_intercom_call_permitted(unsigned revision, bool active);
 /* Kizárólag a helyi videófeladatnak, a webes válaszba soha nem kerül jelszó. */
 bool app_loxone_intercom_credentials(unsigned revision, char username[96], char password[LX_PASSWORD_MAX]);
 
+/* Kijelzővezérlő Loxone-állapotok (jelenlét, postaláda). A `configured` a mentett
+ * párosítást jelzi; a `valid` csak élő kapcsolaton, már beérkezett értéknél igaz. */
+typedef struct
+{
+    bool configured, valid, active;
+} app_loxone_signal_t;
+typedef struct
+{
+    app_loxone_signal_t presence, mail;
+} app_loxone_signals_t;
+bool app_loxone_signals(app_loxone_signals_t *out);
+
 #include "app_energy_assistant.h"
 /* A teljes kártyakonfiguráció helyett legfeljebb 12 kis fogyasztóbejegyzés. */
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);

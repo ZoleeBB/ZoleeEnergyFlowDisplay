@@ -11,6 +11,9 @@ typedef struct
     uint8_t night_brightness;
     bool blank_at_night;
     uint32_t presence_timeout_seconds;
+    /* Master jelenlétvezérlés: a jelenlét 1 -> 0 éle azonnal sötétít, nem ad
+     * újabb időkorlátot. Az érintéses ébresztés időkorlátja változatlan. */
+    bool blank_on_presence_loss;
 } app_slave_display_profile_t;
 
 typedef struct

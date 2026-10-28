@@ -91,6 +91,8 @@ typedef struct
     uint8_t day_brightness;
     uint8_t night_brightness;
     uint16_t rotation_degrees; /* Csak 270 (jobb) vagy 90 (bal) */
+    /* Master jelenlétvezérlésnél ennyi ideig marad ébren egy érintés után. */
+    uint16_t touch_wake_seconds;
 } app_display_config_t;
 
 /* Statisztika mentési és integrálási paraméterek. */
@@ -104,6 +106,7 @@ typedef struct
 typedef struct
 {
     double battery_capacity_kwh; /* 0 = nincs megadva */
+    double battery_min_soc_pct;  /* Az inverter/BMS alsó SOC-határa a hátralévő időhöz, 0–90. */
     double electricity_purchase_price;
     double feed_in_price;
     double co2_factor_kg_per_kwh;

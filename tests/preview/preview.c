@@ -4,6 +4,7 @@
 #endif
 #include <assert.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include "../../main/app_ui.c"
 #include "../../simulator/home_fixture.h"
@@ -719,6 +720,8 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(template_view.assets[a].name,file)){
             const void *src=lv_image_get_src(disc->obj);
             if(src==&template_images[a])image_matches=true;
+            for(unsigned r=0;r<template_view.raw_count;r++)
+                if(template_view.raws[r].asset==a&&src==&template_raw_images[r])image_matches=true;
 #if LV_USE_SNAPSHOT
             for(unsigned r=0;r<template_raster_count;r++)
                 if(template_rasters[r].asset==a&&src==&template_rasters[r].image)image_matches=true;
@@ -948,6 +951,11 @@ static void test_template_weather(const app_energy_sample_t *sample){
             bool matched=false;
             for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(ts(files,keys[cases[k].expected]),template_view.assets[a].name)){
                 const void *actual=lv_image_get_src(node->obj);bool right=actual==&template_images[a];
+                /* Előre dekódolt segédfájl: a megjelenítési mérettel. */
+                for(unsigned r=0;r<template_view.raw_count;r++)if(template_view.raws[r].asset==a&&actual==&template_raw_images[r]){
+                    assert(template_view.raws[r].width==(unsigned)tn(node->spec,"w",128));
+                    assert(template_view.raws[r].height==(unsigned)tn(node->spec,"h",128));right=true;
+                }
 #if LV_USE_SNAPSHOT
                 for(unsigned r=0;r<template_raster_count;r++)if(template_rasters[r].asset==a&&actual==&template_rasters[r].image){
                     assert(template_rasters[r].image.header.w==(unsigned)tn(node->spec,"w",128));
@@ -1193,6 +1201,119 @@ static void test_energy_assistant_ui(const app_energy_sample_t *original)
         update(original, &fixture);
 }
 
+/* Postaláda-jel: minden gyári témán és a Rendszer nézeten látható, nem takar
+ * adatelemet és az energiaasszisztens területét; kikapcsolva/kapcsolatvesztéskor
+ * rejtett, és frissítéskor nem hoz létre új widgetet. */
+static void test_mail_ui(const app_energy_sample_t *original)
+{
+    bool night = original->night_mode;
+    app_data_mode_t original_mode = s_cfg.data_recept_mode;
+    s_cfg.data_recept_mode = APP_DATA_LOXONE;
+    app_sim_signals = (app_loxone_signals_t){.mail = {.configured = true, .valid = true, .active = true}};
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(mail_badge && !lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_update_layout(s_screen);
+    int x = lv_obj_get_x(mail_badge), y = lv_obj_get_y(mail_badge);
+    assert(x >= 0 && y >= 0 && x + MAIL_BADGE_SIZE <= W && y + MAIL_BADGE_SIZE <= H);
+    assert(y < 110); /* A fejlécben marad. */
+    int ax, ay, aw, ah;
+    if (assistant_area(&ax, &ay, &aw, &ah))
+        assert(x + MAIL_BADGE_SIZE <= ax || ax + aw <= x || y + MAIL_BADGE_SIZE <= ay || ay + ah <= y);
+    if (template_is_active())
+    {
+        const cJSON *scene = cJSON_GetObjectItem(template_view.document, night ? "dark" : "light");
+        const cJSON *element;
+        cJSON_ArrayForEach(element, cJSON_GetObjectItem(scene, "elements"))
+        {
+            const char *type = ts(element, "type");
+            if (strcmp(type, "value") && strcmp(type, "weather") && strcmp(type, "bar") &&
+                strcmp(type, "chart") && strcmp(type, "gauge") && strcmp(type, "solar_timeline"))
+                continue;
+            /* A rejtett normál státusz nem foglal helyet. */
+            if (!strcmp(ts(element, "source"), "status") && cJSON_IsTrue(cJSON_GetObjectItem(element, "hide_when_normal")))
+                continue;
+            int ex = tn(element, "x", 0), ey = tn(element, "y", 0);
+            int ew = tn(element, "w", 0), eh = tn(element, "h", 0);
+            if (!(x + MAIL_BADGE_SIZE <= ex || ex + ew <= x || y + MAIL_BADGE_SIZE <= ey || ey + eh <= y))
+            {
+                printf("mail badge %d,%d overlaps %s %s at %d,%d %dx%d\n", x, y, type,
+                       ts(element, "source"), ex, ey, ew, eh);
+                assert(false);
+            }
+        }
+    }
+    char file[96];
+    snprintf(file, sizeof(file), "mail-%s-%s", template_is_active() ? template_view.id : "builtin",
+             night ? "dark" : "light");
+    save_frame(file);
+    lv_obj_t *badge = mail_badge;
+    mail_render();
+    assert(mail_badge == badge);
+    app_sim_signals.mail.active = false;
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    app_sim_signals.mail = (app_loxone_signals_t){0}.mail;
+    (void)app_loxone_signals(&s_loxone_signals);
+    mail_render();
+    assert(lv_obj_has_flag(mail_badge, LV_OBJ_FLAG_HIDDEN));
+    s_cfg.data_recept_mode = original_mode;
+    memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
+}
+
+/*
+ * Nappal/éjjel váltás után a jelenet minden képe a saját változatára mutasson,
+ * és a teljes képernyős háttér valóban dekódolt képpontokat adjon. A hibás
+ * (elmaradó) sötét háttérnél a kirajzolt kép egyszínű marad.
+ */
+static void test_scene_images(bool night)
+{
+    if (!template_is_active())
+        return;
+    const cJSON *scene = cJSON_GetObjectItem(template_view.document, night ? "dark" : "light");
+    const cJSON *element;
+    bool background = false;
+    cJSON_ArrayForEach(element, cJSON_GetObjectItem(scene, "elements"))
+    {
+        if (strcmp(ts(element, "type"), "image"))
+            continue;
+        const char *file = ts(element, "file");
+        unsigned asset = template_view.asset_count;
+        for (unsigned i = 0; i < template_view.asset_count; i++)
+            if (!strcmp(template_view.assets[i].name, file))
+            {
+                asset = i;
+                break;
+            }
+        assert(asset < template_view.asset_count);
+        for (unsigned n = 0; n < template_node_count; n++)
+        {
+            if (template_nodes[n].spec != element || !template_nodes[n].obj)
+                continue;
+            const void *src = lv_image_get_src(template_nodes[n].obj);
+            bool bound = src == &template_images[asset];
+            for (unsigned r = 0; !bound && r < template_view.raw_count; r++)
+                bound = src == &template_raw_images[r] && template_view.raws[r].asset == asset;
+#if LV_USE_SNAPSHOT
+            for (unsigned r = 0; !bound && r < template_raster_count; r++)
+                bound = src == &template_rasters[r].image && template_rasters[r].asset == asset;
+#endif
+            assert(bound);
+            if (tn(element, "w", 0) == 1280 && tn(element, "h", 0) == 800)
+                background = true;
+        }
+    }
+    if (!background)
+        return;
+    uint32_t first = pixel_rgb(400 * 1280 + 40);
+    unsigned different = 0;
+    for (unsigned y = 120; y < 760; y += 40)
+        if (pixel_rgb(y * 1280 + 40) != first)
+            different++;
+    assert(different >= 4);
+}
+
 static unsigned widget_count(const lv_obj_t *root)
 {
     unsigned count = 1;
@@ -1344,6 +1465,202 @@ static void slow_swipe(int x, int y, int dx, int dy)
         touch_sample_xy(x + step * dx, y + step * dy, true);
     }
     touch_sample_xy(x + 8 * dx, y + 8 * dy, false);
+}
+
+/*
+ * Gyors oda-vissza lapozás: a betöltőképernyő alatt érkező húzás se vesszen
+ * el, a régi téma dekódolt képei már a betöltés előtt szabaduljanak fel, és
+ * elakadt betöltésből a kijelző magától térjen vissza.
+ */
+static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    sample.sun_position_valid = true;
+    s_animation_sample = sample;
+    assert(app_templates_select("09-solar-journey") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !strcmp(template_view.id, "09-solar-journey"));
+
+    /* Lapozás a következő témára: a betöltőképernyőn már nincs korábbi raszter. */
+    lv_obj_update_layout(s_screen);
+    slow_swipe(640, 400, -8, 0);
+    assert(template_loading_requested);
+    assert(template_loading_frame() && s_view == VIEW_THEME_LOADING);
+#if LV_USE_SNAPSHOT
+    assert(template_raster_count == 0 && template_raster_bytes == 0);
+#endif
+    /* A betöltőképernyőn érkező újabb húzás sorba kerül, nem vész el. */
+    lv_obj_update_layout(s_screen);
+    slow_swipe(640, 400, 8, 0);
+    assert(template_step_queue != 0 || template_loading_requested);
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    /* Addig futtatjuk a runtime körét, amíg a sor kiürül. */
+    for (unsigned round = 0; round < 6 && (template_step_queue || template_loading_requested ||
+                                           s_view != VIEW_DASHBOARD); round++)
+    {
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+    }
+    assert(s_view == VIEW_DASHBOARD && !template_step_queue);
+    /* Két ellentétes irányú húzás után ugyanott vagyunk, és a háttér él. */
+    assert(!strcmp(template_view.id, "09-solar-journey"));
+    template_update(&sample, &fixture);
+    save_frame("rapid-paging");
+    test_scene_images(sample.night_mode);
+
+    /* A váltás fázisidői kimérve: az eszközön ebből derül ki, hol megy el az idő. */
+    /* Asztalon az óra csak a kirajzoláskor lép, ezért a fázisok nullák lehetnek;
+     * a bekötést és a sorrendet ellenőrizzük, nem a hosszukat. */
+    assert(template_switch.started_us && !strcmp(template_switch.id, template_view.id));
+    assert(template_switch.loading_us >= 0 && template_switch.load_us >= 0);
+    assert(template_switch.build_us >= 0 && template_switch.apply_us >= 0);
+    assert(template_switch.build_done_us >= template_switch.started_us);
+    assert(!template_switch.frame_pending);
+    printf("SWITCH_PHASES %s loading=%lld us load=%lld us apply=%lld us build=%lld us\n",
+           template_switch.id, (long long)template_switch.loading_us,
+           (long long)template_switch.load_us, (long long)template_switch.apply_us,
+           (long long)template_switch.build_us);
+
+    /* Elakadt betöltés: betöltőképernyő, amelyen semmi nem mozdul tovább.
+     * A felépítés ilyenkor minden körben visszatér, a navigáció halott. */
+    assert(app_templates_select("10-battery-diagnostics") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !strcmp(template_view.id, "10-battery-diagnostics"));
+    template_waiting_for_load = true;
+    template_loading_screen();
+    for (unsigned round = 0; round < 3; round++)
+    {
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, 31000000);
+        assert(s_view == VIEW_THEME_LOADING && template_waiting_for_load);
+    }
+    ticks += TEMPLATE_LOADING_STUCK_US + 1;
+    assert(template_loading_frame());
+    assert(!template_waiting_for_load);
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD);
+    puts("PASS: rapid paging keeps swipes, frees the previous theme before loading and recovers from a stuck loading screen");
+}
+
+/*
+ * Előre dekódolt segédfájlok: a betöltés elkészíti a hiányzókat, utána a kép
+ * PNG-dekódolás és LVGL-méretezés nélkül kerül a jelenetbe, és a kirajzolt
+ * képkocka gyakorlatilag azonos a PNG-útéval (csak az RGB565 kvantálás tér el).
+ */
+static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const char *theme = "05-calm-home";
+    sample.sun_position_valid = true;
+    s_animation_sample = sample;
+    /* Tiszta kiindulás: a korábbi futás segédfájljai nélkül (a CI ugyanabban a
+     * könyvtárban többször is lefuttatja a preview-t). */
+    char directory[512];
+    snprintf(directory, sizeof(directory), "%s/%s", getenv("ZOLEE_TEMPLATE_ROOT"), theme);
+    DIR *folder = opendir(directory);
+    assert(folder);
+    struct dirent *entry;
+    unsigned removed = 0;
+    while ((entry = readdir(folder)))
+    {
+        size_t length = strlen(entry->d_name);
+        if (length < 5 || strcmp(entry->d_name + length - 4, ".raw"))
+            continue;
+        char victim[640];
+        snprintf(victim, sizeof(victim), "%s/%s", directory, entry->d_name);
+        assert(remove(victim) == 0);
+        removed++;
+    }
+    closedir(folder);
+    /* Referencia a megszokott PNG-úton, segédfájlok nélkül. */
+    setenv("ZOLEE_DISABLE_RAW", "1", 1);
+    assert(app_templates_select(theme) == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(!strcmp(template_view.id, theme) && s_view == VIEW_DASHBOARD);
+    template_update(&sample, &fixture);
+    save_frame("raw-sidecar-reference");
+    static uint32_t reference[1280 * 800];
+    for (unsigned i = 0; i < 1280 * 800; i++)
+        reference[i] = pixel_rgb(i);
+    assert(!template_view.raw_count);
+    for (unsigned i = 0; i < template_view.asset_count; i++)
+        assert(template_view.assets[i].bytes);
+    unsetenv("ZOLEE_DISABLE_RAW");
+
+    /* A segédfájlokat a háttérlépés készíti el, fájlonként egy hívásban. */
+    ticks += 4000000;
+    unsigned steps = 0;
+    while (app_templates_raw_step() && steps < 400)
+        steps++;
+    printf("RAW_SIDECAR removed=%u steps=%u\n", removed, steps);
+    fflush(stdout);
+    /* A törölt fájlok biztosan újrakészültek. */
+    assert(steps >= removed && steps >= 2);
+
+    /* Újratöltés: most már a segédfájlokból dolgozunk. */
+    assert(app_templates_select("builtin") == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(app_templates_select(theme) == ESP_OK);
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(!strcmp(template_view.id, theme));
+    assert(template_view.raw_count >= 2);
+    char path[512];
+    struct stat st;
+    snprintf(path, sizeof(path), "%s/%s/day-1280x800.raw", getenv("ZOLEE_TEMPLATE_ROOT"), theme);
+    assert(stat(path, &st) == 0 && st.st_size == APP_TEMPLATE_RAW_HEADER + 1280 * 800 * 2);
+    unsigned without_png = 0;
+    for (unsigned i = 0; i < template_view.asset_count; i++)
+        if (!template_view.assets[i].bytes)
+            without_png++;
+    assert(without_png >= 2);
+    /* A háttérhez nem kellett se dekódolás, se raszter. */
+#if LV_USE_SNAPSHOT
+    unsigned rasters = template_raster_count;
+#endif
+    template_update(&sample, &fixture);
+    save_frame("raw-sidecar-loaded");
+#if LV_USE_SNAPSHOT
+    assert(template_raster_count <= rasters);
+#endif
+    unsigned worst = 0, strong = 0, background = 0;
+    for (unsigned i = 0; i < 1280 * 800; i++)
+    {
+        uint32_t a = reference[i], b = pixel_rgb(i);
+        unsigned delta = 0;
+        for (unsigned shift = 0; shift <= 16; shift += 8)
+        {
+            unsigned channel = (unsigned)abs((int)((a >> shift) & 255) - (int)((b >> shift) & 255));
+            if (channel > delta)
+                delta = channel;
+        }
+        if (delta > worst)
+            worst = delta;
+        if (delta > 8)
+            strong++;
+        /* A fénykép-háttér alsó sávjában nincs ikon: ott csak az RGB565
+         * kvantálás térhet el, a kép maga képpontra ugyanaz. */
+        if (i >= 700 * 1280 && delta > 8)
+            background++;
+    }
+    printf("RAW_SIDECAR strong=%u worst=%u background=%u\n", strong, worst, background);
+    fflush(stdout);
+    /* A natív méretű háttér azonos; az ikonok átméretezése a telepítéskori
+     * bilineáris szűrővel készül, ezért az ikonok képpontjai térhetnek el. */
+    assert(!background);
+    assert(strong < 1280 * 800 / 100);
+    puts("PASS: raw sidecars are built step by step in the background, replace the PNG path and render the same frame");
 }
 
 static void test_startup_navigation(app_runtime_state_t runtime, app_energy_sample_t sample)
@@ -1806,7 +2123,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH"))
+    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -1837,6 +2154,8 @@ int main(void)
             test_render_work(runtime, sample);
         else if (getenv("ZOLEE_THEME_SWITCH_BENCH"))
             test_theme_switch_bench(runtime, sample);
+        else if (getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
+            export_scaled_backgrounds(runtime, sample, getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"));
         else
         {
             test_startup_navigation(runtime, sample);
@@ -2146,6 +2465,32 @@ int main(void)
                     assert(strstr(text, "névleges"));
                     s_cfg.energy.battery_capacity_kwh = saved_nominal;
                     free(empty);
+                    /* Hátralévő idő: valódi szöveg és kiemelő szín szigetüzemben. */
+                    {
+                        app_energy_sample_t eta = sample;
+                        double saved_floor = s_cfg.energy.battery_min_soc_pct;
+                        s_cfg.energy.battery_min_soc_pct = 10;
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.soc_bat_pct = 60; eta.power_bat_kw = 2.5; eta.status = 3;
+                        eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Szigetüzem · Még kb. 3 óráig bírja (10%-ig)"));
+                        template_update(&eta, &fixture);
+                        for (unsigned n = 0; n < template_node_count; n++)
+                            if (!strcmp(ts(template_nodes[n].spec, "source"), "battery_eta"))
+                                assert(lv_color_eq(lv_obj_get_style_text_color(template_nodes[n].obj, 0),
+                                                   c(night ? 0xFFB45C : 0xC25A00)));
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.status = 2; eta.power_full_kw = 0.8; eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Áramszünetkor kb. 9 óra 23 percig bírná (10%-ig)"));
+                        app_battery_eta_reset(&template_battery_eta_state);
+                        eta.status = 1; eta.power_bat_kw = -3; eta.received_monotonic_us += 1;
+                        template_text(text, "battery_eta", &eta, &fixture);
+                        assert(!strcmp(text, "Kb. 2 óra múlva tele"));
+                        s_cfg.energy.battery_min_soc_pct = saved_floor;
+                        app_battery_eta_reset(&template_battery_eta_state);
+                    }
                     sample.soc_bat_pct = 60;
                     sample.power_bat_kw = 2.76;
                     sample.battery_temperature_c = 29;
@@ -2153,11 +2498,13 @@ int main(void)
                     template_update(&sample, &fixture);
                 }
                 char filename[100];snprintf(filename,sizeof(filename),"template-%s-%s",list[i].id,night?"dark":"light");save_frame(filename);
+                test_scene_images(night);
                 sample=preview_saved;s_animation_sample=sample;
                 if(!night&&!strcmp(list[i].id,"01-live-home"))for(int frame=0;frame<12;frame++){
                     template_animate(.12f);snprintf(filename,sizeof(filename),"live-home-flow-%02d",frame);save_frame(filename);
                 }
                 test_energy_assistant_ui(&sample);
+                test_mail_ui(&sample);
                 rt.wifi_connected=false;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_WIFI_ERROR);
                 rt.wifi_connected=true;render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
                 assert(!strcmp(template_view.id,list[i].id));assert(s_last_night==(bool)night);
@@ -2226,6 +2573,7 @@ int main(void)
         builtin_sample.status = 1;
         update(&builtin_sample, &fixture);
         test_energy_assistant_ui(&builtin_sample);
+        test_mail_ui(&builtin_sample);
     }
     clear();
     memset(&template_pending,0,sizeof(template_pending));memset(&template_view,0,sizeof(template_view));
@@ -2249,6 +2597,8 @@ int main(void)
     app_sim_home_reset();
     lv_indev_t *home_input=lv_indev_create();lv_indev_set_type(home_input,LV_INDEV_TYPE_POINTER);
     lv_indev_set_display(home_input,display);lv_indev_set_read_cb(home_input,touch_read);navigation_bind_inputs();
+    test_raw_sidecars(rt, sample);
+    test_rapid_paging(rt, sample);
     test_startup_navigation(rt, sample);
     assert(app_templates_select("builtin")==ESP_OK);template_prepare();
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
@@ -2444,6 +2794,82 @@ int main(void)
     clear();template_release_cache();app_templates_view_free(&template_view);
     puts("PASS: actual LVGL consumer/cards light/dark pages, 7-item centering, real grayscale, separate command/feedback, pending/offline controls, resource cleanup and exact theme return");
     app_test_slave_display_input(display);
+    {
+        /* Master jelenlétvezérlés a tényleges runtime-úton: párosítás nélkül
+         * változatlan, éjjel 0 -> teljes sötét, 1 -> éjszakai fényerő, az első
+         * érintés csak ébreszt, hibaoldal és kapcsolatvesztés látható marad. */
+        config.data_recept_mode = APP_DATA_LOXONE;
+        config.energy_flow_disabled = false;
+        config.display.day_brightness = 74;
+        config.display.night_brightness = 21;
+        config.display.touch_wake_seconds = 30;
+        app_ui_set_config(&config);
+        assert(s_master_display_ready && s_slave_display.profile.blank_on_presence_loss &&
+               s_slave_display.profile.presence_timeout_seconds == 30);
+        lv_indev_t *master_input = lv_indev_create();
+        lv_indev_set_type(master_input, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_display(master_input, display);
+        lv_indev_set_read_cb(master_input, touch_read);
+        app_runtime_state_t master_rt = {
+            .data_recept_mode = APP_DATA_LOXONE, .loxone_connected = true, .loxone_configured = true,
+            .wifi_connected = true, .has_valid_sample = true, .last_valid_packet_monotonic_us = ticks,
+        };
+        runtime_view_t saved_view = s_view;
+        s_view = VIEW_DASHBOARD;
+        sample.night_mode = true;
+        sample.received_monotonic_us = ticks;
+        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks);
+        assert(!s_presence_control && !s_slave_input.input); /* Nincs párosítás: régi működés. */
+        app_sim_signals.presence = (app_loxone_signal_t){.configured = true, .valid = true, .active = true};
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks);
+        assert(s_presence_control && s_slave_input.input == master_input);
+        /* A nappali -> éjszakai átmenet fokozatos (1%/kör), ahogy eddig is. */
+        assert(s_brightness == 73);
+        for (int i = 0; i < 60; ++i)
+            master_presence_update(&master_rt, &sample, true, ticks + i);
+        assert(s_brightness == 21 && last_pwm_brightness == 21);
+        app_sim_signals.presence.active = false;
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 1000);
+        assert(s_brightness == 0 && last_pwm_brightness == 0);
+        /* Az első érintés csak ébreszt, és az ébrenléti idő után újra sötét. */
+        assert(app_slave_display_pointer(&s_slave_display, true, ticks + 2000));
+        assert(app_slave_display_pointer(&s_slave_display, false, ticks + 3000));
+        master_presence_update(&master_rt, &sample, true, ticks + 4000);
+        assert(s_brightness == 21 && last_pwm_brightness == 21);
+        master_presence_update(&master_rt, &sample, true, ticks + 31000000);
+        assert(s_brightness == 0);
+        /* Ismeretlen jelenlét vagy hibaoldal mellett nincs sötét kijelző. */
+        app_sim_signals.presence.valid = false;
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 31100000);
+        assert(s_brightness == 21);
+        app_sim_signals.presence.valid = true;
+        (void)app_loxone_signals(&s_loxone_signals);
+        s_view = VIEW_WIFI_ERROR;
+        master_presence_update(&master_rt, &sample, true, ticks + 31200000);
+        assert(s_brightness == 21);
+        s_view = VIEW_DASHBOARD;
+        master_presence_update(&master_rt, &sample, true, ticks + 31300000);
+        assert(s_brightness == 0);
+        /* Nappal a jelenlét nem sötétít; a fényerő fokozatosan éri el a nappali értéket. */
+        sample.night_mode = false;
+        master_presence_update(&master_rt, &sample, true, ticks + 31400000);
+        assert(s_brightness == 74);
+        /* A párosítás törlése visszaadja az eredeti vezérlést. */
+        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+        (void)app_loxone_signals(&s_loxone_signals);
+        master_presence_update(&master_rt, &sample, true, ticks + 31500000);
+        assert(!s_presence_control);
+        s_view = saved_view;
+        lv_indev_delete(master_input);
+        assert(!s_slave_input.input);
+        memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
+        puts("PASS: actual Master Loxone presence: unpaired unchanged, night 0 blanks, 1 and touch wake to night PWM, wake-only touch, error/unknown visible, day unaffected");
+    }
     /* A tényleges Master-hardver Slave runtime-ja, külön napszak- és PWM-ellenőrzéssel. */
     config.data_recept_mode = APP_DATA_SLAVE;
     config.display.day_brightness = 83;

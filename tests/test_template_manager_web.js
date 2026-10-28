@@ -6,7 +6,7 @@ class Element {
     replaceChildren() { this.children=[]; }
     setAttribute(key,value) { this.attributes[key]=value; }
 }
-const nodes=new Map(['message','list','zip','check','install'].map(id=>[id,new Element('div')]));
+const nodes=new Map(['message','install-message','list','zip','check','install'].map(id=>[id,new Element('div')]));
 let templates=[{id:'builtin',name:'Rendszer'},{id:'test-theme',name:'Próba',version:1}];
 let finish,posts=0;
 const sandbox={console,TextEncoder,TextDecoder,DataView,Uint8Array,Map,Set,ArrayBuffer,Blob,DecompressionStream,
@@ -14,6 +14,7 @@ const sandbox={console,TextEncoder,TextDecoder,DataView,Uint8Array,Map,Set,Array
     Image:class extends Element{constructor(){super('img');}},confirm:()=>true,
     fetch:async(path,options={})=>{
         if(options.method==='POST'){
+            if(path==='/api/templates/validate')return new Promise(resolve=>{finish=resolve;});
             posts++;assert.equal(path,'/api/templates/delete');assert.equal(options.body,'test-theme');
             return new Promise(resolve=>{finish=resolve;});
         }
@@ -42,5 +43,16 @@ function removeButton(){
     removeButton().onclick();await settled();assert.equal(posts,2);
     templates=templates.slice(0,1);finish({ok:true,text:async()=>'Sikeres'});await settled();
     assert.equal(nodes.get('list').children.length,2);assert.equal(nodes.get('list').inert,false);
-    console.log('PASS: stored common-resource thumbnail, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh');
+    /* A ZIP-telepítés sosem a lista fölötti sávba ír. */
+    assert.equal(nodes.get('install-message').textContent,'');
+    /* Elrendezés: a telepítés visszajelzése a gombok alatt, a GitHubos
+     * frissítésé a saját szakaszában, a listaműveleteké a lista fölött. */
+    const page=fs.readFileSync('assets/web/template-manager.html','utf8');
+    const at=needle=>{const index=page.indexOf(needle);assert(index>=0,needle);return index;};
+    assert(at('id="install"')<at('id="install-message"'));
+    assert(at('id="install-message"')<at('id="updates"'));
+    assert(at('id="updates"')<at('id="update-message"'));
+    assert(at('id="update-message"')<at('id="message"'));
+    assert(at('id="message"')<at('id="list"'));
+    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh');
 })().catch(error=>{console.error(error);process.exitCode=1;});

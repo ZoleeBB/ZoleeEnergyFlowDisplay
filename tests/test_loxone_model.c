@@ -65,5 +65,37 @@ int main(void)
     cJSON *catalog=lx_catalog_parse(structure,strlen(structure));assert(catalog&&cJSON_GetArraySize(catalog)==1);
     cJSON *item=cJSON_GetArrayItem(catalog,0);assert(strcmp(cJSON_GetObjectItemCaseSensitive(item,"room")->valuestring,"Gépészet")==0);cJSON_Delete(catalog);
     assert(!lx_catalog_parse("{}",2));assert(!lx_catalog_parse(structure,LX_STRUCTURE_MAX+1));
-    puts("PASS: Loxone UUID endian, atomic numeric/text tables, missing fields, transforms, four numeric solar states through actual payload parser, configuration and catalog");
+    /* Jelenlét és postaláda: opcionális kijelzőjel, tiltott energiaáramlás mellett is
+     * frissül, a közös energiamintába viszont nem kerül be. */
+    {
+        lx_config_t aux;lx_config_defaults(&aux);lx_values_t av={0};
+        snprintf(aux.host,sizeof(aux.host),"192.168.2.1");strcpy(aux.username,"display");
+        unsigned char presence[24],mail[24];numeric(presence,1);numeric(mail,0);mail[0]^=0x55;
+        char presence_id[LX_UUID_LEN],mail_id[LX_UUID_LEN];
+        lx_uuid_string(presence,presence_id);lx_uuid_string(mail,mail_id);
+        strcpy(aux.map[LX_FIELD_PRESENCE].uuid,presence_id);strcpy(aux.map[LX_FIELD_MAIL].uuid,mail_id);
+        aux.energy_flow_disabled=true;
+        unsigned char both[48];memcpy(both,presence,24);memcpy(both+24,mail,24);
+        assert(lx_values_update(&av,&aux,2,both,48));
+        assert(av.seen[LX_FIELD_PRESENCE]&&av.value[LX_FIELD_PRESENCE]==1);
+        assert(av.seen[LX_FIELD_MAIL]&&av.value[LX_FIELD_MAIL]==0);
+        assert(!strcmp(lx_fields[LX_FIELD_PRESENCE].name,"Presence")&&!lx_fields[LX_FIELD_PRESENCE].required);
+        assert(!strcmp(lx_fields[LX_FIELD_MAIL].name,"MailArrived")&&!lx_fields[LX_FIELD_MAIL].required);
+        assert(lx_field_enabled(true,LX_FIELD_PRESENCE)&&lx_field_enabled(true,6)&&!lx_field_enabled(true,0));
+        for(int i=0;i<8;i++)strcpy(aux.map[i].uuid,id);
+        aux.energy_flow_disabled=false;
+        lx_values_t full=v;full.seen[LX_FIELD_PRESENCE]=full.seen[LX_FIELD_MAIL]=true;
+        cJSON *json=lx_values_payload(&full,&aux);assert(json);
+        assert(!cJSON_GetObjectItemCaseSensitive(json,"Presence")&&!cJSON_GetObjectItemCaseSensitive(json,"MailArrived"));
+        cJSON_Delete(json);
+        /* Mentés/visszaolvasás: a két új párosítás megmarad, régi fájlnál hiányozhat. */
+        cJSON *saved=lx_config_json(&aux);lx_config_t back;
+        assert(saved&&lx_config_parse(saved,&back,true));
+        assert(!strcmp(back.map[LX_FIELD_PRESENCE].uuid,presence_id)&&!strcmp(back.map[LX_FIELD_MAIL].uuid,mail_id));
+        cJSON *maps=cJSON_GetObjectItemCaseSensitive(saved,"mappings");
+        cJSON_DeleteItemFromObjectCaseSensitive(maps,"Presence");cJSON_DeleteItemFromObjectCaseSensitive(maps,"MailArrived");
+        assert(lx_config_parse(saved,&back,true)&&!back.map[LX_FIELD_PRESENCE].uuid[0]);
+        cJSON_Delete(saved);
+    }
+    puts("PASS: Loxone presence/mail display signals; Loxone UUID endian, atomic numeric/text tables, missing fields, transforms, four numeric solar states through actual payload parser, configuration and catalog");
 }

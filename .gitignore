@@ -38,3 +38,6 @@ simulator-demo.ppm
 /firmware/slave-waveshare-4b/managed_components/
 /firmware/slave-waveshare-4b/sdkconfig
 /firmware/slave-waveshare-4b/dependencies.lock
+
+# Eszközön generált, előre dekódolt kép-segédfájlok
+/templates/*/*.raw

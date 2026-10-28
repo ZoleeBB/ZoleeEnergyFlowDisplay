@@ -16,6 +16,13 @@ Az élő energia/óra értesítések ettől külön működnek. A 1004 profil é
 statisztika LE Secure Connections/MITM/bonding és 16 bájtos kulcs mellett érhető el.
 Az NVS-írást külön profil-worker végzi, a statisztikai GATT-kiszolgáló nem végez SD I/O-t.
 
+A témaváltáskor a betöltőképernyő mögött felszabadul az előző téma dekódolt
+képgyorsítótára, az SD-olvasás és a felépítés pedig az előre dekódolt
+kép-segédfájlokból dolgozik, ha azok elkészültek. A segédfájlokat külön,
+alacsony prioritású háttérfeladat (`template_raw`) állítja elő fájlonként, a
+katalógus- és SD-zárat csak addig tartva; a lapozás, a telepítés és a webes
+feltöltés elsőbbséget élvez. Részletek: [teljesítmény](performance.md).
+
 A beépített nézet és tíz SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás témát vált; Master/Loxone Otthon-nézetben a saját oldalak között lapoz. Felfelé húzás nyitja a diagnosztikát, a jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-oldalakat, a ház érintése a fogyasztókat nyitja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
 Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).

@@ -34,6 +34,10 @@ A kilenc SD-s sablon konfiguráláskor a build `simulator/templates` mappájába
 A futási munkakönyvtár legyen a build `simulator` mappája; ott a `templates`
 alkönyvtár tárolja a választást. A `ZOLEE_TEMPLATE_ROOT` környezeti változóval
 más tesztkönyvtár is megadható. A forráscsomagok így nem változnak meg.
+A `ZOLEE_DISABLE_RAW` környezeti változóval az előre dekódolt kép-segédfájlok
+készítése és használata kikapcsolható; így a PNG- és a segédfájl-út képkockái
+összevethetők. A firmware-be ez a kapcsoló nem kerül bele.
+
 A sablonok nem váltanak automatikusan. Az N billentyű továbbra is a demó
 adatcsomag `NightMode` mezőjét változtatja. A webes feltöltés firmware-funkció;
 a szimulátor nem indít HTTP-szervert.

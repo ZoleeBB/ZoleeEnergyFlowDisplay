@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "10-battery-diagnostics",
   "name": "Akku diagnosztika",
-  "version": 1,
+  "version": 3,
   "light": {
     "background": "#E3F0F8",
     "elements": [
@@ -472,9 +472,9 @@
       {
         "type": "box",
         "x": 24,
-        "y": 625,
+        "y": 571,
         "w": 411,
-        "h": 131,
+        "h": 185,
         "background": "#F4FAFE",
         "radius": 18,
         "opacity": 230
@@ -482,13 +482,23 @@
       {
         "type": "label",
         "x": 43,
-        "y": 636,
+        "y": 580,
         "w": 370,
         "h": 26,
         "text": "Élő akkumulátor",
         "text_en": "Live battery",
         "font": 16,
         "color": "#183950"
+      },
+      {
+        "type": "value",
+        "x": 43,
+        "y": 607,
+        "w": 380,
+        "h": 26,
+        "source": "battery_eta",
+        "font": 16,
+        "color": "#236FA7"
       },
       {
         "type": "value",
@@ -1008,9 +1018,9 @@
       {
         "type": "box",
         "x": 24,
-        "y": 625,
+        "y": 571,
         "w": 411,
-        "h": 131,
+        "h": 185,
         "background": "#0E263B",
         "radius": 18,
         "opacity": 238
@@ -1018,13 +1028,23 @@
       {
         "type": "label",
         "x": 43,
-        "y": 636,
+        "y": 580,
         "w": 370,
         "h": 26,
         "text": "Élő akkumulátor",
         "text_en": "Live battery",
         "font": 16,
         "color": "#E7F2FF"
+      },
+      {
+        "type": "value",
+        "x": 43,
+        "y": 607,
+        "w": 380,
+        "h": 26,
+        "source": "battery_eta",
+        "font": 16,
+        "color": "#77BFFF"
       },
       {
         "type": "value",

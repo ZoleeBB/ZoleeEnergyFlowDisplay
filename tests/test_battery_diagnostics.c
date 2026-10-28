@@ -39,6 +39,74 @@ static app_battery_report_t report(app_battery_diagnostics_t *state)
     return value;
 }
 
+static app_energy_sample_t eta_sample(int64_t seconds, double battery, double load, double soc, int status)
+{
+    return (app_energy_sample_t){.power_bat_kw = battery, .power_full_kw = load, .soc_bat_pct = soc,
+                                 .status = status, .received_monotonic_us = seconds * 1000000};
+}
+
+/* Hátralévő idő: simítás, ismételt minta, adatrés, irány, alsó határ és áramszünet. */
+static void battery_eta(void)
+{
+    app_battery_eta_state_t eta;
+    app_battery_eta_reset(&eta);
+    app_energy_sample_t sample = eta_sample(10, 2, 2, 60, 1);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 0).kind == APP_BATTERY_ETA_UNKNOWN);
+    app_battery_eta_update(&eta, &sample);
+    /* Beállítatlan határ: normál üzemben 15%, azaz 4,5 kWh / 2 kW = 2 ó 15 p. */
+    app_battery_eta_t value = app_battery_eta_estimate(&eta, &sample, 10, 0);
+    assert(value.kind == APP_BATTERY_ETA_TO_EMPTY && value.minutes == 135 && !value.capped);
+    assert(value.floor_pct == APP_BATTERY_ETA_FLOOR_NORMAL_PCT);
+    /* Szigetüzemben ugyanez 5%-ig: 5,5 kWh / 2 kW = 2 ó 45 p. */
+    app_energy_sample_t island = eta_sample(10, 2, 2, 60, 3);
+    value = app_battery_eta_estimate(&eta, &island, 10, 0);
+    assert(value.kind == APP_BATTERY_ETA_TO_EMPTY && value.minutes == 165);
+    assert(value.floor_pct == APP_BATTERY_ETA_FLOOR_BACKUP_PCT);
+    /* Kézzel megadott határ mindkét üzemmódban felülírja az alapértelmezést. */
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 10).minutes == 150);
+    assert(app_battery_eta_estimate(&eta, &island, 10, 10).minutes == 150);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 10).floor_pct == 10);
+    assert(app_battery_eta_estimate(&eta, &sample, 0, 0).kind == APP_BATTERY_ETA_UNKNOWN);
+    /* Ugyanaz a minta nem számít újra, egy rövid kiugrás csak részben hat. */
+    app_battery_eta_update(&eta, &sample);
+    assert(eta.battery_kw == 2);
+    sample = eta_sample(15, 6, 6, 60, 1);
+    app_battery_eta_update(&eta, &sample);
+    assert(eta.battery_kw > 2 && eta.battery_kw < 2.2);
+    /* Hosszú adatrés után nem keverjük a régi átlagot. */
+    sample = eta_sample(400, -3, 1, 40, 1);
+    app_battery_eta_update(&eta, &sample);
+    assert(eta.battery_kw == -3);
+    value = app_battery_eta_estimate(&eta, &sample, 10, 0);
+    assert(value.kind == APP_BATTERY_ETA_TO_FULL && value.minutes == 120); /* 6 kWh / 3 kW */
+    /* Áramszünetre készülve beállítatlan határnál 5%: 4,5 kWh / 1 kW = 4 ó 30 p. */
+    app_energy_sample_t backup = eta_sample(400, -3, 1, 50, 2);
+    assert(app_battery_eta_estimate(&eta, &backup, 10, 0).minutes == 270);
+    sample = eta_sample(401, -3, 1, 99.6, 1);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 0).kind == APP_BATTERY_ETA_FULL);
+    /* Status 2: a házfogyasztással számol, töltés közben is. */
+    sample = eta_sample(402, -3, 1, 50, 2);
+    app_battery_eta_reset(&eta);
+    app_battery_eta_update(&eta, &sample);
+    value = app_battery_eta_estimate(&eta, &sample, 10, 10);
+    assert(value.kind == APP_BATTERY_ETA_BACKUP && value.minutes == 240); /* 4 kWh / 1 kW */
+    sample = eta_sample(403, 0, 0, 50, 2);
+    app_battery_eta_reset(&eta);
+    app_battery_eta_update(&eta, &sample);
+    value = app_battery_eta_estimate(&eta, &sample, 10, 10);
+    assert(value.kind == APP_BATTERY_ETA_BACKUP && value.capped && value.minutes == APP_BATTERY_ETA_MAX_MINUTES);
+    /* Alsó határon és készenlétben nincs kitalált idő. */
+    sample = eta_sample(404, 1, 1, 9, 3);
+    app_battery_eta_reset(&eta);
+    app_battery_eta_update(&eta, &sample);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 10).kind == APP_BATTERY_ETA_EMPTY);
+    sample = eta_sample(405, .01, 1, 50, 1);
+    app_battery_eta_reset(&eta);
+    app_battery_eta_update(&eta, &sample);
+    assert(app_battery_eta_estimate(&eta, &sample, 10, 0).kind == APP_BATTERY_ETA_IDLE);
+    puts("PASS: battery remaining time smoothing, duplicate/gap handling, floor SOC and outage estimate");
+}
+
 int main(void)
 {
     app_battery_diagnostics_t state;
@@ -118,4 +186,5 @@ int main(void)
     app_battery_init(&state, 0);
     assert(!report(&state).available);
     puts("PASS: battery energy, SOC windows, median, paired efficiency, gaps, reboot and JSON");
+    battery_eta();
 }

@@ -24,7 +24,8 @@ a nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (
 0 ≤ érték < 360), `SunAltitude` (fok, −90…90), `Sunrise` és `Sunset`
 (egész perc éjféltől, 0…1439, napkelte < napnyugta). Például 07:00 = 420.
 Mind a négy párosítást meg kell adni, vagy mind elhagyható; a nappálya az összes
-kezdőérték beérkezése után jelenik meg. Szorzó és eltolás itt is használható.
+kezdőérték beérkezése után jelenik meg. A nappályánál nincs szorzó és eltolás:
+az értékeket a kijelző átalakítás nélkül veszi át.
 A régi Loxone `SunPosition` szöveges párosítás helyett ezeket újra párosítani kell;
 a többi mentett párosítás megmarad. Az MQTT/HTTP bemenet `SunPosition` szöveges
 formátuma változatlan.
@@ -33,7 +34,10 @@ A lista két legördülővel, helyiség és funkció (Loxone-kategória) szerint
 a két feltétel egyszerre érvényes. A lista neve elöl áll: `Név (Helyiség / Funkció) · állapot`.
 A korábbi párosítás szűrés közben is megmarad; a mentett kulcs az állapot UUID-ja.
 Számok átalakítása: `érték * scale + offset`. W → kW: 0.001; előjelváltás: −1;
-digitális invertálás: scale=−1, offset=1. A Status a kijelző 1–5 kódját követi.
+digitális invertálás: scale=−1, offset=1. Az időjárási mezőknél (`WindSpeed`,
+`HasSunRadiation`, `HasPrecipitation`), a nappályánál, a `Presence` és a
+`MailArrived` jelnél a webes felület nem kínál szorzót és eltolást; ezekre
+mindig `scale=1`, `offset=0` mentődik. A Status a kijelző 1–5 kódját követi.
 Az **5 = Hálózat újra elérhető** a hálózati feszültség visszatérését jelzi,
 érvényes üzemállapot, önmagában nem indít újracsatlakozást. Közvetlen numerikus
 státuszforráshoz `scale=1`, `offset=0` használható. A teljes státusztáblázat és
@@ -111,6 +115,31 @@ Forrás: [Communicating with the Miniserver v17](https://www.loxone.com/enen/kb/
   kapcsolódási és kapcsolathiba-képernyő, automatikus visszatérés: sikeres.
 - Valódi Miniserver és fizikai panel: még nincs ellenőrizve.
 
+
+## Jelenlét és postaláda a Master kijelzőn
+
+Az **Adatpárosítás** két új, opcionális sora:
+
+| Mező | Érték | Hatás |
+| --- | --- | --- |
+| **Jelenlét a Master előtt** (`Presence`) | 0 / 1 (a pozitív érték aktív) | Éjszaka (NightMode = 1) a 0 / false teljesen elsötétíti a Master kijelzőt. Érintésre vagy amikor a jel 1 / true lesz, a beállított éjszakai fényerőre világosodik. Érintés után a *Kijelző → Ébrenlét érintés után* ideig (`display.touch_wake_seconds`, alapból 60 s) marad világos. Nappal a fényerő nem változik. |
+| **Posta érkezett** (`MailArrived`) | 0 / 1 | 1 / true értéknél postaláda-ikon jelenik meg minden téma fejlécében. |
+
+- Mindkettő opcionális. Párosítás nélkül a kijelző pontosan úgy működik, mint
+  korábban.
+- A jeleket ugyanaz a Loxone-kapcsolat hozza, azonnal (nem az 5 másodperces
+  energiaminta-ciklusban). Kapcsolatvesztéskor ismeretlenné válnak: a kijelző
+  ilyenkor nem sötétedik el, és a postaláda-ikon eltűnik.
+- Hibaoldal (Wi-Fi, adatkimaradás, Loxone-hiba), kaputelefon-hívás és
+  ismeretlen jelenlét mellett a kijelző mindig látható marad.
+- Az ébresztő első érintés nem nyom meg közben gombot és nem lapoz.
+- Energiaáramlás tiltás módban a két mező párosítható; a postaláda-jelzés ott a
+  témák helyett nem jelenik meg, a jelenlétvezérlés ebben a módban nem aktív (a
+  logós készenlét saját, 10%-os fényerejét használja).
+
+A két jelnél nincs szorzó és eltolás: a 0/1 (illetve false/true) értéket a
+kijelző közvetlenül használja. Ha a Loxone-oldali logika fordított, a
+Miniserveren invertáld az állapotot.
 
 ## Slave-kijelzők jelenlétbeállítása (v3 fejlesztési ág)
 

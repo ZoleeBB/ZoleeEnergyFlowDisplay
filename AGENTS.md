@@ -44,6 +44,16 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   heap-bejárás (`heap_caps_get_largest_free_block`), a Wi-Fi-lekérdezés
   (`esp_wifi_*`, ami az `esp_hosted` miatt SDIO-s RPC a C6 felé) és a
   taskstatisztika. Ezek csak akkor fussanak, ha a látható nézet használja őket.
+- **Hosszú SD-munka ne fusson a témabetöltés vagy a kijelzőzár alatt.** A
+  tárolózárat a webes feltöltés és az OTA is használja: percekig tartó
+  dekódolás vagy több MiB-os kiírás ott megakasztja a feltöltést („SD-kártya
+  írási hiba”). Az ilyen munkát külön, alacsony prioritású háttérfeladat végezze
+  lépésenként, a zárat fájlonként elengedve, és lapozás/telepítés után rövid
+  szünettel.
+- **A témaváltás fázisait mérd az eszközön.** A desktop mérés nem mutatja a
+  valódi SD- és dekódolási időt; a kijelző váltásonként egy összegző sort ír a
+  naplóba és a webes eseménynaplóba (betöltőkép, SD, csere, felépítés, első
+  képkocka). Optimalizálás előtt ezt nézd meg.
 - **Ne késleltesd a megjelenítést írással vagy fix várakozással.** A
   SD-metaadatírás (például a `selection.txt`) a megjelenítés után fusson.
   Felhasználói inputra a runtime task ne fix `vTaskDelay`-jel várjon: a

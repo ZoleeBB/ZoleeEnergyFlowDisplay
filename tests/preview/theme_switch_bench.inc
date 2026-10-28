@@ -60,7 +60,7 @@ static void test_theme_switch_bench(app_runtime_state_t runtime, app_energy_samp
         for (unsigned step = 0; step < count; step++)
         {
             double t0 = bench_now_ms();
-            app_templates_step_available(1, true);
+            assert(app_templates_step_available(1, true));
             template_loading_requested = true;
             assert(template_loading_frame());
             double t1 = bench_now_ms();
@@ -93,4 +93,58 @@ static void test_theme_switch_bench(app_runtime_state_t runtime, app_energy_samp
     printf("SWITCH_TOTAL switches=%u loading=%.1f prepare=%.1f build=%.1f first_frame=%.1f "
            "transition=%.1f total=%.1f ms\n",
            rounds * count, total[0], total[1], total[2], total[3], total[4], total[5]);
+}
+
+/* Eszköz a gyári csomagokhoz: a futásidőben (LVGL-lel) 1280×800-ra skálázott
+ * hátterek pontos képpontjainak mentése. Az így készült natív PNG-vel a kijelző
+ * képpontra ugyanazt rajzolja, de a témaváltáskori skálázás elmarad.
+ * Használat: ZOLEE_EXPORT_SCALED_BACKGROUNDS=<könyvtár>, majd
+ * tools/prepare_native_backgrounds.py. */
+__attribute__((noinline)) static void export_scaled_backgrounds(app_runtime_state_t runtime, app_energy_sample_t sample,
+                                      const char *directory)
+{
+#if LV_USE_SNAPSHOT
+    app_template_info_t themes[16];
+    char active[33];
+    unsigned count = app_templates_list(themes, 16, active);
+    unsigned exported = 0;
+    for (unsigned t = 0; t < count; t++)
+    {
+        if (!strcmp(themes[t].id, "builtin"))
+            continue;
+        for (int night = 0; night < 2; night++)
+        {
+            assert(app_templates_select(themes[t].id) == ESP_OK);
+            template_loading_requested = true;
+            assert(template_loading_frame());
+            template_prepare();
+            sample.night_mode = night;
+            render_runtime(runtime, sample, true, 31000000);
+            lv_refr_now(display);
+            for (unsigned i = 0; i < template_raster_count; i++)
+            {
+                const template_raster_t *raster = &template_rasters[i];
+                if (raster->w != 1280 || raster->h != 800)
+                    continue;
+                char path[2048];
+                snprintf(path, sizeof(path), "%s/%s__%s.argb", directory, themes[t].id,
+                         template_view.assets[raster->asset].name);
+                FILE *file = fopen(path, "wb");
+                assert(file);
+                const lv_draw_buf_t *buffer = raster->buffer;
+                for (int y = 0; y < raster->h; y++)
+                    assert(fwrite(buffer->data + (size_t)y * buffer->header.stride, 4, (size_t)raster->w, file) ==
+                           (size_t)raster->w);
+                assert(fclose(file) == 0);
+                printf("EXPORTED %s\n", path);
+                exported++;
+            }
+        }
+    }
+    printf("EXPORTED_TOTAL %u\n", exported);
+#else
+    (void)runtime;
+    (void)sample;
+    (void)directory;
+#endif
 }

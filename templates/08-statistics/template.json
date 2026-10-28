@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "08-statistics",
   "name": "Energiastatisztika",
-  "version": 8,
+  "version": 9,
   "light": {
     "home_hotspot": {"x": 278, "y": 123, "w": 230, "h": 40},
     "background": "#F0F4FA",

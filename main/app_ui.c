@@ -104,6 +104,12 @@ static lv_obj_t *s_chart2_y_top, *s_chart2_y_mid, *s_chart2_y_bottom;
 static lv_obj_t *s_error_pulse;
 static int s_brightness = 50, s_target = 50;
 static app_slave_display_t s_slave_display;
+/* Loxone kijelzővezérlő jelek (jelenlét, postaláda) pillanatképe; a runtime
+ * a grafikus zár előtt frissíti, a rajzolás csak ezt olvassa. */
+static app_loxone_signals_t s_loxone_signals;
+/* A Master jelenlétvezérlése ugyanazt a közös állapotgépet és inputkaput
+ * használja, mint a Slave éjszakai sötétítése. */
+static bool s_master_display_ready, s_presence_control;
 static app_slave_display_input_t s_slave_input;
 static bool s_slave_display_ready;
 static int64_t s_last_chart_update_us;
@@ -181,6 +187,7 @@ static bool s_loading_frame_presented;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
 static bool home_is_open(void);
 static void assistant_reset_widgets(void);
+static void mail_reset_widgets(void);
 static void home_cards_requested(void);
 static void home_gesture(lv_dir_t direction);
 static void home_open_clicked(lv_event_t *event);
@@ -362,6 +369,7 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 static void clear(void)
 {
     assistant_reset_widgets();
+    mail_reset_widgets();
     lv_obj_clean(s_screen);
     s_pair_pad = s_pair_mask = s_pair_countdown = s_pair_window_label = NULL;
     memset(s_pair_digits, 0, sizeof(s_pair_digits));
@@ -1759,11 +1767,15 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
     }
 }
 
+/* A témaváltás fázisidőit az app_template_ui.inc összegzi. */
+static void template_switch_frame_presented(int64_t now);
+
 static void initial_refresh_report(lv_event_t *event)
 {
     static bool reported;
     (void)event;
     if (s_view == VIEW_THEME_LOADING) s_loading_frame_presented = true;
+    else template_switch_frame_presented(esp_timer_get_time());
     if (!reported)
     {
         reported = true;
@@ -1848,6 +1860,26 @@ void app_ui_set_config(const app_config_t *cfg)
      * nappali fényerő az indulási képernyőkre is azonnal érvényes.
      */
     bsp_display_brightness_set(s_brightness);
+    if (cfg->data_recept_mode == APP_DATA_LOXONE && !cfg->energy_flow_disabled &&
+        bsp_display_lock(-1) == ESP_OK)
+    {
+        /* Jelenlétpárosítás nélkül a keep_visible miatt sosem sötétít:
+         * a viselkedés ilyenkor bitre azonos a korábbival. */
+        app_slave_display_profile_t profile = {
+            .day_brightness = cfg->display.day_brightness,
+            .night_brightness = cfg->display.night_brightness,
+            .blank_at_night = true,
+            .presence_timeout_seconds = cfg->display.touch_wake_seconds,
+            .blank_on_presence_loss = true,
+        };
+        int64_t now = esp_timer_get_time();
+        s_master_display_ready = s_master_display_ready
+            ? app_slave_display_profile(&s_slave_display, &profile, now)
+            : app_slave_display_init(&s_slave_display, &profile, now);
+        if (s_master_display_ready)
+            app_slave_display_keep_visible(&s_slave_display, true, now);
+        bsp_display_unlock();
+    }
     if (cfg->data_recept_mode == APP_DATA_SLAVE && bsp_display_lock(-1) == ESP_OK)
     {
         /* A védett jelenlétprofil megérkezéséig nincs sötétítés.
@@ -1964,6 +1996,7 @@ void app_ui_show_fatal(const char *title, const char *detail)
 #include "app_template_ui.inc"
 #include "app_loxone_home_ui.inc"
 #include "app_energy_assistant_ui.inc"
+#include "app_mail_ui.inc"
 #include "app_loxone_logo.h"
 #include "app_loxone_wordmark.h"
 #include "app_energy_display_policy.h"
@@ -2188,8 +2221,68 @@ static void slave_display_update(const app_runtime_state_t *state,
 
 #include "app_intercom_ui.inc"
 
+/* Master jelenlétvezérlés (csak Loxone módban, párosított Jelenlét adattal).
+ * Éjjel a 0 / false jelenlét teljesen elsötétít, az 1 / true azonnal az
+ * éjszakai fényerőre világosít, érintés az ébrenléti időre ébreszt. Hibaoldal,
+ * kapcsolatvesztés vagy ismeretlen jelenlét mellett a kijelző látható marad.
+ * Kizárólag a kijelző zárja alatt: az inputkapu ugyanezt az állapotot írja. */
+static void master_presence_update(const app_runtime_state_t *state,
+                                   const app_energy_sample_t *sample, bool have, int64_t now)
+{
+    bool control = s_master_display_ready && s_cfg.data_recept_mode == APP_DATA_LOXONE &&
+                   !s_cfg.energy_flow_disabled && s_loxone_signals.presence.configured;
+    if (!control)
+    {
+        if (s_presence_control)
+            app_slave_display_keep_visible(&s_slave_display, true, now);
+        s_presence_control = false;
+        return;
+    }
+    if (!s_slave_input.input)
+    {
+        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+        {
+            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+                lv_indev_get_display(input) == lv_display_get_default())
+            {
+                (void)app_slave_display_input_bind(&s_slave_input, input,
+                                                  &s_slave_display, esp_timer_get_time);
+                break;
+            }
+        }
+    }
+    bool fresh = have && state->loxone_connected &&
+                 !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg));
+    if (fresh)
+        app_slave_display_night(&s_slave_display, sample->night_mode, now);
+    bool normal_view = s_view == VIEW_DASHBOARD || s_view == VIEW_HOME ||
+                       s_view == VIEW_THEME_LOADING || s_view == VIEW_DIAGNOSTICS;
+    app_slave_display_keep_visible(&s_slave_display,
+                                   !fresh || !s_loxone_signals.presence.valid || !normal_view ||
+                                   !s_slave_input.input,
+                                   now);
+    app_slave_display_presence(&s_slave_display, s_loxone_signals.presence.valid,
+                               s_loxone_signals.presence.active, now);
+    int target = (int)app_slave_display_brightness(&s_slave_display, now);
+    s_target = target;
+    if (s_brightness != target)
+    {
+        /* Ébresztés és elsötétítés azonnali, a napszakváltás fokozatos marad. */
+        if (target == 0 || s_brightness == 0)
+            s_brightness = target;
+        else
+            s_brightness += target > s_brightness ? 1 : -1;
+        bsp_display_brightness_set(s_brightness);
+    }
+    s_presence_control = true;
+}
+
 static void master_display_update(bool have, bool night, bool intercom_active)
 {
+    /* A jelenlétvezérlés a zár alatt állítja a fényerőt; a kaputelefon
+     * viszont mindig a napszak szerinti, látható fényerőt kapja. */
+    if (s_presence_control && !intercom_active)
+        return;
     if ((have || s_cfg.energy_flow_disabled) && s_cfg.data_recept_mode != APP_DATA_SLAVE)
     {
         s_target = (int)app_energy_display_target(&s_cfg, night, home_empty, intercom_active);
@@ -2236,6 +2329,8 @@ static void runtime(void *arg)
             }
         }
 
+        if (s_cfg.data_recept_mode == APP_DATA_LOXONE)
+            (void)app_loxone_signals(&s_loxone_signals);
         bool intercom_active = intercom_prepare();
 #ifdef APP_INTERCOM_DISTRIBUTED
         app_intercom_audio_poll();
@@ -2276,11 +2371,13 @@ static void runtime(void *arg)
         if (bsp_display_lock(-1) == ESP_OK)
         {
             slave_display_update(&rt, &s, have || rt.energy_flow_disabled, now);
+            master_presence_update(&rt, &s, have, now);
             app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
                 have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
                 &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
             assistant_render();
+            mail_render();
 
             bsp_display_unlock();
         }

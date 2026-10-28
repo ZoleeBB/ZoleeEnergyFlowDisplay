@@ -8,6 +8,75 @@ A [Waveshare hivatalos példatárának](https://github.com/waveshareteam/ESP32-P
 
 Az [Espressif GUI útmutatója](https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/advanced-development/lcd-application-note/gui-optimization-summary.html) a dekódolási költség és a képkezelés optimalizálását javasolja. A témaképekből az LVGL saját rasterizálója belépéskor a tényleges megjelenítési méretű, alfa csatornás képet készít. Az animáció közben ez már 1:1 méretű kép; az időjárási variánsok első használatukkor készülnek el és újrahasználhatók. A gyorsítótár maximum 64 variáns / 6 MiB. Hibánál vagy a korlát túllépésekor az eredeti PNG-méretezési út működik. Témaváltáskor először törlődnek a régi objektumok, majd a cache-bejegyzések és a képpufferek; az SD-n tárolt PNG-k megmaradnak. A változatlan képforrás beállítását kihagyjuk, mert az LVGL `set_src` művelete újrarajzolást kérne.
 
+A beépített témák háttere natív 1280×800 px. Az Energiautak, Műszerfal és Energiafőkönyv téma korábban 1024×640-es háttérrel érkezett, ezért belépéskor teljes képernyős `lv_snapshot` méretezés futott: a desktop mérésben (RGB565, `ZOLEE_THEME_SWITCH_BENCH=1`) ez 43–75 ms építési időt jelentett a többi téma ~4 ms-ával szemben. A natív képekkel a teljes témaváltás 73→51 ms (Energiautak), 92→41 ms (Műszerfal) és 50→49 ms (Energiafőkönyv); a kép a felső 797 sorban képpontra azonos a korábbival, csak az alsó két sor szélmintavételezése tér el. A natív háttereket a `ZOLEE_EXPORT_SCALED_BACKGROUNDS=<mappa>` preview-mód és a `tools/prepare_native_backgrounds.py` állítja elő a futásidejű raszterből. Saját témához is natív méretű hátteret ajánlunk.
+
+### Előre dekódolt kép-segédfájlok
+
+A panelen mért fázisidők szerint a témaváltás két nagy tétele a felépítés
+(a méretezett ikonokhoz készülő LVGL-pillanatképek) és az első képkocka
+(a háttér PNG-dekódolása): a Nap pálya témánál 7,7 s + 2,4 s. Mindkettő
+ugyanazt a képpontsort állítja elő minden belépéskor, ezért egyszer, a
+telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
+
+- A jelenetek minden kép-változatához (fájl + megjelenítési méret) tartozik egy
+  `<alap>-<szélesség>x<magasság>.raw` fájl: 32 bájtos fejléc és a képpontok.
+  Átlátszatlan képnél RGB565, egyébként RGB565A8 (LVGL elrendezés: színsík,
+  utána az alfa sík). Részletek: `main/app_template_raw.h`.
+- A fejléc a forrás PNG méretét és a képpontok CRC32-jét őrzi: csomagcsere után
+  a régi segédfájl érvénytelen, sérült kártyaadatnál pedig ugyanúgy a Rendszer
+  nézetre esünk vissza, mint a PNG chunk-CRC hibájánál.
+- Ha egy képhez minden használt mérethez van érvényes segédfájl, a PNG-t be sem
+  olvassuk: a témaváltásból kimarad a dekódolás és a méretezés is, a dekódolt
+  háttér pedig 4 MiB helyett 2–3 MiB PSRAM-ot foglal.
+- A segédfájlokat külön, alacsony prioritású háttérfeladat készíti el:
+  hívásonként egy fájl, a katalógus- és SD-zárat csak addig tartva, lapozás és
+  telepítés után néhány másodperc szünettel. Témabetöltés közben nem fut, mert
+  ott a dekódolás és a 2–3 MiB-os kiírás témánként fél percre elvenné az
+  SD-kártyát a webes feltöltéstől. Sikertelen írásnál minden a megszokott
+  PNG-úton fut tovább, a következő körben újra próbálkozik.
+- A segédfájlok nem kerülnek a sablon ZIP-be, az ujjlenyomatba és az előnézeti
+  képekbe; a csomag törlésekor a könyvtárral együtt eltűnnek.
+- Az ikonok átméretezése a telepítéskori bilineáris szűrővel készül, ezért az
+  ikonok képpontjai néhány egységgel eltérhetnek a korábbi LVGL-skálázástól; a
+  natív méretű háttér képpontra ugyanaz marad. A preview mindkét utat
+  lefuttatja és összeveti (`ZOLEE_DISABLE_RAW=1` kapcsolja ki az asztali
+  összehasonlításhoz).
+
+### Témaváltás fázisidői a valódi panelen
+
+Az asztali mérés (`ZOLEE_THEME_SWITCH_BENCH=1`) a gyors SSD és a desktop CPU
+miatt nem mutatja meg a tényleges SD- és dekódolási időt, ezért minden
+témaváltás végén a kijelző egyetlen összegző sort ír a soros naplóba és a webes
+eseménynaplóba (Kezdőlap → eseménynapló):
+
+```
+Témaváltás 09-solar-journey: kép 95, SD 420, csere 12, felépítés 60, 1. képkocka 380, összesen 967 ms
+```
+
+- **kép**: a betöltőképernyő megjelenítése, benne a kötelező 85 ms várakozás.
+- **SD**: a csomag beolvasása és ellenőrzése (`app_templates_load_pending`).
+- **csere**: a régi téma objektumainak és képeinek felszabadítása.
+- **felépítés**: az LVGL objektumfa összeállítása (`template_build`).
+- **1. képkocka**: a felépítés vége és az első kész frissítés között eltelt idő;
+  **ebben fut a háttér PNG-dekódolása**, ezért tipikusan ez a legnagyobb tétel.
+- **összesen**: a lapozástól az első kész képkockáig.
+
+A mérés néhány időbélyeg és váltásonként egy naplósor; a 200 ms-os frissítési
+körben nincs többletmunka. A további gyorsítás (például előre dekódolt RGB565
+háttér az SD-n) csak ezekkel a számokkal együtt érdemes.
+
+A témaváltás betöltőképernyője mögött a régi téma egyetlen objektuma sem látszik,
+ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképocka után
+elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
+dekódolt képei mellé kért PSRAM-ot: gyors oda-vissza lapozásnál elfogyhatott a hely,
+a háttér dekódolása minden képkockán újra elbukott, és a kijelző használhatatlanul
+lelassult. Ha a betöltőképernyő mögött hat másodpercig semmi nem halad (foglalt SD,
+elmaradó képkocka-visszajelzés), a felépítés eldobja a félkész állapotot és tiszta
+lappal újrakezd; enélkül a kijelző a pörgő körön maradt, ahol a húzásos navigáció
+sem él.
+
+Nappali/éjszakai váltáskor az előző változat dekódolt képei (háttérképenként 1280×800 ARGB8888 = 4 MiB) elfoglalnák az új háttér dekódolásához szükséges PSRAM-ot, és sikertelen dekódolásnál a háttér elmaradt. A felépítés ezért a törölt objektumok után, az új jelenet előtt üríti a kép- és raszter-gyorsítótárat; az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás. A preview minden témánál ellenőrzi, hogy a váltás után a jelenet képei a saját változatukra mutatnak, és a teljes képernyős háttér valóban dekódolt képpontokat ad.
+
 A 96 elemű sablon-geometriai tábla CPU által használt adat, nem DMA-puffer. Az ESP-IDF [külső BSS támogatásával](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-guides/external-ram.html) PSRAM-ba kerül. A desktop mérésben mérete 234 240 bájt; a célplatform pontos mérete a firmware linker-térképéből ellenőrizhető. A 32 KiB belső memória-tartalék megmarad, nem növeljük a korábban indulási abortot okozó 64 KiB-ra.
 
 Az ESP-Hosted [#144 hibajegye](https://github.com/espressif/esp-hosted-mcu/issues/144) ugyanezt az `sdio_rx_get_buffer` és TX foglalási hibát tárgyalja: az összes szabad heap mellett a DMA-képes memória fragmentációja is számít. A driver buildbeli másolatában egyetlen, statikus, 64 bájtra igazított 1 KiB belső DMA-ablak fogadja a streaming adatot; a teljes stream és a csomagmásolatok PSRAM-ban maradnak. Így a 3–6 KiB-os és nagyobb RX burstökhöz nem kell új összefüggő belső DMA-blokkot találni. A [CMD53 FIFO protokoll](https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/api-reference/protocols/esp_sdio_slave_protocol.html) szerint a cím az adott részolvasás tényleges adathosszát kódolja; a végső blokk kitöltését nem másoljuk a payloadba. PSRAM-foglalási hibánál a FIFO kiürül, az adatot eldobjuk, a következő stream fogadható. Az RX/TX sorok egyenként 8 eleműek a korábbi 20 helyett; ez csökkenti az egyidejű memóriaterhelést, nagy hálózati burstnél visszanyomást/eldobást okozhat.
@@ -245,3 +314,24 @@ a mentés előtt teljes újrarajzolással (`lv_obj_invalidate(lv_screen_active()
 `lv_refr_now()`) kell összevetni: a 143 Master- és 9 Slave-kép így bájtra
 azonos volt a változtatás előtt és után. A részleges és a teljes rajzolás
 közötti eltérés az érintett képeken csökkent.
+
+## Felhasználói élmény bővítések – terhelési szerződés
+
+A `feature/ux-improvements` funkciói a meglévő teljesítményszabályokat követik:
+
+- **Akku hátralévő idő:** mintánként egy exponenciális simítás (néhány
+  lebegőpontos művelet), memória- és SD-hozzáférés nélkül; a felirat csak
+  változáskor íródik.
+- **Postaláda-jelvény:** egyetlen, natív méretű (52×52) beágyazott PNG, egyszer
+  dekódolva; a 200 ms-os kör csak a láthatóságot/helyet írja változáskor.
+- **Jelenlétvezérlés:** a közös, allokációmentes fényerő-állapotgép; a Loxone
+  jeleket egy kis, zár alatti pillanatkép adja (nincs új kapcsolat vagy kérés).
+- **4B Mai összesítő:** a 45 KiB-os statisztika-pillanatkép PSRAM-ban, csak
+  látható nézetnél, legfeljebb másodpercenként; üresjáratban 0 érvénytelenítés
+  (szimulátorteszt).
+- **Belső beállítás-tartalék:** csak tartalomváltozáskor ír flash-t, alacsony
+  prioritású feladatban, 15 s-os összevonással; a témaváltás nem indít írást.
+- **GitHub-témafrissítés:** csak kérésre, saját feladatban; a nagy PNG-k PSRAM-ba
+  töltődnek, az SD-zár csak a rövid írások idejére foglalt.
+- **Webfelület:** a közös stíluslap oldalanként beágyazva (nincs plusz HTTP-kérés),
+  a firmware-ben kb. 3,5 KiB oldalanként.

@@ -20,7 +20,8 @@ a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
 - Ikonokhoz valódi alfaátlátszóságú, 8 bites RGBA PNG ajánlott, 128×128 px.
 - A háttér lehet RGB/RGBA, legfeljebb 1280×800 px; ne süsd bele az élő
-  adatokat, mozgó pontokat, diagramokat vagy szövegeket.
+  adatokat, mozgó pontokat, diagramokat vagy szövegeket. A pontosan 1280×800-as
+  háttér a leggyorsabb: kisebb képnél belépéskor teljes képernyős méretezés fut.
 - Kisbetűs fájlnevek, alkönyvtár nélkül: például `solar.png`, `day.png`.
 - Az `image` elem a megadott `w`/`h` méretre skáláz; azonos oldalaránnyal
   dolgozz, különben torzul. Világos és sötét háttéren is ellenőrizd az éleket.
@@ -237,6 +238,28 @@ ismerete biztosít visszafelé kompatibilitást; a csomagformátum változatlan.
 
 A v3 külső témák célzott kompatibilitási áttekintése és a tesztek pontos
 határai: [external-template-review.md](external-template-review.md).
+
+## Hely a postaláda-jelnek (Master/Loxone)
+
+Ha a Loxone **Posta érkezett** állapota 1, egy 52×52 pixeles postaláda-jelvény
+jelenik meg a téma fejlécében. Külső téma `light` és `dark` jelenetében a bal felső
+sarka megadható:
+
+```json
+"mail_area": {"x": 614, "y": 28}
+```
+
+Hiányzó mező esetén a gyári témák saját, ellenőrzött helyet használnak, az
+ismeretlen külső témák a felső középső sávot (614, 6). Válassz olyan helyet, ahol
+a jelvény nem takar órát, értéket, időjárást, diagramot és az `assistant_area`
+területét.
+
+## Akku hátralévő idő
+
+A `battery_eta` forrású `value` elem egysoros szöveget ad (például „Még kb. 6 óra
+20 percig bírja (10%-ig)”). Szigetüzemben és áramszünetre készüléskor a firmware
+narancs kiemelő színnel írja felül a megadott színt. Részletek:
+[Akku diagnosztika](battery-diagnostics.md#hátralévő-idő).
 
 ## 24 órás napállás-idővonal
 
