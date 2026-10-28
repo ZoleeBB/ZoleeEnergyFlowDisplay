@@ -176,7 +176,10 @@ with tempfile.TemporaryDirectory(prefix='zolee-orientation-') as directory:
     subprocess.run([binary],check=True,timeout=10)
 main_source=(ROOT/'main/app_main.c').read_text()
 assert main_source.index('app_ui_init(s_active_rotation)') < main_source.index('app_storage_boot_mount()') < main_source.index('app_config_load_file(')
-assert 'app_display_boot_sync(' in main_source and 'orientation_verified_task' in main_source
+assert 'app_display_boot_sync(' in main_source
+# A 90 fokos próba/letiltás védelmet eltávolítottuk: indulás közbeni újraindítás
+# mindig visszaállította 270 fokra, pedig a 90 fokos mód stabil.
+assert 'orientation_verified_task' not in main_source and 'blocked' not in main_source
 ui_source=(ROOT/'main/app_ui.c').read_text()
 assert 'lv_display_set_rotation(s_panel_display' not in ui_source
 assert 'ESP_LV_ADAPTER_ROTATE_90' in ui_source and 'ESP_LV_ADAPTER_ROTATE_270' in ui_source

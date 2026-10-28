@@ -182,8 +182,8 @@ typedef enum
 } runtime_view_t;
 
 static runtime_view_t s_view = VIEW_NONE;
-/* Csak LVGL-lock alatt írjuk/olvassuk, a runtime várakozás közben elengedi. */
-static bool s_loading_frame_presented;
+/* Az adapter flush-visszajelzéséből állítjuk; a runtime zár nélkül olvassa. */
+static volatile bool s_loading_frame_presented;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
 static bool home_is_open(void);
 static void assistant_reset_widgets(void);

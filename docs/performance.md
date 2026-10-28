@@ -381,3 +381,15 @@ A régiónkénti bontás a soros konzolra kerül a `/api/diagnostics/tasks`
 lekérésekor (`heap_caps_print_heap_info`), a JPEG-dekóder indulási DMA-foglalása
 és a rendszerindítás végén a szabad DMA-memória pedig az eseménynaplóba.
 Méréssel kell eldönteni, melyik fogyasztót érdemes visszavenni.
+
+### Mit terhel még a DMA-keret
+
+A webes felület legfeljebb négy egyidejű kapcsolatot tart (`max_open_sockets`,
+LRU bontással), mert minden kapcsolat lwIP-puffereket köt le a DMA-képes belső
+RAM-ból. A sablonfájlok olvasása egyetlen, induláskor foglalt 8 KiB-os belső
+DMA-pufferen keresztül megy: az SD-vezérlő DMA-ja a PSRAM-ot nem éri el, így
+enélkül minden olvasás futásidőben foglalna átmeneti belső puffert.
+
+A betöltőkép megjelenésére a futtató feladat zár nélkül vár (illékony
+jelzőbit), mert a korábbi 20 ms-os zárpróbálkozások váltásonként több
+`Failed to acquire LVGL lock` adapter-hibasort írtak a naplóba.

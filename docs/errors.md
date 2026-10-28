@@ -275,3 +275,46 @@ tesztcsomagot. A verzió mostantól a commit rövid azonosítóját is tartalmaz
 `v0.0.0-ci.g<commit>`. A szabály változatlan: előzetes jelölésű verzió nem
 stabil kiadás, ezért az OTA és a témafrissítés továbbra is a GitHub legutóbbi
 kiadását keresi.
+
+## DMA-képes belső RAM: a valódi szűk keresztmetszet (2026-10-28)
+
+A `/api/diagnostics/tasks` soros konzolra írt régiós bontása szerint a belső
+RAM nem egyforma:
+
+```
+Heap summary for capabilities 0x00000008 (DMA):
+  At 0x4ffa2b40 len  32767  free   651  allocated  31360
+  At 0x4ffbafc0 len  19440  free    28  allocated  18204
+  At 0x4ff92c10 len 164784  free  2192  allocated 161064
+  Totals: free 2871 allocated 210628
+Heap summary for capabilities 0x00000804 (belső, 8 bites):
+  … + At 0x30100198 (TCM, 7784 B) és 0x501081ac (RTC, 32340 B): allocated 0
+  Totals: free 41879
+```
+
+A TCM és az RTC terület DMA-ra alkalmatlan, ezért a veremcsökkentéssel
+felszabadított ~23 KiB oda került, és a DMA-keretet nem növelte. Az SD-vezérlő
+és a kriptográfiai gyorsító viszont csak a DMA-képes régiókból tud foglalni,
+ahol 210 KiB-ból mindössze ~2,8 KiB maradt szabadon.
+
+Mérések ebből a körből:
+
+- A JPEG-dekóder indulási foglalása mindössze 416 B (113 103 -> 112 687),
+  tehát nem ő a fogyasztó; a korai létrehozás maradhat.
+- A rendszerindítás végén még 23 875 B szabad DMA-memória van, üzem közben
+  2871 B-ra csökken: a különbséget a hálózati kapcsolatok (Loxone WSS,
+  böngészőkapcsolatok) pufferei kötik le.
+
+Ezért a webszerver legfeljebb négy nyitott kapcsolatot tart (a legrégebbit
+magától bontja), a sablonfájlok olvasása pedig egyetlen, induláskor foglalt
+8 KiB-os belső DMA-pufferen keresztül fut, így a betöltés nem függ a
+pillanatnyi DMA-helyzettől.
+
+## A 90 fokos tájolás próbaidőszaka megszűnt
+
+A 90 fokos indulás korábban „próba" jelet kapott az NVS-ben, és csak 15
+másodperc hibátlan működés után vált véglegessé. Ha az eszköz ezen belül
+újraindult (például frissítés vagy kézi reset miatt), a következő indulás
+biztonsági 270 fokra váltott, és ismételt eset után le is tiltotta a 90 fokot.
+A 90 fokos mód azóta stabil, ezért a próba/letiltás állapot megszűnt: az NVS
+csak a kiválasztott tájolást tárolja, a config.json marad a hiteles forrás.

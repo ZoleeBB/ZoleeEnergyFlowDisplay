@@ -575,19 +575,21 @@ static bool template_loading_wait(void)
 {
     for (unsigned elapsed = 0; elapsed < 1000; elapsed += 10)
     {
+#ifdef APP_TEMPLATE_DESKTOP
+        /* Desktopon nincs adapter task; a szimulátor egyetlen szálon fut. */
         if (bsp_display_lock(20) == ESP_OK)
         {
-#ifdef APP_TEMPLATE_DESKTOP
-            /* Desktopon nincs adapter task; a szimulátor egyetlen szálon fut. */
             if (!s_loading_frame_presented) lv_refr_now(lv_obj_get_display(s_screen));
-#endif
-            bool ready = s_loading_frame_presented;
             bsp_display_unlock();
-            if (ready)
-            {
-                vTaskDelay(pdMS_TO_TICKS(85));
-                return true;
-            }
+        }
+#endif
+        /* A jelzőbit illékony, és az adapter flush-visszajelzése állítja: a
+         * zár felvétele nélkül is biztonságosan olvasható. A korábbi 20 ms-os
+         * próbálkozások váltásonként több adapter-hibasort írtak a naplóba. */
+        if (s_loading_frame_presented)
+        {
+            vTaskDelay(pdMS_TO_TICKS(85));
+            return true;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }

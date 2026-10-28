@@ -160,6 +160,29 @@ static unsigned char *file_buffer_alloc(size_t size)
     return malloc(size);
 }
 
+#ifndef APP_TEMPLATE_DESKTOP
+/*
+ * Az SD-vezérlő DMA-ja nem éri el közvetlenül a PSRAM-ot, ezért a PSRAM-ba
+ * irányuló olvasáshoz az illesztő futásidőben foglal belső átmeneti puffert.
+ * Ez pont abból a szűk DMA-keretből megy, ami üzem közben elfogyhat; ilyenkor
+ * `sdmmc_read_sectors: not enough mem` hibával megszakad a témabetöltés.
+ * Egyetlen, indulás közben foglalt darabon keresztül olvasunk: a futásidejű
+ * foglalás megszűnik, a betöltés pedig nem függ a pillanatnyi DMA-helyzettől.
+ */
+#define SD_CHUNK_BYTES 8192U
+static unsigned char *sd_chunk(void)
+{
+    static unsigned char *buffer;
+    static bool tried;
+    if (!buffer && !tried)
+    {
+        tried = true;
+        buffer = heap_caps_malloc(SD_CHUNK_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    }
+    return buffer;
+}
+#endif
+
 /*
  * Teljes fájl beolvasása egyetlen POSIX read() hívássorozattal.
  *
@@ -189,13 +212,26 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
         return NULL;
     }
     size_t done = 0;
-    while (done < n)
+#ifndef APP_TEMPLATE_DESKTOP
+    unsigned char *staging = sd_chunk();
+    while (staging && done < n)
     {
-        ssize_t chunk = read(fd, data + done, n - done);
+        size_t want = n - done < SD_CHUNK_BYTES ? n - done : SD_CHUNK_BYTES;
+        ssize_t chunk = read(fd, staging, want);
         if (chunk <= 0)
             break;
+        memcpy(data + done, staging, (size_t)chunk);
         done += (size_t)chunk;
     }
+    if (!staging)
+#endif
+        while (done < n)
+        {
+            ssize_t chunk = read(fd, data + done, n - done);
+            if (chunk <= 0)
+                break;
+            done += (size_t)chunk;
+        }
     close(fd);
     if (done != n)
     {

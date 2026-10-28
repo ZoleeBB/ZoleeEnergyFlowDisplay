@@ -979,6 +979,11 @@ esp_err_t app_web_start(const app_config_t *cfg)
     /* Az ESP-IDF beépített HTTP szerverének indítása. */
     httpd_config_t http_cfg = HTTPD_DEFAULT_CONFIG();
     http_cfg.max_uri_handlers = 64;
+    /* Minden nyitott kapcsolat lwIP-puffereket köt le a szűk, DMA-képes belső
+     * RAM-ból; a böngésző hatot is nyit. Négy elég a felülethez, a legrégebbit
+     * a szerver magától bontja, így marad keret az SD-nek és a TLS-nek. */
+    http_cfg.max_open_sockets = 4;
+    http_cfg.lru_purge_enable = true;
     http_cfg.stack_size = 12288;
     http_cfg.recv_wait_timeout = 5;
 
