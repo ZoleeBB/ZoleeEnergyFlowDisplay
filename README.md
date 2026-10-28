@@ -33,18 +33,24 @@ Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott 
 
 | Funkció | Röviden |
 | --- | --- |
-| Akku hátralévő idő | Az Akku diagnosztika témán: „Kb. 1 óra 40 perc múlva tele”, „Még kb. 6 óra 20 percig bírja (10%-ig)”; szigetüzemben és áramszünetre készülve kiemelve. [Részletek](docs/battery-diagnostics.md#hátralévő-idő) |
+| Akku hátralévő idő | Az Akku diagnosztika témán: „Kb. 1 óra 40 perc múlva tele”, „Még kb. 6 óra 20 percig bírja (15%-ig)”; szigetüzemben és áramszünetre készülve kiemelve. Alsó határ beállítás nélkül normál üzemben 15%, áramszünetnél és szigetüzemben 5%. [Részletek](docs/battery-diagnostics.md#hátralévő-idő) |
 | Jelenlétvezérelt Master | Loxone módban opcionális *Jelenlét* adat: éjjel 0 → teljes sötét, érintés vagy 1 → éjszakai fényerő. Párosítás nélkül minden a régi. [Részletek](docs/loxone-direct.md#jelenlét-és-postaláda-a-master-kijelzőn) |
 | Postaláda-jelzés | Loxone *Posta érkezett* (0/1) állapot: 1-nél postaláda-ikon minden téma fejlécében. |
 | 4B Mai összesítő | A 4B Slave-en vízszintes húzással napi termelés, fogyasztás, hálózat, akku és pénzügy. [Részletek](docs/slave-waveshare-4b.md#mai-összesítő) |
 | Mentés és visszaállítás | Beállítások letöltése/visszatöltése egy fájlban, belső flash-tartalék és automatikus visszaállítás új SD-kártyára. [Részletek](docs/backup.md) |
 | Témafrissítés GitHubról | A Sablonok oldalon jelzi az elavult gyári témákat, és egy kattintással frissíti őket. [Részletek](docs/templates.md#gyári-témák-frissítése-a-githubról) |
-| Új webes felület | Egységes, világos/sötét megjelenés, felső menü minden oldalon, mobilbarát elrendezés. |
+| Gyorsabb témaváltás | Natív 1280×800-as hátterek, valamint telepítés után a háttérben elkészülő, előre dekódolt kép-segédfájlok: a felépítésből és az első képkockából kimarad a PNG-dekódolás és az LVGL-méretezés. [Részletek](docs/performance.md) |
+| Mért témaváltás | Minden váltás egy sorban naplózza a fázisokat (betöltőkép, SD, csere, felépítés, első képkocka) a webes eseménynaplóba is. [Részletek](docs/performance.md#témaváltás-fázisidői-a-valódi-panelen) |
+| Megbízhatóbb lapozás | A betöltés közbeni húzás sem vész el, a sötét/világos háttér váltáskor is betöltődik, elakadt betöltésből a kijelző magától visszatér. [Részletek](docs/gestures.md) |
+| Új webes felület | Egységes, világos/sötét megjelenés, felső menü minden oldalon, mobilbarát elrendezés; a Loxone oldal zöld témával és áttekinthetőbb fogyasztó-/kártyaszerkesztővel. |
+| Egyszerűbb Loxone párosítás | Az időjárás, a nappálya, a jelenlét és a posta sorában nincs szorzó és eltolás; az SD foglaltság két tizedesre látszik. [Részletek](docs/loxone-direct.md) |
 | Kezelési útmutató | Minden gesztus és érintés egy helyen: [Kezelés és gesztusok](docs/gestures.md) |
 
-A Master és a 4B Slave firmware-ét is frissíteni kell; az Akku diagnosztika v2
-témához előbb a firmware, majd a `10-battery-diagnostics.zip` (vagy a Sablonok
-oldal GitHub-frissítése) szükséges.
+A Master és a 4B Slave firmware-ét is frissíteni kell. A firmware után érdemes a
+Sablonok oldalon az **Összes frissítése** gombbal letölteni a gyári témák új
+verzióit: az Akku diagnosztika hátralévő idő mezője és a natív hátterek ezekben
+érkeznek. A frissítés után a kijelző a háttérben, fájlonként elkészíti az előre
+dekódolt kép-segédfájlokat; ettől a témaváltás érezhetően gyorsabb lesz.
 
 ## Loxone Otthon kaputelefon-kijelzőként
 
