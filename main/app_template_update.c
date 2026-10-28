@@ -311,6 +311,13 @@ static bool select_tag(char tag[32], char detail[160])
 static void check_task(void *arg)
 {
     (void)arg;
+    /* A korábbi találatok azonnal eltűnnek: megszakadt vagy sikertelen
+     * ellenőrzés után ne maradjon a weben félkész vagy elavult lista. */
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memset(s_items, 0, sizeof(s_items));
+    s_count = 0;
+    s_tag[0] = 0;
+    xSemaphoreGive(s_lock);
     /* A TLS-kontextus a szabad belső RAM-tól függ, ezért a kérés előtti
      * állapotot naplózzuk: egy „kapcsolódás” hiba így nem marad okszerűtlen. */
     app_events_add(APP_EVENT_INFO, "Témafrissítés RAM: belső=%u B; legnagyobb belső=%u B; PSRAM=%u B",

@@ -519,7 +519,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "async function restartDevice(){"
         "const hu=document.documentElement.lang!=='en';"
         "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
-        "const m=document.getElementById('reboot-mask');m.style.display='flex';"
+        "const m=document.getElementById('reboot-mask');m.hidden=false;m.style.display='flex';"
         "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
         "const status=document.getElementById('reboot-state');"
         "const counter=document.getElementById('reboot-countdown');"

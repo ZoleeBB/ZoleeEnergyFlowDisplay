@@ -65,9 +65,21 @@ function removeButton(){
     assert(at('id="updates"')<at('id="update-message"'));
     assert(at('id="update-message"')<at('id="message"'));
     assert(at('id="message"')<at('id="list"'));
+    /* Az előnézetek betöltése alatt a telepítés és a frissítéskeresés zárva. */
+    assert.equal(nodes.get('update-check').disabled,true);
+    assert.equal(nodes.get('zip').disabled,true);
+    const thumbs=[];
+    for(const article of nodes.get('list').children)
+        for(const image of article.children[0].children)thumbs.push(image);
+    assert(thumbs.length>=2);
+    thumbs.forEach(image=>image.onload());
+    assert.equal(nodes.get('update-check').disabled,false);
+    assert.equal(nodes.get('zip').disabled,false);
     /* A GitHubos frissítés szakasza: a „Helyi újabb” állapot és a rejtett gomb. */
     await nodes.get('update-check').onclick();await settled();
     const rows=nodes.get('update-list').children[0].children;
+    /* Új keresés előtt a korábbi lista eltűnik, nem marad félkész találat. */
+    assert(nodes.get('update-list').children[0].children.length>0);
     assert.equal(rows[0].children[3].textContent,'Helyi újabb');
     assert.equal(nodes.get('update-all').hidden,false);
     assert.equal(nodes.get('update-all').textContent,'Összes frissítése (1)');
@@ -77,5 +89,5 @@ function removeButton(){
     assert.equal(nodes.get('update-all').hidden,true);
     /* A hidden attribútum erősebb a gombok display szabályánál. */
     assert(fs.readFileSync('assets/web/common.css','utf8').includes('[hidden]{display:none!important}'));
-    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes and a truly hidden bulk-update button');
+    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes, controls locked while previews load and a truly hidden bulk-update button');
 })().catch(error=>{console.error(error);process.exitCode=1;});
