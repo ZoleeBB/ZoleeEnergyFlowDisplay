@@ -35,6 +35,8 @@ const LoxoneHome = (() => {
     }
     function field(parent, title, entry, key, type = 'text', optional = false) {
         const label = create('label', title), input = create('input');
+        /* A kártyák rácsa a mező neve szerint osztja el a szélességet. */
+        label.setAttribute('data-field', key);
         input.type = type;
         if (type === 'checkbox') input.checked = !!entry[key];
         else input.value = entry[key] ?? '';
@@ -51,6 +53,7 @@ const LoxoneHome = (() => {
     }
     function select(parent, title, entry, key, choices) {
         const label = create('label', title), input = create('select');
+        label.setAttribute('data-field', key);
         input.id = domId(entry, key);
         for (const [value, text] of choices) {
             const option = create('option', text); option.value = value; input.append(option);
@@ -97,7 +100,12 @@ const LoxoneHome = (() => {
         preview.onerror = () => { preview.hidden = true; };
         const change = input.onchange;
         input.onchange = () => { change(); update(); };
-        input.parentNode.append(preview);
+        /* A választó és az előnézet egy sorban: a kártyán így kevesebb helyet
+         * foglal, és látszik, melyik ikonhoz tartozik. */
+        const row = create('div');
+        row.className = 'icon-row';
+        input.parentNode.append(row);
+        row.append(input, preview);
         update();
     }
     function source(parent, entry) {
@@ -236,7 +244,7 @@ const LoxoneHome = (() => {
             for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
                 const box = create('fieldset'), legend = create('legend', entry.name || 'Új elem');
                 box.append(legend);
-                const grid = create('div'); grid.className = 'grid'; box.append(grid);
+                const grid = create('div'); grid.className = 'grid card-grid'; box.append(grid);
                 field(grid, 'Név', entry, 'name');
                 iconField(grid, entry);
                 if (section === 'consumers') {
