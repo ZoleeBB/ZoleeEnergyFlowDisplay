@@ -382,6 +382,15 @@ Két javítás:
   memória nincs a gyorsítótár mögött, ezért flash-írás közben is biztonságos –
   a PSRAM-mal ellentétben. Ha az RTC-terület betelne, a régi, belső RAM-os
   foglalás a tartalék.
+- Az SD **írása** is a rögzített belső DMA-pufferen keresztül megy
+  (`app_templates_sd_write`): a letöltött és a kibontott tartalom PSRAM-ban
+  van, onnan a vezérlő nem tud közvetlenül írni, ezért a tömeges
+  sablonfrissítés `sdmmc_write_sectors: not enough mem` hibával és „SD-írási
+  hiba” / „Hiányzó, sérült vagy túl nagy PNG” üzenettel állt le.
+- Két letöltés között a telepítő megvárja, míg a DMA-keret 6 KiB fölé
+  kerül (legfeljebb 5 s): a sok egymás utáni TLS-kapcsolat leírói csak
+  késleltetve szabadulnak fel. Az SD-írási hiba üzenete a szabad DMA-t is
+  kiírja.
 - A FATFS ablak- és munkapufferei nem PSRAM-ból foglalódnak
   (`CONFIG_FATFS_ALLOC_PREFER_EXTRAM` kikapcsolva): PSRAM-ból az SD-vezérlő
   nem tud közvetlenül olvasni, így minden FAT-hozzáférés futásidejű átmeneti

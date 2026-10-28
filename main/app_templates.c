@@ -183,6 +183,29 @@ static unsigned char *sd_chunk(void)
 }
 #endif
 
+bool app_templates_sd_write(FILE *file, const void *data, size_t size)
+{
+    if (!file || (!data && size))
+        return false;
+#ifndef APP_TEMPLATE_DESKTOP
+    unsigned char *staging = sd_chunk();
+    if (staging)
+    {
+        const unsigned char *cursor = data;
+        for (size_t done = 0; done < size;)
+        {
+            size_t take = size - done < SD_CHUNK_BYTES ? size - done : SD_CHUNK_BYTES;
+            memcpy(staging, cursor + done, take);
+            if (fwrite(staging, 1, take, file) != take)
+                return false;
+            done += take;
+        }
+        return true;
+    }
+#endif
+    return fwrite(data, 1, size, file) == size;
+}
+
 /*
  * Teljes fájl beolvasása egyetlen POSIX read() hívássorozattal.
  *
@@ -1591,7 +1614,7 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     ok = f != NULL;
     if (f)
     {
-        ok = fwrite(raw, 1, raw_size, f) == raw_size;
+        ok = app_templates_sd_write(f, raw, raw_size);
         if (fclose(f))
             ok = false;
     }

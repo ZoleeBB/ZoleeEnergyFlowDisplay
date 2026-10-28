@@ -403,6 +403,23 @@ static void check_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/*
+ * Két letöltés között kivárás. A sok egymás utáni TLS-kapcsolat leírói és a
+ * hálózati pufferek ugyanabból a szűk, DMA-képes keretből mennek, mint az SD
+ * írása; felszabadulni időbe telik. Legfeljebb 5 másodpercet várunk rá.
+ */
+#define DMA_FLOOR_BYTES 6144U
+static void download_settle(void)
+{
+    vTaskDelay(pdMS_TO_TICKS(150));
+    for (unsigned waited = 0; waited < 20; waited++)
+    {
+        if (heap_caps_get_free_size(MALLOC_CAP_DMA) >= DMA_FLOOR_BYTES)
+            return;
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
+}
+
 /* Egy fájl a stage-be: a teljes tartalom egyetlen írással, rövid SD-zár alatt. */
 static bool stage_file(const char *name, const uint8_t *data, size_t size)
 {
@@ -411,7 +428,7 @@ static bool stage_file(const char *name, const uint8_t *data, size_t size)
     if (app_storage_lock() != ESP_OK)
         return false;
     FILE *file = fopen(path, "wb");
-    bool ok = file && fwrite(data, 1, size, file) == size;
+    bool ok = file && app_templates_sd_write(file, data, size);
     if (file && fclose(file) != 0)
         ok = false;
     app_storage_unlock();
@@ -441,6 +458,7 @@ static bool install_one(const char *tag, const char *id, char error[160])
         snprintf(error, 160, "A template.json nem tölthető le vagy hibás (%.90s)", s_reason);
     for (unsigned i = 0; ok && i < count; i++)
     {
+        download_settle();
         uint8_t *data = NULL;
         if (app_template_remote_url(url, sizeof(url), tag, id, files[i]))
             data = download(url, APP_TEMPLATE_PNG_MAX, &size);
@@ -448,7 +466,13 @@ static bool install_one(const char *tag, const char *id, char error[160])
         ok = fetched && stage_file(files[i], data, size);
         free(data);
         if (!ok)
-            snprintf(error, 160, "%.64s: %.80s", files[i], fetched ? "SD-írási hiba" : s_reason);
+        {
+            if (fetched)
+                snprintf(error, 160, "%.64s: SD-írási hiba (szabad DMA: %u B)", files[i],
+                         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA));
+            else
+                snprintf(error, 160, "%.64s: %.80s", files[i], s_reason);
+        }
     }
     free(files);
     if (ok && app_templates_install_downloaded(error) != ESP_OK)

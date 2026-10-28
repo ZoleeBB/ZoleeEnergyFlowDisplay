@@ -1,4 +1,5 @@
 #pragma once
+#include <stdio.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -74,6 +75,13 @@ esp_err_t app_templates_install(const char *zip_path, char error[160]);
 /* GitHubról letöltött téma: a fájlok a download stage-be kerülnek (az SD-n a
  * sablongyökér alatt), majd ugyanaz a validálás és atomi csere fut, mint ZIP-nél. */
 const char *app_templates_download_stage(void);
+/*
+ * Nagy puffer kiírása SD-re rögzített, belső DMA-pufferen keresztül.
+ * Az SD-vezérlő DMA-ja a PSRAM-ot nem éri el, ezért a közvetlen fwrite minden
+ * blokkhoz futásidejű átmeneti puffert kérne a szűk, DMA-képes keretből
+ * („sdmmc_write_sectors: not enough mem”). Igaz, ha a teljes tartalom kiment.
+ */
+bool app_templates_sd_write(FILE *file, const void *data, size_t size);
 void app_templates_download_reset(void);
 esp_err_t app_templates_install_downloaded(char error[160]);
 /* Visszaadja a telepített téma JSON-ját (malloc); a hívó szabadítja fel. */
