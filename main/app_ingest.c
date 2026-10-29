@@ -56,6 +56,13 @@ esp_err_t app_ingest_process(
 
     if (result == ESP_OK)
     {
+        /* Az autótöltési összeg a Loxone fogyasztói párosításból származik;
+         * HTTP/MQTT csomagban ugyanilyen nevű mező nem kerülhet a statisztikába. */
+        if (source != APP_DATA_LOXONE)
+        {
+            sample.ev_charging_valid = false;
+            sample.ev_charging_kw = 0;
+        }
         app_stats_process_sample(&sample);
         app_state_set_sample(&sample);
     }

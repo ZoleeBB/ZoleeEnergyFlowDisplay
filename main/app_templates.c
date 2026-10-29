@@ -65,6 +65,31 @@ static app_template_info_t catalogue[APP_TEMPLATE_MAX];
 static unsigned count, generation = 1;
 static char selected[33] = "builtin";
 static bool save_selection;
+static bool loxone_mode;
+
+static bool template_mode_allowed(const char *id)
+{
+    return loxone_mode || strcmp(id, APP_TEMPLATE_EV_ID) != 0;
+}
+
+void app_templates_set_loxone_mode(bool enabled)
+{
+    if (lock)
+        xSemaphoreTake(lock, portMAX_DELAY);
+    if (loxone_mode != enabled)
+    {
+        loxone_mode = enabled;
+        if (!template_mode_allowed(selected))
+        {
+            snprintf(selected, sizeof(selected), "builtin");
+            save_selection = true;
+        }
+        generation++;
+    }
+    if (lock)
+        xSemaphoreGive(lock);
+}
+
 static bool home_ready;
 static app_template_info_t home_info;
 static unsigned home_generation = 1;
@@ -465,7 +490,7 @@ static bool validate_scene(const cJSON *scene)
                                         "chart",
                                         "weather",
                                         NULL};
-    static const char *const sources[] = {"pv",
+    static const char *const sources[] = {"ev_charging", "ev_charging_today", "ev_charging_solar", "grid_title", "pv",
                                           "home",
                                           "grid",
                                           "battery",
@@ -1359,7 +1384,7 @@ esp_err_t app_templates_select(const char *id)
     xSemaphoreTake(lock, portMAX_DELAY);
     esp_err_t result = ESP_ERR_NOT_FOUND;
     for (unsigned i = 0; i < count; i++)
-        if (!strcmp(id, catalogue[i].id))
+        if (!strcmp(id, catalogue[i].id) && template_mode_allowed(id))
         {
             snprintf(selected, 33, "%s", id);
             generation++;
@@ -1384,7 +1409,8 @@ bool app_templates_step_available(int direction, bool sun_available)
     for (unsigned attempt = 0; attempt < count; attempt++)
     {
         i = direction > 0 ? (i + 1) % count : (i + count - 1) % count;
-        if (sun_available || strcmp(catalogue[i].id, "09-solar-journey"))
+        if (template_mode_allowed(catalogue[i].id) &&
+            (sun_available || strcmp(catalogue[i].id, "09-solar-journey")))
         {
             snprintf(selected, 33, "%s", catalogue[i].id);
             generation++;
@@ -1693,6 +1719,13 @@ bool app_templates_load_pending(app_template_view_t *out)
 {
     if (!lock || !xSemaphoreTake(lock, 0))
         return false;
+    /* A mentett kiválasztás sem kerülheti meg az adatfogadási módot. */
+    if (!template_mode_allowed(selected))
+    {
+        snprintf(selected, sizeof(selected), "builtin");
+        generation++;
+        save_selection = true;
+    }
     if (out->generation == generation)
     {
         /* A téma már betöltődött: most, a megjelenítés után mentjük a
@@ -1735,10 +1768,14 @@ bool app_templates_load_pending(app_template_view_t *out)
     }
     snprintf(next->id, 33, "%s", selected);
     next->generation = generation;
-    next->catalogue_count = count;
+    next->catalogue_count = 0;
     for (unsigned i = 0; i < count; i++)
-        if (!strcmp(selected, catalogue[i].id))
-            next->catalogue_index = i;
+        if (template_mode_allowed(catalogue[i].id))
+        {
+            if (!strcmp(selected, catalogue[i].id))
+                next->catalogue_index = next->catalogue_count;
+            next->catalogue_count++;
+        }
     char directory[256], path[256], error[160];
     path_join(directory, app_templates_root(), selected);
     bool ok = !strcmp(selected, "builtin");

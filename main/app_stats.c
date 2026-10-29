@@ -49,6 +49,11 @@ typedef struct {
     bool valid;
     uint32_t revision;
     uint32_t saved_revision;
+    /* Az autóba töltött napi energia (kWh). Külön mező, hogy a meglévő
+     * energiamérleg és a v3 napi formátum ellenőrzése változatlan maradjon. */
+    double ev_charging_kwh;
+    /* Ebből a napelemre jutó rész: a ház pillanatnyi forrásmegosztása szerint. */
+    double ev_charging_solar_kwh;
 } day_data_t;
 
 static SemaphoreHandle_t s_mutex;
@@ -240,8 +245,29 @@ static app_energy_sample_t interpolate_sample(
     x.power_bat_kw = a->power_bat_kw + (b->power_bat_kw - a->power_bat_kw) * fraction;
     x.power_pv_kw = a->power_pv_kw + (b->power_pv_kw - a->power_pv_kw) * fraction;
     x.power_full_kw = a->power_full_kw + (b->power_full_kw - a->power_full_kw) * fraction;
+    /* Az autótöltést csak két érvényes minta között integráljuk. */
+    x.ev_charging_valid = a->ev_charging_valid && b->ev_charging_valid;
+    x.ev_charging_kw = x.ev_charging_valid
+        ? a->ev_charging_kw + (b->ev_charging_kw - a->ev_charging_kw) * fraction
+        : 0;
     x.received_epoch_s = epoch_s;
     return x;
+}
+
+/* Az autótöltés napelemes része egy mintában (kW). A ház terhelését
+ * (PowerFull, benne az autótöltéssel) a közös felosztás szerinti források
+ * arányában osztjuk: az autó a közvetlen napelemes rész ugyanakkora
+ * hányadát kapja, mint bármely más fogyasztó. Akkuból vagy hálózatból
+ * fedezett rész nem számít napelemesnek. */
+static double ev_solar_kw(const app_energy_sample_t *x)
+{
+    if (!x->ev_charging_valid || !(x->ev_charging_kw > 0))
+        return 0;
+    double load = fmax(0, x->power_full_kw);
+    if (load <= 0)
+        return 0;
+    app_energy_split_t split = app_energy_split(x->power_pv_kw, load, x->power_bat_kw);
+    return x->ev_charging_kw * fmin(1., fmax(0., split.pv_home / load));
 }
 
 /* Futó átlag frissítése az aktuális ötperces grafikon-slotban. */
@@ -294,6 +320,12 @@ static void integrate_pair(const app_energy_sample_t *previous,const app_energy_
             app_energy_totals_t energy=energy_between(&a,&b,(next-cursor)/3600.);
             totals_add(&day->totals,&energy);
             totals_add(&day->slots[slot_for((time_t)cursor)].energy,&energy);
+            if (a.ev_charging_valid && b.ev_charging_valid)
+            {
+                double hours = (next - cursor) / 3600.;
+                day->ev_charging_kwh += (a.ev_charging_kw + b.ev_charging_kw) / 2. * hours;
+                day->ev_charging_solar_kwh += (ev_solar_kw(&a) + ev_solar_kw(&b)) / 2. * hours;
+            }
             unsigned slot = (unsigned)slot_for((time_t)cursor);
             if (trusted_night_time && s_cfg.data_recept_mode == APP_DATA_LOXONE && slot < 48 && duration <= 30 &&
                 previous->night_mode && current->night_mode &&
@@ -409,6 +441,14 @@ static cJSON *day_to_json(const day_data_t *day)
     cJSON_AddNumberToObject(root, "revision", day->revision);
     cJSON_AddStringToObject(root, "date", day->date);
     cJSON_AddItemToObject(root, "totals", totals_to_json(&day->totals));
+    /* Opcionális mező: a régebbi firmware figyelmen kívül hagyja. */
+    if (day->ev_charging_kwh > 0 &&
+        (!cJSON_AddNumberToObject(root, "ev_charging_kwh", day->ev_charging_kwh) ||
+         !cJSON_AddNumberToObject(root, "ev_charging_solar_kwh", day->ev_charging_solar_kwh)))
+    {
+        cJSON_Delete(root);
+        return NULL;
+    }
     cJSON *battery = app_battery_to_json(&day->battery);
     if (!battery || !cJSON_AddItemToObject(root, "battery_diagnostics", battery))
     {
@@ -496,6 +536,24 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
         parsed->revision=(uint32_t)revision->valuedouble;
     }
     parsed->saved_revision=parsed->revision;
+
+    cJSON *ev_charging = cJSON_GetObjectItemCaseSensitive(root, "ev_charging_kwh");
+    if (ev_charging)
+    {
+        if (!cJSON_IsNumber(ev_charging) || !isfinite(ev_charging->valuedouble) ||
+            ev_charging->valuedouble < 0 || ev_charging->valuedouble > 24000)
+            goto invalid;
+        parsed->ev_charging_kwh = ev_charging->valuedouble;
+    }
+    cJSON *ev_solar = cJSON_GetObjectItemCaseSensitive(root, "ev_charging_solar_kwh");
+    if (ev_solar)
+    {
+        /* A napelemes rész nem lehet több a teljes autótöltésnél. */
+        if (!cJSON_IsNumber(ev_solar) || !isfinite(ev_solar->valuedouble) || ev_solar->valuedouble < 0 ||
+            ev_solar->valuedouble > parsed->ev_charging_kwh + 1e-6)
+            goto invalid;
+        parsed->ev_charging_solar_kwh = fmin(ev_solar->valuedouble, parsed->ev_charging_kwh);
+    }
 
     if (!totals_from_json(totals, &parsed->totals)) {
         goto invalid;
@@ -1139,6 +1197,8 @@ void app_stats_get_snapshot(app_stats_snapshot_t *out)
     memset(out, 0, sizeof(*out));
     snprintf(out->date, sizeof(out->date), "%s", s_today.date);
     out->totals = s_today.totals;
+    out->ev_charging_today_kwh = s_today.ev_charging_kwh;
+    out->ev_charging_solar_today_kwh = s_today.ev_charging_solar_kwh;
     app_battery_report(&s_today.battery, time(NULL), &out->battery);
     out->reference_valid = true;
     out->reference_energy = s_cfg.energy;

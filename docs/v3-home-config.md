@@ -226,7 +226,8 @@ A kapcsoló a visszaérkező értéket mutatja, nyugta vagy érintés nem válto
 optimistán. Friss kapcsolat, támogatott párosítás és érvényes kapcsolóállapot nélkül
 a vezérlés tiltott. 2 másodpercnél régebbi sorba állított kérés nem hajtható végre.
 
-A telepítés/tesztelés teljes v3 fejlesztési ágra vonatkozik; v3 release még nincs.
+A fejlesztéskori v3 ellenőrzési naplót a [fejlesztési terv](v3-development-plan.md),
+az aktuális firmware telepítését az [USB útmutató](usb-install.md) ismerteti.
 
 
 ## Többoldalas memória- és képszerződés
@@ -251,3 +252,14 @@ háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
 A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is
 ad. Ezek nem kerülnek az aktív LVGL-képek közé. A webes szerkesztő telepített
 csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan figyelmeztet.
+
+## Kompakt szerkesztő és autótöltés
+
+A Fogyasztók és az Otthon-kártyák minden beállítása látható, tömör mezőrácsban,
+külön nagy ikonelőnézettel. A meglévő színek, feliratok és zöld legendák megmaradnak.
+Az ikonok magyar név szerinti ABC-sorrendet kapnak. Az `ev-charger` ikonnal jelölt
+fogyasztók összegét az [Elektromos autó téma](electric-car.md) jeleníti meg.
+
+A téma a mai töltési kWh-t és a közvetlen napelemes rész becsült arányát is
+megjeleníti. A ház teljes fogyasztása továbbra is a `PowerFull`; az autótöltés
+nem adódik hozzá még egyszer. [Statisztikai számítások](statistics.md#autótöltés-és-napelemes-arány).

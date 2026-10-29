@@ -186,3 +186,16 @@ a kézzel indítható kétirányú hangkapcsolatnak a beállítása: [Loxone kap
 Ugyanitt menthető külön a hangszóró hangereje és a mikrofon erősítése.
 Az aktív beszélgetés csengetés nélkül is nyitva tartja a videót; elfogadott
 kapunyitás után 5 másodperccel bont, és csengetés hiányában az ablak is bezárul.
+
+## Elektromos autótöltés
+
+A `/loxone` oldal **Fogyasztók** szakaszában az autótöltéshez tartozó mérőknél
+válaszd az **Elektromos autótöltő** (`ev-charger`) ikont, és a szorzóval válts
+kW-ra (W esetén `0.001`). Több ilyen fogyasztó érvényes teljesítménye összeadódik;
+ugyanazt a mérést csak egyszer vedd fel. Az `electric-car` ikon és az
+Otthon-kártyák nem számítanak bele.
+
+A `11-electric-car` téma az élő teljesítményt, a mai töltési energiát és annak
+becsült közvetlen napelemes arányát mutatja. Töltő nélkül is választható,
+rejtett autós adatokkal; az Energiaáramlás tiltás ezt a témát is letiltja.
+[Telepítés, adathiány és számítások](electric-car.md).

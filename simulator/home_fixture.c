@@ -88,6 +88,15 @@ bool app_loxone_signals(app_loxone_signals_t *out)
 
 /* A desktop bemutató nem szimulál csendben valódi energiaajánlást.
  * A render-teszt külön, explicit szintetikus bemenettel lépteti a modellt. */
+bool app_loxone_ev_snapshot(app_ev_charging_t *out)
+{
+    if (!out)
+        return false;
+    *out = app_ev_charging_sum(&app_sim_home_config, &app_sim_home_values,
+                               app_sim_home_enabled && app_sim_home_connected);
+    return app_sim_home_enabled;
+}
+
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
 {
     memset(out, 0, sizeof(*out));

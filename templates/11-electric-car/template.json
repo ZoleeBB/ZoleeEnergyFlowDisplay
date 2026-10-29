@@ -1,0 +1,1436 @@
+{
+  "schema": 1,
+  "id": "11-electric-car",
+  "name": "Elektromos autó",
+  "version": 5,
+  "light": {
+    "background": "#10251F",
+    "home_hotspot": {
+      "x": 350,
+      "y": 320,
+      "w": 435,
+      "h": 240
+    },
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "day.png"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 10,
+        "w": 1224,
+        "h": 88,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 22,
+        "w": 245,
+        "h": 48,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Zolee Energy Flow\nMonitor",
+        "text_en": "Zolee Energy Flow\nMonitor"
+      },
+      {
+        "type": "label",
+        "x": 410,
+        "y": 22,
+        "w": 300,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Elektromos autó",
+        "text_en": "Electric car"
+      },
+      {
+        "type": "value",
+        "x": 930,
+        "y": 20,
+        "w": 160,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "date"
+      },
+      {
+        "type": "value",
+        "x": 930,
+        "y": 48,
+        "w": 160,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "clock"
+      },
+      {
+        "type": "weather",
+        "x": 1096,
+        "y": 26,
+        "w": 64,
+        "h": 64,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1166,
+        "y": 28,
+        "w": 84,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "temperature"
+      },
+      {
+        "type": "value",
+        "x": 1166,
+        "y": 56,
+        "w": 84,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "wind"
+      },
+      {
+        "type": "value",
+        "x": 340,
+        "y": 64,
+        "w": 580,
+        "h": 30,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "status",
+        "hide_when_normal": true
+      },
+      {
+        "type": "flow",
+        "source": "grid",
+        "x": 180,
+        "y": 247,
+        "w": 204,
+        "h": 192,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 88
+          },
+          {
+            "x": 105,
+            "y": 117
+          },
+          {
+            "x": 203,
+            "y": 191
+          }
+        ],
+        "curve": "bezier",
+        "color": "#FF5068",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3,
+        "negative_color": "#FFE268"
+      },
+      {
+        "type": "flow",
+        "source": "pv",
+        "x": 383,
+        "y": 270,
+        "w": 264,
+        "h": 169,
+        "points": [
+          {
+            "x": 263,
+            "y": 0
+          },
+          {
+            "x": 220,
+            "y": 79
+          },
+          {
+            "x": 49,
+            "y": 33
+          },
+          {
+            "x": 0,
+            "y": 168
+          }
+        ],
+        "curve": "bezier",
+        "color": "#41E793",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "battery",
+        "x": 172,
+        "y": 438,
+        "w": 212,
+        "h": 66,
+        "points": [
+          {
+            "x": 0,
+            "y": 28
+          },
+          {
+            "x": 48,
+            "y": 65
+          },
+          {
+            "x": 143,
+            "y": 43
+          },
+          {
+            "x": 211,
+            "y": 0
+          }
+        ],
+        "curve": "bezier",
+        "color": "#55BFFF",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "home",
+        "x": 383,
+        "y": 438,
+        "w": 151,
+        "h": 59,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 17,
+            "y": 47
+          },
+          {
+            "x": 87,
+            "y": 58
+          },
+          {
+            "x": 150,
+            "y": 58
+          }
+        ],
+        "curve": "bezier",
+        "color": "#FFE268",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "ev_charging",
+        "x": 822,
+        "y": 500,
+        "w": 161,
+        "h": 81,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 10,
+            "y": 41
+          },
+          {
+            "x": 40,
+            "y": 80
+          },
+          {
+            "x": 79,
+            "y": 80
+          },
+          {
+            "x": 127,
+            "y": 80
+          },
+          {
+            "x": 129,
+            "y": 32
+          },
+          {
+            "x": 160,
+            "y": 28
+          }
+        ],
+        "curve": "bezier",
+        "color": "#51D5F5",
+        "radius": 2,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3,
+        "inactive_opacity": 0,
+        "inactive_glow_opacity": 0
+      },
+      {
+        "type": "box",
+        "x": 880,
+        "y": 112,
+        "w": 224,
+        "h": 83,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 892,
+        "y": 120,
+        "w": 200,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Napelem termelés",
+        "text_en": "Solar production"
+      },
+      {
+        "type": "value",
+        "x": 892,
+        "y": 146,
+        "w": 200,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "pv"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 270,
+        "w": 224,
+        "h": 83,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 278,
+        "w": 200,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "grid_title"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 304,
+        "w": 200,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "grid"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 549,
+        "w": 252,
+        "h": 115,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 557,
+        "w": 228,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Akkumulátor",
+        "text_en": "Battery"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 583,
+        "w": 228,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 628,
+        "w": 110,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "soc"
+      },
+      {
+        "type": "value",
+        "x": 172,
+        "y": 628,
+        "w": 96,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery_temp"
+      },
+      {
+        "type": "box",
+        "x": 510,
+        "y": 574,
+        "w": 280,
+        "h": 83,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 522,
+        "y": 582,
+        "w": 256,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "A ház teljes fogyasztása",
+        "text_en": "Total home consumption"
+      },
+      {
+        "type": "value",
+        "x": 522,
+        "y": 608,
+        "w": 256,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "home"
+      },
+      {
+        "type": "box",
+        "x": 952,
+        "y": 585,
+        "w": 300,
+        "h": 103,
+        "opacity": 150,
+        "radius": 12,
+        "source": "ev_charging",
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 964,
+        "y": 593,
+        "w": 140,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Autótöltés",
+        "text_en": "EV charging",
+        "source": "ev_charging"
+      },
+      {
+        "type": "value",
+        "x": 964,
+        "y": 619,
+        "w": 140,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging"
+      },
+      {
+        "type": "label",
+        "x": 1110,
+        "y": 595,
+        "w": 130,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Ma összesen",
+        "text_en": "Today",
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 1110,
+        "y": 623,
+        "w": 130,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 964,
+        "y": 661,
+        "w": 276,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_solar"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai termelés",
+        "text_en": "Production today"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "production_today"
+      },
+      {
+        "type": "box",
+        "x": 440,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 452,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai fogyasztás",
+        "text_en": "Consumption today"
+      },
+      {
+        "type": "value",
+        "x": 452,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "consumption_today"
+      },
+      {
+        "type": "box",
+        "x": 852,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 864,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai visszatáplálás",
+        "text_en": "Export today"
+      },
+      {
+        "type": "value",
+        "x": 864,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "export_today"
+      }
+    ],
+    "assistant_area": {
+      "x": 340,
+      "y": 12,
+      "w": 570,
+      "h": 48
+    },
+    "mail_area": {
+      "x": 280,
+      "y": 14
+    }
+  },
+  "dark": {
+    "background": "#10251F",
+    "home_hotspot": {
+      "x": 350,
+      "y": 320,
+      "w": 435,
+      "h": 240
+    },
+    "elements": [
+      {
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "w": 1280,
+        "h": 800,
+        "file": "night.png"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 10,
+        "w": 1224,
+        "h": 88,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 22,
+        "w": 245,
+        "h": 48,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Zolee Energy Flow\nMonitor",
+        "text_en": "Zolee Energy Flow\nMonitor"
+      },
+      {
+        "type": "label",
+        "x": 410,
+        "y": 22,
+        "w": 300,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Elektromos autó",
+        "text_en": "Electric car"
+      },
+      {
+        "type": "value",
+        "x": 930,
+        "y": 20,
+        "w": 160,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "date"
+      },
+      {
+        "type": "value",
+        "x": 930,
+        "y": 48,
+        "w": 160,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "clock"
+      },
+      {
+        "type": "weather",
+        "x": 1096,
+        "y": 26,
+        "w": 64,
+        "h": 64,
+        "files": {
+          "sunny": "weather_sunny.png",
+          "partly_cloudy": "weather_partly_cloudy.png",
+          "cloudy": "weather_cloudy.png",
+          "rain": "weather_rain.png",
+          "snow": "weather_snow.png",
+          "night": "weather_night.png"
+        }
+      },
+      {
+        "type": "value",
+        "x": 1166,
+        "y": 28,
+        "w": 84,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "temperature"
+      },
+      {
+        "type": "value",
+        "x": 1166,
+        "y": 56,
+        "w": 84,
+        "h": 28,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "wind"
+      },
+      {
+        "type": "value",
+        "x": 340,
+        "y": 64,
+        "w": 580,
+        "h": 30,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "status",
+        "hide_when_normal": true
+      },
+      {
+        "type": "flow",
+        "source": "grid",
+        "x": 180,
+        "y": 247,
+        "w": 204,
+        "h": 192,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 88
+          },
+          {
+            "x": 105,
+            "y": 117
+          },
+          {
+            "x": 203,
+            "y": 191
+          }
+        ],
+        "curve": "bezier",
+        "color": "#FF5068",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3,
+        "negative_color": "#FFE268"
+      },
+      {
+        "type": "flow",
+        "source": "pv",
+        "x": 383,
+        "y": 270,
+        "w": 264,
+        "h": 169,
+        "points": [
+          {
+            "x": 263,
+            "y": 0
+          },
+          {
+            "x": 220,
+            "y": 79
+          },
+          {
+            "x": 49,
+            "y": 33
+          },
+          {
+            "x": 0,
+            "y": 168
+          }
+        ],
+        "curve": "bezier",
+        "color": "#41E793",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "battery",
+        "x": 172,
+        "y": 438,
+        "w": 212,
+        "h": 66,
+        "points": [
+          {
+            "x": 0,
+            "y": 28
+          },
+          {
+            "x": 48,
+            "y": 65
+          },
+          {
+            "x": 143,
+            "y": 43
+          },
+          {
+            "x": 211,
+            "y": 0
+          }
+        ],
+        "curve": "bezier",
+        "color": "#55BFFF",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "home",
+        "x": 383,
+        "y": 438,
+        "w": 151,
+        "h": 59,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 17,
+            "y": 47
+          },
+          {
+            "x": 87,
+            "y": 58
+          },
+          {
+            "x": 150,
+            "y": 58
+          }
+        ],
+        "curve": "bezier",
+        "color": "#FFE268",
+        "radius": 3,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3
+      },
+      {
+        "type": "flow",
+        "source": "ev_charging",
+        "x": 822,
+        "y": 500,
+        "w": 161,
+        "h": 80,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 13,
+            "y": 57
+          },
+          {
+            "x": 55,
+            "y": 79
+          },
+          {
+            "x": 77,
+            "y": 79
+          },
+          {
+            "x": 127,
+            "y": 79
+          },
+          {
+            "x": 131,
+            "y": 29
+          },
+          {
+            "x": 160,
+            "y": 27
+          }
+        ],
+        "curve": "bezier",
+        "color": "#51D5F5",
+        "radius": 2,
+        "glow": 4,
+        "dot_size": 7,
+        "dot_count": 3,
+        "inactive_opacity": 0,
+        "inactive_glow_opacity": 0
+      },
+      {
+        "type": "box",
+        "x": 880,
+        "y": 112,
+        "w": 224,
+        "h": 83,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 892,
+        "y": 120,
+        "w": 200,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Napelem termelés",
+        "text_en": "Solar production"
+      },
+      {
+        "type": "value",
+        "x": 892,
+        "y": 146,
+        "w": 200,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "pv"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 270,
+        "w": 224,
+        "h": 83,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 278,
+        "w": 200,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "grid_title"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 304,
+        "w": 200,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "grid"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 549,
+        "w": 252,
+        "h": 115,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 557,
+        "w": 228,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Akkumulátor",
+        "text_en": "Battery"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 583,
+        "w": 228,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 628,
+        "w": 110,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "soc"
+      },
+      {
+        "type": "value",
+        "x": 172,
+        "y": 628,
+        "w": 96,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery_temp"
+      },
+      {
+        "type": "box",
+        "x": 510,
+        "y": 574,
+        "w": 280,
+        "h": 83,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 522,
+        "y": 582,
+        "w": 256,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "A ház teljes fogyasztása",
+        "text_en": "Total home consumption"
+      },
+      {
+        "type": "value",
+        "x": 522,
+        "y": 608,
+        "w": 256,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "home"
+      },
+      {
+        "type": "box",
+        "x": 952,
+        "y": 585,
+        "w": 300,
+        "h": 103,
+        "opacity": 175,
+        "radius": 12,
+        "source": "ev_charging",
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 964,
+        "y": 593,
+        "w": 140,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Autótöltés",
+        "text_en": "EV charging",
+        "source": "ev_charging"
+      },
+      {
+        "type": "value",
+        "x": 964,
+        "y": 619,
+        "w": 140,
+        "h": 40,
+        "font": 28,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging"
+      },
+      {
+        "type": "label",
+        "x": 1110,
+        "y": 595,
+        "w": 130,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Ma összesen",
+        "text_en": "Today",
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 1110,
+        "y": 623,
+        "w": 130,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 964,
+        "y": 661,
+        "w": 276,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_solar"
+      },
+      {
+        "type": "box",
+        "x": 28,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 40,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai termelés",
+        "text_en": "Production today"
+      },
+      {
+        "type": "value",
+        "x": 40,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "production_today"
+      },
+      {
+        "type": "box",
+        "x": 440,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 452,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai fogyasztás",
+        "text_en": "Consumption today"
+      },
+      {
+        "type": "value",
+        "x": 452,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "consumption_today"
+      },
+      {
+        "type": "box",
+        "x": 852,
+        "y": 710,
+        "w": 400,
+        "h": 68,
+        "opacity": 180,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
+        "type": "label",
+        "x": 864,
+        "y": 717,
+        "w": 375,
+        "h": 24,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Mai visszatáplálás",
+        "text_en": "Export today"
+      },
+      {
+        "type": "value",
+        "x": 864,
+        "y": 742,
+        "w": 375,
+        "h": 32,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "export_today"
+      }
+    ],
+    "assistant_area": {
+      "x": 340,
+      "y": 12,
+      "w": 570,
+      "h": 48
+    },
+    "mail_area": {
+      "x": 280,
+      "y": 14
+    }
+  }
+}

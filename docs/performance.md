@@ -305,6 +305,20 @@ Ellenőrzés: a 4B szimulátor 30, a Slave kaputelefon-preview 10 üresjárati
 frissítésen át számolja az `LV_EVENT_INVALIDATE_AREA` eseményeket (elvárt: 0).
 A régi kód mindkét teszten megbukik.
 
+- **Master, 2026-10-29**: a 09 Nap pálya naphalója (keret- és árnyékstílus) és a
+  beépített Rendszer nézet energiaút-vonalainak színe, valamint a hálózati és
+  állapotikon képe is csak változáskor íródik. Előtte változatlan adatnál a 09
+  körönként 8, a Rendszer nézet 12 területet érvénytelenített, és az animáció
+  minden képkockán a teljes vonal-befoglalókat újrarajzolta (Rendszer nézet: 30
+  tick alatt 3,55 helyett 0,02 teljes képkocka; 09: 0,17 helyett 0,02).
+
+Master-ellenőrzés: a `tests/preview/preview.c` `test_idle_redraw_all` a
+renderköltség-futásban (`ZOLEE_RENDER_COST_ONLY=1`) minden telepített témát
+nappal és éjjel, valamint a Loxone fogyasztói és összes Otthon-kártyalapját a
+valódi 200 ms-os körrel (`render_runtime`, asszisztens, postaláda) 10 körön át
+méri; elvárt 0 érvénytelenítés. Hibakereséshez `IDLE_REPORT=1` kiírja az
+érvénytelenített területeket és objektumokat.
+
 **Képpont-összevetés részleges frissítésnél.** Az LVGL szoftveres renderelője a
 részletekben rajzolt átméretezett képeknél és élsimított íveknél 1–2 (ritkán
 több) egységnyi eltérést adhat a teljes újrarajzoláshoz képest; ez a régi kódban

@@ -1,5 +1,6 @@
 /* Valódi numerikus Loxone-tábla, null/0 és korlátos parancsépítés. */
 #include "app_loxone_home_runtime.h"
+#include "app_ev_charging.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -78,6 +79,36 @@ static void action_target_test(void)
 
 int main(void)
 {
+    /* Az ikon dönt, nem az elem neve vagy a kártyák ikonkészlete. */
+    static lx_home_config_t ev_config;
+    lx_home_values_t ev_values = {0};
+    app_ev_charging_t ev = app_ev_charging_sum(&ev_config, &ev_values, true);
+    assert(!ev.configured && !ev.valid && ev.power_kw == 0);
+    ev_config.consumer_count = 3;
+    strcpy(ev_config.consumers[0].icon, "ev-charger");
+    strcpy(ev_config.consumers[1].icon, "ev-charger");
+    strcpy(ev_config.consumers[2].icon, "electric-car");
+    ev_values.consumers[0] = (lx_home_value_t){.value = 3.6, .valid = true};
+    ev_values.consumers[1] = (lx_home_value_t){.value = 7.2, .valid = true};
+    ev_values.consumers[2] = (lx_home_value_t){.value = 100, .valid = true};
+    ev = app_ev_charging_sum(&ev_config, &ev_values, true);
+    assert(ev.configured && ev.valid && fabs(ev.power_kw - 10.8) < 1e-9);
+    ev_values.consumers[1].valid = false;
+    ev = app_ev_charging_sum(&ev_config, &ev_values, true);
+    assert(ev.configured && !ev.valid && ev.power_kw == 0);
+    ev_values.consumers[1].valid = true;
+    ev = app_ev_charging_sum(&ev_config, &ev_values, false);
+    assert(ev.configured && !ev.valid && ev.power_kw == 0);
+    ev_values.consumers[0].value = 0;
+    ev_values.consumers[1].value = .0009;
+    ev = app_ev_charging_sum(&ev_config, &ev_values, true);
+    assert(ev.valid && ev.power_kw == 0);
+    ev_values.consumers[1].value = .001;
+    assert(app_ev_charging_sum(&ev_config, &ev_values, true).power_kw == .001);
+    ev_values.consumers[1].value = NAN;
+    assert(!app_ev_charging_sum(&ev_config, &ev_values, true).valid);
+    ev_values.consumers[1].value = -1;
+    assert(!app_ev_charging_sum(&ev_config, &ev_values, true).valid);
     action_target_test();
     static lx_home_config_t config; lx_home_values_t values = {0};
     config.consumer_count = 1; config.card_count = 2;

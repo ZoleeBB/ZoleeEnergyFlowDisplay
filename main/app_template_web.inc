@@ -26,7 +26,7 @@ static esp_err_t template_list_get(httpd_req_t *req){
     cJSON_AddBoolToObject(root, "energy_flow_disabled", disabled);
     if (disabled) count = 0;
     cJSON_AddStringToObject(root,"active",disabled ? APP_HOME_RESOURCE_ID : active);cJSON *array=cJSON_AddArrayToObject(root,"templates");
-    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddNumberToObject(item,"version",list[i].version);cJSON_AddItemToArray(array,item);}
+    for(unsigned i=0;i<count;i++){cJSON *item=cJSON_CreateObject();cJSON_AddStringToObject(item,"id",list[i].id);cJSON_AddStringToObject(item,"name",list[i].name);cJSON_AddNumberToObject(item,"version",list[i].version);cJSON_AddBoolToObject(item,"selectable",s_config.data_recept_mode==APP_DATA_LOXONE||strcmp(list[i].id,APP_TEMPLATE_EV_ID));cJSON_AddItemToArray(array,item);}
     app_template_info_t resource;
     cJSON *resources=cJSON_AddArrayToObject(root,"resources");
     bool installed = app_templates_home_info(&resource,NULL);

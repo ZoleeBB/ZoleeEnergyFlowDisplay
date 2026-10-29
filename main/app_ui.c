@@ -292,10 +292,14 @@ static void style_number_if_changed(lv_obj_t *obj,
 #define border_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_BORDER_COLOR, v, s)
 #define shadow_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_SHADOW_COLOR, v, s)
 #define arc_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_ARC_COLOR, v, s)
+#define line_color_if_changed(o, v, s) style_color_if_changed(o, LV_STYLE_LINE_COLOR, v, s)
 #define opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_OPA, v, s)
 #define bg_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BG_OPA, v, s)
 #define border_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BORDER_OPA, v, s)
 #define text_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_TEXT_OPA, v, s)
+#define border_width_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BORDER_WIDTH, v, s)
+#define shadow_width_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_SHADOW_WIDTH, v, s)
+#define shadow_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_SHADOW_OPA, v, s)
 
 /* Teljes képernyős háttér alapstílusa. */
 static void screen_style(lv_obj_t *o, bool night)
@@ -659,7 +663,8 @@ static void flow_update(flow_t *f, double kw, bool forward, uint32_t color, bool
     double m = fabs(kw);
     if (m < 0.0005)
     {
-        lv_obj_set_style_line_color(f->line, c(flow_color(kw, color, night)), 0);
+        /* A 200 ms-os frissítés és az animáció is hívja: csak változáskor írunk. */
+        line_color_if_changed(f->line, c(flow_color(kw, color, night)), 0);
         for (int i = 0; i < 3; i++)
             lv_obj_add_flag(f->dots[i], LV_OBJ_FLAG_HIDDEN);
         return;
@@ -669,7 +674,7 @@ static void flow_update(flow_t *f, double kw, bool forward, uint32_t color, bool
      * Az irányt a forward paraméter határozza meg.
      */
     uint32_t shown = flow_color(kw, color, night);
-    lv_obj_set_style_line_color(f->line, c(shown), 0);
+    line_color_if_changed(f->line, c(shown), 0);
     f->phase = app_flow_advance(f->phase, kw, forward, dt);
     for (int i = 0; i < 3; i++)
     {
@@ -1380,9 +1385,11 @@ static void update_flows(const app_energy_sample_t *s, float dt)
             lv_obj_add_flag(f_grid.dots[i], LV_OBJ_FLAG_HIDDEN);
         }
 
-        lv_obj_set_style_line_color(f_grid.line, c(flow_color(0, GREEN, s->night_mode)), 0);
+        line_color_if_changed(f_grid.line, c(flow_color(0, GREEN, s->night_mode)), 0);
 
-        lv_image_set_src(s_grid_icon, &app_img_grid_off);
+        /* Az LVGL azonos képforrásnál is újrarajzol: csak cserénél állítjuk. */
+        if (lv_image_get_src(s_grid_icon) != &app_img_grid_off)
+            lv_image_set_src(s_grid_icon, &app_img_grid_off);
 
         opa_if_changed(s_grid_icon, s->night_mode ? LV_OPA_70 : LV_OPA_COVER, 0);
 
@@ -1398,7 +1405,8 @@ static void update_flows(const app_energy_sample_t *s, float dt)
 
         flow_update(&f_grid, s->power_grid_kw, s->power_grid_kw > 0, grid_color, s->night_mode, dt);
 
-        lv_image_set_src(s_grid_icon, &app_img_grid);
+        if (lv_image_get_src(s_grid_icon) != &app_img_grid)
+            lv_image_set_src(s_grid_icon, &app_img_grid);
 
         opa_if_changed(s_grid_icon, s->night_mode ? LV_OPA_80 : LV_OPA_COVER, 0);
 
@@ -1695,7 +1703,8 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
                                        : s->status == 5 ? &app_img_status_grid_restored
                                                         : &app_img_status_error;
 
-    lv_image_set_src(s_status_icon, status_asset);
+    if (lv_image_get_src(s_status_icon) != status_asset)
+        lv_image_set_src(s_status_icon, status_asset);
 
     opa_if_changed(s_status_icon, s->night_mode ? LV_OPA_80 : LV_OPA_COVER, 0);
 
@@ -1852,6 +1861,7 @@ void app_ui_set_config(const app_config_t *cfg)
     }
 
     s_cfg = *cfg;
+    app_templates_set_loxone_mode(cfg->data_recept_mode == APP_DATA_LOXONE);
     s_display_energy = cfg->energy;
     s_cfg.display.rotation_degrees = app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok = true;

@@ -628,6 +628,11 @@ static void worker(void *arg)
             }
             if(!s_energy_disabled && now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
                 cJSON *payload=lx_values_payload(&s_values,active);
+                /* A napi autótöltési energiához a minta ugyanabban a pillanatban
+                 * viszi a fogyasztói összeget; érvénytelen összeg kimarad. */
+                app_ev_charging_t ev;
+                if (payload && app_loxone_ev_snapshot(&ev) && ev.valid)
+                    cJSON_AddNumberToObject(payload, "EvChargingPower", ev.power_kw);
                 char *json=payload?cJSON_PrintUnformatted(payload):NULL;cJSON_Delete(payload);
                 if(json) {char error[192];
                     if(app_ingest_process(APP_DATA_LOXONE,json,strlen(json),error,sizeof(error))==ESP_OK)
@@ -896,6 +901,21 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
                  esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
     *command_pending = s_command_pending;
     snprintf(message, LX_HOME_ERROR_SIZE, "%s", s_command_status);
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
+bool app_loxone_ev_snapshot(app_ev_charging_t *out)
+{
+    if (!out)
+        return false;
+    *out = (app_ev_charging_t){0};
+    if (!s_lock || !s_home)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int64_t elapsed = esp_timer_get_time() - s_home_response;
+    bool connected = s_home_live && !s_dead && elapsed >= 0 && elapsed < LX_KEEPALIVE_US * 3;
+    *out = app_ev_charging_sum(s_home, &s_home_values, connected);
     xSemaphoreGive(s_lock);
     return true;
 }

@@ -272,6 +272,84 @@ static void test_payload(void){
     assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK);near(result.power_pv_kw,0);cJSON_free(text);cJSON_Delete(d);
     char garbage[512];snprintf(garbage,sizeof(garbage),"%s junk",payload);assert(app_payload_parse(garbage,strlen(garbage),&result,error,sizeof(error))!=ESP_OK);tests++;
 }
+/* Autótöltés: opcionális belső mező, napi integrálás, mentés és éjfél. */
+static void test_ev_charging(void){
+    app_energy_sample_t result={0};char error[160];
+    cJSON *root=cJSON_Parse(payload);assert(root);
+    assert(app_payload_parse(payload,strlen(payload),&result,error,sizeof(error))==ESP_OK);
+    assert(!result.ev_charging_valid && result.ev_charging_kw==0);
+    cJSON_AddNumberToObject(root,"EvChargingPower",7.4);
+    char *text=cJSON_PrintUnformatted(root);
+    assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK);
+    assert(result.ev_charging_valid);near(result.ev_charging_kw,7.4);cJSON_free(text);
+    cJSON_ReplaceItemInObject(root,"EvChargingPower",cJSON_CreateNull());
+    text=cJSON_PrintUnformatted(root);
+    assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK);
+    assert(!result.ev_charging_valid);cJSON_free(text);
+    cJSON *bad[]={cJSON_CreateNumber(-1),cJSON_CreateNumber(1000.5),cJSON_CreateString("7")};
+    for(unsigned i=0;i<3;i++){
+        cJSON_ReplaceItemInObject(root,"EvChargingPower",bad[i]);
+        text=cJSON_PrintUnformatted(root);
+        assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);
+        assert(strstr(error,"EvChargingPower"));cJSON_free(text);
+    }
+    cJSON_Delete(root);
+
+    time_t t=instant("2026-10-05",12,0,0);reset(t);
+    app_energy_sample_t s=sample(t,2,0,0);s.ev_charging_valid=true;s.ev_charging_kw=7.2;
+    clock_at(t);app_stats_process_sample(&s);
+    s=sample(t+10,2,0,0);s.ev_charging_valid=true;s.ev_charging_kw=7.2;
+    clock_at(t+10);app_stats_process_sample(&s);
+    app_stats_get_snapshot(&snapshot);near(snapshot.ev_charging_today_kwh,72./3600);
+    /* Érvénytelen minta előtti és utáni szakasz nem számít. */
+    s=sample(t+20,2,0,0);clock_at(t+20);app_stats_process_sample(&s);
+    s=sample(t+30,2,0,0);s.ev_charging_valid=true;s.ev_charging_kw=3.6;
+    clock_at(t+30);app_stats_process_sample(&s);
+    app_stats_get_snapshot(&snapshot);near(snapshot.ev_charging_today_kwh,72./3600);
+    /* A házmérleg változatlan: az autótöltés nem adódik a fogyasztáshoz. */
+    near(snapshot.totals.consumption_kwh,60./3600);
+    /* Mentés és újraindítás után megmarad. */
+    assert(app_stats_save_now()==ESP_OK);
+    cJSON *day=read_json("2026-10-05");
+    near(cJSON_GetObjectItem(day,"ev_charging_kwh")->valuedouble,72./3600);cJSON_Delete(day);
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,72./3600);
+    /* Régi (mező nélküli) napi fájl 0-val töltődik; hibás érték nem fogadható el. */
+    day=read_json("2026-10-05");cJSON_DeleteItemFromObject(day,"ev_charging_kwh");cJSON_DeleteItemFromObject(day,"ev_charging_solar_kwh");write_json("2026-10-05",day);cJSON_Delete(day);
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,0);near(snapshot.totals.consumption_kwh,60./3600);
+    day=read_json("2026-10-05");cJSON_AddNumberToObject(day,"ev_charging_kwh",-1);write_json("2026-10-05",day);cJSON_Delete(day);
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,0);
+    /* Napelemes rész: a ház forrásmegosztása szerint arányos (3/9 -> 2 kW-ból 6 kW). */
+    t=instant("2026-10-05",13,0,0);reset(t);
+    for(int k=0;k<2;k++){
+        s=sample(t+10*k,3,6,0);s.power_full_kw=9;s.ev_charging_valid=true;s.ev_charging_kw=6;
+        clock_at(t+10*k);app_stats_process_sample(&s);
+    }
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,60./3600);near(snapshot.ev_charging_solar_today_kwh,20./3600);
+    /* A hálózat helyett akkuból fedezett rész sem napelemes: az arány 1/3 marad. */
+    s=sample(t+20,3,0,6);s.power_full_kw=9;s.ev_charging_valid=true;s.ev_charging_kw=6;
+    clock_at(t+20);app_stats_process_sample(&s);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,120./3600);near(snapshot.ev_charging_solar_today_kwh,40./3600);
+    assert(app_stats_save_now()==ESP_OK);
+    day=read_json("2026-10-05");
+    near(cJSON_GetObjectItem(day,"ev_charging_solar_kwh")->valuedouble,40./3600);
+    cJSON_ReplaceItemInObject(day,"ev_charging_solar_kwh",cJSON_CreateNumber(1));write_json("2026-10-05",day);cJSON_Delete(day);
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_solar_today_kwh,0); /* Több napelemes, mint összes: hibás fájl. */
+    /* Éjfélkor az új nap nulláról indul, a szakasz a határon vágva oszlik meg. */
+    t=instant("2026-10-05",23,59,55);reset(t);
+    s=sample(t,0,0,0);s.ev_charging_valid=true;s.ev_charging_kw=3.6;clock_at(t);app_stats_process_sample(&s);
+    s=sample(t+10,0,0,0);s.ev_charging_valid=true;s.ev_charging_kw=3.6;clock_at(t+10);app_stats_process_sample(&s);
+    app_stats_tick();app_stats_get_snapshot(&snapshot);
+    assert(!strcmp(snapshot.date,"2026-10-06"));near(snapshot.ev_charging_today_kwh,18./3600);
+    assert(app_stats_save_now()==ESP_OK);
+    day=read_json("2026-10-05");near(cJSON_GetObjectItem(day,"ev_charging_kwh")->valuedouble,18./3600);cJSON_Delete(day);
+    tests++;
+}
 static void test_config(void){
     app_config_t defaults;app_config_set_defaults(&defaults);assert(defaults.statistics.save_interval_minutes==15);
     assert(defaults.display.rotation_degrees==270);
@@ -673,6 +751,7 @@ int main(void){
     app_state_clear_sample();app_energy_sample_t stale;assert(!app_state_get_sample(&stale));
     app_state_set_loxone(true,false);app_state_get_runtime(&lx_runtime);assert(!app_state_data_ready(&lx_runtime));
     tests++;
+    test_ev_charging();
     test_assistant_night_history();
     test_battery_diagnostics_storage();
     test_cardless_stats();
