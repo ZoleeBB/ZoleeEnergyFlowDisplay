@@ -900,6 +900,21 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
     return true;
 }
 
+bool app_loxone_ev_snapshot(app_ev_charging_t *out)
+{
+    if (!out)
+        return false;
+    *out = (app_ev_charging_t){0};
+    if (!s_lock || !s_home)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int64_t elapsed = esp_timer_get_time() - s_home_response;
+    bool connected = s_home_live && !s_dead && elapsed >= 0 && elapsed < LX_KEEPALIVE_US * 3;
+    *out = app_ev_charging_sum(s_home, &s_home_values, connected);
+    xSemaphoreGive(s_lock);
+    return true;
+}
+
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
 {
     if (!out || !s_lock || !s_home)

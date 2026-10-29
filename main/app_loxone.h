@@ -51,3 +51,7 @@ bool app_loxone_signals(app_loxone_signals_t *out);
 #include "app_energy_assistant.h"
 /* A teljes kártyakonfiguráció helyett legfeljebb 12 kis fogyasztóbejegyzés. */
 bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);
+
+#include "app_ev_charging.h"
+/* Kisméretű RAM-pillanatkép, csak az autós témához szükséges adatokkal. */
+bool app_loxone_ev_snapshot(app_ev_charging_t *out);
