@@ -1419,10 +1419,27 @@ static void test_consumer_noise(app_runtime_state_t runtime, app_energy_sample_t
  * és tickeket most a valódi PARTIAL és a korábbi FULL módban is mérjük. */
 static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sample)
 {
-    const char *themes[] = {"builtin", "01-live-home", "05-calm-home", "06-energy-orbit", "09-solar-journey"};
+    const char *themes[] = {"builtin", "01-live-home", "05-calm-home", "06-energy-orbit", "09-solar-journey",
+                            APP_TEMPLATE_EV_ID};
     sample.sun_position_valid = true;
+    const app_config_t saved_config = s_cfg;
     for (unsigned theme = 0; theme < sizeof(themes)/sizeof(themes[0]); theme++)
     {
+        if (!strcmp(themes[theme], APP_TEMPLATE_EV_ID))
+        {
+            /* Az autós téma csak Loxone módban választható; két töltő összegével. */
+            app_config_t loxone = s_cfg;
+            loxone.data_recept_mode = APP_DATA_LOXONE;
+            app_ui_set_config(&loxone);
+            runtime.loxone_configured = runtime.loxone_connected = true;
+            app_sim_home_reset();
+            app_sim_home_config.consumer_count = 2;
+            for (unsigned n = 0; n < 2; ++n)
+            {
+                strcpy(app_sim_home_config.consumers[n].icon, "ev-charger");
+                app_sim_home_values.consumers[n] = (lx_home_value_t){.value = 3.6, .valid = true};
+            }
+        }
         assert(app_templates_select(themes[theme]) == ESP_OK);
         template_prepare();
         render_runtime(runtime, sample, true, 31000000);
@@ -1440,6 +1457,24 @@ static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sa
         }
         uint64_t work = flushed_pixels - before;
         unsigned calls = frame_flushes - before_flushes;
+        if (template_is_active())
+        {
+            /* Változatlan mintával a 200 ms-os frissítés nem rajzolhat újra.
+             * A 09 naphalója korábban minden körben stílust írt (80/10 kör). */
+            unsigned invalidations = 0;
+            template_update(&sample, &s_stats_snapshot);
+            lv_refr_now(display);
+            lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+            for (unsigned round = 0; round < 10; round++)
+            {
+                template_update(&sample, &s_stats_snapshot);
+                lv_obj_update_layout(s_screen);
+            }
+            lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+            if (invalidations)
+                fprintf(stderr, "Idle template update invalidated %s: %u\n", themes[theme], invalidations);
+            assert(invalidations == 0);
+        }
         bool static_scene = !strcmp(themes[theme], "05-calm-home");
         if ((!calls || !work) && !static_scene)
             fprintf(stderr,"No redraw: theme=%s view=%d active=%d dash=%d started=%d phase=%f time=%lld anim=%lld\n",
@@ -1452,7 +1487,10 @@ static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sa
                full_refresh ? "FULL" : "PARTIAL", themes[theme],
                (unsigned long long)work, calls, (double)work/(W*H));
     }
-    puts("PASS: actual LVGL animation redraw work measured in production partial and previous full refresh modes");
+    if (s_cfg.data_recept_mode != saved_config.data_recept_mode)
+        app_ui_set_config(&saved_config);
+    app_sim_home_reset();
+    puts("PASS: actual LVGL animation redraw work measured in production partial and previous full refresh modes; idle template updates invalidate nothing");
 }
 
 /* Az IRQ-s touch-adapter két hardveres minta között ugyanazt a pontot
@@ -2108,6 +2146,7 @@ int main(void)
     }
     fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
+    fixture.ev_charging_today_kwh=18.4; /* Csak az autós téma mutatja. */
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};
     fixture.has_yesterday=true;
     fixture.comparison_ready=true;
@@ -2528,6 +2567,21 @@ int main(void)
                 }
                 if (electric) {
                     assert(template_ev.configured && template_ev.valid && fabs(template_ev.power_kw - 7.2) < 1e-9);
+                    {
+                        /* Mai összeg és irányfüggő hálózati cím a valódi szövegezéssel. */
+                        char text[128];
+                        template_text(text, "ev_charging_today", &sample, &fixture);
+                        assert(!strcmp(text, "18,4 kWh"));
+                        template_text(text, "grid_title", &sample, &fixture);
+                        assert(!strcmp(text, sample.power_grid_kw > 0 ? "Hálózati vételezés" : "Hálózati visszatáplálás"));
+                        app_energy_sample_t export_sample = sample;
+                        export_sample.power_grid_kw = -1.2;
+                        template_text(text, "grid_title", &export_sample, &fixture);
+                        assert(!strcmp(text, "Hálózati visszatáplálás"));
+                        export_sample.power_grid_kw = 0;
+                        template_text(text, "grid_title", &export_sample, &fixture);
+                        assert(!strcmp(text, "Hálózat"));
+                    }
                     app_sim_home_config.consumer_count = 0;
                     template_update(&sample, &fixture);template_animate(.033f);
                     for (unsigned n = 0; n < template_node_count; ++n) {

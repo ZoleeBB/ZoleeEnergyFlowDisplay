@@ -243,6 +243,7 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
     V("sun_azimuth",s->sun_azimuth_deg);V("sun_altitude",s->sun_altitude_deg);
     V("sunrise",s->sunrise_minute);V("sunset",s->sunset_minute);
     V("ev_charging",template_ev.valid?template_ev.power_kw:0);
+    V("ev_charging_today",st->ev_charging_today_kwh);
     V("pv",s->power_pv_kw);V("home",s->power_full_kw);V("grid",s->power_grid_kw);V("battery",s->power_bat_kw);
     V("soc",s->soc_bat_pct);V("battery_temp",s->battery_temperature_c);V("temperature",s->temperature_c);V("wind",s->wind_speed_kmh);
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
@@ -338,6 +339,15 @@ static void template_text(char out[128],const char *source,const app_energy_samp
                          : s->status == 5 ? tr("Hálózat újra elérhető", "Grid available again")
                                           : tr("Rendszerhiba", "System error");
         snprintf(out, 128, "%s", text);
+        return;
+    }
+    /* Kártyacím az áramlás iránya szerint; nyugalomban az általános név. */
+    if (!strcmp(source, "grid_title"))
+    {
+        snprintf(out, 128, "%s",
+                 fabs(s->power_grid_kw) < .001 ? tr("Hálózat", "Grid") :
+                 s->power_grid_kw < 0 ? tr("Hálózati visszatáplálás", "Grid export") :
+                                        tr("Hálózati vételezés", "Grid import"));
         return;
     }
     if(!strcmp(source,"grid_direction")){snprintf(out,128,"%s",fabs(s->power_grid_kw)<.001?tr("Nincs áramlás","Idle"):s->power_grid_kw<0?tr("Visszatáplálás","Export"):tr("Vételezés","Import"));return;}
@@ -1030,6 +1040,8 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
             (!strcmp(source,"weather_label")) ? weather_available(s) :
             (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
+        if (!strcmp(source, "ev_charging_today"))
+            visible = template_ev.configured;
         if (!strcmp(source, "ev_charging"))
             visible = template_ev.configured &&
                       (strcmp(type, "flow") || template_ev.valid);

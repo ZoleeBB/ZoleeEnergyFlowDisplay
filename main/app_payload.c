@@ -299,6 +299,19 @@ esp_err_t app_payload_parse(
         sample.sun_position_valid = true;
     }
 
+    /* Opcionális, a Loxone-kliens által hozzáadott autótöltési összeg (kW).
+     * Hiánya a régi küldőknél és más módoknál normál eset. */
+    cJSON *ev = cJSON_GetObjectItemCaseSensitive(root, "EvChargingPower");
+    if (ev && !cJSON_IsNull(ev))
+    {
+        if (!number_in_range(ev, 0, 1000, &sample.ev_charging_kw))
+        {
+            fail(error, error_len, "Érvénytelen tartomány vagy típus", "EvChargingPower");
+            goto invalid;
+        }
+        sample.ev_charging_valid = true;
+    }
+
     /* A -0,05..0 kW közötti PV/fogyasztás mérési zajt nullára normalizáljuk. */
     if (sample.power_pv_kw < 0)
     {

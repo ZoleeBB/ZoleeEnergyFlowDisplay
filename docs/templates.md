@@ -169,6 +169,12 @@ Adatkapcsolatok:
   megfordulnak a pöttyök. Nulla körül eltűnnek; 7 kW-nál érik el a maximális sebességet.
 - `soc`, `battery_temp`, `battery_capacity`, `battery_energy`, `sun_azimuth`, `sun_altitude`, `sunrise`, `sunset`, `sun_direction`, `temperature`, `wind`, `clock`, `date`, `status`,
   `grid_direction`, `battery_direction`.
+- `grid_title`: irányfüggő kártyacím – „Hálózati vételezés”, „Hálózati
+  visszatáplálás”, áramlás nélkül „Hálózat” (EN: Grid import / Grid export / Grid).
+- `ev_charging`, `ev_charging_today`: csak közvetlen Loxone módban; az
+  „Elektromos autótöltő” ikonú fogyasztók pillanatnyi kW összege és a mai,
+  autóba töltött kWh. Töltő beállítása nélkül az elemek rejtettek
+  ([részletek](electric-car.md)).
 - `production_today`, `consumption_today`, `import_today`, `export_today`,
   `charge_today`, `discharge_today`: a közös napi kWh-összesítések.
 - `pv_home`, `pv_export`, `pv_stored`: a közös energiaelosztási modell kW értékei.
@@ -421,7 +427,7 @@ idejét adja egy sorban; szigetüzemben és áramszünetre készülve kiemelt sz
 A régebbi firmware ezt a forrást nem ismeri, ezért a `10-battery-diagnostics`
 v2 csomag előtt a firmware-t kell frissíteni.
 
-## Elektomos auto
+## Elektromos autó
 
 A `11-electric-car` csomag csak közvetlen Loxone módban aktiválható.
 Töltő beállítása nélkül is választható; ilyenkor az autós felirat és energiaút

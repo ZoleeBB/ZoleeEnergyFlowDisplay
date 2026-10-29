@@ -628,6 +628,11 @@ static void worker(void *arg)
             }
             if(!s_energy_disabled && now-last_sample>=5000000LL&&now-s_last_response<LX_KEEPALIVE_US*3) {
                 cJSON *payload=lx_values_payload(&s_values,active);
+                /* A napi autótöltési energiához a minta ugyanabban a pillanatban
+                 * viszi a fogyasztói összeget; érvénytelen összeg kimarad. */
+                app_ev_charging_t ev;
+                if (payload && app_loxone_ev_snapshot(&ev) && ev.valid)
+                    cJSON_AddNumberToObject(payload, "EvChargingPower", ev.power_kw);
                 char *json=payload?cJSON_PrintUnformatted(payload):NULL;cJSON_Delete(payload);
                 if(json) {char error[192];
                     if(app_ingest_process(APP_DATA_LOXONE,json,strlen(json),error,sizeof(error))==ESP_OK)

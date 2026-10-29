@@ -33,6 +33,11 @@ typedef struct
     bool energy_flow_disabled; /* BLE vezérlőállapot, nem energiaminta. */
     double battery_temperature_c;
 
+    /* Csak közvetlen Loxone módban: az „Elektromos autótöltő” ikonos
+     * fogyasztók összege. Hiányzó/elavult részadatnál érvénytelen. */
+    bool ev_charging_valid;
+    double ev_charging_kw;
+
     /* Opcionális nappályaadatok a Loxone T1 bemenetéről. */
     bool sun_position_valid;
     double sun_azimuth_deg;

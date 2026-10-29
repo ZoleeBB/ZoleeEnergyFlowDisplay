@@ -490,7 +490,7 @@ static bool validate_scene(const cJSON *scene)
                                         "chart",
                                         "weather",
                                         NULL};
-    static const char *const sources[] = {"ev_charging", "pv",
+    static const char *const sources[] = {"ev_charging", "ev_charging_today", "grid_title", "pv",
                                           "home",
                                           "grid",
                                           "battery",

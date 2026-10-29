@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "11-electric-car",
-  "name": "Elektomos auto",
-  "version": 3,
+  "name": "Elektromos autó",
+  "version": 4,
   "light": {
     "background": "#10251F",
     "home_hotspot": {
@@ -21,9 +21,19 @@
         "file": "day.png"
       },
       {
+        "type": "box",
+        "x": 28,
+        "y": 10,
+        "w": 1224,
+        "h": 88,
+        "opacity": 150,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
         "type": "label",
-        "x": 32,
-        "y": 20,
+        "x": 40,
+        "y": 22,
         "w": 245,
         "h": 48,
         "font": 16,
@@ -47,13 +57,13 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Elektomos auto",
+        "text": "Elektromos autó",
         "text_en": "Electric car"
       },
       {
         "type": "value",
-        "x": 940,
-        "y": 18,
+        "x": 930,
+        "y": 20,
         "w": 160,
         "h": 28,
         "font": 16,
@@ -66,8 +76,8 @@
       },
       {
         "type": "value",
-        "x": 940,
-        "y": 46,
+        "x": 930,
+        "y": 48,
         "w": 160,
         "h": 40,
         "font": 28,
@@ -80,8 +90,8 @@
       },
       {
         "type": "weather",
-        "x": 1110,
-        "y": 25,
+        "x": 1096,
+        "y": 26,
         "w": 64,
         "h": 64,
         "files": {
@@ -95,9 +105,9 @@
       },
       {
         "type": "value",
-        "x": 1180,
+        "x": 1166,
         "y": 28,
-        "w": 96,
+        "w": 84,
         "h": 28,
         "font": 16,
         "color": "#FFFFFF",
@@ -109,9 +119,9 @@
       },
       {
         "type": "value",
-        "x": 1180,
+        "x": 1166,
         "y": 56,
-        "w": 96,
+        "w": 84,
         "h": 28,
         "font": 16,
         "color": "#FFFFFF",
@@ -333,8 +343,8 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Napelem",
-        "text_en": "Solar PV"
+        "text": "Napelem termelés",
+        "text_en": "Solar production"
       },
       {
         "type": "value",
@@ -361,7 +371,7 @@
         "background": "#10251F"
       },
       {
-        "type": "label",
+        "type": "value",
         "x": 40,
         "y": 278,
         "w": 200,
@@ -372,8 +382,7 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Hálózat",
-        "text_en": "Grid"
+        "source": "grid_title"
       },
       {
         "type": "value",
@@ -510,7 +519,7 @@
         "type": "label",
         "x": 964,
         "y": 601,
-        "w": 276,
+        "w": 140,
         "h": 25,
         "font": 16,
         "color": "#FFFFFF",
@@ -526,7 +535,7 @@
         "type": "value",
         "x": 964,
         "y": 627,
-        "w": 276,
+        "w": 140,
         "h": 40,
         "font": 28,
         "color": "#FFFFFF",
@@ -535,6 +544,36 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "ev_charging"
+      },
+      {
+        "type": "label",
+        "x": 1110,
+        "y": 603,
+        "w": 130,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Ma összesen",
+        "text_en": "Today",
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 1110,
+        "y": 631,
+        "w": 130,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_today"
       },
       {
         "type": "box",
@@ -683,9 +722,19 @@
         "file": "night.png"
       },
       {
+        "type": "box",
+        "x": 28,
+        "y": 10,
+        "w": 1224,
+        "h": 88,
+        "opacity": 175,
+        "radius": 12,
+        "background": "#10251F"
+      },
+      {
         "type": "label",
-        "x": 32,
-        "y": 20,
+        "x": 40,
+        "y": 22,
         "w": 245,
         "h": 48,
         "font": 16,
@@ -709,13 +758,13 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Elektomos auto",
+        "text": "Elektromos autó",
         "text_en": "Electric car"
       },
       {
         "type": "value",
-        "x": 940,
-        "y": 18,
+        "x": 930,
+        "y": 20,
         "w": 160,
         "h": 28,
         "font": 16,
@@ -728,8 +777,8 @@
       },
       {
         "type": "value",
-        "x": 940,
-        "y": 46,
+        "x": 930,
+        "y": 48,
         "w": 160,
         "h": 40,
         "font": 28,
@@ -742,8 +791,8 @@
       },
       {
         "type": "weather",
-        "x": 1110,
-        "y": 25,
+        "x": 1096,
+        "y": 26,
         "w": 64,
         "h": 64,
         "files": {
@@ -757,9 +806,9 @@
       },
       {
         "type": "value",
-        "x": 1180,
+        "x": 1166,
         "y": 28,
-        "w": 96,
+        "w": 84,
         "h": 28,
         "font": 16,
         "color": "#FFFFFF",
@@ -771,9 +820,9 @@
       },
       {
         "type": "value",
-        "x": 1180,
+        "x": 1166,
         "y": 56,
-        "w": 96,
+        "w": 84,
         "h": 28,
         "font": 16,
         "color": "#FFFFFF",
@@ -995,8 +1044,8 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Napelem",
-        "text_en": "Solar PV"
+        "text": "Napelem termelés",
+        "text_en": "Solar production"
       },
       {
         "type": "value",
@@ -1023,7 +1072,7 @@
         "background": "#10251F"
       },
       {
-        "type": "label",
+        "type": "value",
         "x": 40,
         "y": 278,
         "w": 200,
@@ -1034,8 +1083,7 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Hálózat",
-        "text_en": "Grid"
+        "source": "grid_title"
       },
       {
         "type": "value",
@@ -1172,7 +1220,7 @@
         "type": "label",
         "x": 964,
         "y": 601,
-        "w": 276,
+        "w": 140,
         "h": 25,
         "font": 16,
         "color": "#FFFFFF",
@@ -1188,7 +1236,7 @@
         "type": "value",
         "x": 964,
         "y": 627,
-        "w": 276,
+        "w": 140,
         "h": 40,
         "font": 28,
         "color": "#FFFFFF",
@@ -1197,6 +1245,36 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "ev_charging"
+      },
+      {
+        "type": "label",
+        "x": 1110,
+        "y": 603,
+        "w": 130,
+        "h": 25,
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "text": "Ma összesen",
+        "text_en": "Today",
+        "source": "ev_charging_today"
+      },
+      {
+        "type": "value",
+        "x": 1110,
+        "y": 631,
+        "w": 130,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "ev_charging_today"
       },
       {
         "type": "box",

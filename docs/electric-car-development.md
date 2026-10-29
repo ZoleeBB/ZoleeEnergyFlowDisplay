@@ -1,4 +1,4 @@
-# Elektomos auto – fejlesztési terv
+# Elektromos autó – fejlesztési terv
 
 ## Elfogadott működés és megjelenés
 
@@ -49,3 +49,14 @@ Az új téma csak Master/Loxone működést kap; a külön 720×720-as 4B firmwa
 - Fizikai panelen még szükséges az energiautak, a kábelív, a témaváltási idő
   és a webes elrendezés asztali/mobil böngészős próbája. Headless böngészőt a
   helyi környezetben nem sikerült telepíteni, a webes viselkedés DOM-teszttel ellenőrzött.
+
+## 4-es témaverzió – 2026-10-29
+
+- [x] Fejlécsáv a többi mezővel azonos áttetsző háttérrel; Napelem termelés a tető jobb oldalán.
+- [x] Irányfüggő hálózati kártyacím (`grid_title`), akku hőmérséklet az Akkumulátor kártyán.
+- [x] Mai autótöltési energia (`ev_charging_today`): Loxone-mintánként integrálva, a napi
+  statisztikai fájl opcionális `ev_charging_kwh` mezőjében tartósan; éjféli vágás és
+  régi fájlok betöltése tesztelve (`tests/test_core.c`).
+- [x] Energiautak iránya és sebessége a közös `app_flow_advance` szerint (kW-arányos, 7 kW-nál max).
+- [x] Üresjárati frissítésnél nulla érvénytelenítés minden mért témán, az autós témán is
+  (`tests/preview/preview.c`, renderköltség-mérés).

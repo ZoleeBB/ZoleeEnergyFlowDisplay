@@ -1,4 +1,4 @@
-# Elektomos auto
+# Elektromos autó
 
 A `11-electric-car.zip` egy új, 1280×800-as nappali/éjszakai energiaáramlási
 téma. Közvetlen **Loxone** adatfogadási módban választható a Masteren;
@@ -30,6 +30,33 @@ A napelem, a hálózat és az akkumulátor energiaútja az inverterhez kapcsoló
 a fekete töltőkábelt követő új út az autótöltés részértékét mutatja.
 A 2-es témaverzióban két összefüggő Bézier-szakasz követi a kábel középvonalát;
 a nappali és az éjszakai képhez külön illesztett geometria tartozik.
+
+## Kártyák (4-es témaverzió)
+
+- A fejléc (cím, téma neve, dátum, óra, időjárás) a többi mezőhöz hasonló
+  áttetsző sávot kapott, így nappal is jól olvasható.
+- A **Napelem termelés** kártya a tető jobb oldalán áll.
+- A hálózati kártya címe az áramlás irányát mutatja: „Hálózati vételezés”
+  vagy „Hálózati visszatáplálás”; áramlás nélkül „Hálózat” (`grid_title`).
+- Az **Akkumulátor** kártya jobb oldalán az akku hőmérséklete látszik.
+- Az **Autótöltés** kártya jobb oldalán kisebb betűvel a mai, autóba töltött
+  energia: **Ma összesen** (`ev_charging_today`, kWh).
+
+### Mai autótöltési energia
+
+A Loxone-kliens az 5 másodperces energiamintához hozzáadja az érvényes
+autótöltési összeget (belső `EvChargingPower` mező, kW). A statisztika ezt a
+többi energiával azonos módon, két egymást követő érvényes minta között
+trapézszabállyal integrálja, ötperces és éjféli határon vágva. Hiányzó vagy
+elavult töltőadat, illetve a beállított maximális mintarésnél hosszabb kimaradás
+szakaszát nem számolja, így nincs becsült vagy kitalált energia.
+
+Az összeg a napi statisztikai fájl opcionális `ev_charging_kwh` mezőjébe kerül
+a meglévő mentési ütemben, így újraindítás után is megmarad, és éjfélkor nulláz.
+Külön SD-írás nincs. A régebbi firmware a mezőt figyelmen kívül hagyja, a régi
+napi fájlok változatlanul betölthetők. A mező nem része a házfogyasztás
+energiamérlegének, és a Slave-ek felé küldött statisztikának sem.
+HTTP/MQTT csomagban az azonos nevű mezőt a kijelző figyelmen kívül hagyja.
 
 ## Telepítés és webes szerkesztés
 
