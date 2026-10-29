@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """A központi, önkéntes támogatási kártya biztonságos beágyazása."""
+import base64
 import html
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +33,17 @@ TEXT = {
         'opens in a new tab',
     ),
 }
+
+
+def logo_data_uri():
+    """Csak a kicsinyített PNG kerülhet a flashbe, dekódolni a böngésző fogja."""
+    image = (ROOT / 'assets/branding/logo-web.png').read_bytes()
+    if not (33 <= len(image) <= 4096) or image[:16] != b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR':
+        raise ValueError('A webes logó legfeljebb 4 KiB méretű PNG lehet.')
+    width, height = struct.unpack('>II', image[16:24])
+    if not (0 < width <= 240 and 0 < height <= 128):
+        raise ValueError('A webes logó legfeljebb 240×128 képpontos lehet.')
+    return 'data:image/png;base64,' + base64.b64encode(image).decode('ascii')
 
 
 def validate_links(config):
@@ -70,8 +83,12 @@ def render_card(config, language):
             f'{html.escape(text)}</a>'
         )
     template = (ROOT / 'assets/web/support.html').read_text(encoding='utf-8')
-    return template.replace('{{TITLE}}', html.escape(title)).replace(
-        '{{COPY}}', html.escape(copy)).replace('{{LINKS}}', ''.join(buttons))
+    card = template.replace('{{TITLE}}', html.escape(title)).replace(
+        '{{COPY}}', html.escape(copy)).replace('{{LINKS}}', ''.join(buttons)).replace(
+        '{{LOGO_DATA_URI}}', logo_data_uri())
+    if len(card.encode('utf-8')) > 12 * 1024:
+        raise ValueError('A támogatási kártya legfeljebb 12 KiB lehet.')
+    return card
 
 
 def build_header(config):

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Támogatási URL-ek, generált HTML és a valódi C-kiszolgálás ellenőrzése."""
 from html.parser import HTMLParser
+import base64
 import json
 import os
 from pathlib import Path
@@ -18,14 +19,23 @@ class CardParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.links = []
+        self.images = []
         self.text = []
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
         if tag == 'a':
             self.links.append(attributes)
+        if tag == 'img':
+            self.images.append(attributes)
+            assert attributes['src'].startswith('data:image/png;base64,')
+            image = base64.b64decode(attributes['src'].split(',', 1)[1], validate=True)
+            assert image == (ROOT / 'assets/branding/logo-web.png').read_bytes()
+            assert len(image) <= 4096
+            assert attributes['alt'] == 'Zolee Energy Flow Display'
+            assert (attributes['width'], attributes['height']) == ('240', '124')
         # Az oldal megnyitásakor egyetlen külső kapcsolat sem indulhat.
-        assert tag not in ('script', 'iframe', 'img', 'form', 'link')
+        assert tag not in ('script', 'iframe', 'form', 'link')
 
     def handle_data(self, data):
         self.text.append(data)
@@ -37,6 +47,7 @@ empty = {key: '' for key in enabled}
 for language in ('hu', 'en'):
     parser = CardParser()
     parser.feed(render_card(enabled, language))
+    assert len(parser.images) == 1
     assert [link['href'] for link in parser.links] == list(enabled.values())
     for link in parser.links:
         assert link['target'] == '_blank'
@@ -90,6 +101,7 @@ for configured, config in ((0, empty), (1, enabled)):
         binary = str(directory / 'test_support_web')
         subprocess.run([
             os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+            '-Werror=frame-larger-than=1024',
             '-fsanitize=undefined', '-fno-sanitize-recover=all',
             f'-DSUPPORT_ENABLED={configured}', '-I' + temporary, '-Itests/stubs',
             'tests/test_support_web.c', '-o', binary,

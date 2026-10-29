@@ -6,7 +6,9 @@
 #include "esp_http_server.h"
 #include "app_support_links.h"
 
-/* Közös támogatási blokk: nincs fizetési kérés, háttérkapcsolat vagy kijelzőállapot. */
+/* Közös támogatási blokk: nincs fizetési kérés, háttérkapcsolat vagy kijelzőállapot.
+ * A kicsinyített logó is a flashben lévő HTML része. Közvetlenül küldjük,
+ * nem a sendf() verempufferén át; a PNG-t kizárólag a böngésző dekódolja. */
 static inline esp_err_t app_web_send_support(httpd_req_t *req, bool hu)
 {
     const char *card = hu ? app_support_card_hu : app_support_card_en;

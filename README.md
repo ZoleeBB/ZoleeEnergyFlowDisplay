@@ -1,4 +1,4 @@
-# Zolee Energy Flow Display
+<h1 align="center"><img src="assets/branding/readme-banner.png" alt="Zolee Energy Flow Display" width="1600"></h1>
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1H8299KGN)
 
