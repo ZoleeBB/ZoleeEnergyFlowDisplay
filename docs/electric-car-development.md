@@ -65,3 +65,8 @@ Az új téma csak Master/Loxone működést kap; a külön 720×720-as 4B firmwa
 
 - [x] Autótöltés kártya: „Ebből napelem: N %” (`ev_charging_solar`), arányos forrásmegosztással,
   tartósan mentve (`ev_charging_solar_kwh`); tesztek a `tests/test_core.c`-ben.
+- [x] Üresjárati újrarajzolás-teszt minden telepített témára (nappal/éjjel) és a Loxone
+  fogyasztói és Otthon-kártyalapjaira (`test_idle_redraw_all`, a CI renderköltség-futásában).
+- [x] A beépített Rendszer nézet energiaútjai és ikonjai csak változáskor írnak: üresjáratban
+  0 érvénytelenítés (előtte 12/kör), az animáció rajzolási munkája 3,55 -> 0,02 teljes képkocka
+  30 tick alatt. A kép a teljes újrarajzolással azonos.

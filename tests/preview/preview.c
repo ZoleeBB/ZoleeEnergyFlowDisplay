@@ -1493,6 +1493,155 @@ static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sa
     puts("PASS: actual LVGL animation redraw work measured in production partial and previous full refresh modes; idle template updates invalidate nothing");
 }
 
+static lv_obj_t *idle_find(lv_obj_t *obj, const lv_area_t *a, lv_obj_t *best)
+{
+    lv_area_t c; lv_obj_get_coords(obj, &c);
+    int32_t ext = _lv_obj_get_ext_draw_size(obj);
+    lv_area_t e = {c.x1 - ext, c.y1 - ext, c.x2 + ext, c.y2 + ext};
+    if (a->x1 >= e.x1 && a->y1 >= e.y1 && a->x2 <= e.x2 && a->y2 <= e.y2)
+    {
+        if (!best || lv_area_get_size(&e) < lv_area_get_size(&(lv_area_t){0})) best = obj;
+        lv_area_t b; if (best) lv_obj_get_coords(best, &b);
+        if (best && lv_area_get_size(&c) <= lv_area_get_size(&b)) best = obj;
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); i++)
+        best = idle_find(lv_obj_get_child(obj, i), a, best);
+    return best;
+}
+static void idle_debug(lv_event_t *event)
+{
+    const lv_area_t *a = lv_event_get_param(event);
+    lv_obj_t *o = idle_find(lv_screen_active(), a, NULL);
+    const char *text = o && lv_obj_check_type(o, &lv_label_class) ? lv_label_get_text(o) : "";
+    lv_area_t c = {0}; if (o) lv_obj_get_coords(o, &c);
+    printf("IDLE_OBJ area=%d,%d,%d,%d obj=%p class=%s coords=%d,%d,%d,%d text=%.40s\n", a->x1, a->y1, a->x2, a->y2,
+           (void *)o, o ? (lv_obj_check_type(o, &lv_label_class) ? "label" : lv_obj_check_type(o, &lv_image_class) ? "image" : lv_obj_check_type(o, &lv_obj_class) ? "obj" : "other") : "-",
+           c.x1, c.y1, c.x2, c.y2, text);
+}
+
+/* A futó 200 ms-os kör változatlan adattal: semmi nem érvényteleníthet.
+ * Minden telepített téma nappal/éjjel, valamint a Loxone fogyasztói és
+ * összes Otthon-kártyalapja. A hibás elemről forrásnevet is írunk. */
+static unsigned idle_runtime_invalidations(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    for (unsigned settle = 0; settle < 3; settle++)
+    {
+        render_runtime(runtime, sample, true, 31000000);
+        assistant_render();
+        mail_render();
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+    }
+    unsigned invalidations = 0;
+    lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+    if (getenv("IDLE_REPORT")) lv_display_add_event_cb(display, idle_debug, LV_EVENT_INVALIDATE_AREA, NULL);
+    for (unsigned round = 0; round < (getenv("IDLE_REPORT") ? 1u : 10u); round++)
+    {
+        render_runtime(runtime, sample, true, 31000000);
+        assistant_render();
+        mail_render();
+        lv_obj_update_layout(s_screen);
+    }
+    lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+    if (getenv("IDLE_REPORT")) lv_display_remove_event_cb_with_user_data(display, idle_debug, NULL);
+    lv_refr_now(display);
+    return invalidations;
+}
+
+static void test_idle_redraw_all(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    const app_config_t saved_config = s_cfg;
+    app_template_info_t list[APP_TEMPLATE_MAX];
+    char active[33];
+    unsigned count = app_templates_list(list, APP_TEMPLATE_MAX, active);
+    assert(count >= 12);
+    sample.sun_position_valid = true;
+    sample.sun_azimuth_deg = 180;
+    sample.sunrise_minute = 420;
+    sample.sunset_minute = 1077;
+    unsigned checked = 0;
+    for (unsigned i = 0; i < count; i++)
+    {
+        bool electric = !strcmp(list[i].id, APP_TEMPLATE_EV_ID);
+        app_config_t config = saved_config;
+        config.data_recept_mode = electric ? APP_DATA_LOXONE : saved_config.data_recept_mode;
+        app_ui_set_config(&config);
+        app_runtime_state_t rt = runtime;
+        if (electric)
+        {
+            rt.loxone_configured = rt.loxone_connected = true;
+            app_sim_home_reset();
+            app_sim_home_config.consumer_count = 2;
+            for (unsigned n = 0; n < 2; ++n)
+            {
+                strcpy(app_sim_home_config.consumers[n].icon, "ev-charger");
+                app_sim_home_values.consumers[n] = (lx_home_value_t){.value = 3.6, .valid = true};
+            }
+        }
+        for (int night = 0; night < 2; night++)
+        {
+            app_energy_sample_t value = sample;
+            value.night_mode = night;
+            value.sun_altitude_deg = night ? -12 : 35;
+            assert(app_templates_select(list[i].id) == ESP_OK);
+            template_prepare();
+            unsigned invalidations = idle_runtime_invalidations(rt, value);
+            printf("IDLE_REDRAW %s %s %u\n", list[i].id, night ? "dark" : "light", invalidations);
+            if (invalidations)
+                fprintf(stderr, "Idle redraw: %s %s invalidated %u areas\n",
+                        list[i].id, night ? "dark" : "light", invalidations);
+            if (!getenv("IDLE_REPORT")) assert(invalidations == 0);
+            checked++;
+        }
+    }
+    app_ui_set_config(&saved_config);
+    app_sim_home_reset();
+
+    /* Loxone-oldalak: fogyasztók és az összes Otthon-kártyalap. */
+    assert(app_templates_select("builtin") == ESP_OK);
+    template_prepare();
+    unsigned pages = 0;
+    for (int night = 0; night < 2; night++)
+    {
+        app_energy_sample_t value = sample;
+        value.night_mode = night;
+        render_runtime(runtime, value, true, 31000000);
+        home_open_clicked(NULL);
+        for (unsigned page = 0; page < 8; page++)
+        {
+            if (page == 1)
+                home_cards_requested();
+            else if (page > 1)
+            {
+                unsigned before = home_card_page;
+                home_gesture(LV_DIR_LEFT);
+                home_prepare(night);
+                /* Az utolsó lap után a lapozás körbefordul: ott megállunk. */
+                if (home_card_page == before || home_card_page == 0)
+                    break;
+            }
+            home_prepare(night);
+            render_runtime(runtime, value, true, 31000000);
+            assert(s_view == VIEW_HOME && home_ready_to_draw);
+            unsigned invalidations = idle_runtime_invalidations(runtime, value);
+            printf("IDLE_REDRAW home-%s-%u %s %u\n", page ? "cards" : "consumers", page ? home_card_page : 0,
+                   night ? "dark" : "light", invalidations);
+            if (invalidations)
+                fprintf(stderr, "Idle redraw: Home page %u %s invalidated %u areas\n",
+                        page, night ? "dark" : "light", invalidations);
+            if (!getenv("IDLE_REPORT")) assert(invalidations == 0);
+            pages++;
+        }
+        home_close(NULL);
+        home_prepare(night);
+        template_prepare();
+        render_runtime(runtime, value, true, 31000000);
+    }
+    assert(pages >= 4);
+    printf("PASS: idle 200 ms runtime rounds invalidate nothing on %u theme scenes and %u Loxone pages\n",
+           checked, pages);
+}
+
 /* Az IRQ-s touch-adapter két hardveres minta között ugyanazt a pontot
  * adja vissza. A régi sebességküszöb ilyenkor minden alkalommal lenullázta
  * a húzás összegét. Kis lépések és köztes azonos minták is lapozzanak. */
@@ -2193,7 +2342,10 @@ int main(void)
             assert(home_prepare(false));
         }
         else if (getenv("ZOLEE_RENDER_COST_ONLY"))
+        {
             test_render_work(runtime, sample);
+            test_idle_redraw_all(runtime, sample);
+        }
         else if (getenv("ZOLEE_THEME_SWITCH_BENCH"))
             test_theme_switch_bench(runtime, sample);
         else if (getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
