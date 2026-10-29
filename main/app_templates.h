@@ -7,6 +7,7 @@
 #include "esp_err.h"
 
 #define APP_TEMPLATE_MAX 16
+#define APP_TEMPLATE_EV_ID "11-electric-home"
 #define APP_TEMPLATE_ZIP_MAX (8U * 1024U * 1024U)
 /* 1280x800 fotóháttér: egy RGB PNG 2 MiB felett is lehet, a teljes
  * dekódolt összes kép normál témánál 12 MiB, speciális Otthon-csomagnál 20 MiB.
@@ -51,6 +52,8 @@ typedef struct
 } app_template_view_t;
 
 esp_err_t app_templates_init(void);
+/* Az autós téma csak közvetlen Loxone módban aktiválható. */
+void app_templates_set_loxone_mode(bool enabled);
 /*
  * Egyetlen hiányzó, előre dekódolt kép-segédfájl elkészítése (app_template_raw.h).
  * Háttérfeladatból hívandó: a lapozás, a telepítés és a webes feltöltés

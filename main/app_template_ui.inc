@@ -17,6 +17,7 @@ typedef struct {
     lv_vector_path_t *flow_path; /* One continuous cubic path shared by glow and body. */
 } template_node_t;
 static app_template_view_t template_view,template_pending;
+static app_ev_charging_t template_ev;
 static unsigned template_catalogue_count(void){return s_cfg.cardless_slave ? 1 : template_view.catalogue_count;}
 static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_node_count;
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
@@ -241,6 +242,7 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
     V("battery_energy",s_cfg.energy.battery_capacity_kwh>0?s_cfg.energy.battery_capacity_kwh*s->soc_bat_pct/100.:0);
     V("sun_azimuth",s->sun_azimuth_deg);V("sun_altitude",s->sun_altitude_deg);
     V("sunrise",s->sunrise_minute);V("sunset",s->sunset_minute);
+    V("ev_charging",template_ev.valid?template_ev.power_kw:0);
     V("pv",s->power_pv_kw);V("home",s->power_full_kw);V("grid",s->power_grid_kw);V("battery",s->power_bat_kw);
     V("soc",s->soc_bat_pct);V("battery_temp",s->battery_temperature_c);V("temperature",s->temperature_c);V("wind",s->wind_speed_kmh);
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
@@ -269,6 +271,11 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
 
 static void template_text(char out[128],const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     time_t now=time(NULL);struct tm tmv;localtime_r(&now,&tmv);
+    if (!strcmp(source, "ev_charging") && !template_ev.valid)
+    {
+        snprintf(out, 128, "%s", tr("Nincs adat", "No data"));
+        return;
+    }
     if (!strncmp(source, "battery_diag_", 13) || !strcmp(source, "battery_eta")) {
         template_battery_text(out, source, s, st);
         return;
@@ -998,6 +1005,12 @@ static void template_solar_halo(template_node_t *node,const app_energy_sample_t 
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
     /* A sablonok is az aktuális csomagot adják át az animációs timernek. */
     s_animation_sample=*s;
+    /* Csak az autós nézet kér kis RAM-pillanatképet; más témák nem
+     * járják be a fogyasztókat és nem foglalnak újabb munkapuffert. */
+    template_ev = (app_ev_charging_t){0};
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE &&
+        !strcmp(template_view.id, APP_TEMPLATE_EV_ID))
+        (void)app_loxone_ev_snapshot(&template_ev);
     if(app_storage_is_ok())lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
     int64_t now=esp_timer_get_time();bool redraw=!template_chart_time||now-template_chart_time>=5000000;
     for(unsigned i=0;i<template_node_count;i++){
@@ -1014,13 +1027,25 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
             (!strcmp(source,"weather_label")) ? weather_available(s) :
             (!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy")||!strcmp(source,"battery_summary")) ? s_cfg.energy.battery_capacity_kwh>0 : true;
+        if (!strcmp(source, "ev_charging"))
+            visible = template_ev.configured &&
+                      (strcmp(type, "flow") || template_ev.valid);
         /* A figyelmeztető státusz és az árnyéka normál üzemben együtt tűnjön el. */
         if (!strcmp(source, "status") && cJSON_IsTrue(cJSON_GetObjectItem(e, "hide_when_normal")))
             visible = s->status != 1;
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(node->bubble)weather_visibility(node->bubble,visible);
-        if(!visible)continue;
+        if (!visible)
+        {
+            node->power = 0;
+            for (unsigned d = 0; d < 4; d++)
+            {
+                if (node->dots[d])
+                    lv_obj_add_flag(node->dots[d], LV_OBJ_FLAG_HIDDEN);
+            }
+            continue;
+        }
         double value=template_value(source,s,stats);node->power=value;
         if(!strcmp(type,"solar_disc")){
             /* Egyezik a solar_arc elemek paraméteres félkörével.

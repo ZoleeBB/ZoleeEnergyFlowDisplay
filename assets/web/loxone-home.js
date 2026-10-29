@@ -2,6 +2,8 @@
 const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
+    const iconChoices = [...icons].sort((a, b) =>
+        a.hu.localeCompare(b.hu, 'hu', {sensitivity: 'base'})).map(icon => [icon.id, icon.hu]);
     const get = id => document.getElementById(id);
     let model = {schema: 2, consumers: [], pages: [], intercom: {enabled: false, stream_url: '', bell_uuid: '', gate: null}};
     let selectedPage = 0, saveSection = 'pages', energyFlowDisabled = false;
@@ -84,28 +86,25 @@ const LoxoneHome = (() => {
         }
         return choices;
     }
-    function iconField(parent, entry) {
-        const input = select(parent, 'Ikon', entry, 'icon', icons.map(icon => [icon.id, icon.hu]));
-        if (!resourcesInstalled) return;
+    function iconField(parent, entry, previewParent) {
+        const input = select(parent, 'Ikon', entry, 'icon', iconChoices);
+        if (!resourcesInstalled) { previewParent.hidden = true; return; }
         const preview = create('img');
         preview.id = domId(entry, 'icon-preview');
         preview.className = 'home-icon-preview';
-        preview.width = preview.height = 64;
+        preview.width = preview.height = 80;
         preview.loading = 'lazy'; preview.decoding = 'async';
         const update = () => {
             preview.hidden = false;
+            previewParent.hidden = false;
             preview.alt = (icons.find(icon => icon.id === entry.icon)?.hu || 'Ikon') + ' előnézete';
             preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + '&v=' + resourcesVersion;
         };
-        preview.onerror = () => { preview.hidden = true; };
+        preview.onerror = () => { preview.hidden = true; previewParent.hidden = true; };
         const change = input.onchange;
         input.onchange = () => { change(); update(); };
-        /* A választó és az előnézet egy sorban: a kártyán így kevesebb helyet
-         * foglal, és látszik, melyik ikonhoz tartozik. */
-        const row = create('div');
-        row.className = 'icon-row';
-        input.parentNode.append(row);
-        row.append(input, preview);
+        /* A nagyobb ikon külön oszlopot kap; a mezők tömör rácsa megmarad. */
+        previewParent.append(preview);
         update();
     }
     function source(parent, entry) {
@@ -244,9 +243,11 @@ const LoxoneHome = (() => {
             for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
                 const box = create('fieldset'), legend = create('legend', entry.name || 'Új elem');
                 box.append(legend);
-                const grid = create('div'); grid.className = 'grid card-grid'; box.append(grid);
+                const body = create('div'); body.className = 'home-entry-body'; box.append(body);
+                const preview = create('div'); preview.className = 'home-entry-icon'; body.append(preview);
+                const grid = create('div'); grid.className = 'grid card-grid'; body.append(grid);
                 field(grid, 'Név', entry, 'name');
-                iconField(grid, entry);
+                iconField(grid, entry, preview);
                 if (section === 'consumers') {
                     source(grid, entry);
                     field(grid, 'Átlagos üzemi teljesítmény (kW, opcionális)', entry, 'average_kw', 'number', true);

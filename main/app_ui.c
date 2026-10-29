@@ -1852,6 +1852,7 @@ void app_ui_set_config(const app_config_t *cfg)
     }
 
     s_cfg = *cfg;
+    app_templates_set_loxone_mode(cfg->data_recept_mode == APP_DATA_LOXONE);
     s_display_energy = cfg->energy;
     s_cfg.display.rotation_degrees = app_display_normalize_rotation(s_cfg.display.rotation_degrees);
     s_cfg_ok = true;

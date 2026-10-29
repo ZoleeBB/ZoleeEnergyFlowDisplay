@@ -126,7 +126,7 @@ if(typeof document!=='undefined'){
    const upgrade=updateMap.get(t.id);if(upgrade&&upgrade.update){const badge=document.createElement('span');badge.className='update-badge';badge.textContent='Frissíthető: v'+upgrade.available;title.append(badge);}
    const caption=document.createElement('small');caption.textContent=t.id==='builtin'?'Mindig az első helyen':'Téma';
    const actions=document.createElement('div');actions.className='actions';
-   const button=document.createElement('button');button.textContent='Aktiválás';button.onclick=()=>action('/api/templates/select',t.id);
+   const button=document.createElement('button');button.textContent=t.selectable===false?'Csak Loxone módban':'Aktiválás';button.disabled=t.selectable===false;button.onclick=()=>action('/api/templates/select',t.id);
    actions.append(button);
    if(t.id!=='builtin'){
     for(const [symbol,offset,tip] of [['↑',-1,'Fel'],['↓',1,'Le']]){

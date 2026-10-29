@@ -322,7 +322,7 @@ A részletes működés: [Nap pálya](solar-journey-acceptance.md).
 
 ## Mentett előnézeti képek
 
-Mind a tíz csomag kötelező építési bemenete a `preview-light.png` és
+Mind a tizenegy csomag kötelező építési bemenete a `preview-light.png` és
 `preview-dark.png`. Ezek a valódi LVGL-kijelző 480×300 px-es képei demóadatokkal;
 a validátor legfeljebb 640×400 px-es RGB/RGBA előnézetet fogad el.
 A két képet együtt kell megadni. Az előnézet nem használható kijelzőelemként,
@@ -420,3 +420,9 @@ A `battery_eta` forrás (v2-es Akku diagnosztika téma) az akku becsült hátral
 idejét adja egy sorban; szigetüzemben és áramszünetre készülve kiemelt színnel.
 A régebbi firmware ezt a forrást nem ismeri, ezért a `10-battery-diagnostics`
 v2 csomag előtt a firmware-t kell frissíteni.
+
+## Elektromos otthon
+
+A `11-electric-home` csomag csak közvetlen Loxone módban aktiválható.
+Töltő beállítása nélkül is választható; ilyenkor az autós felirat és energiaút
+rejtett. [Beállítások és autótöltés](electric-home.md).

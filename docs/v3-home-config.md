@@ -251,3 +251,10 @@ háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
 A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is
 ad. Ezek nem kerülnek az aktív LVGL-képek közé. A webes szerkesztő telepített
 csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan figyelmeztet.
+
+## Kompakt szerkesztő és autótöltés
+
+A Fogyasztók és az Otthon-kártyák minden beállítása látható, tömör mezőrácsban,
+külön nagy ikonelőnézettel. A meglévő színek, feliratok és zöld legendák megmaradnak.
+Az ikonok magyar név szerinti ABC-sorrendet kapnak. Az `ev-charger` ikonnal jelölt
+fogyasztók összegét az [Elektromos otthon téma](electric-home.md) jeleníti meg.
