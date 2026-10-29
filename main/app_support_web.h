@@ -7,15 +7,24 @@
 #include "app_support_links.h"
 
 /* Közös támogatási blokk: nincs fizetési kérés, háttérkapcsolat vagy kijelzőállapot.
- * A kicsinyített logó is a flashben lévő HTML része. Közvetlenül küldjük,
- * nem a sendf() verempufferén át; a PNG-t kizárólag a böngésző dekódolja. */
+ * A kicsinyített logó is a flashben lévő HTML része, de nyelvtől független: egyetlen
+ * példányban tároljuk, és a kártya két fele közé küldjük. A darabok közvetlenül a
+ * flashből mennek, nem a sendf() verempufferén át; a PNG-t a böngésző dekódolja. */
 static inline esp_err_t app_web_send_support(httpd_req_t *req, bool hu)
 {
-    const char *card = hu ? app_support_card_hu : app_support_card_en;
-    if (!card[0]) {
+    const char *head = hu ? app_support_card_hu : app_support_card_en;
+    const char *tail = hu ? app_support_card_hu_tail : app_support_card_en_tail;
+    if (!head[0]) {
         return ESP_OK;
     }
-    return httpd_resp_send_chunk(req, card, strlen(card));
+    esp_err_t result = httpd_resp_send_chunk(req, head, strlen(head));
+    if (result == ESP_OK && app_support_logo[0]) {
+        result = httpd_resp_send_chunk(req, app_support_logo, strlen(app_support_logo));
+    }
+    if (result == ESP_OK && tail[0]) {
+        result = httpd_resp_send_chunk(req, tail, strlen(tail));
+    }
+    return result;
 }
 
 /* Az oldalt másolás és új heapfoglalás nélkül, a jelölt helyen egészítjük ki.

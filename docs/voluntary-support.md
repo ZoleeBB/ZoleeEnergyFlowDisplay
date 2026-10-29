@@ -20,6 +20,11 @@ Az átlátszó, 240×124 px-es [webes PNG](../assets/branding/logo-web.png)
 2337 bájt; helyi data URI-ként a generált HTML része, nincs új HTTP-kérés,
 SD-olvasás vagy ESP-oldali képdekódolás. A generátor 4 KiB / 240×128 px
 képméretkorlátot és nyelvenként 12 KiB-os HTML-korlátot ellenőriz.
+A logó nyelvtől független blokk, ezért a flashben egyetlen példányban szerepel:
+a generátor a kártyát a blokk előtti és utáni félre vágja, a kiszolgálás pedig a
+két fél közé küldi a közös logót. A kiszolgált HTML így nyelvenként teljes marad,
+a tárolás viszont nem duplikálja a képet (a generált fejléc 10 949 helyett
+7709 bájt állandó adat, RAM-ot továbbra sem foglal).
 A kiszolgálás közvetlenül a flashben tárolt állandóból történik, verempufferbe
 másolás nélkül. A README nagyobb [fejlécképe](../assets/branding/readme-banner.png)
 és az [eredeti felbontású logó](../assets/branding/logo.png) nem kerül a firmware-be.

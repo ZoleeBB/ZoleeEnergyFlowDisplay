@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from prepare_support import build_header, render_card, validate_links
+from prepare_support import build_header, card_parts, logo_block, render_card, validate_links
 
 
 class CardParser(HTMLParser):
@@ -60,6 +60,18 @@ for language in ('hu', 'en'):
         one = CardParser()
         one.feed(render_card({**empty, key: enabled[key]}, language))
         assert len(one.links) == 1 and one.links[0]['href'] == enabled[key]
+
+# A logó nyelvtől független blokk: a generált fejlécben egyetlen példány van,
+# a kiszolgált HTML viszont nyelvenként teljes marad.
+header = build_header(enabled)
+assert header.count('data:image/png;base64,') == 1
+assert header.count('app_support_logo[]') == 1
+for language in ('hu', 'en'):
+    head, tail = card_parts(enabled, language)
+    assert 'base64,' not in head and 'base64,' not in tail
+    assert head + logo_block() + tail == render_card(enabled, language)
+    assert card_parts(empty, language) == ('', '')
+assert build_header(empty).count('base64,') == 0
 
 for key, good in enabled.items():
     for bad in (
