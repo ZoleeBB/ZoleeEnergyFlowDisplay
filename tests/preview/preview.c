@@ -2147,6 +2147,7 @@ int main(void)
     fixture.totals=(app_energy_totals_t){.production_kwh=17.3,.consumption_kwh=11.8,.grid_import_kwh=2.1,.grid_export_kwh=8.4,.battery_charge_kwh=3.2,.battery_discharge_kwh=1.4,.pv_home_kwh=8.3,.pv_export_kwh=5.8,.pv_stored_kwh=3.2,.grid_home_kwh=2.1,.battery_home_kwh=1.4};
     fixture.completed_interval_totals=fixture.totals;
     fixture.ev_charging_today_kwh=18.4; /* Csak az autós téma mutatja. */
+    fixture.ev_charging_solar_today_kwh=11.4; /* 62 %. */
     fixture.yesterday_completed_interval_totals=(app_energy_totals_t){.production_kwh=15.4,.consumption_kwh=12.8,.grid_import_kwh=3.1,.grid_export_kwh=6.4,.battery_charge_kwh=3.5,.battery_discharge_kwh=1.1};
     fixture.has_yesterday=true;
     fixture.comparison_ready=true;
@@ -2572,6 +2573,13 @@ int main(void)
                         char text[128];
                         template_text(text, "ev_charging_today", &sample, &fixture);
                         assert(!strcmp(text, "18,4 kWh"));
+                        template_text(text, "ev_charging_solar", &sample, &fixture);
+                        assert(!strcmp(text, "Ebből napelem: 62 %"));
+                        app_stats_snapshot_t *no_charge = calloc(1, sizeof(*no_charge));
+                        assert(no_charge);
+                        template_text(text, "ev_charging_solar", &sample, no_charge);
+                        assert(!strcmp(text, "Ebből napelem: –"));
+                        free(no_charge);
                         template_text(text, "grid_title", &sample, &fixture);
                         assert(!strcmp(text, sample.power_grid_kw > 0 ? "Hálózati vételezés" : "Hálózati visszatáplálás"));
                         app_energy_sample_t export_sample = sample;

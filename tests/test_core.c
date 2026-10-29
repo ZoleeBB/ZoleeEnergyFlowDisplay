@@ -315,12 +315,31 @@ static void test_ev_charging(void){
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
     near(snapshot.ev_charging_today_kwh,72./3600);
     /* Régi (mező nélküli) napi fájl 0-val töltődik; hibás érték nem fogadható el. */
-    day=read_json("2026-10-05");cJSON_DeleteItemFromObject(day,"ev_charging_kwh");write_json("2026-10-05",day);cJSON_Delete(day);
+    day=read_json("2026-10-05");cJSON_DeleteItemFromObject(day,"ev_charging_kwh");cJSON_DeleteItemFromObject(day,"ev_charging_solar_kwh");write_json("2026-10-05",day);cJSON_Delete(day);
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
     near(snapshot.ev_charging_today_kwh,0);near(snapshot.totals.consumption_kwh,60./3600);
     day=read_json("2026-10-05");cJSON_AddNumberToObject(day,"ev_charging_kwh",-1);write_json("2026-10-05",day);cJSON_Delete(day);
     assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
     near(snapshot.ev_charging_today_kwh,0);
+    /* Napelemes rész: a ház forrásmegosztása szerint arányos (3/9 -> 2 kW-ból 6 kW). */
+    t=instant("2026-10-05",13,0,0);reset(t);
+    for(int k=0;k<2;k++){
+        s=sample(t+10*k,3,6,0);s.power_full_kw=9;s.ev_charging_valid=true;s.ev_charging_kw=6;
+        clock_at(t+10*k);app_stats_process_sample(&s);
+    }
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,60./3600);near(snapshot.ev_charging_solar_today_kwh,20./3600);
+    /* A hálózat helyett akkuból fedezett rész sem napelemes: az arány 1/3 marad. */
+    s=sample(t+20,3,0,6);s.power_full_kw=9;s.ev_charging_valid=true;s.ev_charging_kw=6;
+    clock_at(t+20);app_stats_process_sample(&s);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_today_kwh,120./3600);near(snapshot.ev_charging_solar_today_kwh,40./3600);
+    assert(app_stats_save_now()==ESP_OK);
+    day=read_json("2026-10-05");
+    near(cJSON_GetObjectItem(day,"ev_charging_solar_kwh")->valuedouble,40./3600);
+    cJSON_ReplaceItemInObject(day,"ev_charging_solar_kwh",cJSON_CreateNumber(1));write_json("2026-10-05",day);cJSON_Delete(day);
+    assert(app_stats_init(&cfg)==ESP_OK);app_stats_get_snapshot(&snapshot);
+    near(snapshot.ev_charging_solar_today_kwh,0); /* Több napelemes, mint összes: hibás fájl. */
     /* Éjfélkor az új nap nulláról indul, a szakasz a határon vágva oszlik meg. */
     t=instant("2026-10-05",23,59,55);reset(t);
     s=sample(t,0,0,0);s.ev_charging_valid=true;s.ev_charging_kw=3.6;clock_at(t);app_stats_process_sample(&s);

@@ -175,6 +175,8 @@ Adatkapcsolatok:
   „Elektromos autótöltő” ikonú fogyasztók pillanatnyi kW összege és a mai,
   autóba töltött kWh. Töltő beállítása nélkül az elemek rejtettek
   ([részletek](electric-car.md)).
+- `ev_charging_solar`: egysoros szöveg a mai autótöltés napelemes arányáról
+  („Ebből napelem: 62 %”; töltés nélkül „Ebből napelem: –”).
 - `production_today`, `consumption_today`, `import_today`, `export_today`,
   `charge_today`, `discharge_today`: a közös napi kWh-összesítések.
 - `pv_home`, `pv_export`, `pv_stored`: a közös energiaelosztási modell kW értékei.

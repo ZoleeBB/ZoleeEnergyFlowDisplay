@@ -658,12 +658,12 @@
   },
   {
     "asset": "templates/11-electric-car/preview-dark.png",
-    "sha256": "3dfd92f8690996b057e524960d4b28feac9168757749f0e392a07d5e577d905a",
+    "sha256": "c71182a909c6487d8f008007314548a137ca7c868cc8de93da7b84f29bfee977",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/11-electric-car/preview-light.png",
-    "sha256": "67795833791f747119230cc991304962776bf4e7ce7b45881406962b7b731c76",
+    "sha256": "bb00d5518a34e5d8596230c3914a185d83c7bb6d208e6b813785b56e7440a6f6",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

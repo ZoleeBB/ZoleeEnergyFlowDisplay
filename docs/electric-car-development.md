@@ -60,3 +60,8 @@ Az új téma csak Master/Loxone működést kap; a külön 720×720-as 4B firmwa
 - [x] Energiautak iránya és sebessége a közös `app_flow_advance` szerint (kW-arányos, 7 kW-nál max).
 - [x] Üresjárati frissítésnél nulla érvénytelenítés minden mért témán, az autós témán is
   (`tests/preview/preview.c`, renderköltség-mérés).
+
+## 5-ös témaverzió – 2026-10-29
+
+- [x] Autótöltés kártya: „Ebből napelem: N %” (`ev_charging_solar`), arányos forrásmegosztással,
+  tartósan mentve (`ev_charging_solar_kwh`); tesztek a `tests/test_core.c`-ben.

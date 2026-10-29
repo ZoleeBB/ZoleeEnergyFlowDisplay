@@ -40,7 +40,8 @@ a nappali és az éjszakai képhez külön illesztett geometria tartozik.
   vagy „Hálózati visszatáplálás”; áramlás nélkül „Hálózat” (`grid_title`).
 - Az **Akkumulátor** kártya jobb oldalán az akku hőmérséklete látszik.
 - Az **Autótöltés** kártya jobb oldalán kisebb betűvel a mai, autóba töltött
-  energia: **Ma összesen** (`ev_charging_today`, kWh).
+  energia: **Ma összesen** (`ev_charging_today`, kWh). Alatta a mai töltés
+  napelemes aránya: **Ebből napelem: 62 %** (`ev_charging_solar`, 5-ös témaverzió).
 
 ### Mai autótöltési energia
 
@@ -51,8 +52,19 @@ trapézszabállyal integrálja, ötperces és éjféli határon vágva. Hiányz�
 elavult töltőadat, illetve a beállított maximális mintarésnél hosszabb kimaradás
 szakaszát nem számolja, így nincs becsült vagy kitalált energia.
 
+**Napelemes arány.** Minden mintánál a ház teljes terhelését (`PowerFull`,
+benne az autótöltéssel) a közös energiafelosztás szerint osztjuk a forrásokra:
+a napelem először a házat látja el, a maradékot az akku és a hálózat fedezi.
+Az autó a közvetlen napelemes rész ugyanakkora hányadát kapja, mint bármely
+más fogyasztó: `autó_napelem = autó_kW × napelem→ház / PowerFull`. Az akkuból
+fedezett rész akkor sem számít napelemesnek, ha az akkut korábban a napelem
+töltötte, így az érték óvatos alsó becslés. A napi arány a két integrált
+energia hányadosa.
+
 Az összeg a napi statisztikai fájl opcionális `ev_charging_kwh` mezőjébe kerül
-a meglévő mentési ütemben, így újraindítás után is megmarad, és éjfélkor nulláz.
+(a napelemes rész az `ev_charging_solar_kwh` mezőbe) a meglévő mentési
+ütemben, így újraindítás után is megmarad, és éjfélkor nulláz. A betöltés
+elutasítja azt a fájlt, amelyben a napelemes rész több a teljes töltésnél.
 Külön SD-írás nincs. A régebbi firmware a mezőt figyelmen kívül hagyja, a régi
 napi fájlok változatlanul betölthetők. A mező nem része a házfogyasztás
 energiamérlegének, és a Slave-ek felé küldött statisztikának sem.

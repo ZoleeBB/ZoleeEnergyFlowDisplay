@@ -94,6 +94,7 @@ typedef struct
     app_energy_totals_t totals;
     /* Mai autótöltési energia (kWh); csak a Master helyi statisztikája tölti. */
     double ev_charging_today_kwh;
+    double ev_charging_solar_today_kwh; /* Ebből a napelemes rész (kWh). */
     app_battery_report_t battery; /* Helyi, mintánként számolt diagnosztika. */
     app_energy_totals_t completed_interval_totals;
     bool has_yesterday;
