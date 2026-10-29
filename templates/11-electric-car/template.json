@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "11-electric-car",
   "name": "Elektomos auto",
-  "version": 2,
+  "version": 3,
   "light": {
     "background": "#10251F",
     "home_hotspot": {
@@ -313,8 +313,8 @@
       },
       {
         "type": "box",
-        "x": 28,
-        "y": 92,
+        "x": 880,
+        "y": 112,
         "w": 224,
         "h": 83,
         "opacity": 150,
@@ -323,8 +323,8 @@
       },
       {
         "type": "label",
-        "x": 40,
-        "y": 100,
+        "x": 892,
+        "y": 120,
         "w": 200,
         "h": 25,
         "font": 16,
@@ -338,8 +338,8 @@
       },
       {
         "type": "value",
-        "x": 40,
-        "y": 126,
+        "x": 892,
+        "y": 146,
         "w": 200,
         "h": 40,
         "font": 28,
@@ -432,7 +432,7 @@
         "type": "value",
         "x": 40,
         "y": 628,
-        "w": 228,
+        "w": 110,
         "h": 30,
         "font": 20,
         "color": "#FFFFFF",
@@ -441,6 +441,20 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "soc"
+      },
+      {
+        "type": "value",
+        "x": 172,
+        "y": 628,
+        "w": 96,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery_temp"
       },
       {
         "type": "box",
@@ -961,8 +975,8 @@
       },
       {
         "type": "box",
-        "x": 28,
-        "y": 92,
+        "x": 880,
+        "y": 112,
         "w": 224,
         "h": 83,
         "opacity": 175,
@@ -971,8 +985,8 @@
       },
       {
         "type": "label",
-        "x": 40,
-        "y": 100,
+        "x": 892,
+        "y": 120,
         "w": 200,
         "h": 25,
         "font": 16,
@@ -986,8 +1000,8 @@
       },
       {
         "type": "value",
-        "x": 40,
-        "y": 126,
+        "x": 892,
+        "y": 146,
         "w": 200,
         "h": 40,
         "font": 28,
@@ -1080,7 +1094,7 @@
         "type": "value",
         "x": 40,
         "y": 628,
-        "w": 228,
+        "w": 110,
         "h": 30,
         "font": 20,
         "color": "#FFFFFF",
@@ -1089,6 +1103,20 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "soc"
+      },
+      {
+        "type": "value",
+        "x": 172,
+        "y": 628,
+        "w": 96,
+        "h": 30,
+        "font": 20,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1,
+        "source": "battery_temp"
       },
       {
         "type": "box",
