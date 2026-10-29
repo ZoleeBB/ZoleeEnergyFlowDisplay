@@ -31,7 +31,7 @@ a fekete töltőkábelt követő új út az autótöltés részértékét mutatj
 A 2-es témaverzióban két összefüggő Bézier-szakasz követi a kábel középvonalát;
 a nappali és az éjszakai képhez külön illesztett geometria tartozik.
 
-## Kártyák (4-es témaverzió)
+## Kártyák (5-ös témaverzió)
 
 - A fejléc (cím, téma neve, dátum, óra, időjárás) a többi mezőhöz hasonló
   áttetsző sávot kapott, így nappal is jól olvasható.
@@ -72,7 +72,7 @@ HTTP/MQTT csomagban az azonos nevű mezőt a kijelző figyelmen kívül hagyja.
 
 ## Telepítés és webes szerkesztés
 
-Frissítsd a Master firmware-ét, majd telepítsd a `11-electric-car.zip`
+Frissítsd a Master firmware-ét, majd telepítsd a `11-electric-car.zip` 5-ös verziójú
 csomagot a **Sablonok** oldalon. A firmware-frissítés önmagában nem másolja
 az új háttereket az SD-kártyára. A többi gyári téma megmarad.
 

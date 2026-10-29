@@ -29,10 +29,33 @@ A beépített rendszernézet korábbi összegző képletei eltérnek: önellát�
 
 A v3 napfájlok integrált forrásenergiát és SOC-átlagot is tárolnak. A v1/v2 állományok olvashatók; forrásarányaik közelítettek, SOC-görbéjük hiányzik. A mentés alapértelmezetten 15 percenként történik; OTA firmware-frissítés és kézi újraindítás előtt is azonnali mentés fut. A mentés revíziós, `.tmp`/`.bak` helyreállítással, `fflush` és `fsync` használatával. SD-hibánál a RAM-beli gyűjtés tovább fut. Az opcionális időjárás nem befolyásolja az energiaszámítást.
 
+## Autótöltés és napelemes arány
+
+Közvetlen Loxone módban az `ev-charger` ikonú fogyasztók érvényes, kW-ra
+átváltott összege kerül az energiamintába. A mai töltési energiát a firmware
+csak két érvényes minta között integrálja, az ötperces és helyi éjféli
+határokon szétvágva. Hiányzó/elavult adat vagy túl hosszú mintarés kimarad.
+A ház `PowerFull` értéke már tartalmazza az autót, ezért az összeg nem adódik
+hozzá még egyszer a fogyasztási mérleghez.
+
+A közvetlen napelemes töltési teljesítmény becslése:
+`autó_kW × (PV→ház / PowerFull)`, a közös forrásfelosztás alapján.
+A napi százalék az integrált napelemes és teljes autótöltési energia hányadosa;
+nem a pillanatnyi arányok átlaga. Az akkumulátor korábbi töltési eredete nem
+követett, így az akkumulátorból fedezett rész nem számít napelemesnek.
+Töltési energia nélkül a téma százalék helyett „–” jelet mutat.
+
+A napi fájl opcionális `ev_charging_kwh` és `ev_charging_solar_kwh` mezői a
+meglévő mentési ütemben íródnak, újraindítás után visszatölthetők, éjfélkor
+új napi összeg indul. A régi fájlok olvashatók; a betöltő elutasítja a teljes
+töltést meghaladó napelemes energiát. Ezek a mezők nem kerülnek a Slave
+statisztikai transzferébe, HTTP/MQTT bemenetből pedig nem gyűlik autótöltés.
+[Beállítás és megjelenítés](electric-car.md).
+
 ## Slave statisztikák
 
 SD-kártyával a Slave ugyanígy, helyben integrálja a mastertől fogadott élő
-mintákat, és a saját kártyájára ment. Minden telepített témát használhat;
+mintákat, és a saját kártyájára ment. Az adott módban elérhető telepített témákat használhat (az Elektromos autó csak közvetlen Loxone módban választható);
 a heti/havi nézetek a saját történetből dolgoznak. A master korábbi napjait nem
 tölti le automatikusan. Kimaradáskor nincs becsült visszatöltés, és az ismételt
 BLE heartbeat ugyanazt a mérést nem integrálja újra.

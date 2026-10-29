@@ -16,8 +16,8 @@ Az eredeti nézet a firmware része, mindig elérhető. A választható elrendez
 | `07-energy-ledger` | Energiafőkönyv: most/ma táblázat, tároló és export összesítők |
 | `08-statistics` | Energiastatisztika: öt napi grafikon, heti/havi oszlopok, élő számok és pénzügyek |
 | `09-solar-journey` | Nap pálya: 24 órás napjárás, nappali/éjszakai ház, termelési grafikon és energiaáramlás; érvényes `SunPosition` szükséges |
-
 | `10-battery-diagnostics` | [Akku diagnosztika](battery-diagnostics.md): mért energia/SOC, kapacitásbecslés, párosított hatásfok és megfigyelt ciklusok |
+| `11-electric-car` | [Elektromos autó](electric-car.md): csak közvetlen Loxone módban; élő töltés, mai kWh és becsült napelemes arány |
 
 ## Használat
 
@@ -230,7 +230,7 @@ Az LVGL képcache 10 MiB: a házhátteret nem kell minden animációs képkocká
 
 `python tests/test_templates.py`: a tényleges C telepítő, séma, PNG-k,
 hibás ZIP-ek, megőrzés, törlés és visszaállás tesztjei.
-A `ui-preview` CI tizennyolc valódi LVGL-sablonképet renderel, és ellenőrzi a közös
+A `ui-preview` CI a telepített témák valódi LVGL-képeit rendereli, és ellenőrzi a közös
 hibaoldalból visszatérést. A Windows szimulátor ugyanazt a sablonrajzolót használja.
 A fizikai kijelzőn a húzás érzékenységét, a nagy házháttér animációs sebességét és
 az SD-kártya sebességét külön hardveres próba igazolja.
@@ -270,6 +270,7 @@ Az alábbi képek a firmware rajzolójából származnak, nem statikus látvány
 | Energiastatisztika | ![Nappal](../templates/08-statistics/preview-light.png) | ![Éjjel](../templates/08-statistics/preview-dark.png) |
 | Nap pálya | ![Nappal](../templates/09-solar-journey/preview-light.png) | ![Éjjel](../templates/09-solar-journey/preview-dark.png) |
 | Akku diagnosztika | ![Nappal](../templates/10-battery-diagnostics/preview-light.png) | ![Éjjel](../templates/10-battery-diagnostics/preview-dark.png) |
+| Elektromos autó (Loxone) | ![Nappal](../templates/11-electric-car/preview-light.png) | ![Éjjel](../templates/11-electric-car/preview-dark.png) |
 
 ![Aktuális ikonok és időjárás](previews/template-icons.png)
 
@@ -402,8 +403,9 @@ telepített csomagnál az ikonválasztók a kiválasztott kis képet is megmutat
 A felhasználói próba utáni javítások és a megismétlendő eszközpróba:
 [v3-field-fixes.md](v3-field-fixes.md).
 
-A teljes v3 még fejlesztés alatt áll; a részletes állapot a
-[folytatási tervben](v3-development-plan.md) követhető.
+A v3 fejlesztéskori döntések és ellenőrzések a
+[folytatási tervben](v3-development-plan.md) követhetők; a jelenlegi beállításokat a
+[Loxone Otthon útmutató](v3-home-config.md) ismerteti.
 
 A Nyugodt otthon v9 saját, jóváhagyott fotóhátteret kapott. Részletek és grafikai
 méretek: [calm-home.md](calm-home.md). Az új megjelenéshez a `05-calm-home.zip`

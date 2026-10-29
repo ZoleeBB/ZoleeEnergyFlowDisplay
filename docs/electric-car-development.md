@@ -70,3 +70,22 @@ Az új téma csak Master/Loxone működést kap; a külön 720×720-as 4B firmwa
 - [x] A beépített Rendszer nézet energiaútjai és ikonjai csak változáskor írnak: üresjáratban
   0 érvénytelenítés (előtte 12/kör), az animáció rajzolási munkája 3,55 -> 0,02 teljes képkocka
   30 tick alatt. A kép a teljes újrarajzolással azonos.
+
+## PR-előkészítés és dokumentáció – 2026-10-29
+
+- A README elején az indulás, az általános funkciók, a külön előnézeti galéria
+  és a dokumentációs jegyzék szerepel; a verzió- és fejlesztési bejegyzések a végére kerültek.
+- Az Elektromos autó mindkét előnézeti galériában szerepel. A témakatalógus,
+  a Loxone-kapcsolat, az Otthon-konfiguráció, a statisztika és a sablonkészítés
+  leírása az 5-ös témaverzióhoz igazodik.
+- Ebben a munkamenetben sikeres: `tests/test_documentation.py`,
+  `tests/test_templates.py`, `tests/test_loxone_home_web.js`,
+  `tests/test_template_packages.py`, `tools/prepare_templates.py` és `git diff --check`.
+- A teljes `ASAN_OPTIONS=detect_leaks=0 python3 tests/run_tests.py` futás
+  a Loxone-tároló tesztjénél megállt: ebben a környezetben hiányoznak az
+  `mbedtls/platform_util.h` és `mbedtls/gcm.h` fejlécek. Ez környezeti akadály;
+  a fenti korábbi teljes teszteredményeket ebben a munkamenetben nem sikerült
+  teljes körűen megismételni.
+- ESP-IDF helyben nincs telepítve. A firmware-ek méretét, az LVGL-előnézeti
+  regressziót és a Windows-szimulátorokat a PR CI-jének kell ellenőriznie;
+  az eredmény nem tekinthető készülékes mérésnek.

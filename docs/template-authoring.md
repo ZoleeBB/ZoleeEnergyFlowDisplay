@@ -14,7 +14,7 @@ A könyvtár neve és a JSON `id` mezője egyezzen. A `name` megjelenített név
 
 ## 2. Saját vizuális világ és ikonok
 
-Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A tíz mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
+Határozd meg a háttér, kártyák, betűk és ikonok közös stílusát. A tizenegy mellékelt sablon saját képeket és ikonokat használ. Az alapnézet PNG-it ne másold át új
 sablonba. Részletes, kis méretben is felismerhető, keret nélküli képeket készíts;
 a színes energiaág körvonala a rajzoló feladata, nem az ikon része.
 
@@ -280,3 +280,14 @@ A szinkronizálatlan óra vagy hiányzó napadat nem eredményez kitalált jelö
 Ezt a widgetet is hagyd szabadon az asszisztens és érintőcélok területétől.
 Régebbi firmware nem ismeri az elemtípust; a meglévő típusokat használó
 korábbi sablonok támogatása változatlan. Részletek: [energy-orbit.md](energy-orbit.md).
+
+## Autótöltési adatforrások
+
+A `grid_title` szöveges értékforrás az előjel szerint hálózati vételezést,
+visszatáplálást vagy semleges hálózati címet ad. Az `ev_charging` az összegzett
+pillanatnyi töltés, az `ev_charging_today` a mai töltési kWh, az
+`ev_charging_solar` a mai becsült napelemes arány felirata.
+Az autós elemek csak közvetlen Loxone módban, konfigurált autótöltő mellett
+jelennek meg; a hozzájuk tartozó címkékhez is ugyanazt a `source` mezőt add meg.
+A működő minta a `templates/11-electric-car/template.json`.
+[Adatérvényesség és számítások](electric-car.md).
