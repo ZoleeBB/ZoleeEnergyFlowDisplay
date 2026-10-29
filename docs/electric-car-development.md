@@ -40,6 +40,9 @@ Az új téma csak Master/Loxone működést kap; a külön 720×720-as 4B firmwa
   RGB565 módban sikeres. Töltő nélkül minden autós elem és mozgó pont rejtett;
   valódi nulla, megszakadt kapcsolat, összegzett töltés és HU/EN feliratok ellenőrizve.
 - A csomagelőnézetek a végleges téma tényleges LVGL-képkockáiból készültek.
+- A 2-es témaverzió autótöltési útja a két háttér kábelére külön illesztett,
+  két összefüggő Bézier-szakasz. A frissített nappali/éjszakai LVGL-előnézetek
+  és a teljes UI-regresszió ellenőrizve; a háttérképek változatlanok.
 - A külön 4B Slave nem használja ezt a témakatalógust, így firmware-kódja nem változott.
 - ESP-IDF nincs telepítve a helyi környezetben: a Master/Slave firmware-buildek,
   a flash/OTA binárisméret és a Windows-szimulátor ellenőrzése a CI feladata.

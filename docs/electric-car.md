@@ -28,6 +28,8 @@ mert az összegben minden konfigurált fogyasztó egyszer szerepel.
 nem vonódik le, és a napi házfogyasztáshoz sem adódik hozzá másodszor.
 A napelem, a hálózat és az akkumulátor energiaútja az inverterhez kapcsolódik;
 a fekete töltőkábelt követő új út az autótöltés részértékét mutatja.
+A 2-es témaverzióban két összefüggő Bézier-szakasz követi a kábel középvonalát;
+a nappali és az éjszakai képhez külön illesztett geometria tartozik.
 
 ## Telepítés és webes szerkesztés
 
