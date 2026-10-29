@@ -995,10 +995,13 @@ static void template_solar_halo(template_node_t *node,const app_energy_sample_t 
         /* A nap középpontjából induló kitöltött kör kifelé halad,
          * és a teljes méret elérése előtt nullára halványul. */
         lv_opa_t ring_alpha=daylight&&pv>0?(lv_opa_t)lroundf(190.f*(1.f-node->phase)):0;
-        lv_obj_set_style_border_width(node->detail,daylight?2:0,0);
-        lv_obj_set_style_border_opa(node->detail,ring_alpha,0);
-        lv_obj_set_style_shadow_width(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
-        lv_obj_set_style_shadow_opa(node->detail,daylight?ring_alpha:(lv_opa_t)(35+20*wave),0);
+        /* Csak változáskor írunk: a template_update minden 200 ms-os körben
+         * dt=0-val is meghívja, ilyenkor azonos értéknél nincs újrarajzolás.
+         * Az animációs tick változó értékei továbbra is azonnal érvényesülnek. */
+        border_width_if_changed(node->detail,daylight?2:0,0);
+        border_opa_if_changed(node->detail,ring_alpha,0);
+        shadow_width_if_changed(node->detail,daylight?8:10+(int)lroundf(4.f*wave),0);
+        shadow_opa_if_changed(node->detail,daylight?ring_alpha:(lv_opa_t)(35+20*wave),0);
         bg_opa_if_changed(node->detail,daylight?(pv>0?(lv_opa_t)lroundf(110.f*(1.f-node->phase)):0):(lv_opa_t)(22+16*wave),0);
     }
 }

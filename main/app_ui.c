@@ -296,6 +296,9 @@ static void style_number_if_changed(lv_obj_t *obj,
 #define bg_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BG_OPA, v, s)
 #define border_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BORDER_OPA, v, s)
 #define text_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_TEXT_OPA, v, s)
+#define border_width_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_BORDER_WIDTH, v, s)
+#define shadow_width_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_SHADOW_WIDTH, v, s)
+#define shadow_opa_if_changed(o, v, s) style_number_if_changed(o, LV_STYLE_SHADOW_OPA, v, s)
 
 /* Teljes képernyős háttér alapstílusa. */
 static void screen_style(lv_obj_t *o, bool night)
