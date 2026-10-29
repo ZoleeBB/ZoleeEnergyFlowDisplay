@@ -13,6 +13,24 @@ a visszafogott támogatási kártya jelenik meg a lap tetején. A meglévő hozz
 és adatfogadásimód-korlátok változatlanok. A magyar/angol oldalakon a megfelelő
 nyelvű szöveg jelenik meg; a jelenleg magyar szerkesztőoldalak magyar kártyát kapnak.
 
+A kártya bal oldalán a projekt teljes logója látható, mellette a szöveg és a
+támogatási gombok. Legfeljebb 640 px széles nézetben a logó a tartalom fölé
+kerül, a kártya és a kép a rendelkezésre álló szélességhez igazodik.
+Az átlátszó, 240×124 px-es [webes PNG](../assets/branding/logo-web.png)
+2337 bájt; helyi data URI-ként a generált HTML része, nincs új HTTP-kérés,
+SD-olvasás vagy ESP-oldali képdekódolás. A generátor 4 KiB / 240×128 px
+képméretkorlátot és nyelvenként 12 KiB-os HTML-korlátot ellenőriz.
+A logó nyelvtől független blokk, ezért a flashben egyetlen példányban szerepel:
+a generátor a kártyát a blokk előtti és utáni félre vágja, a kiszolgálás pedig a
+két fél közé küldi a közös logót. A kiszolgált HTML így nyelvenként teljes marad,
+a tárolás viszont nem duplikálja a képet (a generált fejléc 10 949 helyett
+7709 bájt állandó adat, RAM-ot továbbra sem foglal).
+A kiszolgálás közvetlenül a flashben tárolt állandóból történik, verempufferbe
+másolás nélkül. A README nagyobb [fejlécképe](../assets/branding/readme-banner.png)
+és az [eredeti felbontású logó](../assets/branding/logo.png) nem kerül a firmware-be.
+A szerkeszthető [banner SVG](../assets/branding/readme-banner.svg) a mellette lévő
+`logo.png` fájlt használja; a README a belőle renderelt, önálló PNG-t jeleníti meg.
+
 A kártya a két engedélyezett szolgáltatóhoz vezethet:
 
 - **Revolut.me:** általános profilhivatkozás, előre meghatározott összeg nélkül.

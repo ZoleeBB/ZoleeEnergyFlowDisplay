@@ -89,6 +89,10 @@ def package(build, output, tag, commit, board="main"):
     # A README és a támogatási útmutató helyi hivatkozásai az USB-csomagban is éljenek.
     for name in ('AGENTS.md', 'assets/support-links.json', 'assets/loxone-home/README.md'):
         files[name] = (ROOT / name).read_bytes()
+    # A fejléc és a logók csak az offline dokumentáció részei, nem flashképek.
+    for path in sorted((ROOT / 'assets/branding').glob('*')):
+        if path.is_file():
+            files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for path in sorted((ROOT / 'assets/loxone-home/previews').glob('*.png')):
         files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     for folder in ('docs', 'examples'):

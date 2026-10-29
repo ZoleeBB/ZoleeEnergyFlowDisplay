@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Támogatási URL-ek, generált HTML és a valódi C-kiszolgálás ellenőrzése."""
 from html.parser import HTMLParser
+import base64
 import json
 import os
 from pathlib import Path
@@ -11,21 +12,30 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from prepare_support import build_header, render_card, validate_links
+from prepare_support import build_header, card_parts, logo_block, render_card, validate_links
 
 
 class CardParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.links = []
+        self.images = []
         self.text = []
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
         if tag == 'a':
             self.links.append(attributes)
+        if tag == 'img':
+            self.images.append(attributes)
+            assert attributes['src'].startswith('data:image/png;base64,')
+            image = base64.b64decode(attributes['src'].split(',', 1)[1], validate=True)
+            assert image == (ROOT / 'assets/branding/logo-web.png').read_bytes()
+            assert len(image) <= 4096
+            assert attributes['alt'] == 'Zolee Energy Flow Display'
+            assert (attributes['width'], attributes['height']) == ('240', '124')
         # Az oldal megnyitásakor egyetlen külső kapcsolat sem indulhat.
-        assert tag not in ('script', 'iframe', 'img', 'form', 'link')
+        assert tag not in ('script', 'iframe', 'form', 'link')
 
     def handle_data(self, data):
         self.text.append(data)
@@ -37,6 +47,7 @@ empty = {key: '' for key in enabled}
 for language in ('hu', 'en'):
     parser = CardParser()
     parser.feed(render_card(enabled, language))
+    assert len(parser.images) == 1
     assert [link['href'] for link in parser.links] == list(enabled.values())
     for link in parser.links:
         assert link['target'] == '_blank'
@@ -49,6 +60,18 @@ for language in ('hu', 'en'):
         one = CardParser()
         one.feed(render_card({**empty, key: enabled[key]}, language))
         assert len(one.links) == 1 and one.links[0]['href'] == enabled[key]
+
+# A logó nyelvtől független blokk: a generált fejlécben egyetlen példány van,
+# a kiszolgált HTML viszont nyelvenként teljes marad.
+header = build_header(enabled)
+assert header.count('data:image/png;base64,') == 1
+assert header.count('app_support_logo[]') == 1
+for language in ('hu', 'en'):
+    head, tail = card_parts(enabled, language)
+    assert 'base64,' not in head and 'base64,' not in tail
+    assert head + logo_block() + tail == render_card(enabled, language)
+    assert card_parts(empty, language) == ('', '')
+assert build_header(empty).count('base64,') == 0
 
 for key, good in enabled.items():
     for bad in (
@@ -90,6 +113,7 @@ for configured, config in ((0, empty), (1, enabled)):
         binary = str(directory / 'test_support_web')
         subprocess.run([
             os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+            '-Werror=frame-larger-than=1024',
             '-fsanitize=undefined', '-fno-sanitize-recover=all',
             f'-DSUPPORT_ENABLED={configured}', '-I' + temporary, '-Itests/stubs',
             'tests/test_support_web.c', '-o', binary,
