@@ -1,4 +1,4 @@
-# Elektromos otthon – fejlesztési terv
+# Elektomos auto – fejlesztési terv
 
 ## Elfogadott működés és megjelenés
 

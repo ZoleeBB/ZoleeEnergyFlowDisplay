@@ -429,16 +429,16 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     print('PASS: raw sidecars are built by the background step, loaded without the PNG and fall back when corrupt')
     # A töltő nélküli autós téma is kiválasztható, de csak Loxone módban.
     ev_doc = copy.deepcopy(doc)
-    ev_doc['id'] = '11-electric-home'
-    ev_doc['name'] = 'Electric home mode test'
+    ev_doc['id'] = '11-electric-car'
+    ev_doc['name'] = 'Electric car mode test'
     ev_zip = archive('electric-mode', ev_doc)
     assert lib.app_templates_install(os.fsencode(ev_zip), error) == 0, error.value
     lib.app_templates_set_loxone_mode.argtypes = [C.c_bool]
     lib.app_templates_set_loxone_mode(False)
-    assert lib.app_templates_select(b'11-electric-home') != 0
+    assert lib.app_templates_select(b'11-electric-car') != 0
     lib.app_templates_set_loxone_mode(True)
-    assert lib.app_templates_select(b'11-electric-home') == 0
-    assert active()[1] == '11-electric-home'
+    assert lib.app_templates_select(b'11-electric-car') == 0
+    assert active()[1] == '11-electric-car'
     lib.app_templates_set_loxone_mode(False)
     assert active()[1] == 'builtin'
     assert lib.app_templates_init() == 0
@@ -447,5 +447,5 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     lib.app_templates_view_free(C.byref(raw_view))
     for _ in range(active()[0] * 2):
         lib.app_templates_step_available(1, True)
-        assert active()[1] != '11-electric-home'
+        assert active()[1] != '11-electric-car'
     print('PASS: EV activation and swipe filtering, mode change and persisted selection')

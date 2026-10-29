@@ -7,7 +7,7 @@
 #include "esp_err.h"
 
 #define APP_TEMPLATE_MAX 16
-#define APP_TEMPLATE_EV_ID "11-electric-home"
+#define APP_TEMPLATE_EV_ID "11-electric-car"
 #define APP_TEMPLATE_ZIP_MAX (8U * 1024U * 1024U)
 /* 1280x800 fotóháttér: egy RGB PNG 2 MiB felett is lehet, a teljes
  * dekódolt összes kép normál témánál 12 MiB, speciális Otthon-csomagnál 20 MiB.

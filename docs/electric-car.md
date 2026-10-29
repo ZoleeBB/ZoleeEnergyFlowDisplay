@@ -1,6 +1,6 @@
-# Elektromos otthon
+# Elektomos auto
 
-A `11-electric-home.zip` egy új, 1280×800-as nappali/éjszakai energiaáramlási
+A `11-electric-car.zip` egy új, 1280×800-as nappali/éjszakai energiaáramlási
 téma. Közvetlen **Loxone** adatfogadási módban választható a Masteren;
 MQTT, HTTP és Slave módban a lapozás átugorja, a webes aktiválás tiltott.
 Az Energiaáramlás tiltás meglévő szabálya erre a témára is érvényes.
@@ -31,7 +31,7 @@ a fekete töltőkábelt követő új út az autótöltés részértékét mutatj
 
 ## Telepítés és webes szerkesztés
 
-Frissítsd a Master firmware-ét, majd telepítsd a `11-electric-home.zip`
+Frissítsd a Master firmware-ét, majd telepítsd a `11-electric-car.zip`
 csomagot a **Sablonok** oldalon. A firmware-frissítés önmagában nem másolja
 az új háttereket az SD-kártyára. A többi gyári téma megmarad.
 
@@ -44,4 +44,4 @@ Az ikonválasztó magyar megnevezés szerint, ékezethelyes ABC-sorrendben rende
 A 720×720-as Waveshare 4B külön Slave-firmware nem kap új oldalt ebben a
 fejlesztésben: ez a funkció közvetlen Loxone módhoz kötött Master-téma.
 
-[Fejlesztési terv és ellenőrzési állapot](electric-home-development.md).
+[Fejlesztési terv és ellenőrzési állapot](electric-car-development.md).

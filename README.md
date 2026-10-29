@@ -146,9 +146,9 @@ A fogyasztói/Otthon-oldalak és az energiaasszisztens **csak Masteren, közvetl
 
 **Frissítési sorrend:** előbb a megfelelő firmware-ek, majd a Master `/templates` oldalán a `loxone-home.zip`, `05-calm-home.zip` és `06-energy-orbit.zip` csomagok. Az OTA önmagában nem frissíti az SD-s témákat. [Telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md). Az átadási és ellenőrzési jegyzetek a fejlesztéskori állapotokat és a még nem rögzített készülékes méréseket is őrzik.
 
-## Elektromos otthon és rendezett Loxone-szerkesztő
+## Elektomos auto és rendezett Loxone-szerkesztő
 
-Az új **Elektromos otthon** téma autótöltést is mutat a nappali/éjszakai
+Az új **Elektomos auto** téma autótöltést is mutat a nappali/éjszakai
 kertesházas jeleneten. Kizárólag közvetlen Loxone módban választható; az
 „Elektromos autótöltő” ikonú fogyasztók teljesítményét összegzi, és a fali
 töltőtől az autó felé animálja. Töltő nélkül az autós érték és energiaút rejtett.
@@ -157,8 +157,8 @@ A webes fogyasztó- és Otthon-kártyaszerkesztő nagyobb ikonokat, kompakt
 mezőrácsot és magyar ABC-sorrendű ikonlistát kapott, a meglévő színekkel,
 feliratokkal és végig látható beállításokkal.
 
-[Telepítés, mérés és működés](docs/electric-home.md) ·
-[Fejlesztési terv és ellenőrzések](docs/electric-home-development.md).
+[Telepítés, mérés és működés](docs/electric-car.md) ·
+[Fejlesztési terv és ellenőrzések](docs/electric-car-development.md).
 
 ## Első indítás
 
@@ -183,7 +183,7 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 | Loxone – Ház külön mért fogyasztói | ![Fogyasztók nappal](assets/loxone-home/previews/consumers-light.png) | ![Fogyasztók éjjel](assets/loxone-home/previews/consumers-dark.png) |
 | Loxone – Otthon-kártyák | ![Otthon-kártyák nappal](assets/loxone-home/previews/cards-light.png) | ![Otthon-kártyák éjjel](assets/loxone-home/previews/cards-dark.png) |
 | Élő otthon | ![Nappal](templates/01-live-home/preview-light.png) | ![Éjjel](templates/01-live-home/preview-dark.png) |
-| Elektromos otthon (Loxone) | ![Nappal](templates/11-electric-home/preview-light.png) | ![Éjjel](templates/11-electric-home/preview-dark.png) |
+| Elektomos auto (Loxone) | ![Nappal](templates/11-electric-car/preview-light.png) | ![Éjjel](templates/11-electric-car/preview-dark.png) |
 | Energiautak | ![Nappal](templates/02-energy-paths/preview-light.png) | ![Éjjel](templates/02-energy-paths/preview-dark.png) |
 | Műszerfal | ![Nappal](templates/03-instruments/preview-light.png) | ![Éjjel](templates/03-instruments/preview-dark.png) |
 | Napi mérleg | ![Nappal](templates/04-daily-balance/preview-light.png) | ![Éjjel](templates/04-daily-balance/preview-dark.png) |

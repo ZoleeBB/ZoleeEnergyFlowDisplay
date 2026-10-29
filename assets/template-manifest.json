@@ -647,52 +647,52 @@
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
-    "asset": "templates/11-electric-home/day.png",
+    "asset": "templates/11-electric-car/day.png",
     "sha256": "73215e0889cc0fd98c21cc82ab277379daee693ba3d94b1b678c44a77117fd0e",
     "generator": "built-in image_gen; user-approved day/night sheet, split and resized to native 1280x800"
   },
   {
-    "asset": "templates/11-electric-home/night.png",
+    "asset": "templates/11-electric-car/night.png",
     "sha256": "06674a392e31e87e1f6117d126f15bd04b2c476f689fb13c5351013f6635899b",
     "generator": "built-in image_gen; user-approved day/night sheet, split and resized to native 1280x800"
   },
   {
-    "asset": "templates/11-electric-home/preview-dark.png",
+    "asset": "templates/11-electric-car/preview-dark.png",
     "sha256": "c5343846e69b6b07fbe06d06fbfae54bb546363ccbbfacdde784e6d7b4743c92",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
-    "asset": "templates/11-electric-home/preview-light.png",
+    "asset": "templates/11-electric-car/preview-light.png",
     "sha256": "b3907de34c8214e3085ef43562ed959e2c4f07e67529948d685955c4cdb442e6",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
-    "asset": "templates/11-electric-home/weather_cloudy.png",
+    "asset": "templates/11-electric-car/weather_cloudy.png",
     "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
     "generator": "Existing project weather asset reused without changes"
   },
   {
-    "asset": "templates/11-electric-home/weather_night.png",
+    "asset": "templates/11-electric-car/weather_night.png",
     "sha256": "cc153f7bf5b0f064ca61ad742942b136599f0f08ce6fd70054250190fc670215",
     "generator": "Existing project weather asset reused without changes"
   },
   {
-    "asset": "templates/11-electric-home/weather_partly_cloudy.png",
+    "asset": "templates/11-electric-car/weather_partly_cloudy.png",
     "sha256": "56cb25382b8db0b06c9a7db52ec1e6815964a89559e3eabc36fd4189e4f5ff32",
     "generator": "Existing project weather asset reused without changes"
   },
   {
-    "asset": "templates/11-electric-home/weather_rain.png",
+    "asset": "templates/11-electric-car/weather_rain.png",
     "sha256": "9df149d0aef619b8f29ebde7383665a44f69b5a1b48903315a396fa67da2900a",
     "generator": "Existing project weather asset reused without changes"
   },
   {
-    "asset": "templates/11-electric-home/weather_snow.png",
+    "asset": "templates/11-electric-car/weather_snow.png",
     "sha256": "3e111be9640760ad24ceb67014aa2668e22a80980da87fb189fe29cd69dc4106",
     "generator": "Existing project weather asset reused without changes"
   },
   {
-    "asset": "templates/11-electric-home/weather_sunny.png",
+    "asset": "templates/11-electric-car/weather_sunny.png",
     "sha256": "cd99c4456baf3786ca8752d40802c40fc9c51eb983dfe4a8c38c6302fd80df37",
     "generator": "Existing project weather asset reused without changes"
   }

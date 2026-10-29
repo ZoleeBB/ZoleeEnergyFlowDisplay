@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "id": "11-electric-home",
-  "name": "Elektromos otthon",
+  "id": "11-electric-car",
+  "name": "Elektomos auto",
   "version": 1,
   "light": {
     "background": "#10251F",
@@ -47,8 +47,8 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Elektromos otthon",
-        "text_en": "Electric home"
+        "text": "Elektomos auto",
+        "text_en": "Electric car"
       },
       {
         "type": "value",
@@ -683,8 +683,8 @@
         "shadow_color": "#000000",
         "shadow_opacity": 230,
         "shadow_offset": 1,
-        "text": "Elektromos otthon",
-        "text_en": "Electric home"
+        "text": "Elektomos auto",
+        "text_en": "Electric car"
       },
       {
         "type": "value",

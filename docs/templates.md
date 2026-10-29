@@ -421,8 +421,8 @@ idejét adja egy sorban; szigetüzemben és áramszünetre készülve kiemelt sz
 A régebbi firmware ezt a forrást nem ismeri, ezért a `10-battery-diagnostics`
 v2 csomag előtt a firmware-t kell frissíteni.
 
-## Elektromos otthon
+## Elektomos auto
 
-A `11-electric-home` csomag csak közvetlen Loxone módban aktiválható.
+A `11-electric-car` csomag csak közvetlen Loxone módban aktiválható.
 Töltő beállítása nélkül is választható; ilyenkor az autós felirat és energiaút
-rejtett. [Beállítások és autótöltés](electric-home.md).
+rejtett. [Beállítások és autótöltés](electric-car.md).
