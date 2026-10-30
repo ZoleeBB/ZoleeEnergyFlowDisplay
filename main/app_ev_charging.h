@@ -22,7 +22,8 @@ static inline app_ev_charging_t app_ev_charging_sum(const lx_home_config_t *conf
     bool valid = connected;
     for (unsigned i = 0; i < config->consumer_count; ++i)
     {
-        if (strcmp(config->consumers[i].icon, "ev-charger"))
+        if (strcmp(config->consumers[i].icon, "ev-charger") &&
+            strcmp(config->consumers[i].icon, "electric-car"))
             continue;
         result.configured = true;
         double value = values->consumers[i].value;
