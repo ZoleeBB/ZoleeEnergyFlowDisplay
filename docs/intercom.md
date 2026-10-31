@@ -149,6 +149,25 @@ befejeztével töltődik vissza, friss adatokkal. A fájlok és a kiválasztás 
 A konfiguráció a meglévő `loxone-home.json` opcionális `intercom` objektuma;
 régi profilnál a funkció kikapcsolt, a hangerők alapértékei automatikusak.
 
+## Kaputelefon utáni témahelyreállítás
+
+Ha a csengetés végén a téma betöltőképernyője marad látható, a firmware
+külön naplózza a még aktív médiafeladatokra várakozást (3 másodperc után,
+majd legfeljebb 5 másodpercenként). A médiafeladatok leállásakor a teljes
+várakozási idő is megjelenik. Ezek nem SD-hibák; a képpufferek továbbra is
+csak biztonságosan, a producer leállása után szabadulnak fel.
+
+A témabetöltés meglévő, hat másodperces védelme minden elakadt próbálkozásnál
+kiírja a pending és aktív generációt, valamint a képkocka-visszajelzés állapotát.
+Három egymást követő elakadás után a firmware a beépített **Rendszer** témát
+választja, majd a szabályos betöltési úton folytatja. A korábbi kiválasztás
+ilyenkor tartósan megváltozhat; az SD-s téma később újra kiválasztható.
+
+A helyszíni hibakereséshez a csengetés befejezése utáni eseménynaplót és
+a soros konzol `app_ui` figyelmeztetéseit célszerű rögzíteni.
+A tartalék téma nem oldja meg a fizikailag beragadt LVGL renderelést,
+az SD-meghajtó blokkoló I/O műveletét vagy a lezáratlan médiafeladatot.
+
 ## Ellenőrzés és kiadás
 
 A felhasználó 2026-10-24-én készüléken visszaigazolta a működő videót, megfelelő
