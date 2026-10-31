@@ -95,8 +95,33 @@ static bool intercom_prepare(void)
     }
     /* A dekóder/hang felszabadítása megelőzi a nagy téma visszatöltését.
      * A nézet a 0-s csengetésre azonnal eltűnik, itt már csak fekete háttér marad. */
-    if (!intercom_next.ringing && intercom_background_suspended && !app_intercom_idle()) {
-        return true;
+    if (!intercom_next.ringing && intercom_background_suspended) {
+        /* A médiafoglalt állapotban nem szabad a képpuffereket elengedni.
+         * Hosszabb lezárás esetén időzítetten naplózunk, hogy a témabetöltés
+         * előtti várakozás elkülönüljön az SD- és LVGL-hibáktól. */
+        static int64_t cleanup_wait_since;
+        static int64_t cleanup_last_warning;
+        if (!app_intercom_idle()) {
+            int64_t now = esp_timer_get_time();
+            if (!cleanup_wait_since) cleanup_wait_since = now;
+#ifdef ESP_PLATFORM
+            if (now - cleanup_wait_since >= 3000000LL &&
+                (!cleanup_last_warning || now - cleanup_last_warning >= 5000000LL)) {
+                ESP_LOGW("app_ui", "Kaputelefon lezárás: médiafeladatokra várunk (%lld ms)",
+                         (long long)((now - cleanup_wait_since) / 1000LL));
+                cleanup_last_warning = now;
+            }
+#endif
+            return true;
+        }
+        if (cleanup_wait_since) {
+#ifdef ESP_PLATFORM
+            ESP_LOGI("app_ui", "Kaputelefon médiafeladatok leálltak (%lld ms)",
+                     (long long)((esp_timer_get_time() - cleanup_wait_since) / 1000LL));
+#endif
+        }
+        cleanup_wait_since = 0;
+        cleanup_last_warning = 0;
     }
     if (!intercom_next.ringing) {
         intercom_background_suspended = false;
