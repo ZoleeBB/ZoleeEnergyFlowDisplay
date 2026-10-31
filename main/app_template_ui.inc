@@ -574,11 +574,13 @@ static void template_loading_screen(void){
  */
 #define TEMPLATE_LOADING_STUCK_US (6LL * 1000 * 1000)
 static int64_t template_loading_started_us;
+static unsigned template_loading_restarts;
 static void template_loading_watchdog(void)
 {
     if (s_view != VIEW_THEME_LOADING)
     {
         template_loading_started_us = 0;
+        template_loading_restarts = 0;
         return;
     }
     int64_t now = esp_timer_get_time();
@@ -589,7 +591,21 @@ static void template_loading_watchdog(void)
     }
     if (now - template_loading_started_us < TEMPLATE_LOADING_STUCK_US)
         return;
-    ESP_LOGW("app_ui", "A témabetöltés elakadt, újrakezdés");
+    ++template_loading_restarts;
+    ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. próbálkozás, pending=%u, active=%u, frame=%d",
+             template_loading_restarts, template_pending.generation,
+             template_view.generation, (int)s_loading_frame_presented);
+    /* Három sikertelen ciklus után a minimális beépített nézetet választjuk.
+     * Nem írunk bele a katalógus belső állapotába, a szokásos választási API
+     * növeli a generációt. A médiafeladatok biztonságos lezárását ez nem kerüli meg. */
+    if (template_loading_restarts >= 3) {
+        esp_err_t fallback = app_templates_select("builtin");
+        if (fallback == ESP_OK)
+            ESP_LOGW("app_ui", "Témabetöltés: visszaállás a beépített Rendszer nézetre");
+        else
+            ESP_LOGW("app_ui", "Témabetöltés: tartalék nézet választása sikertelen (%d)", (int)fallback);
+        template_loading_restarts = 0;
+    }
     app_templates_view_free(&template_pending);
     template_pending.generation = template_view.generation;
     template_waiting_for_load = false;
