@@ -125,14 +125,16 @@ static bool intercom_prepare(void)
              * pufferfelszabadítás helyett kontrollált újraindítás történik.
              * OTA/SD-telepítés alatt nem szakíthatjuk félbe a műveletet.
              * A csengetést az aktuális snapshot már lezártnak jelzi. */
-            if (elapsed >= 45000000LL && !app_ota_operation_active() &&
-                app_storage_try_lock()) {
-                /* Sablon-ZIP feltöltés saját SD-zárat használ, nem feltétlenül
-                 * az OTA-jelzőt. Nem blokkolva szerezzük meg, és a reboot
-                 * megindításáig megtartjuk: így nincs TOCTOU-ablak új SD-íráshoz. */
-                ESP_LOGE("app_ui", "Kaputelefon médiafeladat 45 s után sem állt le; biztonságos újraindítás");
-                esp_restart();
-                app_storage_unlock(); /* Védelmi ág: esp_restart normálisan nem tér vissza. */
+            if (elapsed >= 45000000LL && app_ota_try_begin_operation()) {
+                /* Atomi OTA-műveletfoglalással egyidejű frissítés nem indulhat.
+                 * Az SD-zárat nem blokkolva kérjük; a rebootig megtartjuk,
+                 * így kézi sablonfeltöltés sem indulhat írásba közben. */
+                if (app_storage_try_lock()) {
+                    ESP_LOGE("app_ui", "Kaputelefon médiafeladat 45 s után sem állt le; kontrollált újraindítás");
+                    esp_restart();
+                    app_storage_unlock(); /* esp_restart normálisan nem tér vissza */
+                }
+                app_ota_end_operation(); /* Sikertelen SD-zárnál azonnal elengedjük. */
             }
 #endif
             return true;
