@@ -16,6 +16,9 @@ static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
 static bool home_empty = true;
 static unsigned home_revision, home_resource_generation;
 static unsigned home_load_attempts;
+static app_theme_restore_policy_t home_loading_policy;
+/* Leállított energiaáramlásnál hibás Otthon-csomag helyett logós nézet. */
+static bool home_restore_failed;
 /* Kártyalapozásnál a már dekódolt háttér (0.) és logó (1.) megmarad; ilyenkor
  * csak az ikonokat olvassuk be és dekódoljuk újra. Minden teljes felszabadítás
  * törli, így hibánál a következő próbálkozás ismét a teljes oldalt tölti. */
@@ -139,6 +142,30 @@ static void home_reset_theme(void)
 {
     home_reset_theme_keep(false);
 }
+/* A Loxone Otthon-oldal külön betöltési útvonal: a sablon-watchdog nem
+ * fut nyitott Otthon-oldal mellett. Ez a felügyelet nem blokkol katalógus-,
+ * SD- vagy GUI-zárra; lock hiányában következő ciklusban újrapróbálható. */
+static bool home_restore_watchdog(void)
+{
+    bool loading = home_is_open() && s_view == VIEW_THEME_LOADING;
+    app_theme_restore_action_t action = app_theme_restore_tick(
+        &home_loading_policy, loading, esp_timer_get_time());
+    if (action == APP_THEME_RESTORE_WAIT) return false;
+    ESP_LOGW("app_ui", "Otthon betöltési időkorlát: %u. szakasz",
+             home_loading_policy.retries);
+    if (action != APP_THEME_RESTORE_FALLBACK) return false;
+    if (bsp_display_lock(0) != ESP_OK) return false;
+    home_request_set(0);
+    home_reset_theme();
+    home_page = 0;
+    home_restore_failed = s_cfg.energy_flow_disabled;
+    template_loading_requested = !s_cfg.energy_flow_disabled;
+    template_waiting_for_load = !s_cfg.energy_flow_disabled;
+    bsp_display_unlock();
+    app_events_add(APP_EVENT_WARNING, "Otthon-oldal betöltési hiba: biztonságos visszatérés.");
+    app_theme_restore_reset(&home_loading_policy);
+    return true;
+}
 /* Kész képpontokból épül az oldal: a rajzolás közben nincs PNG-dekódolás,
  * cache-kilökés vagy új nagy foglalás. A háttér RGB565-ben pontosan 2 048 000
  * bájt, az ikonok ARGB8888 alakban őrzik az átlátszóságukat. LVGL-lock alatt. */
@@ -196,6 +223,10 @@ static bool home_prepare(bool night)
     if (s_cfg.energy_flow_disabled)
     {
         if (s_diagnostics_requested) return true;
+        /* Automatikus újrapróbálás helyett logós készenlét hibás csomagnál.
+         * Kifejezett új oldalnyitás újból engedélyezi a betöltést. */
+        if (home_restore_failed && !requested) return true;
+        if (home_restore_failed && requested) home_restore_failed = false;
         if (requested < 2) { requested = 2; home_request_set(2); }
     }
     if (!requested && !home_page) return true;
