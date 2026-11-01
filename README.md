@@ -62,7 +62,7 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 - **Adatfogadás:** MQTT, HTTP POST, közvetlen Loxone vagy Bluetooth Slave; világos/sötét megjelenés a `NightMode` szerint.
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák, energiaasszisztens, jelenlét és postaláda-jelzés.
 - **Elektromos autó:** nappali/éjszakai házjelenet, összegzett töltési teljesítmény, mai töltési energia és becsült közvetlen napelemes arány. Töltő konfigurálása nélkül is választható, rejtett autós adatokkal. [Beállítás](docs/electric-car.md).
-- **Kaputelefon:** MJPEG-kép, kétirányú hang, kapunyitás, csengőhangok és párosított 4B kijelzők központi híváskezelése. [Útmutató](docs/intercom.md).
+- **Kaputelefon:** MJPEG-kép, kétirányú hang, kapunyitás, csengőhangok és párosított 4B kijelzők központi híváskezelése. Csengetés után a médiafeladatok leállása megelőzi a háttértéma visszatöltését; elhúzódó betöltésnél korlátozott újrapróbálás és biztonságos tartalék nézet áll rendelkezésre. [Kaputelefon útmutató](docs/intercom.md) · [Helyreállítás és korlátok](docs/intercom.md#kaputelefon-utáni-témahelyreállítás).
 - **Karbantartás:** webes konfiguráció, mentés/visszaállítás, OTA, gyári témák GitHub-frissítése és részletes diagnosztika.
 
 ## Loxone Otthon kaputelefon-kijelzőként
@@ -113,6 +113,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Energiaáramlás tiltás – Otthon, logós készenlét, 10% fényerő és Slave-ek](docs/energy-flow-disable.md)
 - [Energiaáramlás tiltás – fejlesztési terv és ellenőrzési állapot](docs/energy-flow-disable-plan.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](docs/intercom.md)
+- [Kaputelefon utáni témavisszatöltés – időkorlátok, tartalék nézet és hibaelhárítás](docs/intercom.md#kaputelefon-utáni-témahelyreállítás)
 - [4B Slave kaputelefon, központi hívásfoglalás és csengőhangcsomagok](docs/slave-intercom.md)
 - [PR #23 átadás – SD-javítások, ellenőrzések és összevonás](docs/slave-intercom-handover.md)
 - [Loxone fogyasztók és lapozható Otthon-kártyák – beállítás és mintaprofil](docs/v3-home-config.md)
@@ -169,6 +170,8 @@ python3 tools/prepare_templates.py
 
 ESP-IDF környezetben: `idf.py set-target esp32p4`, majd `idf.py build`. A CI host regressziós teszteket, valódi LVGL renderelést, firmware-fordítást/csomagolást és külön Windows-szimulátortesztet futtat. A fizikai panelen való működést és a Loxone bekötést hardveres próbával kell ellenőrizni.
 
+A kaputelefon utáni visszatöltés célzott tesztje: `python3 tests/test_theme_restore.py` (időkorlát-állapotgép és forrásinvariánsok). A teszt be van kötve a teljes `tests/run_tests.py` futtatásába, de **önmagában nem bizonyítja** a valós SD-/LVGL-/PSRAM-terhelés melletti helyreállítást. A [készülékes ellenőrzési sorrend](docs/intercom.md#ellenőrzés-és-kiadás) és a [beragadt betöltőképernyő hibakeresése](docs/errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés) külön dokumentált.
+
 A személyes `config.json`, buildkönyvtárak és generált telepítőcsomagok nem részei a verziókezelt forrásnak. A beágyazott képek, betűkészletek, licencek és a generált webheader szükséges fordítási bemenetek.
 
 Kijelzőindítási hibánál lásd a [fekete képernyő hibakeresését](docs/errors.md). A MIPI rajzpuffer PSRAM-ban van; a 270°-os forgatás a tiltott PPA helyett CPU ágon fut. Az LVGL sorosan rajzol az adapter zárolásával, külön OSAL rajzolószálak nélkül; a Master `TRIPLE_PARTIAL` módban csak a változó képrészleteket rajzolja/forgatja. A CPU minden új frame elején a legutóbb leadott kész képet másolja a hátsó pufferre, majd az összes részlet után ad át új kész képet. A GUI/touch CPU1-en, a Loxone worker CPU0-n fut. A változatlan feliratok és stílusértékek nem váltanak ki ismételt újrarajzolást, az érintési tengelyek a kamera alul elhelyezkedő, 270°-os fekvő képhez igazodnak. A képcache 10 MiB; az általános foglalások PSRAM-ot részesítenek előnyben, 32 KiB belső/DMA tartalékkal. Az LVGL worker minden ciklusban valódi tickre blokkol a mutexen kívül. Az SDIO DMA után készülő RX csomagmásolatok PSRAM-ba kerülnek; foglalási hiba csomageldobással kezelhető újraindulás helyett.
@@ -180,6 +183,12 @@ A [memória- és képfrissítési optimalizálás](docs/performance.md) ismertet
 ## Verziók és fejlesztési bejegyzések
 
 Az alábbi bejegyzések a korábbi fejlesztési köröket és kiadásokat foglalják össze; az aktuális használati leírások fent, a dokumentációs jegyzékben találhatók.
+
+### Kaputelefon utáni témavisszatöltés (`fix/intercom-theme-restore`)
+
+A csengetés megszűnése utáni kamera-/hangfeladat-leállás időzített naplózást kapott. A normál témák és a Loxone Otthon-oldalak külön betöltési időkorlátot használnak; a téma elakadásakor az ideiglenes **Rendszer** nézet nem írja felül a felhasználó mentett választását. A helyreállítás nem blokkoló katalóguszárolást használ, a tartós médiamegakadásnál kezdeményezett újraindítást pedig az OTA-műveletfoglalás és az SD-zár védi. Az új tesztek a teljes regressziós tesztcsomag részei.
+
+**Állapot:** fejlesztési ág / PR; a teljes ESP-IDF- és CI-futtatás, illetve a valódi kijelzőn végzett memória- és újracsengési próba szükséges az összevonás előtt. Ez a bejegyzés nem jelöl ki önálló kiadási verziót. [Részletes működés](docs/intercom.md#kaputelefon-utáni-témahelyreállítás) · [Hibaelhárítás](docs/errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés).
 
 ### Elektromos autó, Loxone-szerkesztő és újrarajzolás (`feature/electric-home`)
 
