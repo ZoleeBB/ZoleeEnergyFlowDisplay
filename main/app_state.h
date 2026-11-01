@@ -25,6 +25,10 @@ typedef struct
     bool sun_radiation_valid;
     bool precipitation_valid;
 
+    /* Opcionális Loxone páratartalom; a valódi 0% érvényes mérés. */
+    bool relative_humidity_valid;
+    uint8_t relative_humidity_pct;
+
     bool has_sun_radiation;
     bool has_precipitation;
 

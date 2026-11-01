@@ -210,16 +210,20 @@ másodperces cache-ből dolgozik, hálózati lekérést vagy SD-műveletet nem i
 Mindhárom csomag pontosan 20 bájt: a kötelező, 23 bájtos ATT MTU is elegendő,
 nincs szükség MTU-egyeztetésre vagy darabolásra. Minden több-bájtos mező
 **little-endian**. Az előjeles számok kettes komplemens ábrázolásúak.
-A protokoll verziója jelenleg **1**; ismeretlen verziót a slave ne értelmezzen.
+Az óra és a páratartalom nélküli mintapár **v1**. Érvényes relatív
+páratartalommal az energia- és időjáráscsomag együtt **v2**; a hosszuk változatlan.
+Az új Slave mindkét verziót fogadja, kevert mintapárt és ismeretlen verziót elutasít.
+Az új adat párosítása előtt a Master és a Slave-ek firmware-e is frissítendő.
+[Részletes működés és frissítési sorrend](relative-humidity.md).
 
 ### Energia csomag
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
 | 1 | u8 | Flag: bit0 van minta, bit1 lejárt/nincs adat, bit2 éjszakai mód, bit3 energiaáramlás letiltva |
 | 2 | u8 | Status: 1 normál, 2 felkészülés, 3 szigetüzem, 4 hiba, 5 hálózat újra elérhető |
-| 3 | u8 | Aktuális nappali/éjszakai fényerő, % |
+| 3 | u8 | v1: Master fényerő (1–100%); v2: érvényes relatív páratartalom (0–100%) |
 | 4 | i16 | PowerGrid, W; pozitív vételezés, negatív visszatáplálás |
 | 6 | i16 | PowerBat, W; pozitív kisütés, negatív töltés |
 | 8 | i16 | PowerPV, W |
@@ -235,6 +239,11 @@ A lejárat MQTT/HTTP módban a konfigurált timeout, Loxone módban 45 másodper
 A slave saját, monotón órával felügyelje a BLE-adatérkezést is: például 15 s
 heartbeat-kimaradásnál mutasson kapcsolathibát akkor is, ha a kapcsolat még él.
 
+A v2-ben a 3. bájt 0 értéke valódi 0% páratartalom. A hiányzó/érvénytelen
+páratartalom v1 mintapárt jelent; a korábbi páratartalom nem öröklődik.
+A Slave-ek eddig is saját fényerőprofilt használtak, a Master fényerőbájtját
+nem alkalmazták. A v2 minden egyéb eltolása, flagje és sorszáma változatlan.
+
 ### Energiaáramlás tiltás módjelzése
 
 Az [Energiaáramlás tiltás](energy-flow-disable.md) az energia-csomag bit3
@@ -249,7 +258,7 @@ Mindkét firmware frissítendő; régi Slave az új flaget elutasítja.
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
 | 1 | u8 | Az alább felsorolt érvényességi/állapotbitek |
 | 2 | i16 | Hőmérséklet, °C × 100 |
 | 4 | u16 | Szél, km/h × 100 |
@@ -275,7 +284,7 @@ Nincs szükség teljes sorszámfolytonosságra: a cache értesítés nélkül is
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
 | 1 | u8 | Bit0: a master órája szinkronizált; egyéb bitek 0 |
 | 2 | u32 | Jelenlegi UTC Unix-idő, másodperc |
 | 6 | u16 | Másodpercen belüli ezredmásodperc, 0–999 |

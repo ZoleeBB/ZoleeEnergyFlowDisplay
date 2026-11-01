@@ -22,8 +22,8 @@ static void mail_position(int *x, int *y)
     *y = 6;
     if (!template_is_active())
     {
-        /* Rendszer nézet: a dátum és az időjárásikon közötti rés. */
-        *x = 808;
+        /* Rendszer nézet: saját hely a programnév és a dátum között. */
+        *x = 626;
         *y = 15;
         return;
     }

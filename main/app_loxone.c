@@ -724,7 +724,7 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
             {
                 if (!lx_field_enabled(s_energy_disabled, i)) continue;
                 const cJSON *field = cJSON_GetObjectItemCaseSensitive(input, lx_fields[i].name);
-                /* Régebbi oldal az új, opcionális kijelzőmezőket nem küldi: maradjon a mentett. */
+                /* Régebbi oldal az új, opcionális mezőket nem küldi: maradjon a mentett. */
                 if (!field && i >= LX_AUX_FIRST) continue;
                 cJSON *value = cJSON_Duplicate(field, true);
                 ok = value && cJSON_ReplaceItemInObjectCaseSensitive(maps, lx_fields[i].name, value);

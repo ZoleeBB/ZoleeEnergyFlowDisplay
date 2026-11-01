@@ -73,3 +73,6 @@ A helyiség-/funkciószűrés, mértékegységek és a négy nappályamező rés
 A beállítások a webfelület **Mentés** oldalán egy fájlba menthetők és
 visszatölthetők; a kijelző a saját flash-tárában is őriz egy példányt, amelyből
 új SD-kártyánál automatikusan visszaállít. Részletek: [Mentés és visszaállítás](backup.md).
+
+A Loxone Adatpárosításban a külső hőmérséklet után opcionális, szorzóval/eltolással
+beállítható [relatív páratartalom](relative-humidity.md) is megadható.

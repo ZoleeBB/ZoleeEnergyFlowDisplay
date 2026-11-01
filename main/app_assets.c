@@ -38,6 +38,18 @@ PNG_IMAGE(app_img_weather_snow, weather_snow_png, APP_PNG_WEATHER_SNOW_SIZE);
 PNG_IMAGE(app_img_weather_moon, weather_moon_png, APP_PNG_WEATHER_MOON_SIZE);
 PNG_IMAGE(app_img_wind, wind_png, APP_PNG_WIND_SIZE);
 
+/* Natív fejlécméret: a kis ikonhoz nem foglalunk 128×128-as dekódolt képet. */
+extern const uint8_t _binary_weather_humidity_png_start[];
+const lv_image_dsc_t app_img_humidity = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 28, .h = 28, .stride = 0,
+    },
+    .data_size = APP_PNG_WEATHER_HUMIDITY_SIZE,
+    .data = _binary_weather_humidity_png_start,
+};
+
 /* A postaláda-jelvény natív méretben készül (tools/prepare_mail_icon.py),
  * így a fejlécben nincs futásidejű skálázás. */
 extern const uint8_t _binary_mail_box_png_start[];

@@ -30,6 +30,7 @@ set(app_png_files
     "assets/png/weather_rain.png"
     "assets/png/weather_snow.png"
     "assets/png/weather_sun.png"
+    "assets/png/weather_humidity.png"
     "assets/png/wifi_off.png"
     "assets/png/wind.png"
 )

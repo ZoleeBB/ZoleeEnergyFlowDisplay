@@ -33,7 +33,7 @@ static bool assistant_area(int *x, int *y, int *w, int *h)
 {
     *x = 78;
     *y = 18;
-    *w = 348;
+    *w = 300;
     *h = 46;
     if (!template_is_active())
         return true;

@@ -8,6 +8,11 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a te
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
+Loxone módban opcionális [relatív páratartalom](docs/relative-humidity.md) párosítható,
+szorzóval és eltolással, egész százalékként. A szélsebességes témákon és a Slave-eken
+ikonnal jelenik meg; párosítás/érvényes adat nélkül rejtett. A Nap pálya igazított
+időjárási és akkumulátorértékeket kapott.
+
 Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master mód
 `ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
 Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](docs/ble-data-seed.md).
@@ -110,6 +115,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [JSON és MQTT](docs/mqtt.md)
 - [HTTP adatfogadás](docs/http-input.md)
 - [Közvetlen Loxone kapcsolat](docs/loxone-direct.md)
+- [Opcionális relatív páratartalom, témák és Slave-frissítési sorrend](docs/relative-humidity.md)
 - [Energiaáramlás tiltás – Otthon, logós készenlét, 10% fényerő és Slave-ek](docs/energy-flow-disable.md)
 - [Energiaáramlás tiltás – fejlesztési terv és ellenőrzési állapot](docs/energy-flow-disable-plan.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](docs/intercom.md)

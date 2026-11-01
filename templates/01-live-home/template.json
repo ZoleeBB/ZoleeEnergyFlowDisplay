@@ -2,9 +2,14 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 12,
+  "version": 13,
   "light": {
-    "home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230},
+    "home_hotspot": {
+      "x": 460,
+      "y": 300,
+      "w": 380,
+      "h": 230
+    },
     "background": "#F0F5F3",
     "elements": [
       {
@@ -764,11 +769,38 @@
         "font": 28,
         "color": "#FFAB00",
         "align": "center"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 1080,
+        "y": 131
+      },
+      {
+        "type": "value",
+        "x": 1116,
+        "y": 135,
+        "w": 60,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#FFFFFF",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 100
       }
     ]
   },
   "dark": {
-    "home_hotspot": {"x": 460, "y": 300, "w": 380, "h": 230},
+    "home_hotspot": {
+      "x": 460,
+      "y": 300,
+      "w": 380,
+      "h": 230
+    },
     "background": "#111F2C",
     "elements": [
       {
@@ -1206,6 +1238,28 @@
         "font": 28,
         "color": "#EA9C3B",
         "align": "center"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 1080,
+        "y": 131
+      },
+      {
+        "type": "value",
+        "x": 1116,
+        "y": 135,
+        "w": 60,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 100
       }
     ]
   }

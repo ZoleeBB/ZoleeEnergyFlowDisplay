@@ -251,6 +251,7 @@ static double template_value(const char *source,const app_energy_sample_t *s,con
     V("ev_charging_solar",st->ev_charging_today_kwh>=.001?
       100.*fmin(1.,st->ev_charging_solar_today_kwh/st->ev_charging_today_kwh):0);
     V("pv",s->power_pv_kw);V("home",s->power_full_kw);V("grid",s->power_grid_kw);V("battery",s->power_bat_kw);
+    V("humidity", s->relative_humidity_pct);
     V("soc",s->soc_bat_pct);V("battery_temp",s->battery_temperature_c);V("temperature",s->temperature_c);V("wind",s->wind_speed_kmh);
     V("production_today",st->totals.production_kwh);V("consumption_today",st->totals.consumption_kwh);
     V("import_today",st->totals.grid_import_kwh);V("export_today",st->totals.grid_export_kwh);
@@ -375,12 +376,12 @@ static void template_text(char out[128],const char *source,const app_energy_samp
     if(!strcmp(source,"solar_value_today")||!strcmp(source,"solar_savings_day")){
         snprintf(out,128,"%.0f %s",v,s_cfg.project.currency);return;
     }
-    char value[64];fmt_dec(value,sizeof(value),v,!strcmp(source,"soc")?0:1);
+    char value[64];fmt_dec(value,sizeof(value),v,(!strcmp(source,"soc") || !strcmp(source,"humidity"))?0:1);
     const char *unit="kW";
     if(strstr(source,"_pct"))unit="%";
     else if(strstr(source,"_day")||strstr(source,"_month")||!strcmp(source,"solar_value_today"))unit=s_cfg.project.currency;
     else if(strstr(source,"_today"))unit="kWh";
-    else if(!strcmp(source,"soc"))unit="%";
+    else if(!strcmp(source,"soc") || !strcmp(source,"humidity"))unit="%";
     else if(!strcmp(source,"sun_altitude")||!strcmp(source,"sun_azimuth"))unit="°";
     else if(!strcmp(source,"battery_capacity")||!strcmp(source,"battery_energy"))unit="kWh";
     else if(!strcmp(source,"temperature")||!strcmp(source,"battery_temp"))unit="°C";
@@ -814,10 +815,14 @@ static void template_build(bool night){
                 lv_obj_set_size(node->detail,w,h);lv_label_set_long_mode(node->detail,LV_LABEL_LONG_MODE_DOTS);
                 text_opa_if_changed(node->detail,tn(e,"shadow_opacity",100),0);
                 if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->detail,LV_TEXT_ALIGN_CENTER,0);
+                else if (!strcmp(ts(e, "align"), "right"))
+                    lv_obj_set_style_text_align(node->detail, LV_TEXT_ALIGN_RIGHT, 0);
             }
             node->obj=lbl(s_dash,!strcmp(type,"label")?(!hu()&&*ts(e,"text_en")?ts(e,"text_en"):ts(e,"text")):"",x,y,tf(tn(e,"font",20)),text);
             lv_obj_set_size(node->obj,w,h);lv_label_set_long_mode(node->obj,LV_LABEL_LONG_MODE_DOTS);
             if(!strcmp(ts(e,"align"),"center"))lv_obj_set_style_text_align(node->obj,LV_TEXT_ALIGN_CENTER,0);
+            else if (!strcmp(ts(e, "align"), "right"))
+                lv_obj_set_style_text_align(node->obj, LV_TEXT_ALIGN_RIGHT, 0);
         }else if(!strcmp(type,"image")||!strcmp(type,"weather")){
             node->obj=lv_image_create(s_dash);
             if(!strcmp(type,"image"))template_image(node->obj,ts(e,"file"),w,h);
@@ -1078,6 +1083,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             !strcmp(type,"weather") ? weather_available(s) :
             !strcmp(source,"temperature") ? s->temperature_valid :
             !strcmp(source,"wind") ? s->wind_speed_valid :
+            !strcmp(source,"humidity") ? s->relative_humidity_valid :
             (!strcmp(source,"sun_azimuth")||!strcmp(source,"sun_altitude")||
              !strcmp(source,"sunrise")||!strcmp(source,"sunset")||!strcmp(source,"sun_direction")) ? s->sun_position_valid :
             (!strcmp(source,"weather_label")) ? weather_available(s) :

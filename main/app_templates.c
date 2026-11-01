@@ -500,6 +500,7 @@ static bool validate_scene(const cJSON *scene)
                                           "battery_temp",
                                           "temperature",
                                           "wind",
+                                          "humidity",
                                           "clock",
                                           "date",
                                           "status",
@@ -694,7 +695,8 @@ static bool validate_scene(const cJSON *scene)
             return false;
         if (cJSON_HasObjectItem(e, "align") &&
             (!str(e, "align") ||
-             (strcmp(str(e, "align"), "center") && strcmp(str(e, "align"), "left"))))
+             (strcmp(str(e, "align"), "center") && strcmp(str(e, "align"), "left") &&
+              strcmp(str(e, "align"), "right"))))
             return false;
         if (!strcmp(type, "chart") && (cJSON_GetObjectItem(e, "w")->valueint < 150 ||
                                        cJSON_GetObjectItem(e, "h")->valueint <

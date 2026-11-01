@@ -11,7 +11,7 @@ class Element {
  get options(){return this.children;}
 }
 for(const id of ['host','port','username','password','ca_pem','room-filter','category-filter','tls','test','save','status','save-status','mappings']){const e=new Element();e.id=id;}
-const keys=['PowerGrid','PowerBat','PowerPV','PowerFull','SocBat','Status','NightMode','BatteryTemperature','Temperature','WindSpeed','HasSunRadiation','HasPrecipitation','SunAzimuth','SunAltitude','Sunrise','Sunset','Presence','MailArrived'];
+const keys=['PowerGrid','PowerBat','PowerPV','PowerFull','SocBat','Status','NightMode','BatteryTemperature','Temperature','WindSpeed','HasSunRadiation','HasPrecipitation','SunAzimuth','SunAltitude','Sunrise','Sunset','Presence','MailArrived','RelativeHumidity'];
 const id='11223344-5566-7788-99aabbccddeeff00';const sent=[];let rejectPost=false,blockGet=false,rejectGet=null,getCalls=0;
 const state={host:'',port:80,tls:false,ca_pem:'',username:'',has_password:false,busy:false,status:'Paraméterezés szükséges.',catalog:[],mappings:Object.fromEntries(keys.map(k=>[k,{uuid:'',scale:1,offset:0}]))};
 const sandbox={console,structuredClone,AbortController,setTimeout,clearTimeout,setInterval:()=>0,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},fetch:async(url,options={})=>{
@@ -43,6 +43,13 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync('assets/web/loxone.js'
  assert.equal(nodes.get('PowerPV_uuid').value,id);assert.equal(nodes.get('PowerPV_uuid').options.length,2);
  await sandbox.api.submit('save');assert.equal(sent[1].url,'/api/loxone/save');assert.equal(sent[1].body.mappings.PowerGrid.scale,-0.001);
  assert.equal(sent[1].body.mappings.Temperature.uuid,'');
+ assert.equal(sent[1].body.mappings.RelativeHumidity.uuid,'');
+ const rows=nodes.get('mappings').children.map(row=>row.id);
+ assert.equal(rows.indexOf('mapping-row-RelativeHumidity'),rows.indexOf('mapping-row-Temperature')+1);
+ nodes.get('RelativeHumidity_uuid').value=id;
+ nodes.get('RelativeHumidity_scale').value='100';nodes.get('RelativeHumidity_offset').value='-2.5';
+ assert.equal(sandbox.api.values().mappings.RelativeHumidity.scale,100);
+ assert.equal(sandbox.api.values().mappings.RelativeHumidity.offset,-2.5);
  const room=nodes.get('room-filter'),category=nodes.get('category-filter');
  const second='aabbccdd-5566-7788-99aabbccddeeff00',third='eeeeeeee-5566-7788-99aabbccddeeff00';
  state.catalog.push({uuid:second,name:'Akku',room:'Nappali',category:'Energia',state:'value'}, {uuid:third,name:'Hőmérő',room:'Nappali',category:'Klíma',state:'value'});

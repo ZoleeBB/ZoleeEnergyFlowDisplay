@@ -94,6 +94,7 @@ static bool s_cfg_ok, s_started, s_dash_created, s_last_night;
 static lv_obj_t *s_screen, *s_dash, *s_sd_warn;
 static lv_obj_t *s_title, *s_date, *s_clock, *s_weather_temp, *s_wind_speed, *s_weather_icon,
     *s_wind_icon;
+static lv_obj_t *s_humidity, *s_humidity_icon;
 static lv_obj_t *s_pv, *s_home, *s_bat, *s_grid, *s_soc, *s_bt, *s_status;
 static lv_obj_t *s_bat_icon, *s_grid_icon, *s_status_icon;
 static lv_obj_t *s_grid_node, *s_battery_node, *s_pv_node, *s_home_node, *s_status_bubble,
@@ -829,14 +830,15 @@ static void build_dashboard(bool night)
 
     s_title = lbl(header, s_cfg.project.title, 54, -1, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
     lv_label_set_long_mode(s_title, LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_width(s_title, 350);
+    /* A hosszú projektcím is egy sorban maradjon a programnév előtt. */
+    lv_obj_set_size(s_title, 295, APP_FONT_22->line_height);
 
     /* Beégetett programnév, a konfigurálható projektcímtől függetlenül. */
     lv_obj_t *brand = lv_obj_create(header);
     lv_obj_remove_style_all(brand);
     lv_obj_set_size(brand, 224, 44);
     lv_obj_remove_flag(brand, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(brand, LV_ALIGN_LEFT_MID, 430, 0);
+    lv_obj_align(brand, LV_ALIGN_LEFT_MID, 365, 0);
     lv_obj_t *brand_name =
         lbl(brand, "Zolee", 0, 0, &app_font_brand_20, night ? 0xA9C5DC : 0x245878);
     lv_obj_set_width(brand_name, 224);
@@ -853,12 +855,15 @@ static void build_dashboard(bool night)
         APP_FONT_12,
         night ? MUTED_DARK : MUTED_LIGHT);
 
-    s_date = lbl(header, "", 675, 17, APP_FONT_16, night ? MUTED_DARK : MUTED_LIGHT);
+    s_date = lbl(header, "", 663, 17, APP_FONT_16, night ? MUTED_DARK : MUTED_LIGHT);
 
-    s_weather_icon = asset_image_box(header, 850, 2, 46, 42, &app_img_weather_sun, night);
+    s_weather_icon = asset_image_box(header, 753, 2, 46, 42, &app_img_weather_sun, night);
     s_last_weather = (weather_kind_t)-1;
 
-    s_weather_temp = lbl(header, "", 900, 17, APP_FONT_16, night ? TEXT_DARK : TEXT_LIGHT);
+    s_weather_temp = lbl(header, "", 803, 17, APP_FONT_16, night ? TEXT_DARK : TEXT_LIGHT);
+
+    s_humidity_icon = asset_image_box(header, 886, 8, 28, 28, &app_img_humidity, night);
+    s_humidity = lbl(header, "", 919, 17, APP_FONT_16, night ? TEXT_DARK : TEXT_LIGHT);
 
     s_wind_icon = asset_image_box(header, 985, 8, 36, 30, &app_img_wind, night);
 
@@ -868,11 +873,13 @@ static void build_dashboard(bool night)
 
     /* A szövegek tényleges magassága alapján középre igazítunk.
      * A kép saját dobozát igazítjuk, így a PNG középpontja is ugyanott van. */
-    lv_obj_align(s_date, LV_ALIGN_LEFT_MID, 675, 0);
-    lv_obj_align(s_weather_temp, LV_ALIGN_LEFT_MID, 900, 0);
+    lv_obj_align(s_date, LV_ALIGN_LEFT_MID, 663, 0);
+    lv_obj_align(s_weather_temp, LV_ALIGN_LEFT_MID, 803, 0);
+    lv_obj_align(s_humidity, LV_ALIGN_LEFT_MID, 919, 0);
+    lv_obj_align(lv_obj_get_parent(s_humidity_icon), LV_ALIGN_LEFT_MID, 886, 0);
     lv_obj_align(s_wind_speed, LV_ALIGN_LEFT_MID, 1020, 0);
     lv_obj_align(s_clock, LV_ALIGN_LEFT_MID, 1125, 0);
-    lv_obj_align(lv_obj_get_parent(s_weather_icon), LV_ALIGN_LEFT_MID, 850, 0);
+    lv_obj_align(lv_obj_get_parent(s_weather_icon), LV_ALIGN_LEFT_MID, 753, 0);
     lv_obj_align(lv_obj_get_parent(s_wind_icon), LV_ALIGN_LEFT_MID, 985, 0);
 
     /*
@@ -1549,6 +1556,10 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
     weather_visibility(lv_obj_get_parent(s_wind_icon), s->wind_speed_valid);
     weather_visibility(s_weather_temp, s->temperature_valid);
     weather_visibility(s_wind_speed, s->wind_speed_valid);
+    weather_visibility(lv_obj_get_parent(s_humidity_icon), s->relative_humidity_valid);
+    weather_visibility(s_humidity, s->relative_humidity_valid);
+    snprintf(b, sizeof(b), "%u %%", (unsigned)s->relative_humidity_pct);
+    label_text_if_changed(s_humidity, b);
     if (weather_available(s))
         weather_render(weather_kind(s), s->night_mode);
     char temp[16];

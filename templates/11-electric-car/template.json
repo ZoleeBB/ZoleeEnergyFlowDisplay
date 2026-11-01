@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "11-electric-car",
   "name": "Elektromos autó",
-  "version": 5,
+  "version": 6,
   "light": {
     "background": "#10251F",
     "home_hotspot": {
@@ -705,12 +705,35 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "export_today"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 827,
+        "y": 19
+      },
+      {
+        "type": "value",
+        "x": 861,
+        "y": 23,
+        "w": 60,
+        "h": 22,
+        "font": 16,
+        "color": "#FFFFFF",
+        "source": "humidity",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1
       }
     ],
     "assistant_area": {
       "x": 340,
       "y": 12,
-      "w": 570,
+      "w": 470,
       "h": 48
     },
     "mail_area": {
@@ -1420,12 +1443,35 @@
         "shadow_opacity": 230,
         "shadow_offset": 1,
         "source": "export_today"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 827,
+        "y": 19
+      },
+      {
+        "type": "value",
+        "x": 861,
+        "y": 23,
+        "w": 60,
+        "h": 22,
+        "font": 16,
+        "color": "#FFFFFF",
+        "source": "humidity",
+        "text_shadow": true,
+        "shadow_color": "#000000",
+        "shadow_opacity": 230,
+        "shadow_offset": 1
       }
     ],
     "assistant_area": {
       "x": 340,
       "y": 12,
-      "w": 570,
+      "w": 470,
       "h": 48
     },
     "mail_area": {

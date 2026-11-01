@@ -1,4 +1,4 @@
-/* BLE v1 csomagok: explicit little-endian kódolás, C struktúraátfedés nélkül. */
+/* BLE v1/v2 csomagok: explicit little-endian kódolás, C struktúraátfedés nélkül. */
 #include "app_ble_protocol.h"
 
 #include <math.h>
@@ -76,14 +76,15 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
                                   app_energy_sample_t *sample)
 {
     if (!energy || !weather || !sample || energy_length != 20 || weather_length != 20 ||
-        energy[0] != 1 || weather[0] != 1 ||
+        (energy[0] != APP_BLE_PROTOCOL_VERSION && energy[0] != APP_BLE_HUMIDITY_VERSION) ||
+        weather[0] != energy[0] ||
         app_ble_packet_sequence(energy) != app_ble_packet_sequence(weather) || (energy[1] & ~15) ||
         (weather[1] & 128))
         return ESP_ERR_INVALID_ARG;
     if (energy[1] & 8)
     {
         /* Külön vezérlőcsomag: energiaérvényesség/lejárat nem keverhető bele. */
-        if (energy[1] & 3) return ESP_ERR_INVALID_ARG;
+        if ((energy[1] & 3) || energy[0] != APP_BLE_PROTOCOL_VERSION) return ESP_ERR_INVALID_ARG;
         for (unsigned i = 2; i < 18; i++)
             if (energy[i] || weather[i]) return ESP_ERR_INVALID_ARG;
         if (weather[1]) return ESP_ERR_INVALID_ARG;
@@ -102,6 +103,8 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
     next.battery_temperature_c = (int16_t)get16(energy + 14) / 100.;
     next.status = energy[2];
     next.night_mode = (energy[1] & 4) != 0;
+    next.relative_humidity_valid = energy[0] == APP_BLE_HUMIDITY_VERSION;
+    next.relative_humidity_pct = next.relative_humidity_valid ? energy[3] : 0;
     next.temperature_valid = (weather[1] & 1) != 0;
     next.wind_speed_valid = (weather[1] & 2) != 0;
     next.precipitation_valid = (weather[1] & 4) != 0;
@@ -120,7 +123,8 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
     if (fabs(next.power_grid_kw) > 15 || fabs(next.power_bat_kw) > 15 || next.power_pv_kw < 0 ||
         next.power_pv_kw > 15 || next.power_full_kw < 0 || next.power_full_kw > 15 ||
         next.soc_bat_pct > 100 || next.battery_temperature_c < -20 ||
-        next.battery_temperature_c > 80 || next.status < 1 || next.status > 5 || energy[3] < 1 ||
+        next.battery_temperature_c > 80 || next.status < 1 || next.status > 5 ||
+        (!next.relative_humidity_valid && energy[3] < 1) ||
         energy[3] > 100 ||
         (next.temperature_valid && (next.temperature_c < -35 || next.temperature_c > 50)) ||
         (next.wind_speed_valid && next.wind_speed_kmh > 150) ||
@@ -176,7 +180,15 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
     bool stale = age_us >= (int64_t)app_config_data_timeout(cfg) * 1000000;
     energy[1] = 1 | (stale ? 2 : 0) | (sample->night_mode ? 4 : 0);
     energy[2] = (uint8_t)sample->status;
-    energy[3] = sample->night_mode ? cfg->display.night_brightness : cfg->display.day_brightness;
+    if (sample->relative_humidity_valid && sample->relative_humidity_pct <= 100)
+    {
+        /* A Slave saját fényerőprofilt használ; a csomagméret változatlan.
+         * Érvénytelen/hiányzó páratartalomnál visszatérünk a régi v1-hez. */
+        energy[0] = weather[0] = APP_BLE_HUMIDITY_VERSION;
+        energy[3] = sample->relative_humidity_pct;
+    }
+    else
+        energy[3] = sample->night_mode ? cfg->display.night_brightness : cfg->display.day_brightness;
     put16(energy + 4, (uint16_t)scaled(sample->power_grid_kw, 1000));
     put16(energy + 6, (uint16_t)scaled(sample->power_bat_kw, 1000));
     put16(energy + 8, (uint16_t)scaled(sample->power_pv_kw, 1000));

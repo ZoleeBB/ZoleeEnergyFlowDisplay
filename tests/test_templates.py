@@ -98,11 +98,28 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         band=next(e for e in elements if e['type']=='box' and e['x']==951 and e['y']==562)
         separators=[e for e in elements if e['type']=='box' and e.get('w')==2 and e.get('h')==4 and
                     e.get('background')==band['outline_color']]
-        assert len(separators)==7
+        assert len(separators)==6
         assert all(e['x']<therm['x'] and band['y']<e['y']<band['y']+band['h'] for e in separators)
-        assert len(elements)==95
+        assert len(elements)==96
         power=next(e for e in elements if e.get('type')=='value' and e.get('source')=='battery')
-        assert power['font']==12 and power['x']==1093 and power['w']==51
+        assert power['font']==20 and power['x']==1072 and power['w']==77
+        soc=next(e for e in elements if e['type']=='value' and e.get('source')=='soc')
+        assert soc['font']==power['font'] and soc['y']==power['y']
+        weather_values=[next(e for e in elements if e.get('source')==key and e['type']=='value')
+                        for key in ('temperature','wind')]
+        assert all(e['align']=='right' for e in weather_values)
+        assert len({e['x']+e['w'] for e in weather_values})==1
+        description=next(e for e in elements if e.get('source')=='weather_label')
+        weather=next(e for e in elements if e['type']=='weather')
+        assert (description['x'],description['y'],description['w'],description.get('align','left'))==(1179,57,96,'left')
+        assert description['x']>=weather['x']+weather['w']
+        wind=next(e for e in elements if e.get('source')=='wind' and e['type']=='value')
+        wind_icon=next(e for e in elements if e.get('source')=='wind' and e['type']=='image')
+        assert wind['y']==88 and wind_icon['y']==84
+        assert wind_icon['x']+wind_icon['w']+6==wind['x'] and wind['w']==72
+        date=next(e for e in elements if e.get('source')=='date')
+        clock=next(e for e in elements if e.get('source')=='clock')
+        assert date['x']==clock['x']
         assert power['positive_color']!=power['negative_color']
         bar=next(e for e in elements if e['type']=='bar' and e['source']=='soc')
         assert (band['x'],band['y'],band['w'],band['h'])==(951,562,307,78)

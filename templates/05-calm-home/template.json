@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 10,
+  "version": 11,
   "light": {
     "home_hotspot": {
       "x": 1130,
@@ -13,7 +13,7 @@
     "assistant_area": {
       "x": 330,
       "y": 118,
-      "w": 654,
+      "w": 594,
       "h": 68
     },
     "background": "#E8F0E7",
@@ -130,9 +130,9 @@
       },
       {
         "type": "box",
-        "x": 1032,
+        "x": 938,
         "y": 118,
-        "w": 216,
+        "w": 310,
         "h": 76,
         "background": "#FFF9EE",
         "radius": 20,
@@ -422,6 +422,25 @@
         "background": "#FFF9EE",
         "radius": 20,
         "opacity": 245
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 946,
+        "y": 141
+      },
+      {
+        "type": "value",
+        "x": 980,
+        "y": 145,
+        "w": 54,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#536156"
       }
     ],
     "palette": {
@@ -441,7 +460,7 @@
     "assistant_area": {
       "x": 330,
       "y": 118,
-      "w": 654,
+      "w": 594,
       "h": 68
     },
     "background": "#223432",
@@ -558,9 +577,9 @@
       },
       {
         "type": "box",
-        "x": 1032,
+        "x": 938,
         "y": 118,
-        "w": 216,
+        "w": 310,
         "h": 76,
         "background": "#242A26",
         "radius": 20,
@@ -850,6 +869,25 @@
         "background": "#242A26",
         "radius": 20,
         "opacity": 245
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 946,
+        "y": 141
+      },
+      {
+        "type": "value",
+        "x": 980,
+        "y": 145,
+        "w": 54,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#D3CFBF"
       }
     ],
     "palette": {

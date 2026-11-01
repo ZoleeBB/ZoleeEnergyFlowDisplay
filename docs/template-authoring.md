@@ -34,7 +34,8 @@ Az Élő otthon eszközei a házkép részei. A többi nézet saját képkészle
 
 A generált készletek stílusai és pontos promptjai:
 [aktuális assetjegyzék](../assets/template-manifest.json). A forrásképekből
-az alfa megtartásával készültek a csomagok 128×128-as runtime képei.
+az alfa megtartásával készültek a csomagok runtime képei. A páratartalom natív 30×30-as, a többi
+ikon jellemzően 128×128-as. Kis UI-jelnél a natív megjelenítési méretet használd.
 A `prepare_templates.py` hiányzó vagy fölösleges kép esetén hibát jelez; nem generál helyettesítő ikonokat.
 
 ## 3. Két téma és rétegsorrend
@@ -291,3 +292,12 @@ Az autós elemek csak közvetlen Loxone módban, konfigurált autótöltő melle
 jelennek meg; a hozzájuk tartozó címkékhez is ugyanazt a `source` mezőt add meg.
 A működő minta a `templates/11-electric-car/template.json`.
 [Adatérvényesség és számítások](electric-car.md).
+
+## Opcionális páratartalom és szövegigazítás
+
+A `source: "humidity"` a validált, egész 0–100% érték. A `value` elemen
+`%` egységet kap; az ikon `image` elemére is ezt a `source`-ot állítsd, hogy
+érvénytelen vagy hiányzó adatnál mindkettő rejtett legyen. Az új gyári ikon
+`weather_humidity.png`, natív 30×30 RGBA, az azonos `w`/`h` elkerüli a
+futásidejű skálázást. A `label`/`value` és szövegárnyéka a `left`, `center`,
+`right` igazítást támogatja. A teljes elemlista továbbra is legfeljebb 96 elem.

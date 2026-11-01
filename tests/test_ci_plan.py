@@ -63,6 +63,26 @@ class BuildPlanTests(unittest.TestCase):
             listing.assert_called_once_with('https://api.github.com/repos/owner/repo',
                                             'commits/' + self.sha + '/pulls')
 
+    def test_main_merge_rolls_latest_release_to_next_minor(self):
+        candidate = self.candidate(number=31)
+        verified = dict(candidate, merged=True)
+        releases = [{'tag_name': 'v3.1.9', 'name': 'v3.1.9'}]
+
+        def api(endpoint):
+            root = f'https://api.github.com/repos/{self.repository}'
+            if endpoint == f'{root}/pulls/31':
+                return verified
+            if endpoint == f'{root}/releases?per_page=100&page=1':
+                return releases
+            if endpoint == f'{root}/tags?per_page=100&page=1':
+                return [{'name': 'v3.1.9', 'commit': {'sha': 'b' * 40}}]
+            self.fail(f'Unexpected API call: {endpoint}')
+
+        with patch('ci_plan.listing', return_value=[candidate]), patch('auto_release.api', api):
+            result = plan(self.repository, self.sha, 'push', 'refs/heads/main', automatic=True)
+        self.assertEqual(result, {'tag': 'v3.2.0', 'pr': '31',
+                                  'publish': 'true', 'build': 'true'})
+
     def test_already_published_merge_does_not_rebuild_or_republish(self):
         with patch('ci_plan.listing', return_value=[self.candidate()]):
             with patch('ci_plan.prepare', return_value={'tag': 'v3.0.0', 'needed': 'false'}):

@@ -1,0 +1,7 @@
+{
+  "asset": "main/assets/png/weather_humidity.png",
+  "generator": "built-in image_gen; prepare_humidity_icon.py, 28x28",
+  "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+  "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+  "sha256": "b02f4b78331f00bfacd6b3c2195f71f3b5afdcf4cbf3d23c88c81d75a7b500f5"
+}
