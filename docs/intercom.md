@@ -151,22 +151,34 @@ régi profilnál a funkció kikapcsolt, a hangerők alapértékei automatikusak.
 
 ## Kaputelefon utáni témahelyreállítás
 
-Ha a csengetés végén a téma betöltőképernyője marad látható, a firmware
-külön naplózza a még aktív médiafeladatokra várakozást (3 másodperc után,
-majd legfeljebb 5 másodpercenként). A médiafeladatok leállásakor a teljes
-várakozási idő is megjelenik. Ezek nem SD-hibák; a képpufferek továbbra is
-csak biztonságosan, a producer leállása után szabadulnak fel.
+A kamera- és hangfeladatokra való várakozást 3 másodperc után külön naplózzuk,
+majd 10 másodpercenként frissítjük. A log jelzi, hogy a videó vagy a hang
+még aktív-e, és megméri a lezárás teljes időtartamát. Gyors újracsengéskor
+a várakozás időmérése újrakezdődik. A média-pufferek továbbra is csak a worker
+tényleges leállását követően szabadulhatnak fel. Ha egy worker **45 másodperc**
+után sem állt le, és nincs OTA-/csomagművelet, a készülék kontrolláltan
+újraindul; a folyamat közben nincs kényszerített tasktörlés vagy memóriafelszabadítás.
+Egy folyamatban lévő OTA elsőbbséget élvez.
 
-A témabetöltés meglévő, hat másodperces védelme minden elakadt próbálkozásnál
-kiírja a pending és aktív generációt, valamint a képkocka-visszajelzés állapotát.
-Három egymást követő elakadás után a firmware a beépített **Rendszer** témát
-választja, majd a szabályos betöltési úton folytatja. A korábbi kiválasztás
-ilyenkor tartósan megváltozhat; az SD-s téma később újra kiválasztható.
+A normál SD-s témák és a Loxone Otthon-oldalak külön, de azonos elvű
+betöltési felügyeletet kapnak: 6 másodpercenként sikertelen szakaszt
+számolnak. Három sikertelen szakasz után a témák **ideiglenesen** a
+beépített Rendszer nézetre állnak át, a mentett témaválasztás változatlan
+marad. A fallback katalóguszárat nem blokkoló próbálkozással kéri, és
+a beépített nézet betöltése nem vár az SD-tároló zárára. A felhasználó
+később ismét kiválaszthatja a korábbi témáját.
 
-A helyszíni hibakereséshez a csengetés befejezése utáni eseménynaplót és
-a soros konzol `app_ui` figyelmeztetéseit célszerű rögzíteni.
-A tartalék téma nem oldja meg a fizikailag beragadt LVGL renderelést,
-az SD-meghajtó blokkoló I/O műveletét vagy a lezáratlan médiafeladatot.
+A Loxone Otthon-oldal tartós betöltési hibájánál a megnyitott oldalt
+biztonságosan felszabadítjuk; normál energiaáramlási módban a főnézet,
+energiaáramlás-tiltás esetén a logós készenlét jelenik meg. Ez nem írja
+felül a mentett Loxone-kártyákat vagy a sablonokat.
+
+A hardveresen beragadt SD-olvasást vagy a GUI renderfeladat teljes
+megakadását a UI feladatban futó watchdog nem tudja megszakítani.
+A soros konzol `app_ui` figyelmeztetéseit, a webes eseménynaplót és az
+aktuális heap-/task-diagnosztikát érdemes rögzíteni. A megoldás
+először a biztonságos helyreállítást választja, nem törli az élő worker
+erőforrásait.
 
 ## Ellenőrzés és kiadás
 
