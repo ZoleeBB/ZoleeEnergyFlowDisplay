@@ -70,10 +70,27 @@ ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképoc
 elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
 dekódolt képei mellé kért PSRAM-ot: gyors oda-vissza lapozásnál elfogyhatott a hely,
 a háttér dekódolása minden képkockán újra elbukott, és a kijelző használhatatlanul
-lelassult. Ha a betöltőképernyő mögött hat másodpercig semmi nem halad (foglalt SD,
-elmaradó képkocka-visszajelzés), a felépítés eldobja a félkész állapotot és tiszta
-lappal újrakezd; enélkül a kijelző a pörgő körön maradt, ahol a húzásos navigáció
-sem él.
+lelassult. A betöltőképernyő a runtime szálban hat másodperces szakaszokat
+figyel (foglalt katalógus/SD, elmaradt képkocka-visszajelzés vagy feldolgozatlan
+előbetöltés). Időtúllépéskor a félkész `template_pending` nézet erőforrásait
+felszabadítja; három sikertelen szakasz után nem blokkoló katalóguspróbával
+ideiglenesen a beépített Rendszer nézetre vált. A beépített nézethez nem kell
+SD-zár és az eredeti, mentett témaválasztást nem írja felül. Ha a tartalék
+nézet is ismételten elakad, az OTA- és SD-műveletfoglalást tiszteletben tartó
+újraindítás az utolsó védelem. A Loxone Otthon-oldalak külön betöltési
+felügyelettel rendelkeznek; tartós hiba után normál főnézetre vagy logós
+készenlétre térnek vissza.
+
+**Terhelés:** a felügyelet a már meglévő UI-ciklusban fut, néhány
+időbélyeget és kis méretű statikus állapotot használ; nem hoz létre új
+nagy PSRAM-képpuffert, háttérfeladatot vagy folyamatos heap-mérést.
+A médiapufferek csak a videó-/hangworker lezárása után szabadulnak fel,
+az előző téma dekódolt cache-ének ürítése megmarad. Kivételes esetekben
+a diagnosztikai naplózás és a tartalék nézet újraépítése többletmunkát
+jelent; fizikai CPU-/FPS-, DMA-szabadblokk- és PSRAM-minimummérés nélkül
+teljesítményregresszió nem zárható ki. A runtime saját szálában végzett
+ellenőrzés blokkoló SD- vagy LVGL-hívást nem tud megszakítani.
+[Loxone kaputelefon helyreállítása](intercom.md#kaputelefon-utáni-témahelyreállítás).
 
 Nappali/éjszakai váltáskor az előző változat dekódolt képei (háttérképenként 1280×800 ARGB8888 = 4 MiB) elfoglalnák az új háttér dekódolásához szükséges PSRAM-ot, és sikertelen dekódolásnál a háttér elmaradt. A felépítés ezért a törölt objektumok után, az új jelenet előtt üríti a kép- és raszter-gyorsítótárat; az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás. A preview minden témánál ellenőrzi, hogy a váltás után a jelenet képei a saját változatukra mutatnak, és a teljes képernyős háttér valóban dekódolt képpontokat ad.
 
