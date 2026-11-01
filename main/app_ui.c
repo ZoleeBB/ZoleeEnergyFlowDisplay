@@ -39,6 +39,7 @@
 #include "app_templates.h"
 #include "app_diagnostics.h"
 #include "app_loxone.h"
+#include "app_loxone_display_grace.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "app_ota.h"
 #endif
@@ -185,7 +186,39 @@ typedef enum
     VIEW_FATAL
 } runtime_view_t;
 
+static bool home_is_open(void);
 static runtime_view_t s_view = VIEW_NONE;
+/* Csak a kijelzőt fagyasztjuk: a Loxone worker azonnal újracsatlakozik,
+ * az érvénytelen minta nem számít bele a statisztikába. Az LVGL callbackek
+ * a UI tasktól eltérő szálon is futhatnak, ezért atomikus a jelző. */
+static app_loxone_display_grace_t s_loxone_display_grace;
+#ifdef _MSC_VER
+static volatile LONG s_loxone_display_held;
+static bool loxone_display_is_held(void)
+{ return InterlockedCompareExchange(&s_loxone_display_held, 0, 0) != 0; }
+static void loxone_display_set_held(bool value)
+{ InterlockedExchange(&s_loxone_display_held, value ? 1 : 0); }
+#else
+static atomic_bool s_loxone_display_held;
+static bool loxone_display_is_held(void)
+{ return atomic_load(&s_loxone_display_held); }
+static void loxone_display_set_held(bool value)
+{ atomic_store(&s_loxone_display_held, value); }
+#endif
+/* A rutin csak egy korábban élő, már megjelenített normál/otthoni nézetet
+ * tarthat meg; első induláskor az eredeti kapcsolódási oldal látszik. */
+static bool loxone_display_grace_update(const app_runtime_state_t *rt, bool have, int64_t now)
+{
+    bool enabled = s_cfg.data_recept_mode == APP_DATA_LOXONE &&
+                   !s_cfg.energy_flow_disabled && !rt->energy_flow_disabled;
+    bool valid = enabled && rt->loxone_configured && rt->loxone_connected && have &&
+                 !app_state_data_timed_out(rt, now, app_config_data_timeout(&s_cfg));
+    bool visible = s_view == VIEW_DASHBOARD || (s_view == VIEW_HOME && home_is_open());
+    bool hold = app_loxone_display_grace_tick(
+        &s_loxone_display_grace, enabled, valid, visible, now);
+    loxone_display_set_held(hold);
+    return hold;
+}
 /* Az adapter flush-visszajelzéséből állítjuk; a runtime zár nélkül olvassa. */
 static volatile bool s_loading_frame_presented;
 static app_boot_stage_t s_boot_stage = APP_BOOT_SD;
@@ -1422,6 +1455,12 @@ static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
     if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
+    /* Nincs animált energiaút vagy újrarajzolás befagyasztott Loxone-adattal.
+     * A belső időalap tovább lép, helyreálláskor sincs animációs ugrás. */
+    if (loxone_display_is_held()) {
+        s_animation_us = esp_timer_get_time();
+        return;
+    }
     /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
     if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
     {
@@ -1860,6 +1899,10 @@ void app_ui_set_config(const app_config_t *cfg)
         return;
     }
 
+    if (s_cfg_ok && s_cfg.data_recept_mode != cfg->data_recept_mode) {
+        app_loxone_display_grace_reset(&s_loxone_display_grace);
+        loxone_display_set_held(false);
+    }
     s_cfg = *cfg;
     app_templates_set_loxone_mode(cfg->data_recept_mode == APP_DATA_LOXONE);
     s_display_energy = cfg->energy;
@@ -2128,6 +2171,10 @@ static void energy_disabled_screen(void)
 }
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
+    /* A szimulátor ezt közvetlenül hívja, a firmware runtime ciklusa pedig
+     * még a SD-előtöltés előtt ugyanezt ellenőrzi. Nincs új UI objektum. */
+    if (loxone_display_grace_update(&rt, have, now))
+        return;
     template_clock_synced = rt.time_synced;
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
@@ -2427,6 +2474,15 @@ static void runtime(void *arg)
             continue;
         }
 #endif
+        /* A rövid Loxone-szakadást a régi, már kirajzolt kép tartja meg.
+         * Nincs SD-olvasás, kártyafrissítés, témabetöltés, új adat vagy
+         * figyelmeztető felirat. A kaputelefon és OTA előbbi prioritásai
+         * változatlanok. */
+        if (loxone_display_grace_update(&rt, have, now))
+        {
+            runtime_sleep(200);
+            continue;
+        }
         diagnostics_capture();
         assistant_prepare();
         /* Az Otthon-kártyák külön előtöltési ága is kap időkorlátot.
