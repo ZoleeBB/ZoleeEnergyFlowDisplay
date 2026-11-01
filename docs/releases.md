@@ -91,9 +91,14 @@ az USB-telepítő dry-run sikere kell a publikáláshoz. Nincs külön main CI-b
 és ugyanarra a változásra újabb automatikus release-build.
 
 Normál merge-nél a számszerűen legnagyobb stabil tag/release patch-verziója nő:
-`v1.2.3 → v1.2.4`. Prerelease és `v0.0.0-ci` nem alapverzió. A régi `Prod` tag
-numerikus release-címe is számít; előzmény nélkül `v0.0.1` következik. A korábbi
-#9/#12 egyszeri v1/v2 szabályok megmaradtak; a v3 után a szokásos patch-növelés
+`v1.2.3 → v1.2.4`. Az új automatikus verzió mindhárom komponense egy számjegy
+(0–9): `v3.1.9 → v3.2.0`, illetve `v3.9.9 → v4.0.0`. `v9.9.9` után a folyamat
+hibával megáll; új verziózási szabály szükséges. A korábbi többjegyű tagek továbbra
+is részt vesznek az alapverzió kiválasztásában; túlcsordult komponensük nullázódik,
+és a következő helyiérték nő (például `v1.2.10 → v1.3.0`). Meglévő kiadás vagy
+lefoglalt verzió újrafuttatáskor változatlan marad. Prerelease és `v0.0.0-ci`
+nem alapverzió. A régi `Prod` tag numerikus release-címe is számít; előzmény nélkül
+`v0.0.1` következik. A korábbi #9/#12 egyszeri v1/v2 szabályok megmaradtak; a v3 után a szokásos patch-növelés
 folytatódik. Fejlesztési feltöltés és PR-nyitás nem készít taget vagy release-t.
 
 Írási jogosultság csak a publikáló jobnak jár. Előbb annotált tagben rögzíti a PR

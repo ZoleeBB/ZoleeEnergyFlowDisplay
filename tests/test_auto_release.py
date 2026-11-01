@@ -25,13 +25,32 @@ class AutomaticReleaseTests(unittest.TestCase):
         self.assertEqual(next_tag([],[]),'v0.0.1')
         self.assertEqual(next_tag([{'name':'Prod'}],[{'tag_name':'Prod','name':'0.0.1'}]),'v0.0.2')
         self.assertEqual(next_tag([{'name':'v1.2.9'},{'name':'v1.2.10'},{'name':'v0.0.0-ci'},
-                                  {'name':'v2.0.0-rc.1'}],[]),'v1.2.11')
+                                  {'name':'v2.0.0-rc.1'}],[]),'v1.3.0')
         self.assertEqual(next_tag([{'name':'v1.9.99'},{'name':'v2.0.0'}],[]),'v2.0.1')
         self.assertEqual(next_tag([], [{'tag_name':'v1.0.8','name':'Draft','draft':True}]),'v1.0.9')
 
+    def test_single_digit_rollover(self):
+        for current, expected in [('v3.1.8', 'v3.1.9'), ('v3.1.9', 'v3.2.0'),
+                                  ('v3.9.9', 'v4.0.0'), ('v9.9.8', 'v9.9.9')]:
+            with self.subTest(current=current):
+                self.assertEqual(next_tag([{'name': current}], []), expected)
+                self.assertEqual(next_tag([], [{'tag_name': current}]), expected)
+                self.assertEqual(next_tag([], [{'tag_name': 'Prod', 'name': current}]), expected)
+        with self.assertRaisesRegex(ValueError, 'Single-digit release versions exhausted'):
+            next_tag([{'name': 'v9.9.9'}], [])
+
+    def test_all_single_digit_transitions(self):
+        for value in range(999):
+            major, remainder = divmod(value, 100)
+            minor, patch_number = divmod(remainder, 10)
+            current = f'v{major}.{minor}.{patch_number}'
+            result = next_tag([{'name': current}], [])
+            self.assertRegex(result, r'^v[0-9]\.[0-9]\.[0-9]$')
+            self.assertEqual(int(result.replace('v', '').replace('.', '')), value + 1)
+
     def test_loxone_major_release(self):
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v1.4.9'}],[]),'v2.0.0')
-        self.assertEqual(tag_for_merged_pr('other/repo',12,[{'name':'v1.4.9'}],[]),'v1.4.10')
+        self.assertEqual(tag_for_merged_pr('other/repo',12,[{'name':'v1.4.9'}],[]),'v1.5.0')
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',43,[{'name':'v2.0.0'}],[]),'v2.0.1')
         with self.assertRaises(ValueError):tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v2.0.0'}],[])
 

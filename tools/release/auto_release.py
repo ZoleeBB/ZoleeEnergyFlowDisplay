@@ -24,7 +24,18 @@ def next_tag(tags, releases):
             version = stable_version(release.get('name'))
         versions.append(version)
     major, minor, patch = max((v for v in versions if v is not None), default=(0, 0, 0))
-    return validate_tag(f'v{major}.{minor}.{patch + 1}')
+    # Egy számjegyes kiadási komponensek: 9 után a következő helyiérték nő.
+    # A régi, többjegyű tagek is alapverziók maradnak; nem írjuk át őket.
+    patch += 1
+    if patch > 9:
+        patch = 0
+        minor += 1
+    if minor > 9:
+        minor = 0
+        major += 1
+    if major > 9:
+        raise ValueError('Single-digit release versions exhausted at v9.9.9')
+    return validate_tag(f'v{major}.{minor}.{patch}')
 
 
 def tag_for_merged_pr(repository, number, tags, releases, merged_pr=None):
