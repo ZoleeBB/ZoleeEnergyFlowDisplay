@@ -420,6 +420,9 @@ static void template_step_retry(void)
 static void template_gesture(lv_event_t *event)
 {
     (void)event;
+    /* Türelmi idő alatt változatlan képet tartunk, navigáció és lapozás
+     * nem indíthat SD-betöltést. */
+    if (loxone_display_is_held()) return;
     /* Betöltés közben csak a lapozás él: a kérést a runtime dolgozza fel,
      * így a gyors, egymás utáni húzások nem vesznek el. */
     bool loading = s_view == VIEW_THEME_LOADING;
