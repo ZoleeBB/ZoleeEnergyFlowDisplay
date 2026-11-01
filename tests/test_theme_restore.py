@@ -33,6 +33,9 @@ ui = (ROOT / "main/app_template_ui.inc").read_text(encoding="utf-8")
 assert "app_templates_try_temporary_builtin()" in ui
 assert 'app_templates_select("builtin")' not in ui
 assert "app_theme_restore_tick(" in ui
+assert "template_fallback_timeouts >= 5" in ui
+assert "app_storage_try_lock()" in ui
+assert "app_ota_operation_active()" in ui
 
 home = (ROOT / "main/app_loxone_home_ui.inc").read_text(encoding="utf-8")
 assert "static bool home_restore_watchdog(void)" in home
