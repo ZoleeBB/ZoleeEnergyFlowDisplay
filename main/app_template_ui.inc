@@ -594,10 +594,13 @@ static void template_loading_watchdog(void)
          * kontrolláltan újra. A tároló zárját a reboot kezdetéig megtartjuk. */
         if (template_fallback_logged && ++template_fallback_timeouts >= 5) {
 #if defined(ESP_PLATFORM) && !defined(APP_TEMPLATE_DESKTOP)
-            if (!app_ota_operation_active() && app_storage_try_lock()) {
-                ESP_LOGE("app_ui", "A beépített Rendszer téma is elakadt; újraindítás");
-                esp_restart();
-                app_storage_unlock(); /* esp_restart normál esetben nem tér vissza */
+            if (app_ota_try_begin_operation()) {
+                if (app_storage_try_lock()) {
+                    ESP_LOGE("app_ui", "A beépített Rendszer téma is elakadt; újraindítás");
+                    esp_restart();
+                    app_storage_unlock(); /* esp_restart normál esetben nem tér vissza */
+                }
+                app_ota_end_operation();
             }
 #endif
         }
