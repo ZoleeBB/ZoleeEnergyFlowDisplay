@@ -75,14 +75,31 @@ próbál más jogosultságot. A fájl méretkorlátja ezen az úton is 512 KiB.
 
 A kliens 15 másodpercenként Loxone keepalive parancsot küld; 45 másodpercnyi
 bejövő üzenethiányt vagy azonnali socket/Wi-Fi hibát kapcsolatvesztésnek vesz.
-A hibaképernyőről automatikusan tér vissza a témákra, amikor újra beérkezett az
-összes kötelező állapot. Újrapróbálkozás: 2/4/8/16/30 s, legfeljebb 30 s.
-A változatlan érték érvényes: az aktuális állapottárból 5 másodpercenként készül
-validált minta. Ez a Miniserver kapcsolatát igazolja, nem az inverter upstream
-adatainak frissességét. A Loxone oldali mérési érvényesség külön logikai feladat.
-Kapcsolatvesztéskor és újrabeállításkor az integrálási lánc megszakad, kiesésen át
-nem számolunk energiát. Az új verzió OTA-érvényesítéséhez Loxone módban az elérhető
-webfelület elegendő, nem kell 3 percen belül elvégezni az első párosítást.
+Az újrapróbálkozás **változatlanul azonnal elindul**: 2/4/8/16/30 s,
+legfeljebb 30 s. A változatlan Loxone-érték is érvényes: az aktuális
+állapottárból 5 másodpercenként készül validált energiaminta.
+
+**Új, 10 másodperces kijelző-türelmi idő:** ha a fő energiaáramlási téma
+vagy a Loxone Otthon-oldal már érvényes adatokkal látható volt, a rövid
+kapcsolat-/mintavesztés során az **utolsó kirajzolt kép változatlanul
+megmarad**. Nincs „Újracsatlakozás” felirat, animáció, új mérési adat,
+SD-s témabetöltés vagy teljes képernyős Loxone-hibakép. Az Otthon
+vezérlőgombjai és a lapozás ebben az ablakban inaktívak; a kaputelefon
+és a firmware-frissítés elsőbbsége megmarad. Ha a kapcsolat és a
+**validált energiaminta** 10 másodpercen belül helyreáll, a kijelző
+közvetlenül folytatja a normál működést. Ha nem, a korábbi
+„Megszakadt a Loxone adatkapcsolat” képernyő jelenik meg.
+Kezdeti indításkor, érvényes minta nélkül nincs befagyasztott téma:
+a kapcsolódási képernyő változatlanul megjelenik. A türelmi idő nem
+indul újra pusztán a WebSocket átmeneti kapcsolódásától.
+
+A türelmi idő **csak a megjelenítésre vonatkozik**. A Loxone kliens
+a megszakadást azonnal kezeli, az energiamintát érvényteleníti és
+megszakítja a statisztikai folytonosságot; a kimaradt időszakra nem
+számolunk kitalált energiát. Az érvényes Loxone kapcsolat sem
+bizonyítja az inverter upstream adatainak frissességét.
+Az új verzió OTA-érvényesítéséhez Loxone módban az elérhető webfelület
+elegendő, nem kell 3 percen belül elvégezni az első párosítást.
 
 ## Erőforráskorlátok és ellenőrzés
 
