@@ -2143,7 +2143,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         diagnostics_render(rt);
         return;
     }
-    if (s_cfg.energy_flow_disabled && home_empty)
+    if (s_cfg.energy_flow_disabled && (home_empty || home_restore_failed))
     {
         energy_disabled_screen();
         return;
@@ -2429,6 +2429,13 @@ static void runtime(void *arg)
 #endif
         diagnostics_capture();
         assistant_prepare();
+        /* Az Otthon-kártyák külön előtöltési ága is kap időkorlátot.
+         * Visszatérés után a normál UI-ciklus építi fel a helyes nézetet. */
+        if (home_restore_watchdog())
+        {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
         if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() && !template_loading_frame())
         {
