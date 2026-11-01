@@ -166,7 +166,10 @@ számolnak. Három sikertelen szakasz után a témák **ideiglenesen** a
 beépített Rendszer nézetre állnak át, a mentett témaválasztás változatlan
 marad. A fallback katalóguszárat nem blokkoló próbálkozással kéri, és
 a beépített nézet betöltése nem vár az SD-tároló zárára. A felhasználó
-később ismét kiválaszthatja a korábbi témáját.
+később ismét kiválaszthatja a korábbi témáját. Ha a beépített nézet
+további öt betöltési időablak után sem áll helyre, a rendszer
+OTA-/SD-művelet nélkül kontrolláltan újraindít; nincs korlátlan
+ismétlődő betöltési ciklus a működő runtime szálon.
 
 A Loxone Otthon-oldal tartós betöltési hibájánál a megnyitott oldalt
 biztonságosan felszabadítjuk; normál energiaáramlási módban a főnézet,
