@@ -156,7 +156,25 @@ a részletes RTP-számlálók a soros naplóba kerülnek. A webes csengőhangmin
 a böngészőben szólal meg. Hiányzó vagy hibás SD-hangfájlnál a kijelző
 érthető hibaüzenetet mutat.
 
-Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg. A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik; a szükséges állapotok visszaérkezésekor automatikusan folytatódik a kijelzés. A token előzetes megújítása normál esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál a webfelület a konkrét fázist és hibakódot mutatja. [Hibaelhárítás és korlátok](loxone-direct.md).
+Hiányzó paramétereknél külön fekete Loxone-beállítóképernyő jelenik meg.
+A kezdeti kapcsolódás és a működés közbeni kapcsolatvesztés külön képernyőt
+kap. A kliens 2/4/8/16/30 másodperces ütemben újracsatlakozik, **de a már
+kirajzolt, érvényes energia-/Otthon-képernyő rövid megszakadáskor
+10 másodpercig változatlanul látható marad**. Ebben az időben nincs
+figyelmeztetés, adatfrissítés, animáció vagy új témabetöltés. A Loxone
+vezérlések inaktívak; a kaputelefon elsőbbsége megmarad. Ha 10 másodpercen
+belül nincs új érvényes minta, a megszokott „Megszakadt a Loxone
+adatkapcsolat” hibaoldal jelenik meg. Első kapcsolódásnál nem él a
+türelmi idő; átmenetileg visszatérő WebSocket önmagában nem nullázza
+a várakozást.
+
+A háttérben a kliens azonnal érvényteleníti a régi mintát és megszakítja
+a statisztikai folytonosságot; a kijelzőn látható befagyasztott számok
+**nem számítanak új mért adatnak**. A szükséges állapotok visszaérkezésekor
+automatikusan folytatódik a kijelzés. A token előzetes megújítása normál
+esetben nem okoz kapcsolatbontást. Az adatlista HTTP(S)-elérési hibájánál
+a webfelület a konkrét fázist és hibakódot mutatja.
+[Hibaelhárítás és korlátok](loxone-direct.md).
 
 ## Loxone-oldal után eltűnő gesztus vagy betöltőkép
 
