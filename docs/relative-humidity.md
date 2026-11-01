@@ -110,12 +110,16 @@ a meglévő `detect_leaks=1` ellenőrzés is változatlanul fut.
 
 A középső, kétsoros programnév 65 px-lel balra került. A szabadon megadható
 projektcím 295 px széles, egysoros, túl hosszú szövegnél három ponttal rövidül.
-A dátum és az időjárási adatok helye megmaradt. Így a hosszú projektcím, a
+A programnév és a dátum közötti rés a natív, 52 px-es postaláda-jelzés
+saját helye; az adatmezők ehhez igazodnak. Így a hosszú projektcím, a
 programnév, a dátum, az időjárás, a páratartalom, a szél és az óra külön,
 ütközésmentes területet használ. A javítás nem hoz létre új widgetet,
 képpuffert vagy periodikus feladatot.
 
 Az új `test_builtin_header_layout` a valódi LVGL-dobozokat vizsgálja HU/EN,
 világos/sötét módban, normál és maximális hosszúságú projektcímmel, −35 °C,
-150 km/h és 100% páratartalom mellett. A javítás előtti kódon az ütközési
+150 km/h és 100% páratartalom mellett. Az energiaasszisztens 300 px-es
+területét és a postaláda helyét is ellenőrzi a programnévhez/dátumhoz képest.
+A teljes review ezen felugró jelzések átfedését is javította, új widget és
+periodikus feladat nélkül. A javítás előtti kódon az ütközési
 assertion elbukott. A javított Rendszer-előnézetek valódi LVGL-renderből készülnek.

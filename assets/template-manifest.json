@@ -1,12 +1,12 @@
 [
   {
     "asset": "assets/previews/builtin-dark.png",
-    "sha256": "e278a527e89a101a09f03f6f241cd3e59c5c4d5cda94040695cd9815dbd4ae94",
+    "sha256": "df10b06a3691dd8bdebabce74be894d2e986f6e02d628136a8557a410c1beaa6",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {
     "asset": "assets/previews/builtin-light.png",
-    "sha256": "a3234a3047abe111618ef9a0cbe9dc501e2c1cf548aadfb1b8fc42e0f867e1ef",
+    "sha256": "b653c10b651a7ce0e324519790274383a0a0e4a5e486b8bb68548c44bb342614",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {

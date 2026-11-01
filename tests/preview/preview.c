@@ -1112,6 +1112,13 @@ static void test_builtin_header_layout(const app_energy_sample_t *sample)
                 }
                 assert(lv_obj_get_height(s_title) == APP_FONT_22->line_height);
                 assert(lv_label_get_long_mode(s_title) == LV_LABEL_LONG_MODE_DOTS);
+                int advice_x, advice_y, advice_w, advice_h;
+                assert(assistant_area(&advice_x, &advice_y, &advice_w, &advice_h));
+                assert(advice_x + advice_w < areas[1].x1);
+                int mail_x, mail_y;
+                mail_position(&mail_x, &mail_y);
+                assert(mail_x > areas[1].x2 && mail_x + MAIL_BADGE_SIZE < areas[2].x1);
+                assert(mail_y >= header_area.y1 && mail_y + MAIL_BADGE_SIZE <= header_area.y2);
             }
     app_ui_set_config(&saved);
     build_dashboard(sample->night_mode);
