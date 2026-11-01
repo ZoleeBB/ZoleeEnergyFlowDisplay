@@ -988,10 +988,13 @@ static void test_humidity_ui(const app_energy_sample_t *sample)
     {
         template_node_t *wind = NULL, *wind_icon = NULL, *humidity = NULL, *humidity_icon = NULL;
         template_node_t *soc = NULL, *battery = NULL, *date = NULL, *clock = NULL;
+        template_node_t *weather = NULL, *weather_label = NULL;
         for (unsigned i = 0; i < template_node_count; i++)
         {
             template_node_t *n = &template_nodes[i];
             const char *source = ts(n->spec, "source"), *type = ts(n->spec, "type");
+            if (!strcmp(type, "weather")) weather = n;
+            if (!strcmp(source, "weather_label")) weather_label = n;
             if (!strcmp(source, "wind"))
             {
                 if (!strcmp(type, "image")) wind_icon = n;
@@ -1009,14 +1012,18 @@ static void test_humidity_ui(const app_energy_sample_t *sample)
                 if (!strcmp(source, "date")) date = n;
                 if (!strcmp(source, "clock")) clock = n;
             }
-            if (!strcmp(type, "value") && (!strcmp(source, "temperature") ||
-                !strcmp(source, "weather_label") || !strcmp(source, "wind")))
+            if (!strcmp(type, "value") && (!strcmp(source, "temperature") || !strcmp(source, "wind")))
             {
                 assert(lv_obj_get_style_text_align(n->obj, 0) == LV_TEXT_ALIGN_RIGHT);
                 assert(tn(n->spec, "x", 0) + tn(n->spec, "w", 0) == 1260);
             }
         }
         assert(wind && wind_icon && humidity && humidity_icon && soc && battery && date && clock);
+        assert(weather && weather_label);
+        lv_text_align_t description_align = lv_obj_get_style_text_align(weather_label->obj, 0);
+        assert(description_align == LV_TEXT_ALIGN_LEFT || description_align == LV_TEXT_ALIGN_AUTO);
+        assert(tn(weather_label->spec, "x", 0) >= tn(weather->spec, "x", 0) + tn(weather->spec, "w", 0));
+        assert(tn(weather_label->spec, "x", 0) == 1179 && tn(weather_label->spec, "y", 0) == 57);
         assert(lv_obj_get_style_text_font(soc->obj, 0) == lv_obj_get_style_text_font(battery->obj, 0));
         assert(lv_obj_get_y(soc->obj) == lv_obj_get_y(battery->obj));
         assert(lv_obj_get_x(date->obj) == lv_obj_get_x(clock->obj));
@@ -1025,11 +1032,92 @@ static void test_humidity_ui(const app_energy_sample_t *sample)
                tn(wind_icon->spec, "y", 0) * 2 + tn(wind_icon->spec, "h", 0));
         assert(lv_obj_get_y(humidity->obj) == lv_obj_get_y(wind->obj));
         assert(tn(humidity_icon->spec, "y", 0) == tn(wind_icon->spec, "y", 0));
+        assert(lv_obj_get_y(wind->obj) == 88 && tn(wind_icon->spec, "y", 0) == 84);
+        assert(tn(wind_icon->spec, "x", 0) + tn(wind_icon->spec, "w", 0) + 6 == tn(wind->spec, "x", 0));
         lv_point_t text_size;
+        lv_text_get_size(&text_size, "150 km/h", font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        assert(text_size.x <= lv_obj_get_width(wind->obj));
         lv_text_get_size(&text_size, "15,0 kW", lv_obj_get_style_text_font(battery->obj, 0),
                          0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         assert(text_size.x <= lv_obj_get_width(battery->obj));
     }
+}
+
+/* A teljes fejléc tényleges LVGL-dobozai legyenek egymás mellett, ne csak
+ * a JSON-koordináták. Hosszú projektcím és maximális adatszélesség is szerepel. */
+static void test_builtin_header_layout(const app_energy_sample_t *sample)
+{
+    const app_config_t saved = s_cfg;
+    for (unsigned language = 0; language < 2; language++)
+        for (unsigned night = 0; night < 2; night++)
+            for (unsigned long_title = 0; long_title < 2; long_title++)
+            {
+                snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language ? "en" : "hu");
+                if (long_title)
+                {
+                    memset(s_cfg.project.title, 'W', sizeof(s_cfg.project.title) - 1);
+                    s_cfg.project.title[sizeof(s_cfg.project.title) - 1] = 0;
+                }
+                else
+                    snprintf(s_cfg.project.title, sizeof(s_cfg.project.title), "%s", saved.project.title);
+                app_energy_sample_t state = *sample;
+                state.night_mode = night;
+                state.relative_humidity_valid = true;
+                state.relative_humidity_pct = 100;
+                state.temperature_valid = state.wind_speed_valid = true;
+                state.temperature_c = -35;
+                state.wind_speed_kmh = 150;
+                build_dashboard(night);
+                s_last_night = night;
+                update(&state, &fixture);
+                lv_obj_update_layout(s_screen);
+
+                lv_obj_t *header = lv_obj_get_parent(s_title), *brand = NULL;
+                for (uint32_t i = 0; i < lv_obj_get_child_count(header); i++)
+                {
+                    lv_obj_t *child = lv_obj_get_child(header, i);
+                    if (lv_obj_get_child_count(child) != 2) continue;
+                    lv_obj_t *first = lv_obj_get_child(child, 0);
+                    if (lv_obj_check_type(first, &lv_label_class) && !strcmp(lv_label_get_text(first), "Zolee"))
+                        brand = child;
+                }
+                assert(brand);
+                lv_obj_t *objects[] = {s_title, brand, s_date,
+                    lv_obj_get_parent(s_weather_icon), lv_obj_get_parent(s_humidity_icon),
+                    lv_obj_get_parent(s_wind_icon), s_clock};
+                lv_obj_t *values[] = {NULL, NULL, NULL, s_weather_temp, s_humidity, s_wind_speed, NULL};
+                lv_area_t areas[7], header_area;
+                lv_obj_get_coords(header, &header_area);
+                for (unsigned i = 0; i < 7; i++)
+                {
+                    lv_obj_get_coords(objects[i], &areas[i]);
+                    if (values[i])
+                    {
+                        lv_area_t value;
+                        lv_obj_get_coords(values[i], &value);
+                        areas[i].x1 = LV_MIN(areas[i].x1, value.x1);
+                        areas[i].x2 = LV_MAX(areas[i].x2, value.x2);
+                        areas[i].y1 = LV_MIN(areas[i].y1, value.y1);
+                        areas[i].y2 = LV_MAX(areas[i].y2, value.y2);
+                    }
+                    assert(areas[i].x1 >= header_area.x1 && areas[i].x2 <= header_area.x2);
+                    assert(areas[i].y1 >= header_area.y1 && areas[i].y2 <= header_area.y2);
+                    if (i)
+                    {
+                        if (areas[i - 1].x2 >= areas[i].x1)
+                            fprintf(stderr, "Header overlap: group %u ends %d, next starts %d\n",
+                                    i - 1, areas[i - 1].x2, areas[i].x1);
+                        assert(areas[i - 1].x2 < areas[i].x1);
+                    }
+                }
+                assert(lv_obj_get_height(s_title) == APP_FONT_22->line_height);
+                assert(lv_label_get_long_mode(s_title) == LV_LABEL_LONG_MODE_DOTS);
+            }
+    app_ui_set_config(&saved);
+    build_dashboard(sample->night_mode);
+    s_last_night = sample->night_mode;
+    update(sample, &fixture);
+    puts("PASS: builtin header has no overlap in HU/EN day/night, full-length title and maximum-width weather values");
 }
 
 static void test_template_weather(const app_energy_sample_t *sample){
@@ -2461,6 +2549,7 @@ int main(void)
             /* A 0 a grafikonfrissítés indulási sentinelje, valódi boot után
              * a monotón idő már nem nulla. Ezt a gyors célzott mód is kövesse. */
             ticks = 31000000;
+            test_builtin_header_layout(&sample);
             app_template_info_t list[APP_TEMPLATE_MAX];
             char active[33];
             unsigned count = app_templates_list(list, APP_TEMPLATE_MAX, active);
@@ -2498,6 +2587,7 @@ int main(void)
     }
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
     test_humidity_ui(&sample);
+    test_builtin_header_layout(&sample);
     test_stacked_charts();
     assert(f_pv.phase>0.f);
     sd_ok=false;sample.status=3;sample.soc_bat_pct=19.9;update(&sample,&fixture);save_frame("hu-island-sd-error");

@@ -1,12 +1,12 @@
 [
   {
     "asset": "assets/previews/builtin-dark.png",
-    "sha256": "7ed65475a3203b4952d434de5e3e20b070144f022933d2431783f63e848809d2",
+    "sha256": "e278a527e89a101a09f03f6f241cd3e59c5c4d5cda94040695cd9815dbd4ae94",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {
     "asset": "assets/previews/builtin-light.png",
-    "sha256": "41c1e416922b2dd2aa901cd9689c835cf714e3a173b07b8ad04cc5d3ce394029",
+    "sha256": "a3234a3047abe111618ef9a0cbe9dc501e2c1cf548aadfb1b8fc42e0f867e1ef",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {
@@ -604,12 +604,12 @@
   },
   {
     "asset": "templates/09-solar-journey/preview-dark.png",
-    "sha256": "de34afbcbe5d4a315de6995eae680fbd37188cae938812703f43e67a4c971c8d",
+    "sha256": "7ef327d79ec25256a28ccb18e2b129d39963dca04886503c9674e2d181f15a1d",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/09-solar-journey/preview-light.png",
-    "sha256": "d01994b7c3197a537f6c5e11954f7aad48a2fd9dce0e467d4561441948be0523",
+    "sha256": "fbbec83e357edac33d4c0e03a8d5f57856859b17c9ebe02810cce4cf7e9d349b",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {

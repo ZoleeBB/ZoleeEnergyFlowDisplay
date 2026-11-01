@@ -830,14 +830,15 @@ static void build_dashboard(bool night)
 
     s_title = lbl(header, s_cfg.project.title, 54, -1, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
     lv_label_set_long_mode(s_title, LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_width(s_title, 350);
+    /* A hosszú projektcím is egy sorban maradjon a programnév előtt. */
+    lv_obj_set_size(s_title, 295, APP_FONT_22->line_height);
 
     /* Beégetett programnév, a konfigurálható projektcímtől függetlenül. */
     lv_obj_t *brand = lv_obj_create(header);
     lv_obj_remove_style_all(brand);
     lv_obj_set_size(brand, 224, 44);
     lv_obj_remove_flag(brand, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(brand, LV_ALIGN_LEFT_MID, 430, 0);
+    lv_obj_align(brand, LV_ALIGN_LEFT_MID, 365, 0);
     lv_obj_t *brand_name =
         lbl(brand, "Zolee", 0, 0, &app_font_brand_20, night ? 0xA9C5DC : 0x245878);
     lv_obj_set_width(brand_name, 224);

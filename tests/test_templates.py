@@ -106,9 +106,17 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         soc=next(e for e in elements if e['type']=='value' and e.get('source')=='soc')
         assert soc['font']==power['font'] and soc['y']==power['y']
         weather_values=[next(e for e in elements if e.get('source')==key and e['type']=='value')
-                        for key in ('temperature','weather_label','wind')]
+                        for key in ('temperature','wind')]
         assert all(e['align']=='right' for e in weather_values)
         assert len({e['x']+e['w'] for e in weather_values})==1
+        description=next(e for e in elements if e.get('source')=='weather_label')
+        weather=next(e for e in elements if e['type']=='weather')
+        assert (description['x'],description['y'],description['w'],description.get('align','left'))==(1179,57,96,'left')
+        assert description['x']>=weather['x']+weather['w']
+        wind=next(e for e in elements if e.get('source')=='wind' and e['type']=='value')
+        wind_icon=next(e for e in elements if e.get('source')=='wind' and e['type']=='image')
+        assert wind['y']==88 and wind_icon['y']==84
+        assert wind_icon['x']+wind_icon['w']+6==wind['x'] and wind['w']==72
         date=next(e for e in elements if e.get('source')=='date')
         clock=next(e for e in elements if e.get('source')=='clock')
         assert date['x']==clock['x']

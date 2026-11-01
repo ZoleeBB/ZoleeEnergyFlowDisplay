@@ -27,8 +27,12 @@ Energiafőkönyv, Statisztika, Nap pálya, Elektromos autó. A többi téma nem 
 A témafrissítéshez az új ZIP-csomagokat is telepíteni kell; a régi SD-téma tovább
 működik, de az új elemet nem tartalmazza. Az új csomagokhoz az új firmware kell.
 
-A Nap pálya időjárási hőmérséklete, megnevezése és szélsebessége közös jobb szélre
-igazított. A páratartalom a szél előtt, ugyanazon középvonalon látható. A dátum
+A Nap pálya hőmérséklete és szélsebessége közös jobb szélre igazított.
+Az időjárás megnevezése az eredeti helyén, balra igazítva marad, hogy az ikonhoz
+ne érjen. A páratartalom a szél előtt, ugyanazon középvonalon látható; a teljes
+sor 8 px-lel feljebb, a felső időjárási sorhoz közelebb került. A szél ikonja
+6 px-re van a 72 px széles értékmezőtől; a háromjegyű „150 km/h” (71 px)
+is teljesen elfér, a közös jobb szél megmarad. A dátum
 és az óra bal oldali horgonya azonos. Az akku teljesítménye és töltöttsége
 azonos, 20-as betűméretet és középvonalat használ; a teljesítmény előjel szerinti
 színei megmaradtak.
@@ -70,8 +74,11 @@ a tényleges Miniserver/szenzor-adatút külön eszközös próba tárgya.
 A review a mentett konfiguráció kompatibilitását, a transzformáció/érvényesség
 adatútját, az atomi BLE-csomagcserét, mindkét UI életciklusát, az SD-képkezelést,
 a változatlan frissítést és az ütközésmentes elrendezést vizsgálta. A vizuális
-ellenőrzés során talált két energiaasszisztens-ütközés javítva; nyitott ismert
-kódhiba nem maradt. Az eltérő BLE mintaverzió miatti frissítési sorrend fent
+ellenőrzés során talált két energiaasszisztens-ütközés, valamint a Rendszer nézet
+programneve és dátuma közti 28 px-es átfedés javítva. A Nap pálya hosszabb
+időjárás-megnevezésének eredeti pozíciója visszaállítva, így nem ér az ikonba.
+Nyitott ismert kódhiba nem maradt. Az eltérő BLE mintaverzió miatti frissítési
+sorrend fent
 szerepel, ez a kompatibilitási változás szándékos.
 
 | Hoston mért struktúra | Előtte | Utána |
@@ -83,7 +90,7 @@ szerepel, ez a kompatibilitási változás szándékos.
 
 Ezek a méretek a Linux x64 build eredményei; a teljes firmware RAM-/flash-mérete
 és a fizikai DMA-minimum ettől külön adat. Az új ikonok képpontpufferén és a
-két új LVGL elemen kívül nincs új állandó képernyőpuffer, feladat vagy verem.
+új LVGL-elemeken kívül nincs új állandó képernyőpuffer, feladat vagy verem.
 A teljes regresszió szerint a legnagyobb témaképkészlet 8850960 B, a 10 MiB-os
 képcache alatt marad.
 
@@ -98,3 +105,17 @@ feltétel nélküli címkeírásnál az üresjárati számláló is hibát jelez
 A helyi környezet `/proc` korlátozása miatt a LeakSanitizer itt kikapcsolt,
 az AddressSanitizer memóriaelérési ellenőrzése aktív; a CI saját környezetében
 a meglévő `detect_leaks=1` ellenőrzés is változatlanul fut.
+
+### Rendszer nézet fejlécének utóellenőrzése
+
+A középső, kétsoros programnév 65 px-lel balra került. A szabadon megadható
+projektcím 295 px széles, egysoros, túl hosszú szövegnél három ponttal rövidül.
+A dátum és az időjárási adatok helye megmaradt. Így a hosszú projektcím, a
+programnév, a dátum, az időjárás, a páratartalom, a szél és az óra külön,
+ütközésmentes területet használ. A javítás nem hoz létre új widgetet,
+képpuffert vagy periodikus feladatot.
+
+Az új `test_builtin_header_layout` a valódi LVGL-dobozokat vizsgálja HU/EN,
+világos/sötét módban, normál és maximális hosszúságú projektcímmel, −35 °C,
+150 km/h és 100% páratartalom mellett. A javítás előtti kódon az ütközési
+assertion elbukott. A javított Rendszer-előnézetek valódi LVGL-renderből készülnek.
