@@ -128,11 +128,11 @@ static bool intercom_prepare(void)
             if (elapsed >= 45000000LL && !app_ota_operation_active() &&
                 app_storage_try_lock()) {
                 /* Sablon-ZIP feltöltés saját SD-zárat használ, nem feltétlenül
-                 * az OTA-jelzőt. A tároló zárját csak próbáljuk, azonnal elengedjük.
-                 * Így aktív SD-fájlművelet alatt sem indítunk újra. */
-                app_storage_unlock();
+                 * az OTA-jelzőt. Nem blokkolva szerezzük meg, és a reboot
+                 * megindításáig megtartjuk: így nincs TOCTOU-ablak új SD-íráshoz. */
                 ESP_LOGE("app_ui", "Kaputelefon médiafeladat 45 s után sem állt le; biztonságos újraindítás");
                 esp_restart();
+                app_storage_unlock(); /* Védelmi ág: esp_restart normálisan nem tér vissza. */
             }
 #endif
             return true;
