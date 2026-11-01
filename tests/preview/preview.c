@@ -1393,7 +1393,15 @@ static void test_consumer_noise(app_runtime_state_t runtime, app_energy_sample_t
         sample.power_full_kw = .084;
         render_runtime(runtime, sample, true, 31000000);
         assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        /* 10 s megjelenítési türelmi idő: az utolsó 84 W-os felirat
+         * és a hozzá tartozó Otthon-objektumok változatlanok. */
         render_runtime(runtime, sample, false, 31000000);
+        assert(loxone_display_is_held());
+        assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        render_runtime(runtime, sample, false, 40999999LL);
+        assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        render_runtime(runtime, sample, false, 41000000LL);
+        assert(!loxone_display_is_held());
         assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
         render_runtime(runtime, sample, true, 3601000000LL);
         assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
