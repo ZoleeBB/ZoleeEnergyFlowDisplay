@@ -333,13 +333,18 @@ void app_intercom_poll(void)
     }
 }
 
-bool app_intercom_idle(void)
+bool app_intercom_video_busy(void)
 {
     reap_video();
     portENTER_CRITICAL(&s_video_lock);
     bool running = s_video_running;
     portEXIT_CRITICAL(&s_video_lock);
-    return !running && !app_intercom_audio_busy();
+    return running;
+}
+
+bool app_intercom_idle(void)
+{
+    return !app_intercom_video_busy() && !app_intercom_audio_busy();
 }
 
 esp_err_t app_intercom_start(void)
