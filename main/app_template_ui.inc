@@ -570,18 +570,24 @@ static void template_loading_screen(void){
  * szabály számolja. Katalóguszár és LVGL-lock nélkül fut; a fallback
  * kizárólag a beépített nézet pillanatnyi kiválasztását kéri. */
 static app_theme_restore_policy_t template_loading_policy;
+static bool template_fallback_logged;
 static void template_loading_watchdog(void)
 {
+    bool loading = s_view == VIEW_THEME_LOADING;
+    if (!loading) template_fallback_logged = false;
     app_theme_restore_action_t action = app_theme_restore_tick(
-        &template_loading_policy, s_view == VIEW_THEME_LOADING, esp_timer_get_time());
+        &template_loading_policy, loading, esp_timer_get_time());
     if (action == APP_THEME_RESTORE_WAIT) return;
     ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. szakasz, pending=%u, active=%u, frame=%d",
              template_loading_policy.retries, template_pending.generation,
              template_view.generation, (int)s_loading_frame_presented);
     if (action == APP_THEME_RESTORE_FALLBACK) {
         if (app_templates_try_temporary_builtin()) {
-            ESP_LOGW("app_ui", "Témabetöltés: ideiglenes Rendszer nézet (mentett téma változatlan)");
-            app_events_add(APP_EVENT_WARNING, "Témabetöltési hiba: ideiglenes Rendszer nézet.");
+            if (!template_fallback_logged) {
+                ESP_LOGW("app_ui", "Témabetöltés: ideiglenes Rendszer nézet (mentett téma változatlan)");
+                app_events_add(APP_EVENT_WARNING, "Témabetöltési hiba: ideiglenes Rendszer nézet.");
+                template_fallback_logged = true;
+            }
         } else {
             ESP_LOGW("app_ui", "Témabetöltés: katalógus foglalt, nem blokkoló újrapróbálás");
         }
