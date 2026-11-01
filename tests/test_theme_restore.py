@@ -35,7 +35,8 @@ assert 'app_templates_select("builtin")' not in ui
 assert "app_theme_restore_tick(" in ui
 assert "template_fallback_timeouts >= 5" in ui
 assert "app_storage_try_lock()" in ui
-assert "app_ota_operation_active()" in ui
+assert "app_ota_try_begin_operation()" in ui
+assert "app_ota_end_operation()" in ui
 
 home = (ROOT / "main/app_loxone_home_ui.inc").read_text(encoding="utf-8")
 assert "static bool home_restore_watchdog(void)" in home
@@ -45,7 +46,8 @@ assert "home_restore_failed = s_cfg.energy_flow_disabled;" in home
 intercom = (ROOT / "main/app_intercom_ui.inc").read_text(encoding="utf-8")
 assert "intercom_cleanup_since = 0;" in intercom
 assert "app_intercom_video_busy()" in intercom
-assert "app_ota_operation_active()" in intercom
+assert "app_ota_try_begin_operation()" in intercom
+assert "app_ota_end_operation()" in intercom
 assert "app_storage_try_lock()" in intercom
 assert "app_storage_unlock();" in intercom
 assert "esp_restart();" in intercom
