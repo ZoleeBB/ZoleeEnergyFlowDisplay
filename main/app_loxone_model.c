@@ -23,7 +23,8 @@ const lx_field_t lx_fields[LX_FIELD_COUNT] = {{"PowerGrid", true, false},
                                               {"Sunrise", false, false},
                                               {"Sunset", false, false},
                                               {"Presence", false, true},
-                                              {"MailArrived", false, true}};
+                                              {"MailArrived", false, true},
+                                              {"RelativeHumidity", false, false}};
 static const char *str(const cJSON *o, const char *key)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
@@ -224,7 +225,14 @@ bool lx_values_update(
                     memcpy(&raw, &bits, 8);
                     double value = raw * cfg->map[i].scale + cfg->map[i].offset;
                     if (!isfinite(value))
-                        return false;
+                    {
+                        if (i != LX_FIELD_HUMIDITY)
+                            return false;
+                        /* Hibás opcionális páratartalom csak önmagát rejtse el. */
+                        v->value[i] = 0;
+                        v->seen[i] = false;
+                        continue;
+                    }
                     v->value[i] = value;
                     v->seen[i] = true;
                 }
@@ -250,6 +258,11 @@ cJSON *lx_values_payload(const lx_values_t *v, const lx_config_t *cfg)
         else
             cJSON_AddNumberToObject(root, f->name, v->value[i]);
     }
+    /* Az új mező a stabil indexek után áll, a belső mintában külön opcionális. */
+    if (!cfg->map[LX_FIELD_HUMIDITY].uuid[0] || !v->seen[LX_FIELD_HUMIDITY])
+        cJSON_AddNullToObject(root, "RelativeHumidity");
+    else
+        cJSON_AddNumberToObject(root, "RelativeHumidity", v->value[LX_FIELD_HUMIDITY]);
     bool solar = true;
     for (int i = LX_SUN_FIRST; i < LX_SUN_END; i++)
         if (!cfg->map[i].uuid[0] || !v->seen[i])

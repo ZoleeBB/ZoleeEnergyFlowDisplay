@@ -1,8 +1,8 @@
 # Képek és betűkészletek
 
-A beépített nézet 30 futásidejű PNG-t használ a `main/assets/png` alatt. A forrásképek és a vágási/méretezési leírás az `assets/source` könyvtárban vannak; újragenerálás: `python tools/prepare_assets.py`. A közös összegző forráslap több ikonhoz szükséges, ezért megmarad.
+A beépített nézet futásidejű PNG-ket használ a `main/assets/png` alatt. A forrásképek és a vágási/méretezési leírás az `assets/source` könyvtárban vannak; újragenerálás: `python tools/prepare_assets.py`. A közös összegző forráslap több ikonhoz szükséges, ezért megmarad.
 
-A tíz SD-s sablon saját képei a `templates` könyvtárban találhatók. A jelenlegi fájlok SHA-256 ellenőrzőösszege és az ismert generálási eredet az [assetjegyzékben](../assets/template-manifest.json) szerepel. A korábbi képcserék elavult promptjegyzékei nem részei a repónak. A hiányzó eredeti generálási metaadatokat a jegyzék nem találja ki.
+A tizenegy SD-s sablon saját képei a `templates` könyvtárban találhatók. A jelenlegi fájlok SHA-256 ellenőrzőösszege és az ismert generálási eredet az [assetjegyzékben](../assets/template-manifest.json) szerepel. A korábbi képcserék elavult promptjegyzékei nem részei a repónak. A hiányzó eredeti generálási metaadatokat a jegyzék nem találja ki.
 
 Átlátszó ikon importálása: `python tools/import_template_icons.py manifest.json`; a bemeneti lista elemei `template`, `name`, `path`, `prompt` mezőket tartalmaznak. A program az alfa megtartásával 128×128 PNG-t készít és aktualizálja az assetjegyzéket.
 
@@ -21,3 +21,12 @@ a kijelzőnek nincs szüksége internetelérésre vagy SD-s logófájlra.
 A helyi PNG az USB-telepítőcsomag `assets/loxone-logo.png` fájlja is. A márkajelzés kizárólag
 az adatkapcsolat megjelölésére szolgál. A Loxone név és logó a jogosult tulajdona.
 A példatár licencét a `main/licenses/Loxone-LxCommunicator-MIT.txt` őrzi.
+
+## Páratartalomikon
+
+Az új, átlátszó generált kék csepp a `assets/source/weather_humidity.png`
+eredetiből készül: `python3 tools/prepare_humidity_icon.py`. A beépített és 4B
+nézet 28×28-as, a hét érintett SD-téma 30×30-as natív PNG-t használ,
+3136/3600 bájtos ARGB8888 képpontadattal. Az új fájlok 2 KiB alatt maradnak.
+A beépített változat eredetét az `assets/source/weather_humidity.json`, az
+SD-változatokat az assetjegyzék tartalmazza. [Működés](relative-humidity.md).

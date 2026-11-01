@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 23,
+  "version": 24,
   "light": {
     "home_hotspot": {
       "x": 970,
@@ -69,7 +69,7 @@
       },
       {
         "type": "value",
-        "x": 952,
+        "x": 950,
         "y": 15,
         "w": 186,
         "h": 26,
@@ -104,41 +104,45 @@
       },
       {
         "type": "value",
-        "x": 1183,
+        "x": 1170,
         "y": 24,
         "w": 90,
         "h": 29,
         "font": 20,
         "source": "temperature",
-        "color": "#10223C"
-      },
-      {
-        "type": "value",
-        "x": 1179,
-        "y": 57,
-        "w": 96,
-        "h": 30,
-        "font": 12,
-        "source": "weather_label",
-        "color": "#10223C"
-      },
-      {
-        "type": "image",
-        "x": 1114,
-        "y": 92,
-        "w": 30,
-        "h": 30,
-        "file": "weather_wind.png"
+        "color": "#10223C",
+        "align": "right"
       },
       {
         "type": "value",
         "x": 1150,
-        "y": 93,
-        "w": 125,
-        "h": 29,
+        "y": 57,
+        "w": 110,
+        "h": 30,
+        "font": 12,
+        "source": "weather_label",
+        "color": "#10223C",
+        "align": "right"
+      },
+      {
+        "type": "image",
+        "x": 1134,
+        "y": 92,
+        "w": 30,
+        "h": 30,
+        "file": "weather_wind.png",
+        "source": "wind"
+      },
+      {
+        "type": "value",
+        "x": 1170,
+        "y": 96,
+        "w": 90,
+        "h": 22,
         "font": 16,
         "source": "wind",
-        "color": "#10223C"
+        "color": "#10223C",
+        "align": "right"
       },
       {
         "type": "solar_disc",
@@ -827,7 +831,7 @@
         "type": "value",
         "x": 1012,
         "y": 568,
-        "w": 80,
+        "w": 58,
         "h": 30,
         "font": 20,
         "source": "soc",
@@ -1133,7 +1137,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 574,
         "w": 2,
         "h": 4,
@@ -1143,7 +1147,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 582,
         "w": 2,
         "h": 4,
@@ -1153,7 +1157,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 590,
         "w": 2,
         "h": 4,
@@ -1163,7 +1167,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 598,
         "w": 2,
         "h": 4,
@@ -1173,7 +1177,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 606,
         "w": 2,
         "h": 4,
@@ -1183,7 +1187,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 614,
         "w": 2,
         "h": 4,
@@ -1192,23 +1196,13 @@
         "radius": 1
       },
       {
-        "type": "box",
-        "x": 1145,
-        "y": 622,
-        "w": 2,
-        "h": 4,
-        "background": "#66A4C0",
-        "opacity": 185,
-        "radius": 1
-      },
-      {
         "type": "value",
-        "x": 1093,
-        "y": 574,
-        "w": 51,
-        "h": 22,
+        "x": 1072,
+        "y": 568,
+        "w": 77,
+        "h": 30,
         "source": "battery",
-        "font": 12,
+        "font": 20,
         "color": "#2F97CF",
         "positive_color": "#228CC4",
         "negative_color": "#185995",
@@ -1266,6 +1260,25 @@
         "text": "Háztartásban elhasznált energia",
         "text_en": "Energy used in the household",
         "color": "#1D426B"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 1024,
+        "y": 92
+      },
+      {
+        "type": "value",
+        "x": 1058,
+        "y": 96,
+        "w": 64,
+        "h": 22,
+        "font": 16,
+        "source": "humidity",
+        "color": "#10223C"
       }
     ]
   },
@@ -1335,7 +1348,7 @@
       },
       {
         "type": "value",
-        "x": 952,
+        "x": 950,
         "y": 15,
         "w": 186,
         "h": 26,
@@ -1370,41 +1383,45 @@
       },
       {
         "type": "value",
-        "x": 1183,
+        "x": 1170,
         "y": 24,
         "w": 90,
         "h": 29,
         "font": 20,
         "source": "temperature",
-        "color": "#F7FAFF"
-      },
-      {
-        "type": "value",
-        "x": 1179,
-        "y": 57,
-        "w": 96,
-        "h": 30,
-        "font": 12,
-        "source": "weather_label",
-        "color": "#F7FAFF"
-      },
-      {
-        "type": "image",
-        "x": 1114,
-        "y": 92,
-        "w": 30,
-        "h": 30,
-        "file": "weather_wind.png"
+        "color": "#F7FAFF",
+        "align": "right"
       },
       {
         "type": "value",
         "x": 1150,
-        "y": 93,
-        "w": 125,
-        "h": 29,
+        "y": 57,
+        "w": 110,
+        "h": 30,
+        "font": 12,
+        "source": "weather_label",
+        "color": "#F7FAFF",
+        "align": "right"
+      },
+      {
+        "type": "image",
+        "x": 1134,
+        "y": 92,
+        "w": 30,
+        "h": 30,
+        "file": "weather_wind.png",
+        "source": "wind"
+      },
+      {
+        "type": "value",
+        "x": 1170,
+        "y": 96,
+        "w": 90,
+        "h": 22,
         "font": 16,
         "source": "wind",
-        "color": "#F7FAFF"
+        "color": "#F7FAFF",
+        "align": "right"
       },
       {
         "type": "solar_disc",
@@ -2093,7 +2110,7 @@
         "type": "value",
         "x": 1012,
         "y": 568,
-        "w": 80,
+        "w": 58,
         "h": 30,
         "font": 20,
         "source": "soc",
@@ -2399,7 +2416,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 574,
         "w": 2,
         "h": 4,
@@ -2409,7 +2426,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 582,
         "w": 2,
         "h": 4,
@@ -2419,7 +2436,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 590,
         "w": 2,
         "h": 4,
@@ -2429,7 +2446,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 598,
         "w": 2,
         "h": 4,
@@ -2439,7 +2456,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 606,
         "w": 2,
         "h": 4,
@@ -2449,7 +2466,7 @@
       },
       {
         "type": "box",
-        "x": 1145,
+        "x": 1150,
         "y": 614,
         "w": 2,
         "h": 4,
@@ -2458,23 +2475,13 @@
         "radius": 1
       },
       {
-        "type": "box",
-        "x": 1145,
-        "y": 622,
-        "w": 2,
-        "h": 4,
-        "background": "#4A82A8",
-        "opacity": 185,
-        "radius": 1
-      },
-      {
         "type": "value",
-        "x": 1093,
-        "y": 574,
-        "w": 51,
-        "h": 22,
+        "x": 1072,
+        "y": 568,
+        "w": 77,
+        "h": 30,
         "source": "battery",
-        "font": 12,
+        "font": 20,
         "color": "#78D9FF",
         "positive_color": "#78D9FF",
         "negative_color": "#2D7BBF",
@@ -2532,6 +2539,25 @@
         "text": "Háztartásban elhasznált energia",
         "text_en": "Energy used in the household",
         "color": "#C4D8EA"
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 1024,
+        "y": 92
+      },
+      {
+        "type": "value",
+        "x": 1058,
+        "y": 96,
+        "w": 64,
+        "h": 22,
+        "font": 16,
+        "source": "humidity",
+        "color": "#F7FAFF"
       }
     ]
   }

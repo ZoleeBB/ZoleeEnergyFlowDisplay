@@ -2,9 +2,14 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 14,
+  "version": 15,
   "light": {
-    "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
+    "home_hotspot": {
+      "x": 45,
+      "y": 290,
+      "w": 110,
+      "h": 100
+    },
     "background": "#F6F2EA",
     "elements": [
       {
@@ -117,7 +122,7 @@
         "type": "value",
         "x": 882,
         "y": 52,
-        "w": 182,
+        "w": 90,
         "h": 28,
         "source": "wind",
         "font": 16,
@@ -705,6 +710,28 @@
         "shadow_color": "#FFFFFF",
         "shadow_offset": 1,
         "shadow_opacity": 180
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 978,
+        "y": 48
+      },
+      {
+        "type": "value",
+        "x": 1010,
+        "y": 52,
+        "w": 60,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#19352F",
+        "text_shadow": true,
+        "shadow_opacity": 40,
+        "shadow_offset": 1
       }
     ],
     "palette": {
@@ -715,7 +742,12 @@
     }
   },
   "dark": {
-    "home_hotspot": {"x": 45, "y": 290, "w": 110, "h": 100},
+    "home_hotspot": {
+      "x": 45,
+      "y": 290,
+      "w": 110,
+      "h": 100
+    },
     "background": "#18292B",
     "elements": [
       {
@@ -828,7 +860,7 @@
         "type": "value",
         "x": 882,
         "y": 52,
-        "w": 182,
+        "w": 90,
         "h": 28,
         "source": "wind",
         "font": 16,
@@ -1416,6 +1448,28 @@
         "shadow_color": "#000000",
         "shadow_offset": 1,
         "shadow_opacity": 180
+      },
+      {
+        "type": "image",
+        "source": "humidity",
+        "file": "weather_humidity.png",
+        "w": 30,
+        "h": 30,
+        "x": 978,
+        "y": 48
+      },
+      {
+        "type": "value",
+        "x": 1010,
+        "y": 52,
+        "w": 60,
+        "h": 22,
+        "source": "humidity",
+        "font": 16,
+        "color": "#EDF4F8",
+        "text_shadow": true,
+        "shadow_opacity": 100,
+        "shadow_offset": 1
       }
     ],
     "palette": {

@@ -64,6 +64,7 @@ static void scene(bool night)
         .soc_bat_pct = 74, .battery_temperature_c = 32,
         .temperature_c = 18.2, .wind_speed_kmh = 12,
         .temperature_valid = true, .wind_speed_valid = true,
+        .relative_humidity_valid = true, .relative_humidity_pct = 61,
         .sun_radiation_valid = true, .precipitation_valid = true,
         .has_sun_radiation = !night, .night_mode = night, .status = 1,
         .received_epoch_s = 1792327020
@@ -203,8 +204,39 @@ static int self_test(void)
     app_energy_sample_t decoded;
     CHECK(app_ble_protocol_decode(energy, sizeof(energy), weather, sizeof(weather), 0, &decoded) == ESP_OK);
     CHECK(fabs(decoded.power_bat_kw + 2) < .001 && fabs(decoded.soc_bat_pct - 74) < .01);
+    CHECK(decoded.relative_humidity_valid && decoded.relative_humidity_pct == 61);
     sample = decoded;
     step(33);
+    /* A hiányzó adat és a valódi 0% különbözik; az ikon is követi a flaget. */
+    lv_obj_t *humidity_label = NULL, *humidity_image = NULL;
+    lv_obj_t *humidity_screen = lv_screen_active();
+    for (uint32_t i = 0; i < lv_obj_get_child_count(humidity_screen); i++)
+    {
+        lv_obj_t *child = lv_obj_get_child(humidity_screen, i);
+        if (lv_obj_check_type(child, &lv_label_class) && lv_obj_get_x(child) == 484 &&
+            lv_obj_get_y(child) == 73)
+            humidity_label = child;
+        if (lv_obj_check_type(child, &lv_image_class) &&
+            lv_image_get_src(child) == &slave_4b_weather_humidity)
+            humidity_image = child;
+    }
+    CHECK(humidity_label && humidity_image);
+    for (unsigned stage = 0; stage < 4; stage++)
+    {
+        sample.relative_humidity_valid = stage == 1 || stage == 2;
+        sample.relative_humidity_pct = stage == 2 ? 100 : 0;
+        step(0);
+        CHECK(lv_obj_has_flag(humidity_label, LV_OBJ_FLAG_HIDDEN) == !sample.relative_humidity_valid);
+        CHECK(lv_obj_has_flag(humidity_image, LV_OBJ_FLAG_HIDDEN) == !sample.relative_humidity_valid);
+        CHECK(!strcmp(lv_label_get_text(humidity_label), stage == 2 ? "100 %" : "0 %"));
+        invalidations = 0;
+        lv_display_add_event_cb(display, count_invalidation, LV_EVENT_INVALIDATE_AREA, NULL);
+        for (unsigned round = 0; round < 10; round++) step(0);
+        lv_display_remove_event_cb_with_user_data(display, count_invalidation, NULL);
+        CHECK(invalidations == 0);
+    }
+    sample = decoded;
+    step(0);
     CHECK(save("slave-4b-day.ppm") == 0);
     /* A tényleges LVGL körök helye és mérete mindkét váltási irányban állandó. */
     lv_obj_t *rings[4];

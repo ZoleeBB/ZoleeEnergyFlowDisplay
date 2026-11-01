@@ -7,7 +7,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 project = root.parents[1]
 assets = {"day": root / "assets/day.png", "night": root / "assets/night.png"}
 for name in ("hub", "weather_sun", "weather_cloud", "weather_partly", "weather_rain",
-             "weather_snow", "weather_moon", "wind"):
+             "weather_snow", "weather_moon", "wind", "weather_humidity"):
     stem = "flow_hub" if name == "hub" else name
     assets[name] = project / "main/assets/png" / (stem + ".png")
 output = pathlib.Path(sys.argv[1])

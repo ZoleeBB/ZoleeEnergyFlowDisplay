@@ -51,16 +51,16 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert(end.y<=batteryBand.y&&batteryBand.y-end.y<=8);
   assert(bf.points.every(p=>p.x>=0&&p.y>=0&&p.x<=bf.w&&p.y<=bf.h));
   const batteryPower=elements.find(e=>e.type==='value'&&e.source==='battery');
-  assert(batteryPower.font===12&&batteryPower.x===1093);
+  assert(batteryPower.font===20&&batteryPower.x===1072);
   assert(batteryPower.positive_color!==batteryPower.negative_color);
-  assert(elements.length===95);
+  assert(elements.length===96);
   assert(elements.some(e=>e.type==='bar'&&e.source==='soc'));
   assert(elements.find(e=>e.type==='value'&&e.source==='grid').zero_color===
          elements.find(e=>e.type==='value'&&e.source==='pv').color);
   const solarChips=elements.filter(e=>e.type==='box'&&e.y===236);
   assert(solarChips.some(e=>e.x===7)&&solarChips.some(e=>e.x===821));
   const battery=elements.find(e=>e.type==='box'&&e.x===951&&e.y===562);
-  assert.strictEqual(elements.filter(e=>e.type==='box'&&e.w===2&&e.h===4&&e.background===battery.outline_color).length,7);
+  assert.strictEqual(elements.filter(e=>e.type==='box'&&e.w===2&&e.h===4&&e.background===battery.outline_color).length,6);
   assert(elements.some(e=>e.type==='image'&&e.file===(mode==='light'?'day.png':'night.png')));
  }
  assert(solarMetrics.encoded>0 && solarMetrics.decoded>0);

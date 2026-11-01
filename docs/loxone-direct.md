@@ -19,8 +19,9 @@ a többi energia-párosítás megmarad. A Miniserver és az egyes funkciószakas
 külön menthetők. [Működés és logós készenlét](energy-flow-disable.md).
 
 Normál módban a kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status,
-NightMode és BatteryTemperature. Az időjárási négy mező kihagyható (null),
-a nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (fok,
+NightMode és BatteryTemperature. Az öt időjárási mező kihagyható (null); az új relatív páratartalom
+szorzóval/eltolással, egész százalékként használható: [beállítás és Slave-frissítés](relative-humidity.md).
+A nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (fok,
 0 ≤ érték < 360), `SunAltitude` (fok, −90…90), `Sunrise` és `Sunset`
 (egész perc éjféltől, 0…1439, napkelte < napnyugta). Például 07:00 = 420.
 Mind a négy párosítást meg kell adni, vagy mind elhagyható; a nappálya az összes

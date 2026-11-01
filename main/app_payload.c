@@ -299,6 +299,16 @@ esp_err_t app_payload_parse(
         sample.sun_position_valid = true;
     }
 
+    /* A Loxone-kliens a szorzót és eltolást már alkalmazta. Az opcionális
+     * mező hibája nem teheti használhatatlanná a teljes energiamintát.
+     * Lebegőpontban korlátozunk, így extrém szám konverziója sem csordul túl. */
+    const cJSON *humidity = cJSON_GetObjectItemCaseSensitive(root, "RelativeHumidity");
+    if (cJSON_IsNumber(humidity) && isfinite(humidity->valuedouble))
+    {
+        sample.relative_humidity_pct = (uint8_t)round(fmax(0, fmin(100, humidity->valuedouble)));
+        sample.relative_humidity_valid = true;
+    }
+
     /* Opcionális, a Loxone-kliens által hozzáadott autótöltési összeg (kW).
      * Hiánya a régi küldőknél és más módoknál normál eset. */
     cJSON *ev = cJSON_GetObjectItemCaseSensitive(root, "EvChargingPower");

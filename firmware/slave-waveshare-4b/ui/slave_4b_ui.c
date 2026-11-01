@@ -21,6 +21,7 @@ typedef struct
 
 static lv_obj_t *root, *background, *hub, *soc, *battery_detail, *disabled_overlay;
 static lv_obj_t *temperature, *wind, *clock_label, *weather, *wind_icon;
+static lv_obj_t *humidity, *humidity_icon;
 static lv_obj_t *message, *diagnostics, *pin_pad, *pin_mask, *pin_countdown;
 static node_t nodes[4]; /* Hálózat, akku, napelem, ház. */
 static uint32_t pin_token;
@@ -406,6 +407,8 @@ void slave_4b_ui_create(lv_obj_t *screen)
     temperature = label(root, "— °C", 332, 32, 99, &app_font_20);
     wind_icon = image(&slave_4b_wind, 442, 25, 36);
     wind = label(root, "— km/h", 484, 32, 108, &app_font_20);
+    humidity_icon = image(&slave_4b_weather_humidity, 448, 70, 28);
+    humidity = label(root, "", 484, 73, 90, &app_font_16);
     clock_label = label(root, "--:--", 604, 25, 112, &app_font_28);
     battery_detail = label(root, "— % · — °C", 8, 478, 160, &app_font_16);
     lv_obj_set_style_text_align(battery_detail, LV_TEXT_ALIGN_CENTER, 0);
@@ -545,6 +548,10 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     visible(temperature, available && sample->temperature_valid);
     visible(wind, available && sample->wind_speed_valid);
     visible(wind_icon, available && sample->wind_speed_valid);
+    snprintf(text, sizeof(text), "%u %%", (unsigned)sample->relative_humidity_pct);
+    text_if_changed(humidity, text);
+    visible(humidity, available && sample->relative_humidity_valid);
+    visible(humidity_icon, available && sample->relative_humidity_valid);
     text_if_changed(clock_label, clock ? clock : "--:--");
     if (runtime)
     {

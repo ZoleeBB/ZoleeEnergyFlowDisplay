@@ -899,10 +899,11 @@ static void test_template_indicators(const app_energy_sample_t *sample){
 }
 
 static void test_weather_visibility(const app_energy_sample_t *sample){
-    for(unsigned mask=0;mask<16;mask++){
+    for(unsigned mask=0;mask<32;mask++){
         app_energy_sample_t state=*sample;
         state.temperature_valid=!!(mask&1);state.wind_speed_valid=!!(mask&2);
         state.sun_radiation_valid=!!(mask&4);state.precipitation_valid=!!(mask&8);
+        state.relative_humidity_valid=!!(mask&16);
         template_update(&state,&fixture);
         for(unsigned i=0;i<template_node_count;i++){
             template_node_t *n=&template_nodes[i];const char *source=ts(n->spec,"source");
@@ -919,6 +920,7 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
                 (!strcmp(type,"weather")||!strcmp(source,"weather_label"))?weather_available(&state):
                 !strcmp(source,"temperature")?state.temperature_valid:
                 !strcmp(source,"wind")?state.wind_speed_valid:
+                !strcmp(source,"humidity")?state.relative_humidity_valid:
                 capacity_source?s_cfg.energy.battery_capacity_kwh>0:true;
             assert(lv_obj_has_flag(n->obj,LV_OBJ_FLAG_HIDDEN)==!visible);
             if(n->detail)assert(lv_obj_has_flag(n->detail,LV_OBJ_FLAG_HIDDEN)==!visible);
@@ -926,6 +928,110 @@ static void test_weather_visibility(const app_energy_sample_t *sample){
     }
     template_update(sample,&fixture);
 }
+/* Az opcionális páratartalom mindkét rétege együtt változik, 0%-nál is.
+ * A változatlan frissítés nem okozhat újrarajzolást vagy SD-olvasást. */
+static void idle_debug(lv_event_t *event);
+static void test_humidity_ui(const app_energy_sample_t *sample)
+{
+    app_energy_sample_t state = *sample;
+    for (unsigned stage = 0; stage < 4; stage++)
+    {
+        state.relative_humidity_valid = stage == 1 || stage == 2;
+        state.relative_humidity_pct = stage == 2 ? 100 : 0;
+        if (template_is_active())
+        {
+            template_update(&state, &fixture);
+            unsigned count = 0;
+            bool has_wind = false;
+            for (unsigned i = 0; i < template_node_count; i++)
+            {
+                template_node_t *node = &template_nodes[i];
+                if (!strcmp(ts(node->spec, "source"), "wind")) has_wind = true;
+                if (strcmp(ts(node->spec, "source"), "humidity")) continue;
+                count++;
+                assert(lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN) == !state.relative_humidity_valid);
+                if (node->detail)
+                    assert(lv_obj_has_flag(node->detail, LV_OBJ_FLAG_HIDDEN) == !state.relative_humidity_valid);
+                if (state.relative_humidity_valid && !strcmp(ts(node->spec, "type"), "value"))
+                    assert(!strcmp(lv_label_get_text(node->obj), stage == 2 ? "100 %" : "0 %"));
+            }
+            assert(count == (has_wind ? 2U : 0U));
+        }
+        else
+        {
+            update(&state, &fixture);
+            assert(lv_obj_has_flag(s_humidity, LV_OBJ_FLAG_HIDDEN) == !state.relative_humidity_valid);
+            assert(lv_obj_has_flag(lv_obj_get_parent(s_humidity_icon), LV_OBJ_FLAG_HIDDEN) == !state.relative_humidity_valid);
+            assert(!strcmp(lv_label_get_text(s_humidity), stage == 2 ? "100 %" : "0 %"));
+        }
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        unsigned invalidations = 0;
+        lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+        if (getenv("IDLE_REPORT")) lv_display_add_event_cb(display, idle_debug, LV_EVENT_INVALIDATE_AREA, NULL);
+        for (unsigned round = 0; round < 10; round++)
+        {
+            if (template_is_active()) template_update(&state, &fixture);
+            else update(&state, &fixture);
+            lv_obj_update_layout(s_screen);
+        }
+        lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+        if (getenv("IDLE_REPORT")) lv_display_remove_event_cb_with_user_data(display, idle_debug, NULL);
+        if (invalidations)
+            fprintf(stderr, "Humidity idle: %s night=%d stage=%u invalidations=%u\n",
+                    template_is_active() ? template_view.id : "builtin", state.night_mode, stage, invalidations);
+        assert(invalidations == 0);
+    }
+    if (template_is_active()) template_update(sample, &fixture);
+    else update(sample, &fixture);
+    if (template_is_active() && !strcmp(template_view.id, "09-solar-journey"))
+    {
+        template_node_t *wind = NULL, *wind_icon = NULL, *humidity = NULL, *humidity_icon = NULL;
+        template_node_t *soc = NULL, *battery = NULL, *date = NULL, *clock = NULL;
+        for (unsigned i = 0; i < template_node_count; i++)
+        {
+            template_node_t *n = &template_nodes[i];
+            const char *source = ts(n->spec, "source"), *type = ts(n->spec, "type");
+            if (!strcmp(source, "wind"))
+            {
+                if (!strcmp(type, "image")) wind_icon = n;
+                else wind = n;
+            }
+            if (!strcmp(source, "humidity"))
+            {
+                if (!strcmp(type, "image")) humidity_icon = n;
+                else humidity = n;
+            }
+            if (!strcmp(type, "value"))
+            {
+                if (!strcmp(source, "soc")) soc = n;
+                if (!strcmp(source, "battery")) battery = n;
+                if (!strcmp(source, "date")) date = n;
+                if (!strcmp(source, "clock")) clock = n;
+            }
+            if (!strcmp(type, "value") && (!strcmp(source, "temperature") ||
+                !strcmp(source, "weather_label") || !strcmp(source, "wind")))
+            {
+                assert(lv_obj_get_style_text_align(n->obj, 0) == LV_TEXT_ALIGN_RIGHT);
+                assert(tn(n->spec, "x", 0) + tn(n->spec, "w", 0) == 1260);
+            }
+        }
+        assert(wind && wind_icon && humidity && humidity_icon && soc && battery && date && clock);
+        assert(lv_obj_get_style_text_font(soc->obj, 0) == lv_obj_get_style_text_font(battery->obj, 0));
+        assert(lv_obj_get_y(soc->obj) == lv_obj_get_y(battery->obj));
+        assert(lv_obj_get_x(date->obj) == lv_obj_get_x(clock->obj));
+        const lv_font_t *font = lv_obj_get_style_text_font(wind->obj, 0);
+        assert(lv_obj_get_y(wind->obj) * 2 + font->line_height ==
+               tn(wind_icon->spec, "y", 0) * 2 + tn(wind_icon->spec, "h", 0));
+        assert(lv_obj_get_y(humidity->obj) == lv_obj_get_y(wind->obj));
+        assert(tn(humidity_icon->spec, "y", 0) == tn(wind_icon->spec, "y", 0));
+        lv_point_t text_size;
+        lv_text_get_size(&text_size, "15,0 kW", lv_obj_get_style_text_font(battery->obj, 0),
+                         0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        assert(text_size.x <= lv_obj_get_width(battery->obj));
+    }
+}
+
 static void test_template_weather(const app_energy_sample_t *sample){
     static const char *keys[]={"sunny","partly_cloudy","cloudy","rain","snow","night"};
     static const struct {double pv,temp;bool sun,precip,night;weather_kind_t expected;} cases[]={
@@ -2321,8 +2427,9 @@ int main(void)
     }
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
+        .relative_humidity_valid=true,.relative_humidity_pct=61,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
+    if (getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -2349,6 +2456,27 @@ int main(void)
             home_close(NULL);
             assert(home_prepare(false));
         }
+        else if (getenv("ZOLEE_HUMIDITY_ONLY"))
+        {
+            /* A 0 a grafikonfrissítés indulási sentinelje, valódi boot után
+             * a monotón idő már nem nulla. Ezt a gyors célzott mód is kövesse. */
+            ticks = 31000000;
+            app_template_info_t list[APP_TEMPLATE_MAX];
+            char active[33];
+            unsigned count = app_templates_list(list, APP_TEMPLATE_MAX, active);
+            for (unsigned i = 0; i < count; i++)
+            {
+                assert(app_templates_select(list[i].id) == ESP_OK);
+                template_prepare();
+                for (unsigned night = 0; night < 2; night++)
+                {
+                    sample.night_mode = night;
+                    render_runtime(runtime, sample, true, 31000000);
+                    test_humidity_ui(&sample);
+                }
+            }
+            puts("PASS: humidity missing/0/100/recovery and zero idle invalidations in all 24 Master scenes; Solar geometry and full-size power text");
+        }
         else if (getenv("ZOLEE_RENDER_COST_ONLY"))
         {
             test_render_work(runtime, sample);
@@ -2369,6 +2497,7 @@ int main(void)
         return 0;
     }
     build_dashboard(false);s_last_night=false;update(&sample,&fixture);save_frame("hu-day");
+    test_humidity_ui(&sample);
     test_stacked_charts();
     assert(f_pv.phase>0.f);
     sd_ok=false;sample.status=3;sample.soc_bat_pct=19.9;update(&sample,&fixture);save_frame("hu-island-sd-error");
@@ -2623,7 +2752,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

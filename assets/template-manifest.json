@@ -1,12 +1,12 @@
 [
   {
     "asset": "assets/previews/builtin-dark.png",
-    "sha256": "e6b08960658085d884b0d2a120207c6915ed191477f9ebfbd5af8255caf23aa7",
+    "sha256": "7ed65475a3203b4952d434de5e3e20b070144f022933d2431783f63e848809d2",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {
     "asset": "assets/previews/builtin-light.png",
-    "sha256": "289fc9424fcdb4b6ab33668525b6b4b05e5a648da18765b877caefb83765d3fd",
+    "sha256": "41c1e416922b2dd2aa901cd9689c835cf714e3a173b07b8ad04cc5d3ce394029",
     "generator": "LVGL built-in dashboard screenshot, 240x150; web-only flash asset"
   },
   {
@@ -19,12 +19,12 @@
   },
   {
     "asset": "templates/01-live-home/preview-dark.png",
-    "sha256": "b07b5e373ee1f884c3761a9ded10012b030566b1d9327cec6270474ce0783415",
+    "sha256": "88c7efeee52d650d7a38cb3730cdb18ebf80213ff247be8d40d084f8868c2d21",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/01-live-home/preview-light.png",
-    "sha256": "112079ebe0046ef747aef26b143cfb0cf0962dd1c3686e7f3fee644b1f211a9e",
+    "sha256": "3c947a78e179650a6a27266e3340850aa807305b6219e5f6b856706da4fe1743",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -33,6 +33,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/01-live-home/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/01-live-home/weather_night.png",
@@ -120,12 +127,12 @@
   },
   {
     "asset": "templates/02-energy-paths/preview-dark.png",
-    "sha256": "712e3b3dcbb78984d4f7d043deaef496931da4c38754f8598ba3b6939d1abc8d",
+    "sha256": "cc7b6ef9e6a58833366adb6a88f5c62cbc42fd7d08f693222367da6a48b46f34",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/02-energy-paths/preview-light.png",
-    "sha256": "41fad44cfa43514d33c95e4019e875d71ef5aa71f56d89d529ecf43fc80f8e6f",
+    "sha256": "bb4ab487930d241a0fe821e92d9e31682c0b00f665959626a79fdd07284ca61f",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -134,6 +141,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/02-energy-paths/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/02-energy-paths/weather_night.png",
@@ -286,12 +300,12 @@
   },
   {
     "asset": "templates/05-calm-home/preview-dark.png",
-    "sha256": "a2ca4113bcb5dce5ec32cca4850b14f9e0760ee0dc5c4127f19f9dc0e65e888c",
+    "sha256": "9cb4c3268fdb46e0c3e7c5aab065d5b1bdec85d9a3742bf194c51aa3ebf1caa9",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/05-calm-home/preview-light.png",
-    "sha256": "2ccf3882b91d41e3c41364f58a02b2df633f9a77148ca93bcfbe3150cd0adc01",
+    "sha256": "ee75e33fdf1b2b42f30f8e62b00ade516c7cae18ab83aa0cf4902606db7c62dd",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -300,6 +314,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/05-calm-home/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/05-calm-home/weather_night.png",
@@ -421,12 +442,12 @@
   },
   {
     "asset": "templates/07-energy-ledger/preview-dark.png",
-    "sha256": "325cb10f84e4c678f041c44ef0311fe31525783a667bd586e5a51df3d7ec1a36",
+    "sha256": "9fad341b15c56aef2eb21c6f3e8a26e88b46e9eb0854964ccbdbc9071fe681d7",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/07-energy-ledger/preview-light.png",
-    "sha256": "f4bcbade3976b4cb513c1178b641d11a31cedffecb6ee9f1283969c74d5fe70d",
+    "sha256": "bcb50eea4ce7ee72b2f84f107da9324510479dd3c6b435912747295307738a47",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -435,6 +456,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/07-energy-ledger/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/07-energy-ledger/weather_night.png",
@@ -473,12 +501,12 @@
   },
   {
     "asset": "templates/08-statistics/preview-dark.png",
-    "sha256": "c1293715cdd94e75c633c0b1659d42408f79b78e0445e77015f335ca9393f151",
+    "sha256": "10a1c807e3d68bff1b6ab63cf76f4fb09dcf98806dddcc6d5feaed8ec24b23ef",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/08-statistics/preview-light.png",
-    "sha256": "50a263b2e8940e3893de8de43e3cc4df0ac8cfb4cef047fc6d38dec29802576f",
+    "sha256": "7e2e972c2b4f633abde313f9ed4c953b15943b63f42588e1340667493b3bb108",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -487,6 +515,13 @@
     "generator": "built-in image_gen",
     "prompt": "Use case: product-mockup. Single beautifully crafted modern weather icon: two softly detailed realistic white and grey clouds. Premium realistic 3D rendering, gentle soft volume, clean recognizable silhouette at small 128px size. Centered with generous padding on genuinely transparent background, no badge, no text, no border. Consistent professional weather forecast icon style.",
     "original_sha256": "dd0a6f0495b5a3435940a9c58cc69a5fef4339195fa8b40b6ea45e535f733af6"
+  },
+  {
+    "asset": "templates/08-statistics/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/08-statistics/weather_night.png",
@@ -569,12 +604,12 @@
   },
   {
     "asset": "templates/09-solar-journey/preview-dark.png",
-    "sha256": "c455113882403d37f13334087bc517208fbabe1b6981aab313c126e5f92bef80",
+    "sha256": "de34afbcbe5d4a315de6995eae680fbd37188cae938812703f43e67a4c971c8d",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/09-solar-journey/preview-light.png",
-    "sha256": "a32fe0b9e105a9d6c44ab7e1a6586628a06d05bbb5dd8b72ee07a8e98f2d7f47",
+    "sha256": "d01994b7c3197a537f6c5e11954f7aad48a2fd9dce0e467d4561441948be0523",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
@@ -601,6 +636,13 @@
   {
     "asset": "templates/09-solar-journey/weather_cloudy.png",
     "sha256": "153792083207b33185ecd883354dd1784b0e1a3078fa1a04536447f2bdc374fb"
+  },
+  {
+    "asset": "templates/09-solar-journey/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/09-solar-journey/weather_moon.png",
@@ -658,18 +700,25 @@
   },
   {
     "asset": "templates/11-electric-car/preview-dark.png",
-    "sha256": "c71182a909c6487d8f008007314548a137ca7c868cc8de93da7b84f29bfee977",
+    "sha256": "ad9fcc26716dd4e7b69a1a33b6574ff19a82ac136357809dfb7f1135ee94bc28",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/11-electric-car/preview-light.png",
-    "sha256": "bb00d5518a34e5d8596230c3914a185d83c7bb6d208e6b813785b56e7440a6f6",
+    "sha256": "478da6ac9f1f67bd826d5b2dd0bc1caff5412e0034cd54d54e9940cec933e019",
     "generator": "LVGL simulator screenshot, 480x300"
   },
   {
     "asset": "templates/11-electric-car/weather_cloudy.png",
     "sha256": "59629b842e81c7bce2e536618bc19947cc1d32b2bc35ecfd5f781960151949b9",
     "generator": "Existing project weather asset reused without changes"
+  },
+  {
+    "asset": "templates/11-electric-car/weather_humidity.png",
+    "generator": "built-in image_gen; prepare_humidity_icon.py, 30x30",
+    "prompt": "Use case: stylized-concept. Asset type: a single tiny weather UI icon for relative humidity for an embedded energy display. Primary request: one beautiful luminous sapphire blue water droplet, rounded lower body, pointed curved tip, white pearlescent highlights, subtle cyan rim glow. Match the refined glossy dimensional weather-icon style of the reference blue wind icon and golden sun icon in the conversation; clean coherent silhouette legible at 24 to 30 pixels. Centered square composition with minimal transparent padding. True transparent background, no shadow plate, no badge, no text, no numbers, no percent sign, no border, no other objects. A polished detailed blue glass water drop, not a flat placeholder. Provide the generated image as a project asset with local path if available.",
+    "original_sha256": "3503e29b43420e2c0b60bfcf21467d5c28e9dac7bcdd5b7e06cd3df2411a0f2e",
+    "sha256": "e88fbb9ac74ccc1a8be7d4b052020dd2022f523e008717303945d2dda77fb8c3"
   },
   {
     "asset": "templates/11-electric-car/weather_night.png",

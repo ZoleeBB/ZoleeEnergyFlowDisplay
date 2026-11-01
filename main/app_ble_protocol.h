@@ -9,6 +9,9 @@
 #define APP_BLE_PACKET_SIZE 20
 #define APP_BLE_SEED_NAME "ZoleeEnergy"
 #define APP_BLE_PROTOCOL_VERSION 1
+/* A v2 mintapár a nem használt Master-fényerő bájtján viszi a páratartalmat.
+ * Az óra és a páratartalom nélküli minta továbbra is v1. */
+#define APP_BLE_HUMIDITY_VERSION 2
 
 /* Csak nyilvános mérési adatokat kódol, memóriát nem foglal. */
 void app_ble_protocol_encode(const app_energy_sample_t *sample,

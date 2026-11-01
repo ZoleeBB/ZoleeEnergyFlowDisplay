@@ -36,3 +36,4 @@ extern const lv_image_dsc_t slave_4b_day, slave_4b_night, slave_4b_hub;
 extern const lv_image_dsc_t slave_4b_weather_sun, slave_4b_weather_cloud;
 extern const lv_image_dsc_t slave_4b_weather_partly, slave_4b_weather_rain;
 extern const lv_image_dsc_t slave_4b_weather_snow, slave_4b_weather_moon, slave_4b_wind;
+extern const lv_image_dsc_t slave_4b_weather_humidity;
