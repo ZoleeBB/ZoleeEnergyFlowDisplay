@@ -5,6 +5,7 @@
 #include "app_intercom_audio.h"
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
+#include "esp_system.h"
 #endif
 
 #define INTERCOM_FRONT_SIZE (1280U * 720U * 2U)
@@ -36,6 +37,7 @@ static portMUX_TYPE intercom_status_lock = portMUX_INITIALIZER_UNLOCKED;
 #endif
 static int64_t intercom_last_press;
 static bool intercom_background_suspended;
+static int64_t intercom_cleanup_since, intercom_cleanup_last_warning;
 
 static void intercom_toggle_audio(lv_event_t *event)
 {
@@ -95,33 +97,49 @@ static bool intercom_prepare(void)
     }
     /* A dekóder/hang felszabadítása megelőzi a nagy téma visszatöltését.
      * A nézet a 0-s csengetésre azonnal eltűnik, itt már csak fekete háttér marad. */
+    if (intercom_next.ringing) {
+        /* Gyors újracsengés új hívás: előző lezárási idő nem öröklődhet. */
+        intercom_cleanup_since = 0;
+        intercom_cleanup_last_warning = 0;
+    }
     if (!intercom_next.ringing && intercom_background_suspended) {
-        /* A médiafoglalt állapotban nem szabad a képpuffereket elengedni.
-         * Hosszabb lezárás esetén időzítetten naplózunk, hogy a témabetöltés
-         * előtti várakozás elkülönüljön az SD- és LVGL-hibáktól. */
-        static int64_t cleanup_wait_since;
-        static int64_t cleanup_last_warning;
+        /* A médiafoglalt állapotban semmit nem szabad idő előtt felszabadítani. */
         if (!app_intercom_idle()) {
             int64_t now = esp_timer_get_time();
-            if (!cleanup_wait_since) cleanup_wait_since = now;
+            if (!intercom_cleanup_since) intercom_cleanup_since = now;
 #ifdef ESP_PLATFORM
-            if (now - cleanup_wait_since >= 3000000LL &&
-                (!cleanup_last_warning || now - cleanup_last_warning >= 5000000LL)) {
-                ESP_LOGW("app_ui", "Kaputelefon lezárás: médiafeladatokra várunk (%lld ms)",
-                         (long long)((now - cleanup_wait_since) / 1000LL));
-                cleanup_last_warning = now;
+            int64_t elapsed = now - intercom_cleanup_since;
+            if (elapsed >= 3000000LL &&
+                (!intercom_cleanup_last_warning ||
+                 now - intercom_cleanup_last_warning >= 10000000LL)) {
+                bool video_busy = app_intercom_video_busy();
+                bool audio_busy = app_intercom_audio_busy();
+                ESP_LOGW("app_ui",
+                         "Kaputelefon leállításra vár: videó=%d, hang=%d, idő=%lld ms",
+                         (int)video_busy, (int)audio_busy, (long long)(elapsed / 1000LL));
+                if (!intercom_cleanup_last_warning)
+                    app_events_add(APP_EVENT_WARNING, "Kaputelefon: elhúzódó médiafeladat-leállítás.");
+                intercom_cleanup_last_warning = now;
+            }
+            /* Ha a média worker már végleg beragadt, erőszakos task- vagy
+             * pufferfelszabadítás helyett kontrollált újraindítás történik.
+             * OTA/SD-telepítés alatt nem szakíthatjuk félbe a műveletet.
+             * A csengetést az aktuális snapshot már lezártnak jelzi. */
+            if (elapsed >= 45000000LL && !app_ota_operation_active()) {
+                ESP_LOGE("app_ui", "Kaputelefon médiafeladat 45 s után sem állt le; biztonságos újraindítás");
+                esp_restart();
             }
 #endif
             return true;
         }
-        if (cleanup_wait_since) {
+        if (intercom_cleanup_since) {
 #ifdef ESP_PLATFORM
             ESP_LOGI("app_ui", "Kaputelefon médiafeladatok leálltak (%lld ms)",
-                     (long long)((esp_timer_get_time() - cleanup_wait_since) / 1000LL));
+                     (long long)((esp_timer_get_time() - intercom_cleanup_since) / 1000LL));
 #endif
         }
-        cleanup_wait_since = 0;
-        cleanup_last_warning = 0;
+        intercom_cleanup_since = 0;
+        intercom_cleanup_last_warning = 0;
     }
     if (!intercom_next.ringing) {
         intercom_background_suspended = false;
