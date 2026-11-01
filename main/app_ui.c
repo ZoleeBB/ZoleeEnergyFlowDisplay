@@ -210,8 +210,9 @@ static void loxone_display_set_held(bool value)
 static bool loxone_display_grace_update(const app_runtime_state_t *rt, bool have, int64_t now)
 {
     bool enabled = s_cfg.data_recept_mode == APP_DATA_LOXONE &&
+                   rt->loxone_configured &&
                    !s_cfg.energy_flow_disabled && !rt->energy_flow_disabled;
-    bool valid = enabled && rt->loxone_configured && rt->loxone_connected && have &&
+    bool valid = enabled && rt->loxone_connected && have &&
                  !app_state_data_timed_out(rt, now, app_config_data_timeout(&s_cfg));
     bool visible = s_view == VIEW_DASHBOARD || (s_view == VIEW_HOME && home_is_open());
     bool hold = app_loxone_display_grace_tick(
