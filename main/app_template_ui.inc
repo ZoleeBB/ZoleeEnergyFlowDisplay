@@ -3,6 +3,9 @@
 #include "src/misc/cache/instance/lv_image_cache.h"
 #include "app_template_raw.h"
 #include "app_theme_restore_policy.h"
+#if defined(ESP_PLATFORM) && !defined(APP_TEMPLATE_DESKTOP)
+#include "esp_system.h"
+#endif
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
