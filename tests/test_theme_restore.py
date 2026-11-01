@@ -43,5 +43,7 @@ intercom = (ROOT / "main/app_intercom_ui.inc").read_text(encoding="utf-8")
 assert "intercom_cleanup_since = 0;" in intercom
 assert "app_intercom_video_busy()" in intercom
 assert "app_ota_operation_active()" in intercom
+assert "app_storage_try_lock()" in intercom
+assert "app_storage_unlock();" in intercom
 assert "esp_restart();" in intercom
 print("PASS: nonblocking, temporary recovery and guarded media shutdown invariants")
