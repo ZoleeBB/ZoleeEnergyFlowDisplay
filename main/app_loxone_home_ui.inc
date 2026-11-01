@@ -41,17 +41,20 @@ static bool home_is_open(void) { return home_request_get() != 0; }
 static void home_close(lv_event_t *event)
 {
     (void)event;
+    if (loxone_display_is_held()) return;
     if (!s_cfg.energy_flow_disabled) home_request_set(0);
     if (event) lv_event_stop_bubbling(event);
 }
 static void home_open_clicked(lv_event_t *event)
 {
     (void)event;
+    if (loxone_display_is_held()) return;
     if (!s_cfg.energy_flow_disabled && !s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(1);
 }
 static void home_cards_requested(void)
 {
+    if (loxone_display_is_held()) return;
     if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(2);
 }
@@ -59,6 +62,7 @@ static void home_cards_requested(void)
  * át az input callbackből; az SD-képek cseréjét a runtime végzi. */
 static void home_gesture(lv_dir_t direction)
 {
+    if (loxone_display_is_held()) return;
     int requested = home_request_get();
     unsigned pages = lx_home_page_count(&home_config);
     if (requested < 2 || pages < 2 || (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT))
@@ -422,6 +426,9 @@ static const lv_image_dsc_t *home_gray(unsigned index)
 }
 static void home_action(lv_event_t *event)
 {
+    /* A kirajzolt állapot lehet 10 másodpercig régi, de a kapcsolók
+     * nem küldhetnek műveletet ilyen állapot alapján. */
+    if (loxone_display_is_held()) return;
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     if (s_pair_pad || home_request_get() != 2 + (int)home_card_page || !home_connected || home_command_wait ||
         index < home_first_card || index >= home_first_card + home_card_count || index >= home_config.card_count ||
