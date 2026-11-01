@@ -11,6 +11,7 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_workflows.py')], check
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_ci_plan.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_documentation.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_theme_restore.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_display_grace.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_support_web.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_battery_web.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='energy-flow-disabled-') as directory:
