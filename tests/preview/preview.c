@@ -2968,6 +2968,18 @@ int main(void)
     assert(s_view==VIEW_HOME&&home_page==2);
     save_frame("loxone-cards-light");
     home_prepare(true);render_runtime(rt,sample,true,31000000);save_frame("loxone-cards-dark");
+    /* Az Otthon-kártyák régi képe megmarad, de a korábbi BE/KI érték
+     * alapján nem indítható parancs a 10 másodperces türelmi időben. */
+    app_runtime_state_t disconnected_home = rt;
+    disconnected_home.loxone_connected = false;
+    unsigned commands_before_hold = app_sim_home_commands;
+    lv_obj_t *held_button = home_buttons[4];
+    render_runtime(disconnected_home, sample, false, 31000000);
+    assert(s_view == VIEW_HOME && home_buttons[4] == held_button && loxone_display_is_held());
+    lv_obj_send_event(held_button, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_home_commands == commands_before_hold);
+    render_runtime(rt, sample, true, 32000000);
+    assert(s_view == VIEW_HOME && !loxone_display_is_held());
     lv_obj_send_event(home_buttons[4],LV_EVENT_CLICKED,NULL);
     assert(app_sim_home_commands==1&&app_sim_home_last_action==LX_HOME_COMMAND_OFF);
     assert(!strcmp(lv_label_get_text(home_labels[4]),"BE"));
