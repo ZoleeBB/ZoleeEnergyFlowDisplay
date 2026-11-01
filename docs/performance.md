@@ -438,6 +438,28 @@ A betöltőkép megjelenésére a futtató feladat zár nélkül vár (illékony
 jelzőbit), mert a korábbi 20 ms-os zárpróbálkozások váltásonként több
 `Failed to acquire LVGL lock` adapter-hibasort írtak a naplóba.
 
+### Rövid Loxone adatkimaradás – UI befagyasztása
+
+A korábban érvényes energiamintával kirajzolt normál témát és Loxone
+Otthon-oldalt a firmware legfeljebb **10 másodpercig változatlanul tartja**,
+ha az adatkapcsolat vagy az érvényes energiaminta kimarad. Az
+`app_loxone_display_grace.h` külön UI-policy-ja az eredeti runtime-ciklusban,
+statikus néhány bájtos állapottal fut; nincs új heap-foglalás, képmentés,
+külön task vagy SD-hozzáférés. A korábbi LVGL-objektumokat megtartjuk,
+az animáció, téma-újraolvasás és Otthon-értékfrissítés szünetel. Így
+rövid szakadásoknál elmarad a teljes képernyős hibaoldal és a
+visszatérő teljes témadekódolás. A kaputelefon és az OTA ezt továbbra is
+felülbírálja.
+
+A Loxone worker ettől függetlenül megszakítja az adatfolyam statisztikai
+folytonosságát, és újracsatlakozik; a régi képernyőadatok sem
+telemetriának, sem vezérlési visszajelzésnek nem használhatók.
+A touch-események a rövid türelmi időn belül nem indítanak
+Otthon-vezérlést vagy témalapozást. A 10 másodperc után elérhető
+hibaképernyő és a beépített helyreállítás a korábbi módon működik.
+A hardveres PSRAM-/CPU-terhelési hatást a valós kijelzőn kell mérni.
+[Részletek](loxone-direct.md#kapcsolat-és-hibák).
+
 ### Kijelző háttérműveletek alatt
 
 OTA, csomagtelepítés és GitHubos frissítés alatt a kijelző statikus
