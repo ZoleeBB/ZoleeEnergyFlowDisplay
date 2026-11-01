@@ -170,6 +170,50 @@ távolságküszöb megmarad. Az új indulási regresszió minden témán Otthon-
 nélkül is ellenőriz lassú húzásokat. A tényleges paneles javulás és terhelés
 újra ellenőrizendő.
 
+## Kaputelefon bezárása után beragadt témabetöltés
+
+A csengetés végén a kaputelefon-ablak bezárulhat, miközben az SD-s téma vagy
+a Loxone Otthon-oldal visszatöltése még nem fejeződött be. A hiba
+felismeréséhez **külön kell választani a médiafeladatok lezárását
+és a képernyő betöltését**.
+
+- **Médiára várakozás:** 3 másodperc után `Kaputelefon leállításra vár:
+  videó=…, hang=…, idő=… ms` naplóbejegyzés jelenik meg, legfeljebb
+  10 másodpercenként újra. A két jelzőből látszik, hogy a kamera vagy a
+  hangfeladat tartja-e vissza a témát. Gyors újracsengésnél az időmérés
+  újrakezdődik. A média képpufferei csak a worker biztonságos lezárása
+  után szabadíthatók fel.
+- **Normál téma beragadása:** a betöltőképernyő 6 másodperces
+  időablakokban figyelt; három sikertelen szakasz után a firmware
+  *ideiglenes* beépített Rendszer nézetet próbál kiválasztani.
+  A katalóguszár megszerzése nem blokkolja a runtime szálat; a
+  felhasználó korábban mentett témája megmarad. A tartalék nézet
+  ismételt sikertelensége is időkorlátos.
+- **Loxone Otthon-oldal beragadása:** külön betöltési felügyelet működik;
+  tartós elakadásnál a normál főnézetre, energiaáramlás-tiltásnál
+  a logós készenléti oldalra tér vissza. A kártyák mentett
+  konfigurációját nem törli.
+
+**Végső védelem:** 45 másodperce le nem álló médiafeladat, illetve a
+beépített nézet ismételt sikertelen helyreállítása kontrollált
+újraindítást válthat ki. Ez csak akkor engedélyezett, ha a firmware
+megszerezte az OTA-műveleti és az SD-zárat. Az újraindítás nem
+kényszeríti ki az aktív médiafeladatok pufferfelszabadítását.
+
+**Hibakeresési sorrend:** jegyezd fel a soros `app_ui` logot, a
+`/diagnostics` memória- és eseményadatait, az érintett témát/
+Otthon-oldalt, az SD-kártya állapotát, a csengetés kezdetét/végét,
+valamint hogy zajlott-e csomagfeltöltés vagy OTA. Ellenőrizd a belső
+DMA-képes RAM legnagyobb szabad blokkját és a PSRAM-ot is.
+
+**Korlát:** ha a runtime szál maga ragad bele egy szinkron SD-olvasásba
+vagy LVGL-zárba, az ugyanott futó időkorlát-kezelés sem tud megszakítani
+egy blokkoló műveletet. A hostregresszió nem helyettesíti a
+tényleges ESP32-P4-en végzett ismételt csengetési, memóriaterhelési
+és SD-hibateszteket.
+
+[Részletes médiaéletciklus és ellenőrzési terv](intercom.md#kaputelefon-utáni-témahelyreállítás).
+
 ## Lassú téma- vagy Otthon-oldalváltás
 
 A fő okok ezek voltak:
