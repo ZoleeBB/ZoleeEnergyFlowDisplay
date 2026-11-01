@@ -2,6 +2,7 @@
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
 #include "app_template_raw.h"
+#include "app_theme_restore_policy.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
@@ -565,54 +566,32 @@ static void template_loading_screen(void){
     s_loading_frame_presented = false;
     lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
 }
-/*
- * Ha a betöltőképernyő mögött semmi nem halad (foglalt SD, elmaradó
- * képkocka-visszajelzés vagy már be nem illeszthető előtöltött nézet), a
- * kijelző nem maradhat örökre a pörgő körön: ott a húzásos navigáció sem él.
- * Néhány másodperc után eldobjuk a félkész állapotot, és tiszta lappal
- * újrakezdjük a betöltést.
- */
-#define TEMPLATE_LOADING_STUCK_US (6LL * 1000 * 1000)
-static int64_t template_loading_started_us;
-static unsigned template_loading_restarts;
+/* A 6 másodperces sikertelen szakaszokat a közös, determinisztikus
+ * szabály számolja. Katalóguszár és LVGL-lock nélkül fut; a fallback
+ * kizárólag a beépített nézet pillanatnyi kiválasztását kéri. */
+static app_theme_restore_policy_t template_loading_policy;
 static void template_loading_watchdog(void)
 {
-    if (s_view != VIEW_THEME_LOADING)
-    {
-        template_loading_started_us = 0;
-        template_loading_restarts = 0;
-        return;
-    }
-    int64_t now = esp_timer_get_time();
-    if (!template_loading_started_us)
-    {
-        template_loading_started_us = now;
-        return;
-    }
-    if (now - template_loading_started_us < TEMPLATE_LOADING_STUCK_US)
-        return;
-    ++template_loading_restarts;
-    ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. próbálkozás, pending=%u, active=%u, frame=%d",
-             template_loading_restarts, template_pending.generation,
+    app_theme_restore_action_t action = app_theme_restore_tick(
+        &template_loading_policy, s_view == VIEW_THEME_LOADING, esp_timer_get_time());
+    if (action == APP_THEME_RESTORE_WAIT) return;
+    ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. szakasz, pending=%u, active=%u, frame=%d",
+             template_loading_policy.retries, template_pending.generation,
              template_view.generation, (int)s_loading_frame_presented);
-    /* Három sikertelen ciklus után a minimális beépített nézetet választjuk.
-     * Nem írunk bele a katalógus belső állapotába, a szokásos választási API
-     * növeli a generációt. A médiafeladatok biztonságos lezárását ez nem kerüli meg. */
-    if (template_loading_restarts >= 3) {
-        esp_err_t fallback = app_templates_select("builtin");
-        if (fallback == ESP_OK)
-            ESP_LOGW("app_ui", "Témabetöltés: visszaállás a beépített Rendszer nézetre");
-        else
-            ESP_LOGW("app_ui", "Témabetöltés: tartalék nézet választása sikertelen (%d)", (int)fallback);
-        template_loading_restarts = 0;
+    if (action == APP_THEME_RESTORE_FALLBACK) {
+        if (app_templates_try_temporary_builtin()) {
+            ESP_LOGW("app_ui", "Témabetöltés: ideiglenes Rendszer nézet (mentett téma változatlan)");
+            app_events_add(APP_EVENT_WARNING, "Témabetöltési hiba: ideiglenes Rendszer nézet.");
+        } else {
+            ESP_LOGW("app_ui", "Témabetöltés: katalógus foglalt, nem blokkoló újrapróbálás");
+        }
     }
+    /* Az előtöltött adatok nem kerültek LVGL objektumba; biztonságosan
+     * felszabadíthatók. A régi aktív téma csak a szokásos cserekor szabadul. */
     app_templates_view_free(&template_pending);
     template_pending.generation = template_view.generation;
     template_waiting_for_load = false;
     template_loading_requested = true;
-    template_loading_started_us = now;
-    /* Az újrakezdéssel a fázismérés is nulláról indul: különben a naplóban az
-     * összesen a korábbi, félbemaradt próbálkozások idejét is tartalmazná. */
     memset(&template_switch, 0, sizeof(template_switch));
 }
 /* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:
