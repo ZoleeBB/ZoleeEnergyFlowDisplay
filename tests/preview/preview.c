@@ -1729,7 +1729,7 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
         render_runtime(runtime, sample, true, 31000000);
         assert(s_view == VIEW_THEME_LOADING && template_waiting_for_load);
     }
-    ticks += TEMPLATE_LOADING_STUCK_US + 1;
+    ticks += APP_THEME_RESTORE_TIMEOUT_US + 1;
     assert(template_loading_frame());
     assert(!template_waiting_for_load);
     template_prepare();
