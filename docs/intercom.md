@@ -152,36 +152,71 @@ régi profilnál a funkció kikapcsolt, a hangerők alapértékei automatikusak.
 ## Kaputelefon utáni témahelyreállítás
 
 A kamera- és hangfeladatokra való várakozást 3 másodperc után külön naplózzuk,
-majd 10 másodpercenként frissítjük. A log jelzi, hogy a videó vagy a hang
-még aktív-e, és megméri a lezárás teljes időtartamát. Gyors újracsengéskor
-a várakozás időmérése újrakezdődik. A média-pufferek továbbra is csak a worker
-tényleges leállását követően szabadulhatnak fel. Ha egy worker **45 másodperc**
-után sem állt le, és nincs OTA-/csomagművelet, a készülék kontrolláltan
-újraindul; a folyamat közben nincs kényszerített tasktörlés vagy memóriafelszabadítás.
-Egy folyamatban lévő OTA elsőbbséget élvez.
+majd legfeljebb 10 másodpercenként frissítjük. A `Kaputelefon leállításra vár:
+videó=…, hang=…, idő=… ms` sor jelzi, melyik worker aktív; sikeres lezáráskor a
+teljes várakozási idő is naplóba kerül. Gyors újracsengéskor az időmérés
+újrakezdődik. A média-képpufferek csak a producer tényleges leállása és a
+képkockamásolás befejezése után szabadíthatók fel.
 
-A normál SD-s témák és a Loxone Otthon-oldalak külön, de azonos elvű
-betöltési felügyeletet kapnak: 6 másodpercenként sikertelen szakaszt
-számolnak. Három sikertelen szakasz után a témák **ideiglenesen** a
-beépített Rendszer nézetre állnak át, a mentett témaválasztás változatlan
-marad. A fallback katalóguszárat nem blokkoló próbálkozással kéri, és
-a beépített nézet betöltése nem vár az SD-tároló zárára. A felhasználó
-később ismét kiválaszthatja a korábbi témáját. Ha a beépített nézet
-további öt betöltési időablak után sem áll helyre, a rendszer
-OTA-/SD-művelet nélkül kontrolláltan újraindít; nincs korlátlan
-ismétlődő betöltési ciklus a működő runtime szálon.
+Ha a médiafeladat **45 másodperc** után sem áll le, a készülék kontrollált
+újraindítást kezdeményezhet. A restart előtt a firmware **atomikusan lefoglalja
+az OTA-műveletet**, majd nem blokkolva próbálja megszerezni az SD-zárat.
+Aktív frissítés vagy SD-művelet alatt a restart elmarad, a következő körben
+újrapróbálható. Nincs kényszerített tasktörlés vagy pufferfelszabadítás.
+Az újraindítás a nem mentett, csak RAM-ban lévő adatok elvesztésével járhat.
 
-A Loxone Otthon-oldal tartós betöltési hibájánál a megnyitott oldalt
-biztonságosan felszabadítjuk; normál energiaáramlási módban a főnézet,
-energiaáramlás-tiltás esetén a logós készenlét jelenik meg. Ez nem írja
-felül a mentett Loxone-kártyákat vagy a sablonokat.
+A normál SD-s témák és a Loxone Otthon-oldalak **külön állapotú**, 6
+másodperces sikertelen betöltési szakaszokat számoló felügyeletet kapnak.
+Normál témánál három sikertelen szakasz után a firmware **ideiglenesen** a
+beépített Rendszer nézetre vált. A `selected` témaválasztás és annak SD-re
+mentett értéke nem változik: a tartalék nézet csak az aktuális megjelenítésre
+vonatkozik. A katalóguszárat nem blokkolva próbálja megszerezni, és a
+beépített nézet betöltéséhez nem kér SD-zárat. Az eredeti SD-s téma
+automatikus visszakapcsolását **nem** ígéri: a felhasználó később újra
+kiválaszthatja.
+
+Ha a beépített nézet ezután is öt további sikertelen időablakon át a
+betöltőképernyőn marad, végső védelmi útvonal az OTA- és SD-műveleti
+zárral védett kontrollált újraindítás. Az időablakok nem jelentenek
+garantált teljes válaszidőt egy már blokkoló SD- vagy LVGL-hívás mellett.
+
+A Loxone Otthon-oldal **saját** felügyeletet használ; tartós betöltési
+hiba esetén a megnyitott oldal grafikai erőforrásait az LVGL-zár alatt
+biztonságosan felszabadítja. Normál energiaáramlási módban a főnézetre
+tér vissza, energiaáramlás-tiltás esetén a logós készenléti képernyőre.
+Ez nem írja felül a mentett Loxone-kártyákat vagy a sablonokat. A
+home-oldal hibája nem indítja el a normál témák helyreállítási számlálóját.
 
 A hardveresen beragadt SD-olvasást vagy a GUI renderfeladat teljes
 megakadását a UI feladatban futó watchdog nem tudja megszakítani.
 A soros konzol `app_ui` figyelmeztetéseit, a webes eseménynaplót és az
 aktuális heap-/task-diagnosztikát érdemes rögzíteni. A megoldás
 először a biztonságos helyreállítást választja, nem törli az élő worker
-erőforrásait.
+erőforrásait. A hibakeresési sorrend a [Hibakezelés dokumentációban](errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés)
+található.
+
+### Regressziós ellenőrzési terv a fejlesztési ághoz
+
+- `python3 tests/test_theme_restore.py`: a közös timeout-állapotgép C-tesztje
+  és a nem blokkoló katalógus-/SD-/OTA-védelem forrásinvariánsai; a
+  `tests/run_tests.py` része.
+- `python3 tests/run_tests.py`: a teljes hostregresszió a telepített
+  fordító-, Python-, Node.js- és könyvtárfüggőségekkel.
+- `idf.py set-target esp32p4 && idf.py build`: firmware-fordítás;
+  külön figyelemmel a `main/app_intercom_ui.inc`, a
+  `main/app_template_ui.inc` és az `app_ota_try_begin_operation` összekötésére.
+- Készüléken: csengetés vége aktív hang nélkül, aktív hang után,
+  kapunyitás utáni 5 másodperces bontás, gyors újracsengés, SD-foglaltság,
+  Otthon-/Fogyasztók oldal és energiaáramlás-tiltás. Ismételt
+  nyitás–bezárásnál monitorozni kell a **belső DMA-RAM legnagyobb szabad
+  blokkját**, a PSRAM minimumát, az újraindítás okát és az UI-latenciát.
+
+**Ellenőrzési státusz:** a célzott helyreállítási tesztek bekerültek a
+regressziós parancssorba, és a forrás-/zárolási ellenőrzés megtörtént.
+A teljes CI, az ESP-IDF build és a fizikai paneles teljesítmény-/
+memóriamérések sikere **még nem igazolt**. A PR összevonásának feltétele
+ezek ellenőrzése; a korábbi kaputelefon-átadás nem bizonyítja a mostani
+javítás készülékes működését.
 
 ## Ellenőrzés és kiadás
 
