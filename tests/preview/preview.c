@@ -1393,7 +1393,15 @@ static void test_consumer_noise(app_runtime_state_t runtime, app_energy_sample_t
         sample.power_full_kw = .084;
         render_runtime(runtime, sample, true, 31000000);
         assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        /* 10 s megjelenítési türelmi idő: az utolsó 84 W-os felirat
+         * és a hozzá tartozó Otthon-objektumok változatlanok. */
         render_runtime(runtime, sample, false, 31000000);
+        assert(loxone_display_is_held());
+        assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        render_runtime(runtime, sample, false, 40999999LL);
+        assert(!strcmp(lv_label_get_text(home_total), "84 W"));
+        render_runtime(runtime, sample, false, 41000000LL);
+        assert(!loxone_display_is_held());
         assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
         render_runtime(runtime, sample, true, 3601000000LL);
         assert(!strcmp(lv_label_get_text(home_total), tr("Nincs adat", "No data")));
@@ -1729,7 +1737,7 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
         render_runtime(runtime, sample, true, 31000000);
         assert(s_view == VIEW_THEME_LOADING && template_waiting_for_load);
     }
-    ticks += TEMPLATE_LOADING_STUCK_US + 1;
+    ticks += APP_THEME_RESTORE_TIMEOUT_US + 1;
     assert(template_loading_frame());
     assert(!template_waiting_for_load);
     template_prepare();
@@ -2857,12 +2865,32 @@ int main(void)
     render_runtime(rt,sample,false,31000000);
     assert(s_view==(getenv("ZOLEE_TEMPLATE_ROOT")?VIEW_LOXONE_ERROR:VIEW_LOXONE_WAIT));
     save_frame("loxone-connecting-hu");
+    app_loxone_display_grace_reset(&s_loxone_display_grace);
+    loxone_display_set_held(false);
     rt.loxone_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=31000000;
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    lv_obj_t *loxone_healthy_dashboard = s_dash;
+    /* Rövid WebSocket-szakadáskor sem figyelmeztetés, sem grafikai rebuild.
+     * Az utolsó UI-adat és az LVGL objektumok pontosan a helyükön maradnak. */
     rt.loxone_connected=false;rt.has_valid_sample=false;
-    render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_LOXONE_ERROR);save_frame("loxone-disconnected-hu");
-    rt.loxone_connected=true;rt.has_valid_sample=true;
-    render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
+    render_runtime(rt,sample,false,31000000);
+    assert(s_view==VIEW_DASHBOARD && s_dash==loxone_healthy_dashboard && loxone_display_is_held());
+    render_runtime(rt,sample,false,35000000);
+    assert(s_view==VIEW_DASHBOARD && s_dash==loxone_healthy_dashboard && loxone_display_is_held());
+    /* A visszaállt socket érvényes minta nélkül nem indít új türelmi időt. */
+    rt.loxone_connected=true;
+    render_runtime(rt,sample,false,40999999);
+    assert(s_view==VIEW_DASHBOARD && s_dash==loxone_healthy_dashboard && loxone_display_is_held());
+    render_runtime(rt,sample,false,41000000);
+    assert(s_view==VIEW_LOXONE_ERROR && !loxone_display_is_held());
+    save_frame("loxone-disconnected-hu");
+    rt.loxone_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=42000000;
+    render_runtime(rt,sample,true,42000000);assert(s_view==VIEW_DASHBOARD);
+    /* Valódi minta után a következő rövid kimaradás új, 10 s-os ablak. */
+    rt.loxone_connected=false;rt.has_valid_sample=false;
+    render_runtime(rt,sample,false,43000000);assert(s_view==VIEW_DASHBOARD && loxone_display_is_held());
+    rt.loxone_connected=true;rt.has_valid_sample=true;rt.last_valid_packet_monotonic_us=46000000;
+    render_runtime(rt,sample,true,46000000);assert(s_view==VIEW_DASHBOARD && !loxone_display_is_held());
     /* Nehéz háttérművelet alatt statikus üzenet; ismételt hívás nem épít újra,
      * a művelet után a megszokott nézet magától visszatér. */
     busy_screen();assert(s_view==VIEW_BUSY && s_busy_refreshes==0);
@@ -2871,7 +2899,7 @@ int main(void)
     for(unsigned i=1;i<=6;i++){busy_screen();assert(s_view==VIEW_BUSY && s_screen==busy_root);}
     assert(s_busy_refreshes==4);
     render_runtime(rt,sample,true,31000000);assert(s_view==VIEW_DASHBOARD);
-    puts("PASS: Loxone setup, initial connection, lost connection, background-busy screen and automatic dashboard recovery");
+    puts("PASS: Loxone setup, silent 10s frozen dashboard, timeout, reconnect and dashboard recovery");
     clear();
 
     const char *home_zip=getenv("ZOLEE_HOME_RESOURCE_ZIP");
@@ -2940,6 +2968,18 @@ int main(void)
     assert(s_view==VIEW_HOME&&home_page==2);
     save_frame("loxone-cards-light");
     home_prepare(true);render_runtime(rt,sample,true,31000000);save_frame("loxone-cards-dark");
+    /* Az Otthon-kártyák régi képe megmarad, de a korábbi BE/KI érték
+     * alapján nem indítható parancs a 10 másodperces türelmi időben. */
+    app_runtime_state_t disconnected_home = rt;
+    disconnected_home.loxone_connected = false;
+    unsigned commands_before_hold = app_sim_home_commands;
+    lv_obj_t *held_button = home_buttons[4];
+    render_runtime(disconnected_home, sample, false, 31000000);
+    assert(s_view == VIEW_HOME && home_buttons[4] == held_button && loxone_display_is_held());
+    lv_obj_send_event(held_button, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_home_commands == commands_before_hold);
+    render_runtime(rt, sample, true, 32000000);
+    assert(s_view == VIEW_HOME && !loxone_display_is_held());
     lv_obj_send_event(home_buttons[4],LV_EVENT_CLICKED,NULL);
     assert(app_sim_home_commands==1&&app_sim_home_last_action==LX_HOME_COMMAND_OFF);
     assert(!strcmp(lv_label_get_text(home_labels[4]),"BE"));

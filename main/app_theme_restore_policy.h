@@ -1,0 +1,46 @@
+#pragma once
+/* Közös, foglalás- és zárolásmentes betöltési időkorlát-felügyelet.
+ * Csak a runtime/UI szál használja. A tényleges fallback művelet nem itt fut. */
+#include <stdbool.h>
+#include <stdint.h>
+
+#define APP_THEME_RESTORE_TIMEOUT_US (6LL * 1000 * 1000)
+#define APP_THEME_RESTORE_MAX_RETRIES 3U
+
+typedef struct {
+    int64_t started_us;
+    unsigned retries;
+    bool tracking;
+} app_theme_restore_policy_t;
+
+typedef enum {
+    APP_THEME_RESTORE_WAIT = 0,
+    APP_THEME_RESTORE_RETRY = 1,
+    APP_THEME_RESTORE_FALLBACK = 2,
+} app_theme_restore_action_t;
+
+static inline void app_theme_restore_reset(app_theme_restore_policy_t *state)
+{
+    *state = (app_theme_restore_policy_t){0};
+}
+
+static inline app_theme_restore_action_t app_theme_restore_tick(
+    app_theme_restore_policy_t *state, bool loading, int64_t now_us)
+{
+    if (!loading) {
+        app_theme_restore_reset(state);
+        return APP_THEME_RESTORE_WAIT;
+    }
+    if (!state->tracking || now_us < state->started_us) {
+        state->started_us = now_us;
+        state->tracking = true;
+        return APP_THEME_RESTORE_WAIT;
+    }
+    if (now_us - state->started_us < APP_THEME_RESTORE_TIMEOUT_US)
+        return APP_THEME_RESTORE_WAIT;
+    state->started_us = now_us;
+    if (state->retries < APP_THEME_RESTORE_MAX_RETRIES)
+        ++state->retries;
+    return state->retries >= APP_THEME_RESTORE_MAX_RETRIES
+        ? APP_THEME_RESTORE_FALLBACK : APP_THEME_RESTORE_RETRY;
+}

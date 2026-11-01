@@ -2,6 +2,10 @@
  * Minden geometria és elemlista az SD JSON-jából jön, nincs sablonazonosító szerinti kódág. */
 #include "src/misc/cache/instance/lv_image_cache.h"
 #include "app_template_raw.h"
+#include "app_theme_restore_policy.h"
+#if defined(ESP_PLATFORM) && !defined(APP_TEMPLATE_DESKTOP)
+#include "esp_system.h"
+#endif
 #ifndef APP_TEMPLATE_DESKTOP
 #include "esp_attr.h"
 #define TEMPLATE_RAM EXT_RAM_BSS_ATTR
@@ -416,6 +420,9 @@ static void template_step_retry(void)
 static void template_gesture(lv_event_t *event)
 {
     (void)event;
+    /* Türelmi idő alatt változatlan képet tartunk, navigáció és lapozás
+     * nem indíthat SD-betöltést. */
+    if (loxone_display_is_held()) return;
     /* Betöltés közben csak a lapozás él: a kérést a runtime dolgozza fel,
      * így a gyors, egymás utáni húzások nem vesznek el. */
     bool loading = s_view == VIEW_THEME_LOADING;
@@ -565,38 +572,58 @@ static void template_loading_screen(void){
     s_loading_frame_presented = false;
     lv_timer_ready(lv_display_get_refr_timer(lv_obj_get_display(s_screen)));
 }
-/*
- * Ha a betöltőképernyő mögött semmi nem halad (foglalt SD, elmaradó
- * képkocka-visszajelzés vagy már be nem illeszthető előtöltött nézet), a
- * kijelző nem maradhat örökre a pörgő körön: ott a húzásos navigáció sem él.
- * Néhány másodperc után eldobjuk a félkész állapotot, és tiszta lappal
- * újrakezdjük a betöltést.
- */
-#define TEMPLATE_LOADING_STUCK_US (6LL * 1000 * 1000)
-static int64_t template_loading_started_us;
+/* A 6 másodperces sikertelen szakaszokat a közös, determinisztikus
+ * szabály számolja. Katalóguszár és LVGL-lock nélkül fut; a fallback
+ * kizárólag a beépített nézet pillanatnyi kiválasztását kéri. */
+static app_theme_restore_policy_t template_loading_policy;
+static bool template_fallback_logged;
+static unsigned template_fallback_timeouts;
 static void template_loading_watchdog(void)
 {
-    if (s_view != VIEW_THEME_LOADING)
-    {
-        template_loading_started_us = 0;
-        return;
+    bool loading = s_view == VIEW_THEME_LOADING;
+    if (!loading) {
+        template_fallback_logged = false;
+        template_fallback_timeouts = 0;
     }
-    int64_t now = esp_timer_get_time();
-    if (!template_loading_started_us)
-    {
-        template_loading_started_us = now;
-        return;
+    app_theme_restore_action_t action = app_theme_restore_tick(
+        &template_loading_policy, loading, esp_timer_get_time());
+    if (action == APP_THEME_RESTORE_WAIT) return;
+    ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. szakasz, pending=%u, active=%u, frame=%d",
+             template_loading_policy.retries, template_pending.generation,
+             template_view.generation, (int)s_loading_frame_presented);
+    if (action == APP_THEME_RESTORE_FALLBACK) {
+        /* A már kiválasztott beépített nézetnek is van végső időkorlátja.
+         * Csak tartós beragadásra, OTA és SD-fájlművelet nélkül indítunk
+         * kontrolláltan újra. A tároló zárját a reboot kezdetéig megtartjuk. */
+        if (template_fallback_logged && ++template_fallback_timeouts >= 5) {
+#if defined(ESP_PLATFORM) && !defined(APP_TEMPLATE_DESKTOP)
+            if (app_ota_try_begin_operation()) {
+                if (app_storage_try_lock()) {
+                    ESP_LOGE("app_ui", "A beépített Rendszer téma is elakadt; újraindítás");
+                    esp_restart();
+                    app_storage_unlock(); /* esp_restart normál esetben nem tér vissza */
+                }
+                app_ota_end_operation();
+            }
+#endif
+        }
+        if (app_templates_try_temporary_builtin()) {
+            if (!template_fallback_logged) {
+                ESP_LOGW("app_ui", "Témabetöltés: ideiglenes Rendszer nézet (mentett téma változatlan)");
+                app_events_add(APP_EVENT_WARNING, "Témabetöltési hiba: ideiglenes Rendszer nézet.");
+                template_fallback_logged = true;
+                template_fallback_timeouts = 0;
+            }
+        } else {
+            ESP_LOGW("app_ui", "Témabetöltés: katalógus foglalt, nem blokkoló újrapróbálás");
+        }
     }
-    if (now - template_loading_started_us < TEMPLATE_LOADING_STUCK_US)
-        return;
-    ESP_LOGW("app_ui", "A témabetöltés elakadt, újrakezdés");
+    /* Az előtöltött adatok nem kerültek LVGL objektumba; biztonságosan
+     * felszabadíthatók. A régi aktív téma csak a szokásos cserekor szabadul. */
     app_templates_view_free(&template_pending);
     template_pending.generation = template_view.generation;
     template_waiting_for_load = false;
     template_loading_requested = true;
-    template_loading_started_us = now;
-    /* Az újrakezdéssel a fázismérés is nulláról indul: különben a naplóban az
-     * összesen a korábbi, félbemaradt próbálkozások idejét is tartalmazná. */
     memset(&template_switch, 0, sizeof(template_switch));
 }
 /* A fizikai panelt kizárólag az adapter saját LVGL-feladata flusholja:

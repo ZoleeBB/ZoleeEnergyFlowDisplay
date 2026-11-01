@@ -65,6 +65,8 @@ static app_template_info_t catalogue[APP_TEMPLATE_MAX];
 static unsigned count, generation = 1;
 static char selected[33] = "builtin";
 static bool save_selection;
+/* Átmeneti tartalék nézet; a felhasználó kiválasztását nem írja SD-re. */
+static bool temporary_builtin;
 static bool loxone_mode;
 
 static bool template_mode_allowed(const char *id)
@@ -1266,7 +1268,7 @@ unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char ac
     if (out)
         memcpy(out, catalogue, n * sizeof(*out));
     if (active)
-        snprintf(active, 33, "%s", selected);
+        snprintf(active, 33, "%s", temporary_builtin ? "builtin" : selected);
     xSemaphoreGive(lock);
     return n;
 }
@@ -1377,6 +1379,21 @@ static bool raw_postponed(void)
     return false;
 #endif
 }
+/* A runtime helyreállítása nem várhat SD-/katalógusműveletre.
+ * A mentett kiválasztás érintetlen, csak a pillanatnyi megjelenítés áll át. */
+bool app_templates_try_temporary_builtin(void)
+{
+    if (!lock || !xSemaphoreTake(lock, 0))
+        return false;
+    if (!temporary_builtin) {
+        temporary_builtin = true;
+        generation++;
+        raw_postpone();
+    }
+    xSemaphoreGive(lock);
+    return true;
+}
+
 esp_err_t app_templates_select(const char *id)
 {
     if (!lock || !id)
@@ -1387,6 +1404,7 @@ esp_err_t app_templates_select(const char *id)
         if (!strcmp(id, catalogue[i].id) && template_mode_allowed(id))
         {
             snprintf(selected, 33, "%s", id);
+            temporary_builtin = false;
             generation++;
             save_selection = true;
             raw_postpone();
@@ -1401,8 +1419,9 @@ bool app_templates_step_available(int direction, bool sun_available)
     if (!lock || !xSemaphoreTake(lock, 0))
         return false;
     unsigned i = 0;
+    const char *current = temporary_builtin ? "builtin" : selected;
     for (unsigned n = 0; n < count; n++)
-        if (!strcmp(selected, catalogue[n].id))
+        if (!strcmp(current, catalogue[n].id))
             i = n;
     /* Ha a Loxone T1 nincs bekötve, Nap pálya nem választható lapozással.
      * A már kiválasztott sablon nem vész el; csak a következő lépést szűrjük. */
@@ -1413,6 +1432,7 @@ bool app_templates_step_available(int direction, bool sun_available)
             (sun_available || strcmp(catalogue[i].id, "09-solar-journey")))
         {
             snprintf(selected, 33, "%s", catalogue[i].id);
+            temporary_builtin = false;
             generation++;
             save_selection = true;
             raw_postpone();
@@ -1726,6 +1746,7 @@ bool app_templates_load_pending(app_template_view_t *out)
         generation++;
         save_selection = true;
     }
+    const char *active_selection = temporary_builtin ? "builtin" : selected;
     if (out->generation == generation)
     {
         /* A téma már betöltődött: most, a megjelenítés után mentjük a
@@ -1760,31 +1781,32 @@ bool app_templates_load_pending(app_template_view_t *out)
         return true;
     }
     #endif
-    if (!STORAGE_TRY())
+    bool need_storage = strcmp(active_selection, "builtin") != 0;
+    if (need_storage && !STORAGE_TRY())
     {
         free(next);
         xSemaphoreGive(lock);
         return false;
     }
-    snprintf(next->id, 33, "%s", selected);
+    snprintf(next->id, 33, "%s", active_selection);
     next->generation = generation;
     next->catalogue_count = 0;
     for (unsigned i = 0; i < count; i++)
         if (template_mode_allowed(catalogue[i].id))
         {
-            if (!strcmp(selected, catalogue[i].id))
+            if (!strcmp(active_selection, catalogue[i].id))
                 next->catalogue_index = next->catalogue_count;
             next->catalogue_count++;
         }
     char directory[256], path[256], error[160];
-    path_join(directory, app_templates_root(), selected);
-    bool ok = !strcmp(selected, "builtin");
+    path_join(directory, app_templates_root(), active_selection);
+    bool ok = !strcmp(active_selection, "builtin");
     /* Változatlan, már teljesen ellenőrzött könyvtárnál csak a leírót
      * validáljuk újra; a PNG-k egyszer, a betöltéskor kerülnek beolvasásra. */
     uint64_t fingerprint = 0;
     bool fingerprinted = !ok && directory_fingerprint(directory, &fingerprint);
     bool trusted = false;
-    if (fingerprinted && validated_matches(selected, fingerprint))
+    if (fingerprinted && validated_matches(active_selection, fingerprint))
     {
         next->document = validate_document(directory, error);
         trusted = next->document != NULL;
@@ -1792,7 +1814,7 @@ bool app_templates_load_pending(app_template_view_t *out)
     if (!ok && (trusted || app_templates_validate(directory, &next->document, error)))
     {
         if (!trusted && fingerprinted)
-            validated_remember(selected, fingerprint);
+            validated_remember(active_selection, fingerprint);
         /* A jelenetek kép-változatai: ezekhez keresünk előre dekódolt segédfájlt. */
         template_variant_t *variants = calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants));
         unsigned variant_count = (variants && !raw_disabled())
@@ -1903,7 +1925,7 @@ bool app_templates_load_pending(app_template_view_t *out)
                 size_t compressed = 0;
                 if (!png_scan(a->bytes, a->size, &width, &height, &channels, NULL, &compressed, true))
                 {
-                    validated_forget(selected);
+                    validated_forget(active_selection);
                     ok = false;
                     break;
                 }
@@ -1929,7 +1951,7 @@ bool app_templates_load_pending(app_template_view_t *out)
     /* A hívó a régi képeket csak az LVGL objektumok törlése után szabadíthatja fel. */
     *out = *next;
     free(next);
-    STORAGE_GIVE();
+    if (need_storage) STORAGE_GIVE();
     xSemaphoreGive(lock);
     return true;
 }

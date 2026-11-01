@@ -12,6 +12,8 @@ esp_err_t app_intercom_prepare_video(void);
 void app_intercom_poll(void);
 /* Csak a teljes médiafelszabadítás után tölthető vissza a háttér. */
 bool app_intercom_idle(void);
+/* A lezárás diagnosztikája megkülönbözteti a videó- és hangfeladatot. */
+bool app_intercom_video_busy(void);
 /* Már dekódolt RGB565 kép másolása a legfrissebbképes postaládába, LVGL-lock
  * nélkül. A UI saját lock alatt cseréli a képpuffereket. A revision kizárja
  * a régi beállításhoz tartozó későn beérkező képet. */

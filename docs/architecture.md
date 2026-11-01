@@ -71,6 +71,34 @@ A generikus UI/JSON/zlib heap foglalások PSRAM-ot részesítenek előnyben, 32 
 
 A sablon-geometria külső BSS-ben, PSRAM-ban van; a skálázott képek legfeljebb 6 MiB-os, témaváltáskor felszabadított natív raster-cache-t használnak. A memória- és képfrissítési döntések, kutatási források és hardveres mérés részletei: [teljesítmény](performance.md).
 
+### Kaputelefon után visszatöltött nézetek állapotgépe
+
+A `ui_runtime` előbb a médiafeladatok teljes leállására vár:
+a `app_intercom_idle()` a kamera- és hangtask állapotát ellenőrzi,
+a frame-másolás pedig külön védett. A `home_reset_theme()`
+a csengetés kezdetekor elengedi a korábbi grafikai erőforrásokat,
+így a kaputelefon nagy RGB565-pufferei nem ugyanazokkal a témaképekkel
+versengenek a PSRAM-ért. A dekódernek átadott élő képpuffert nem
+szabadítjuk fel futó producer mellett.
+
+A normál témabetöltést a `template_loading_watchdog()`, a Loxone
+Otthon-oldalét a `home_restore_watchdog()` felügyeli; külön
+`app_theme_restore_policy_t` állapotot használnak. A szabály
+`main/app_theme_restore_policy.h` fájlban, kis statikus adatszerkezetként
+él. Az `app_templates_try_temporary_builtin()` a katalógusmutexet
+**nem blokkolva** kéri el, és csak a megjelenítéskor használt
+`temporary_builtin` jelzőt/generációt állítja; a mentett témát nem
+módosítja. A beépített nézet betöltése az SD-zár nélkül is lehetséges.
+
+A 45 másodperce nem leálló médiafeladat és az ismételten elakadt
+beépített nézet újraindítási útja előbb atomi OTA-műveletfoglalást,
+majd nem blokkoló SD-zárpróbát használ. Ez a kézi sablonfeltöltéssel
+való versenyt is korlátozza. A szálon belüli felügyelet **nem** szakít
+meg már blokkoló SD- vagy LVGL-hívást. A részletes működés és a
+készülékes ellenőrzési feltételek: [kaputelefon](intercom.md#kaputelefon-utáni-témahelyreállítás),
+[hibakezelés](errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés).
+
+
 A diagnosztika bal oldalán két oszlopban 14 adatcsoport, jobb oldalán a meglévő
 RAM-eseménynapló legfrissebb 15 bejegyzése látszik, legújabb felül. A
 figyelmeztetések narancssárgák, a hibák pirosak. A naplómásolat statikus

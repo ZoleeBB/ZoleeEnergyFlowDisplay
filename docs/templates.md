@@ -41,6 +41,22 @@ aktuális elrendezés az adatcsomag szerinti témával tér vissza. A sablonok a
 közös SD-hibajelzést is megkapják. Minden adat a meglévő fogadási/statisztikai
 útvonalból jön, a sablon nem fogad külön csomagokat és nem számol külön előzményt.
 
+### Átmeneti Rendszer nézet betöltési időtúllépésnél
+
+Ha a témabetöltés három egymást követő, 6 másodperces szakaszon át
+nem tud előrelépni, a firmware átmenetileg a beépített **Rendszer**
+nézetet választhatja, a katalóguszárat csak nem blokkolva megszerezve.
+Ez **nem azonos** a hiányzó vagy sérült csomag korábbi, betöltés közbeni
+fallback-kezelésével: az időtúllépéses helyreállítás nem írja felül a
+`/templates/selection.txt` fájlt vagy a felhasználó mentett választását.
+
+Az átmeneti Rendszer nézetből az SD-s téma a felületen vagy weben
+újra kiválasztható; a firmware nem garantál automatikus visszaváltást.
+Ha a beépített nézet sem épül fel, a rendszer OTA- és SD-művelet alatt
+nem indít vészhelyzeti újraindítást. Részletek:
+[kaputelefon utáni helyreállítás](intercom.md#kaputelefon-utáni-témahelyreállítás)
+és [hibakeresés](errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés).
+
 ## Gyári témák frissítése a GitHubról
 
 A Sablonok oldal **Gyári témák frissítése a GitHubról** részén a **Frissítések

@@ -16,6 +16,9 @@ static bool home_ready_to_draw, home_night, home_connected, home_command_wait;
 static bool home_empty = true;
 static unsigned home_revision, home_resource_generation;
 static unsigned home_load_attempts;
+static app_theme_restore_policy_t home_loading_policy;
+/* Leállított energiaáramlásnál hibás Otthon-csomag helyett logós nézet. */
+static bool home_restore_failed;
 /* Kártyalapozásnál a már dekódolt háttér (0.) és logó (1.) megmarad; ilyenkor
  * csak az ikonokat olvassuk be és dekódoljuk újra. Minden teljes felszabadítás
  * törli, így hibánál a következő próbálkozás ismét a teljes oldalt tölti. */
@@ -38,17 +41,20 @@ static bool home_is_open(void) { return home_request_get() != 0; }
 static void home_close(lv_event_t *event)
 {
     (void)event;
+    if (loxone_display_is_held()) return;
     if (!s_cfg.energy_flow_disabled) home_request_set(0);
     if (event) lv_event_stop_bubbling(event);
 }
 static void home_open_clicked(lv_event_t *event)
 {
     (void)event;
+    if (loxone_display_is_held()) return;
     if (!s_cfg.energy_flow_disabled && !s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(1);
 }
 static void home_cards_requested(void)
 {
+    if (loxone_display_is_held()) return;
     if (!s_pair_pad && s_cfg.data_recept_mode == APP_DATA_LOXONE && !s_diagnostics_requested)
         home_request_set(2);
 }
@@ -56,6 +62,7 @@ static void home_cards_requested(void)
  * át az input callbackből; az SD-képek cseréjét a runtime végzi. */
 static void home_gesture(lv_dir_t direction)
 {
+    if (loxone_display_is_held()) return;
     int requested = home_request_get();
     unsigned pages = lx_home_page_count(&home_config);
     if (requested < 2 || pages < 2 || (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT))
@@ -139,6 +146,30 @@ static void home_reset_theme(void)
 {
     home_reset_theme_keep(false);
 }
+/* A Loxone Otthon-oldal külön betöltési útvonal: a sablon-watchdog nem
+ * fut nyitott Otthon-oldal mellett. Ez a felügyelet nem blokkol katalógus-,
+ * SD- vagy GUI-zárra; lock hiányában következő ciklusban újrapróbálható. */
+static bool home_restore_watchdog(void)
+{
+    bool loading = home_is_open() && s_view == VIEW_THEME_LOADING;
+    app_theme_restore_action_t action = app_theme_restore_tick(
+        &home_loading_policy, loading, esp_timer_get_time());
+    if (action == APP_THEME_RESTORE_WAIT) return false;
+    ESP_LOGW("app_ui", "Otthon betöltési időkorlát: %u. szakasz",
+             home_loading_policy.retries);
+    if (action != APP_THEME_RESTORE_FALLBACK) return false;
+    if (bsp_display_lock(0) != ESP_OK) return false;
+    home_request_set(0);
+    home_reset_theme();
+    home_page = 0;
+    home_restore_failed = s_cfg.energy_flow_disabled;
+    template_loading_requested = !s_cfg.energy_flow_disabled;
+    template_waiting_for_load = !s_cfg.energy_flow_disabled;
+    bsp_display_unlock();
+    app_events_add(APP_EVENT_WARNING, "Otthon-oldal betöltési hiba: biztonságos visszatérés.");
+    app_theme_restore_reset(&home_loading_policy);
+    return true;
+}
 /* Kész képpontokból épül az oldal: a rajzolás közben nincs PNG-dekódolás,
  * cache-kilökés vagy új nagy foglalás. A háttér RGB565-ben pontosan 2 048 000
  * bájt, az ikonok ARGB8888 alakban őrzik az átlátszóságukat. LVGL-lock alatt. */
@@ -196,6 +227,10 @@ static bool home_prepare(bool night)
     if (s_cfg.energy_flow_disabled)
     {
         if (s_diagnostics_requested) return true;
+        /* Automatikus újrapróbálás helyett logós készenlét hibás csomagnál.
+         * Kifejezett új oldalnyitás újból engedélyezi a betöltést. */
+        if (home_restore_failed && !requested) return true;
+        if (home_restore_failed && requested) home_restore_failed = false;
         if (requested < 2) { requested = 2; home_request_set(2); }
     }
     if (!requested && !home_page) return true;
@@ -391,6 +426,9 @@ static const lv_image_dsc_t *home_gray(unsigned index)
 }
 static void home_action(lv_event_t *event)
 {
+    /* A kirajzolt állapot lehet 10 másodpercig régi, de a kapcsolók
+     * nem küldhetnek műveletet ilyen állapot alapján. */
+    if (loxone_display_is_held()) return;
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     if (s_pair_pad || home_request_get() != 2 + (int)home_card_page || !home_connected || home_command_wait ||
         index < home_first_card || index >= home_first_card + home_card_count || index >= home_config.card_count ||

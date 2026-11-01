@@ -65,6 +65,8 @@ bool app_templates_raw_step(void);
 esp_err_t app_templates_raw_start(void);
 unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char active[33]);
 esp_err_t app_templates_select(const char *id);
+/* Runtime-only, nem blokkoló fallback; nem változtatja a mentett témát. */
+bool app_templates_try_temporary_builtin(void);
 /* Sorrend: az első elem kötelezően builtin, minden telepített id pontosan egyszer. */
 esp_err_t app_templates_reorder(const cJSON *ids, char error[160]);
 void app_templates_step(int direction);
