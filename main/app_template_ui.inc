@@ -571,10 +571,14 @@ static void template_loading_screen(void){
  * kizárólag a beépített nézet pillanatnyi kiválasztását kéri. */
 static app_theme_restore_policy_t template_loading_policy;
 static bool template_fallback_logged;
+static unsigned template_fallback_timeouts;
 static void template_loading_watchdog(void)
 {
     bool loading = s_view == VIEW_THEME_LOADING;
-    if (!loading) template_fallback_logged = false;
+    if (!loading) {
+        template_fallback_logged = false;
+        template_fallback_timeouts = 0;
+    }
     app_theme_restore_action_t action = app_theme_restore_tick(
         &template_loading_policy, loading, esp_timer_get_time());
     if (action == APP_THEME_RESTORE_WAIT) return;
@@ -582,11 +586,24 @@ static void template_loading_watchdog(void)
              template_loading_policy.retries, template_pending.generation,
              template_view.generation, (int)s_loading_frame_presented);
     if (action == APP_THEME_RESTORE_FALLBACK) {
+        /* A már kiválasztott beépített nézetnek is van végső időkorlátja.
+         * Csak tartós beragadásra, OTA és SD-fájlművelet nélkül indítunk
+         * kontrolláltan újra. A tároló zárját a reboot kezdetéig megtartjuk. */
+        if (template_fallback_logged && ++template_fallback_timeouts >= 5) {
+#if defined(ESP_PLATFORM) && !defined(APP_TEMPLATE_DESKTOP)
+            if (!app_ota_operation_active() && app_storage_try_lock()) {
+                ESP_LOGE("app_ui", "A beépített Rendszer téma is elakadt; újraindítás");
+                esp_restart();
+                app_storage_unlock(); /* esp_restart normál esetben nem tér vissza */
+            }
+#endif
+        }
         if (app_templates_try_temporary_builtin()) {
             if (!template_fallback_logged) {
                 ESP_LOGW("app_ui", "Témabetöltés: ideiglenes Rendszer nézet (mentett téma változatlan)");
                 app_events_add(APP_EVENT_WARNING, "Témabetöltési hiba: ideiglenes Rendszer nézet.");
                 template_fallback_logged = true;
+                template_fallback_timeouts = 0;
             }
         } else {
             ESP_LOGW("app_ui", "Témabetöltés: katalógus foglalt, nem blokkoló újrapróbálás");
