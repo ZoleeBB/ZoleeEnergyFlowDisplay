@@ -66,6 +66,10 @@ static bool raw_storage_ready(void)
 }
 #endif
 
+/* A fájl-összehasonlítás blokkmérete és a átmenthető segédfájlok felső száma. */
+#define SAME_FILE_CHUNK 4096U
+#define CARRY_MAX 48U
+
 static SemaphoreHandle_t lock;
 /*
  * Igaz, ha a legutóbbi betöltési próbálkozás kizárólag azért nem haladt, mert
@@ -2158,6 +2162,97 @@ esp_err_t app_templates_raw_start(void)
                                                                                   : ESP_ERR_NO_MEM;
 }
 #endif
+/*
+ * Két fájl tartalma azonos-e. Frissítéskor ez dönti el, hogy a régi, előre
+ * dekódolt segédfájl megtartható-e: csak akkor, ha a forrás PNG bitre
+ * ugyanaz maradt. A méret eltérése azonnal eldönti az esetek többségét.
+ */
+static bool same_file(const char *left, const char *right)
+{
+    struct stat ls, rs;
+    if (stat(left, &ls) || stat(right, &rs) || !S_ISREG(ls.st_mode) || !S_ISREG(rs.st_mode) ||
+        ls.st_size != rs.st_size || ls.st_size <= 0)
+        return false;
+    FILE *lf = fopen(left, "rb");
+    FILE *rf = lf ? fopen(right, "rb") : NULL;
+    unsigned char *buffer = rf ? malloc(2 * SAME_FILE_CHUNK) : NULL;
+    bool equal = buffer != NULL;
+    while (equal)
+    {
+        size_t ln = fread(buffer, 1, SAME_FILE_CHUNK, lf);
+        size_t rn = fread(buffer + SAME_FILE_CHUNK, 1, SAME_FILE_CHUNK, rf);
+        if (ln != rn || memcmp(buffer, buffer + SAME_FILE_CHUNK, ln))
+            equal = false;
+        else if (!ln)
+            break;
+    }
+    free(buffer);
+    if (lf)
+        fclose(lf);
+    if (rf)
+        fclose(rf);
+    return equal;
+}
+
+/*
+ * A változatlan képek előre dekódolt segédfájljainak átmentése a frissített
+ * könyvtárba. A téma csomagjában jellemzően csak a leíró és néhány ikon
+ * változik, a két 1280x800-as háttér nem: azok segédfájljának újbóli
+ * elkészítése témánként fél perc háttérmunka, és addig a betöltés a lassú
+ * PNG-úton megy. A mozgatás a FAT-on metaadat-művelet, adatot nem másolunk.
+ */
+static void carry_sidecars(const char *backup, const char *dest)
+{
+    DIR *dir = opendir(backup);
+    if (!dir)
+        return;
+    char (*names)[80] = calloc(CARRY_MAX, 80);
+    char (*bases)[66] = names ? calloc(CARRY_MAX, 66) : NULL;
+    bool *keep = bases ? calloc(CARRY_MAX, sizeof(bool)) : NULL;
+    unsigned count = 0;
+    struct dirent *entry;
+    char base[66];
+    /* Előbb a nevek, csak utána a mozgatás: a könyvtárat nem írjuk át bejárás
+     * közben. */
+    while (keep && count < CARRY_MAX && (entry = readdir(dir)))
+        if (app_template_raw_is_name(entry->d_name, base) && strlen(entry->d_name) < 80)
+        {
+            snprintf(names[count], 80, "%.79s", entry->d_name);
+            snprintf(bases[count], 66, "%.65s", base);
+            count++;
+        }
+    closedir(dir);
+    raw_paths_t *paths = keep ? malloc(sizeof(*paths)) : NULL;
+    for (unsigned i = 0; paths && i < count; i++)
+    {
+        /* Ugyanahhoz a PNG-hez több méret is tartozhat: egyszer hasonlítunk. */
+        bool decided = false;
+        for (unsigned j = 0; j < i; j++)
+            if (!strcmp(bases[i], bases[j]))
+            {
+                keep[i] = keep[j];
+                decided = true;
+                break;
+            }
+        if (!decided)
+        {
+            path_join(paths->png, dest, bases[i]);
+            path_join(paths->json, backup, bases[i]);
+            keep[i] = same_file(paths->png, paths->json);
+        }
+        if (!keep[i])
+            continue;
+        path_join(paths->raw, backup, names[i]);
+        path_join(paths->tmp, dest, names[i]);
+        if (rename(paths->raw, paths->tmp))
+            keep[i] = false; /* Nem gond: a háttérfeladat újra elkészíti. */
+    }
+    free(paths);
+    free(keep);
+    free(bases);
+    free(names);
+}
+
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy
  * egy ZIP kibontásával, vagy a GitHubról letöltött fájlokkal áll elő. A teljes
  * validálás itt fut, a régi téma csak sikeres csere után törlődik. */
@@ -2195,6 +2290,11 @@ static esp_err_t install_stage(const char *stage, char error[160])
         error_set(error, "SD mentési hiba; a korábbi sablon visszaállítva");
         goto done;
     }
+    /* A változatlan képek segédfájljai a helyükre kerülnek, mielőtt a régi
+     * könyvtár törlődik: így a frissített téma nem esik vissza a lassú
+     * PNG-útra, és nincs perces háttérmunka sem. */
+    if (exists)
+        carry_sidecars(backup, dest);
     /* A UI régi képei memóriában élnek, a generation módosítás után
      * az aktuális téma újra beolvasódik az SD-ről. */
     scan();
