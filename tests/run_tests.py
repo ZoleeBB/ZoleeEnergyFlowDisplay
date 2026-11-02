@@ -78,6 +78,8 @@ with tempfile.TemporaryDirectory(prefix='zolee-event-store-') as directory:
                     'tests/test_event_store.c', 'main/app_events.c', 'main/app_event_store.c',
                     '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=30)
+    # Újraindítás szimulálása: ugyanazok a fájlok, friss modulállapot.
+    subprocess.run([binary, 'resume'], check=True, timeout=30)
 
 with tempfile.TemporaryDirectory(prefix='zolee-template-remote-') as directory:
     binary = str(Path(directory) / 'test_template_remote')

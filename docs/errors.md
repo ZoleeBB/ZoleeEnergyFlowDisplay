@@ -81,6 +81,9 @@ visszanézhetők legyenek:
   503-mal, azonnal visszatér.
 - Időszinkron előtt keletkezett bejegyzés `0000-00-00 00:00:00` időbélyeggel
   kerül a fájlba, és a napi forgatás is csak érvényes óra mellett történik meg.
+- Újraindítás nem lépteti a naplót: a forgatást a fájl fejlécében lévő dátum
+  dönti el, nem a futás óta eltelt idő. Így a mai fájl újraindítás után is
+  tovább gyűlik, és a reggeli bejegyzések nem tolódnak ki az előző napiba.
 
 MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendszer végzetes inicializálási hibájával. Az időjárási `null` érték nem hiba, csak a kapcsolódó kijelzés marad rejtve.
 

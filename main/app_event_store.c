@@ -134,12 +134,21 @@ bool app_event_store_step(int64_t now_us, time_t wall)
     ensure_dir();
     char date[11];
     int day = local_day(wall, date);
-    if (day >= 0 && (day != s_day || !file_day_matches(date)))
+    if (day >= 0 && day != s_day)
     {
-        rotate(date);
+        /*
+         * Induláskor `s_day` még ismeretlen, de a meglévő fájl a mai naphoz
+         * tartozhat: ilyenkor a fejléc dátuma dönt, különben minden
+         * újraindítás fölöslegesen léptetné a naplót, és a reggeli bejegyzések
+         * egy második újraindítással el is vesznének.
+         */
+        if (!file_day_matches(date))
+        {
+            rotate(date);
+        }
         s_day = day;
     }
-    else if (file_size() >= (long)APP_EVENT_STORE_MAX_BYTES)
+    if (file_size() >= (long)APP_EVENT_STORE_MAX_BYTES)
     {
         rotate(date);
     }
@@ -151,9 +160,11 @@ bool app_event_store_step(int64_t now_us, time_t wall)
         char line[STORE_LINE];
         if (dropped)
         {
-            snprintf(line, sizeof(line),
-                     "%s %-8s %u esemény kimaradt a RAM-pufferből\n", date, "FIGYELEM",
+            app_event_entry_t gap = entries[0];
+            gap.level = APP_EVENT_WARNING;
+            snprintf(gap.text, sizeof(gap.text), "%u esemény kimaradt a RAM-pufferből",
                      (unsigned)dropped);
+            format_line(line, &gap);
             fputs(line, file);
         }
         for (size_t i = 0; i < count; i++)

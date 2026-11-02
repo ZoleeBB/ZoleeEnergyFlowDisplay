@@ -82,8 +82,48 @@ static unsigned count_lines(const char *text, const char *needle)
 /* 2026-11-02 12:00:00 UTC körüli fali idők; a nap hossza 86400 s. */
 static const time_t DAY_ONE = 1793620800;
 
-int main(void)
+/*
+ * Újraindítás utáni folytatás: a meglévő, mai naplót nem szabad fölöslegesen
+ * léptetni, mert akkor a reggeli bejegyzések egy második újraindítással
+ * elvesznének. A tesztet külön folyamatként futtatjuk, hogy a modul statikus
+ * állapota tényleg nulláról induljon.
+ */
+static int resume_after_restart(void)
 {
+    app_events_init();
+    char *before = read_file(LOG_FILE, NULL);
+    assert(before && strstr(before, "Korlát utáni esemény."));
+    free(before);
+
+    app_events_add(APP_EVENT_INFO, "Újraindítás utáni esemény.");
+    assert(app_event_store_step(1000000, DAY_ONE + 2 * 86400));
+
+    char *after = read_file(LOG_FILE, NULL);
+    assert(after);
+    /* Ugyanaz a nap: a korábbi sorok a helyükön maradtak, nincs forgatás. */
+    assert(strstr(after, "Korlát utáni esemény."));
+    assert(strstr(after, "INFO     Újraindítás utáni esemény."));
+    assert(count_lines(after, "# Zolee eseménynapló") == 1);
+    free(after);
+
+    /* A következő nap viszont már léptet. */
+    app_events_add(APP_EVENT_INFO, "Új nap első eseménye.");
+    assert(app_event_store_step(1000000 + APP_EVENT_STORE_INTERVAL_US, DAY_ONE + 3 * 86400));
+    after = read_file(LOG_FILE, NULL);
+    assert(after && strstr(after, "Új nap első eseménye.") &&
+           !strstr(after, "Újraindítás utáni esemény."));
+    free(after);
+    assert(!g_locked);
+    puts("PASS: stored log survives a restart without an extra rotation");
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc > 1 && !strcmp(argv[1], "resume"))
+    {
+        return resume_after_restart();
+    }
     app_events_init();
 
     /* Esemény nélkül nem keletkezik fájl, és a zárat sem kérjük el. */
