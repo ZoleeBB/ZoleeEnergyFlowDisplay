@@ -54,6 +54,14 @@ typedef struct
 esp_err_t app_templates_init(void);
 /* Az autós téma csak közvetlen Loxone módban aktiválható. */
 void app_templates_set_loxone_mode(bool enabled);
+/* A háttérmunka eredménye: ebből derül ki, milyen hamar érdemes újrapróbálni. */
+typedef enum
+{
+    APP_TEMPLATE_RAW_IDLE = 0,    /* Minden segédfájl megvan: ráérünk. */
+    APP_TEMPLATE_RAW_WORKED = 1,  /* Egy fájl elkészült: jöhet a következő. */
+    APP_TEMPLATE_RAW_BLOCKED = 2, /* Most foglalt a zár vagy félreálltunk. */
+} app_template_raw_status_t;
+app_template_raw_status_t app_templates_raw_step_status(void);
 /*
  * Egyetlen hiányzó, előre dekódolt kép-segédfájl elkészítése (app_template_raw.h).
  * Háttérfeladatból hívandó: a lapozás, a telepítés és a webes feltöltés
@@ -64,6 +72,11 @@ bool app_templates_raw_step(void);
 /* A fenti lépéseket futtató, alacsony prioritású háttérfeladat indítása. */
 esp_err_t app_templates_raw_start(void);
 unsigned app_templates_list(app_template_info_t *out, unsigned capacity, char active[33]);
+/*
+ * Igaz, ha a legutóbbi `app_templates_load_pending()` kizárólag foglalt zár
+ * miatt nem haladt. A betöltés-figyelő ilyenkor vár, nem eszkalál.
+ */
+bool app_templates_load_blocked(void);
 esp_err_t app_templates_select(const char *id);
 /* Runtime-only, nem blokkoló fallback; nem változtatja a mentett témát. */
 bool app_templates_try_temporary_builtin(void);

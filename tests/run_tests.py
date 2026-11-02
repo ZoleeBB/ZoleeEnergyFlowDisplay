@@ -190,8 +190,45 @@ assert 'orientation_verified_task' not in main_source and 'blocked' not in main_
 templates_header=(ROOT/'main/app_templates.h').read_text()
 exported={name for name in re.findall(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', templates_header, re.M)}
 assert 'app_templates_sd_write' in exported
+# Ugyanez a csapda fájlszintű statikus változóra is: a `_WIN32`-blokkban
+# deklarált változót a blokkon kívüli kód nem használhatja (MSVC: C2065).
+templates_source=(ROOT/'main/app_templates.c').read_text()
+win32_declared=set()
+inside=[]
+for source_line in templates_source.splitlines():
+    text=source_line.strip()
+    if text.startswith('#if'):
+        inside.append('_WIN32' in text)
+    elif text.startswith('#elif'):
+        if inside:
+            inside[-1]=inside[-1] or '_WIN32' in text
+    elif text.startswith('#endif'):
+        if inside:
+            inside.pop()
+    elif any(inside):
+        # Csak fájlszintű (behúzás nélküli) deklaráció: a függvényen belüli
+        # statikus változó amúgy sem látszik kívülről.
+        declared=re.match(r'^static\s+(?:const\s+|volatile\s+|unsigned\s+|signed\s+)*\w+\s+\**(\w+)\s*(?:=[^;]*)?;$',source_line)
+        if declared:
+            win32_declared.add(declared.group(1))
+inside=[]
+for source_line in templates_source.splitlines():
+    text=source_line.strip()
+    if text.startswith('#if'):
+        inside.append('_WIN32' in text)
+    elif text.startswith('#elif'):
+        if inside:
+            inside[-1]=inside[-1] or '_WIN32' in text
+    elif text.startswith('#endif'):
+        if inside:
+            inside.pop()
+    elif not any(inside):
+        for name in win32_declared:
+            assert not re.search(r'\b'+re.escape(name)+r'\b',text), \
+                f'{name} a _WIN32-blokkban deklaralt, de kivul is hasznaljak'
+
 win32_stack=[]
-for source_line in (ROOT/'main/app_templates.c').read_text().splitlines():
+for source_line in templates_source.splitlines():
     text=source_line.strip()
     if text.startswith('#if'):
         win32_stack.append('_WIN32' in text)

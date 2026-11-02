@@ -483,8 +483,22 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     (raw_dir / 'raw.tmp').write_bytes(b'incomplete')
     assert lib.app_templates_validate(os.fsencode(raw_dir), None, error), error.value
     assert not (raw_dir / 'raw.tmp').exists()
+    # Frissítés: a változatlan kép segédfájlja marad, a már nem használt méret
+    # és a megváltozott kép segédfájlja nem kerül át.
+    (raw_dir / 'house-64x64.raw').write_bytes(bytes(corrupt))  # ismert tartalom a követéshez
+    kept = (raw_dir / 'house-64x64.raw').read_bytes()
+    update_doc = dict(raw_doc, version=raw_doc.get('version', 1) + 1,
+                      dark=dict(background='#101010',
+                                elements=[dict(type='image', file='house.png', x=0, y=0, w=100, h=100)]))
+    assert lib.app_templates_install(os.fsencode(archive('raw-layout', update_doc, {'house.png': house})), error) == 0, error.value
+    assert (raw_dir / 'house-64x64.raw').read_bytes() == kept  # ugyanaz a PNG: megmarad
+    assert not (raw_dir / 'house-128x128.raw').exists()        # ezt a méretet már nem használja
+    other = (ROOT/'main/assets/png/flow_solar.png').read_bytes()  # másik, érvényes kép
+    assert other != house
+    assert lib.app_templates_install(os.fsencode(archive('raw-layout', update_doc, {'house.png': other})), error) == 0, error.value
+    assert not (raw_dir / 'house-64x64.raw').exists()          # megváltozott kép: nem tartjuk meg
     assert lib.app_templates_delete(b'raw-layout', error) == 0, error.value
-    print('PASS: raw sidecars are built by the background step, loaded without the PNG and fall back when corrupt')
+    print('PASS: raw sidecars are built by the background step, loaded without the PNG, fall back when corrupt and survive an update only for unchanged images')
     # A töltő nélküli autós téma is kiválasztható, de csak Loxone módban.
     ev_doc = copy.deepcopy(doc)
     ev_doc['id'] = '11-electric-car'

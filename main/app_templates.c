@@ -39,11 +39,17 @@
 #define STORAGE_GIVE() ((void)0)
 #define STORAGE_TRY() true
 #define STORAGE_READY() true
+#define STORAGE_WANT() ((void)0)
+#define STORAGE_WANT_CLEAR() ((void)0)
+#define STORAGE_WANTED() false
 #else
 #define STORAGE_TAKE() app_storage_lock()
 #define STORAGE_GIVE() app_storage_unlock()
 #define STORAGE_TRY() app_storage_try_lock()
 #define STORAGE_READY() raw_storage_ready()
+#define STORAGE_WANT() app_storage_request_priority()
+#define STORAGE_WANT_CLEAR() app_storage_clear_priority()
+#define STORAGE_WANTED() app_storage_priority_requested()
 /*
  * Hibásra jelölt vagy majdnem tele kártyára nem írunk segédfájlt: a dekódolt
  * képek csak gyorsítások, a statisztika és a konfiguráció viszont nem. Egy
@@ -60,7 +66,17 @@ static bool raw_storage_ready(void)
 }
 #endif
 
+/* A fájl-összehasonlítás blokkmérete és a átmenthető segédfájlok felső száma. */
+#define SAME_FILE_CHUNK 4096U
+#define CARRY_MAX 48U
+
 static SemaphoreHandle_t lock;
+/*
+ * Igaz, ha a legutóbbi betöltési próbálkozás kizárólag azért nem haladt, mert
+ * a katalógus- vagy a tárzárat más tartotta. A betöltés-figyelő ilyenkor vár,
+ * nem tartalék nézetre vált: ez nem beragadás, hanem sorban állás.
+ */
+static volatile bool load_blocked;
 static app_template_info_t catalogue[APP_TEMPLATE_MAX];
 static unsigned count, generation = 1;
 static char selected[33] = "builtin";
@@ -162,6 +178,14 @@ bool app_templates_safe_asset(const char *path)
             return false;
     return true;
 }
+/*
+ * Igaz, ha a legutóbbi beolvasás átmeneti ok miatt bukott: nem jött össze a
+ * puffer, vagy a kártya rövid olvasást adott. A tartalom hibáját (hiányzó
+ * fájl, méretkorlát) ez nem jelzi. Így a validálás nem dob ki egy jó témát
+ * azért, mert egy pillanatra nem volt elég memória.
+ */
+static bool read_transient;
+
 #ifndef _WIN32
 /*
  * Fájlpuffer az SD-ről olvasott sablonadatokhoz.
@@ -221,6 +245,7 @@ static unsigned char *sd_chunk(void)
  */
 static unsigned char *read_file(const char *path, size_t limit, size_t *size)
 {
+    read_transient = false;
     int fd = open(path, O_RDONLY);
     if (fd < 0)
         return NULL;
@@ -235,6 +260,7 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     unsigned char *data = file_buffer_alloc(n + 1);
     if (!data)
     {
+        read_transient = true;
         close(fd);
         return NULL;
     }
@@ -262,6 +288,7 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     close(fd);
     if (done != n)
     {
+        read_transient = true;
         free(data);
         return NULL;
     }
@@ -273,6 +300,7 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
 /* Windowsos szimulátor: a korábbi, hordozható stdio-út. */
 static unsigned char *read_file(const char *path, size_t limit, size_t *size)
 {
+    read_transient = false;
     FILE *f = fopen(path, "rb");
     if (!f)
         return NULL;
@@ -291,6 +319,7 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     unsigned char *data = malloc((size_t)n + 1);
     if (!data)
     {
+        read_transient = true;
         fclose(f);
         return NULL;
     }
@@ -298,6 +327,7 @@ static unsigned char *read_file(const char *path, size_t limit, size_t *size)
     fclose(f);
     if (!ok)
     {
+        read_transient = true;
         free(data);
         return NULL;
     }
@@ -878,8 +908,12 @@ static cJSON *validate_document(const char *directory, char error[160])
     }
     return root;
 }
+/* A legutóbbi validálás átmeneti (olvasási/foglalási) hiba miatt bukott-e. */
+static bool validate_transient;
+
 bool app_templates_validate(const char *directory, cJSON **document, char error[160])
 {
+    validate_transient = false;
     cJSON *root = validate_document(directory, error);
     if (!root)
         return false;
@@ -935,6 +969,9 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
         data = read_file(path, APP_TEMPLATE_PNG_MAX, &n);
         if (!data || !png_valid(data, n, &w, &h))
         {
+            /* Nem a csomag hibás, csak most nem tudtuk beolvasni. */
+            if (!data && read_transient)
+                validate_transient = true;
             free(data);
             valid = false;
             break;
@@ -1127,6 +1164,15 @@ static void apply_saved_order(void)
 }
 static void scan(void)
 {
+    /*
+     * A korábbi lista pillanatképe: ha egy téma most átmeneti olvasási hiba
+     * miatt nem validálható, a bejegyzését megtartjuk. Egyetlen sikertelen
+     * 2 MB-os foglalás nem tüntetheti el a felhasználó témáját a listából.
+     */
+    app_template_info_t *previous = malloc(sizeof(catalogue));
+    unsigned previous_count = count;
+    if (previous)
+        memcpy(previous, catalogue, sizeof(catalogue));
     count = 1;
     validated_count = 0;
     home_ready = false;
@@ -1135,7 +1181,16 @@ static void scan(void)
     snprintf(catalogue[0].name, 81, "Rendszer");
     DIR *dir = opendir(app_templates_root());
     if (!dir)
+    {
+        /* A gyökér most nem olvasható: a korábbi lista maradjon érvényben. */
+        if (previous && previous_count > count)
+        {
+            memcpy(catalogue, previous, sizeof(catalogue));
+            count = previous_count;
+        }
+        free(previous);
         return;
+    }
     struct dirent *e;
     char path[256], error[160];
     while ((e = readdir(dir)))
@@ -1149,7 +1204,20 @@ static void scan(void)
         bool fingerprinted = directory_fingerprint(path, &fingerprint);
         cJSON *doc = NULL;
         if (!app_templates_validate(path, &doc, error))
+        {
+            if (validate_transient && previous)
+                for (unsigned i = 1; i < previous_count && count < APP_TEMPLATE_MAX; i++)
+                    if (!strcmp(previous[i].id, e->d_name))
+                    {
+                        catalogue[count++] = previous[i];
+#ifndef APP_TEMPLATE_DESKTOP
+                        ESP_LOGW(RAW_TAG, "Sablon most nem olvasható, a lista megtartja: %s",
+                                 e->d_name);
+#endif
+                        break;
+                    }
             continue;
+        }
         if (!strcmp(str(doc, "id"), e->d_name) && home_package(doc))
         {
             home_ready = true;
@@ -1178,6 +1246,7 @@ static void scan(void)
                 catalogue[j] = t;
             }
     apply_saved_order();
+    free(previous);
     home_generation++;
 }
 esp_err_t app_templates_init(void)
@@ -1362,7 +1431,6 @@ esp_err_t app_templates_reorder(const cJSON *ids, char error[160])
         error_set(error, "A sorrend mentése sikertelen");
     return ok ? ESP_OK : ESP_FAIL;
 }
-static unsigned raw_cursor;
 #ifndef APP_TEMPLATE_DESKTOP
 static int64_t raw_pause_until_us;
 #endif
@@ -1390,7 +1458,8 @@ bool app_templates_try_temporary_builtin(void)
     if (!temporary_builtin) {
         temporary_builtin = true;
         generation++;
-        raw_postpone();
+        /* Nincs raw_postpone(): a hiányzó segédfájlok elkészülése épp az, ami
+         * a tartalék nézetből kivezet, ezért nem késleltetjük tovább. */
     }
     xSemaphoreGive(lock);
     return true;
@@ -1646,6 +1715,12 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     path_join(png_path, directory, variant->file);
     path_join(raw_path, directory, paths->name);
     path_join(tmp_path, directory, "raw.tmp");
+    struct stat before;
+    if (stat(png_path, &before))
+    {
+        free(paths);
+        return false;
+    }
     size_t png_size = 0;
     unsigned char *png = read_file(png_path, APP_TEMPLATE_PNG_MAX, &png_size);
     if (!png)
@@ -1655,10 +1730,24 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     }
     uint8_t *raw = NULL;
     size_t raw_size = 0;
+    /*
+     * A dekódolás tisztán CPU-munka: amíg tart, elengedjük a tárzárat, hogy a
+     * témabetöltés ne várjon rá. A hívó vette fel, ezért itt vesszük vissza is.
+     */
+    STORAGE_GIVE();
     bool ok = app_template_raw_build(png, png_size, variant->width, variant->height, &raw, &raw_size);
     free(png);
-    if (!ok)
+    (void)STORAGE_TAKE();
+    /*
+     * A zár elengedése alatt a témát ki is cserélhették (telepítés): ilyenkor a
+     * most dekódolt képpontok már egy régi PNG-hez tartoznak, nem írjuk ki.
+     * Ha pedig a kijelzőnek kell a kártya, szintén később kezdjük újra.
+     */
+    struct stat after;
+    if (!ok || STORAGE_WANTED() || stat(png_path, &after) || after.st_size != before.st_size ||
+        after.st_mtime != before.st_mtime)
     {
+        free(raw);
         free(paths);
         return false;
     }
@@ -1667,7 +1756,22 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     ok = f != NULL;
     if (f)
     {
-        ok = app_templates_sd_write(f, raw, raw_size);
+        /*
+         * 64 KiB-os blokkok: a kijelző legfeljebb egy blokkot vár, mert a
+         * blokkhatáron félreállunk. A félkész munkafájlt a végén töröljük,
+         * és a következő körben újrakezdjük ezt a fájlt.
+         */
+        for (size_t done = 0; ok && done < raw_size;)
+        {
+            if (STORAGE_WANTED())
+            {
+                ok = false;
+                break;
+            }
+            size_t take = raw_size - done < 65536U ? raw_size - done : 65536U;
+            ok = app_templates_sd_write(f, raw + done, take);
+            done += take;
+        }
         if (fclose(f))
             ok = false;
     }
@@ -1686,61 +1790,108 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
 /*
  * Egyetlen hiányzó segédfájl elkészítése a háttérben.
  *
- * A dekódolás és a 2-3 MiB-os kiírás témánként fél percig is tarthat, ezért
- * nem a témabetöltés közben fut: ott az SD-zárat percekre elvenné a webes
- * feltöltéstől. Hívásonként egy fájl készül el, a zárakat csak addig tartjuk.
- * A lapozás és a telepítés elsőbbséget élvez: akkor ez a munka kimarad.
+ * A dekódolás és a 2-3 MiB-os kiírás témánként fél percig is tarthat, ezért a
+ * zárakat a lehető legrövidebb ideig tartjuk: a katalógus zárja csak a jelöltek
+ * kiolvasásáig kell, a tárzárat pedig a dekódolás idejére elengedjük, és a
+ * kiírás blokkhatárain félreállunk, ha a kijelző várja a kártyát
+ * (`app_storage_request_priority`). Így a témabetöltés soha nem áll fél percre.
+ *
+ * Sorrend: először az éppen kiválasztott téma, azon belül a legnagyobb hiányzó
+ * kép (a két háttér) – ezek adják a betöltés idejének túlnyomó részét.
  */
-bool app_templates_raw_step(void)
+app_template_raw_status_t app_templates_raw_step_status(void)
 {
     if (!lock || raw_disabled() || raw_postponed() || !STORAGE_READY())
-        return false;
-    if (!xSemaphoreTake(lock, 0))
-        return false;
-    raw_paths_t *paths = malloc(sizeof(*paths));
+        return APP_TEMPLATE_RAW_BLOCKED;
+    if (STORAGE_WANTED())
+        return APP_TEMPLATE_RAW_BLOCKED;
+    char (*ids)[33] = malloc((size_t)APP_TEMPLATE_MAX * 33);
+    raw_paths_t *paths = ids ? malloc(sizeof(*paths)) : NULL;
     if (!paths)
     {
-        xSemaphoreGive(lock);
-        return false;
+        free(ids);
+        return APP_TEMPLATE_RAW_BLOCKED;
     }
-    bool worked = false;
-    for (unsigned attempt = 0; attempt < count && !worked; attempt++)
+    /* A katalógust csak a nevek kiolvasásához zárjuk. */
+    if (!xSemaphoreTake(lock, 0))
     {
-        unsigned index = (raw_cursor + attempt) % count;
-        if (!index || !strcmp(catalogue[index].id, "builtin"))
+        free(paths);
+        free(ids);
+        return APP_TEMPLATE_RAW_BLOCKED;
+    }
+    unsigned names = 0, first = 0;
+    for (unsigned i = 1; i < count && names < APP_TEMPLATE_MAX; i++)
+    {
+        if (!strcmp(catalogue[i].id, "builtin"))
             continue;
+        if (!strcmp(catalogue[i].id, selected))
+            first = names;
+        snprintf(ids[names++], 33, "%s", catalogue[i].id);
+    }
+    xSemaphoreGive(lock);
+    bool worked = false, blocked = false;
+    for (unsigned attempt = 0; attempt < names && !worked && !blocked; attempt++)
+    {
+        const char *id = ids[(first + attempt) % names];
         char *directory = paths->directory, *path = paths->json;
-        path_join(directory, app_templates_root(), catalogue[index].id);
+        path_join(directory, app_templates_root(), id);
         path_join(path, directory, "template.json");
         if (!STORAGE_TRY())
+        {
+            blocked = true;
             break;
+        }
         size_t size = 0;
         unsigned char *text = read_file(path, 64 * 1024, &size);
         cJSON *doc = text ? cJSON_Parse((const char *)text) : NULL;
         free(text);
         template_variant_t *variants = doc ? calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants)) : NULL;
         unsigned total = variants ? collect_variants(doc, variants, TEMPLATE_RAW_VARIANTS) : 0;
-        for (unsigned i = 0; i < total && !worked; i++)
-            if (!raw_current(directory, &variants[i]))
-                worked = raw_generate(directory, &variants[i]);
+        /* A legnagyobb hiányzó kép az első: a hátterek a drágák. */
+        unsigned best = total;
+        uint32_t best_pixels = 0;
+        for (unsigned i = 0; i < total; i++)
+        {
+            uint32_t pixels = (uint32_t)variants[i].width * variants[i].height;
+            if (pixels > best_pixels && !raw_current(directory, &variants[i]))
+            {
+                best = i;
+                best_pixels = pixels;
+            }
+        }
+        if (best < total)
+            worked = raw_generate(directory, &variants[best]);
         free(variants);
         cJSON_Delete(doc);
         STORAGE_GIVE();
-        /* A következő hívás ugyanennél a témánál folytatja. */
-        if (worked)
-            raw_cursor = index;
+        if (!worked && best < total)
+            blocked = true; /* Félreálltunk vagy írási hiba: hamar újrapróbáljuk. */
     }
-    if (!worked)
-        raw_cursor = 0;
     free(paths);
-    xSemaphoreGive(lock);
-    return worked;
+    free(ids);
+    return worked ? APP_TEMPLATE_RAW_WORKED
+                  : blocked ? APP_TEMPLATE_RAW_BLOCKED : APP_TEMPLATE_RAW_IDLE;
+}
+
+bool app_templates_raw_step(void)
+{
+    return app_templates_raw_step_status() == APP_TEMPLATE_RAW_WORKED;
+}
+
+bool app_templates_load_blocked(void)
+{
+    return load_blocked;
 }
 
 bool app_templates_load_pending(app_template_view_t *out)
 {
     if (!lock || !xSemaphoreTake(lock, 0))
+    {
+        /* A katalógust épp más használja (telepítés, segédfájl-generálás). */
+        load_blocked = true;
+        STORAGE_WANT();
         return false;
+    }
     /* A mentett kiválasztás sem kerülheti meg az adatfogadási módot. */
     if (!template_mode_allowed(selected))
     {
@@ -1786,10 +1937,15 @@ bool app_templates_load_pending(app_template_view_t *out)
     bool need_storage = strcmp(active_selection, "builtin") != 0;
     if (need_storage && !STORAGE_TRY())
     {
+        /* A kártyán más dolgozik: jelezzük, hogy félreálljon, és várunk. */
+        load_blocked = true;
+        STORAGE_WANT();
         free(next);
         xSemaphoreGive(lock);
         return false;
     }
+    load_blocked = false;
+    STORAGE_WANT_CLEAR();
     snprintf(next->id, 33, "%s", active_selection);
     next->generation = generation;
     next->catalogue_count = 0;
@@ -1941,12 +2097,23 @@ bool app_templates_load_pending(app_template_view_t *out)
     }
     if (!ok)
     {
+        /*
+         * A betöltés nem sikerült: ideiglenesen a beépített nézetet mutatjuk,
+         * de a mentett témaválasztás érintetlen marad, és SD-írás sem történik.
+         * Korábban itt `selected` átíródott „builtin"-re és ki is mentődött,
+         * így egyetlen átmeneti hiba véglegesen elvette a felhasználó témáját.
+         */
         app_templates_view_free(next);
         snprintf(next->id, 33, "builtin");
-        snprintf(selected, 33, "builtin");
+        temporary_builtin = true;
+        generation++;
         next->generation = generation;
-        next->catalogue_count = count;
-        save_selection = true;
+        unsigned allowed = 0;
+        for (unsigned i = 0; i < count; i++)
+            if (template_mode_allowed(catalogue[i].id))
+                allowed++;
+        next->catalogue_count = allowed;
+        next->catalogue_index = 0;
     }
     /* A választás mentése (selection.txt) a következő, már betöltött témájú
      * hívásra marad: a több FAT-metaadatírás így nem késlelteti a lapozást. */
@@ -1972,7 +2139,7 @@ static void raw_task(void *argument)
     UBaseType_t lowest = 0;
     while (true)
     {
-        bool worked = app_templates_raw_step();
+        app_template_raw_status_t status = app_templates_raw_step_status();
         /* A 4 KiB-os verem túlcsordult és újraindulást okozott, ezért a
          * maradékot minden új mélypontnál naplózzuk (lásd docs/errors.md). */
         UBaseType_t left = uxTaskGetStackHighWaterMark(NULL);
@@ -1981,7 +2148,13 @@ static void raw_task(void *argument)
             lowest = left;
             ESP_LOGI(RAW_TAG, "template_raw szabad verem: %u B", (unsigned)left);
         }
-        vTaskDelay(pdMS_TO_TICKS(worked ? 1500 : 60000));
+        /*
+         * Foglalt zár vagy félreállás után hamar újrapróbálunk: korábban minden
+         * elmaradt próbálkozás egy percet aludt, így egyetlen lapozás is percekre
+         * megállította a segédfájlok elkészülését.
+         */
+        vTaskDelay(pdMS_TO_TICKS(status == APP_TEMPLATE_RAW_WORKED ? 1500
+                                 : status == APP_TEMPLATE_RAW_BLOCKED ? 2500 : 60000));
     }
 }
 
@@ -2001,6 +2174,113 @@ esp_err_t app_templates_raw_start(void)
                                                                                   : ESP_ERR_NO_MEM;
 }
 #endif
+/*
+ * Két fájl tartalma azonos-e. Frissítéskor ez dönti el, hogy a régi, előre
+ * dekódolt segédfájl megtartható-e: csak akkor, ha a forrás PNG bitre
+ * ugyanaz maradt. A méret eltérése azonnal eldönti az esetek többségét.
+ */
+static bool same_file(const char *left, const char *right)
+{
+    struct stat ls, rs;
+    if (stat(left, &ls) || stat(right, &rs) || !S_ISREG(ls.st_mode) || !S_ISREG(rs.st_mode) ||
+        ls.st_size != rs.st_size || ls.st_size <= 0)
+        return false;
+    FILE *lf = fopen(left, "rb");
+    FILE *rf = lf ? fopen(right, "rb") : NULL;
+    unsigned char *buffer = rf ? malloc(2 * SAME_FILE_CHUNK) : NULL;
+    bool equal = buffer != NULL;
+    while (equal)
+    {
+        size_t ln = fread(buffer, 1, SAME_FILE_CHUNK, lf);
+        size_t rn = fread(buffer + SAME_FILE_CHUNK, 1, SAME_FILE_CHUNK, rf);
+        if (ln != rn || memcmp(buffer, buffer + SAME_FILE_CHUNK, ln))
+            equal = false;
+        else if (!ln)
+            break;
+    }
+    free(buffer);
+    if (lf)
+        fclose(lf);
+    if (rf)
+        fclose(rf);
+    return equal;
+}
+
+/*
+ * A változatlan képek előre dekódolt segédfájljainak átmentése a frissített
+ * könyvtárba. A téma csomagjában jellemzően csak a leíró és néhány ikon
+ * változik, a két 1280x800-as háttér nem: azok segédfájljának újbóli
+ * elkészítése témánként fél perc háttérmunka, és addig a betöltés a lassú
+ * PNG-úton megy. A mozgatás a FAT-on metaadat-művelet, adatot nem másolunk.
+ */
+static void carry_sidecars(const char *backup, const char *dest, const cJSON *doc)
+{
+    DIR *dir = opendir(backup);
+    if (!dir)
+        return;
+    /* Az új csomag által ténylegesen használt kép-változatok: a már nem
+     * használt méretek segédfájlját nem visszük át, hogy ne gyűljön szemét. */
+    template_variant_t *variants = calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants));
+    unsigned variant_count = variants ? collect_variants(doc, variants, TEMPLATE_RAW_VARIANTS) : 0;
+    char (*names)[80] = calloc(CARRY_MAX, 80);
+    char (*bases)[66] = names ? calloc(CARRY_MAX, 66) : NULL;
+    bool *keep = bases ? calloc(CARRY_MAX, sizeof(bool)) : NULL;
+    unsigned count = 0;
+    struct dirent *entry;
+    char base[66];
+    /* Előbb a nevek, csak utána a mozgatás: a könyvtárat nem írjuk át bejárás
+     * közben. */
+    while (keep && count < CARRY_MAX && (entry = readdir(dir)))
+    {
+        if (!app_template_raw_is_name(entry->d_name, base) || strlen(entry->d_name) >= 80)
+            continue;
+        bool used = false;
+        for (unsigned i = 0; !used && i < variant_count; i++)
+        {
+            char expected[80];
+            used = app_template_raw_name(variants[i].file, variants[i].width, variants[i].height,
+                                         expected, sizeof(expected)) &&
+                   !strcmp(expected, entry->d_name);
+        }
+        if (!used)
+            continue;
+        snprintf(names[count], 80, "%.79s", entry->d_name);
+        snprintf(bases[count], 66, "%.65s", base);
+        count++;
+    }
+    closedir(dir);
+    free(variants);
+    raw_paths_t *paths = keep ? malloc(sizeof(*paths)) : NULL;
+    for (unsigned i = 0; paths && i < count; i++)
+    {
+        /* Ugyanahhoz a PNG-hez több méret is tartozhat: egyszer hasonlítunk. */
+        bool decided = false;
+        for (unsigned j = 0; j < i; j++)
+            if (!strcmp(bases[i], bases[j]))
+            {
+                keep[i] = keep[j];
+                decided = true;
+                break;
+            }
+        if (!decided)
+        {
+            path_join(paths->png, dest, bases[i]);
+            path_join(paths->json, backup, bases[i]);
+            keep[i] = same_file(paths->png, paths->json);
+        }
+        if (!keep[i])
+            continue;
+        path_join(paths->raw, backup, names[i]);
+        path_join(paths->tmp, dest, names[i]);
+        if (rename(paths->raw, paths->tmp))
+            keep[i] = false; /* Nem gond: a háttérfeladat újra elkészíti. */
+    }
+    free(paths);
+    free(keep);
+    free(bases);
+    free(names);
+}
+
 /* Közös telepítési mag: a stage könyvtár (az SD-n, a sablongyökér alatt) vagy
  * egy ZIP kibontásával, vagy a GitHubról letöltött fájlokkal áll elő. A teljes
  * validálás itt fut, a régi téma csak sikeres csere után törlődik. */
@@ -2038,6 +2318,11 @@ static esp_err_t install_stage(const char *stage, char error[160])
         error_set(error, "SD mentési hiba; a korábbi sablon visszaállítva");
         goto done;
     }
+    /* A változatlan képek segédfájljai a helyükre kerülnek, mielőtt a régi
+     * könyvtár törlődik: így a frissített téma nem esik vissza a lassú
+     * PNG-útra, és nincs perces háttérmunka sem. */
+    if (exists)
+        carry_sidecars(backup, dest, doc);
     /* A UI régi képei memóriában élnek, a generation módosítás után
      * az aktuális téma újra beolvasódik az SD-ről. */
     scan();
@@ -2289,9 +2574,17 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
         return false;
     if (!home_ready || !STORAGE_TRY())
     {
+        /* Ugyanaz, mint a témabetöltésnél: foglalt kártya nem beragadás. */
+        if (home_ready)
+        {
+            load_blocked = true;
+            STORAGE_WANT();
+        }
         xSemaphoreGive(lock);
         return false;
     }
+    load_blocked = false;
+    STORAGE_WANT_CLEAR();
     app_template_view_t *next = calloc(1, sizeof(*next));
     bool ok = next != NULL;
     char directory[256], path[256];
