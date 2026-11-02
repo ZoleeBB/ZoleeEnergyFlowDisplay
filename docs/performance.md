@@ -49,6 +49,13 @@ telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
   megállította a segédfájlok elkészülését.
 - A segédfájlok nem kerülnek a sablon ZIP-be, az ujjlenyomatba és az előnézeti
   képekbe; a csomag törlésekor a könyvtárral együtt eltűnnek.
+- Frissítéskor a változatlan képek segédfájljai **megmaradnak**: a csere után a
+  telepítő átmozgatja őket a régi könyvtárból, ha a forrás PNG bitre ugyanaz
+  (méret, majd tartalom 4 KiB-os blokkokban), és ha az új leíró továbbra is
+  használja azt a méretet. A FAT-on ez metaadat-művelet, adatot nem másolunk.
+  Enélkül minden frissítés után újra el kellett készíteni a két 1280x800-as
+  hátteret, és addig a betöltés a lassú PNG-úton ment. Ez a ZIP-es kézi
+  telepítésre és a GitHubos frissítésre egyaránt él.
 - Az ikonok átméretezése a telepítéskori bilineáris szűrővel készül, ezért az
   ikonok képpontjai néhány egységgel eltérhetnek a korábbi LVGL-skálázástól; a
   natív méretű háttér képpontra ugyanaz marad. A preview mindkét utat

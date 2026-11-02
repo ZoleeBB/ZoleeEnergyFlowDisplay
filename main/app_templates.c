@@ -2201,11 +2201,15 @@ static bool same_file(const char *left, const char *right)
  * elkészítése témánként fél perc háttérmunka, és addig a betöltés a lassú
  * PNG-úton megy. A mozgatás a FAT-on metaadat-művelet, adatot nem másolunk.
  */
-static void carry_sidecars(const char *backup, const char *dest)
+static void carry_sidecars(const char *backup, const char *dest, const cJSON *doc)
 {
     DIR *dir = opendir(backup);
     if (!dir)
         return;
+    /* Az új csomag által ténylegesen használt kép-változatok: a már nem
+     * használt méretek segédfájlját nem visszük át, hogy ne gyűljön szemét. */
+    template_variant_t *variants = calloc(TEMPLATE_RAW_VARIANTS, sizeof(*variants));
+    unsigned variant_count = variants ? collect_variants(doc, variants, TEMPLATE_RAW_VARIANTS) : 0;
     char (*names)[80] = calloc(CARRY_MAX, 80);
     char (*bases)[66] = names ? calloc(CARRY_MAX, 66) : NULL;
     bool *keep = bases ? calloc(CARRY_MAX, sizeof(bool)) : NULL;
@@ -2215,13 +2219,25 @@ static void carry_sidecars(const char *backup, const char *dest)
     /* Előbb a nevek, csak utána a mozgatás: a könyvtárat nem írjuk át bejárás
      * közben. */
     while (keep && count < CARRY_MAX && (entry = readdir(dir)))
-        if (app_template_raw_is_name(entry->d_name, base) && strlen(entry->d_name) < 80)
+    {
+        if (!app_template_raw_is_name(entry->d_name, base) || strlen(entry->d_name) >= 80)
+            continue;
+        bool used = false;
+        for (unsigned i = 0; !used && i < variant_count; i++)
         {
-            snprintf(names[count], 80, "%.79s", entry->d_name);
-            snprintf(bases[count], 66, "%.65s", base);
-            count++;
+            char expected[80];
+            used = app_template_raw_name(variants[i].file, variants[i].width, variants[i].height,
+                                         expected, sizeof(expected)) &&
+                   !strcmp(expected, entry->d_name);
         }
+        if (!used)
+            continue;
+        snprintf(names[count], 80, "%.79s", entry->d_name);
+        snprintf(bases[count], 66, "%.65s", base);
+        count++;
+    }
     closedir(dir);
+    free(variants);
     raw_paths_t *paths = keep ? malloc(sizeof(*paths)) : NULL;
     for (unsigned i = 0; paths && i < count; i++)
     {
@@ -2294,7 +2310,7 @@ static esp_err_t install_stage(const char *stage, char error[160])
      * könyvtár törlődik: így a frissített téma nem esik vissza a lassú
      * PNG-útra, és nincs perces háttérmunka sem. */
     if (exists)
-        carry_sidecars(backup, dest);
+        carry_sidecars(backup, dest, doc);
     /* A UI régi képei memóriában élnek, a generation módosítás után
      * az aktuális téma újra beolvasódik az SD-ről. */
     scan();
@@ -2546,9 +2562,17 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
         return false;
     if (!home_ready || !STORAGE_TRY())
     {
+        /* Ugyanaz, mint a témabetöltésnél: foglalt kártya nem beragadás. */
+        if (home_ready)
+        {
+            load_blocked = true;
+            STORAGE_WANT();
+        }
         xSemaphoreGive(lock);
         return false;
     }
+    load_blocked = false;
+    STORAGE_WANT_CLEAR();
     app_template_view_t *next = calloc(1, sizeof(*next));
     bool ok = next != NULL;
     char directory[256], path[256];

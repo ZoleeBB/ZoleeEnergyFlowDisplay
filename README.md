@@ -224,6 +224,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | Nem akad be a kijelző frissítés után | A segédfájlokat készítő háttérmunka nem tartja fél percig az SD-zárat: a dekódolás alatt elengedi, 64 KiB-os blokkokban ír, és félreáll, ha a kijelzőnek kell a kártya. A betöltés-figyelő pedig vár, ha a betöltés csak sorban áll – nem vált tartalék nézetre. [Részletek](docs/errors.md) |
 | Megmarad a témaválasztás | Egy sikertelen betöltés nem írja át a mentett témát: a kijelző ideiglenesen a Rendszer nézetet mutatja, a választás érintetlen. |
 | Nem tűnik el a téma a listából | Átmeneti olvasási vagy foglalási hiba nem dobja ki a témát a katalógusból („nincs telepítve”); a lista megtartja a bejegyzést, és a következő vizsgálat újrapróbálja. |
+| Megmaradnak a segédfájlok | Frissítéskor a változatlan képek előre dekódolt segédfájljai átkerülnek az új könyvtárba, ha azt a méretet az új leíró is használja: a hátterek nem készülnek újra, a téma a frissítés után is azonnal gyorsan tölt. A ZIP-es kézi telepítésre és a GitHubos frissítésre egyaránt él. |
 | Hamarabb készülnek a segédfájlok | Először az aktív téma hátterei; a háttérmunka foglalt zár után 2,5 s-ot vár, nem egy percet. [Részletek](docs/performance.md) |
 | Következetes sablonkezelő | Az előnézetek betöltése alatt a soronkénti frissítés is zárva van, a zár viszont határidővel magától feloldódik – az „Összes frissítése” nem maradhat tiltva. |
 

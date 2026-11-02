@@ -160,9 +160,13 @@ A javítás három ponton bontja a hurkot:
   (`app_storage_request_priority()`);
 - a betöltés jelzi, ha csak foglalt zár miatt nem haladt
   (`app_templates_load_blocked()`), és a betöltés-figyelő ilyenkor vár; a
-  türelem felső korlátja 45 s, utána a megszokott eszkaláció fut;
+  türelem felső korlátja 45 s, utána a megszokott eszkaláció fut. Ugyanez él a
+  Loxone Otthon-oldal külön betöltési ágára is;
 - a háttérmunka ütemezése követi az eredményt (1,5 s / 2,5 s / 60 s), és
-  először az aktív téma hátterei készülnek el.
+  először az aktív téma hátterei készülnek el;
+- a frissítés nem dobja el a még érvényes segédfájlokat: a változatlan képekét
+  a telepítő átmozgatja az új könyvtárba, tehát a lassú út jellemzően fel sem
+  merül (lásd [performance.md](performance.md)).
 
 ## Témabetöltési hiba után eltűnik a téma a listából
 
