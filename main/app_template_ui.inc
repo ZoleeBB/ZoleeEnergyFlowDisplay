@@ -1267,6 +1267,13 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         }
         if(!cJSON_IsTrue(cJSON_GetObjectItem(e,"shadow"))&&(*ts(e,"positive_color")||*ts(e,"negative_color"))){
             double direction=!strcmp(source,"grid_direction")?s->power_grid_kw:!strcmp(source,"battery_direction")?s->power_bat_kw:value;
+            if (!strcmp(type, "value") && strstr(source, "_yesterday_pct"))
+            {
+                /* A teljes felirat (nyíl és százalék) a megjelenített irány színét kapja,
+                 * részleges (~) és nulla tegnapi értékből származó összevetésnél is. */
+                const char *text = lv_label_get_text(node->obj);
+                direction = strstr(text, "↓") ? -1 : strstr(text, "↑") ? 1 : 0;
+            }
             uint32_t color=tc(e,direction<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             /* Az alapértelmezett előjelszínek mellé opcionális nyugalmi szín. */
             if(fabs(direction)<.001)color=tc(e,"zero_color",color);
