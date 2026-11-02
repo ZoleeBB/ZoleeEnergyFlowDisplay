@@ -137,6 +137,47 @@ A build megtagadja a 32 KiB feletti belső tartalékot ezen a rögzített Wavesh
 
 A változó méretű streaming RX DMA-pufferhez nem maradt megfelelő összefüggő belső blokk. A javítás fix 1 KiB DMA-ablakot és PSRAM stream-tárolót használ. PSRAM-hiánynál `RX stream storage unavailable ... draining stream` üzenet jelzi az eldobást; a FIFO számláló frissül, a későbbi adatok fogadhatók. A diagnosztika `free_internal_kib` és `largest_dma_block_bytes` értéke segít megkülönböztetni a teljes memóriahiányt a DMA-fragmentációtól. Lásd a [kutatást és ellenőrzéseket](performance.md).
 
+## Fehér háttér, cián villanások, holtra fagyott lapozás témafrissítés után
+
+A tünet frissített téma mellett, tipikusan a nappali/éjszakai váltáskor jelent
+meg: a háttér nem töltődött be, a kijelzőn apró cián villanások látszottak, a
+lapozás és a témaváltás nem élt, és csak tápelvétel segített.
+
+A frissítés a téma teljes könyvtárát kicseréli, ezért az előre dekódolt
+segédfájlok eltűnnek, és a háttérfeladatnak újra el kell készítenie őket. Egy
+2 MB-os segédfájl elkészítése közben a feladat fél percig tartotta az
+SD- és a katalóguszárat, így a témabetöltés `app_templates_load_pending()`
+hívása csak `false`-szal tudott visszatérni. A betöltés-figyelő ezt
+beragadásnak látta: 6 másodperces szakaszok után eldobta a félkész nézetet,
+18 s után ideiglenes Rendszer nézetre váltott, majd újraindítást kísérelt meg –
+ahhoz viszont ugyanazt az SD-zárat kérte, amit a generátor fogott, így az
+automatikus kilábalás sem futott le.
+
+A javítás három ponton bontja a hurkot:
+
+- a generátor a dekódolás alatt elengedi az SD-zárat, 64 KiB-os blokkokban ír,
+  és a blokkhatáron félreáll, ha a kijelző jelezte, hogy neki kell a kártya
+  (`app_storage_request_priority()`);
+- a betöltés jelzi, ha csak foglalt zár miatt nem haladt
+  (`app_templates_load_blocked()`), és a betöltés-figyelő ilyenkor vár; a
+  türelem felső korlátja 45 s, utána a megszokott eszkaláció fut;
+- a háttérmunka ütemezése követi az eredményt (1,5 s / 2,5 s / 60 s), és
+  először az aktív téma hátterei készülnek el.
+
+## Témabetöltési hiba után eltűnik a téma a listából
+
+Két külön hiba adta ugyanezt a tünetet, és mindkettő javítva van:
+
+- Egyetlen sikertelen betöltés a mentett témaválasztást `builtin`-re írta, és
+  ki is mentette SD-re, tehát a választás véglegesen elveszett. Most a kijelző
+  ideiglenesen a Rendszer nézetet mutatja, a mentett választás érintetlen.
+- A katalógus újraolvasása (`scan()`) nem tett különbséget „hibás csomag" és
+  „most nem tudtam beolvasni" között, ezért egy sikertelen 2 MB-os foglalás
+  vagy rövid SD-olvasás kidobta a témát a listából – a webes sablonkezelő
+  ilyenkor „nincs telepítve"-t írt. Az átmeneti hibát a beolvasás most
+  elkülönítve jelzi, és a lista megtartja a korábbi bejegyzést
+  („Sablon most nem olvasható, a lista megtartja" naplósor).
+
 ## Túl gyakori sikeres NTP-szinkron
 
 Ha 6 órás beállítás mellett körülbelül 125 másodpercenként látszik sikeres

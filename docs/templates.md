@@ -221,6 +221,17 @@ sémaellenőrzése és a betöltött PNG-k chunk-CRC-je fut, ismételt kitömör
 az előnézetek beolvasása nélkül. Sérült képnél ugyanúgy a Rendszer nézet jelenik
 meg. Részletek: [teljesítmény](performance.md#gyorsabb-témaváltás--sd-olvasás-és-ismételt-validálás).
 
+### Átmeneti hiba és a témaválasztás
+
+A katalógus újraolvasása elkülöníti a hibás csomagot az átmeneti olvasási
+hibától: ha egy téma most nem olvasható (nem jött össze a puffer, vagy rövid
+olvasást adott a kártya), a lista megtartja a korábbi bejegyzését, és a
+következő vizsgálat újrapróbálja. Csak a tényleg érvénytelen tartalom esik ki.
+
+Sikertelen témabetöltés nem írja át a mentett témaválasztást: a kijelző
+ideiglenesen a Rendszer nézetet mutatja, a mentett téma viszont megmarad, és
+újraindítás vagy sikeres újrapróbálás után visszatér.
+
 ### Előre dekódolt kép-segédfájlok
 
 Az eszköz a csomag mellé `<alap>-<szélesség>x<magasság>.raw` fájlokat készít a

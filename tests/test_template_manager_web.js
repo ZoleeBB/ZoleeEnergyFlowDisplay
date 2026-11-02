@@ -19,7 +19,14 @@ let finish,posts=0;
 let updateState={state:'ready',message:'Minden telepített téma naprakész (v3.1.4).',items:[
     {id:'solar',name:'Nap pálya',installed:6,available:5,update:false,status:''},
     {id:'battery',name:'Akku',installed:2,available:3,update:true,status:''}]};
+/* Hamis óra és időzítők: az előnézet-zár határideje így determinisztikus. */
+let clock=1000;
+const timers=new Set();
+function advance(ms){clock+=ms;for(const timer of [...timers])if(timer.at<=clock){timers.delete(timer);timer.fn();}}
 const sandbox={console,TextEncoder,TextDecoder,DataView,Uint8Array,Map,Set,ArrayBuffer,Blob,DecompressionStream,
+    Date:{now:()=>clock},
+    setTimeout:(fn,ms)=>{const timer={fn,at:clock+ms};timers.add(timer);return timer;},
+    clearTimeout:timer=>{timers.delete(timer);},
     document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag)},
     Image:class extends Element{constructor(){super('img');}},confirm:()=>true,
     fetch:async(path,options={})=>{
@@ -83,11 +90,29 @@ function removeButton(){
     assert.equal(rows[0].children[3].textContent,'Helyi újabb');
     assert.equal(nodes.get('update-all').hidden,false);
     assert.equal(nodes.get('update-all').textContent,'Összes frissítése (1)');
+    /*
+     * A keresés végén a lista újratöltődik, az előnézetek pedig újra zárják a
+     * gombokat – a gyűjtőt és a soronkéntit egyformán. A képernyőn kívüli,
+     * halasztottan töltődő képek sosem jeleznek, ezért a zár határidővel
+     * magától feloldódik: korábban emiatt maradt tiltva az „Összes frissítése”,
+     * miközben a soronkénti „Frissítés” gombok működtek.
+     */
+    assert.equal(nodes.get('update-all').disabled,true);
+    const rowButton=rows[1].children[3].children[0];
+    assert.equal(rowButton.textContent,'Frissítés');
+    assert.equal(rowButton.disabled,true);
+    /* Egy korábbi listából befutó kép nem oldhatja fel a zárat. */
+    thumbs.forEach(image=>image.onload&&image.onload());
+    assert.equal(nodes.get('update-all').disabled,true);
+    advance(9000);
+    assert.equal(nodes.get('update-all').disabled,false);
+    assert.equal(rowButton.disabled,false);
+    assert.equal(nodes.get('update-check').disabled,false);
     updateState={state:'ready',message:'Minden telepített téma naprakész (v3.1.4).',
         items:[{id:'solar',name:'Nap pálya',installed:6,available:5,update:false,status:''}]};
     await nodes.get('update-check').onclick();await settled();
     assert.equal(nodes.get('update-all').hidden,true);
     /* A hidden attribútum erősebb a gombok display szabályánál. */
     assert(fs.readFileSync('assets/web/common.css','utf8').includes('[hidden]{display:none!important}'));
-    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes, controls locked while previews load and a truly hidden bulk-update button');
+    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes, controls locked while previews load, bulk and per-row buttons released together by deadline, stale thumbnails ignored and a truly hidden bulk-update button');
 })().catch(error=>{console.error(error);process.exitCode=1;});

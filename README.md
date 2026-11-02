@@ -217,6 +217,16 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 [Ellenőrzési állapot](docs/electric-car-development.md) ·
 [Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
 
+### Javítások – témabetöltés és segédfájlok (`fix/theme-load-starvation`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Nem akad be a kijelző frissítés után | A segédfájlokat készítő háttérmunka nem tartja fél percig az SD-zárat: a dekódolás alatt elengedi, 64 KiB-os blokkokban ír, és félreáll, ha a kijelzőnek kell a kártya. A betöltés-figyelő pedig vár, ha a betöltés csak sorban áll – nem vált tartalék nézetre. [Részletek](docs/errors.md) |
+| Megmarad a témaválasztás | Egy sikertelen betöltés nem írja át a mentett témát: a kijelző ideiglenesen a Rendszer nézetet mutatja, a választás érintetlen. |
+| Nem tűnik el a téma a listából | Átmeneti olvasási vagy foglalási hiba nem dobja ki a témát a katalógusból („nincs telepítve”); a lista megtartja a bejegyzést, és a következő vizsgálat újrapróbálja. |
+| Hamarabb készülnek a segédfájlok | Először az aktív téma hátterei; a háttérmunka foglalt zár után 2,5 s-ot vár, nem egy percet. [Részletek](docs/performance.md) |
+| Következetes sablonkezelő | Az előnézetek betöltése alatt a soronkénti frissítés is zárva van, a zár viszont határidővel magától feloldódik – az „Összes frissítése” nem maradhat tiltva. |
+
 ### Javítások – GitHub-frissítés és memória (`fix/template-update`)
 
 > **A v3.1.4 kiadást ne telepítsd.** A benne lévő kép-segédfájl feladat 4 KiB-os

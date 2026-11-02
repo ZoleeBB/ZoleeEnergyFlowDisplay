@@ -89,16 +89,27 @@ if(typeof document!=='undefined'){
  const installMessage=document.getElementById('install-message')||message;
  let activeMessage=message;
  let selected=null,verified=null,images=new Map(),generation=0,busy=false,energyDisabled=false,updateMap=new Map();
+ /* A frissítési táblázat gombjai: a zár feloldásakor ezeket is engedni kell. */
+ let updateRowButtons=[];
  /* Az előnézetek SD-ről olvasása lassú; amíg tart, a telepítés és a GitHubos
-  * frissítés gombjai zárva maradnak, hogy a két SD/hálózati munka ne akadjon össze. */
- let thumbs=0;
- function thumbDone(){if(thumbs>0&&--thumbs===0)lock(busy);}
+  * frissítés gombjai zárva maradnak, hogy a két SD/hálózati munka ne akadjon össze.
+  * A zár viszont nem függhet attól, hogy minden kép jelez-e: a képernyőn kívüli,
+  * halasztottan töltődő képek sosem adnak `load`/`error` eseményt, ezért a zár
+  * egy határidővel magától feloldódik. A számláló generációhoz kötött, így a
+  * korábbi listából befutó képek nem rontják el az aktuális számot. */
+ const THUMB_HOLD_MS=8000;
+ let thumbs=0,thumbGeneration=0,thumbDeadline=0,thumbTimer=null;
+ function thumbsPending(){return thumbs>0&&Date.now()<thumbDeadline;}
+ function thumbWatch(){if(thumbTimer)clearTimeout(thumbTimer);const left=thumbDeadline-Date.now();
+  thumbTimer=left>0?setTimeout(()=>{thumbTimer=null;lock(busy);},left):null;}
+ function thumbDone(generation){if(generation!==thumbGeneration)return;if(thumbs>0&&--thumbs===0)lock(busy);}
  function loadThumb(t,holder){
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
   img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);
+  const generation=thumbGeneration;
   thumbs++;
-  img.onload=()=>{img.style.opacity=1;thumbDone();};
-  img.onerror=()=>{img.remove();thumbDone();}; // Régi csomag: szándékosan üres keret.
+  img.onload=()=>{img.style.opacity=1;thumbDone(generation);};
+  img.onerror=()=>{img.remove();thumbDone(generation);}; // Régi csomag: szándékosan üres keret.
   img.src='/api/templates/preview?id='+encodeURIComponent(t.id)+'&mode=light&v='+encodeURIComponent(t.version??0);
  }
  async function refresh(){
@@ -106,7 +117,7 @@ if(typeof document!=='undefined'){
   const data=await r.json();
   /* A korábbi kérések képei eldobásra kerülnek; a lecserélt elemek már nem
    * biztos, hogy jeleznek, ezért a számlálót minden listafrissítés nullázza. */
-  thumbs=0;list.replaceChildren();
+  thumbs=0;thumbGeneration++;thumbDeadline=Date.now()+THUMB_HOLD_MS;list.replaceChildren();
   energyDisabled=!!data.energy_flow_disabled;
   const warning=document.getElementById('energy-disabled-warning');if(warning)warning.hidden=!energyDisabled;
   for(const resource of data.resources||[]){
@@ -149,17 +160,18 @@ if(typeof document!=='undefined'){
    loadThumb(t,holder);
   }
   /* Az előnézetek még töltenek: a telepítés és a GitHubos frissítés zárva. */
-  lock(busy);
+  thumbWatch();lock(busy);
  }
  function lock(value,bar){busy=value;if(bar)activeMessage=bar;list.inert=value;list.setAttribute('aria-busy',String(value));message.className=activeMessage===message&&value?'working':'';installMessage.className=activeMessage===installMessage&&value?'working':'';
-  const held=value||thumbs>0;
+  const held=value||thumbsPending();
   fileInput.disabled=held;check.disabled=held||!selected;install.disabled=held||verified!==selected||!selected;
   const updateCheckButton=document.getElementById('update-check'),updateAllButton=document.getElementById('update-all');
   if(updateCheckButton)updateCheckButton.disabled=held||!!updatePoll;
   if(updateAllButton)updateAllButton.disabled=held||!!updatePoll;
+  for(const button of updateRowButtons)button.disabled=held||!!updatePoll;
   const updateBar=document.getElementById('update-message');
-  if(updateBar&&thumbs>0&&!updateBar.textContent)updateBar.textContent='Előnézeti képek betöltése…';
-  else if(updateBar&&thumbs===0&&updateBar.textContent==='Előnézeti képek betöltése…')updateBar.textContent='';}
+  if(updateBar&&held&&!value&&!updateBar.textContent)updateBar.textContent='Előnézeti képek betöltése…';
+  else if(updateBar&&!held&&updateBar.textContent==='Előnézeti képek betöltése…')updateBar.textContent='';}
  async function action(path,body,bar){const target=bar||message;if(busy)return;lock(true,target);target.textContent=path==='/api/templates/delete'?'Törlés folyamatban…':'Feldolgozás…';try{const r=await fetch(path,{method:'POST',headers:{'X-Zolee-Template':'1'},body});const text=await r.text();if(!r.ok)throw Error(text);target.textContent=text;await refresh();}catch(e){target.textContent=e.message;}finally{lock(false);}}
  fileInput.onchange=async()=>{const id=++generation;selected=null;verified=null;install.textContent='3. Telepítés';lock(false,installMessage);for(const image of images.values())image.close();images=new Map();document.getElementById('previews').hidden=true;
   try{const file=fileInput.files[0];if(!file)return;installMessage.textContent='Helyi előnézet készül…';const files=await unpackZip(await file.arrayBuffer());const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(files.get('template.json'))),memory=validateManifest(manifest,files);if(energyDisabled&&manifest.id!=='loxone-home')throw Error('Ebben a módban csak a Loxone Otthon erőforráscsomag telepíthető.');
@@ -179,15 +191,20 @@ if(typeof document!=='undefined'){
   updateMap=new Map((state.items||[]).map(item=>[item.id,item]));
   const running=state.state==='checking'||state.state==='installing';
   updateMessage.textContent=state.error||state.message||'';updateMessage.className=running?'working':'';
-  updateCheck.disabled=running||busy||thumbs>0;const pending=(state.items||[]).filter(item=>item.update);
-  updateAll.hidden=!pending.length;updateAll.disabled=running||busy||thumbs>0;updateAll.textContent='Összes frissítése ('+pending.length+')';
+  /* Ugyanaz a zár a gyűjtő- és a soronkénti gombokra: korábban az egyesével
+   * indítás megkerülte az előnézet-betöltés alatti védelmet, a gyűjtőgomb
+   * viszont zárva maradhatott. */
+  const held=running||busy||thumbsPending();
+  updateCheck.disabled=held;const pending=(state.items||[]).filter(item=>item.update);
+  updateAll.hidden=!pending.length;updateAll.disabled=held;updateAll.textContent='Összes frissítése ('+pending.length+')';
   const body=updateList.tBodies[0]||updateList.createTBody();body.replaceChildren();updateList.hidden=!(state.items||[]).length;
+  updateRowButtons=[];
   for(const item of state.items||[]){
    const row=body.insertRow();row.insertCell().textContent=item.name;
    row.insertCell().textContent=item.installed?'v'+item.installed:'nincs telepítve';
    row.insertCell().textContent='v'+item.available;
    const cell=row.insertCell();
-   if(item.update||!item.installed){const button=document.createElement('button');button.type='button';button.textContent=item.installed?'Frissítés':'Telepítés';button.className=item.installed?'':'secondary';button.disabled=running;button.onclick=()=>startUpdate(item.id);cell.append(button);}
+   if(item.update||!item.installed){const button=document.createElement('button');button.type='button';button.textContent=item.installed?'Frissítés':'Telepítés';button.className=item.installed?'':'secondary';button.disabled=held;button.onclick=()=>startUpdate(item.id);cell.append(button);updateRowButtons.push(button);}
    else cell.textContent=item.status||(item.installed>item.available?'Helyi újabb':'Naprakész');
   }
  }
