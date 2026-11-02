@@ -65,6 +65,22 @@ with tempfile.TemporaryDirectory(prefix='zolee-backup-') as directory:
                     '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary, str(sd), 'examples/config.loxone.sample.json',
                     'examples/loxone-home.sample.json'], cwd=ROOT, check=True, timeout=20)
+# Az eseménynapló SD-re mentése: kötegelés, foglalt kártya, napváltás, korlátok.
+with tempfile.TemporaryDirectory(prefix='zolee-event-store-') as directory:
+    logs = Path(directory) / 'logs'
+    logs.mkdir()
+    binary = str(Path(directory) / 'test_event_store')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-fsanitize=undefined,address', '-fno-sanitize-recover=all',
+                    '-Itests/stubs', '-Imain',
+                    '-DAPP_EVENT_STORE_DIR="' + str(logs) + '"',
+                    '-DAPP_EVENT_STORE_MAX_BYTES=8192',
+                    'tests/test_event_store.c', 'main/app_events.c', 'main/app_event_store.c',
+                    '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=30)
+    # Újraindítás szimulálása: ugyanazok a fájlok, friss modulállapot.
+    subprocess.run([binary, 'resume'], check=True, timeout=30)
+
 with tempfile.TemporaryDirectory(prefix='zolee-template-remote-') as directory:
     binary = str(Path(directory) / 'test_template_remote')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',

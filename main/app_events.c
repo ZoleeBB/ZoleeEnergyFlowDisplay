@@ -19,6 +19,7 @@ static SemaphoreHandle_t s_mutex;
 static app_event_entry_t s_entries[APP_EVENT_LOG_CAPACITY];
 static size_t s_count;
 static size_t s_next;
+static uint32_t s_serial;
 
 /* Mindkét nyelvet rögzítjük: a config előtt keletkezett esemény is helyesen olvasható. */
 static const char *english_format(const char *format)
@@ -98,6 +99,7 @@ void app_events_add(app_event_level_t level, const char *fmt, ...)
     memset(entry, 0, sizeof(*entry));
     entry->level = level;
     entry->epoch_s = (int64_t)time(NULL);
+    entry->serial = ++s_serial;
 
     va_list args;
     va_start(args, fmt);
@@ -139,6 +141,45 @@ size_t app_events_snapshot(app_event_entry_t *out, size_t max_items)
     for (size_t i = 0; i < count; i++)
     {
         out[i] = s_entries[(start + i) % APP_EVENT_LOG_CAPACITY];
+    }
+
+    xSemaphoreGive(s_mutex);
+    return count;
+}
+
+/*
+ * A `after` sorszám utáni események. A körkörös puffer legfeljebb
+ * APP_EVENT_LOG_CAPACITY bejegyzést őriz, ezért ha a hívó régóta nem kérdezett,
+ * a köztes események elvesztek: a számukat a `dropped` adja vissza.
+ */
+size_t app_events_since(uint32_t after, app_event_entry_t *out, size_t max_items,
+                        uint32_t *dropped)
+{
+    if (dropped)
+    {
+        *dropped = 0;
+    }
+    if (!out || !max_items || !s_mutex)
+    {
+        return 0;
+    }
+
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+
+    size_t start = (s_next + APP_EVENT_LOG_CAPACITY - s_count) % APP_EVENT_LOG_CAPACITY;
+    size_t count = 0;
+    for (size_t i = 0; i < s_count && count < max_items; i++)
+    {
+        const app_event_entry_t *entry = &s_entries[(start + i) % APP_EVENT_LOG_CAPACITY];
+        if (entry->serial <= after)
+        {
+            continue;
+        }
+        if (!count && dropped && entry->serial > after + 1)
+        {
+            *dropped = entry->serial - after - 1;
+        }
+        out[count++] = *entry;
     }
 
     xSemaphoreGive(s_mutex);
