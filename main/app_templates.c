@@ -178,6 +178,14 @@ bool app_templates_safe_asset(const char *path)
             return false;
     return true;
 }
+/*
+ * Igaz, ha a legutóbbi beolvasás átmeneti ok miatt bukott: nem jött össze a
+ * puffer, vagy a kártya rövid olvasást adott. A tartalom hibáját (hiányzó
+ * fájl, méretkorlát) ez nem jelzi. Így a validálás nem dob ki egy jó témát
+ * azért, mert egy pillanatra nem volt elég memória.
+ */
+static bool read_transient;
+
 #ifndef _WIN32
 /*
  * Fájlpuffer az SD-ről olvasott sablonadatokhoz.
@@ -235,14 +243,6 @@ static unsigned char *sd_chunk(void)
  * klaszterhatárig közvetlenül a hívó pufferébe olvas. A méretkorlát, a
  * lezáró nulla bájt és a hibakezelés megegyezik a korábbi változattal.
  */
-/*
- * Igaz, ha a legutóbbi beolvasás átmeneti ok miatt bukott: nem jött össze a
- * puffer, vagy a kártya rövid olvasást adott. A tartalom hibáját (hiányzó
- * fájl, méretkorlát) ez nem jelzi. Így a validálás nem dob ki egy jó témát
- * azért, mert egy pillanatra nem volt elég memória.
- */
-static bool read_transient;
-
 static unsigned char *read_file(const char *path, size_t limit, size_t *size)
 {
     read_transient = false;

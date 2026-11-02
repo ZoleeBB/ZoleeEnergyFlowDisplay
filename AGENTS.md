@@ -109,6 +109,9 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
 - Átmeneti olvasási vagy foglalási hiba nem minősítheti érvénytelennek a
   felhasználó adatát: a „most nem tudtam beolvasni" esetet elkülönítve jelezd,
   és tartsd meg a korábbi bejegyzést, illetve a mentett választást.
+- Fájlszintű statikus változót se tegyél `_WIN32`-függő blokkba, ha a blokkon
+  kívüli kód is használja: az MSVC-s szimulátor `C2065: undeclared identifier`
+  hibával bukik. A `tests/run_tests.py` ezt is ellenőrzi.
 - Új, fejlécben meghirdetett függvényt ne tegyél `#ifndef _WIN32` vagy
   `#ifndef APP_TEMPLATE_DESKTOP` blokkba, ha minden célon hívják: az
   `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott
