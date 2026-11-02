@@ -52,9 +52,35 @@ Az 5-ös érték használata előtt minden fogadó firmware-ét frissíteni kell
 
 A firmware task watchdogot használ. A soros logban a reset oka is megjelenik, és a helyi információs weboldalon is lekérdezhető.
 
-## RAM eseménynapló
+## Eseménynapló: RAM és SD
 
-A legutóbbi fontos események és hibák RAM-ban tárolódnak és a helyi webes információs oldalon megjelennek. Folyamatos SD logolás nincs.
+A legutóbbi 20 fontos esemény és hiba RAM-ban tárolódik, és a helyi webes
+információs oldalon fix magasságú, görgethető listában jelenik meg.
+
+Ugyanezek a bejegyzések az SD-kártyára is kikerülnek, hogy újraindítás után is
+visszanézhetők legyenek:
+
+- A fájlok helye `/sdcard/logs`: `events.log` a mai nap, `events-prev.log` az
+  előző nap. Napváltáskor a mai fájl az előző helyére lép, a régebbi törlődik,
+  tehát mindig legfeljebb két nap van a kártyán. Egy napi fájl legfeljebb
+  512 KiB; a határon nap közben is fordul, így hibavihar sem írja tele a kártyát.
+- A kiírás **kötegelt**: a háttér-karbantartó feladat ötmásodpercenként
+  ránéz, és akkor ír, ha legalább 8 új bejegyzés gyűlt össze, vagy letelt
+  30 másodperc. Egy esemény rögzítése (`app_events_add`) változatlanul csak
+  RAM-ot ír, SD-műveletet nem végez, ezért bármelyik feladatból hívható.
+- A mentés **soha nem vár a kártyára**: a tárzárat csak nem blokkolóan kéri
+  (`app_storage_try_lock`). Ha a kijelző témát tölt, telepítés fut vagy a
+  statisztika mentése zajlik, a kiírás kimarad, és a következő körben
+  újrapróbálja. Az események addig a RAM-pufferben várnak; ha a puffer közben
+  körbefordul, a napló egy `… esemény kimaradt a RAM-pufferből` sort kap, tehát
+  a hiány is látszik.
+- Az információs oldalon a **Mai napló** és az **Előző napi napló** gomb a
+  `/api/events/log` végpontot nyitja. A kiszolgálás a fájl utolsó 64 KiB-ját
+  olvassa be a zár alatt, majd a zár elengedése után küldi el, így egy lassú
+  böngésző sem tartja a kártyát a kijelző elől. Foglalt kártyánál a végpont
+  503-mal, azonnal visszatér.
+- Időszinkron előtt keletkezett bejegyzés `0000-00-00 00:00:00` időbélyeggel
+  kerül a fájlba, és a napi forgatás is csak érvényes óra mellett történik meg.
 
 MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendszer végzetes inicializálási hibájával. Az időjárási `null` érték nem hiba, csak a kapcsolódó kijelzés marad rejtve.
 

@@ -39,6 +39,7 @@
 #include "mbedtls/base64.h"
 #include "mdns.h"
 
+#include "app_event_store.h"
 #include "app_events.h"
 #include "app_state.h"
 #include "app_storage.h"
@@ -344,6 +345,11 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>Zolee Energy Flow Display</title><style>" APP_WEB_CSS
         ".events td:first-child{white-space:nowrap;width:1%}.events td:nth-child(2){font-weight:600;width:1%}"
+        /* Fix magasságú, görgethető lista: a kártya nem nyúlik el, a korábbi
+         * sorok mégis visszanézhetők. */
+        ".events-box{max-height:320px;overflow-y:auto;overscroll-behavior:contain}"
+        ".events-box table{margin:0}.events-box thead th{position:sticky;top:0;background:var(--card)}"
+        ".log-links{margin:10px 0 0;display:flex;gap:10px;flex-wrap:wrap}"
         "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN, HTTPD_RESP_USE_STRLEN);
@@ -449,7 +455,7 @@ static esp_err_t root_handler(httpd_req_t *req)
     } else {
         httpd_resp_send_chunk(
             req,
-            "<table class='events'>",
+            "<div class='events-box'><table class='events'>",
             HTTPD_RESP_USE_STRLEN);
 
         for (size_t i = 0; i < event_count; i++) {
@@ -496,9 +502,24 @@ static esp_err_t root_handler(httpd_req_t *req)
 
         httpd_resp_send_chunk(
             req,
-            "</table>",
+            "</table></div>",
             HTTPD_RESP_USE_STRLEN);
     }
+
+    /* A teljes napló az SD-ről: a mai és az előző napi fájl külön nyitható,
+     * így újraindítás után is visszakereshető, mi történt. */
+    httpd_resp_send_chunk(
+        req,
+        s_hu
+            ? "<p class='log-links'>"
+              "<a class='button secondary' href='/api/events/log' target='_blank' rel='noopener'>Mai napló</a>"
+              "<a class='button secondary' href='/api/events/log?prev=1' target='_blank' rel='noopener'>Előző napi napló</a>"
+              "</p>"
+            : "<p class='log-links'>"
+              "<a class='button secondary' href='/api/events/log' target='_blank' rel='noopener'>Today's log</a>"
+              "<a class='button secondary' href='/api/events/log?prev=1' target='_blank' rel='noopener'>Previous day's log</a>"
+              "</p>",
+        HTTPD_RESP_USE_STRLEN);
 
     httpd_resp_send_chunk(
         req,
@@ -872,6 +893,67 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     esp_err_t result=httpd_resp_sendstr(req,json);free(json);return result;
 }
 /*
+ * A mentett eseménynapló kiszolgálása (mai vagy előző napi).
+ *
+ * A kártyát csak az olvasás idejére vesszük el, és nem blokkolva: ha más
+ * dolgozik rajta, a kérés udvariasan visszautasít. A fájl végéről legfeljebb
+ * 64 KiB-ot olvasunk egy PSRAM-pufferbe, majd a zár elengedése után küldjük el
+ * - így egy lassú böngésző sem tartja a kártyát a kijelző elől.
+ */
+#define EVENT_LOG_TAIL (64U * 1024U)
+static esp_err_t events_log_get(httpd_req_t *req)
+{
+    char query[32] = {0};
+    bool previous = httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+                    strstr(query, "prev=1") != NULL;
+    const char *path = previous ? APP_EVENT_STORE_DIR "/events-prev.log"
+                                : APP_EVENT_STORE_DIR "/events.log";
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    if (!app_storage_is_ok() || app_storage_is_cardless()) {
+        return httpd_resp_sendstr(req, s_hu ? "Az SD-kártya nem érhető el.\n"
+                                            : "The SD card is unavailable.\n");
+    }
+    if (!app_storage_try_lock()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, s_hu ? "A kártyán épp más művelet fut; próbáld újra.\n"
+                                            : "The card is busy; please try again.\n");
+    }
+    char *text = NULL;
+    size_t length = 0;
+    FILE *file = fopen(path, "rb");
+    if (file) {
+        fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        long from = size > (long)EVENT_LOG_TAIL ? size - (long)EVENT_LOG_TAIL : 0;
+        if (size > 0 && !fseek(file, from, SEEK_SET)) {
+            size_t want = (size_t)(size - from);
+            text = malloc(want + 1);
+            if (text) {
+                length = fread(text, 1, want, file);
+                text[length] = 0;
+            }
+        }
+        fclose(file);
+    }
+    app_storage_unlock();
+    if (!text) {
+        return httpd_resp_sendstr(req, s_hu ? "Ehhez a naphoz még nincs mentett napló.\n"
+                                            : "No stored log for this day yet.\n");
+    }
+    /* A fájl közepére ugrottunk: a csonka első sort eldobjuk. */
+    char *start = text;
+    if (length && text[0] != '#') {
+        char *newline = strchr(text, '\n');
+        if (newline) {
+            start = newline + 1;
+        }
+    }
+    esp_err_t result = httpd_resp_sendstr(req, start);
+    free(text);
+    return result;
+}
+
+/*
  * Honnan fogy a szűkös belső RAM: feladatonkénti szabad verem és a belső
  * heap összesítője. A feladatvermek mindig belső RAM-ból foglalódnak, ezért
  * a mérés nélküli tippelgetés helyett ez mutatja meg a nagy fogyasztókat.
@@ -1062,8 +1144,9 @@ esp_err_t app_web_start(const app_config_t *cfg)
         {.uri="/api/diagnostics",.method=HTTP_GET,.handler=diagnostics_get},
         {.uri="/api/battery",.method=HTTP_GET,.handler=battery_get},
         {.uri="/api/battery/reset",.method=HTTP_POST,.handler=battery_reset_post},
-        {.uri="/api/diagnostics/tasks",.method=HTTP_GET,.handler=diagnostics_tasks_get}};
-    for(unsigned i=0;i<5;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
+        {.uri="/api/diagnostics/tasks",.method=HTTP_GET,.handler=diagnostics_tasks_get},
+        {.uri="/api/events/log",.method=HTTP_GET,.handler=events_log_get}};
+    for(unsigned i=0;i<6;i++)if((err=httpd_register_uri_handler(s_server,&diagnostic_routes[i]))!=ESP_OK)goto failed;
     app_state_set_http_ready(cfg->data_recept_mode != APP_DATA_MQTT);
 
     app_events_add(

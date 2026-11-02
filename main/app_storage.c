@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "app_event_store.h"
 #include "app_events.h"
 #include "app_state.h"
 
@@ -148,6 +149,10 @@ static void recovery_task(void *arg)
             }
             app_storage_unlock();
         }
+        /* A saját záron kívül: az eseménynapló mentése maga kéri el a tárzárat,
+         * és csak akkor, ha szabad. Így sem a kijelzőt, sem a webes műveleteket
+         * nem tartja fel. */
+        (void)app_event_store_step(esp_timer_get_time(), time(NULL));
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

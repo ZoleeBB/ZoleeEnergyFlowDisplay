@@ -76,6 +76,7 @@ idf_component_register(
         "app_boot_config.c"
         "app_ble_stats_protocol.c"
         "app_events.c"
+        "app_event_store.c"
         "app_ingest.c"
         "app_http.c"
         "app_mqtt.c"

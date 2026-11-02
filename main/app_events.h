@@ -22,6 +22,9 @@ typedef struct
 {
     int64_t epoch_s;
     app_event_level_t level;
+    /* Növekvő sorszám: ebből derül ki, mi az új az SD-re mentés óta, és hogy
+     * két mentés között kiesett-e bejegyzés a körkörös pufferből. */
+    uint32_t serial;
     char text[APP_EVENT_TEXT_MAX];
     char text_en[APP_EVENT_TEXT_MAX];
 } app_event_entry_t;
@@ -34,3 +37,11 @@ void app_events_add(app_event_level_t level, const char *fmt, ...);
 
 /* A legfrissebb események másolása a hívó által megadott tömbbe. */
 size_t app_events_snapshot(app_event_entry_t *out, size_t max_items);
+
+/*
+ * A megadott sorszám utáni események másolása, legrégebbitől a legújabbig.
+ * `dropped` a két hívás között a pufferből kiesett bejegyzések száma, így a
+ * mentés jelezni tudja a hiányt. A visszaadott darabszám nulla is lehet.
+ */
+size_t app_events_since(uint32_t after, app_event_entry_t *out, size_t max_items,
+                        uint32_t *dropped);

@@ -50,6 +50,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   írási hiba”). Az ilyen munkát külön, alacsony prioritású háttérfeladat végezze
   lépésenként, a zárat fájlonként elengedve, és lapozás/telepítés után rövid
   szünettel.
+- **Nem sürgős háttérmunka ne várjon a kártyára.** A naplózás és a
+  karbantartás a tárzárat csak nem blokkolóan kérje
+  (`app_storage_try_lock()`), foglaltságnál álljon félre, és a következő
+  körben próbálja újra. Az adat addig a RAM-ban vár; ha ott elveszhet, a
+  kimaradást jelezni kell, nem elhallgatni.
 - **A témaváltás fázisait mérd az eszközön.** A desktop mérés nem mutatja a
   valódi SD- és dekódolási időt; a kijelző váltásonként egy összegző sort ír a
   naplóba és a webes eseménynaplóba (betöltőkép, SD, csere, felépítés, első
