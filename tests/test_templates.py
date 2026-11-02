@@ -4,6 +4,7 @@ import hashlib
 import copy
 import ctypes as C
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -60,14 +61,54 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
         assert not any(e['type']=='box' and e['w']==1280 and e['y']==0 for e in elements)
         discs=[e for e in elements if e['type']=='solar_disc']
         assert len(discs)==1
-        assert len(discs[0]['day_path'])==31 and len(discs[0]['night_path'])==21
-        # Preserve the approved morning/midday geometry and night path.
-        assert [(p['x'],p['y']) for p in discs[0]['day_path'][:16]]==[
-            (88,401),(92,388),(108,337),(129,296),(161,248),(201,206),
-            (250,166),(306,135),(371,109),(443,96),(476,95),(524,97),
-            (597,112),(669,144),(726,181),(766,220)]
-        tail=discs[0]['day_path'][16:]
-        assert all(b['y']-a['y']<=16 for a,b in zip(tail,tail[1:]))
+        day_path=[(p['x'],p['y']) for p in discs[0]['day_path']]
+        night_path=[(p['x'],p['y']) for p in discs[0]['night_path']]
+        assert 30<=len(day_path)<=60 and 25<=len(night_path)<=60
+        # A nap és a hold ugyanazon a két ponton vált utat: nincs ugrás.
+        assert day_path[0]==night_path[-1]==(88,401)
+        assert day_path[-1]==night_path[0]==(846,416)
+        # A szakaszok elég sűrűek ahhoz, hogy a húr ne vágja le az ív kanyarját:
+        # 26 px-es szakasznál a legnagyobb eltérés jóval képpont alatti.
+        for path in (day_path,night_path):
+            steps=[math.hypot(b[0]-a[0],b[1]-a[1]) for a,b in zip(path,path[1:])]
+            assert max(steps)<=26 and min(steps)>0
+        # A nappali ív a középpont fölött, az éjszakai alatta halad.
+        assert all(y<=420 for _,y in day_path) and all(y>=395 for _,y in night_path)
+        assert [x for x,_ in day_path]==sorted(x for x,_ in day_path)
+        assert [x for x,_ in night_path]==sorted((x for x,_ in night_path),reverse=True)
+        # A pálya a háttérképre festett ívet követi: minden csúcs a világos
+        # vonalon van. Pillow nélküli környezetben ez a rész kimarad.
+        try:
+            from PIL import Image
+        except ImportError:
+            Image=None
+        if Image is not None:
+            import numpy
+            for name,path,test in (('night.png',night_path,lambda a:(a[:,:,0]>140)&(a[:,:,1]>200)&(a[:,:,2]>200)),
+                                   ('day.png',day_path,lambda a:(a[:,:,0]>=245)&(a[:,:,1]>=230)&(a[:,:,2]>=130))):
+                pixels=numpy.asarray(Image.open(ROOT/'templates/09-solar-journey'/name).convert('RGB')).astype(int)
+                arc=test(pixels)
+                far=[]
+                for index,(x,y) in enumerate(path):
+                    before=path[max(0,index-1)]; after=path[min(len(path)-1,index+1)]
+                    dx,dy=after[0]-before[0],after[1]-before[1]
+                    length=math.hypot(dx,dy)
+                    nx,ny=-dy/length,dx/length
+                    # A festett vonal helyenként szaggatott: ahol nincs világos
+                    # képpont a merőlegesen, ott takarás vagy hézag van.
+                    hits=[offset for offset in [k/2 for k in range(-18,19)]
+                          if 0<=int(round(y+ny*offset))<800 and 0<=int(round(x+nx*offset))<1280
+                          and arc[int(round(y+ny*offset)),int(round(x+nx*offset))]]
+                    if not hits:
+                        continue
+                    # A legközelebbi keresztezés számít: a háttéren máshol is
+                    # vannak világos részletek (ablakok, felhők).
+                    # A vonal vékony és helyenként szaggatott, ezért 5 px a
+                    # küszöb: a durva elcsúszást fogja, az antialiasingot nem.
+                    nearest=min(hits,key=abs)
+                    if abs(nearest)>5.0:
+                        far.append((x,y,nearest))
+                assert not far, f'{name}: a pálya csúcsai nincsenek a festett íven: {far}'
         assert not any(e['type']=='solar_arc' for e in elements)
         assert all(e['dot_size']<=6 for e in elements if e['type']=='flow')
         assert len([e for e in elements if e['type']=='flow' and e.get('reverse')])==2
@@ -442,8 +483,22 @@ with tempfile.TemporaryDirectory(prefix='zolee-template-test-') as tmp:
     (raw_dir / 'raw.tmp').write_bytes(b'incomplete')
     assert lib.app_templates_validate(os.fsencode(raw_dir), None, error), error.value
     assert not (raw_dir / 'raw.tmp').exists()
+    # Frissítés: a változatlan kép segédfájlja marad, a már nem használt méret
+    # és a megváltozott kép segédfájlja nem kerül át.
+    (raw_dir / 'house-64x64.raw').write_bytes(bytes(corrupt))  # ismert tartalom a követéshez
+    kept = (raw_dir / 'house-64x64.raw').read_bytes()
+    update_doc = dict(raw_doc, version=raw_doc.get('version', 1) + 1,
+                      dark=dict(background='#101010',
+                                elements=[dict(type='image', file='house.png', x=0, y=0, w=100, h=100)]))
+    assert lib.app_templates_install(os.fsencode(archive('raw-layout', update_doc, {'house.png': house})), error) == 0, error.value
+    assert (raw_dir / 'house-64x64.raw').read_bytes() == kept  # ugyanaz a PNG: megmarad
+    assert not (raw_dir / 'house-128x128.raw').exists()        # ezt a méretet már nem használja
+    other = (ROOT/'main/assets/png/flow_solar.png').read_bytes()  # másik, érvényes kép
+    assert other != house
+    assert lib.app_templates_install(os.fsencode(archive('raw-layout', update_doc, {'house.png': other})), error) == 0, error.value
+    assert not (raw_dir / 'house-64x64.raw').exists()          # megváltozott kép: nem tartjuk meg
     assert lib.app_templates_delete(b'raw-layout', error) == 0, error.value
-    print('PASS: raw sidecars are built by the background step, loaded without the PNG and fall back when corrupt')
+    print('PASS: raw sidecars are built by the background step, loaded without the PNG, fall back when corrupt and survive an update only for unchanged images')
     # A töltő nélküli autós téma is kiválasztható, de csak Loxone módban.
     ev_doc = copy.deepcopy(doc)
     ev_doc['id'] = '11-electric-car'

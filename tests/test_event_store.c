@@ -32,9 +32,10 @@ int xSemaphoreGive(SemaphoreHandle_t handle)
 }
 
 /* A tárzár viselkedését a teszt vezérli. */
-static bool g_card_ok = true, g_cardless, g_busy, g_locked;
+static bool g_card_ok = true, g_cardless, g_busy, g_locked, g_priority;
 
 bool app_storage_is_ok(void) { return g_card_ok; }
+bool app_storage_priority_requested(void) { return g_priority; }
 bool app_storage_is_cardless(void) { return g_cardless; }
 bool app_storage_try_lock(void)
 {
@@ -156,6 +157,16 @@ int main(int argc, char **argv)
     assert(app_event_store_step(1000000 + APP_EVENT_STORE_INTERVAL_US, DAY_ONE));
     text = read_file(LOG_FILE, NULL);
     assert(strstr(text, "FIGYELEM Wi-Fi kapcsolat megszakadt."));
+    free(text);
+
+    /* Ha a kijelző a kártyára vár, a napló meg sem próbálja elvenni. */
+    app_events_add(APP_EVENT_INFO, "Elsőbbség alatti esemény.");
+    g_priority = true;
+    assert(!app_event_store_step(1000000 + 2 * APP_EVENT_STORE_INTERVAL_US, DAY_ONE));
+    g_priority = false;
+    assert(app_event_store_step(1000000 + 2 * APP_EVENT_STORE_INTERVAL_US, DAY_ONE));
+    text = read_file(LOG_FILE, NULL);
+    assert(strstr(text, "Elsőbbség alatti esemény."));
     free(text);
 
     /* Sok új eseménynél nem várunk az időzítésre. */

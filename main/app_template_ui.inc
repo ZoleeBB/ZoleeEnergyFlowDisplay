@@ -586,8 +586,11 @@ static void template_loading_watchdog(void)
         template_fallback_logged = false;
         template_fallback_timeouts = 0;
     }
+    /* Ha a betöltés csak sorban áll a katalógus- vagy tárzárért, az nem
+     * beragadás: ilyenkor várunk, nem váltunk tartalék nézetre. */
     app_theme_restore_action_t action = app_theme_restore_tick(
-        &template_loading_policy, loading, esp_timer_get_time());
+        &template_loading_policy, loading, app_templates_load_blocked(),
+        esp_timer_get_time());
     if (action == APP_THEME_RESTORE_WAIT) return;
     ESP_LOGW("app_ui", "Témabetöltés időkorlát: %u. szakasz, pending=%u, active=%u, frame=%d",
              template_loading_policy.retries, template_pending.generation,

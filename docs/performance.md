@@ -29,13 +29,37 @@ telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
   olvassuk: a témaváltásból kimarad a dekódolás és a méretezés is, a dekódolt
   háttér pedig 4 MiB helyett 2–3 MiB PSRAM-ot foglal.
 - A segédfájlokat külön, alacsony prioritású háttérfeladat készíti el:
-  hívásonként egy fájl, a katalógus- és SD-zárat csak addig tartva, lapozás és
-  telepítés után néhány másodperc szünettel. Témabetöltés közben nem fut, mert
-  ott a dekódolás és a 2–3 MiB-os kiírás témánként fél percre elvenné az
-  SD-kártyát a webes feltöltéstől. Sikertelen írásnál minden a megszokott
-  PNG-úton fut tovább, a következő körben újra próbálkozik.
+  hívásonként egy fájl, lapozás és telepítés után néhány másodperc szünettel.
+  Sikertelen írásnál minden a megszokott PNG-úton fut tovább, a következő
+  körben újra próbálkozik.
+- A dekódolás alatt a csomagot ki is cserélhetik: a kiírás előtt a feladat
+  újra ellenőrzi a forrás PNG méretét és módosítási idejét, és eltérésnél
+  eldobja az eredményt. Így telepítés közben sem keletkezhet a régi képből
+  készült segédfájl az új könyvtárban.
+- A zárakat a feladat a lehető legrövidebb ideig tartja. A katalógus zárja csak
+  a téma nevének kiolvasásáig kell; a dekódolás tisztán CPU-munka, ezért alatta
+  az SD-zár fel van engedve; a kiírás 64 KiB-os blokkokban megy, és a
+  blokkhatáron félreáll, ha a kijelzőnek kell a kártya
+  (`app_storage_request_priority()`). Korábban egyetlen 2 MB-os segédfájl fél
+  percre elvette az SD-t a témabetöltés elől, az pedig a betöltés-figyelő
+  időkorlátjába futott bele – frissítés után, amikor a segédfájlok épp
+  hiányoznak, ez a kijelzőt tartós betöltés–tartalék hurokba vitte.
+- A sorrend a költség szerint megy: először az éppen kiválasztott téma, azon
+  belül a legnagyobb hiányzó kép (a két háttér). Ezek adják a betöltési idő
+  túlnyomó részét, az ikonok elkészítése tized másodpercek.
+- Az ütemezés az eredményt követi: elkészült fájl után 1,5 s, foglalt zár vagy
+  félreállás után 2,5 s, kész készletnél 60 s a szünet. Korábban minden
+  elmaradt próbálkozás egy percet aludt, így egyetlen lapozás is percekre
+  megállította a segédfájlok elkészülését.
 - A segédfájlok nem kerülnek a sablon ZIP-be, az ujjlenyomatba és az előnézeti
   képekbe; a csomag törlésekor a könyvtárral együtt eltűnnek.
+- Frissítéskor a változatlan képek segédfájljai **megmaradnak**: a csere után a
+  telepítő átmozgatja őket a régi könyvtárból, ha a forrás PNG bitre ugyanaz
+  (méret, majd tartalom 4 KiB-os blokkokban), és ha az új leíró továbbra is
+  használja azt a méretet. A FAT-on ez metaadat-művelet, adatot nem másolunk.
+  Enélkül minden frissítés után újra el kellett készíteni a két 1280x800-as
+  hátteret, és addig a betöltés a lassú PNG-úton ment. Ez a ZIP-es kézi
+  telepítésre és a GitHubos frissítésre egyaránt él.
 - Az ikonok átméretezése a telepítéskori bilineáris szűrővel készül, ezért az
   ikonok képpontjai néhány egységgel eltérhetnek a korábbi LVGL-skálázástól; a
   natív méretű háttér képpontra ugyanaz marad. A preview mindkét utat

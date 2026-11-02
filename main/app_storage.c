@@ -67,6 +67,24 @@ bool app_storage_try_lock(void)
     return s_io_mutex && xSemaphoreTake(s_io_mutex, 0) == pdTRUE;
 }
 
+/* Egyszerű jelző; a kijelző írja, a háttérmunka olvassa. Zárat nem igényel. */
+static volatile bool s_priority_requested;
+
+void app_storage_request_priority(void)
+{
+    s_priority_requested = true;
+}
+
+void app_storage_clear_priority(void)
+{
+    s_priority_requested = false;
+}
+
+bool app_storage_priority_requested(void)
+{
+    return s_priority_requested;
+}
+
 /* Induláskori csatolás, eredményközlés a közös állapot és a napló felé. */
 esp_err_t app_storage_boot_mount(void)
 {

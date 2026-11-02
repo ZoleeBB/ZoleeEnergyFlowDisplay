@@ -103,6 +103,20 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
 
 - A célzott változás előtt és után ellenőrizd, hogy a műveletek, konstansok, stringek és előfeldolgozó direktívák változatlanok.
 - Futtasd a `python3 tests/run_tests.py` teszteket, a firmware ESP-IDF buildjét, valamint az érintett szimulátor- és regressziós teszteket, ha a környezet elérhető.
+- Hosszú háttérmunka ne tartsa az SD- vagy a katalóguszárat a teljes művelet
+  idejére: a tisztán CPU-s szakaszok (PNG-dekódolás) alatt engedd el, nagy
+  kiírást blokkokban végezz, és a blokkhatáron állj félre, ha a kijelző jelezte,
+  hogy neki kell a kártya (`app_storage_request_priority()`). A fél percre
+  elvett zár a témabetöltést a betöltés-figyelő időkorlátjába viszi.
+- A betöltés-figyelő időkorlátja csak valódi beragadásra szólhat: ha a művelet
+  azért nem haladt, mert egy zárra vár (`app_templates_load_blocked()`), akkor
+  várni kell, nem tartalék nézetre váltani vagy újraindítani.
+- Átmeneti olvasási vagy foglalási hiba nem minősítheti érvénytelennek a
+  felhasználó adatát: a „most nem tudtam beolvasni" esetet elkülönítve jelezd,
+  és tartsd meg a korábbi bejegyzést, illetve a mentett választást.
+- Fájlszintű statikus változót se tegyél `_WIN32`-függő blokkba, ha a blokkon
+  kívüli kód is használja: az MSVC-s szimulátor `C2065: undeclared identifier`
+  hibával bukik. A `tests/run_tests.py` ezt is ellenőrzi.
 - Új, fejlécben meghirdetett függvényt ne tegyél `#ifndef _WIN32` vagy
   `#ifndef APP_TEMPLATE_DESKTOP` blokkba, ha minden célon hívják: az
   `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott

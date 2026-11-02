@@ -31,5 +31,16 @@ esp_err_t app_storage_lock(void);
 bool app_storage_try_lock(void);
 void app_storage_unlock(void);
 
+/*
+ * Elsőbbségi jelző a kijelző javára. Nem zár és nem foglal: a témabetöltés
+ * jelzi, hogy a tárzárra vár, a hosszú háttérmunka (segédfájl-generálás) pedig
+ * a következő blokkhatáron félreáll és később újrapróbálja. Nélküle egy 2 MB-os
+ * segédfájl fél percre elvette a kártyát a betöltés elől, az pedig a
+ * betöltés-figyelő időkorlátjába futott.
+ */
+void app_storage_request_priority(void);
+void app_storage_clear_priority(void);
+bool app_storage_priority_requested(void);
+
 /* Gyorsítótárazott FAT-kapacitás; a lekérés nem végez SD-műveletet. */
 bool app_storage_space(uint64_t *total, uint64_t *free_bytes);

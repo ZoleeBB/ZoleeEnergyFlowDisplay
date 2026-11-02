@@ -125,8 +125,9 @@ bool app_event_store_step(int64_t now_us, time_t wall)
         return false;
     }
     /* A kártyát csak akkor vesszük el, ha épp szabad: a témabetöltés, a
-     * telepítés és a statisztikamentés mindig előbbre való. */
-    if (!app_storage_try_lock())
+     * telepítés és a statisztikamentés mindig előbbre való. Ha a kijelző már
+     * jelezte, hogy neki kell a kártya, meg sem próbáljuk. */
+    if (app_storage_priority_requested() || !app_storage_try_lock())
     {
         return false;
     }

@@ -25,10 +25,17 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   assert.strictEqual(discs[0].radius_x,386);
   assert.strictEqual(discs[0].radius_y,313);
   assert.strictEqual(discs[0].night_radius_y,186);
-  assert.strictEqual(discs[0].day_path.length,31);
-  assert.strictEqual(discs[0].night_path.length,21);
+  /* A pálya a háttérre festett ívet követi, ezért sűrű: a pontos csúcslistát a
+   * tests/test_templates.py ellenőrzi a háttérképpel összevetve. Itt a
+   * szerkezet számít: folytonos csatlakozás és elég sűrű szakaszok. */
+  assert(discs[0].day_path.length>=30&&discs[0].day_path.length<=60);
+  assert(discs[0].night_path.length>=25&&discs[0].night_path.length<=60);
   assert.deepStrictEqual(JSON.stringify(discs[0].day_path.at(-1)),JSON.stringify(discs[0].night_path[0]));
-  assert.strictEqual(discs[0].night_path[10].y,612);
+  assert.deepStrictEqual(JSON.stringify(discs[0].night_path.at(-1)),JSON.stringify(discs[0].day_path[0]));
+  assert(Math.max(...discs[0].night_path.map(p=>p.y))>=600);
+  for(const path of [discs[0].day_path,discs[0].night_path])
+    for(let i=1;i<path.length;i++)
+      assert(Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y)<=26);
   const flows=elements.filter(e=>e.type==='flow');
   assert(flows.filter(e=>e.reverse).length===2);
   assert(flows.every(e=>e.dot_size===6&&e.dot_count===2));

@@ -153,7 +153,8 @@ static bool home_restore_watchdog(void)
 {
     bool loading = home_is_open() && s_view == VIEW_THEME_LOADING;
     app_theme_restore_action_t action = app_theme_restore_tick(
-        &home_loading_policy, loading, esp_timer_get_time());
+        &home_loading_policy, loading, app_templates_load_blocked(),
+        esp_timer_get_time());
     if (action == APP_THEME_RESTORE_WAIT) return false;
     ESP_LOGW("app_ui", "Otthon betöltési időkorlát: %u. szakasz",
              home_loading_policy.retries);
