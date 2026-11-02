@@ -544,6 +544,76 @@ static void test_template_grid_restored(const app_energy_sample_t *original)
     puts("PASS: grid restored in every theme, HU/EN fits, green text and intact shadow");
 }
 
+static void test_solar_comparison_colors(const app_energy_sample_t *sample)
+{
+    if (strcmp(template_view.id, "09-solar-journey"))
+        return;
+    app_stats_snapshot_t *stats = calloc(1, sizeof(*stats));
+    assert(stats);
+    const double ratios[] = {.5, 1.5, 1, 0};
+    for (unsigned test = 0; test < sizeof(ratios) / sizeof(ratios[0]); test++)
+    {
+        double ratio = ratios[test];
+        stats->comparison_ready = true;
+        stats->comparison_yesterday_totals = (app_energy_totals_t){
+            .production_kwh = 10, .consumption_kwh = 10,
+            .pv_home_kwh = 10, .pv_stored_kwh = 10, .grid_export_kwh = 10};
+        stats->comparison_today_totals = (app_energy_totals_t){
+            .production_kwh = 10 * ratio, .consumption_kwh = 20 - 10 * ratio,
+            .pv_home_kwh = 10 * ratio, .pv_stored_kwh = 10 * ratio,
+            .grid_export_kwh = 10 * ratio};
+        for (unsigned partial = 0; partial < 2; partial++)
+        {
+            stats->yesterday_comparison_partial = partial;
+            template_update(sample, stats);
+            unsigned found = 0;
+            for (unsigned i = 0; i < template_node_count; i++)
+            {
+                template_node_t *node = &template_nodes[i];
+                const char *source = ts(node->spec, "source");
+                if (!strstr(source, "_yesterday_pct"))
+                    continue;
+                found++;
+                bool negative = !strcmp(source, "consumption_yesterday_pct") ? ratio > 1 : ratio < 1;
+                const char *text = lv_label_get_text(node->obj);
+                assert(strstr(text, negative ? "↓" : "↑"));
+                assert((text[0] == '~') == (bool)partial);
+                uint32_t expected = negative ? (sample->night_mode ? 0xFF7E88 : 0xC83C49) :
+                    tc(node->spec, "color", 0);
+                assert(lv_color_eq(lv_obj_get_style_text_color(node->obj, 0), c(expected)));
+            }
+            assert(found == 5);
+            lv_refr_now(display);
+            unsigned invalidations = 0;
+            lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+            template_update(sample, stats);
+            lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+            assert(invalidations == 0);
+        }
+    }
+    /* Adathiánynál és két nulla összevetésekor ne maradjon meg a korábbi piros. */
+    for (unsigned ready = 0; ready < 2; ready++)
+    {
+        stats->comparison_ready = ready;
+        stats->yesterday_comparison_partial = false;
+        stats->comparison_today_totals = (app_energy_totals_t){0};
+        stats->comparison_yesterday_totals = (app_energy_totals_t){0};
+        template_update(sample, stats);
+        for (unsigned i = 0; i < template_node_count; i++)
+        {
+            template_node_t *node = &template_nodes[i];
+            if (!strstr(ts(node->spec, "source"), "_yesterday_pct"))
+                continue;
+            assert(!strcmp(lv_label_get_text(node->obj), ready ? "0%" : "—"));
+            assert(lv_color_eq(lv_obj_get_style_text_color(node->obj, 0),
+                c(tc(node->spec, "color", 0))));
+        }
+    }
+    free(stats);
+    template_update(sample, &fixture);
+    puts("PASS: all five solar comparison colors, mixed signs, partial data, zero/missing data and idle redraw");
+}
+
 static void test_solar_dashboard(const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
     template_node_t *disc=NULL,*bar=NULL,*grid=NULL,*production=NULL,*comparison=NULL;
@@ -2849,7 +2919,7 @@ int main(void)
                 if(!strcmp(template_view.id,"06-energy-orbit"))expected_bg=night?0x1B263C:0xE8EEF7;
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
-                test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_comparison_colors(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){

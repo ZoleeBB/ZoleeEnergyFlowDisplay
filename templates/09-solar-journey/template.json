@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 24,
+  "version": 25,
   "light": {
     "home_hotspot": {
       "x": 970,
@@ -582,7 +582,9 @@
         "font": 16,
         "source": "production_yesterday_pct",
         "color": "#168452",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#168452",
+        "negative_color": "#C83C49"
       },
       {
         "type": "chart",
@@ -939,7 +941,9 @@
         "font": 12,
         "source": "savings_yesterday_pct",
         "color": "#1C7955",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#1C7955",
+        "negative_color": "#C83C49"
       },
       {
         "type": "box",
@@ -1006,7 +1010,9 @@
         "font": 12,
         "source": "production_value_yesterday_pct",
         "color": "#1C7955",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#1C7955",
+        "negative_color": "#C83C49"
       },
       {
         "type": "box",
@@ -1063,7 +1069,9 @@
         "font": 12,
         "source": "consumption_yesterday_pct",
         "color": "#1C7955",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#1C7955",
+        "negative_color": "#C83C49"
       },
       {
         "type": "box",
@@ -1132,7 +1140,9 @@
         "font": 12,
         "source": "production_yesterday_pct",
         "color": "#1C7955",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#1C7955",
+        "negative_color": "#C83C49"
       },
       {
         "type": "box",
@@ -1860,7 +1870,9 @@
         "font": 16,
         "source": "production_yesterday_pct",
         "color": "#4EE88A",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#4EE88A",
+        "negative_color": "#FF7E88"
       },
       {
         "type": "chart",
@@ -2217,7 +2229,9 @@
         "font": 12,
         "source": "savings_yesterday_pct",
         "color": "#62DCA4",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#62DCA4",
+        "negative_color": "#FF7E88"
       },
       {
         "type": "box",
@@ -2284,7 +2298,9 @@
         "font": 12,
         "source": "production_value_yesterday_pct",
         "color": "#62DCA4",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#62DCA4",
+        "negative_color": "#FF7E88"
       },
       {
         "type": "box",
@@ -2341,7 +2357,9 @@
         "font": 12,
         "source": "consumption_yesterday_pct",
         "color": "#62DCA4",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#62DCA4",
+        "negative_color": "#FF7E88"
       },
       {
         "type": "box",
@@ -2410,7 +2428,9 @@
         "font": 12,
         "source": "production_yesterday_pct",
         "color": "#62DCA4",
-        "align": "center"
+        "align": "center",
+        "positive_color": "#62DCA4",
+        "negative_color": "#FF7E88"
       },
       {
         "type": "box",
