@@ -32,6 +32,10 @@ telepítéskor készítjük el, és az SD-re mentjük a PNG mellé.
   hívásonként egy fájl, lapozás és telepítés után néhány másodperc szünettel.
   Sikertelen írásnál minden a megszokott PNG-úton fut tovább, a következő
   körben újra próbálkozik.
+- A dekódolás alatt a csomagot ki is cserélhetik: a kiírás előtt a feladat
+  újra ellenőrzi a forrás PNG méretét és módosítási idejét, és eltérésnél
+  eldobja az eredményt. Így telepítés közben sem keletkezhet a régi képből
+  készült segédfájl az új könyvtárban.
 - A zárakat a feladat a lehető legrövidebb ideig tartja. A katalógus zárja csak
   a téma nevének kiolvasásáig kell; a dekódolás tisztán CPU-munka, ezért alatta
   az SD-zár fel van engedve; a kiírás 64 KiB-os blokkokban megy, és a

@@ -1715,6 +1715,12 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     path_join(png_path, directory, variant->file);
     path_join(raw_path, directory, paths->name);
     path_join(tmp_path, directory, "raw.tmp");
+    struct stat before;
+    if (stat(png_path, &before))
+    {
+        free(paths);
+        return false;
+    }
     size_t png_size = 0;
     unsigned char *png = read_file(png_path, APP_TEMPLATE_PNG_MAX, &png_size);
     if (!png)
@@ -1732,8 +1738,14 @@ static bool raw_generate(const char *directory, const template_variant_t *varian
     bool ok = app_template_raw_build(png, png_size, variant->width, variant->height, &raw, &raw_size);
     free(png);
     (void)STORAGE_TAKE();
-    /* Ha közben a kijelzőnek kell a kártya, inkább később kezdjük újra. */
-    if (!ok || STORAGE_WANTED())
+    /*
+     * A zár elengedése alatt a témát ki is cserélhették (telepítés): ilyenkor a
+     * most dekódolt képpontok már egy régi PNG-hez tartoznak, nem írjuk ki.
+     * Ha pedig a kijelzőnek kell a kártya, szintén később kezdjük újra.
+     */
+    struct stat after;
+    if (!ok || STORAGE_WANTED() || stat(png_path, &after) || after.st_size != before.st_size ||
+        after.st_mtime != before.st_mtime)
     {
         free(raw);
         free(paths);
