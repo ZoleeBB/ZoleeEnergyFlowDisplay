@@ -82,6 +82,12 @@ visszanézhetők legyenek:
   503-mal, azonnal visszatér.
 - Időszinkron előtt keletkezett bejegyzés `0000-00-00 00:00:00` időbélyeggel
   kerül a fájlba, és a napi forgatás is csak érvényes óra mellett történik meg.
+- A kiírás a meglévő karbantartó feladat vermén fut, ezért egyszerre egy
+  bejegyzést dolgoz fel: a függvény veremkerete 608 bájt, és a tesztkészlet
+  768 bájtos korlátot érvényesít rá. (A v3.2.4-ben egy 20 elemű tömb 6000
+  bájtos keretet csinált a 3 KiB-os feladatban: a készülék indulás közben
+  összeomlott, és az OTA visszaállt az előző verzióra. A feladat verme azóta
+  4608 bájt, és az RTC-területen van, tehát nem a szűk belső RAM-ból megy.)
 - Újraindítás nem lépteti a naplót: a forgatást a fájl fejlécében lévő dátum
   dönti el, nem a futás óta eltelt idő. Így a mai fájl újraindítás után is
   tovább gyűlik, és a reggeli bejegyzések nem tolódnak ki az előző napiba.

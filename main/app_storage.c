@@ -14,6 +14,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "app_event_store.h"
+#include "app_task_mem.h"
 #include "app_events.h"
 #include "app_state.h"
 
@@ -181,7 +182,13 @@ esp_err_t app_storage_start_recovery_task(void)
     if (app_storage_is_cardless()) return ESP_OK;
     if (s_recovery_task_started)
         return ESP_OK;
-    if (xTaskCreate(recovery_task, "sd_recovery", 3072, NULL, 4, NULL) != pdPASS)
+    /*
+     * A feladat az SD helyreállítása mellett az eseménynaplót is kiírja, ami
+     * stdio-n keresztül megy: a newlib printf-családja önmagában is több száz
+     * bájt vermet kér. A verem az RTC-területre kerül, így a szűk, DMA-képes
+     * belső RAM-ot nem terheli (app_task_mem.h).
+     */
+    if (app_task_create_lp(recovery_task, "sd_recovery", 4608, NULL, 4, NULL) != pdPASS)
         return ESP_ERR_NO_MEM;
 
     s_recovery_task_started = true;
