@@ -69,6 +69,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   ritkán járt ág (napi mentés, párosítás, hibaoldal) ennél jóval mélyebb
   lehet. JSON-t, lebegőpontos formázást vagy harmadik féltől származó kódot
   futtató feladat vermét ne csökkentsd mérés alapján (`stats`, 2026-10-28).
+- **Meglévő feladathoz adott új munka ne vigyen nagy tömböt a verembe.** Egy
+  20 elemű eseménytömb 6000 bájtos keretet csinált a 3 KiB-os `sd_recovery`
+  feladatban, amitől a készülék indulás közben összeomlott, és az OTA
+  visszaállt. Dolgozz elemenként, és a keretméretet ellenőrizd fordításkor
+  (`-Werror=frame-larger-than=…`), ne szemre.
 - **Méretezd a feladatvermet a legmélyebb hívási lánchoz.** A `template_raw`
   4 KiB-os verme a PNG-dekódolás és SD-írás láncán túlcsordult
   (vermvédelmi pánik, bootciklus, 2026-10-28). Több száz bájtos

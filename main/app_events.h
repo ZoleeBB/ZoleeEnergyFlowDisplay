@@ -38,6 +38,10 @@ void app_events_add(app_event_level_t level, const char *fmt, ...);
 /* A legfrissebb események másolása a hívó által megadott tömbbe. */
 size_t app_events_snapshot(app_event_entry_t *out, size_t max_items);
 
+/* A legutóbb rögzített esemény sorszáma; nulla, ha még nincs bejegyzés.
+ * Ebből a mentés másolás nélkül tudja, hány bejegyzés vár kiírásra. */
+uint32_t app_events_latest_serial(void);
+
 /*
  * A megadott sorszám utáni események másolása, legrégebbitől a legújabbig.
  * `dropped` a két hívás között a pufferből kiesett bejegyzések száma, így a

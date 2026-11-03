@@ -147,6 +147,18 @@ size_t app_events_snapshot(app_event_entry_t *out, size_t max_items)
     return count;
 }
 
+uint32_t app_events_latest_serial(void)
+{
+    if (!s_mutex)
+    {
+        return 0;
+    }
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    uint32_t serial = s_serial;
+    xSemaphoreGive(s_mutex);
+    return serial;
+}
+
 /*
  * A `after` sorszám utáni események. A körkörös puffer legfeljebb
  * APP_EVENT_LOG_CAPACITY bejegyzést őriz, ezért ha a hívó régóta nem kérdezett,

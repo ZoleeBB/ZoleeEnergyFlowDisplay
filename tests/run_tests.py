@@ -80,6 +80,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-event-store-') as directory:
     subprocess.run([binary], check=True, timeout=30)
     # Újraindítás szimulálása: ugyanazok a fájlok, friss modulállapot.
     subprocess.run([binary, 'resume'], check=True, timeout=30)
+    # A kiírás a 3-4 KiB-os karbantartó feladat vermén fut: egyetlen nagy
+    # tömb is bootciklust okozott, ezért a keretméret ellenőrzött.
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-Werror=frame-larger-than=768', '-Itests/stubs', '-Imain',
+                    '-DAPP_EVENT_STORE_DIR="' + str(logs) + '"',
+                    '-c', 'main/app_event_store.c', '-o', str(Path(directory) / 'frame.o')],
+                   cwd=ROOT, check=True)
 
 with tempfile.TemporaryDirectory(prefix='zolee-template-remote-') as directory:
     binary = str(Path(directory) / 'test_template_remote')

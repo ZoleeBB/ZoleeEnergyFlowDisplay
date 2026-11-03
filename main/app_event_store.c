@@ -91,18 +91,22 @@ static long file_size(void)
     return stat(STORE_FILE, &info) || !S_ISREG(info.st_mode) ? 0 : (long)info.st_size;
 }
 
-/* Egy bejegyzés sora; a verem így legfeljebb egy sornyi puffert használ. */
-static void format_line(char out[STORE_LINE], const app_event_entry_t *entry)
+/*
+ * Egy napló sora. A bejegyzést nem másoljuk: a hívó a saját példányának
+ * mezőit adja át, így a verem egy sornyi puffernél többet nem visel.
+ */
+static void format_line(char out[STORE_LINE], int64_t epoch_s, app_event_level_t level,
+                        const char *text)
 {
     /* Időszinkron előtti esemény: a sor így is azonosítható marad. */
     char stamp[20] = "0000-00-00 00:00:00";
     struct tm local;
-    time_t when = (time_t)entry->epoch_s;
-    if (entry->epoch_s > 1600000000 && localtime_r(&when, &local))
+    time_t when = (time_t)epoch_s;
+    if (epoch_s > 1600000000 && localtime_r(&when, &local))
     {
         strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &local);
     }
-    snprintf(out, STORE_LINE, "%s %-8s %.128s\n", stamp, level_mark(entry->level), entry->text);
+    snprintf(out, STORE_LINE, "%s %-8s %.128s\n", stamp, level_mark(level), text);
 }
 
 bool app_event_store_step(int64_t now_us, time_t wall)
@@ -112,15 +116,18 @@ bool app_event_store_step(int64_t now_us, time_t wall)
         return false;
     }
 
-    app_event_entry_t entries[STORE_CHUNK];
-    uint32_t dropped = 0;
-    size_t count = app_events_since(s_written_serial, entries, STORE_CHUNK, &dropped);
-    if (!count)
+    /*
+     * A döntéshez elég a sorszám: egyetlen bejegyzés sem kerül a verembe.
+     * (Korábban egy 20 elemű tömb volt itt, ami a 3 KiB-os karbantartó feladat
+     * vermét túlcsordította, és a készülék indulás közben újraindult.)
+     */
+    uint32_t latest = app_events_latest_serial();
+    if (latest <= s_written_serial)
     {
         return false;
     }
     /* Ritka eseményeknél nem kapkodunk; sok újnál viszont nem várunk. */
-    if (count < APP_EVENT_STORE_BATCH && now_us < s_next_write_us)
+    if (latest - s_written_serial < APP_EVENT_STORE_BATCH && now_us < s_next_write_us)
     {
         return false;
     }
@@ -158,26 +165,34 @@ bool app_event_store_step(int64_t now_us, time_t wall)
     bool written = false;
     if (file)
     {
+        /* Egyszerre egy bejegyzés: a verem így egy sornyi puffert visel. */
+        app_event_entry_t entry;
         char line[STORE_LINE];
-        if (dropped)
+        uint32_t serial = s_written_serial;
+        for (unsigned moved = 0; moved < STORE_CHUNK; moved++)
         {
-            app_event_entry_t gap = entries[0];
-            gap.level = APP_EVENT_WARNING;
-            snprintf(gap.text, sizeof(gap.text), "%u esemény kimaradt a RAM-pufferből",
-                     (unsigned)dropped);
-            format_line(line, &gap);
+            uint32_t dropped = 0;
+            if (app_events_since(serial, &entry, 1, &dropped) != 1)
+            {
+                break;
+            }
+            if (dropped)
+            {
+                char gap[64];
+                snprintf(gap, sizeof(gap), "%u esemény kimaradt a RAM-pufferből",
+                         (unsigned)dropped);
+                format_line(line, entry.epoch_s, APP_EVENT_WARNING, gap);
+                fputs(line, file);
+            }
+            format_line(line, entry.epoch_s, entry.level, entry.text);
             fputs(line, file);
+            serial = entry.serial;
         }
-        for (size_t i = 0; i < count; i++)
+        written = fclose(file) == 0 && serial != s_written_serial;
+        if (written)
         {
-            format_line(line, &entries[i]);
-            fputs(line, file);
+            s_written_serial = serial;
         }
-        written = fclose(file) == 0;
-    }
-    if (written)
-    {
-        s_written_serial = entries[count - 1].serial;
     }
     s_next_write_us = now_us + APP_EVENT_STORE_INTERVAL_US;
     app_storage_unlock();
