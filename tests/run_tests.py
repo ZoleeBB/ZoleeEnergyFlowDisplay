@@ -65,6 +65,14 @@ with tempfile.TemporaryDirectory(prefix='zolee-backup-') as directory:
                     '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary, str(sd), 'examples/config.loxone.sample.json',
                     'examples/loxone-home.sample.json'], cwd=ROOT, check=True, timeout=20)
+# A mentett napló megjelenítési sorrendje (a legfrissebb elöl).
+with tempfile.TemporaryDirectory(prefix='zolee-event-view-') as directory:
+    binary = str(Path(directory) / 'test_event_log_view')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-Imain',
+                    'tests/test_event_log_view.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=20)
+
 # Az eseménynapló SD-re mentése: kötegelés, foglalt kártya, napváltás, korlátok.
 with tempfile.TemporaryDirectory(prefix='zolee-event-store-') as directory:
     logs = Path(directory) / 'logs'
@@ -210,6 +218,14 @@ assert 'orientation_verified_task' not in main_source and 'blocked' not in main_
 # A Windows-szimulátor a POSIX olvasási úttól külön ágon fordul. A fejlécben
 # meghirdetett függvények definíciója ezért nem állhat `_WIN32`-függő blokkban:
 # ott az MSVC-s build linkelésnél bukik (LNK2019: unresolved external symbol).
+# Az információs oldal és a mentett napló is a legfrissebb bejegyzéssel kezd,
+# ahogy a kijelző diagnosztikai nézete.
+web_source=(ROOT/'main/app_web.c').read_text()
+assert 'size_t i = event_count - 1 - shown;' in web_source
+assert 'app_event_log_reverse_lines(' in web_source
+diagnostics_source=(ROOT/'main/app_template_ui.inc').read_text()
+assert 's_diagnostic_events[s_diagnostic_event_count - 1 - i]' in diagnostics_source
+
 templates_header=(ROOT/'main/app_templates.h').read_text()
 exported={name for name in re.findall(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', templates_header, re.M)}
 assert 'app_templates_sd_write' in exported

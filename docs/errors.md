@@ -75,6 +75,11 @@ visszanézhetők legyenek:
   újrapróbálja. Az események addig a RAM-pufferben várnak; ha a puffer közben
   körbefordul, a napló egy `… esemény kimaradt a RAM-pufferből` sort kap, tehát
   a hiány is látszik.
+- A megjelenítés mindenhol **időrendben csökkenő**: a legfrissebb bejegyzés van
+  elöl az információs oldalon, a mentett naplóban és a kijelző diagnosztikai
+  nézetében is. A fájl maga függelékként épül (az új sor a végére kerül, mert a
+  fájl elejére szúrás minden bejegyzésnél újraírná az egész napot), a sorrendet
+  a kiszolgálás fordítja meg, helyben, második puffer nélkül.
 - Az információs oldalon a **Mai napló** és az **Előző napi napló** gomb a
   `/api/events/log` végpontot nyitja. A kiszolgálás a fájl utolsó 64 KiB-ját
   olvassa be a zár alatt, majd a zár elengedése után küldi el, így egy lassú

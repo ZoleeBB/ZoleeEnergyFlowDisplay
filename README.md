@@ -223,7 +223,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | --- | --- |
 | Napló az SD-n | A RAM-napló bejegyzései kötegelve az SD-re is kikerülnek (`/sdcard/logs`), így újraindítás után is látszik, mi történt előtte. Mindig a mai és az előző napi fájl marad meg, napi 512 KiB felső korláttal. [Részletek](docs/errors.md) |
 | Nem akad össze semmivel | A kiírás a tárzárat csak nem blokkolóan kéri: ha a kijelző témát tölt vagy telepítés fut, kimarad, és a következő körben újrapróbálja. Az esemény rögzítése továbbra is tisztán RAM-művelet, bármelyik feladatból hívható. |
-| Görgethető eseménylista | Az információs oldal „Legutóbbi események" kártyája fix magasságú és görgethető; mellette a mai és az előző napi teljes napló is megnyitható. |
+| Görgethető eseménylista | Az információs oldal „Legutóbbi események" kártyája fix magasságú és görgethető, a legfrissebb eseménnyel az élen – ahogy a kijelző diagnosztikai nézete is mutatja. Mellette a mai és az előző napi teljes napló is megnyitható, szintén csökkenő időrendben. |
 
 ### Javítások – témabetöltés és segédfájlok (`fix/theme-load-starvation`)
 
