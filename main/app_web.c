@@ -39,6 +39,7 @@
 #include "mbedtls/base64.h"
 #include "mdns.h"
 
+#include "app_event_log_view.h"
 #include "app_event_store.h"
 #include "app_events.h"
 #include "app_state.h"
@@ -458,7 +459,9 @@ static esp_err_t root_handler(httpd_req_t *req)
             "<div class='events-box'><table class='events'>",
             HTTPD_RESP_USE_STRLEN);
 
-        for (size_t i = 0; i < event_count; i++) {
+        /* A legfrissebb esemény elöl, ahogy a kijelző diagnosztikai nézetében. */
+        for (size_t shown = 0; shown < event_count; shown++) {
+            size_t i = event_count - 1 - shown;
             char when[32] = "-";
 
             if (events[i].epoch_s > 0) {
@@ -942,11 +945,26 @@ static esp_err_t events_log_get(httpd_req_t *req)
     }
     /* A fájl közepére ugrottunk: a csonka első sort eldobjuk. */
     char *start = text;
-    if (length && text[0] != '#') {
+    bool header = length && text[0] == '#';
+    if (length && !header) {
         char *newline = strchr(text, '\n');
         if (newline) {
             start = newline + 1;
         }
+    }
+    /*
+     * A fájl függelékként épül (ez a helyes és olcsó írási mód), a lista
+     * viszont a legfrissebb sorral kezdődjön, mint a kijelzőn és az
+     * információs oldalon. A megfordítás helyben, második puffer nélkül megy;
+     * a napot jelölő fejléc marad legelöl.
+     */
+    if (header) {
+        char *newline = strchr(start, '\n');
+        if (newline) {
+            app_event_log_reverse_lines(newline + 1);
+        }
+    } else {
+        app_event_log_reverse_lines(start);
     }
     esp_err_t result = httpd_resp_sendstr(req, start);
     free(text);
