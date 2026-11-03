@@ -82,7 +82,10 @@ function removeButton(){
     thumbs.forEach(image=>image.onload());
     assert.equal(nodes.get('update-check').disabled,false);
     assert.equal(nodes.get('zip').disabled,false);
-    /* A GitHubos frissítés szakasza: a „Helyi újabb” állapot és a rejtett gomb. */
+    /* A GitHubos frissítés szakasza: a „Helyi újabb” állapot és a rejtett gomb.
+     * Eszközön 11 téma előnézete 30-60 másodperc alatt olvasódik fel az SD-ről. */
+    templates=[{id:'builtin',name:'Rendszer'}];
+    for(let i=1;i<=11;i++)templates.push({id:'t'+i,name:'Téma '+i,version:i});
     await nodes.get('update-check').onclick();await settled();
     const rows=nodes.get('update-list').children[0].children;
     /* Új keresés előtt a korábbi lista eltűnik, nem marad félkész találat. */
@@ -104,7 +107,24 @@ function removeButton(){
     /* Egy korábbi listából befutó kép nem oldhatja fel a zárat. */
     thumbs.forEach(image=>image.onload&&image.onload());
     assert.equal(nodes.get('update-all').disabled,true);
-    advance(9000);
+    /* Az eszközön az előnézetek beolvasása 30-60 másodperc: amíg halad, a zár
+     * marad. Minden betöltött kép kitolja a határidőt. */
+    const fresh=[];
+    for(const article of nodes.get('list').children)
+        for(const image of article.children[0].children)fresh.push(image);
+    assert(fresh.length>=2);
+    assert(fresh.length>=10);
+    while(fresh.length>1){
+        advance(5000);            /* egy előnézet beolvasása az SD-ről */
+        assert.equal(nodes.get('update-all').disabled,true);
+        fresh.shift().onload();   /* haladás: a határidő tolódik */
+        assert.equal(nodes.get('update-all').disabled,true);
+    }
+    /* A maradék kép a képernyőn kívül van, sosem jelez: a zár az utolsó
+     * haladás után oldódik fel, nem ragad be. */
+    advance(10000);
+    assert.equal(nodes.get('update-all').disabled,true);
+    advance(11000);
     assert.equal(nodes.get('update-all').disabled,false);
     assert.equal(rowButton.disabled,false);
     assert.equal(nodes.get('update-check').disabled,false);
@@ -114,5 +134,5 @@ function removeButton(){
     assert.equal(nodes.get('update-all').hidden,true);
     /* A hidden attribútum erősebb a gombok display szabályánál. */
     assert(fs.readFileSync('assets/web/common.css','utf8').includes('[hidden]{display:none!important}'));
-    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes, controls locked while previews load, bulk and per-row buttons released together by deadline, stale thumbnails ignored and a truly hidden bulk-update button');
+    console.log('PASS: stored common-resource thumbnail, separate install/list status bars, immediate delete spinner/announcement, locked duplicate actions, failure recovery and successful refresh, locally newer themes, controls locked while previews load, bulk and per-row buttons stay locked while previews keep arriving and release after the last one, stale thumbnails ignored and a truly hidden bulk-update button');
 })().catch(error=>{console.error(error);process.exitCode=1;});

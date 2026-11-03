@@ -234,7 +234,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | Nem tűnik el a téma a listából | Átmeneti olvasási vagy foglalási hiba nem dobja ki a témát a katalógusból („nincs telepítve”); a lista megtartja a bejegyzést, és a következő vizsgálat újrapróbálja. |
 | Megmaradnak a segédfájlok | Frissítéskor a változatlan képek előre dekódolt segédfájljai átkerülnek az új könyvtárba, ha azt a méretet az új leíró is használja: a hátterek nem készülnek újra, a téma a frissítés után is azonnal gyorsan tölt. A ZIP-es kézi telepítésre és a GitHubos frissítésre egyaránt él. |
 | Hamarabb készülnek a segédfájlok | Először az aktív téma hátterei; a háttérmunka foglalt zár után 2,5 s-ot vár, nem egy percet. [Részletek](docs/performance.md) |
-| Következetes sablonkezelő | Az előnézetek betöltése alatt a soronkénti frissítés is zárva van, a zár viszont határidővel magától feloldódik – az „Összes frissítése” nem maradhat tiltva. |
+| Következetes sablonkezelő | Az előnézetek betöltése alatt a soronkénti frissítés is zárva van. A zár a haladást figyeli: minden beolvasott előnézet kitolja a határidőt, így a teljes, eszközön 30–60 másodperces olvasás alatt zárva marad, és csak akkor oldódik fel, ha elfogytak a képek vagy 20 másodpercig nincs haladás – az „Összes frissítése” nem marad tiltva, de korán sem nyílik meg. |
 
 ### Javítások – GitHub-frissítés és memória (`fix/template-update`)
 
