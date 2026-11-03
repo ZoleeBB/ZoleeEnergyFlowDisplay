@@ -91,18 +91,26 @@ if(typeof document!=='undefined'){
  let selected=null,verified=null,images=new Map(),generation=0,busy=false,energyDisabled=false,updateMap=new Map();
  /* A frissítési táblázat gombjai: a zár feloldásakor ezeket is engedni kell. */
  let updateRowButtons=[];
- /* Az előnézetek SD-ről olvasása lassú; amíg tart, a telepítés és a GitHubos
-  * frissítés gombjai zárva maradnak, hogy a két SD/hálózati munka ne akadjon össze.
-  * A zár viszont nem függhet attól, hogy minden kép jelez-e: a képernyőn kívüli,
-  * halasztottan töltődő képek sosem adnak `load`/`error` eseményt, ezért a zár
-  * egy határidővel magától feloldódik. A számláló generációhoz kötött, így a
+ /* Az előnézetek SD-ről olvasása lassú (eszközön 30-60 másodperc); amíg tart, a
+  * telepítés és a GitHubos frissítés gombjai zárva maradnak, hogy a két
+  * SD/hálózati munka ne akadjon össze.
+  *
+  * A zár a haladást figyeli, nem fix időt: minden betöltött előnézet kitolja a
+  * határidőt. Így a teljes olvasás alatt zárva marad, viszont nem ragad be, ha
+  * a képernyőn kívüli, halasztottan töltődő képek sosem adnak `load`/`error`
+  * eseményt - ilyenkor az utolsó haladás után THUMB_IDLE_MS-mal feloldódik. Az
+  * abszolút korlát a kórós esetekre való. A számláló generációhoz kötött, így a
   * korábbi listából befutó képek nem rontják el az aktuális számot. */
- const THUMB_HOLD_MS=8000;
- let thumbs=0,thumbGeneration=0,thumbDeadline=0,thumbTimer=null;
+ const THUMB_IDLE_MS=20000,THUMB_MAX_MS=180000;
+ let thumbs=0,thumbGeneration=0,thumbDeadline=0,thumbLimit=0,thumbTimer=null;
  function thumbsPending(){return thumbs>0&&Date.now()<thumbDeadline;}
  function thumbWatch(){if(thumbTimer)clearTimeout(thumbTimer);const left=thumbDeadline-Date.now();
   thumbTimer=left>0?setTimeout(()=>{thumbTimer=null;lock(busy);},left):null;}
- function thumbDone(generation){if(generation!==thumbGeneration)return;if(thumbs>0&&--thumbs===0)lock(busy);}
+ function thumbExtend(){thumbDeadline=Math.min(thumbLimit,Date.now()+THUMB_IDLE_MS);thumbWatch();}
+ function thumbDone(generation){if(generation!==thumbGeneration)return;
+  if(thumbs>0&&--thumbs===0){lock(busy);return;}
+  /* Van még hátra, de halad: a zár marad, a határidő tolódik. */
+  thumbExtend();lock(busy);}
  function loadThumb(t,holder){
   const img=new Image();img.alt=t.name+' előnézete';img.className='thumb-image';
   img.loading='lazy';img.decoding='async';img.style.opacity=0;holder.append(img);
@@ -117,7 +125,8 @@ if(typeof document!=='undefined'){
   const data=await r.json();
   /* A korábbi kérések képei eldobásra kerülnek; a lecserélt elemek már nem
    * biztos, hogy jeleznek, ezért a számlálót minden listafrissítés nullázza. */
-  thumbs=0;thumbGeneration++;thumbDeadline=Date.now()+THUMB_HOLD_MS;list.replaceChildren();
+  thumbs=0;thumbGeneration++;thumbLimit=Date.now()+THUMB_MAX_MS;
+  thumbDeadline=Math.min(thumbLimit,Date.now()+THUMB_IDLE_MS);list.replaceChildren();
   energyDisabled=!!data.energy_flow_disabled;
   const warning=document.getElementById('energy-disabled-warning');if(warning)warning.hidden=!energyDisabled;
   for(const resource of data.resources||[]){
