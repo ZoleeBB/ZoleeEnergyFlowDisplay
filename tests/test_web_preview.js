@@ -108,7 +108,10 @@ async function read(path){const b=fs.readFileSync(path);return sandbox.api.unpac
   set src(url){this.url=url;thumbs.push(this);assert(this.parent,'lazy image must be attached before loading');
    queueMicrotask(()=>url.includes('id=legacy')?this.onerror():this.onload());}
  }
+ /* A böngészőben mindig van időzítő; itt nem a határidőt vizsgáljuk, ezért
+  * elég a semmit nem csináló változat. */
  const page={...sandbox,document,Image:ImageStub,confirm:()=>true,
+  setTimeout:()=>0,clearTimeout:()=>{},
   fetch:async url=>{requests.push(url);assert.strictEqual(url,'/api/templates');return {ok:true,json:async()=>({active:'builtin',templates:[
    {id:'builtin',name:'Rendszer',version:0},{id:'09-solar-journey',name:'Nap pálya',version:13},{id:'legacy',name:'Régi',version:1}]})};},
   createImageBitmap:async blob=>{const b=new Uint8Array(await blob.arrayBuffer());const size=sandbox.api.pngInfo(b);assert(size.w<=640&&size.h<=400);
