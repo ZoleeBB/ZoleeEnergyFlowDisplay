@@ -22,6 +22,33 @@ Ez első telepítő: a flashben levő alkalmazást és OTA kiválasztási állap
 
 A konfiguráció mellett a ZIP `sd-card/templates` könyvtárát is másold az SD gyökerébe. Az offline dokumentáció a `docs` könyvtárban van: [konfiguráció](configuration.md), [sablonok](templates.md), [Loxone](loxone.md).
 
+## „requires chip revision in range …" – a panel szilíciuma
+
+Ha a feltöltés ezzel áll meg:
+
+```
+'bootloader/bootloader.bin' requires chip revision in range v3.0 - v3.99
+(this chip is revision v1.3). Use --force to flash anyway.
+```
+
+akkor nem a feltöltéssel van baj: a kép fejléce írja le, milyen szilíciumon
+indulhat el, és a panelen ennél régebbi (vagy újabb) lapka van. A `--force` sem
+segít, mert a bootloader induláskor is ellenőrzi a revíziót, és megtagadja az
+indulást.
+
+Mit kér a két csomag:
+
+| Csomag | Szükséges szilícium |
+| --- | --- |
+| Master 10.1 | ESP32-P4 **v3.0**-tól |
+| Slave 4B | ESP32-P4 **v1.0**-tól (a v3.x lapkán is ugyanez fut) |
+
+A panel revíziója az `esptool` kimenetében látszik (`Chip type: ESP32-P4
+(revision v1.3)`). Ha a panelhez tartozó csomagot töltöd fel, és a hiba mégis
+előjön, az a firmware oldali `CONFIG_ESP32P4_REV_MIN` beállítás hibája – a
+kiadás csomagolása ezt mostantól ellenőrzi, és eltérésnél meg sem engedi a
+csomag elkészültét.
+
 ## ESP32-P4 v3.2 és USB hibakeresés
 
 Az esptool 5.1.0 nem megfelelő az új v3.2 chiphez. A csomag esptool 5.5.0-t kér, amely a v3.2 támogatását és új USB-OTG javításokat is tartalmazza. A firmware-ből készített flash-címek, binárisok és ellenőrzőösszegek nem változnak. Alapértelmezett soros sebesség: 115200; a `--baud` továbbra is felülírja.
