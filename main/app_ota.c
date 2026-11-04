@@ -103,11 +103,19 @@ static void validation_task(void *arg)
 
     const TickType_t start = xTaskGetTickCount();
     const TickType_t timeout = pdMS_TO_TICKS(300000);
+    /* Slave módban a Master is frissülhet és újraindulhat; amíg a
+     * masterkapcsolat hiányzik, türelmesebben várunk, hogy a visszaállás ne a
+     * Master újraindulása miatt történjen. */
+    const TickType_t waiting_timeout = pdMS_TO_TICKS(1200000);
 
-    while ((xTaskGetTickCount() - start) < timeout)
+    for (;;)
     {
         app_runtime_state_t runtime;
         app_state_get_runtime(&runtime);
+        TickType_t limit = runtime.data_recept_mode == APP_DATA_SLAVE &&
+                           !runtime.slave_connected ? waiting_timeout : timeout;
+        if ((xTaskGetTickCount() - start) >= limit)
+            break;
 
         if (app_state_ota_ready(&runtime))
         {
@@ -136,7 +144,7 @@ static void validation_task(void *arg)
     char missing[128];
     missing_conditions(&runtime, missing, sizeof(missing));
     char reason[224];
-    snprintf(reason, sizeof(reason), "5 perces ellenőrzés: hiányzott %s",
+    snprintf(reason, sizeof(reason), "ellenőrzési időtúllépés: hiányzott %s",
              missing[0] ? missing : "(ismeretlen feltétel)");
     save_rollback_reason(reason);
     app_events_add(APP_EVENT_ERROR,

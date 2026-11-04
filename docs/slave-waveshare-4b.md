@@ -36,6 +36,23 @@ A várakozó állapotüzenetek három ponttal végződnek („Master keresése..
 a fő kijelzőn: a tipográfiai „…" nincs a beágyazott betűkészletben, ezért
 korábban üres négyzetként jelent meg.
 
+## Önjavítás: BLE-figyelő
+
+A kijelző a Mastertől kapja az összes adatot, ezért ha a kapcsolat tartósan
+hiányzik, az eszköz magától újraindul:
+
+- ha a BLE host **90 másodpercen belül nem szinkronizál** (a C6 társprocesszor
+  nem válaszol), vagy
+- ha **10 percig nincs masterkapcsolat** a szinkronizált host mellett.
+
+A további próbálkozások között 30, majd 120 perc szünet van (a számláló NVS-ben
+él, és az első sikeres masterkapcsolatnál nullázódik), így egy tartósan
+kikapcsolt Master mellett sem indul újra percenként. PIN-bevitel és
+kaputelefon-hívás alatt a figyelő vár.
+
+Az újraindítás okát a napló rögzíti, és a következő induláskor is látszik a
+diagnosztikán.
+
 ## Fényerő SD-kártya nélkül
 
 A 4B-nek nincs SD-kártyája és saját beállítóoldala, ezért a **nappali és
@@ -80,7 +97,8 @@ A 4B-nek nincs saját weboldala, ezért a jobb felső sarok megérintésére tel
 képernyős **diagnosztika** nyílik, „Bezárás" gombbal. Amit kiír:
 
 - firmware-verzió, üzemidő, tájolás,
-- Master azonosító, BLE állapot és RSSI,
+- Master azonosító, BLE állapot és RSSI, a BLE host szinkronja és a keresés
+  állapota (a BLE a C6 társprocesszoron át fut),
 - Wi-Fi állapot, IP-cím, időszinkron,
 - napszak és a ténylegesen beállított fényerő,
 - éjszakai sötétítés és időkorlát, a jelenlét állapota (aktív/nincs, friss-e a
