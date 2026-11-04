@@ -51,6 +51,14 @@ Master **Beállítások** oldalán az „Új párosítás engedélyezése 2 perc
 gombbal nyílik az ablak, a PIN pedig a Master diagnosztikáján olvasható, és a
 Slave PIN-padján kell beírni. Sikeres hitelesítés után az üzenet eltűnik.
 
+## Beragadt csatlakozás
+
+A Slave a megtalált Masterhez azonnal kapcsolódni kezd. Ha a CONNECT esemény
+elmarad (például megakad a hosted/C6 link), korábban örökre „csatlakozás alatt"
+maradt: a kijelzőn egy pillanatra megjelent a Master címe és az RSSI, utána
+semmi, és a keresés sem indult újra. Mostantól 15 másodperc után a próbálkozás
+megszakad, a napló rögzíti („csatlakozás időtúllépés"), és a keresés folytatódik.
+
 ## Önjavítás: BLE-figyelő
 
 A kijelző a Mastertől kapja az összes adatot, ezért ha a kapcsolat tartósan

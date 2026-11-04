@@ -576,6 +576,15 @@ int main(void)
     advertised = 1;
     slave_gap_event(&adv, NULL);
     assert(connects == 1 && !scanning && s_connecting);
+    /* Elmaradt CONNECT esemény: a keresésnek magától újra kell indulnia. */
+    now_us += 15000000;
+    slave_poll(now_us);
+    assert(!s_connecting);
+    now_us += 3000000;
+    slave_poll(now_us);
+    assert(scans == 2 && scanning);
+    slave_gap_event(&adv, NULL);
+    assert(connects == 2 && !scanning && s_connecting);
     make_frame(77, 1800000000);
     connect_link(true);
     assert(services == 1 && characteristics == 1 && descriptors == 3 && reads == 3 && writes == 3);
@@ -617,7 +626,7 @@ int main(void)
     assert(terminations == 1 && !runtime.slave_connected && !runtime.has_valid_sample);
     now_us += 3000000;
     slave_poll(now_us);
-    assert(scans == 2);
+    assert(scans == 3);
     /* Óraszolgáltatás nélküli régi masterre nem maradhat ráragadva. */
     scanning = false;
     connect_link(false);

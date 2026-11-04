@@ -222,6 +222,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | Funkció | Röviden |
 | --- | --- |
 | Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profilban (változatlan hosszal és verzióval, a jelszó mögötti szabad bájtokban) a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
+| Nem ragad be a csatlakozás | Elmaradt CONNECT eseménynél a Slave eddig örökre „csatlakozás alatt" maradt (a Master címe és az RSSI felvillant, majd semmi). Most 15 másodperc után megszakítja és újra keres. |
 | Párosítás nem vész el | A Slave eddig minden hitelesítési hibánál eldobta a párosítási kulcsot, így egy újrainduló Master után véglegesen leállt a kapcsolat. Mostantól csak a Master kulcshiány-jelzése (HCI 0x06) dobja el, és a kijelző kiírja, hogy újrapárosítás kell. |
 | BLE-önjavítás | Ha a BLE host 90 mp alatt nem szinkronizál, vagy 10 percig nincs masterkapcsolat, a Slave magától újraindul (növekvő szünettel), és a napló rögzíti az okot. |
 | Türelmesebb OTA | Ha a Slave frissítése közben a Master is újraindul, a hiányzó masterkapcsolat miatt az ellenőrzés 20 percig vár a visszaállás helyett. |
