@@ -52,14 +52,25 @@ A több bájtos számok unsigned little-endian értékek.
 | --- | --- | --- |
 | 0 | 2 | ASCII `ZP` |
 | 2 | 1 | Verzió: 1 |
-| 3 | 1 | Bit 0: éjszakai sötétítés; bit 1: érvényes jelenlét; bit 2: aktív szint |
+| 3 | 1 | Bit 0: éjszakai sötétítés; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése |
 | 4 | 4 | Nem nulla profilrevízió |
 | 8 | 4 | Timeout másodpercben, 1–86400 |
 | 12 | 4 | Jelenlét felfutóéleinek modulo-2^32 számlálója |
 | 16 | 4 | Kapcsolaton belüli modulo-2^32 csomagsorszám |
 
-Minden más flag tiltott, aktív bit csak érvényes bittel együtt lehet.
-Egy revízión belül timeout/sötétítés nem változhat. A kliens minden hibát
+A 6–7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
+A 0 fokos tájolás bitjei nullák, így a korábbi, a 3–7. bitet még tiltó Slave is
+elfogadja az alapértelmezett csomagot; elforgatott kijelzőhöz a Slave firmware-ét
+is frissíteni kell.
+Egy revízión belül timeout/sötétítés/tájolás nem változhat; az érvényes/aktív és
+a frissítéskérés bitje viszont a revízión belül is változik.
+
+A frissítéskérés **szintjel**: a Master a webes „frissítések keresése" gomb után
+60 másodpercig küldi, a Slave pedig a felfutó élre indít egyetlen ellenőrzést a
+saját kiadására (`ZoleeEnergyFlowDisplay-slave-4b-<tag>-ota.bin`). Ismételt
+olvasás, visszajátszás és a kapcsolat újraépülése nem indít újabb letöltést; a
+Wi-Fi és a futó művelet ellenőrzése a közös OTA-modulé. A napváltáskor induló
+automatikus ellenőrzést a Slave eddig is magától futtatta. A kliens minden hibát
 atomikusan utasít el; hibás csomag nem frissíti a lease-t.
 
 A Master **minden beérkező Loxone WS-deltánál** hívja a termelőmodellt.
@@ -102,7 +113,11 @@ Teljes vevőállapot/snapshot adható át, de egy puszta „utolsó wire-csomag�
 nem hosszabbítja meg az esemény 15 másodperces érvényességét. Invalid csomag vagy
 új bázis eldobja a régi függő impulzust. A fogadási idő monoton idő, nem falióra.
 
-A kijelzőadapter kizárólag a sötétítés/timeout mezőket veszi át. A Slave saját
+A kijelzőadapter kizárólag a sötétítés/timeout mezőket veszi át; a tájolást a
+Slave célprogramja olvassa ki (`app_slave_presence_service_rotation`), mert futó
+MIPI DSI mellett nincs átforgatás: a 4B a saját `slave_4b`/`rotation` NVS-kulcsába
+menti, és rövid késleltetés után újraindul, hogy a kép és az érintés is a kért
+tájolásban induljon. Kaputelefon-hívás vagy PIN-bevitel alatt vár az újraindítással. A Slave saját
 nappali/éjszakai fényereje, az utolsó ismert napszaka, a boot/PIN láthatósága és
 az első teljes ébresztő érintést elnyelő kapu a meglévő közös állapotgépben marad.
 Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
@@ -123,9 +138,11 @@ little-endian CRC32 (IEEE, a megelőző 406 bájtra).
 | 8 | 81 | Név, NUL és nulla kitöltés |
 | 89 | 36 | Loxone állapot-UUID, NUL és nulla kitöltés |
 | 125 | 4 | Timeout másodpercben, little-endian |
-| 129 | 1 | Éjszakai sötétítés: 0/1 |
+| 129 | 1 | Bit 0: éjszakai sötétítés; bit 1-2: tájolás negyedfordulatban |
 | 130 | 4 | Nem nulla profilrevízió, little-endian |
 
+A tájolás a sötétítés bájtjának szabad bitjeire került, ezért a blob mérete és a
+korábbi verzióval mentett profilok változatlanul betöltődnek (0 fokkal).
 Üres slot minden bájtja nulla. A dekóder CRC, mezővalidálás és identitás-egyediség
 után újrakódolással ellenőrzi a kanonikus kitöltést. A C-struktúra paddingje nem
 kerül tárolásra. Impulzus, aktív szint, sorszám és fényerő nem része a blobnak.
@@ -155,18 +172,19 @@ A `GET /api/loxone/slaves` és `POST /api/loxone/slaves` csak Loxone módban
 regisztrált, a meglévő webes hitelesítéssel. A GET `Cache-Control: no-store` mellett
 `schema:1`, `enabled`, `ready`, `revision`, `saved_revision`, `save_error` és
 `profiles` mezőket ad. Minden profil az `id`, `name`, `presence_uuid`,
-`timeout_seconds`, `blank_at_night` mezőket tartalmazza. Futási jelenlétminta,
+`timeout_seconds`, `blank_at_night`, `rotation_degrees` (0/90/180/270) mezőket
+tartalmazza. Futási jelenlétminta,
 számláló, fényerő és hitelesítő adat nem kerül ebbe a válaszba. Kikapcsolt seed
 mellett az eszközlista üres, a POST nem érhető el (503).
 
 A POST kötelező fejléce `X-Zolee-Loxone: 1`, törzse legfeljebb 2048 bájt:
 
 ```json
-{"schema":1,"revision":123,"id":"ble-0-060504030201","profile":{"name":"Nappali","presence_uuid":"11223344-5566-7788-99aabbccddeeff00","timeout_seconds":30,"blank_at_night":false}}
+{"schema":1,"revision":123,"id":"ble-0-060504030201","profile":{"name":"Nappali","presence_uuid":"11223344-5566-7788-99aabbccddeeff00","timeout_seconds":30,"blank_at_night":false,"rotation_degrees":0}}
 ```
 
-A pontos mezőkészlet, szigorú típusok, UTF-8 név, kanonikus UUID és egész timeout
-kötelező. Duplikált/idegen mező, beágyazott NUL, túlméret és JSON utáni szöveg
+A pontos mezőkészlet, szigorú típusok, UTF-8 név, kanonikus UUID, egész timeout és
+0/90/180/270 fokos tájolás kötelező. Duplikált/idegen mező, beágyazott NUL, túlméret és JSON utáni szöveg
 elutasítandó (400). Az ID kizárólag a már ismert, hitelesített peer táblájában
 kereshető; a kliens nem adhat új identitáscímet. A nem nulla teljes `uint32_t`
 revíziót lebegőpontos JSON-számból tartományellenőrzés után vesszük át. Az elavult

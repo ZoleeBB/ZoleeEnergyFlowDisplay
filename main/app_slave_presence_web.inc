@@ -43,6 +43,7 @@ static cJSON *slave_presence_json(void)
             !cJSON_AddStringToObject(item, "presence_uuid", peer->profile.presence_uuid) ||
             !cJSON_AddNumberToObject(item, "timeout_seconds", peer->profile.timeout_seconds) ||
             !cJSON_AddBoolToObject(item, "blank_at_night", peer->profile.blank_at_night) ||
+            !cJSON_AddNumberToObject(item, "rotation_degrees", peer->profile.rotation_degrees) ||
             !cJSON_AddItemToArray(profiles, item))
         {
             cJSON_Delete(item);
@@ -137,7 +138,8 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
                   lx_home_document_parse(body, req->content_len) : NULL;
     free(body);
     const char *const root_fields[] = {"schema", "revision", "id", "profile"};
-    const char *const profile_fields[] = {"name", "presence_uuid", "timeout_seconds", "blank_at_night"};
+    const char *const profile_fields[] = {"name", "presence_uuid", "timeout_seconds",
+                                          "blank_at_night", "rotation_degrees"};
     const cJSON *schema = cJSON_GetObjectItemCaseSensitive(root, "schema");
     const cJSON *revision = cJSON_GetObjectItemCaseSensitive(root, "revision");
     const cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
@@ -146,19 +148,23 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     const cJSON *uuid = cJSON_GetObjectItemCaseSensitive(data, "presence_uuid");
     const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(data, "timeout_seconds");
     const cJSON *blank = cJSON_GetObjectItemCaseSensitive(data, "blank_at_night");
+    const cJSON *rotation = cJSON_GetObjectItemCaseSensitive(data, "rotation_degrees");
     app_slave_presence_profile_t profile = {0};
-    bool valid = slave_fields(root, root_fields, 4) && slave_fields(data, profile_fields, 4) &&
+    bool valid = slave_fields(root, root_fields, 4) && slave_fields(data, profile_fields, 5) &&
                  slave_integer(schema, 1, 1) && slave_integer(revision, 1, UINT32_MAX) &&
                  cJSON_IsString(id) && strlen(id->valuestring) == APP_SLAVE_PRESENCE_ID_SIZE - 1 &&
                  cJSON_IsString(name) && strlen(name->valuestring) < sizeof(profile.name) &&
                  cJSON_IsString(uuid) && strlen(uuid->valuestring) < sizeof(profile.presence_uuid) &&
-                 slave_integer(timeout, 1, 86400) && cJSON_IsBool(blank);
+                 slave_integer(timeout, 1, 86400) && cJSON_IsBool(blank) &&
+                 slave_integer(rotation, 0, 270) &&
+                 (uint32_t)rotation->valuedouble % 90 == 0;
     if (valid)
     {
         memcpy(profile.name, name->valuestring, strlen(name->valuestring));
         memcpy(profile.presence_uuid, uuid->valuestring, strlen(uuid->valuestring));
         profile.timeout_seconds = (uint32_t)timeout->valuedouble;
         profile.blank_at_night = cJSON_IsTrue(blank);
+        profile.rotation_degrees = (uint16_t)rotation->valuedouble;
         valid = app_slave_presence_profile_valid(&profile);
     }
     int index = -1;
@@ -174,7 +180,8 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     cJSON_Delete(root);
     if (!valid || index < 0)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
-                                    "Ellenőrizd a párosított eszközt, a nevet, a jelenlétforrást és az időkorlátot.");
+                                    "Ellenőrizd a párosított eszközt, a nevet, a jelenlétforrást, "
+                                    "az időkorlátot és a kijelző elforgatását.");
     if (expected != snapshot.revision ||
         !app_slave_presence_service_update(&snapshot.table.peers[index].identity, &profile, expected))
     {

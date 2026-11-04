@@ -12,6 +12,12 @@ LV_FONT_DECLARE(app_font_16);
 LV_FONT_DECLARE(app_font_20);
 LV_FONT_DECLARE(app_font_28);
 
+/* Az energiautak és a körök vonalvastagsága; a futó pontok ehhez igazodnak,
+ * különben a vastagabb út elnyelné őket. */
+#define FLOW_WIDTH 8
+#define NODE_BORDER 6
+#define FLOW_DOT 14
+
 typedef struct
 {
     lv_obj_t *ring, *path, *dots[3], *name, *value;
@@ -30,6 +36,7 @@ static lv_obj_t *summary_panel, *summary_status, *summary_tiles[6];
 static lv_obj_t *summary_names[6], *summary_values[6], *summary_details[6];
 static bool summary_night_applied, summary_colors_ready;
 static char digits[7];
+static char network_ip[16];
 static bool last_night, layout_ready;
 
 static void visible(lv_obj_t *object, bool show)
@@ -112,22 +119,27 @@ static void text_shadow(lv_event_t *event)
     area.y1++;
     area.y2++;
     lv_draw_label(shadow.base.layer, &shadow, &area);
+    shadow.color = foreground;
+    shadow.opa = foreground_opa;
+    area.y1--;
+    area.y2--;
+    /* Szintetikus félkövér: a betűk még egyszer, 1 képponttal jobbra, a saját
+     * színükkel. Így a névnek és a teljesítményértéknek nem kell külön
+     * félkövér fontot a flashbe tenni, és a szélesség sem változik. */
+    if (lv_event_get_user_data(event))
+        lv_draw_label(shadow.base.layer, &shadow, &area);
     if (after_main)
     {
         /* Saját hátterű diagnosztikai feliratnál a háttér után rajzolunk,
          * majd visszatesszük a fő betűréteget az árnyék elé. */
         area.x1--;
         area.x2--;
-        area.y1--;
-        area.y2--;
-        shadow.color = foreground;
-        shadow.opa = foreground_opa;
         lv_draw_label(shadow.base.layer, &shadow, &area);
     }
 }
 
-static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y,
-                       int width, const lv_font_t *font)
+static lv_obj_t *styled_label(lv_obj_t *parent, const char *text, int x, int y,
+                              int width, const lv_font_t *font, bool bold)
 {
     lv_obj_t *object = lv_label_create(parent);
     lv_obj_set_pos(object, x, y);
@@ -135,9 +147,23 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y,
     lv_obj_set_style_text_font(object, font, 0);
     lv_label_set_long_mode(object, LV_LABEL_LONG_CLIP);
     lv_label_set_text(object, text);
-    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_BEGIN, NULL);
-    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_END, NULL);
+    void *weight = bold ? (void *)(uintptr_t)1 : NULL;
+    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_BEGIN, weight);
+    lv_obj_add_event_cb(object, text_shadow, LV_EVENT_DRAW_MAIN_END, weight);
     return object;
+}
+
+static lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y,
+                       int width, const lv_font_t *font)
+{
+    return styled_label(parent, text, x, y, width, font, false);
+}
+
+/* A kártyafeliratok és a teljesítményértékek a háttérkép felett is olvashatók. */
+static lv_obj_t *bold_label(lv_obj_t *parent, const char *text, int x, int y,
+                            int width, const lv_font_t *font)
+{
+    return styled_label(parent, text, x, y, width, font, true);
 }
 
 static lv_obj_t *image(const lv_image_dsc_t *source, int x, int y, int size)
@@ -380,35 +406,37 @@ void slave_4b_ui_create(lv_obj_t *screen)
         lv_obj_set_style_bg_opa(node->path, LV_OPA_COVER, 0);
         node->ring = box(root, 0, 0, 120, 120);
         lv_obj_set_style_radius(node->ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(node->ring, 3, 0);
+        lv_obj_set_style_border_width(node->ring, NODE_BORDER, 0);
         for (int j = 0; j < 3; j++)
         {
-            node->dots[j] = box(root, 0, 0, 9, 9);
+            node->dots[j] = box(root, 0, 0, FLOW_DOT, FLOW_DOT);
             lv_obj_set_style_radius(node->dots[j], LV_RADIUS_CIRCLE, 0);
             lv_obj_set_style_bg_opa(node->dots[j], LV_OPA_COVER, 0);
             lv_obj_set_style_bg_color(node->dots[j], lv_color_hex(0xFFFCC1), 0);
-            lv_obj_set_style_border_width(node->dots[j], 2, 0);
+            lv_obj_set_style_border_width(node->dots[j], 3, 0);
         }
     }
     hub = image(&slave_4b_hub, 339, 339, 42);
     static const char *names[] = {"Hálózat", "Akkumulátor", "Napelem", "Ház"};
     for (int i = 0; i < 4; i++)
     {
-        nodes[i].name = label(root, names[i], 0, 0, 164, &app_font_20);
-        nodes[i].value = label(root, "—", 0, 0, 164, &app_font_28);
+        nodes[i].name = bold_label(root, names[i], 0, 0, 164, &app_font_20);
+        nodes[i].value = bold_label(root, "—", 0, 0, 164, &app_font_28);
         if (i == 1 || i == 2)
         {
             lv_obj_set_style_text_align(nodes[i].name, LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_set_style_text_align(nodes[i].value, LV_TEXT_ALIGN_CENTER, 0);
         }
     }
-    label(root, "Zolee Energy", 26, 27, 248, &app_font_28);
-    weather = image(&slave_4b_weather_partly, 280, 20, 46);
-    temperature = label(root, "— °C", 332, 32, 99, &app_font_20);
-    wind_icon = image(&slave_4b_wind, 442, 25, 36);
-    wind = label(root, "— km/h", 484, 32, 108, &app_font_20);
-    humidity_icon = image(&slave_4b_weather_humidity, 448, 70, 28);
-    humidity = label(root, "", 484, 73, 90, &app_font_16);
+    /* A fejléc egyetlen sorban fut: a címet rögtön az időjárás követi, a
+     * páratartalom pedig a felszabadult helyre, a szél elé került. */
+    label(root, "Zolee Energy", 26, 27, 180, &app_font_28);
+    weather = image(&slave_4b_weather_partly, 206, 20, 44);
+    temperature = label(root, "— °C", 254, 32, 80, &app_font_20);
+    humidity_icon = image(&slave_4b_weather_humidity, 342, 25, 34);
+    humidity = label(root, "", 380, 32, 60, &app_font_20);
+    wind_icon = image(&slave_4b_wind, 446, 25, 34);
+    wind = label(root, "— km/h", 484, 32, 110, &app_font_20);
     clock_label = label(root, "--:--", 604, 25, 112, &app_font_28);
     battery_detail = label(root, "— % · — °C", 8, 478, 160, &app_font_16);
     lv_obj_set_style_text_align(battery_detail, LV_TEXT_ALIGN_CENTER, 0);
@@ -448,16 +476,18 @@ static void flow(node_t *node, double kw, bool inward, uint32_t tone, float dt)
     int end_x = vertical ? 360 : node->x + (node->x < 360 ? node->radius : -node->radius);
     int end_y = vertical ? node->y + (node->y < 360 ? node->radius : -node->radius) : 360;
     int distance = vertical ? abs(end_y - 360) : abs(end_x - 360);
-    lv_obj_set_pos(node->path, vertical ? 358 : (end_x < 360 ? end_x : 360),
-                    vertical ? (end_y < 360 ? end_y : 360) : 358);
-    lv_obj_set_size(node->path, vertical ? 4 : distance, vertical ? distance : 4);
+    int offset = 360 - FLOW_WIDTH / 2;
+    lv_obj_set_pos(node->path, vertical ? offset : (end_x < 360 ? end_x : 360),
+                    vertical ? (end_y < 360 ? end_y : 360) : offset);
+    lv_obj_set_size(node->path, vertical ? FLOW_WIDTH : distance,
+                    vertical ? distance : FLOW_WIDTH);
     /* A fázis a külső végponttól a hub felé nő; az előjel csak az irányt váltja. */
     node->phase = app_flow_advance(node->phase, kw, inward, dt);
     for (int j = 0; j < 3; j++)
     {
         float fraction = fmodf(node->phase + j / 3.f, 1.f);
-        lv_obj_set_pos(node->dots[j], (int)(end_x + (360 - end_x) * fraction) - 4,
-                        (int)(end_y + (360 - end_y) * fraction) - 4);
+        lv_obj_set_pos(node->dots[j], (int)(end_x + (360 - end_x) * fraction) - FLOW_DOT / 2,
+                        (int)(end_y + (360 - end_y) * fraction) - FLOW_DOT / 2);
         color_if_changed(node->dots[j], LV_STYLE_BORDER_COLOR, color, 0);
         visible(node->dots[j], active);
     }
@@ -466,6 +496,11 @@ static void flow(node_t *node, double kw, bool inward, uint32_t tone, float dt)
 void slave_4b_ui_message(const char *text)
 {
     text_if_changed(message, text ? text : "");
+}
+
+void slave_4b_ui_network(const char *ip)
+{
+    snprintf(network_ip, sizeof(network_ip), "%s", ip ? ip : "");
 }
 
 void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
@@ -555,10 +590,11 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     text_if_changed(clock_label, clock ? clock : "--:--");
     if (runtime)
     {
-        snprintf(text, sizeof(text), "Waveshare 4B · Slave\n\nMaster: %s\nBLE: %s\nRSSI: %d dBm\nWi-Fi: %s\nIdőszinkron: %s",
+        snprintf(text, sizeof(text), "Waveshare 4B · Slave\n\nMaster: %s\nBLE: %s\nRSSI: %d dBm\nWi-Fi: %s\nIP: %s\nIdőszinkron: %s",
                  runtime->ble_peer[0] ? runtime->ble_peer : "keresés…",
                  runtime->slave_connected ? "kapcsolódva" : "keresés…", runtime->ble_rssi,
-                 runtime->wifi_connected ? "OK" : "nincs", runtime->time_synced ? "OK" : "várakozás");
+                 runtime->wifi_connected ? "OK" : "nincs",
+                 network_ip[0] ? network_ip : "—", runtime->time_synced ? "OK" : "várakozás");
         text_if_changed(diagnostics, text);
         slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk…" : "Master keresése…");
     }

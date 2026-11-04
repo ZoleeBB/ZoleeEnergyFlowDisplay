@@ -507,14 +507,14 @@ static void presence_client_tests(void)
     memcpy(peer.profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
     struct os_mbuf wire = {.len = APP_SLAVE_PRESENCE_PACKET_SIZE};
     struct ble_gatt_attr attr = {.om = &wire};
-    assert(app_slave_presence_encode(&peer, 1, true, wire.data));
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire.data));
     presence_callback(7, &ok, &attr, presence_arg);
     assert(presence_receiver.baseline && !presence_receiver.pending_pulse);
     assert(!s_presence_reading);
     now_us += 1000000;
     slave_presence_poll(now_us);
     peer.counter++;
-    assert(app_slave_presence_encode(&peer, 2, true, wire.data));
+    assert(app_slave_presence_encode(&peer, 2, true, false, wire.data));
     presence_callback(7, &ok, &attr, presence_arg);
     assert(presence_receiver.pending_pulse && !presence_receiver.active);
 
@@ -539,7 +539,7 @@ static void presence_client_tests(void)
     uint32_t generation = s_presence_request;
     late(7, &ok, &attr, late_arg);
     assert(s_presence_reading && s_presence_request == generation && !presence_receiver.baseline);
-    assert(app_slave_presence_encode(&peer, 1, true, wire.data));
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire.data));
     presence_callback(7, &ok, &attr, presence_arg);
     assert(presence_receiver.baseline && !presence_receiver.pending_pulse);
 

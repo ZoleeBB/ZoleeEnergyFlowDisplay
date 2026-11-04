@@ -24,6 +24,9 @@ typedef struct
     char presence_uuid[APP_SLAVE_PRESENCE_UUID_SIZE];
     uint32_t timeout_seconds;
     bool blank_at_night;
+    /* A Slave kijelzőjének tájolása: 0, 90, 180 vagy 270 fok. A Slave a saját
+     * indulásakor alkalmazza (az érintéssel együtt), futás közben nem váltható. */
+    uint16_t rotation_degrees;
 } app_slave_presence_profile_t;
 
 typedef struct
@@ -65,11 +68,15 @@ bool app_slave_presence_source(app_slave_presence_table_t *table, const char *uu
 void app_slave_presence_invalidate(app_slave_presence_table_t *table);
 
 /* Opcionális, célzott 1006 karakterisztikához. A 20 bájt a legkisebb ATT MTU-ba
- * is belefér. Csak védett olvasás/értesítés adhatja tovább; jelszó és fényerő nincs.
+ * is belefér, ezért a tájolás is a jelzőbájt szabad bitjeire került (3-4. bit,
+ * negyedfordulatban). A 0 fokos alapérték bitjei nullák, így a korábbi, szűkebb
+ * jelzőellenőrzésű Slave is elfogadja a csomagot; elforgatott kijelzőhöz a
+ * Slave frissítése is kell. Csak védett olvasás/értesítés adhatja tovább;
+ * jelszó és fényerő nincs.
  * A sequence kapcsolatonként, minden új mintánál lép; a live az egyetlen
  * hitelesített Loxone adatkapcsolat frissessége, nem a UUID utolsó változásáé. */
 bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
-                               uint32_t sequence, bool live,
+                               uint32_t sequence, bool live, bool ota_check,
                                uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE]);
 
 typedef struct
@@ -77,10 +84,14 @@ typedef struct
     bool baseline;
     bool have_profile;
     bool blank_at_night;
+    uint16_t rotation_degrees;
     bool valid;
     bool active;
     bool pending_pulse;
     bool reset_presence;
+    /* A Master webes „frissítések keresése" gombjának felfutó éle. */
+    bool ota_check_level;
+    bool ota_check_pending;
     uint32_t revision;
     uint32_t sequence;
     uint32_t counter;

@@ -217,6 +217,17 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 [Ellenőrzési állapot](docs/electric-car-development.md) ·
 [Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
 
+### Újdonság – 4B Slave: olvashatóbb felület és állítható tájolás (`feature/slave-4b-readability`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Vastagabb energiautak | Az energiautak, a körök és a mozgó pontok kétszer olyan vastagok, így a háttérkép felett is jól követhetők. |
+| Félkövér feliratok | A Hálózat/Akkumulátor/Napelem/Ház nevek és a teljesítményértékek szintetikus félkövérrel rajzolódnak – új font nélkül, változatlan elrendezésben. |
+| Egysoros fejléc | Az időjárás ikon és a hőmérséklet rögtön a „Zolee Energy" felirat után áll, a felszabadult helyre a páratartalom került az ikonjával. |
+| Állítható tájolás | A Master `/loxone` oldalán, a Slave kártyáján választható 0/90/180/270°. A beállítás a jelenlétprofillal megy át BLE-n, a Slave elmenti és újraindul; az érintés is forog. [Részletek](docs/slave-waveshare-4b.md) |
+| Slave IP-cím | A 4B diagnosztikai rétege kiírja a Wi-Fi IP-címet is. |
+| Frissítés a gombról | A Master „frissítések keresése" gombja a párosított Slave-eket is megkéri, hogy nézzék meg a saját kiadásukat (a napváltáskori automatikus ellenőrzést a Slave eddig is futtatta). |
+
 ### Javítás – a 4B Slave régebbi szilíciumon is települ (`fix/slave-4b-chip-revision`)
 
 | Funkció | Röviden |

@@ -173,7 +173,7 @@ static void send_packet(app_slave_presence_receiver_t *receiver,
                          app_slave_presence_peer_t *peer, uint32_t sequence, int64_t second)
 {
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_encode(peer, sequence, true, wire));
+    assert(app_slave_presence_encode(peer, sequence, true, false, wire));
     assert(app_slave_presence_receive(receiver, wire, sizeof(wire), true, SECONDS(second)));
 }
 
@@ -187,7 +187,7 @@ static void wire_tests(void)
     uint8_t expected[] = {'Z', 'P', 1, 7, 0x78, 0x56, 0x34, 0x12,
                           30, 0, 0, 0, 0x12, 0xef, 0xcd, 0xab,
                           0x44, 0x33, 0x22, 0x11};
-    assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344), true, wire));
+    assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344), true, false, wire));
     assert(memcmp(wire, expected, sizeof(wire)) == 0);
     app_slave_presence_receiver_t receiver = {0};
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), false, 0));
@@ -206,7 +206,7 @@ static void wire_tests(void)
         if (i == 2)
             wire[2] = 2;
         if (i == 3)
-            wire[3] |= 8;
+            wire[3] |= 64; /* 3-4. bit: tájolás, 5.: OTA-kérés, a 6-7. tiltott. */
         if (i == 4)
             wire[3] = 4;
         if (i == 5)
@@ -228,12 +228,58 @@ static void wire_tests(void)
     assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 0));
     assert(receiver.active && receiver.valid && !receiver.pending_pulse);
     assert(receiver.counter == peer.counter && receiver.revision == peer.revision);
-    assert(app_slave_presence_encode(&peer, 1, false, wire) && wire[3] == 1);
+    assert(app_slave_presence_encode(&peer, 1, false, false, wire) && wire[3] == 1);
     peer.profile.presence_uuid[0] = 0;
-    assert(app_slave_presence_encode(&peer, 1, true, wire) && wire[3] == 1);
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire) && wire[3] == 1);
+    /* A tájolás a jelzőbájt 3-4. bitjén utazik, és a 0 fok bitjei nullák, így a
+     * korábbi Slave is elfogadja az alapértelmezett csomagot. */
+    memcpy(peer.profile.presence_uuid, UUID_A, 36);
+    for (uint16_t degrees = 0; degrees <= 270; degrees = (uint16_t)(degrees + 90))
+    {
+        peer.profile.rotation_degrees = degrees;
+        peer.revision = UINT32_C(0x12345678) + degrees;
+        assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344) + degrees, true, false, wire));
+        assert((wire[3] >> 3) == degrees / 90 && (wire[3] & 7) == 7);
+        app_slave_presence_receiver_t rotated = {0};
+        assert(app_slave_presence_receive(&rotated, wire, sizeof(wire), true, 0));
+        assert(rotated.have_profile && rotated.rotation_degrees == degrees);
+        /* Azonos revízióval nem változhat a profil: a visszafordított tájolás
+         * ugyanúgy hamisítás, mint az időkorlát vagy a sötétítés átírása. */
+        uint8_t tampered[APP_SLAVE_PRESENCE_PACKET_SIZE];
+        memcpy(tampered, wire, sizeof(tampered));
+        tampered[3] = (uint8_t)((tampered[3] & 7) | (((degrees / 90 + 1) % 4) << 3));
+        tampered[16]++;
+        app_slave_presence_receiver_t saved_rotation = rotated;
+        assert(!app_slave_presence_receive(&rotated, tampered, sizeof(tampered), true, 0));
+        assert(memcmp(&rotated, &saved_rotation, sizeof(rotated)) == 0);
+    }
+    /* Az OTA-kérés szintjel: a felfutó él egyszer indít ellenőrzést, az azonos
+     * szintű ismétlés és a kapcsolatvesztés utáni szint nem ad újabb kérést. */
+    peer.profile.rotation_degrees = 0;
+    peer.revision = UINT32_C(0x12345678);
+    app_slave_presence_receiver_t ota = {0};
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(!(wire[3] & 32) && app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
+    assert(!ota.ota_check_pending);
+    assert(app_slave_presence_encode(&peer, 2, true, true, wire));
+    assert((wire[3] & 32) && app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
+    assert(ota.ota_check_pending && ota.ota_check_level);
+    ota.ota_check_pending = false;
+    assert(app_slave_presence_encode(&peer, 3, true, true, wire));
+    assert(app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
+    assert(!ota.ota_check_pending); /* Ugyanaz a szint nem indít új ellenőrzést. */
+    assert(app_slave_presence_encode(&peer, 4, true, false, wire));
+    assert(app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
+    assert(!ota.ota_check_pending && !ota.ota_check_level);
+    peer.profile.rotation_degrees = 45;
+    assert(!app_slave_presence_profile_valid(&peer.profile));
+    peer.profile.rotation_degrees = 360;
+    assert(!app_slave_presence_profile_valid(&peer.profile));
+    peer.profile.rotation_degrees = 0;
+    peer.profile.presence_uuid[0] = 0;
     peer.profile.timeout_seconds = 0;
     memset(wire, 0x42, sizeof(wire));
-    assert(!app_slave_presence_encode(&peer, 1, true, wire));
+    assert(!app_slave_presence_encode(&peer, 1, true, false, wire));
     for (unsigned i = 0; i < sizeof(wire); ++i)
         assert(wire[i] == 0x42);
 }
@@ -341,26 +387,26 @@ static void replay_and_lease_tests(void)
     assert(app_slave_display_brightness(&display, SECONDS(2)) == 10);
     app_slave_presence_receiver_t saved = receiver;
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_encode(&peer, 0, true, wire));
+    assert(app_slave_presence_encode(&peer, 0, true, false, wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
     uint32_t invalid_sequences[] = {UINT32_MAX, UINT32_C(0x80000000)};
     for (unsigned i = 0; i < 2; ++i)
     {
-        assert(app_slave_presence_encode(&peer, invalid_sequences[i], true, wire));
+        assert(app_slave_presence_encode(&peer, invalid_sequences[i], true, false, wire));
         assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
         assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
     }
     peer.counter = UINT32_MAX; /* Regresszív számláló. */
-    assert(app_slave_presence_encode(&peer, 1, true, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     peer.counter = 0;
     peer.revision = UINT32_MAX; /* Regresszív profil. */
-    assert(app_slave_presence_encode(&peer, 1, true, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     peer.revision = 1;
     peer.profile.timeout_seconds = 2; /* Ugyanaz a revízió más profillal. */
-    assert(app_slave_presence_encode(&peer, 1, true, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
 
@@ -386,7 +432,7 @@ static void replay_and_lease_tests(void)
     assert(app_slave_display_brightness(&display, SECONDS(35)) == 0);
     assert(!receiver.pending_pulse);
     saved = receiver;
-    assert(app_slave_presence_encode(&peer, 4, true, wire));
+    assert(app_slave_presence_encode(&peer, 4, true, false, wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(34)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
 
