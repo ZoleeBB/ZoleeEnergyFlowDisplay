@@ -57,7 +57,7 @@ static void missing_conditions(const app_runtime_state_t *runtime, char *out, si
 void app_ota_report_boot_state(void)
 {
     nvs_handle_t handle;
-    char reason[96] = {0};
+    char reason[224] = {0};
     if (nvs_open(OTA_RESULT_NAMESPACE, NVS_READONLY, &handle) == ESP_OK)
     {
         size_t length = sizeof(reason);
@@ -133,9 +133,9 @@ static void validation_task(void *arg)
      */
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
-    char missing[96];
+    char missing[128];
     missing_conditions(&runtime, missing, sizeof(missing));
-    char reason[96];
+    char reason[224];
     snprintf(reason, sizeof(reason), "3 perces ellenőrzés: hiányzott %s",
              missing[0] ? missing : "(ismeretlen feltétel)");
     save_rollback_reason(reason);
