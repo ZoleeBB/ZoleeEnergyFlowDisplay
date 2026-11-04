@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "app_config.h"
 
-/* OTA próba-image háromperces automatikus validációjának elindítása. */
+/* OTA próba-image ötperces automatikus validációjának elindítása. */
 esp_err_t app_ota_start_validation_task(void);
 
 /* Indulás után egyszer: ha az előző OTA visszaállt, naplózza a verzióját és –

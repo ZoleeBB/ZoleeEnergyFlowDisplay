@@ -1,7 +1,7 @@
 /*
  * OTA firmware rollback-életciklus.
  *
- * Új OTA image csak akkor válik véglegessé, ha 3 percen belül teljesül:
+ * Új OTA image csak akkor válik véglegessé, ha 5 percen belül teljesül:
  * SD + config + Wi-Fi + NTP + MQTT broker kapcsolat.
  * Érvényes MQTT payload nem feltétel.
  */
@@ -102,7 +102,7 @@ static void validation_task(void *arg)
     }
 
     const TickType_t start = xTaskGetTickCount();
-    const TickType_t timeout = pdMS_TO_TICKS(180000);
+    const TickType_t timeout = pdMS_TO_TICKS(300000);
 
     while ((xTaskGetTickCount() - start) < timeout)
     {
@@ -136,7 +136,7 @@ static void validation_task(void *arg)
     char missing[128];
     missing_conditions(&runtime, missing, sizeof(missing));
     char reason[224];
-    snprintf(reason, sizeof(reason), "3 perces ellenőrzés: hiányzott %s",
+    snprintf(reason, sizeof(reason), "5 perces ellenőrzés: hiányzott %s",
              missing[0] ? missing : "(ismeretlen feltétel)");
     save_rollback_reason(reason);
     app_events_add(APP_EVENT_ERROR,

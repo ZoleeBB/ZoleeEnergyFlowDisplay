@@ -92,7 +92,7 @@ képernyős **diagnosztika** nyílik, „Bezárás" gombbal. Amit kiír:
 
 Indulás után a napló első sorai megmutatják, ha az **előző OTA visszaállt**: a
 nem véglegesült verziót és – ha az alkalmazás még le tudta írni – a visszaállás
-okát is (melyik feltétel hiányzott a három perces ellenőrzésből). Ez az egy
+okát is (melyik feltétel hiányzott az ötperces ellenőrzésből). Ez az egy
 adat túléli az újraindítást, a napló többi része nem.
 
 A napló és az eseménymásolat PSRAM-ban készül, és csak nyitott diagnosztikánál
