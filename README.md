@@ -217,6 +217,21 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 [Ellenőrzési állapot](docs/electric-car-development.md) ·
 [Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
 
+### Újdonság – 4B Slave: fényerő a Mastertől, OTA-visszaállás naplózása (`feature/slave-4b-brightness`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profil 2. verziójával a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
+| OTA-visszaállás nyoma | Az ellenőrzési ablak 3-ról 5 percre nőtt (a Slave indulása lassabb); időtúllépéskor NVS-be kerül, melyik feltétel hiányzott, és a következő induláskor a napló kiírja a nem véglegesült verziót és az okot is. [Részletek](docs/ota.md) |
+
+### Javítás – 4B Slave: jelenlét alatt nem sötétedik el, teljes képernyős diagnosztika (`fix/slave-4b-presence-hold`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Csak valódi jelenlétvesztésre sötétít | A visszaszámlálás kizárólag friss, érvényes 0 jelenlétérték után indul. A kimaradt BLE-olvasás, a lejárt lease és a Master átmeneti kiesése nem jelenlétvesztés; 10 perc néma jel után évül el az utolsó ismert állapot. [Részletek](docs/slave-waveshare-4b.md) |
+| Biztosabb ébresztés | Nulla fényerőről visszatéréskor a BSP háttérvilágítását is felkapcsoljuk, és a napló rögzíti az érintéseket, az elsötétülést és az ébredést. |
+| Teljes képernyős diagnosztika | Firmware-verzió, üzemidő, tájolás, BLE/Wi-Fi/IP, napszak és fényerő, jelenlét- és sötétítésállapot, érintésszámláló, valamint a rendszernapló utolsó bejegyzései – görgethetően, „Bezárás" gombbal. |
+
 ### Újdonság – 4B Slave: nagyobb betűk mindenhol a fejlécen kívül (`feature/slave-4b-font-scale`)
 
 | Funkció | Röviden |

@@ -36,6 +36,37 @@ A várakozó állapotüzenetek három ponttal végződnek („Master keresése..
 a fő kijelzőn: a tipográfiai „…" nincs a beágyazott betűkészletben, ezért
 korábban üres négyzetként jelent meg.
 
+## Fényerő SD-kártya nélkül
+
+A 4B-nek nincs SD-kártyája és saját beállítóoldala, ezért a **nappali és
+éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika)
+2. verziója a Wi-Fi és az automatikus frissítés mellett a Master
+`display.day_brightness` és `display.night_brightness` értékét is átviszi. A
+Master Beállítások oldalán átírt fényerő **újraindítás nélkül**, másodperceken
+belül érvényesül a Slave-en is; a profil többi mezőjének változása továbbra is
+mentés utáni újraindítást kér.
+
+A 0 nem érvényes fényerő (a tartományon kívüli masterérték a 80/20
+alapértékre esik vissza) – az éjszakai teljes sötétítést a jelenlétszabály
+intézi, nem a fényerő.
+
+Régi, 1. verziójú (102 bájtos) profilt küldő Masterrel a Slave a korábban
+mentett fényerejét tartja meg.
+
+## Éjszakai sötétítés és jelenlét
+
+Ha van kiválasztott jelenlétforrás, a visszaszámlálás **csak a jelenlét
+megszűnése után** (friss, érvényes 0 érték) indul. Egy kimaradt BLE-olvasás, a
+15 másodperces lease lejárta vagy a Master átmeneti elérhetetlensége nem számít
+jelenlétvesztésnek: a kijelző az utolsó ismert aktív jel alapján világos marad.
+Tíz perc néma jel után az utolsó ismert állapot elévül, és onnan a megszokott
+visszaszámlálás indul – így egy végleg elérhetetlen Master mellett sem marad
+örökre világos a kijelző.
+
+Az érintés mindig ébreszt: az első, sötétből indított érintést a felület
+elnyeli (nem kattint), de a fényerőt visszakapcsolja. Nulla fényerőről
+visszatéréskor a BSP háttérvilágítását külön is felkapcsoljuk.
+
 ## Kijelző tájolása és hálózati cím
 
 A 4B kijelző elforgatása a Master `/loxone` oldalán, a Slave-kijelzők kártyáján
@@ -45,9 +76,27 @@ jelenlétprofillal utazik BLE-n; a Slave elmenti, és **rövid késleltetés ut�
 az érintés is a kért tájolásban működik. Kaputelefon-hívás vagy PIN-bevitel alatt
 a Slave megvárja a végét.
 
-A 4B-nek nincs saját weboldala, ezért a Wi-Fi IP-címe a kijelző diagnosztikai
-rétegén olvasható le (jobb felső sarok megérintése), a BLE és az időszinkron
-állapota mellett.
+A 4B-nek nincs saját weboldala, ezért a jobb felső sarok megérintésére teljes
+képernyős **diagnosztika** nyílik, „Bezárás" gombbal. Amit kiír:
+
+- firmware-verzió, üzemidő, tájolás,
+- Master azonosító, BLE állapot és RSSI,
+- Wi-Fi állapot, IP-cím, időszinkron,
+- napszak és a ténylegesen beállított fényerő,
+- éjszakai sötétítés és időkorlát, a jelenlét állapota (aktív/nincs, friss-e a
+  minta és hány másodperce), a sötétítés visszaszámlálása,
+- indulás óta érzékelt érintések száma,
+- a **rendszernapló** utolsó bejegyzései (csak memóriában, görgethető): itt
+  látszik, mikor sötétült el vagy ébredt fel a kijelző, mikor érkezett érintés,
+  mikor változott a jelenlét, és mi történt a legutóbbi frissítéssel.
+
+Indulás után a napló első sorai megmutatják, ha az **előző OTA visszaállt**: a
+nem véglegesült verziót és – ha az alkalmazás még le tudta írni – a visszaállás
+okát is (melyik feltétel hiányzott az ötperces ellenőrzésből). Ez az egy
+adat túléli az újraindítást, a napló többi része nem.
+
+A napló és az eseménymásolat PSRAM-ban készül, és csak nyitott diagnosztikánál
+frissül, ezért a 33 ms-os megjelenítő kört nem terheli.
 
 ## Frissítés
 

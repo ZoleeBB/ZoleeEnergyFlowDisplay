@@ -29,6 +29,20 @@ uint32_t app_slave_presence_service_source_revision(void);
 bool app_slave_presence_service_receive(const uint8_t *data, size_t size, bool authenticated);
 void app_slave_presence_service_disconnected(void);
 void app_slave_presence_service_legacy(void);
+/* A Slave diagnosztikai képernyőjének jelenlét- és profilállapota. */
+typedef struct
+{
+    bool have_profile;      /* Érkezett profil a Mastertől. */
+    bool source;            /* Volt már érvényes jelenlétminta (van forrás). */
+    bool fresh;             /* A legutóbbi minta a 15 másodperces lease-en belül. */
+    bool active;
+    bool blank_at_night;
+    uint32_t age_seconds;   /* A legutóbbi minta kora. */
+    uint32_t timeout_seconds;
+} app_slave_presence_state_t;
+
+bool app_slave_presence_service_state(app_slave_presence_state_t *out);
+
 /* A Master webes „frissítések keresése" gombja: a párosított Slave-ek is
  * ellenőrizzék a saját kiadásukat. Csak Masteren hat, rövid ablakra. */
 void app_slave_presence_service_request_ota(void);

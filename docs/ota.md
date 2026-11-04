@@ -28,7 +28,7 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
   akadályozza meg a frissítést**: a sikertelen mentés naplóba kerül, a már
   ellenőrzött firmware aktiválása és az újraindítás lefut. Hibás kártyára a
   napi statisztika úgysem írható ki, viszont enélkül korábban csak hardveres
-  reset maradt. A már meglévő háromperces OTA-visszaállítási
+  reset maradt. A már meglévő ötperces OTA-visszaállítási
   védelem megmarad. Korábban visszagörgetett azonos verziót automatikusan nem
   próbál újra; a következő újabb release-re vár, vagy kézi OTA használható.
   SD nélküli Slave-nél a mastertől kapott statisztika csak a Slave RAM-jában él;
@@ -82,7 +82,7 @@ Ha mindkettő üres, nincs hitelesítés.
 
 A firmware két alkalmazáspartíciót használ. Az új image először próbaállapotban indul.
 
-Az új firmware legfeljebb 3 percen belül akkor minősül sikeresnek, ha a
+Az új firmware legfeljebb 5 percen belül akkor minősül sikeresnek, ha a
 konfiguráció betöltődött, és a módnak megfelelő indulási feltételek teljesültek:
 
 | Mód | Tárhely | Kapcsolat és idő | Adatfeltétel |
@@ -97,6 +97,17 @@ Az első három módhoz nem kell már beérkezett érvényes mérés. Slave mód
 a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
+
+A Slave-nek lassabb az indulása (BLE-párosítás, időszinkron, master-statisztika),
+ezért az ablak szándékosan bőven az indulási idő felett van.
+
+A visszaállás nyomot hagy: az alkalmazás az időtúllépéskor NVS-be írja, **melyik
+feltétel hiányzott**, és a következő induláskor a rendszernaplóba kerül a nem
+véglegesült verzió és ez az ok is. A Slave-en ez a két sor a kijelző
+diagnosztikáján olvasható, mert ott nincs SD-re mentett napló. Ha a napló csak a
+nem véglegesült verziót említi okkal együtt nem, akkor az új firmware már az
+ellenőrzés előtt újraindult (például összeomlás miatt), és a bootloader állt
+vissza.
 
 ## Információs oldal
 

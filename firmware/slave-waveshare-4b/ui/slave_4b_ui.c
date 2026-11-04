@@ -31,7 +31,9 @@ typedef struct
 static lv_obj_t *root, *background, *hub, *soc, *battery_detail, *disabled_overlay;
 static lv_obj_t *temperature, *wind, *clock_label, *weather, *wind_icon;
 static lv_obj_t *humidity, *humidity_icon;
-static lv_obj_t *message, *diagnostics, *pin_pad, *pin_mask, *pin_countdown;
+static lv_obj_t *message, *pin_pad, *pin_mask, *pin_countdown;
+/* Teljes képernyős diagnosztika: állapotblokk és görgethető RAM-napló. */
+static lv_obj_t *diagnostics, *diagnostics_info, *diagnostics_log;
 static node_t nodes[4]; /* Hálózat, akku, napelem, ház. */
 static uint32_t pin_token;
 /* Mai összesítő: egyszer létrehozott, alapból rejtett, teljes képernyős réteg. */
@@ -39,7 +41,8 @@ static lv_obj_t *summary_panel, *summary_status, *summary_tiles[6];
 static lv_obj_t *summary_names[6], *summary_values[6], *summary_details[6];
 static bool summary_night_applied, summary_colors_ready;
 static char digits[7];
-static char network_ip[16];
+static app_runtime_state_t last_runtime;
+static bool have_runtime;
 static bool last_night, layout_ready;
 
 static void visible(lv_obj_t *object, bool show)
@@ -216,6 +219,38 @@ static void summary_create(void)
     visible(summary_panel, false);
 }
 
+static void diagnostics_toggle(lv_event_t *event);
+
+/* A diagnosztika a kijelzőn pótolja a Slave hiányzó weboldalát: állapot és
+ * RAM-napló, teljes képernyőn, görgethető naplórésszel. */
+static void diagnostics_create(void)
+{
+    diagnostics = box(root, 0, 0, 720, 720);
+    lv_obj_set_style_bg_color(diagnostics, lv_color_hex(0x071A30), 0);
+    lv_obj_set_style_bg_opa(diagnostics, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(diagnostics, lv_color_hex(0xF5FAFF), 0);
+    plain_label(diagnostics, "Slave diagnosztika", 24, 16, 420, &app_font_34);
+    lv_obj_t *close = lv_button_create(diagnostics);
+    lv_obj_set_pos(close, 536, 14);
+    lv_obj_set_size(close, 160, 60);
+    lv_obj_set_style_radius(close, 14, 0);
+    lv_obj_add_event_cb(close, diagnostics_toggle, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *close_text = plain_label(close, "Bezárás", 0, 0, 120, &app_font_24);
+    lv_obj_set_style_text_align(close_text, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(close_text);
+    diagnostics_info = plain_label(diagnostics, "", 24, 86, 672, &app_font_20);
+    plain_label(diagnostics, "Rendszernapló (csak memóriában)", 24, 376, 672, &app_font_20);
+    lv_obj_t *log_box = box(diagnostics, 24, 408, 672, 288);
+    lv_obj_set_style_bg_color(log_box, lv_color_hex(0x0E2742), 0);
+    lv_obj_set_style_bg_opa(log_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(log_box, 14, 0);
+    lv_obj_add_flag(log_box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(log_box, LV_DIR_VER);
+    diagnostics_log = plain_label(log_box, "", 16, 12, 632, &app_font_20);
+    lv_label_set_long_mode(diagnostics_log, LV_LABEL_LONG_WRAP);
+    visible(diagnostics, false);
+}
+
 /* Csak napszakváltáskor ír színt, így a 33 ms-os kör nem érvénytelenít. */
 static void summary_colors(bool night)
 {
@@ -358,6 +393,66 @@ static void diagnostics_toggle(lv_event_t *event)
     visible(diagnostics, lv_obj_has_flag(diagnostics, LV_OBJ_FLAG_HIDDEN));
 }
 
+bool slave_4b_ui_diagnostics_visible(void)
+{
+    return diagnostics && !lv_obj_has_flag(diagnostics, LV_OBJ_FLAG_HIDDEN);
+}
+
+static const char *or_dash(const char *text)
+{
+    return text && text[0] ? text : "—";
+}
+
+void slave_4b_ui_status(const slave_4b_status_t *status)
+{
+    if (!diagnostics || !status)
+        return;
+    char text[768];
+    char presence[96];
+    if (!status->presence_source)
+        snprintf(presence, sizeof(presence), "Jelenlétforrás: nincs kiválasztva");
+    else
+        snprintf(presence, sizeof(presence), "Jelenlét: %s (%s, %u mp)",
+                 status->presence_active ? "aktív" : "nincs",
+                 status->presence_fresh ? "friss" : "nincs friss minta",
+                 (unsigned)status->presence_age_seconds);
+    char blanking[96];
+    if (!status->night || !status->blank_at_night)
+        snprintf(blanking, sizeof(blanking), "Sötétítés: nincs (nappal vagy kikapcsolva)");
+    else if (status->brightness == 0)
+        snprintf(blanking, sizeof(blanking), "Sötétítés: a kijelző sötét, érintésre ébred");
+    else if (status->blank_in_seconds < 0)
+        snprintf(blanking, sizeof(blanking), "Sötétítés: nem fut (jelenlét tartja ébren)");
+    else
+        snprintf(blanking, sizeof(blanking), "Sötétítés: %d mp múlva", (int)status->blank_in_seconds);
+    snprintf(text, sizeof(text),
+             "Waveshare 4B · Slave · FW: %s\n"
+             "Üzemidő: %u ó %u p · Tájolás: %u°\n"
+             "Master: %s\n"
+             "BLE: %s · RSSI: %d dBm\n"
+             "Wi-Fi: %s · IP: %s · Időszinkron: %s\n"
+             "Napszak: %s · Fényerő: %u%%\n"
+             "Éjszakai sötétítés: %s · Időkorlát: %u mp\n"
+             "%s\n%s\n"
+             "Érintések indulás óta: %u",
+             or_dash(status->firmware),
+             (unsigned)(status->uptime_seconds / 3600u),
+             (unsigned)(status->uptime_seconds % 3600u / 60u),
+             (unsigned)status->rotation_degrees,
+             have_runtime && last_runtime.ble_peer[0] ? last_runtime.ble_peer : "keresés...",
+             have_runtime && last_runtime.slave_connected ? "kapcsolódva" : "keresés...",
+             have_runtime ? last_runtime.ble_rssi : 0,
+             have_runtime && last_runtime.wifi_connected ? "OK" : "nincs",
+             or_dash(status->ip),
+             have_runtime && last_runtime.time_synced ? "OK" : "várakozás",
+             status->night ? "éjszaka" : "nappal", status->brightness,
+             status->blank_at_night ? "be" : "ki", (unsigned)status->timeout_seconds,
+             presence, blanking, (unsigned)status->touch_count);
+    text_if_changed(diagnostics_info, text);
+    text_if_changed(diagnostics_log, status->log && status->log[0] ? status->log :
+                    "Még nincs rögzített esemény.");
+}
+
 static void layout(bool night)
 {
     /* A háttérváltozatok közös geometriája miatt témaváltáskor sem a körök,
@@ -457,16 +552,11 @@ void slave_4b_ui_create(lv_obj_t *screen)
     lv_obj_set_style_radius(soc, 3, LV_PART_INDICATOR);
     message = label(root, "Master keresése...", 148, 672, 424, &app_font_20);
     lv_obj_set_style_text_align(message, LV_TEXT_ALIGN_CENTER, 0);
-    diagnostics = label(root, "Slave", 160, 100, 400, &app_font_24);
-    lv_obj_set_style_bg_color(diagnostics, lv_color_hex(0x10243E), 0);
-    lv_obj_set_style_bg_opa(diagnostics, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(diagnostics, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_pad_all(diagnostics, 20, 0);
-    visible(diagnostics, false);
     lv_obj_t *diagnostics_button = box(root, 590, 0, 130, 78);
     lv_obj_add_flag(diagnostics_button, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(diagnostics_button, diagnostics_toggle, LV_EVENT_CLICKED, NULL);
     summary_create();
+    diagnostics_create();
     layout(false);
 }
 
@@ -501,11 +591,6 @@ static void flow(node_t *node, double kw, bool inward, uint32_t tone, float dt)
 void slave_4b_ui_message(const char *text)
 {
     text_if_changed(message, text ? text : "");
-}
-
-void slave_4b_ui_network(const char *ip)
-{
-    snprintf(network_ip, sizeof(network_ip), "%s", ip ? ip : "");
 }
 
 void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
@@ -595,12 +680,8 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     text_if_changed(clock_label, clock ? clock : "--:--");
     if (runtime)
     {
-        snprintf(text, sizeof(text), "Waveshare 4B · Slave\n\nMaster: %s\nBLE: %s\nRSSI: %d dBm\nWi-Fi: %s\nIP: %s\nIdőszinkron: %s",
-                 runtime->ble_peer[0] ? runtime->ble_peer : "keresés...",
-                 runtime->slave_connected ? "kapcsolódva" : "keresés...", runtime->ble_rssi,
-                 runtime->wifi_connected ? "OK" : "nincs",
-                 network_ip[0] ? network_ip : "—", runtime->time_synced ? "OK" : "várakozás");
-        text_if_changed(diagnostics, text);
+        last_runtime = *runtime;
+        have_runtime = true;
         slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk..." : "Master keresése...");
     }
 }

@@ -382,6 +382,7 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
     receiver->blank_at_night = blank;
     receiver->rotation_degrees = rotation;
     receiver->valid = valid;
+    receiver->ever_valid |= valid;
     receiver->active = (data[3] & 4) != 0;
     receiver->revision = revision;
     receiver->sequence = sequence;

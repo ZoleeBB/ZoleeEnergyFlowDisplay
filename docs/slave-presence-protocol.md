@@ -122,6 +122,10 @@ nappali/éjszakai fényereje, az utolsó ismert napszaka, a boot/PIN láthatós�
 az első teljes ébresztő érintést elnyelő kapu a meglévő közös állapotgépben marad.
 Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
 Profilváltás/invalid/disconnect nem ad új timeoutot és nem szimulál lefutó élt.
+Érvénytelen minta (lejárt lease, kimaradt olvasás, kapcsolatvesztés) nem
+jelenlétvesztés: az utolsó ismert állapot marad érvényben, így a folyamatos
+jelenlét alatt a kijelző nem sötétedhet el. Tíz perc néma jel után az utolsó
+ismert aktív jel elévül, és a megszokott visszaszámlálás indul.
 Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átállás kapcsolja ki.
 
 ## Master NVS és háttérmentés

@@ -135,6 +135,7 @@ void app_main(void)
      * ha már a kijelző indítása közben megakadna.
      */
     /* Indítási memóriahiba esetén újraindulunk; pending OTA-nál a bootloader rollbackel. */
+    app_ota_report_boot_state();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
 
     /* Az első UI-képkocka előtt kiválasztjuk az NVS-ben eltárolt tájolást. */

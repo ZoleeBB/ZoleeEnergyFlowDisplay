@@ -385,6 +385,28 @@ bool app_slave_presence_service_take_ota_request(void)
     return pending;
 }
 
+bool app_slave_presence_service_state(app_slave_presence_state_t *out)
+{
+    if (!out || !atomic_load(&s_presence_ready) || s_presence_master ||
+        xSemaphoreTake(s_presence_mutex, 0) != pdTRUE)
+        return false;
+    const app_slave_presence_receiver_t *receiver = &s_presence_receiver;
+    int64_t now = esp_timer_get_time();
+    int64_t age = receiver->baseline && now > receiver->received_us ?
+                  now - receiver->received_us : 0;
+    *out = (app_slave_presence_state_t){
+        .have_profile = receiver->have_profile,
+        .source = receiver->ever_valid,
+        .fresh = receiver->baseline && age < APP_SLAVE_PRESENCE_LEASE_US,
+        .active = receiver->active,
+        .blank_at_night = receiver->blank_at_night,
+        .age_seconds = (uint32_t)(age / 1000000),
+        .timeout_seconds = receiver->timeout_seconds,
+    };
+    xSemaphoreGive(s_presence_mutex);
+    return true;
+}
+
 bool app_slave_presence_service_rotation(uint16_t *degrees)
 {
     if (!degrees || !atomic_load(&s_presence_ready) || s_presence_master ||

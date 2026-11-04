@@ -39,15 +39,30 @@ int main(void)
     assert(app_slave_display_brightness(&state, SECONDS(198)) == 17);
     assert(app_slave_display_brightness(&state, SECONDS(199)) == 0);
 
-    /* Tartós aktív jel nem aludhat el; jelvesztés nem ad új 30 másodpercet. */
+    /* Tartós aktív jel nem aludhat el. A kimaradt minta (lejárt lease, elvesztett
+     * BLE-olvasás) nem jelenlétvesztés: az utolsó ismert aktív jel tartja ébren,
+     * és csak friss, érvényes 0 indítja a visszaszámlálást. */
     app_slave_display_presence(&state, true, true, SECONDS(200));
     assert(app_slave_display_brightness(&state, SECONDS(240)) == 17);
     app_slave_display_presence(&state, false, false, SECONDS(241));
-    assert(app_slave_display_brightness(&state, SECONDS(241)) == 0);
-    app_slave_display_presence(&state, true, true, SECONDS(242));
-    app_slave_display_presence(&state, true, false, SECONDS(250));
-    assert(app_slave_display_brightness(&state, SECONDS(279)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(280)) == 0);
+    assert(app_slave_display_brightness(&state, SECONDS(241)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(500)) == 17);
+    app_slave_display_presence(&state, true, true, SECONDS(501));
+    app_slave_display_presence(&state, true, false, SECONDS(510));
+    assert(app_slave_display_brightness(&state, SECONDS(539)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(540)) == 0);
+    /* Tartósan néma jel 10 perc után elévül, de akkor is a megszokott
+     * visszaszámlálással, nem azonnali sötétítéssel. */
+    app_slave_display_presence(&state, true, true, SECONDS(600));
+    assert(app_slave_display_brightness(&state, SECONDS(1199)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(1200)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(1229)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(1230)) == 0);
+    /* Elévülés után egy friss aktív minta azonnal visszahozza a fényt. */
+    app_slave_display_presence(&state, true, true, SECONDS(1231));
+    assert(app_slave_display_brightness(&state, SECONDS(1800)) == 17);
+    app_slave_display_presence(&state, true, false, SECONDS(1801));
+    assert(app_slave_display_brightness(&state, SECONDS(1831)) == 0);
 
     /* Nappal saját nappali fényerő; az éjszakai sötétítés kikapcsolható. */
     app_slave_display_night(&state, false, SECONDS(281));

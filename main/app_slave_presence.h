@@ -89,6 +89,9 @@ typedef struct
     bool active;
     bool pending_pulse;
     bool reset_presence;
+    /* Érkezett-e valaha érvényes jelenlétminta: ebből látszik a diagnosztikán,
+     * hogy a Masteren be van-e állítva jelenlétforrás. */
+    bool ever_valid;
     /* A Master webes „frissítések keresése" gombjának felfutó éle. */
     bool ota_check_level;
     bool ota_check_pending;
