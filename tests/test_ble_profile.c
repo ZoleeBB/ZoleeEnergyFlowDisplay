@@ -224,25 +224,38 @@ int main(void)
     master.display.day_brightness = 65;
     master.display.night_brightness = 7;
     app_ble_profile_encode(&master, data);
-    assert(data[2] == 2 && data[102] == 65 && data[103] == 7);
+    /* A hossz és a verzió nem változhat: a korábbi Slave is beolvassa. */
+    assert(data[2] == 1 && sizeof(data) == 102);
+    assert(data[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] == 65 &&
+           data[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] == 7);
     assert(app_ble_profile_submit(data));
     step();
     step();
     app_ble_profile_apply(&slave);
     assert(slave.display.day_brightness == 65 && slave.display.night_brightness == 7);
     assert(reboots == restarts);
-    /* A korábbi, 102 bájtos profilt is elfogadjuk: ilyenkor a fényerő marad. */
-    uint8_t legacy[APP_BLE_PROFILE_V1_SIZE];
+    /* Régebbi Master nullákat hagy a jelszó mögött: ilyenkor a Slave a saját
+     * mentett fényerejét tartja meg, és a profil egyébként érvényes marad. */
+    uint8_t legacy[APP_BLE_PROFILE_SIZE];
     memcpy(legacy, data, sizeof(legacy));
-    legacy[2] = 1;
+    legacy[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] = 0;
+    legacy[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] = 0;
     app_config_t previous_slave = slave;
     assert(app_ble_profile_decode(legacy, sizeof(legacy), &previous_slave));
     assert(previous_slave.display.day_brightness == 65 &&
            previous_slave.display.night_brightness == 7);
-    legacy[2] = 2;
-    assert(!app_ble_profile_decode(legacy, sizeof(legacy), &previous_slave));
-    data[103] = 0;
-    assert(!app_ble_profile_decode(data, sizeof(data), &previous_slave));
+    /* Hosszú jelszó mellett nincs hely a fényerőnek: nem is értelmezzük. */
+    app_config_t long_password = master;
+    memset(long_password.wifi.password, 'x', 63);
+    long_password.wifi.password[63] = 0;
+    long_password.display.day_brightness = 33;
+    long_password.display.night_brightness = 3;
+    uint8_t packed[APP_BLE_PROFILE_SIZE];
+    app_ble_profile_encode(&long_password, packed);
+    app_config_t target = slave;
+    assert(app_ble_profile_decode(packed, sizeof(packed), &target));
+    assert(!strcmp(target.wifi.password, long_password.wifi.password));
+    assert(target.display.day_brightness == 65 && target.display.night_brightness == 7);
     puts("PASS: persistent auto PIN, PIN change, NVS profile, no repeated writes, boot inheritance, "
          "master brightness without restart and OTA/SD-safe runtime restart");
 }

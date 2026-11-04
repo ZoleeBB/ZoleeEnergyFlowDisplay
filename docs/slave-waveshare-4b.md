@@ -71,9 +71,13 @@ diagnosztikán.
 ## Fényerő SD-kártya nélkül
 
 A 4B-nek nincs SD-kártyája és saját beállítóoldala, ezért a **nappali és
-éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika)
-2. verziója a Wi-Fi és az automatikus frissítés mellett a Master
-`display.day_brightness` és `display.night_brightness` értékét is átviszi. A
+éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika) a
+Wi-Fi és az automatikus frissítés mellett a Master `display.day_brightness` és
+`display.night_brightness` értékét is átviszi. A blob hossza és verziója
+szándékosan változatlan (102 bájt, 1-es verzió), a két érték a jelszó mögötti
+kihasználatlan bájtokban utazik: így egy régebbi firmware-ű Slave is beolvassa
+a profilt, csak a fényerőt hagyja figyelmen kívül. 62 bájtnál hosszabb Wi-Fi
+jelszó mellett nincs hely a fényerőnek, ilyenkor a Slave a sajátját tartja. A
 Master Beállítások oldalán átírt fényerő **újraindítás nélkül**, másodperceken
 belül érvényesül a Slave-en is; a profil többi mezőjének változása továbbra is
 mentés utáni újraindítást kér.
@@ -82,8 +86,8 @@ A 0 nem érvényes fényerő (a tartományon kívüli masterérték a 80/20
 alapértékre esik vissza) – az éjszakai teljes sötétítést a jelenlétszabály
 intézi, nem a fényerő.
 
-Régi, 1. verziójú (102 bájtos) profilt küldő Masterrel a Slave a korábban
-mentett fényerejét tartja meg.
+Régebbi, a fényerőt még nem küldő Masterrel a Slave a korábban mentett
+fényerejét tartja meg.
 
 ## Éjszakai sötétítés és jelenlét
 
