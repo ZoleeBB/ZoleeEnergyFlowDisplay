@@ -13,7 +13,7 @@ set(sources slave_4b_main.c slave_4b_storage.c "${board}/ui/slave_4b_ui.c"
 foreach(source IN LISTS shared_sources)
     list(APPEND sources "${shared}/${source}")
 endforeach()
-foreach(size 16 20 28)
+foreach(size 20 24 28 34)
     list(APPEND sources "${shared}/fonts/app_font_${size}.c")
 endforeach()
 idf_component_register(SRCS ${sources}

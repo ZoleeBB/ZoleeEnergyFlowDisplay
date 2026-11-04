@@ -18,6 +18,24 @@ A fő kijelző külön cél marad. A közös BLE, PIN/profil, időszinkron, Wi-F
 modulok biztosítják a protokollazonosságot. Az új panel saját 4B BSP-t és UI-t kap.
 A szimulátor ugyanezt a UI-t fordítja.
 
+## Betűméretek és olvashatóság
+
+A fejlécen kívül minden felirat egy mérettel nagyobb (16 → 20, 20 → 24,
+28 → 34 képpont, legalább +20%): a csomópontnevek, a teljesítményértékek, az
+akkumulátor részletsora, az állapotsor, a diagnosztika, a „Mai összesítő" lapjai,
+a PIN-pad és a kaputelefon szövegsorai. A két új méret (24, 34) a meglévő
+`tools/prepare_fonts.py`-vel, ugyanabból a Noto Sans forrásból készült; a Slave
+a 16 képpontos készletet már nem fordítja be. A fejléc (cím, időjárás,
+páratartalom, szél, óra) mérete szándékosan változatlan.
+
+Az elrendezés a nagyobb sorokhoz igazodik: a kör melletti név+érték pár a kör
+magasságának közepén marad, a kör alatti pár pedig az akkumulátor
+részletsorával együtt is egymásba lógás nélkül fér el.
+
+A várakozó állapotüzenetek három ponttal végződnek („Master keresése..."), mint
+a fő kijelzőn: a tipográfiai „…" nincs a beágyazott betűkészletben, ezért
+korábban üres négyzetként jelent meg.
+
 ## Kijelző tájolása és hálózati cím
 
 A 4B kijelző elforgatása a Master `/loxone` oldalán, a Slave-kijelzők kártyáján

@@ -23,9 +23,10 @@ add_executable(zolee_slave_4b_simulator simulator.c "${board}/ui/slave_4b_ui.c"
     "${APP_ROOT}/main/app_slave_display.c"
     "${APP_ROOT}/main/app_slave_display_input.c"
     "${APP_ROOT}/tests/preview/slave_display_input_test.c"
-    "${APP_ROOT}/main/fonts/app_font_16.c"
     "${APP_ROOT}/main/fonts/app_font_20.c"
-    "${APP_ROOT}/main/fonts/app_font_28.c")
+    "${APP_ROOT}/main/fonts/app_font_24.c"
+    "${APP_ROOT}/main/fonts/app_font_28.c"
+    "${APP_ROOT}/main/fonts/app_font_34.c")
 target_include_directories(zolee_slave_4b_simulator PRIVATE "${board}/ui" "${APP_ROOT}/main"
     "${APP_ROOT}/tests/stubs")
 target_link_libraries(zolee_slave_4b_simulator PRIVATE lvgl)

@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-LV_FONT_DECLARE(app_font_20);
+LV_FONT_DECLARE(app_font_24);
 LV_FONT_DECLARE(app_font_28);
 #define VIDEO_WIDTH 720U
 #define VIDEO_HEIGHT 460U
@@ -53,7 +53,7 @@ static lv_obj_t* label(lv_obj_t* parent, const char* text, int y)
     lv_label_set_text(object, text);
     lv_obj_set_pos(object, 20, y);
     lv_obj_set_width(object, 680);
-    lv_obj_set_style_text_font(object, &app_font_20, 0);
+    lv_obj_set_style_text_font(object, &app_font_24, 0);
     lv_obj_set_style_text_color(object, lv_color_white(), 0);
     lv_label_set_long_mode(object, LV_LABEL_LONG_WRAP);
     return object;
