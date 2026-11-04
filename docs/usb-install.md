@@ -38,16 +38,21 @@ indulást.
 
 Mit kér a két csomag:
 
-| Csomag | Szükséges szilícium |
+| Csomag | Támogatott szilícium |
 | --- | --- |
-| Master 10.1 | ESP32-P4 **v3.0**-tól |
-| Slave 4B | ESP32-P4 **v1.0**-tól (a v3.x lapkán is ugyanez fut) |
+| Master 10.1 | ESP32-P4 **v3.0 – v3.99** |
+| Slave 4B | ESP32-P4 **v1.0 – v1.99** |
+
+A két tartomány nem bővíthető egy képpé: az ESP-IDF szerint az ESP32-P4 v0.x/v1.x
+és v3.x szilícium egymást kizárja („Support of ESP32-P4 rev. <3.0 and >=3.0 is
+mutually exclusive"), mert a két lapka hardveresen eltér. Ha egy újabb 4B panel
+v3.x lapkával érkezik, ahhoz külön build kell – szólj, és elkészül.
 
 A panel revíziója az `esptool` kimenetében látszik (`Chip type: ESP32-P4
 (revision v1.3)`). Ha a panelhez tartozó csomagot töltöd fel, és a hiba mégis
-előjön, az a firmware oldali `CONFIG_ESP32P4_REV_MIN` beállítás hibája – a
-kiadás csomagolása ezt mostantól ellenőrzi, és eltérésnél meg sem engedi a
-csomag elkészültét.
+előjön, az a firmware oldali `CONFIG_ESP32P4_SELECTS_REV_LESS_V3` /
+`CONFIG_ESP32P4_REV_MIN` beállítás hibája – a kiadás csomagolása ezt mostantól
+ellenőrzi, és eltérésnél meg sem engedi a csomag elkészültét.
 
 ## ESP32-P4 v3.2 és USB hibakeresés
 

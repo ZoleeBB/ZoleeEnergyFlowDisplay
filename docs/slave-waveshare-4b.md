@@ -20,14 +20,16 @@ A szimulátor ugyanezt a UI-t fordítja.
 
 ## Szilíciumrevízió – a 4B panelek v1.x lapkával is érkeznek
 
-A megvásárolt 4B panelek ESP32-P4 **v1.x** szilíciumot is tartalmazhatnak (mért
-példány: v1.3), ezért a Slave firmware minimuma `CONFIG_ESP32P4_REV_MIN_100` –
-ugyanaz a bináris fut a v1.x és a v3.x lapkán is. Ezzel jár, hogy a PSRAM
-órajele 100 MHz (a 200 MHz-es mód csak a v3.x szilíciumon létezik); a 720×720-as
-felület ezzel is folyamatos.
+A megvásárolt 4B panel ESP32-P4 **v1.3** szilíciummal érkezett, ezért a Slave
+firmware a `CONFIG_ESP32P4_SELECTS_REV_LESS_V3` + `CONFIG_ESP32P4_REV_MIN_100`
+párossal készül: a kép v1.0 – v1.99 lapkán indul. A PSRAM órajele marad 200 MHz
+(ezt a v1.x is támogatja, csak a 250 MHz-es mód v3.x-only), így a 720×720-as
+felület sebessége nem változik.
 
-A fő kijelző (10.1) továbbra is `CONFIG_ESP32P4_REV_MIN_300` + 200 MHz-es PSRAM,
-mert ott a gyors témaváltáshoz kell a sávszélesség.
+A két revíziócsalád az ESP-IDF-ben kizárja egymást, tehát ez a bináris v3.x
+lapkán nem indul el. Ha később v3.x-es 4B panel érkezik, ahhoz külön build kell
+(`SELECTS_REV_LESS_V3` nélkül, `REV_MIN_300`-mal) – a fő kijelző (10.1) ma is
+így, v3.0 – v3.99 tartományra készül.
 
 A kiadás csomagolása kiolvassa a bootloader és az alkalmazás fejlécéből a
 revíziókövetelményt, és eltérésnél hibával leáll, így rossz minimummal nem

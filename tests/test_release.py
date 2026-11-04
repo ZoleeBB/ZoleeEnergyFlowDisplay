@@ -180,14 +180,20 @@ class ReleaseTests(unittest.TestCase):
         description = json.loads((self.build/'project_description.json').read_text())
         description['project_name'] = 'zolee_slave_4b'
         (self.build/'project_description.json').write_text(json.dumps(description))
-        # A 4B panelek v1.x szilíciummal is érkeznek: a v3.0-s követelményű kép
-        # ott el sem indulna, ezért a csomagolás nem is engedheti ki.
+        # A megvásárolt 4B panel v1.3 szilíciumú: a v3.0-s követelményű kép ott
+        # el sem indulna, ezért a csomagolás nem is engedheti ki. A v1.x és a
+        # v3.x tartomány az ESP-IDF-ben kizárja egymást, így a felső határnak is
+        # v1.99-nek kell lennie.
         with self.assertRaises(ValueError):
             package(self.build, self.out, self.tag, self.sha, 'slave-4b')
         struct.pack_into('<HHH', image, 13, 18, 100, 399)
         (self.build/'app.bin').write_bytes(image)
+        with self.assertRaises(ValueError):
+            package(self.build, self.out, self.tag, self.sha, 'slave-4b')
+        struct.pack_into('<HHH', image, 13, 18, 100, 199)
+        (self.build/'app.bin').write_bytes(image)
         boot = bytearray(self.bootloader)
-        struct.pack_into('<HHH', boot, 13, 18, 100, 399)
+        struct.pack_into('<HHH', boot, 13, 18, 100, 199)
         (self.build/'bootloader/bootloader.bin').write_bytes(bytes(boot))
         package(self.build, self.out, self.tag, self.sha, 'slave-4b')
         usb = self.out/f'ZoleeEnergyFlowDisplay-slave-4b-{self.tag}-usb.zip'
@@ -195,12 +201,12 @@ class ReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(usb) as archive:
             archive.extractall(unpack)
         self.assertEqual((unpack/'app.bin').read_bytes(), bytes(image))
-        # A kiadott Slave-kép v1.0-s szilíciumtól fut, a Masteré v3.0-tól.
+        # A kiadott Slave-kép v1.0-v1.99, a Masteré v3.0-v3.99 szilíciumon fut.
         import struct as _struct
-        self.assertEqual(_struct.unpack_from('<H', (unpack/'app.bin').read_bytes(), 15)[0], 100)
+        self.assertEqual(_struct.unpack_from('<HH', (unpack/'app.bin').read_bytes(), 15), (100, 199))
         master = self.root/'usb'
         if master.is_dir():
-            self.assertEqual(_struct.unpack_from('<H', (master/'app.bin').read_bytes(), 15)[0], 300)
+            self.assertEqual(_struct.unpack_from('<HH', (master/'app.bin').read_bytes(), 15), (300, 399))
         self.assertIn('4B', (unpack/'TELEPITES.md').read_text())
         self.assertIn('zolee_slave_4b', (unpack/'firmware/slave-waveshare-4b/README.md').read_text())
         command(unpack, 'COM5', DEFAULT_BAUD, no_stub=True, manual_boot=True)

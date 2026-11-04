@@ -221,7 +221,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 
 | Funkció | Röviden |
 | --- | --- |
-| 4B telepítés v1.x lapkán | A 4B panelek ESP32-P4 **v1.x** szilíciummal is érkeznek, a Slave csomag viszont v3.0+-t kért: a feltöltés `requires chip revision in range v3.0 - v3.99` hibával állt meg. A Slave firmware mostantól v1.0-tól fut (a v3.x lapkán is ugyanaz a bináris). A Master 10.1 változatlanul v3.0+, hogy a 200 MHz-es PSRAM és a gyors témaváltás megmaradjon. [Részletek](docs/usb-install.md) |
+| 4B telepítés v1.x lapkán | A megérkezett 4B panel ESP32-P4 **v1.3** szilíciumú, a Slave csomag viszont v3.0+-t kért: a feltöltés `requires chip revision in range v3.0 - v3.99` hibával állt meg. A Slave firmware mostantól v1.0 – v1.99 lapkára készül (a PSRAM marad 200 MHz). A két revíziócsalád az ESP-IDF-ben kizárja egymást, a Master 10.1 változatlanul v3.0 – v3.99. [Részletek](docs/usb-install.md) |
 | Ellenőrzött csomag | A kiadás csomagolása kiolvassa a bootloader és az alkalmazás fejlécéből a revíziókövetelményt, és eltérésnél nem enged ki csomagot. Így nem maradhat észrevétlen, ha egy build rossz szilíciumra készül. |
 | Célzott hibaüzenet | A `flash.py` a valódi hibához igazítja a tanácsot: revízióhibánál nem a kézi BOOT módot ajánlja (az nem segít), hanem megmondja, mi a baj. |
 

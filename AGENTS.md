@@ -127,9 +127,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott
   `app_templates_sd_write` az MSVC-s szimulátorban linkelési hibát adott
   (`LNK2019: unresolved external symbol`). A `tests/run_tests.py` ezt ellenőrzi.
-- A kiadott kép szilíciumkövetelménye (`CONFIG_ESP32P4_REV_MIN`) panelenként
-  eltér, és a csomagolás ellenőrzi: a Master 10.1 v3.0-tól, a 4B Slave v1.0-tól
-  fut. Új panel vagy új build esetén ezt nézd meg, mert a hibát csak a
-  feltöltéskor venné észre a felhasználó.
+- A kiadott kép szilíciumtartománya panelenként eltér, és a csomagolás
+  ellenőrzi: a Master 10.1 v3.0-v3.99, a 4B Slave v1.0-v1.99
+  (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3`). A két ESP32-P4 revíziócsalád kizárja
+  egymást, egy bináris nem szolgálhatja ki mindkettőt. Új panel vagy új build
+  esetén ezt nézd meg, mert a hibát csak a feltöltéskor venné észre a
+  felhasználó.
 - Ellenőrizd az alkalmazás bináris méretét és a partíciós/OTA korlátokat; méretösszehasonlítás nélkül ne állítsd, hogy a két firmware bájtra azonos.
 - Formázási célú PR nem tartalmazhat funkciómódosítást, konfigurációváltozást, tömörítetlen webes állományt vagy új beágyazott erőforrást.

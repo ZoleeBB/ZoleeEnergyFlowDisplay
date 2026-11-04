@@ -46,8 +46,9 @@ def failure_hint(error_text, port, shell_python):
         return ('A panel szilíciuma régebbi vagy újabb, mint amit ez a csomag támogat. Ez nem '
                 'feltöltési hiba, és a --force sem segít: a bootloader induláskor is ellenőrzi a '
                 'revíziót, így az eszköz nem indulna el. Ellenőrizd, hogy a panelhez tartozó '
-                'csomagot töltöd-e fel (a 4B Slave csomagja v1.0-tól, a 10.1-es Master csomagja '
-                'v3.0-tól indul).')
+                'csomagot töltöd-e fel: a 4B Slave csomagja v1.0-v1.99, a 10.1-es Master '
+                'csomagja v3.0-v3.99 szilíciumon fut. Az ESP32-P4 v1.x és v3.x lapka egymást '
+                'kizárja, ezért egy v3.x-es 4B panelhez külön build kell.')
     return ('A feltöltés nem fejeződött be. USB/stub hibánál lépj kézi BOOT módba, majd próbáld: '
             f'{shell_python} "{Path(__file__).resolve()}" --port {port} --no-stub --manual-boot')
 
