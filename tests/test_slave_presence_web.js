@@ -16,7 +16,7 @@ const id='ble-0-060504030201', id2='ble-0-070504030201', id3='ble-0-080504030201
 const uuid='11223344-5566-7788-99aabbccddeeff00', uuid2='aabbccdd-5566-7788-99aabbccddeeff00';
 const catalog=[{uuid,name:'<img src=x> Jelenlét',room:'Nappali',category:'Jelenlét',state:'value'},
     {uuid:uuid2,name:'Mozgás',room:'Kert',category:'Jelenlét',state:'value'}];
-const initial=[id,id2,id3].map((id,index)=>({id,name:'Slave '+(index+1),presence_uuid:index?uuid2:uuid,timeout_seconds:30,blank_at_night:false}));
+const initial=[id,id2,id3].map((id,index)=>({id,name:'Slave '+(index+1),presence_uuid:index?uuid2:uuid,timeout_seconds:30,blank_at_night:false,rotation_degrees:0}));
 let state={schema:1,enabled:false,ready:false,revision:4294967295,saved_revision:4294967295,save_error:0,profiles:[]};
 let offline=false, persist=true, reject=false, afterPostOffline=false, lostResponse=false, dropBeforePost=false, mutateBeforePost=null;
 const posts=[];
@@ -93,6 +93,9 @@ const status=(peer=id)=>get('status',peer).textContent;
     edit('name','név\ud800');await save();assert.equal(posts.length,2);
     edit('name','Nappali');edit('presence_uuid','hibás');await save();assert.equal(posts.length,2);
     edit('presence_uuid','');edit('blank_at_night',true);
+    /* A tájolás csak a négy negyedfordulat egyike lehet. */
+    edit('rotation_degrees','45');await save();assert.equal(posts.length,2);assert(status().includes('elforgatása'));
+    edit('rotation_degrees','180');
     /* 202 esetén az UI még vár a háttértask commitjára. */
     persist=false;await save();assert.equal(posts.length,3);assert(status().includes('folyamatban'));
     assert(get('save').disabled && get('name').disabled);assert(!get('name',id2).disabled);
@@ -101,6 +104,8 @@ const status=(peer=id)=>get('status',peer).textContent;
     edit('timeout_seconds',46);
     state.save_error=0;persist=true;await save();assert.equal(posts.length,4);assert(status().includes('tartósan elmentve'));
     assert.equal(posts.at(-1).profile.presence_uuid,'');assert.equal(posts.at(-1).profile.blank_at_night,true);
+    assert.equal(posts.at(-1).profile.rotation_degrees,180);
+    assert.equal(get('rotation_degrees').value,'180');
     /* NVS háttér-újrapróbálás kattintás nélkül is visszajelezhető. */
     edit('timeout_seconds',50);persist=false;await save();state.save_error=5;await refresh();
     state.save_error=0;state.saved_revision=state.revision;await refresh();assert(status().includes('tartósan elmentve'));

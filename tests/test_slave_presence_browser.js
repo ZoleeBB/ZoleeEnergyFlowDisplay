@@ -14,7 +14,8 @@ const catalog = [{uuid, name:'Nappali jelenlét', room:'Nappali', category:'Jele
 const state = {schema:1, enabled:true, ready:true, revision:123, saved_revision:123, save_error:0,
     profiles:[id,'ble-0-070504030201','ble-0-080504030201'].map((id, index) => ({
         id, name:['Nappali kijelző','Emeleti kijelző','Konyhai kijelző'][index],
-        presence_uuid:index ? '' : uuid, timeout_seconds:30, blank_at_night:false}))};
+        presence_uuid:index ? '' : uuid, timeout_seconds:30, blank_at_night:false,
+        rotation_degrees:0}))};
 let posts = 0, gets = 0;
 const server = http.createServer(async (req, res) => {
     res.setHeader('Cache-Control','no-store');
@@ -60,9 +61,11 @@ const server = http.createServer(async (req, res) => {
         assert(await name.evaluate((node, original) => node === original && document.activeElement === node,handle));
         await page.locator('#slave-room').selectOption(JSON.stringify('Nappali'));
         await page.locator('#slave-' + id + '-blank_at_night').check();
+        await page.locator('#slave-' + id + '-rotation_degrees').selectOption('180');
         await page.locator('#slave-' + id + '-save').click();
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartós mentés folyamatban'}).waitFor();
         assert.equal(posts,1);
+        assert.equal(state.profiles[0].rotation_degrees,180);
         assert(await page.locator('#slave-' + id + '-save').isDisabled());
         state.saved_revision = state.revision;
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartósan elmentve'}).waitFor();

@@ -21,14 +21,24 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_heap_caps.h"
+#include "nvs.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <time.h>
 #include <stdatomic.h>
 
+/* A kijelző tájolása a Master webes Slave-kártyájáról érkezik, és csak
+ * induláskor alkalmazható (futó MIPI DSI mellett nincs átforgatás), ezért
+ * NVS-be kerül, majd a Slave újraindul. Az érintést az adapter forgatja. */
+#define SLAVE_ROTATION_NAMESPACE "slave_4b"
+#define SLAVE_ROTATION_KEY "rotation"
+#define SLAVE_ROTATION_DELAY_US INT64_C(2000000)
+
 static app_config_t config;
+static uint16_t rotation_degrees;
 static int last_brightness = -1;
 static app_slave_display_t display_state;
 static app_slave_display_input_t input_gate;
@@ -36,6 +46,75 @@ static atomic_bool boot_complete;
 /* A napi statisztika-pillanatkép (288 ötperces sáv) PSRAM-ban, csak látható
  * összesítőnél és legfeljebb másodpercenként frissül a 33 ms-os körben. */
 static app_stats_snapshot_t *summary_snapshot;
+
+static uint16_t rotation_load(void)
+{
+    nvs_handle_t handle;
+    uint8_t quarters = 0;
+    if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READONLY, &handle) == ESP_OK)
+    {
+        if (nvs_get_u8(handle, SLAVE_ROTATION_KEY, &quarters) != ESP_OK || quarters > 3)
+            quarters = 0;
+        nvs_close(handle);
+    }
+    return (uint16_t)(quarters * 90u);
+}
+
+static bool rotation_save(uint16_t degrees)
+{
+    nvs_handle_t handle;
+    if (degrees % 90 || degrees > 270 ||
+        nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+        return false;
+    esp_err_t error = nvs_set_u8(handle, SLAVE_ROTATION_KEY, (uint8_t)(degrees / 90));
+    if (error == ESP_OK)
+        error = nvs_commit(handle);
+    nvs_close(handle);
+    return error == ESP_OK;
+}
+
+/* Rövid késleltetés után indul újra, hogy a Master webes visszaigazolása és a
+ * BLE-nyugta még kimenjen. Kaputelefon-hívás vagy PIN-bevitel alatt vár. */
+static void rotation_follow(int64_t now, bool busy)
+{
+    static int64_t pending_since;
+    static bool failed;
+    uint16_t desired = 0;
+    if (failed || !app_slave_presence_service_rotation(&desired) ||
+        desired == rotation_degrees)
+    {
+        pending_since = 0;
+        return;
+    }
+    if (busy)
+        return;
+    if (!pending_since)
+    {
+        pending_since = now;
+        return;
+    }
+    if (now - pending_since < SLAVE_ROTATION_DELAY_US)
+        return;
+    if (!rotation_save(desired))
+    {
+        failed = true;
+        app_events_add(APP_EVENT_WARNING, "A kijelző tájolását nem sikerült elmenteni.");
+        return;
+    }
+    app_events_add(APP_EVENT_INFO, "Új kijelzőtájolás érkezett a Mastertől; a Slave újraindul.");
+    esp_restart();
+}
+
+static void network_refresh(int64_t now, bool connected)
+{
+    static int64_t last;
+    char address[16];
+    if (last && now - last < 2000000)
+        return;
+    last = now;
+    slave_4b_ui_network(connected && app_wifi_get_ip(address, sizeof(address)) == ESP_OK ?
+                        address : NULL);
+}
 
 static void summary_refresh(int64_t now)
 {
@@ -113,6 +192,8 @@ static void refresh(lv_timer_t *timer)
                                    intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input, now);
     app_slave_presence_service_apply(&display_state, now);
+    network_refresh(now, runtime.wifi_connected);
+    rotation_follow(now, intercom_visible || pairing.pin_required);
     int brightness = (int)app_slave_display_brightness(&display_state, now);
     if (intercom_visible) {
         unsigned day, night;
@@ -150,10 +231,20 @@ void app_main(void)
     app_state_init();
     app_events_init();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
+    rotation_degrees = rotation_load();
+    /* Az érintés nem forog magától: a 10.1-es Masterrel azonos konvenció szerint
+     * a negyedfordulatnál tengelycsere, a félfordulatnál kettős tükrözés kell. */
+    bool quarter = rotation_degrees == 90 || rotation_degrees == 270;
     bsp_display_cfg_t display = {
         .lv_adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG(),
-        .rotation = ESP_LV_ADAPTER_ROTATE_0,
-        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL
+        .rotation = rotation_degrees == 90 ? ESP_LV_ADAPTER_ROTATE_90 :
+                    rotation_degrees == 180 ? ESP_LV_ADAPTER_ROTATE_180 :
+                    rotation_degrees == 270 ? ESP_LV_ADAPTER_ROTATE_270 :
+                                              ESP_LV_ADAPTER_ROTATE_0,
+        .tear_avoid_mode = ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL,
+        .touch_flags = {.swap_xy = quarter,
+                        .mirror_x = rotation_degrees == 90 || rotation_degrees == 180,
+                        .mirror_y = rotation_degrees == 180 || rotation_degrees == 270}
     };
     display.lv_adapter_cfg.task_stack_size = 32768;
     display.lv_adapter_cfg.stack_in_psram = true;

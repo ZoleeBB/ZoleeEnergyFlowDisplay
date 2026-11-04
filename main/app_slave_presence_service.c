@@ -78,7 +78,11 @@ static bool store_encode(const app_slave_presence_table_t *table,
         memcpy(entry + 8, peer->profile.name, strlen(peer->profile.name));
         memcpy(entry + 89, peer->profile.presence_uuid, strlen(peer->profile.presence_uuid));
         store_write_u32(entry + 125, peer->profile.timeout_seconds);
-        entry[129] = peer->profile.blank_at_night ? 1 : 0;
+        /* A tájolás a jelzőbájt szabad bitjeire került, így a korábban mentett
+         * blob mérete és minden más mezője változatlan: a meglévő profilok
+         * frissítés után is betöltődnek, 0 fokos tájolással. */
+        entry[129] = (uint8_t)((peer->profile.blank_at_night ? 1 : 0) |
+                               ((peer->profile.rotation_degrees / 90u) << 1));
         store_write_u32(entry + 130, peer->revision);
     }
     store_write_u32(out + PRESENCE_STORE_SIZE - 4,
@@ -98,7 +102,7 @@ static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_ta
         const uint8_t *entry = data + 4 + i * PRESENCE_STORE_ENTRY_SIZE;
         if (!entry[0])
             continue;
-        if (entry[0] != 1 || entry[129] > 1)
+        if (entry[0] != 1 || entry[129] > 7)
             return false;
         app_slave_presence_peer_t *peer = &table.peers[i];
         peer->used = true;
@@ -107,7 +111,8 @@ static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_ta
         memcpy(peer->profile.name, entry + 8, APP_SLAVE_PRESENCE_NAME_SIZE);
         memcpy(peer->profile.presence_uuid, entry + 89, APP_SLAVE_PRESENCE_UUID_SIZE);
         peer->profile.timeout_seconds = store_u32(entry + 125);
-        peer->profile.blank_at_night = entry[129] != 0;
+        peer->profile.blank_at_night = (entry[129] & 1) != 0;
+        peer->profile.rotation_degrees = (uint16_t)(((entry[129] >> 1) & 3u) * 90u);
         peer->revision = store_u32(entry + 130);
     }
     uint8_t canonical[PRESENCE_STORE_SIZE];
@@ -353,6 +358,19 @@ void app_slave_presence_service_legacy(void)
         return;
     app_slave_presence_legacy(&s_presence_receiver);
     xSemaphoreGive(s_presence_mutex);
+}
+
+bool app_slave_presence_service_rotation(uint16_t *degrees)
+{
+    if (!degrees || !atomic_load(&s_presence_ready) || s_presence_master ||
+        xSemaphoreTake(s_presence_mutex, 0) != pdTRUE)
+        return false;
+    bool known = s_presence_receiver.have_profile;
+    uint16_t rotation = s_presence_receiver.rotation_degrees;
+    xSemaphoreGive(s_presence_mutex);
+    if (known)
+        *degrees = rotation;
+    return known;
 }
 
 void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now_us)

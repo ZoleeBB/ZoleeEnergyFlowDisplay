@@ -29,5 +29,8 @@ uint32_t app_slave_presence_service_source_revision(void);
 bool app_slave_presence_service_receive(const uint8_t *data, size_t size, bool authenticated);
 void app_slave_presence_service_disconnected(void);
 void app_slave_presence_service_legacy(void);
+/* A Slave oldalán a Mastertől kapott, hitelesített profil tájolása (0/90/180/270).
+ * false, ha még nem érkezett profil, vagy a receiver épp foglalt. */
+bool app_slave_presence_service_rotation(uint16_t *degrees);
 /* A hívó a kijelző zárját tartja; foglalt receiver esetén a következő tick próbálja. */
 void app_slave_presence_service_apply(app_slave_display_t *display, int64_t now_us);

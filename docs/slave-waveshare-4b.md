@@ -18,6 +18,19 @@ A fő kijelző külön cél marad. A közös BLE, PIN/profil, időszinkron, Wi-F
 modulok biztosítják a protokollazonosságot. Az új panel saját 4B BSP-t és UI-t kap.
 A szimulátor ugyanezt a UI-t fordítja.
 
+## Kijelző tájolása és hálózati cím
+
+A 4B kijelző elforgatása a Master `/loxone` oldalán, a Slave-kijelzők kártyáján
+állítható (0°, 90°, 180°, 270°). A beállítás a meglévő, hitelesített
+jelenlétprofillal utazik BLE-n; a Slave elmenti, és **rövid késleltetés után
+újraindul**, mert futó MIPI DSI mellett nincs átforgatás. Indulás után a kép és
+az érintés is a kért tájolásban működik. Kaputelefon-hívás vagy PIN-bevitel alatt
+a Slave megvárja a végét.
+
+A 4B-nek nincs saját weboldala, ezért a Wi-Fi IP-címe a kijelző diagnosztikai
+rétegén olvasható le (jobb felső sarok megérintése), a BLE és az időszinkron
+állapota mellett.
+
 ## Szilíciumrevízió – a 4B panelek v1.x lapkával is érkeznek
 
 A megvásárolt 4B panel ESP32-P4 **v1.3** szilíciummal érkezett, ezért a Slave

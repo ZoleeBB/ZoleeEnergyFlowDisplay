@@ -11,6 +11,9 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
                     float seconds);
 void slave_4b_ui_pairing(const app_ble_pairing_status_t *status);
 void slave_4b_ui_message(const char *text);
+/* A diagnosztikai réteg IP-sora. NULL vagy üres: „nincs". A Slave-nek nincs
+ * saját weboldala, ezért a hálózati címe itt olvasható le. */
+void slave_4b_ui_network(const char *ip);
 
 /* „Mai összesítő” nézet. A számokat a hívó a mastertől kapott napi
  * statisztikából állítja össze; a nézet csak megjelenít. */

@@ -211,6 +211,19 @@ static void codec_tests(void)
     assert(store_decode(wire, sizeof(wire), &decoded));
     assert(decoded.peers[0].profile.blank_at_night && decoded.peers[0].revision == 2);
     assert(!decoded.peers[0].valid && !decoded.peers[0].active && !decoded.peers[0].counter);
+    /* A tájolás a sötétítés bájtjának szabad bitjein fér el, ezért a blob mérete
+     * és a korábban mentett profil is változatlan marad (0 fok). */
+    assert(!decoded.peers[0].profile.rotation_degrees);
+    profile = table.peers[0].profile;
+    profile.rotation_degrees = 270;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    assert(store_encode(&table, wire) && wire[4 + 129] == (1 | (3 << 1)));
+    assert(store_decode(wire, sizeof(wire), &decoded));
+    assert(decoded.peers[0].profile.rotation_degrees == 270 &&
+           decoded.peers[0].profile.blank_at_night);
+    profile.rotation_degrees = 0;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    assert(store_encode(&table, wire));
     app_slave_presence_table_t saved = decoded;
     for (unsigned i = 0; i < sizeof(wire); ++i)
     {

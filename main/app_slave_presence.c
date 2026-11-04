@@ -132,7 +132,8 @@ bool app_slave_identity_id(const app_slave_identity_t *identity,
 bool app_slave_presence_profile_valid(const app_slave_presence_profile_t *profile)
 {
     return profile && name_valid(profile->name) && uuid_valid(profile->presence_uuid) &&
-           profile->timeout_seconds >= 1 && profile->timeout_seconds <= 86400;
+           profile->timeout_seconds >= 1 && profile->timeout_seconds <= 86400 &&
+           profile->rotation_degrees % 90 == 0 && profile->rotation_degrees <= 270;
 }
 
 int app_slave_presence_find(const app_slave_presence_table_t *table,
@@ -199,7 +200,8 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     bool same_source = strcmp(peer->profile.presence_uuid, profile->presence_uuid) == 0;
     if (same_source && strcmp(peer->profile.name, profile->name) == 0 &&
         peer->profile.timeout_seconds == profile->timeout_seconds &&
-        peer->profile.blank_at_night == profile->blank_at_night)
+        peer->profile.blank_at_night == profile->blank_at_night &&
+        peer->profile.rotation_degrees == profile->rotation_degrees)
         return true;
     /* Mezőnkénti másolás: a strukturális padding és a szöveg utáni bájtok nem
      * részei a profilnak, így nem indítanak felesleges tartós mentést. */
@@ -208,6 +210,7 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     memcpy(clean.presence_uuid, profile->presence_uuid, strlen(profile->presence_uuid));
     clean.timeout_seconds = profile->timeout_seconds;
     clean.blank_at_night = profile->blank_at_night;
+    clean.rotation_degrees = profile->rotation_degrees;
     peer->profile = clean;
     peer->revision = next_revision(peer->revision);
     if (!same_source)
@@ -289,8 +292,9 @@ bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
     out[0] = 'Z';
     out[1] = 'P';
     out[2] = 1;
-    out[3] = (peer->profile.blank_at_night ? 1 : 0) |
-             (valid ? 2 : 0) | (valid && peer->active ? 4 : 0);
+    out[3] = (uint8_t)((peer->profile.blank_at_night ? 1 : 0) |
+                       (valid ? 2 : 0) | (valid && peer->active ? 4 : 0) |
+                       ((peer->profile.rotation_degrees / 90u) << 3));
     write_u32(out + 4, peer->revision);
     write_u32(out + 8, peer->profile.timeout_seconds);
     write_u32(out + 12, peer->counter);
@@ -330,7 +334,7 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
 {
     if (!receiver || !data || !authenticated || now_us < 0 ||
         size != APP_SLAVE_PRESENCE_PACKET_SIZE || data[0] != 'Z' ||
-        data[1] != 'P' || data[2] != 1 || (data[3] & ~7u) ||
+        data[1] != 'P' || data[2] != 1 || (data[3] & ~31u) ||
         ((data[3] & 4) && !(data[3] & 2)))
         return false;
     uint32_t revision = read_u32(data + 4);
@@ -349,7 +353,9 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
           !forward(counter, receiver->counter))))
         return false;
     bool blank = (data[3] & 1) != 0;
+    uint16_t rotation = (uint16_t)(((data[3] >> 3) & 3u) * 90u);
     if (!new_revision && (blank != receiver->blank_at_night ||
+                         rotation != receiver->rotation_degrees ||
                          timeout != receiver->timeout_seconds))
         return false;
     bool valid = (data[3] & 2) != 0;
@@ -367,6 +373,7 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
     receiver->baseline = true;
     receiver->have_profile = true;
     receiver->blank_at_night = blank;
+    receiver->rotation_degrees = rotation;
     receiver->valid = valid;
     receiver->active = (data[3] & 4) != 0;
     receiver->revision = revision;

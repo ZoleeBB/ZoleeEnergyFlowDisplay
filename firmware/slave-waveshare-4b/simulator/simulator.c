@@ -192,6 +192,22 @@ static int summary_test(void)
     return 0;
 }
 
+/* A képernyő feliratai közül az elsőt adja vissza, amelyik a mintával kezdődik. */
+static const char *find_label(const char *prefix)
+{
+    lv_obj_t *screen = lv_screen_active();
+    for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++)
+    {
+        lv_obj_t *child = lv_obj_get_child(screen, i);
+        if (!lv_obj_check_type(child, &lv_label_class))
+            continue;
+        const char *text = lv_label_get_text(child);
+        if (text && !strncmp(text, prefix, strlen(prefix)))
+            return text;
+    }
+    return NULL;
+}
+
 static int self_test(void)
 {
     /* A master tényleges vezetékformátumán megy át a nappali demó. */
@@ -213,8 +229,8 @@ static int self_test(void)
     for (uint32_t i = 0; i < lv_obj_get_child_count(humidity_screen); i++)
     {
         lv_obj_t *child = lv_obj_get_child(humidity_screen, i);
-        if (lv_obj_check_type(child, &lv_label_class) && lv_obj_get_x(child) == 484 &&
-            lv_obj_get_y(child) == 73)
+        if (lv_obj_check_type(child, &lv_label_class) && lv_obj_get_x(child) == 380 &&
+            lv_obj_get_y(child) == 32)
             humidity_label = child;
         if (lv_obj_check_type(child, &lv_image_class) &&
             lv_image_get_src(child) == &slave_4b_weather_humidity)
@@ -246,7 +262,7 @@ static int self_test(void)
     for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++)
     {
         lv_obj_t *child = lv_obj_get_child(screen, i);
-        if (lv_obj_get_style_border_width(child, LV_PART_MAIN) == 3 &&
+        if (lv_obj_get_style_border_width(child, LV_PART_MAIN) == 6 &&
             lv_obj_get_width(child) == lv_obj_get_height(child))
         {
             CHECK(ring_count < 4);
@@ -261,7 +277,7 @@ static int self_test(void)
             CHECK(i > 0);
             lv_obj_t *path = lv_obj_get_child(screen, i - 1);
             int pw = lv_obj_get_width(path), ph = lv_obj_get_height(path);
-            CHECK((pw == 170 && ph == 4) || (pw == 4 && ph == 170));
+            CHECK((pw == 170 && ph == 8) || (pw == 8 && ph == 170));
             ring_count++;
         }
     }
@@ -351,8 +367,13 @@ static int self_test(void)
     CHECK(submitted == 1 && pairing.pin_required);
     click(350, 650);
     CHECK(submitted == 2 && !pairing.pin_required);
+    /* A 4B-nek nincs weboldala: a hálózati címe a diagnosztikán olvasható le. */
+    slave_4b_ui_network("192.168.2.77");
+    runtime.wifi_connected = true;
+    step(0);
     click(650, 35);
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
+    CHECK(find_label("Waveshare 4B") && strstr(find_label("Waveshare 4B"), "IP: 192.168.2.77"));
     puts("PASS: BLE decode, day/night, animation, optional weather, SOC 0..100, island, timeout/disconnect, touch PIN/reset/delete/cancel, diagnostics");
     app_test_slave_display_input(display);
     runtime.slave_connected = true;

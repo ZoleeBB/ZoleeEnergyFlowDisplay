@@ -206,7 +206,7 @@ static void wire_tests(void)
         if (i == 2)
             wire[2] = 2;
         if (i == 3)
-            wire[3] |= 8;
+            wire[3] |= 32; /* A 3-4. bit a tájolásé, az 5-7. továbbra is tiltott. */
         if (i == 4)
             wire[3] = 4;
         if (i == 5)
@@ -231,6 +231,34 @@ static void wire_tests(void)
     assert(app_slave_presence_encode(&peer, 1, false, wire) && wire[3] == 1);
     peer.profile.presence_uuid[0] = 0;
     assert(app_slave_presence_encode(&peer, 1, true, wire) && wire[3] == 1);
+    /* A tájolás a jelzőbájt 3-4. bitjén utazik, és a 0 fok bitjei nullák, így a
+     * korábbi Slave is elfogadja az alapértelmezett csomagot. */
+    memcpy(peer.profile.presence_uuid, UUID_A, 36);
+    for (uint16_t degrees = 0; degrees <= 270; degrees = (uint16_t)(degrees + 90))
+    {
+        peer.profile.rotation_degrees = degrees;
+        peer.revision = UINT32_C(0x12345678) + degrees;
+        assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344) + degrees, true, wire));
+        assert((wire[3] >> 3) == degrees / 90 && (wire[3] & 7) == 7);
+        app_slave_presence_receiver_t rotated = {0};
+        assert(app_slave_presence_receive(&rotated, wire, sizeof(wire), true, 0));
+        assert(rotated.have_profile && rotated.rotation_degrees == degrees);
+        /* Azonos revízióval nem változhat a profil: a visszafordított tájolás
+         * ugyanúgy hamisítás, mint az időkorlát vagy a sötétítés átírása. */
+        uint8_t tampered[APP_SLAVE_PRESENCE_PACKET_SIZE];
+        memcpy(tampered, wire, sizeof(tampered));
+        tampered[3] = (uint8_t)((tampered[3] & 7) | (((degrees / 90 + 1) % 4) << 3));
+        tampered[16]++;
+        app_slave_presence_receiver_t saved_rotation = rotated;
+        assert(!app_slave_presence_receive(&rotated, tampered, sizeof(tampered), true, 0));
+        assert(memcmp(&rotated, &saved_rotation, sizeof(rotated)) == 0);
+    }
+    peer.profile.rotation_degrees = 45;
+    assert(!app_slave_presence_profile_valid(&peer.profile));
+    peer.profile.rotation_degrees = 360;
+    assert(!app_slave_presence_profile_valid(&peer.profile));
+    peer.profile.rotation_degrees = 0;
+    peer.profile.presence_uuid[0] = 0;
     peer.profile.timeout_seconds = 0;
     memset(wire, 0x42, sizeof(wire));
     assert(!app_slave_presence_encode(&peer, 1, true, wire));
