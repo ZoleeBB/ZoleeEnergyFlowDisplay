@@ -40,6 +40,19 @@ def command(root, port, baud, no_stub=False, manual_boot=False):
     return result
 
 
+def failure_hint(error_text, port, shell_python):
+    """A tanács a tényleges hibához igazodjon, ne mindig a kézi BOOT módhoz."""
+    if 'requires chip revision' in (error_text or ''):
+        return ('A panel szilíciuma régebbi vagy újabb, mint amit ez a csomag támogat. Ez nem '
+                'feltöltési hiba, és a --force sem segít: a bootloader induláskor is ellenőrzi a '
+                'revíziót, így az eszköz nem indulna el. Ellenőrizd, hogy a panelhez tartozó '
+                'csomagot töltöd-e fel: a 4B Slave csomagja v1.0-v1.99, a 10.1-es Master '
+                'csomagja v3.0-v3.99 szilíciumon fut. Az ESP32-P4 v1.x és v3.x lapka egymást '
+                'kizárja, ezért egy v3.x-es 4B panelhez külön build kell.')
+    return ('A feltöltés nem fejeződött be. USB/stub hibánál lépj kézi BOOT módba, majd próbáld: '
+            f'{shell_python} "{Path(__file__).resolve()}" --port {port} --no-stub --manual-boot')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Zolee Energy Flow Display USB első telepítés')
     parser.add_argument('--port', required=True, help='Például COM5 vagy /dev/ttyACM0')
@@ -59,10 +72,13 @@ def main():
     shell_python = ('& ' if sys.platform == 'win32' else '') + f'"{sys.executable}"'
     if installed != ESPTOOL_VERSION:
         raise SystemExit(f'Telepítsd ugyanebbe a Python környezetbe: {shell_python} -m pip install esptool=={ESPTOOL_VERSION}')
-    result = subprocess.run(cmd, check=False)
+    # A hibakimenetet elkapjuk, hogy a tanács a valódi okhoz igazodjon; a
+    # folyamatjelzés (stdout) közben változatlanul látszik.
+    result = subprocess.run(cmd, check=False, stderr=subprocess.PIPE, text=True, errors='replace')
+    if result.stderr:
+        print(result.stderr, end='', file=sys.stderr)
     if result.returncode:
-        print('A feltöltés nem fejeződött be. USB/stub hibánál lépj kézi BOOT módba, majd próbáld: '
-              f'{shell_python} "{Path(__file__).resolve()}" --port {args.port} --no-stub --manual-boot', file=sys.stderr)
+        print(failure_hint(result.stderr, args.port, shell_python), file=sys.stderr)
         raise SystemExit(result.returncode)
 
 

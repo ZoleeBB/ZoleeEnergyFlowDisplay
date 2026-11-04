@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'tools/release'))
 from version import validate_tag
 from package import package
-from flash_usb import command, ESPTOOL_VERSION, DEFAULT_BAUD
+from flash_usb import command, failure_hint, ESPTOOL_VERSION, DEFAULT_BAUD
 import flash_usb
 from publish import publish
 
@@ -33,16 +33,23 @@ class ReleaseTests(unittest.TestCase):
         self.sha = 'a'*40
         data = bytearray(1024)
         data[0] = 0xE9
+        # A valódi képfejléc: chip-azonosító és a megengedett szilíciumtartomány.
+        struct.pack_into('<HHH', data, 13, 18, 300, 399)
         struct.pack_into('<I', data, 32, 0xABCD5432)
         data[48:48+len(self.tag)] = self.tag.encode()
         self.app = bytes(data)
+        boot = bytearray(512)
+        boot[0] = 0xE9
+        struct.pack_into('<HHH', boot, 13, 18, 300, 399)
+        self.bootloader = bytes(boot)
         # Deliberately non-default addresses catch guessed or fixed offsets.
         self.flash = {'0x3000':'bootloader/bootloader.bin', '0xa000':'partition_table/partition-table.bin',
                       '0x17000':'ota_data_initial.bin', '0x30000':'app.bin'}
         for name in self.flash.values():
             path = self.build/name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(self.app if name=='app.bin' else b'flash-image')
+            path.write_bytes(self.app if name=='app.bin' else
+                             self.bootloader if 'bootloader' in name else b'flash-image')
         self.manifest = {'flash_files':self.flash, 'write_flash_args':['--flash_mode','dio','--flash_size','32MB','--flash_freq','80m'],
                          'flash_settings':{'flash_mode':'dio','flash_size':'32MB','flash_freq':'80m'},
                          'extra_esptool_args':{'chip':'esp32p4','before':'default_reset','after':'hard_reset','stub':False}}
@@ -138,8 +145,11 @@ class ReleaseTests(unittest.TestCase):
             run.assert_not_called()
         with patch.object(sys, 'argv', ['flash.py', '--port', 'COM3']), patch.object(flash_usb, 'command', return_value=normal), patch.object(flash_usb.importlib.metadata, 'version', return_value=ESPTOOL_VERSION), patch.object(flash_usb.subprocess, 'run') as run:
             run.return_value.returncode = 0
+            run.return_value.stderr = ''
             flash_usb.main()
-            run.assert_called_once_with(normal, check=False)
+            # A hibakimenetet elkapjuk, hogy a tanács a valódi okhoz igazodjon.
+            run.assert_called_once_with(normal, check=False, stderr=subprocess.PIPE,
+                                        text=True, errors='replace')
         manifest = json.loads((unpack/'flasher_args.json').read_text())
         manifest['flash_files']['0x1000000'] = 'app.bin'
         (unpack/'flasher_args.json').write_text(json.dumps(manifest))
@@ -149,6 +159,19 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '16 MiB'): command(unpack, 'COM3', DEFAULT_BAUD, no_stub=True)
         self.assertIn('0x1000000', command(unpack, 'COM3', DEFAULT_BAUD))
 
+    def test_failure_hint_matches_the_real_error(self):
+        """Revízióhibánál a kézi BOOT mód nem segít, ezért nem is ajánljuk."""
+        revision = failure_hint(
+            "ERROR: A fatal error occurred: 'bootloader/bootloader.bin' requires chip revision "
+            "in range v3.0 - v3.99 (this chip is revision v1.3). Use --force to flash anyway.",
+            'COM5', '"py"')
+        self.assertIn('szilíciuma', revision)
+        self.assertNotIn('--no-stub', revision)
+        self.assertIn('--force', revision)
+        other = failure_hint('ERROR: Failed to connect to ESP32-P4', 'COM5', '"py"')
+        self.assertIn('--no-stub --manual-boot', other)
+        self.assertNotIn('szilíciuma', other)
+
     def test_slave_usb_and_combined_checksums(self):
         self.pack()
         image = bytearray(self.app)
@@ -157,12 +180,33 @@ class ReleaseTests(unittest.TestCase):
         description = json.loads((self.build/'project_description.json').read_text())
         description['project_name'] = 'zolee_slave_4b'
         (self.build/'project_description.json').write_text(json.dumps(description))
+        # A megvásárolt 4B panel v1.3 szilíciumú: a v3.0-s követelményű kép ott
+        # el sem indulna, ezért a csomagolás nem is engedheti ki. A v1.x és a
+        # v3.x tartomány az ESP-IDF-ben kizárja egymást, így a felső határnak is
+        # v1.99-nek kell lennie.
+        with self.assertRaises(ValueError):
+            package(self.build, self.out, self.tag, self.sha, 'slave-4b')
+        struct.pack_into('<HHH', image, 13, 18, 100, 399)
+        (self.build/'app.bin').write_bytes(image)
+        with self.assertRaises(ValueError):
+            package(self.build, self.out, self.tag, self.sha, 'slave-4b')
+        struct.pack_into('<HHH', image, 13, 18, 100, 199)
+        (self.build/'app.bin').write_bytes(image)
+        boot = bytearray(self.bootloader)
+        struct.pack_into('<HHH', boot, 13, 18, 100, 199)
+        (self.build/'bootloader/bootloader.bin').write_bytes(bytes(boot))
         package(self.build, self.out, self.tag, self.sha, 'slave-4b')
         usb = self.out/f'ZoleeEnergyFlowDisplay-slave-4b-{self.tag}-usb.zip'
         unpack = self.root/'slave usb'
         with zipfile.ZipFile(usb) as archive:
             archive.extractall(unpack)
         self.assertEqual((unpack/'app.bin').read_bytes(), bytes(image))
+        # A kiadott Slave-kép v1.0-v1.99, a Masteré v3.0-v3.99 szilíciumon fut.
+        import struct as _struct
+        self.assertEqual(_struct.unpack_from('<HH', (unpack/'app.bin').read_bytes(), 15), (100, 199))
+        master = self.root/'usb'
+        if master.is_dir():
+            self.assertEqual(_struct.unpack_from('<HH', (master/'app.bin').read_bytes(), 15), (300, 399))
         self.assertIn('4B', (unpack/'TELEPITES.md').read_text())
         self.assertIn('zolee_slave_4b', (unpack/'firmware/slave-waveshare-4b/README.md').read_text())
         command(unpack, 'COM5', DEFAULT_BAUD, no_stub=True, manual_boot=True)

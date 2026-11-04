@@ -25,6 +25,62 @@ def encoded(value):
     return (json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True) + '\n').encode('utf-8')
 
 
+# A kép fejléce írja le, milyen szilíciumon indulhat el (min/max_chip_rev_full).
+# Eddig semmi nem ellenőrizte: a Slave csomagja v3.0+-t kért, a megvásárolt 4B
+# panel viszont v1.3 lapkával érkezett, így a feltöltés hibára futott, a
+# bootloader pedig meg sem próbálta elindítani a firmware-t.
+#
+# Az ESP32-P4 v0.x/v1.x és v3.x szilícium az ESP-IDF szerint egymást kizárja
+# ("Support of ESP32-P4 rev. <3.0 and >=3.0 is mutually exclusive"), ezért
+# panelenként rögzítjük a várt tartományt: a Master 10.1 v3.0-v3.99, a 4B Slave
+# v1.0-v1.99 szilíciumon fut.
+CHIP_REVISION = {"main": (300, 399), "slave-4b": (100, 199)}
+
+
+def revision_text(value):
+    return f"v{value // 100}.{value % 100}"
+
+
+def revision_range(bounds):
+    return f'{revision_text(bounds[0])}-{revision_text(bounds[1])}'
+
+
+def check_chip_revision(files, board):
+    expected = CHIP_REVISION[board]
+    checked = []
+    for name, data in sorted(files.items()):
+        if len(data) < 19 or data[0] != 0xE9:
+            continue
+        bounds = struct.unpack_from('<HH', data, 15)
+        if bounds != expected:
+            raise ValueError(
+                f'{name}: a kép {revision_range(bounds)} szilíciumot kér, a várt '
+                f'{revision_range(expected)} helyett. Ellenőrizd a '
+                f'CONFIG_ESP32P4_SELECTS_REV_LESS_V3 és CONFIG_ESP32P4_REV_MIN '
+                f'beállítást.')
+        checked.append(name)
+    if len(checked) < 2:
+        raise ValueError('A bootloader és az alkalmazás revíziókövetelménye nem ellenőrizhető')
+    return expected
+
+
+def report_build_options(build, board, bounds):
+    """A tényleges fordítási beállítások a CI összegzésébe is kerüljenek."""
+    import os
+    if not os.environ.get('GITHUB_ACTIONS'):
+        return
+    options = {}
+    config = build / 'config' / 'sdkconfig.json'
+    if config.is_file():
+        values = json.loads(config.read_text())
+        options = {key: values.get(key) for key in
+                   ('ESP32P4_REV_MIN_FULL', 'ESP32P4_REV_MAX_FULL', 'SPIRAM_SPEED',
+                    'ESP32P4_DEFAULT_CPU_FREQ_MHZ', 'CACHE_L2_CACHE_SIZE')}
+    print(f'::notice title={board} szilícium és memória::'
+          f'chip rev {revision_range(bounds)}; ' +
+          '; '.join(f'{key}={value}' for key, value in options.items() if value is not None))
+
+
 def package(build, output, tag, commit, board="main"):
     if board not in ("main", "slave-4b"):
         raise ValueError("Unknown board")
@@ -64,6 +120,8 @@ def package(build, output, tag, commit, board="main"):
         raise ValueError('Not a raw ESP application image')
     if app[48:80].split(b'\0', 1)[0].decode('ascii') != tag:
         raise ValueError('Embedded firmware version does not match the release tag')
+    bounds = check_chip_revision(files, board)
+    report_build_options(build, board, bounds)
     # Preserve all authoritative options, remove host build-directory paths.
     portable_manifest = {key: manifest[key] for key in ('write_flash_args', 'flash_settings', 'extra_esptool_args')}
     portable_manifest['flash_files'] = portable

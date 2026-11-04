@@ -18,6 +18,24 @@ A fő kijelző külön cél marad. A közös BLE, PIN/profil, időszinkron, Wi-F
 modulok biztosítják a protokollazonosságot. Az új panel saját 4B BSP-t és UI-t kap.
 A szimulátor ugyanezt a UI-t fordítja.
 
+## Szilíciumrevízió – a 4B panelek v1.x lapkával is érkeznek
+
+A megvásárolt 4B panel ESP32-P4 **v1.3** szilíciummal érkezett, ezért a Slave
+firmware a `CONFIG_ESP32P4_SELECTS_REV_LESS_V3` + `CONFIG_ESP32P4_REV_MIN_100`
+párossal készül: a kép v1.0 – v1.99 lapkán indul. A PSRAM órajele marad 200 MHz
+(ezt a v1.x is támogatja, csak a 250 MHz-es mód v3.x-only), így a 720×720-as
+felület sebessége nem változik.
+
+A két revíziócsalád az ESP-IDF-ben kizárja egymást, tehát ez a bináris v3.x
+lapkán nem indul el. Ha később v3.x-es 4B panel érkezik, ahhoz külön build kell
+(`SELECTS_REV_LESS_V3` nélkül, `REV_MIN_300`-mal) – a fő kijelző (10.1) ma is
+így, v3.0 – v3.99 tartományra készül.
+
+A kiadás csomagolása kiolvassa a bootloader és az alkalmazás fejlécéből a
+revíziókövetelményt, és eltérésnél hibával leáll, így rossz minimummal nem
+kerülhet ki csomag. Ha mégis revízióhibát kapsz telepítéskor, a
+[USB telepítés](usb-install.md) hibakeresési szakasza írja le, mit jelent.
+
 ## v3 ébresztési bekötés – fejlesztési állapot
 
 A 4B és a fő kijelző Slave módja már a közös fényerő-állapotgépet használja.
