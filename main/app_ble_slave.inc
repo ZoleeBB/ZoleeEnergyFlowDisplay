@@ -18,6 +18,9 @@ static unsigned s_setup_packet;
 static uint8_t s_received[3][APP_BLE_PACKET_SIZE];
 static bool s_received_valid[3];
 static int64_t s_next_scan_us, s_setup_deadline_us, s_last_frame_us;
+/* Elmaradt CONNECT eseménynél (pl. megakadt hosted/C6 link) se ragadjunk be a
+ * csatlakozási állapotba: a keresés különben sosem indulna újra. */
+static int64_t s_connect_deadline_us;
 static int64_t s_applied_sample_epoch;
 static int64_t s_last_clock_receive_us;
 static int64_t s_energy_receive_us;
@@ -74,6 +77,7 @@ static void slave_reset(void)
     s_profile_reading = s_profile_waiting = false;
     s_profile_accepted = false;
     s_profile_length = 0;
+    s_connect_deadline_us = 0;
     memset(s_slave_profile, 0, sizeof(s_slave_profile));
     memset(s_received_valid, 0, sizeof(s_received_valid));
     s_master_address[0] = 0;
@@ -449,6 +453,7 @@ static int slave_gap_event(struct ble_gap_event *event, void *arg)
             if (!found)
                 break;
             s_connecting = true;
+            s_connect_deadline_us = esp_timer_get_time() + 15000000;
             s_master_rssi = event->disc.rssi;
             const uint8_t *a = event->disc.addr.val;
             snprintf(s_master_address,
@@ -567,6 +572,11 @@ static void slave_poll(int64_t now)
         int8_t rssi;
         if (ble_gap_conn_rssi(s_master, &rssi) == 0)
             s_master_rssi = rssi;
+    }
+    else if (s_connecting)
+    {
+        if (now >= s_connect_deadline_us)
+            slave_fail("csatlakozás időtúllépés", -1);
     }
     else if (now >= s_next_scan_us)
     {

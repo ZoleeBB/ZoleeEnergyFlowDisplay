@@ -16,3 +16,5 @@ typedef struct
 void app_ble_pairing_status(app_ble_pairing_status_t *out);
 bool app_ble_pairing_submit(uint32_t token, const char *pin);
 void app_ble_pairing_open(void);
+/* Slave oldal: a Master kulcshiányt jelzett, ezért kézi újrapárosítás kell. */
+bool app_ble_pairing_required(void);

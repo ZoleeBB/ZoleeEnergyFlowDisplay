@@ -42,6 +42,7 @@ static app_config_t config;
 static uint16_t rotation_degrees;
 static int last_brightness = -1;
 static bool last_runtime_wifi;
+static bool pairing_pin_required;
 static app_slave_display_t display_state;
 static app_slave_display_input_t input_gate;
 static atomic_bool boot_complete;
@@ -104,6 +105,74 @@ static void rotation_follow(int64_t now, bool busy)
         return;
     }
     app_events_add(APP_EVENT_INFO, "Új kijelzőtájolás érkezett a Mastertől; a Slave újraindul.");
+    esp_restart();
+}
+
+/* A BLE a C6 társprocesszoron keresztül fut. Ha a host nem szinkronizál, vagy
+ * a Masterrel sokáig nincs kapcsolat, a kijelző adat nélkül marad: ilyenkor az
+ * eszköz magától újraindul. A próbálkozások között növekvő szünet van, hogy egy
+ * tartósan kikapcsolt Master mellett ne induljon percenként újra. */
+#define SLAVE_BLE_SYNC_LIMIT_US INT64_C(90000000)
+#define SLAVE_BLE_LINK_LIMIT_US INT64_C(600000000)
+#define SLAVE_BLE_BACKOFF_KEY "ble_restarts"
+
+static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
+{
+    static int64_t good_us;
+    static bool restarting;
+    static uint8_t attempts = UINT8_MAX;
+    if (attempts == UINT8_MAX)
+    {
+        nvs_handle_t handle;
+        attempts = 0;
+        if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READONLY, &handle) == ESP_OK)
+        {
+            if (nvs_get_u8(handle, SLAVE_BLE_BACKOFF_KEY, &attempts) != ESP_OK)
+                attempts = 0;
+            nvs_close(handle);
+        }
+    }
+    if (!good_us)
+        good_us = now;
+    if (runtime->slave_connected)
+    {
+        good_us = now;
+        if (attempts)
+        {
+            nvs_handle_t handle;
+            attempts = 0;
+            if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
+            {
+                if (nvs_erase_key(handle, SLAVE_BLE_BACKOFF_KEY) == ESP_OK)
+                    nvs_commit(handle);
+                nvs_close(handle);
+            }
+        }
+        return;
+    }
+    if (restarting)
+        return;
+    /* Az első próbálkozás 10 perc után, a továbbiak 30, majd 120 percenként. */
+    int64_t limit = !runtime->ble_ready ? SLAVE_BLE_SYNC_LIMIT_US :
+                    attempts == 0 ? SLAVE_BLE_LINK_LIMIT_US :
+                    attempts == 1 ? 3 * SLAVE_BLE_LINK_LIMIT_US :
+                                    12 * SLAVE_BLE_LINK_LIMIT_US;
+    if (now - good_us < limit || now < limit)
+        return;
+    restarting = true;
+    nvs_handle_t handle;
+    if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
+    {
+        uint8_t next = attempts < 250 ? (uint8_t)(attempts + 1) : attempts;
+        if (nvs_set_u8(handle, SLAVE_BLE_BACKOFF_KEY, next) == ESP_OK)
+            nvs_commit(handle);
+        nvs_close(handle);
+    }
+    app_events_add(APP_EVENT_WARNING, runtime->ble_ready ?
+                   "Nincs masterkapcsolat %u perce; a Slave újraindul." :
+                   "A BLE host nem szinkronizált %u perc alatt; a Slave újraindul.",
+                   (unsigned)(limit / 60000000));
+    vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();
 }
 
@@ -273,9 +342,15 @@ static void refresh(lv_timer_t *timer)
     if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
         visible_runtime.slave_source_stale = true;
     slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
+    /* Kulcshiány után a kijelző mondja meg, mit kell tenni: a Slave magától
+     * nem tud újrapárosítani, ahhoz a Masteren kell ablakot nyitni. */
+    if (app_ble_pairing_required() && !pairing_pin_required)
+        slave_4b_ui_message("Nincs érvényes párosítás. A Master Beállítások oldalán "
+                            "engedélyezz új párosítást, majd írd be a PIN-t.");
     summary_refresh(now);
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
+    pairing_pin_required = pairing.pin_required;
     slave_4b_ui_pairing(&pairing);
     /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
@@ -288,6 +363,8 @@ static void refresh(lv_timer_t *timer)
     app_slave_presence_service_apply(&display_state, now);
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
+    if (!pairing.pin_required && !intercom_visible)
+        ble_watchdog(now, &runtime);
     if (atomic_load(&boot_complete))
         brightness_follow(now);
     /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját

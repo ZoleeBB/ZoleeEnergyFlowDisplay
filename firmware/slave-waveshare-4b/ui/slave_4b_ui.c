@@ -429,7 +429,7 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              "Waveshare 4B · Slave · FW: %s\n"
              "Üzemidő: %u ó %u p · Tájolás: %u°\n"
              "Master: %s\n"
-             "BLE: %s · RSSI: %d dBm\n"
+             "BLE: %s · RSSI: %d dBm · host: %s · keresés: %s\n"
              "Wi-Fi: %s · IP: %s · Időszinkron: %s\n"
              "Napszak: %s · Fényerő: %u%%\n"
              "Éjszakai sötétítés: %s · Időkorlát: %u mp\n"
@@ -442,6 +442,8 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              have_runtime && last_runtime.ble_peer[0] ? last_runtime.ble_peer : "keresés...",
              have_runtime && last_runtime.slave_connected ? "kapcsolódva" : "keresés...",
              have_runtime ? last_runtime.ble_rssi : 0,
+             have_runtime && last_runtime.ble_ready ? "szinkron" : "nincs szinkron",
+             have_runtime && last_runtime.ble_scanning ? "fut" : "áll",
              have_runtime && last_runtime.wifi_connected ? "OK" : "nincs",
              or_dash(status->ip),
              have_runtime && last_runtime.time_synced ? "OK" : "várakozás",

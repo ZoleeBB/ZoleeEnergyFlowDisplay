@@ -7,6 +7,9 @@
 #include "app_events.h"
 #define BLE_HS_CONN_HANDLE_NONE 65535
 #define BLE_ERR_REM_USER_CONN_TERM 19
+#define BLE_ERR_PINKEY_MISSING 6
+#define BLE_HS_ERR_HCI_BASE 0x100
+#define BLE_HS_HCI_ERR(x) (BLE_HS_ERR_HCI_BASE + (x))
 #define BLE_GAP_EVENT_REPEAT_PAIRING 1
 #define BLE_GAP_EVENT_PASSKEY_ACTION 2
 #define BLE_GAP_EVENT_ENC_CHANGE 3
@@ -165,6 +168,24 @@ int main(void)
     security.sec_state.key_size = 16;
     security_gap_event(&event);
     assert(terminated == 5);
+    /* Slave oldalon egy időtúllépéses hitelesítési hiba nem törölheti a
+     * bondot: az újrainduló Master után is magától vissza kell kapcsolódni.
+     * Csak a Master kulcshiány-jelzése (HCI 0x06) dobja el a párosítást. */
+    is_slave = true;
+    security.sec_state.authenticated = 0;
+    unsigned kept = deleted;
+    event.enc_change.status = 13; /* Tetszőleges, nem kulcshiány. */
+    security_gap_event(&event);
+    assert(deleted == kept && !app_ble_pairing_required());
+    event.enc_change.status = BLE_HS_HCI_ERR(BLE_ERR_PINKEY_MISSING);
+    security_gap_event(&event);
+    assert(deleted == kept + 1 && app_ble_pairing_required());
+    security.sec_state.authenticated = 1;
+    security.sec_state.key_size = 16;
+    event.enc_change.status = 0;
+    security_gap_event(&event);
+    assert(!app_ble_pairing_required()); /* Sikeres hitelesítés feloldja. */
+    security.sec_state.authenticated = 0;
     is_slave = false;
     app_ble_pairing_open();
     security_poll(now);

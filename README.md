@@ -221,7 +221,11 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 
 | Funkció | Röviden |
 | --- | --- |
-| Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profil 2. verziójával a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
+| Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profilban (változatlan hosszal és verzióval, a jelszó mögötti szabad bájtokban) a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
+| Nem ragad be a csatlakozás | Elmaradt CONNECT eseménynél a Slave eddig örökre „csatlakozás alatt" maradt (a Master címe és az RSSI felvillant, majd semmi). Most 15 másodperc után megszakítja és újra keres. |
+| Párosítás nem vész el | A Slave eddig minden hitelesítési hibánál eldobta a párosítási kulcsot, így egy újrainduló Master után véglegesen leállt a kapcsolat. Mostantól csak a Master kulcshiány-jelzése (HCI 0x06) dobja el, és a kijelző kiírja, hogy újrapárosítás kell. |
+| BLE-önjavítás | Ha a BLE host 90 mp alatt nem szinkronizál, vagy 10 percig nincs masterkapcsolat, a Slave magától újraindul (növekvő szünettel), és a napló rögzíti az okot. |
+| Türelmesebb OTA | Ha a Slave frissítése közben a Master is újraindul, a hiányzó masterkapcsolat miatt az ellenőrzés 20 percig vár a visszaállás helyett. |
 | OTA-visszaállás nyoma | Az ellenőrzési ablak 3-ról 5 percre nőtt (a Slave indulása lassabb); időtúllépéskor NVS-be kerül, melyik feltétel hiányzott, és a következő induláskor a napló kiírja a nem véglegesült verziót és az okot is. [Részletek](docs/ota.md) |
 
 ### Javítás – 4B Slave: jelenlét alatt nem sötétedik el, teljes képernyős diagnosztika (`fix/slave-4b-presence-hold`)

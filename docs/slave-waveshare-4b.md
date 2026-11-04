@@ -36,12 +36,56 @@ A várakozó állapotüzenetek három ponttal végződnek („Master keresése..
 a fő kijelzőn: a tipográfiai „…" nincs a beágyazott betűkészletben, ezért
 korábban üres négyzetként jelent meg.
 
+## Párosítás: mikor vész el, mikor nem
+
+A Slave a hitelesítési hibát korábban mindig úgy kezelte, hogy **eldobta a
+tárolt párosítási kulcsot**. Egyetlen időtúllépés – például ha a Master épp
+újraindul vagy frissül a hitelesítés közben – ezzel véglegesen elrontotta a
+kapcsolatot: a Slave utána megtalálta a Mastert, egy pillanatra ki is írta a
+címét és az RSSI-t, majd a sikertelen titkosítás után újra keresni kezdett, és
+ebből magától nem jött ki.
+
+Mostantól a kulcsot csak akkor dobja el, ha a Master **ténylegesen kulcshiányt
+jelez** (HCI 0x06). Ilyenkor a kijelzőn megjelenik, hogy mit kell tenni: a
+Master **Beállítások** oldalán az „Új párosítás engedélyezése 2 percre"
+gombbal nyílik az ablak, a PIN pedig a Master diagnosztikáján olvasható, és a
+Slave PIN-padján kell beírni. Sikeres hitelesítés után az üzenet eltűnik.
+
+## Beragadt csatlakozás
+
+A Slave a megtalált Masterhez azonnal kapcsolódni kezd. Ha a CONNECT esemény
+elmarad (például megakad a hosted/C6 link), korábban örökre „csatlakozás alatt"
+maradt: a kijelzőn egy pillanatra megjelent a Master címe és az RSSI, utána
+semmi, és a keresés sem indult újra. Mostantól 15 másodperc után a próbálkozás
+megszakad, a napló rögzíti („csatlakozás időtúllépés"), és a keresés folytatódik.
+
+## Önjavítás: BLE-figyelő
+
+A kijelző a Mastertől kapja az összes adatot, ezért ha a kapcsolat tartósan
+hiányzik, az eszköz magától újraindul:
+
+- ha a BLE host **90 másodpercen belül nem szinkronizál** (a C6 társprocesszor
+  nem válaszol), vagy
+- ha **10 percig nincs masterkapcsolat** a szinkronizált host mellett.
+
+A további próbálkozások között 30, majd 120 perc szünet van (a számláló NVS-ben
+él, és az első sikeres masterkapcsolatnál nullázódik), így egy tartósan
+kikapcsolt Master mellett sem indul újra percenként. PIN-bevitel és
+kaputelefon-hívás alatt a figyelő vár.
+
+Az újraindítás okát a napló rögzíti, és a következő induláskor is látszik a
+diagnosztikán.
+
 ## Fényerő SD-kártya nélkül
 
 A 4B-nek nincs SD-kártyája és saját beállítóoldala, ezért a **nappali és
-éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika)
-2. verziója a Wi-Fi és az automatikus frissítés mellett a Master
-`display.day_brightness` és `display.night_brightness` értékét is átviszi. A
+éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika) a
+Wi-Fi és az automatikus frissítés mellett a Master `display.day_brightness` és
+`display.night_brightness` értékét is átviszi. A blob hossza és verziója
+szándékosan változatlan (102 bájt, 1-es verzió), a két érték a jelszó mögötti
+kihasználatlan bájtokban utazik: így egy régebbi firmware-ű Slave is beolvassa
+a profilt, csak a fényerőt hagyja figyelmen kívül. 62 bájtnál hosszabb Wi-Fi
+jelszó mellett nincs hely a fényerőnek, ilyenkor a Slave a sajátját tartja. A
 Master Beállítások oldalán átírt fényerő **újraindítás nélkül**, másodperceken
 belül érvényesül a Slave-en is; a profil többi mezőjének változása továbbra is
 mentés utáni újraindítást kér.
@@ -50,8 +94,8 @@ A 0 nem érvényes fényerő (a tartományon kívüli masterérték a 80/20
 alapértékre esik vissza) – az éjszakai teljes sötétítést a jelenlétszabály
 intézi, nem a fényerő.
 
-Régi, 1. verziójú (102 bájtos) profilt küldő Masterrel a Slave a korábban
-mentett fényerejét tartja meg.
+Régebbi, a fényerőt még nem küldő Masterrel a Slave a korábban mentett
+fényerejét tartja meg.
 
 ## Éjszakai sötétítés és jelenlét
 
@@ -80,7 +124,8 @@ A 4B-nek nincs saját weboldala, ezért a jobb felső sarok megérintésére tel
 képernyős **diagnosztika** nyílik, „Bezárás" gombbal. Amit kiír:
 
 - firmware-verzió, üzemidő, tájolás,
-- Master azonosító, BLE állapot és RSSI,
+- Master azonosító, BLE állapot és RSSI, a BLE host szinkronja és a keresés
+  állapota (a BLE a C6 társprocesszoron át fut),
 - Wi-Fi állapot, IP-cím, időszinkron,
 - napszak és a ténylegesen beállított fényerő,
 - éjszakai sötétítés és időkorlát, a jelenlét állapota (aktív/nincs, friss-e a

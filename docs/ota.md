@@ -99,7 +99,10 @@ a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
 
 A Slave-nek lassabb az indulása (BLE-párosítás, időszinkron, master-statisztika),
-ezért az ablak szándékosan bőven az indulási idő felett van.
+ezért az ablak szándékosan bőven az indulási idő felett van. Ha a Slave frissítése
+közben a **Master is újraindul** (például ő is frissül), a hiányzó masterkapcsolat
+nem futtathatja ki az időt: amíg nincs BLE-kapcsolat, az ellenőrzés legfeljebb
+20 percig türelmesen vár, és csak utána áll vissza.
 
 A visszaállás nyomot hagy: az alkalmazás az időtúllépéskor NVS-be írja, **melyik
 feltétel hiányzott**, és a következő induláskor a rendszernaplóba kerül a nem
