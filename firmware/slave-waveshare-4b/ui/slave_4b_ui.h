@@ -11,9 +11,31 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
                     float seconds);
 void slave_4b_ui_pairing(const app_ble_pairing_status_t *status);
 void slave_4b_ui_message(const char *text);
-/* A diagnosztikai réteg IP-sora. NULL vagy üres: „nincs". A Slave-nek nincs
- * saját weboldala, ezért a hálózati címe itt olvasható le. */
-void slave_4b_ui_network(const char *ip);
+
+/* A teljes képernyős diagnosztika tartalma. A Slave-nek nincs saját weboldala,
+ * ezért a firmware verziója, a hálózati címe, a fényerő- és jelenlétállapota és
+ * a RAM-naplója itt olvasható le. A hívó másodpercenként frissíti. */
+typedef struct
+{
+    const char *firmware;        /* NULL vagy üres: „—". */
+    const char *ip;              /* NULL vagy üres: „—". */
+    const char *log;             /* Többsoros, a legfrissebb elöl. */
+    uint16_t rotation_degrees;
+    uint32_t uptime_seconds;
+    bool night;
+    unsigned brightness;         /* Ténylegesen beállított fényerő (%). */
+    bool blank_at_night;
+    bool presence_source;        /* Van kiválasztott jelenlétforrás. */
+    bool presence_fresh;         /* Friss, érvényes jelenlétminta. */
+    bool presence_active;
+    uint32_t presence_age_seconds;
+    uint32_t timeout_seconds;
+    int32_t blank_in_seconds;    /* Negatív: nincs folyamatban visszaszámlálás. */
+    uint32_t touch_count;
+} slave_4b_status_t;
+
+void slave_4b_ui_status(const slave_4b_status_t *status);
+bool slave_4b_ui_diagnostics_visible(void);
 
 /* „Mai összesítő” nézet. A számokat a hívó a mastertől kapott napi
  * statisztikából állítja össze; a nézet csak megjelenít. */

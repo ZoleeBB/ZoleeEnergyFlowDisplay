@@ -16,11 +16,19 @@ typedef struct
     bool blank_on_presence_loss;
 } app_slave_display_profile_t;
 
+/* A jelenlétjel kimaradása nem jelenlétvesztés: a BLE-olvasás kihagyása vagy a
+ * lease lejárta önmagában nem indítja a visszaszámlálást. Ennyi néma idő után
+ * viszont elévül az utolsó ismert aktív jel, és a szokásos visszaszámlálás
+ * indul – egy végleg elérhetetlen Master mellett sem marad örökre világos. */
+#define APP_SLAVE_DISPLAY_PRESENCE_HOLD_US INT64_C(600000000)
+
 typedef struct
 {
     app_slave_display_profile_t profile;
     bool night;
     bool presence_active;
+    /* Az utolsó érvényes jelenlétminta monoton ideje. */
+    int64_t presence_seen_us;
     bool pointer_down;
     bool swallow_pointer;
     bool keep_visible;
@@ -33,7 +41,9 @@ bool app_slave_display_init(app_slave_display_t *state,
 bool app_slave_display_profile(app_slave_display_t *state,
                                const app_slave_display_profile_t *profile, int64_t now_us);
 void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now_us);
-/* Érvénytelen jelenlét (pl. kapcsolatvesztés) nem hosszabbítja meg az ébrenlétet. */
+/* Érvénytelen jelenlét (pl. kapcsolatvesztés) nem hosszabbítja meg az ébrenlétet,
+ * de nem is számít jelenlétvesztésnek: az utolsó ismert állapot marad érvényben,
+ * amíg friss, érvényes minta mást nem mond (vagy el nem évül a tartás). */
 void app_slave_display_presence(app_slave_display_t *state, bool valid, bool active, int64_t now_us);
 /* Indulás/PIN alatt látható marad, de az ideiglenes felülbírálás nem jelenlétjel. */
 void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, int64_t now_us);

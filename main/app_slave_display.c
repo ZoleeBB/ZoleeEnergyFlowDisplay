@@ -25,14 +25,30 @@ static void wake(app_slave_display_t *state, int64_t now)
     state->awake_until_us = now > INT64_MAX - duration ? INT64_MAX : now + duration;
 }
 
+static bool presence_holds(const app_slave_display_t *state, int64_t now)
+{
+    return state->presence_active &&
+           now - state->presence_seen_us < APP_SLAVE_DISPLAY_PRESENCE_HOLD_US;
+}
+
 static unsigned brightness(const app_slave_display_t *state, int64_t now)
 {
     if (!state->night)
         return state->profile.day_brightness;
-    if (!state->profile.blank_at_night || state->keep_visible || state->presence_active ||
+    if (!state->profile.blank_at_night || state->keep_visible || presence_holds(state, now) ||
         state->pointer_down || now < state->awake_until_us)
         return state->profile.night_brightness;
     return 0;
+}
+
+/* Az elévült tartás ugyanúgy viselkedik, mint egy jelenlétvesztés: nem azonnali
+ * sötétítés, hanem a megszokott visszaszámlálás. */
+static void expire_presence(app_slave_display_t *state, int64_t now)
+{
+    if (!state->presence_active || presence_holds(state, now))
+        return;
+    state->presence_active = false;
+    wake(state, now);
 }
 
 bool app_slave_display_init(app_slave_display_t *state,
@@ -79,11 +95,16 @@ void app_slave_display_presence(app_slave_display_t *state, bool valid, bool act
     if (!state)
         return;
     int64_t now = monotonic(state, now_us);
+    /* Csak érvényes minta változtathat állapotot: egy kimaradt BLE-olvasás vagy
+     * a lejárt lease nem jelenti azt, hogy a jelenlét megszűnt. */
+    if (!valid)
+        return;
     bool was_active = state->presence_active;
-    state->presence_active = valid && active;
-    if (state->presence_active)
+    state->presence_active = active;
+    state->presence_seen_us = now;
+    if (active)
         wake(state, now);
-    else if (valid && was_active)
+    else if (was_active)
     {
         if (state->profile.blank_on_presence_loss)
             state->awake_until_us = 0;
@@ -119,5 +140,9 @@ bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t
 
 unsigned app_slave_display_brightness(app_slave_display_t *state, int64_t now_us)
 {
-    return state ? brightness(state, monotonic(state, now_us)) : 0;
+    if (!state)
+        return 0;
+    int64_t now = monotonic(state, now_us);
+    expire_presence(state, now);
+    return brightness(state, now);
 }

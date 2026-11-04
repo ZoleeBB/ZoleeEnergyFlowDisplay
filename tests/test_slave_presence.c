@@ -348,17 +348,24 @@ static void runtime_tests(void)
     app_slave_presence_apply(&receiver, &display, SECONDS(67));
     app_slave_presence_disconnected(&receiver);
     app_slave_presence_apply(&receiver, &display, SECONDS(68));
-    assert(display.awake_until_us == SECONDS(87) && !display.presence_active);
+    /* A kapcsolatvesztés nem jelenlétvesztés: az utolsó ismert aktív jel tart,
+     * a kijelző nem sötétedik el a következő érvényes minta nélkül. */
+    assert(display.presence_active);
+    assert(app_slave_display_brightness(&display, SECONDS(300)) == 17);
     assert(display.profile.blank_at_night && display.night);
     peer.active = false;
     peer.counter += 100;
-    send_packet(&receiver, &peer, 1, 100); /* Új kapcsolat, új sequence. */
-    app_slave_presence_apply(&receiver, &display, SECONDS(100));
-    assert(app_slave_display_brightness(&display, SECONDS(100)) == 0);
+    send_packet(&receiver, &peer, 1, 301); /* Új kapcsolat, új sequence. */
+    app_slave_presence_apply(&receiver, &display, SECONDS(301));
+    /* Friss, érvényes 0: innen indul a visszaszámlálás. */
+    assert(!display.presence_active);
+    assert(app_slave_display_brightness(&display, SECONDS(320)) == 17);
+    assert(app_slave_display_brightness(&display, SECONDS(321)) == 0);
+    peer.active = true;
     peer.counter++;
-    send_packet(&receiver, &peer, 2, 101);
-    app_slave_presence_apply(&receiver, &display, SECONDS(101));
-    assert(app_slave_display_brightness(&display, SECONDS(101)) == 17);
+    send_packet(&receiver, &peer, 2, 322);
+    app_slave_presence_apply(&receiver, &display, SECONDS(322));
+    assert(app_slave_display_brightness(&display, SECONDS(322)) == 17);
 
     /* Ténylegesen régi Master: a biztonságos alap nem sötétít. */
     app_slave_presence_legacy(&receiver);
@@ -419,13 +426,17 @@ static void replay_and_lease_tests(void)
     assert(display.presence_active);
     int64_t awake = display.awake_until_us;
     app_slave_presence_apply(&receiver, &display, SECONDS(18));
-    assert(!display.presence_active && display.awake_until_us == awake);
-    assert(app_slave_display_brightness(&display, SECONDS(18)) == 0);
+    /* A lejárt lease nem jelenlétvesztés: a kijelző az utolsó ismert aktív jel
+     * alapján világos marad, és nem kap új időkorlátot sem. */
+    assert(display.presence_active && display.awake_until_us == awake);
+    assert(app_slave_display_brightness(&display, SECONDS(18)) == 10);
     peer.active = false;
     peer.counter++;
     send_packet(&receiver, &peer, 2, 19);
     app_slave_presence_apply(&receiver, &display, SECONDS(19));
-    assert(app_slave_display_brightness(&display, SECONDS(19)) == 0);
+    /* Friss, érvényes 0 után indul az egy másodperces visszaszámlálás. */
+    assert(app_slave_display_brightness(&display, SECONDS(19)) == 10);
+    assert(app_slave_display_brightness(&display, SECONDS(20)) == 0);
     peer.counter++;
     send_packet(&receiver, &peer, 3, 20);
     app_slave_presence_apply(&receiver, &display, SECONDS(35)); /* Lejárt, még fel nem dolgozott impulzus. */
@@ -436,7 +447,8 @@ static void replay_and_lease_tests(void)
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(34)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
 
-    /* Érvénytelen érték nem tarthat ébren és nem ad érvényes lefutó élt. */
+    /* Érvénytelen érték nem ad érvényes lefutó élt és nem ad új időkorlátot;
+     * a forrás átmeneti kiesése viszont nem oltja le azonnal a kijelzőt. */
     peer.active = true;
     send_packet(&receiver, &peer, 4, 36);
     app_slave_presence_apply(&receiver, &display, SECONDS(36));
@@ -444,8 +456,9 @@ static void replay_and_lease_tests(void)
     peer.valid = false;
     send_packet(&receiver, &peer, 5, 37);
     app_slave_presence_apply(&receiver, &display, SECONDS(37));
-    assert(!display.presence_active && display.awake_until_us == awake);
+    assert(display.presence_active && display.awake_until_us == awake);
     assert(!receiver.valid && !receiver.active);
+    assert(app_slave_display_brightness(&display, SECONDS(37)) == 10);
 
     /* Profilcserénél a régi forrás aktív szintjét nem szabad lefutó élnek venni. */
     peer.valid = true;
@@ -459,12 +472,15 @@ static void replay_and_lease_tests(void)
     peer.profile.timeout_seconds = 100;
     send_packet(&receiver, &peer, 7, 39);
     app_slave_presence_apply(&receiver, &display, SECONDS(39));
-    assert(display.awake_until_us == awake);
-    assert(app_slave_display_brightness(&display, SECONDS(39)) == 0);
+    /* Nincs lefutó él: a tartott aktív jel az új profil időkorlátjával számol
+     * vissza, nem alszik el azonnal. */
+    assert(display.awake_until_us == SECONDS(139) && awake == SECONDS(39));
+    assert(app_slave_display_brightness(&display, SECONDS(138)) == 10);
+    assert(app_slave_display_brightness(&display, SECONDS(139)) == 0);
 
     /* A receiver saját monoton órája akkor is megmarad, ha a hívó visszalép. */
     app_slave_presence_apply(&receiver, &display, SECONDS(38));
-    assert(receiver.last_now_us == SECONDS(39));
+    assert(receiver.last_now_us == SECONDS(139)); /* A kijelző órája a későbbi. */
     app_slave_presence_disconnected(NULL);
     app_slave_presence_legacy(NULL);
     app_slave_presence_apply(NULL, &display, 0);

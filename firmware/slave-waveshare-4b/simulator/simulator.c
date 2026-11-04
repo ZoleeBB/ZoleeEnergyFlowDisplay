@@ -192,20 +192,29 @@ static int summary_test(void)
     return 0;
 }
 
-/* A képernyő feliratai közül az elsőt adja vissza, amelyik a mintával kezdődik. */
-static const char *find_label(const char *prefix)
+/* A képernyő feliratai közül az elsőt adja vissza, amelyik a mintával kezdődik;
+ * a diagnosztika rétegen belüli feliratokat is megtalálja. */
+static const char *find_label_in(lv_obj_t *parent, const char *prefix)
 {
-    lv_obj_t *screen = lv_screen_active();
-    for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++)
+    for (uint32_t i = 0; i < lv_obj_get_child_count(parent); i++)
     {
-        lv_obj_t *child = lv_obj_get_child(screen, i);
-        if (!lv_obj_check_type(child, &lv_label_class))
-            continue;
-        const char *text = lv_label_get_text(child);
-        if (text && !strncmp(text, prefix, strlen(prefix)))
-            return text;
+        lv_obj_t *child = lv_obj_get_child(parent, i);
+        if (lv_obj_check_type(child, &lv_label_class))
+        {
+            const char *text = lv_label_get_text(child);
+            if (text && !strncmp(text, prefix, strlen(prefix)))
+                return text;
+        }
+        const char *found = find_label_in(child, prefix);
+        if (found)
+            return found;
     }
     return NULL;
+}
+
+static const char *find_label(const char *prefix)
+{
+    return find_label_in(lv_screen_active(), prefix);
 }
 
 static int self_test(void)
@@ -367,13 +376,30 @@ static int self_test(void)
     CHECK(submitted == 1 && pairing.pin_required);
     click(350, 650);
     CHECK(submitted == 2 && !pairing.pin_required);
-    /* A 4B-nek nincs weboldala: a hálózati címe a diagnosztikán olvasható le. */
-    slave_4b_ui_network("192.168.2.77");
+    /* A 4B-nek nincs weboldala: a diagnosztika pótolja, teljes képernyőn. */
     runtime.wifi_connected = true;
     step(0);
     click(650, 35);
+    CHECK(slave_4b_ui_diagnostics_visible());
+    slave_4b_status_t status = {
+        .firmware = "3.3.0-test", .ip = "192.168.2.77",
+        .log = "12:00:01  Kijelző elsötétült (éjszakai mód, nincs jelenlét).\n"
+               "11:59:58  Jelenlét megszűnt, 30 mp múlva sötétítés.\n",
+        .rotation_degrees = 90, .uptime_seconds = 3725, .night = true, .brightness = 0,
+        .blank_at_night = true, .presence_source = true, .presence_fresh = true,
+        .presence_active = false, .presence_age_seconds = 2, .timeout_seconds = 30,
+        .blank_in_seconds = -1, .touch_count = 3,
+    };
+    slave_4b_ui_status(&status);
+    step(0);
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
-    CHECK(find_label("Waveshare 4B") && strstr(find_label("Waveshare 4B"), "IP: 192.168.2.77"));
+    const char *info = find_label("Waveshare 4B");
+    CHECK(info && strstr(info, "IP: 192.168.2.77") && strstr(info, "FW: 3.3.0-test"));
+    CHECK(strstr(info, "Tájolás: 90°") && strstr(info, "Üzemidő: 1 ó 2 p"));
+    CHECK(strstr(info, "Érintések indulás óta: 3"));
+    /* A „Bezárás" gomb ugyanott van, ahol a nyitó sarok: a réteg eltűnik. */
+    click(650, 35);
+    CHECK(!slave_4b_ui_diagnostics_visible());
     puts("PASS: BLE decode, day/night, animation, optional weather, SOC 0..100, island, timeout/disconnect, touch PIN/reset/delete/cancel, diagnostics");
     app_test_slave_display_input(display);
     runtime.slave_connected = true;

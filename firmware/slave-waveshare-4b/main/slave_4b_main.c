@@ -22,6 +22,7 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -40,6 +41,7 @@
 static app_config_t config;
 static uint16_t rotation_degrees;
 static int last_brightness = -1;
+static bool last_runtime_wifi;
 static app_slave_display_t display_state;
 static app_slave_display_input_t input_gate;
 static atomic_bool boot_complete;
@@ -105,15 +107,86 @@ static void rotation_follow(int64_t now, bool busy)
     esp_restart();
 }
 
-static void network_refresh(int64_t now, bool connected)
+/* A diagnosztika naplója és az eseménymásolat PSRAM-ban él, és csak nyitott
+ * képernyőnél készül el: a 33 ms-os kör és a belső RAM érintetlen marad. */
+typedef struct
+{
+    app_event_entry_t entries[12];
+    char text[1536];
+} diagnostics_log_t;
+
+static diagnostics_log_t *diagnostics_log;
+static char network_address[16];
+static uint32_t touch_count;
+
+static void log_refresh(void)
+{
+    if (!diagnostics_log)
+        diagnostics_log = heap_caps_calloc(1, sizeof(*diagnostics_log), MALLOC_CAP_SPIRAM);
+    if (!diagnostics_log)
+        return;
+    size_t count = app_events_snapshot(diagnostics_log->entries,
+                                       sizeof(diagnostics_log->entries) /
+                                       sizeof(diagnostics_log->entries[0]));
+    size_t position = 0;
+    diagnostics_log->text[0] = 0;
+    /* A legfrissebb elöl, ahogy a Master weboldalán is. */
+    for (size_t i = count; i-- > 0 && position + 1 < sizeof(diagnostics_log->text);)
+    {
+        const app_event_entry_t *entry = &diagnostics_log->entries[i];
+        char stamp[16] = "--:--:--";
+        if (entry->epoch_s > 0)
+        {
+            time_t epoch = (time_t)entry->epoch_s;
+            struct tm local;
+            localtime_r(&epoch, &local);
+            strftime(stamp, sizeof(stamp), "%H:%M:%S", &local);
+        }
+        int written = snprintf(diagnostics_log->text + position,
+                               sizeof(diagnostics_log->text) - position, "%s  %s%s\n",
+                               stamp, entry->level == APP_EVENT_ERROR ? "HIBA: " :
+                               entry->level == APP_EVENT_WARNING ? "FIGYELEM: " : "",
+                               entry->text);
+        if (written <= 0)
+            break;
+        position += (size_t)written;
+    }
+}
+
+static void status_refresh(int64_t now, unsigned brightness)
 {
     static int64_t last;
-    char address[16];
-    if (last && now - last < 2000000)
+    if (last && now - last < 1000000)
         return;
     last = now;
-    slave_4b_ui_network(connected && app_wifi_get_ip(address, sizeof(address)) == ESP_OK ?
-                        address : NULL);
+    /* Csak nyitott diagnosztikánál dolgozunk: a 33 ms-os kör nem hív hálózatot. */
+    if (!slave_4b_ui_diagnostics_visible())
+        return;
+    if (!last_runtime_wifi || app_wifi_get_ip(network_address, sizeof(network_address)) != ESP_OK)
+        network_address[0] = 0;
+    log_refresh();
+    app_slave_presence_state_t presence = {0};
+    bool known = app_slave_presence_service_state(&presence);
+    int64_t remaining = display_state.awake_until_us - now;
+    slave_4b_status_t status = {
+        .firmware = esp_app_get_description()->version,
+        .ip = network_address,
+        .log = diagnostics_log ? diagnostics_log->text : NULL,
+        .rotation_degrees = rotation_degrees,
+        .uptime_seconds = (uint32_t)(now / 1000000),
+        .night = display_state.night,
+        .brightness = brightness,
+        .blank_at_night = display_state.profile.blank_at_night,
+        .presence_source = known && presence.source,
+        .presence_fresh = known && presence.fresh,
+        .presence_active = display_state.presence_active,
+        .presence_age_seconds = known ? presence.age_seconds : 0,
+        .timeout_seconds = display_state.profile.presence_timeout_seconds,
+        .blank_in_seconds = display_state.presence_active || remaining <= 0 ?
+                            -1 : (int32_t)(remaining / 1000000),
+        .touch_count = touch_count,
+    };
+    slave_4b_ui_status(&status);
 }
 
 static void summary_refresh(int64_t now)
@@ -192,7 +265,7 @@ static void refresh(lv_timer_t *timer)
                                    intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input, now);
     app_slave_presence_service_apply(&display_state, now);
-    network_refresh(now, runtime.wifi_connected);
+    last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
     /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját
      * kiadását tölti le, a Wi-Fi és a foglaltság ellenőrzése a közös OTA-é. */
@@ -209,9 +282,33 @@ static void refresh(lv_timer_t *timer)
     }
     if (brightness != last_brightness)
     {
+        /* A háttérvilágítás nullázása után a BSP-t külön is felkapcsoljuk, hogy
+         * az ébresztés akkor is látható legyen, ha a 0% leállította a PWM-et. */
+        if (last_brightness <= 0 && brightness > 0)
+            bsp_display_backlight_on();
         bsp_display_brightness_set(brightness);
+        if (last_brightness >= 0)
+            app_events_add(APP_EVENT_INFO, brightness == 0 ?
+                           "Kijelző elsötétült (éjszakai mód, nincs jelenlét)." :
+                           "Kijelző felébredt (fényerő: %d%%).", brightness);
         last_brightness = brightness;
     }
+    /* A diagnosztikán látszódjon, hogy az érintés és a jelenlét tényleg beért. */
+    static bool was_touch, was_presence;
+    if (display_state.pointer_down && !was_touch)
+    {
+        touch_count++;
+        app_events_add(APP_EVENT_INFO, "Érintés érkezett (fényerő: %d%%).", brightness);
+    }
+    was_touch = display_state.pointer_down;
+    if (display_state.presence_active != was_presence)
+    {
+        was_presence = display_state.presence_active;
+        app_events_add(APP_EVENT_INFO, was_presence ? "Jelenlét: aktív." :
+                       "Jelenlét megszűnt, %u mp múlva sötétítés.",
+                       (unsigned)display_state.profile.presence_timeout_seconds);
+    }
+    status_refresh(now, (unsigned)brightness);
 }
 
 static void fatal(const char *detail)
