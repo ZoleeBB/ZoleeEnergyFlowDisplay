@@ -54,7 +54,7 @@ target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for"
 
 if(UNIX)
     add_executable(slave_intercom_preview slave_intercom_preview.c
-        "${APP_ROOT}/main/fonts/app_font_20.c" "${APP_ROOT}/main/fonts/app_font_28.c")
+        "${APP_ROOT}/main/fonts/app_font_24.c" "${APP_ROOT}/main/fonts/app_font_28.c")
     target_include_directories(slave_intercom_preview PRIVATE
         "${APP_ROOT}/tests/audio_stubs" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main")
     target_link_libraries(slave_intercom_preview PRIVATE lvgl m pthread)

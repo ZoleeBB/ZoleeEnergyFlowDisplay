@@ -217,6 +217,15 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 [Ellenőrzési állapot](docs/electric-car-development.md) ·
 [Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
 
+### Újdonság – 4B Slave: nagyobb betűk mindenhol a fejlécen kívül (`feature/slave-4b-font-scale`)
+
+| Funkció | Röviden |
+| --- | --- |
+| +20% betűméret | A fejlécen kívül minden felirat és érték egy mérettel nagyobb (16 → 20, 20 → 24, 28 → 34): csomópontnevek, teljesítményértékek, akkumulátor-részletek, állapotsor, diagnosztika, napi összesítő, PIN-pad és kaputelefon. [Részletek](docs/slave-waveshare-4b.md) |
+| Új betűméretek | A 24 és 34 képpontos készlet ugyanabból a Noto Sans forrásból, a meglévő `tools/prepare_fonts.py`-vel készült; a Slave a 16 képpontosat már nem fordítja be. |
+| Igazított elrendezés | A nagyobb sorokhoz a körök melletti és alatti feliratok helye is változott, így semmi nem lóg egymásba. |
+| Javítás | A várakozó üzenetek „…" karaktere üres négyzetként jelent meg (nincs a betűkészletben); mostantól három pont, mint a fő kijelzőn. |
+
 ### Újdonság – 4B Slave: olvashatóbb felület és állítható tájolás (`feature/slave-4b-readability`)
 
 | Funkció | Röviden |

@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[1]
-SIZES = (12, 14, 16, 18, 20, 22, 28)
+SIZES = (12, 14, 16, 18, 20, 22, 24, 28, 34)
 CODEPOINTS = sorted(set(range(32, 127)) | set(range(160, 256)) |
                     {0x150, 0x151, 0x170, 0x171, 0x2013, 0x2014, 0x20ac, 0x2191, 0x2193})
 

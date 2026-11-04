@@ -8,9 +8,12 @@
 #include <stdlib.h>
 #include <math.h>
 
-LV_FONT_DECLARE(app_font_16);
+/* A fejlécen kívül minden felirat egy mérettel nagyobb lett (16->20, 20->24,
+ * 28->34), hogy a háttérkép felett is olvasható maradjon. */
 LV_FONT_DECLARE(app_font_20);
+LV_FONT_DECLARE(app_font_24);
 LV_FONT_DECLARE(app_font_28);
+LV_FONT_DECLARE(app_font_34);
 
 /* Az energiautak és a körök vonalvastagsága; a futó pontok ehhez igazodnak,
  * különben a vastagabb út elnyelné őket. */
@@ -195,20 +198,20 @@ static void summary_create(void)
                                    "Akkumulátor", "Megtakarítás"};
     summary_panel = box(root, 0, 0, 720, 720);
     lv_obj_set_style_bg_opa(summary_panel, LV_OPA_COVER, 0);
-    plain_label(summary_panel, "Mai összesítő", 36, 28, 460, &app_font_28);
-    summary_status = plain_label(summary_panel, "", 36, 72, 648, &app_font_16);
+    plain_label(summary_panel, "Mai összesítő", 36, 24, 460, &app_font_34);
+    summary_status = plain_label(summary_panel, "", 36, 76, 648, &app_font_20);
     for (int i = 0; i < 6; i++)
     {
         int x = i % 2 ? 372 : 36, y = 112 + (i / 2) * 172;
         summary_tiles[i] = box(summary_panel, x, y, 312, 156);
         lv_obj_set_style_radius(summary_tiles[i], 18, 0);
         lv_obj_set_style_bg_opa(summary_tiles[i], LV_OPA_COVER, 0);
-        summary_names[i] = plain_label(summary_tiles[i], names[i], 20, 16, 272, &app_font_20);
-        summary_values[i] = plain_label(summary_tiles[i], "—", 20, 54, 272, &app_font_28);
-        summary_details[i] = plain_label(summary_tiles[i], "", 20, 106, 272, &app_font_16);
+        summary_names[i] = plain_label(summary_tiles[i], names[i], 20, 14, 276, &app_font_24);
+        summary_values[i] = plain_label(summary_tiles[i], "—", 20, 52, 276, &app_font_34);
+        summary_details[i] = plain_label(summary_tiles[i], "", 20, 104, 276, &app_font_20);
     }
-    lv_obj_t *hint = plain_label(summary_panel, "Húzd el oldalra az energiaáramláshoz", 36, 640, 648,
-                                 &app_font_16);
+    lv_obj_t *hint = plain_label(summary_panel, "Húzd el oldalra az energiaáramláshoz", 36, 636, 648,
+                                 &app_font_20);
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
     visible(summary_panel, false);
 }
@@ -290,7 +293,7 @@ void slave_4b_ui_summary(const slave_4b_summary_t *summary)
         return;
     summary_colors(last_night);
     char text[96], detail[96];
-    text_if_changed(summary_status, !summary->available ? "Első szinkronra vár a mastertől…" :
+    text_if_changed(summary_status, !summary->available ? "Első szinkronra vár a mastertől..." :
                     summary->stale ? "Utolsó ismert mai adat – a kapcsolat megszakadt" :
                     "A master napi adatai, élő frissítéssel");
     const char *currency = summary->currency[0] ? summary->currency : "Ft";
@@ -370,21 +373,23 @@ static void layout(bool night)
         node->radius = positions[i][2];
         lv_obj_set_pos(node->ring, node->x - node->radius, node->y - node->radius);
         lv_obj_set_size(node->ring, node->radius * 2, node->radius * 2);
+        /* A nagyobb betűkhöz igazított sorok: a név és az érték együtt marad a
+         * kör magasságának közepén, illetve a kör alatt, egymásba lógás nélkül. */
         if (i == 0 || i == 3)
         {
-            lv_obj_set_pos(node->name, node->x + node->radius + 12, node->y - 28);
-            lv_obj_set_pos(node->value, node->x + node->radius + 12, node->y + 1);
+            lv_obj_set_pos(node->name, node->x + node->radius + 12, node->y - 37);
+            lv_obj_set_pos(node->value, node->x + node->radius + 12, node->y - 7);
         }
         else
         {
-            lv_obj_set_pos(node->name, node->x - 82, node->y + node->radius + 6);
-            lv_obj_set_pos(node->value, node->x - 82, node->y + node->radius + 33);
+            lv_obj_set_pos(node->name, node->x - 90, node->y + node->radius + 6);
+            lv_obj_set_pos(node->value, node->x - 90, node->y + node->radius + 38);
         }
         lv_obj_set_style_text_color(node->name, lv_color_hex(night ? 0xF5FAFF : 0x00183D), 0);
     }
     /* A rendszertéma vékony, alulról felfelé töltődő SOC sávja. */
     lv_obj_set_pos(soc, 108, 332);
-    lv_obj_set_pos(battery_detail, 52, 478);
+    lv_obj_set_pos(battery_detail, 40, 504);
     lv_color_t text = lv_color_hex(night ? 0xF5FAFF : 0x00183D);
     lv_obj_set_style_text_color(root, text, 0);
     last_night = night;
@@ -420,8 +425,8 @@ void slave_4b_ui_create(lv_obj_t *screen)
     static const char *names[] = {"Hálózat", "Akkumulátor", "Napelem", "Ház"};
     for (int i = 0; i < 4; i++)
     {
-        nodes[i].name = bold_label(root, names[i], 0, 0, 164, &app_font_20);
-        nodes[i].value = bold_label(root, "—", 0, 0, 164, &app_font_28);
+        nodes[i].name = bold_label(root, names[i], 0, 0, 180, &app_font_24);
+        nodes[i].value = bold_label(root, "—", 0, 0, 180, &app_font_34);
         if (i == 1 || i == 2)
         {
             lv_obj_set_style_text_align(nodes[i].name, LV_TEXT_ALIGN_CENTER, 0);
@@ -438,7 +443,7 @@ void slave_4b_ui_create(lv_obj_t *screen)
     wind_icon = image(&slave_4b_wind, 446, 25, 34);
     wind = label(root, "— km/h", 484, 32, 110, &app_font_20);
     clock_label = label(root, "--:--", 604, 25, 112, &app_font_28);
-    battery_detail = label(root, "— % · — °C", 8, 478, 160, &app_font_16);
+    battery_detail = label(root, "— % · — °C", 40, 504, 180, &app_font_20);
     lv_obj_set_style_text_align(battery_detail, LV_TEXT_ALIGN_CENTER, 0);
     soc = lv_bar_create(root);
     lv_obj_remove_style_all(soc);
@@ -450,9 +455,9 @@ void slave_4b_ui_create(lv_obj_t *screen)
     lv_obj_set_style_bg_opa(soc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(soc, 3, LV_PART_MAIN);
     lv_obj_set_style_radius(soc, 3, LV_PART_INDICATOR);
-    message = label(root, "Master keresése…", 168, 674, 384, &app_font_16);
+    message = label(root, "Master keresése...", 148, 672, 424, &app_font_20);
     lv_obj_set_style_text_align(message, LV_TEXT_ALIGN_CENTER, 0);
-    diagnostics = label(root, "Slave", 180, 110, 360, &app_font_20);
+    diagnostics = label(root, "Slave", 160, 100, 400, &app_font_24);
     lv_obj_set_style_bg_color(diagnostics, lv_color_hex(0x10243E), 0);
     lv_obj_set_style_bg_opa(diagnostics, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(diagnostics, lv_color_hex(0xFFFFFF), 0);
@@ -517,7 +522,7 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
         lv_obj_set_pos(logo, 160, 270);
         lv_obj_t *caption = lv_label_create(disabled_overlay);
         lv_label_set_text(caption, "Energiaáramlás letiltve");
-        lv_obj_set_style_text_font(caption, &app_font_28, 0);
+        lv_obj_set_style_text_font(caption, &app_font_34, 0);
         lv_obj_set_style_text_color(caption, lv_color_hex(0xFFFFFF), 0);
         lv_obj_set_width(caption, 640);
         lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
@@ -591,12 +596,12 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     if (runtime)
     {
         snprintf(text, sizeof(text), "Waveshare 4B · Slave\n\nMaster: %s\nBLE: %s\nRSSI: %d dBm\nWi-Fi: %s\nIP: %s\nIdőszinkron: %s",
-                 runtime->ble_peer[0] ? runtime->ble_peer : "keresés…",
-                 runtime->slave_connected ? "kapcsolódva" : "keresés…", runtime->ble_rssi,
+                 runtime->ble_peer[0] ? runtime->ble_peer : "keresés...",
+                 runtime->slave_connected ? "kapcsolódva" : "keresés...", runtime->ble_rssi,
                  runtime->wifi_connected ? "OK" : "nincs",
                  network_ip[0] ? network_ip : "—", runtime->time_synced ? "OK" : "várakozás");
         text_if_changed(diagnostics, text);
-        slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk…" : "Master keresése…");
+        slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk..." : "Master keresése...");
     }
 }
 
@@ -647,9 +652,9 @@ void slave_4b_ui_pairing(const app_ble_pairing_status_t *status)
         lv_obj_set_style_bg_color(pin_pad, lv_color_hex(0x10243E), 0);
         lv_obj_set_style_bg_opa(pin_pad, LV_OPA_COVER, 0);
         lv_obj_set_style_text_color(pin_pad, lv_color_hex(0xFFFFFF), 0);
-        label(pin_pad, "Master párosítása", 140, 30, 460, &app_font_28);
-        label(pin_pad, "A master diagnosztikáján látható PIN:", 140, 88, 460, &app_font_20);
-        pin_mask = label(pin_pad, "______", 275, 142, 220, &app_font_28);
+        label(pin_pad, "Master párosítása", 140, 26, 460, &app_font_34);
+        label(pin_pad, "A master diagnosztikáján látható PIN:", 140, 84, 470, &app_font_24);
+        pin_mask = label(pin_pad, "______", 275, 136, 220, &app_font_34);
         for (unsigned i = 0; i < 13; i++)
         {
             unsigned key = i < 9 ? i + 1 : i == 9 ? 10 : i == 10 ? 0 : i == 11 ? 11 : 12;
@@ -658,12 +663,12 @@ void slave_4b_ui_pairing(const app_ble_pairing_status_t *status)
             lv_obj_t *button = lv_button_create(pin_pad);
             lv_obj_set_pos(button, i == 12 ? 190 : 140 + (i % 3) * 150, i == 12 ? 612 : 205 + (i / 3) * 90);
             lv_obj_set_size(button, i == 12 ? 340 : 140, 76);
-            lv_obj_t *caption = label(button, text, 0, 0, 120, &app_font_20);
+            lv_obj_t *caption = label(button, text, 0, 0, 128, &app_font_24);
             lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_center(caption);
             lv_obj_add_event_cb(button, pin_key, LV_EVENT_CLICKED, (void *)(uintptr_t)key);
         }
-        pin_countdown = label(pin_pad, "", 190, 570, 400, &app_font_16);
+        pin_countdown = label(pin_pad, "", 190, 568, 400, &app_font_20);
     }
     char countdown[64];
     snprintf(countdown, sizeof(countdown), "Hátralévő idő: %u mp", status->seconds);
