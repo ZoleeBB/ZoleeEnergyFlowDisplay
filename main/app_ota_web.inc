@@ -1,5 +1,7 @@
 /* A böngészős tesztindítás ugyanazt az OTA-folyamatot használja, mint az éjféli.
  * A saját kérésfejléc a többi beállító végponthoz hasonlóan kötelező. */
+void app_slave_presence_service_request_ota(void);
+
 static esp_err_t ota_auto_post(httpd_req_t *req)
 {
     if (!authorize(req))
@@ -34,8 +36,13 @@ static esp_err_t ota_auto_post(httpd_req_t *req)
         httpd_resp_set_status(req, "503 Service Unavailable");
         return httpd_resp_sendstr(req, s_hu ? "A frissítés nem indítható; nézd meg a rendszernaplót." : "Cannot start the update; check the system log.");
     }
+    /* A párosított Slave-ek a saját csomagjukat töltik le; a kérést a meglévő
+     * hitelesített jelenlétcsatorna viszi át, a HTTP-task nem hív NimBLE-t. */
+    app_slave_presence_service_request_ota();
     httpd_resp_set_status(req, "202 Accepted");
     return httpd_resp_sendstr(req, s_hu
-        ? "Az ellenőrzés elindult a háttérben. Az eredmény a rendszernaplóban látható; sikeres frissítéskor az eszköz újraindul."
-        : "The check started in the background. See the system log for the result; a successful update restarts the device.");
+        ? "Az ellenőrzés elindult a háttérben, és a párosított Slave-kijelzők is megnézik a saját frissítésüket. "
+          "Az eredmény a rendszernaplóban látható; sikeres frissítéskor az eszköz újraindul."
+        : "The check started in the background, and paired Slave displays also check their own update. "
+          "See the system log for the result; a successful update restarts the device.");
 }

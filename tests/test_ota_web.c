@@ -19,6 +19,8 @@ static bool authorize(httpd_req_t *req)
 }
 bool app_wifi_is_connected(void) { return connected; }
 esp_err_t app_ota_request_auto_update(void) { starts++; return start_result; }
+static int slave_requests;
+void app_slave_presence_service_request_ota(void) { slave_requests++; }
 esp_err_t httpd_resp_set_type(httpd_req_t *r, const char *t) { (void)r; (void)t; return ESP_OK; }
 esp_err_t httpd_resp_set_hdr(httpd_req_t *r, const char *k, const char *v)
 {
@@ -73,12 +75,16 @@ int main(void)
     start_result = ESP_ERR_NO_MEM;
     ota_auto_post(&req);
     assert(status == 503 && starts == 2);
+    /* A sikertelen indítás a Slave-eket sem kérheti meg. */
+    assert(!slave_requests);
     start_result = ESP_OK;
     ota_auto_post(&req);
     assert(status == 202 && starts == 3 && strstr(response, "háttérben"));
+    assert(slave_requests == 1 && strstr(response, "Slave"));
     s_hu = false;
     ota_auto_post(&req);
     assert(status == 202 && strstr(response, "background"));
+    assert(slave_requests == 2 && strstr(response, "Slave"));
     puts("PASS: actual manual OTA HTTP auth/header, offline, busy, OOM and asynchronous acceptance");
     return 0;
 }

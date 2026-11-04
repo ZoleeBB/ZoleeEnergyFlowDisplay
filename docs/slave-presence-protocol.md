@@ -52,17 +52,25 @@ A több bájtos számok unsigned little-endian értékek.
 | --- | --- | --- |
 | 0 | 2 | ASCII `ZP` |
 | 2 | 1 | Verzió: 1 |
-| 3 | 1 | Bit 0: éjszakai sötétítés; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3) |
+| 3 | 1 | Bit 0: éjszakai sötétítés; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése |
 | 4 | 4 | Nem nulla profilrevízió |
 | 8 | 4 | Timeout másodpercben, 1–86400 |
 | 12 | 4 | Jelenlét felfutóéleinek modulo-2^32 számlálója |
 | 16 | 4 | Kapcsolaton belüli modulo-2^32 csomagsorszám |
 
-Az 5–7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
+A 6–7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
 A 0 fokos tájolás bitjei nullák, így a korábbi, a 3–7. bitet még tiltó Slave is
 elfogadja az alapértelmezett csomagot; elforgatott kijelzőhöz a Slave firmware-ét
 is frissíteni kell.
-Egy revízión belül timeout/sötétítés/tájolás nem változhat. A kliens minden hibát
+Egy revízión belül timeout/sötétítés/tájolás nem változhat; az érvényes/aktív és
+a frissítéskérés bitje viszont a revízión belül is változik.
+
+A frissítéskérés **szintjel**: a Master a webes „frissítések keresése" gomb után
+60 másodpercig küldi, a Slave pedig a felfutó élre indít egyetlen ellenőrzést a
+saját kiadására (`ZoleeEnergyFlowDisplay-slave-4b-<tag>-ota.bin`). Ismételt
+olvasás, visszajátszás és a kapcsolat újraépülése nem indít újabb letöltést; a
+Wi-Fi és a futó művelet ellenőrzése a közös OTA-modulé. A napváltáskor induló
+automatikus ellenőrzést a Slave eddig is magától futtatta. A kliens minden hibát
 atomikusan utasít el; hibás csomag nem frissíti a lease-t.
 
 A Master **minden beérkező Loxone WS-deltánál** hívja a termelőmodellt.

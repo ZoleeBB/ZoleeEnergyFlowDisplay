@@ -23,6 +23,11 @@ static atomic_bool s_presence_ready;
 static bool s_presence_master, s_presence_online;
 static int64_t s_presence_online_us;
 static uint32_t s_presence_source_revision;
+/* A webes „frissítések keresése" gomb után ennyi ideig kérjük a párosított
+ * Slave-eket is, hogy nézzék meg a saját kiadásukat. Szintjel: a Slave a
+ * felfutó élre indít egy ellenőrzést, az ismételt olvasás nem indít újat. */
+#define PRESENCE_OTA_REQUEST_US INT64_C(60000000)
+static int64_t s_presence_ota_until_us;
 static app_slave_presence_snapshot_t s_presence_state;
 static app_slave_presence_receiver_t s_presence_receiver;
 
@@ -298,8 +303,9 @@ bool app_slave_presence_service_packet(const app_slave_identity_t *identity,
     int64_t now = esp_timer_get_time();
     bool live = s_presence_online && now >= s_presence_online_us &&
                 now - s_presence_online_us < INT64_C(45000000);
+    bool ota = s_presence_ota_until_us && now < s_presence_ota_until_us;
     bool ok = index >= 0 && app_slave_presence_encode(&s_presence_state.table.peers[index],
-                                                      sequence, live, out);
+                                                      sequence, live, ota, out);
     xSemaphoreGive(s_presence_mutex);
     return ok;
 }
@@ -358,6 +364,25 @@ void app_slave_presence_service_legacy(void)
         return;
     app_slave_presence_legacy(&s_presence_receiver);
     xSemaphoreGive(s_presence_mutex);
+}
+
+void app_slave_presence_service_request_ota(void)
+{
+    if (!atomic_load(&s_presence_ready) || !s_presence_master || !service_lock(true))
+        return;
+    s_presence_ota_until_us = esp_timer_get_time() + PRESENCE_OTA_REQUEST_US;
+    xSemaphoreGive(s_presence_mutex);
+}
+
+bool app_slave_presence_service_take_ota_request(void)
+{
+    if (!atomic_load(&s_presence_ready) || s_presence_master ||
+        xSemaphoreTake(s_presence_mutex, 0) != pdTRUE)
+        return false;
+    bool pending = s_presence_receiver.ota_check_pending;
+    s_presence_receiver.ota_check_pending = false;
+    xSemaphoreGive(s_presence_mutex);
+    return pending;
 }
 
 bool app_slave_presence_service_rotation(uint16_t *degrees)

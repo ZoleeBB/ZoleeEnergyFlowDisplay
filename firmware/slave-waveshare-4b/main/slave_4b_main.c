@@ -194,6 +194,13 @@ static void refresh(lv_timer_t *timer)
     app_slave_presence_service_apply(&display_state, now);
     network_refresh(now, runtime.wifi_connected);
     rotation_follow(now, intercom_visible || pairing.pin_required);
+    /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját
+     * kiadását tölti le, a Wi-Fi és a foglaltság ellenőrzése a közös OTA-é. */
+    if (app_slave_presence_service_take_ota_request() &&
+        app_ota_request_auto_update() != ESP_OK)
+        app_events_add(APP_EVENT_WARNING,
+                       "A Master kérésére indított frissítésellenőrzés nem indult el "
+                       "(nincs Wi-Fi, vagy másik művelet fut).");
     int brightness = (int)app_slave_display_brightness(&display_state, now);
     if (intercom_visible) {
         unsigned day, night;

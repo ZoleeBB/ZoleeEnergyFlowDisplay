@@ -76,7 +76,7 @@ void app_slave_presence_invalidate(app_slave_presence_table_t *table);
  * A sequence kapcsolatonként, minden új mintánál lép; a live az egyetlen
  * hitelesített Loxone adatkapcsolat frissessége, nem a UUID utolsó változásáé. */
 bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
-                               uint32_t sequence, bool live,
+                               uint32_t sequence, bool live, bool ota_check,
                                uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE]);
 
 typedef struct
@@ -89,6 +89,9 @@ typedef struct
     bool active;
     bool pending_pulse;
     bool reset_presence;
+    /* A Master webes „frissítések keresése" gombjának felfutó éle. */
+    bool ota_check_level;
+    bool ota_check_pending;
     uint32_t revision;
     uint32_t sequence;
     uint32_t counter;

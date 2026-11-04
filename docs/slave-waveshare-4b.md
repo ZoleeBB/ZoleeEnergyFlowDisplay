@@ -31,6 +31,18 @@ A 4B-nek nincs saját weboldala, ezért a Wi-Fi IP-címe a kijelző diagnosztika
 rétegén olvasható le (jobb felső sarok megérintése), a BLE és az időszinkron
 állapota mellett.
 
+## Frissítés
+
+A Slave a saját csomagját tölti le (`ZoleeEnergyFlowDisplay-slave-4b-<tag>-ota.bin`),
+nem a Masterét. A napváltáskor (és az első szinkron után) induló automatikus
+ellenőrzést eddig is magától futtatta, ha a Mastertől kapott profilban be van
+kapcsolva az automatikus frissítés, és van Wi-Fi-kapcsolata.
+
+A Master webes **„frissítések keresése"** gombja mostantól a párosított
+Slave-eknek is szól: a kérés a meglévő, hitelesített jelenlétcsatornán megy át,
+és a Slave egyetlen ellenőrzést indít. Wi-Fi nélkül vagy futó művelet mellett az
+ellenőrzés kimarad, és ez a Slave rendszernaplójában is megjelenik.
+
 ## Szilíciumrevízió – a 4B panelek v1.x lapkával is érkeznek
 
 A megvásárolt 4B panel ESP32-P4 **v1.3** szilíciummal érkezett, ezért a Slave

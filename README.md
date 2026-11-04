@@ -226,6 +226,7 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | Egysoros fejléc | Az időjárás ikon és a hőmérséklet rögtön a „Zolee Energy" felirat után áll, a felszabadult helyre a páratartalom került az ikonjával. |
 | Állítható tájolás | A Master `/loxone` oldalán, a Slave kártyáján választható 0/90/180/270°. A beállítás a jelenlétprofillal megy át BLE-n, a Slave elmenti és újraindul; az érintés is forog. [Részletek](docs/slave-waveshare-4b.md) |
 | Slave IP-cím | A 4B diagnosztikai rétege kiírja a Wi-Fi IP-címet is. |
+| Frissítés a gombról | A Master „frissítések keresése" gombja a párosított Slave-eket is megkéri, hogy nézzék meg a saját kiadásukat (a napváltáskori automatikus ellenőrzést a Slave eddig is futtatta). |
 
 ### Javítás – a 4B Slave régebbi szilíciumon is települ (`fix/slave-4b-chip-revision`)
 
