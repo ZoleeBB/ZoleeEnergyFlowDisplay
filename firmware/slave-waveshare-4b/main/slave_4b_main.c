@@ -153,6 +153,27 @@ static void log_refresh(void)
     }
 }
 
+/* A Slave-nek nincs SD-kártyája és saját beállítóoldala, ezért a nappali és
+ * éjszakai fényerőt a Master profiljából veszi át – újraindítás nélkül. */
+static void brightness_follow(int64_t now)
+{
+    static int64_t last;
+    if (last && now - last < 1000000)
+        return;
+    last = now;
+    app_ble_profile_apply(&config);
+    if (display_state.profile.day_brightness == config.display.day_brightness &&
+        display_state.profile.night_brightness == config.display.night_brightness)
+        return;
+    app_slave_display_profile_t profile = display_state.profile;
+    profile.day_brightness = config.display.day_brightness;
+    profile.night_brightness = config.display.night_brightness;
+    if (!app_slave_display_profile(&display_state, &profile, now))
+        return;
+    app_events_add(APP_EVENT_INFO, "Fényerő a Mastertől: nappal %u%%, éjjel %u%%.",
+                   (unsigned)profile.day_brightness, (unsigned)profile.night_brightness);
+}
+
 static void status_refresh(int64_t now, unsigned brightness)
 {
     static int64_t last;
@@ -267,6 +288,8 @@ static void refresh(lv_timer_t *timer)
     app_slave_presence_service_apply(&display_state, now);
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
+    if (atomic_load(&boot_complete))
+        brightness_follow(now);
     /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját
      * kiadását tölti le, a Wi-Fi és a foglaltság ellenőrzése a közös OTA-é. */
     if (app_slave_presence_service_take_ota_request() &&
@@ -334,6 +357,7 @@ void app_main(void)
     ESP_ERROR_CHECK(error);
     app_state_init();
     app_events_init();
+    app_ota_report_boot_state();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
     rotation_degrees = rotation_load();
     /* Az érintés nem forog magától: a 10.1-es Masterrel azonos konvenció szerint

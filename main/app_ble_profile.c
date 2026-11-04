@@ -18,6 +18,8 @@ static QueueHandle_t s_queue;
 static SemaphoreHandle_t s_mutex;
 static uint8_t s_profile[APP_BLE_PROFILE_SIZE];
 static uint8_t s_applied_profile[APP_BLE_PROFILE_SIZE];
+/* A tárolt blob tényleges hossza: a korábbi firmware 102 bájtot mentett. */
+static size_t s_profile_size;
 static bool s_have_profile;
 static atomic_bool s_ready, s_boot_complete;
 static char s_pin[7];
@@ -66,20 +68,23 @@ static void profile_task(void *arg)
         if (xQueueReceive(s_queue, data, pdMS_TO_TICKS(1000)) == pdTRUE)
         {
             xSemaphoreTake(s_mutex, portMAX_DELAY);
-            bool changed = !s_have_profile || memcmp(data, s_profile, sizeof(data));
+            bool changed = !s_have_profile || s_profile_size != sizeof(data) ||
+                           memcmp(data, s_profile, sizeof(data));
             xSemaphoreGive(s_mutex);
             if (!changed || save_profile(data) == ESP_OK)
             {
                 xSemaphoreTake(s_mutex, portMAX_DELAY);
                 memcpy(s_profile, data, sizeof(data));
+                s_profile_size = sizeof(data);
                 s_have_profile = true;
                 xSemaphoreGive(s_mutex);
                 atomic_store(&s_ready, true);
                 if (changed)
                 {
-                    restart = atomic_load(&s_boot_complete);
+                    restart = atomic_load(&s_boot_complete) &&
+                              memcmp(s_applied_profile, data, APP_BLE_PROFILE_LIVE_OFFSET);
                     app_events_add(APP_EVENT_INFO,
-                                   "Master Wi-Fi/automatikus frissítés profilja átvéve.");
+                                   "Master Wi-Fi/fényerő/frissítés profilja átvéve.");
                 }
             }
             else
@@ -91,8 +96,10 @@ static void profile_task(void *arg)
         if (atomic_load(&s_boot_complete))
         {
             xSemaphoreTake(s_mutex, portMAX_DELAY);
+            /* A fényerő futás közben is érvényesíthető, ezért nem indít újra. */
             restart = restart ||
-                      (s_have_profile && memcmp(s_applied_profile, s_profile, sizeof(s_profile)));
+                      (s_have_profile && memcmp(s_applied_profile, s_profile,
+                                                APP_BLE_PROFILE_LIVE_OFFSET));
             xSemaphoreGive(s_mutex);
         }
         if (restart && app_ota_try_begin_operation())
@@ -147,8 +154,12 @@ esp_err_t app_ble_profile_init(app_config_t *cfg)
     if (cfg->data_recept_mode == APP_DATA_SLAVE)
     {
         size_t length = sizeof(s_profile);
-        if (nvs_get_blob(handle, "slave", s_profile, &length) == ESP_OK)
-            s_have_profile = app_ble_profile_decode(s_profile, length, cfg);
+        if (nvs_get_blob(handle, "slave", s_profile, &length) == ESP_OK &&
+            app_ble_profile_decode(s_profile, length, cfg))
+        {
+            s_have_profile = true;
+            s_profile_size = length;
+        }
     }
     nvs_close(handle);
     if (cfg->data_recept_mode != APP_DATA_SLAVE)
@@ -183,7 +194,7 @@ void app_ble_profile_apply(app_config_t *cfg)
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     if (s_have_profile)
     {
-        (void)app_ble_profile_decode(s_profile, sizeof(s_profile), cfg);
+        (void)app_ble_profile_decode(s_profile, s_profile_size, cfg);
         memcpy(s_applied_profile, s_profile, sizeof(s_profile));
     }
     xSemaphoreGive(s_mutex);

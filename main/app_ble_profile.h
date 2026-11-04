@@ -1,8 +1,13 @@
 #pragma once
 #include "app_config.h"
 
-/* A védett 1004 karakterisztika fix, hosszú olvasással átadott formátuma. */
-#define APP_BLE_PROFILE_SIZE 102
+/* A védett 1004 karakterisztika fix, hosszú olvasással átadott formátuma.
+ * A 2. verzió két bájttal hosszabb: a Slave-nek nincs SD-kártyája és saját
+ * beállítóoldala, ezért a nappali/éjszakai fényerőt is a Mastertől kapja. */
+#define APP_BLE_PROFILE_SIZE 104
+#define APP_BLE_PROFILE_V1_SIZE 102
+/* Innentől a mezők futás közben is alkalmazhatók, nem kell értük újraindulni. */
+#define APP_BLE_PROFILE_LIVE_OFFSET APP_BLE_PROFILE_V1_SIZE
 
 void app_ble_profile_encode(const app_config_t *cfg, uint8_t out[APP_BLE_PROFILE_SIZE]);
 bool app_ble_profile_decode(const uint8_t *data, size_t length, app_config_t *cfg);

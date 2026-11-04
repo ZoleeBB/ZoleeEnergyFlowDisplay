@@ -217,6 +217,13 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 [Ellenőrzési állapot](docs/electric-car-development.md) ·
 [Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
 
+### Újdonság – 4B Slave: fényerő a Mastertől, OTA-visszaállás naplózása (`feature/slave-4b-brightness`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profil 2. verziójával a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
+| OTA-visszaállás nyoma | Időtúllépéskor NVS-be kerül, melyik feltétel hiányzott; a következő induláskor a napló kiírja a nem véglegesült verziót és az okot is. [Részletek](docs/ota.md) |
+
 ### Javítás – 4B Slave: jelenlét alatt nem sötétedik el, teljes képernyős diagnosztika (`fix/slave-4b-presence-hold`)
 
 | Funkció | Röviden |

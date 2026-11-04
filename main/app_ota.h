@@ -6,6 +6,11 @@
 /* OTA próba-image háromperces automatikus validációjának elindítása. */
 esp_err_t app_ota_start_validation_task(void);
 
+/* Indulás után egyszer: ha az előző OTA visszaállt, naplózza a verzióját és –
+ * ha az alkalmazás még le tudta írni – a visszaállás okát is. A RAM-napló a
+ * következő újraindításig megőrzi, így a Slave diagnosztikáján is látszik. */
+void app_ota_report_boot_state(void);
+
 /* Napváltásra ébresztett, opcionális GitHub OTA-feladat indítása. */
 esp_err_t app_ota_start_auto_update(const app_config_t *cfg);
 

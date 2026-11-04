@@ -178,6 +178,9 @@ int main(void)
     assert(app_ble_profile_ready() && writes == 1 && !saves && !reboots);
     app_ble_profile_apply(&slave);
     assert(!strcmp(slave.wifi.ssid, "test-wifi") && slave.ota.auto_update);
+    /* SD és beállítóoldal nélkül a Slave a Master fényerejét veszi át; a
+     * tartományon kívüli masterérték a biztonságos alapértékre esik vissza. */
+    assert(slave.display.day_brightness == 80 && slave.display.night_brightness == 20);
     app_ble_profile_boot_complete();
     assert(app_ble_profile_submit(data));
     step();
@@ -209,6 +212,37 @@ int main(void)
     assert(writes == previous + 1 && !app_ble_profile_ready());
     app_ble_profile_apply(&slave);
     assert(!strcmp(slave.wifi.ssid, "test-wifi"));
-    puts("PASS: persistent auto PIN, PIN change, NVS profile, no repeated writes, boot inheritance "
-         "and OTA/SD-safe runtime restart");
+    /* A fényerő a profillal utazik, és futás közben is érvényesíthető:
+     * önmagában nem kér újraindítást. */
+    fail_commit = false;
+    app_ble_profile_encode(&master, data);
+    assert(app_ble_profile_submit(data));
+    step();
+    step();
+    app_ble_profile_apply(&slave); /* Innentől az alkalmazott profil a tárolt. */
+    unsigned restarts = reboots;
+    master.display.day_brightness = 65;
+    master.display.night_brightness = 7;
+    app_ble_profile_encode(&master, data);
+    assert(data[2] == 2 && data[102] == 65 && data[103] == 7);
+    assert(app_ble_profile_submit(data));
+    step();
+    step();
+    app_ble_profile_apply(&slave);
+    assert(slave.display.day_brightness == 65 && slave.display.night_brightness == 7);
+    assert(reboots == restarts);
+    /* A korábbi, 102 bájtos profilt is elfogadjuk: ilyenkor a fényerő marad. */
+    uint8_t legacy[APP_BLE_PROFILE_V1_SIZE];
+    memcpy(legacy, data, sizeof(legacy));
+    legacy[2] = 1;
+    app_config_t previous_slave = slave;
+    assert(app_ble_profile_decode(legacy, sizeof(legacy), &previous_slave));
+    assert(previous_slave.display.day_brightness == 65 &&
+           previous_slave.display.night_brightness == 7);
+    legacy[2] = 2;
+    assert(!app_ble_profile_decode(legacy, sizeof(legacy), &previous_slave));
+    data[103] = 0;
+    assert(!app_ble_profile_decode(data, sizeof(data), &previous_slave));
+    puts("PASS: persistent auto PIN, PIN change, NVS profile, no repeated writes, boot inheritance, "
+         "master brightness without restart and OTA/SD-safe runtime restart");
 }

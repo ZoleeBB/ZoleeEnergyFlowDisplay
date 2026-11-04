@@ -98,6 +98,14 @@ a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
 
+A visszaállás nyomot hagy: az alkalmazás az időtúllépéskor NVS-be írja, **melyik
+feltétel hiányzott**, és a következő induláskor a rendszernaplóba kerül a nem
+véglegesült verzió és ez az ok is. A Slave-en ez a két sor a kijelző
+diagnosztikáján olvasható, mert ott nincs SD-re mentett napló. Ha a napló csak a
+nem véglegesült verziót említi okkal együtt nem, akkor az új firmware már az
+ellenőrzés előtt újraindult (például összeomlás miatt), és a bootloader állt
+vissza.
+
 ## Információs oldal
 
 Megjeleníti többek között:
