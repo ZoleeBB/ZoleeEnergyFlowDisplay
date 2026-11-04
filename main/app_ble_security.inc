@@ -4,6 +4,9 @@
 static atomic_uint s_window_end, s_pin_token, s_pin_command, s_pin_command_token;
 static atomic_uint s_pin_expiry;
 static atomic_bool s_window_request, s_pin_requested;
+/* Igaz, amíg a Master kulcshiányt jelzett: a felület ilyenkor kiírja, hogy
+ * kézi újrapárosítás kell. Sikeres hitelesítésnél törlődik. */
+static atomic_bool s_pairing_required;
 static uint16_t s_pin_connection = BLE_HS_CONN_HANDLE_NONE;
 static int64_t s_pin_deadline;
 static unsigned s_pair_failures;
@@ -62,6 +65,11 @@ void app_ble_pairing_open(void)
     atomic_store(&s_window_request, true);
 }
 
+bool app_ble_pairing_required(void)
+{
+    return atomic_load(&s_pairing_required);
+}
+
 static void security_clear_request(uint16_t connection)
 {
     if (s_pin_connection != connection)
@@ -117,13 +125,20 @@ static int security_gap_event(struct ble_gap_event *event)
             security_clear_request(event->enc_change.conn_handle);
             if (event->enc_change.status || !security_authenticated(event->enc_change.conn_handle))
             {
-                /* Hibás visszaállítás, illetve elutasított Just Works után ne
-                 * maradjon használhatatlan/gyenge bond a tartós kulcstárban. */
-                if (slave_mode() && event->enc_change.status)
+                /* Csak akkor dobjuk el a bondot, ha a Master ténylegesen azt
+                 * jelzi, hogy nincs meg a kulcs (HCI 0x06). Egy újrainduló vagy
+                 * épp frissülő Master időtúllépése nem törölheti a párosítást:
+                 * utána ugyanis csak kézi újrapárosítással lehetne visszatérni. */
+                if (slave_mode() &&
+                    event->enc_change.status == BLE_HS_HCI_ERR(BLE_ERR_PINKEY_MISSING))
                 {
                     struct ble_gap_conn_desc desc;
                     if (ble_gap_conn_find(event->enc_change.conn_handle, &desc) == 0)
                         (void)ble_store_util_delete_peer(&desc.peer_id_addr);
+                    app_events_add(APP_EVENT_ERROR,
+                                   "A Master nem ismeri a párosítási kulcsot; új párosítás kell "
+                                   "(Master: Beállítások -> Új párosítás engedélyezése).");
+                    atomic_store(&s_pairing_required, true);
                 }
                 else if (!event->enc_change.status)
                 {
@@ -138,6 +153,11 @@ static int security_gap_event(struct ble_gap_event *event)
                     APP_EVENT_WARNING,
                     "BLE hitelesítés sikertelen; ellenőrizd a PIN-t és a párosítási ablakot.");
                 (void)ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+            }
+            else
+            {
+                s_pair_failures = 0;
+                atomic_store(&s_pairing_required, false);
             }
             break;
         case BLE_GAP_EVENT_DISCONNECT:

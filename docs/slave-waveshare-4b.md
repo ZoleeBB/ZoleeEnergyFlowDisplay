@@ -36,6 +36,21 @@ A várakozó állapotüzenetek három ponttal végződnek („Master keresése..
 a fő kijelzőn: a tipográfiai „…" nincs a beágyazott betűkészletben, ezért
 korábban üres négyzetként jelent meg.
 
+## Párosítás: mikor vész el, mikor nem
+
+A Slave a hitelesítési hibát korábban mindig úgy kezelte, hogy **eldobta a
+tárolt párosítási kulcsot**. Egyetlen időtúllépés – például ha a Master épp
+újraindul vagy frissül a hitelesítés közben – ezzel véglegesen elrontotta a
+kapcsolatot: a Slave utána megtalálta a Mastert, egy pillanatra ki is írta a
+címét és az RSSI-t, majd a sikertelen titkosítás után újra keresni kezdett, és
+ebből magától nem jött ki.
+
+Mostantól a kulcsot csak akkor dobja el, ha a Master **ténylegesen kulcshiányt
+jelez** (HCI 0x06). Ilyenkor a kijelzőn megjelenik, hogy mit kell tenni: a
+Master **Beállítások** oldalán az „Új párosítás engedélyezése 2 percre"
+gombbal nyílik az ablak, a PIN pedig a Master diagnosztikáján olvasható, és a
+Slave PIN-padján kell beírni. Sikeres hitelesítés után az üzenet eltűnik.
+
 ## Önjavítás: BLE-figyelő
 
 A kijelző a Mastertől kapja az összes adatot, ezért ha a kapcsolat tartósan

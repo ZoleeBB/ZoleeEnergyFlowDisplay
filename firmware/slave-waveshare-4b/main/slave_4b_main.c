@@ -42,6 +42,7 @@ static app_config_t config;
 static uint16_t rotation_degrees;
 static int last_brightness = -1;
 static bool last_runtime_wifi;
+static bool pairing_pin_required;
 static app_slave_display_t display_state;
 static app_slave_display_input_t input_gate;
 static atomic_bool boot_complete;
@@ -341,9 +342,15 @@ static void refresh(lv_timer_t *timer)
     if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
         visible_runtime.slave_source_stale = true;
     slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
+    /* Kulcshiány után a kijelző mondja meg, mit kell tenni: a Slave magától
+     * nem tud újrapárosítani, ahhoz a Masteren kell ablakot nyitni. */
+    if (app_ble_pairing_required() && !pairing_pin_required)
+        slave_4b_ui_message("Nincs érvényes párosítás. A Master Beállítások oldalán "
+                            "engedélyezz új párosítást, majd írd be a PIN-t.");
     summary_refresh(now);
     app_ble_pairing_status_t pairing;
     app_ble_pairing_status(&pairing);
+    pairing_pin_required = pairing.pin_required;
     slave_4b_ui_pairing(&pairing);
     /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
