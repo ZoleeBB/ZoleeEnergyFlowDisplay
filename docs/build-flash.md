@@ -61,8 +61,19 @@ projekt ugyanezt a fájlt hivatkozza), és az `sdkconfig.defaults` rögzíti a
 generált sdkconfig-ba.
 
 A C6 társprocesszorral SDIO-n beszélünk, USB-s hosztátvitelt nem használunk,
-így a 0 érték a helyes. Az eszköz saját USB-Serial-JTAG konzolját és az USB-ről
-történő telepítést ez nem érinti. Ha az upstream komponens saját Kconfigban
+így a 0 érték a helyes. Az eszköz soros konzolját és az USB-ről történő
+telepítést ez nem érinti.
+
+## Soros napló
+
+A konzol az ESP-IDF alapértelmezése szerint az UART0-n (P4: GPIO37/38) megy,
+115200 baudon, és a v3.3.5-től **az eseménynapló minden bejegyzése is kikerül
+rá** (érintés, jelenlét, fényerő, BLE, OTA), induláskor pedig az előző leállás
+oka (pánik, watchdog, brownout).
+
+A 4B Slave-en ez a **USB TO UART** feliratú Type-C porton (CH343P) érhető el; a
+másik, *USB OTG* porton a gép nem lát soros portot, mert azt a firmware nem
+inicializálja. Részletek: [hardver](hardware.md). Ha az upstream komponens saját Kconfigban
 definiálja a kapcsolókat, a pótlás törölhető.
 
 ## Teljes törlés

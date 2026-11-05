@@ -134,8 +134,6 @@ static int backlight_hardware(int percent)
     return SLAVE_BACKLIGHT_MIN_PERCENT +
            (percent - 1) * (100 - SLAVE_BACKLIGHT_MIN_PERCENT) / 99;
 }
-/* Nyitott diagnosztikánál ennél sötétebb nem lesz a kijelző (%). */
-#define SLAVE_DIAGNOSTICS_BRIGHTNESS 30
 
 static _Atomic int64_t ui_tick_us;
 
@@ -476,11 +474,6 @@ static void refresh(lv_timer_t *timer)
                        "A Master kérésére indított frissítésellenőrzés nem indult el "
                        "(nincs Wi-Fi, vagy másik művelet fut).");
     int brightness = (int)app_slave_display_brightness(&display_state, now);
-    /* A diagnosztika olvasható fényerőt kap akkor is, ha a Master éjszakai
-     * fényereje nagyon alacsony: a vaksötét kijelzőn ez az egyetlen esély a
-     * hibakeresésre. */
-    if (slave_4b_ui_diagnostics_visible() && brightness < SLAVE_DIAGNOSTICS_BRIGHTNESS)
-        brightness = SLAVE_DIAGNOSTICS_BRIGHTNESS;
     if (intercom_visible) {
         unsigned day, night;
         app_intercom_control_brightness(&day, &night);

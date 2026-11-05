@@ -106,26 +106,66 @@ intézi, nem a fényerő.
 Régebbi, a fényerőt még nem küldő Masterrel a Slave a korábban mentett
 fényerejét tartja meg.
 
+## Háttérvilágítás: a panel valódi tartománya
+
+A 4B háttérvilágítását boost meghajtó kapcsolja (GPIO26 PWM, GPIO33 BL_EN), és
+**48% alatt egyszerűen kialszik**: 48%-on még világít, 47%-on már sötét. A
+küszöb éles és ismételhető, tehát a panel sajátossága, nem szoftverhiba – a BSP
+a kért értéket hibátlanul beállítja, a soros napló is azt mutatja
+(`Setting LCD backlight: 30%`).
+
+Ezért a Slave a kijelzőlogika 1–100%-os skáláját a hardver használható
+tartományára képezi le:
+
+| Kért | Panel |
+| --- | --- |
+| 0% | 0% (teljes sötét – az éjszakai sötétítéshez ez kell) |
+| 1% | 48% |
+| 20% | 57% |
+| 30% | 63% |
+| 100% | 100% |
+
+Közte lineárisan. A Mastertől kapott 20–30%-os éjszakai fényerő így látható
+képet ad, a sötétítés pedig változatlanul igazi 0%-ot. A diagnosztika és az
+eseménynapló mindkét értéket mutatja: `Fényerő: 30% (panel 63%)`.
+
+A PWM a BSP 5 kHz-es alapértékén marad: a 48%-os küszöböt ezen mértük, és ilyen
+éles küszöbnél a lassabb PWM csak vibrálást hozna. A Master 10.1-es panelje más
+meghajtót használ, ott a teljes 1–100% működik, ezért ez a leképezés csak a
+4B firmware-ében van.
+
 ## Éjszakai sötétítés és jelenlét
 
-Ha van kiválasztott jelenlétforrás, a kijelző **csak akkor sötétedik el, ha
-tényleg érkezik friss, érvényes jelenlétadat, és az 0-t mond**. Amíg a jel
-folyamatosan 1, nincs sötétítés; ha pedig a forrás elnémul (elmaradt
-BLE-olvasás, lejárt lease, Loxone-kiesés, érvénytelen érték), a sötétítés addig
-fel van függesztve – a kijelző világos marad, nem sötétül el „biztos, ami
-biztos" alapon.
+**A sötétítésről a Master dönt**, mert csak nála van a Loxone jelenlétállapota;
+a Slave a 20 bájtos jelenlétcsomag 0. bitjét hajtja végre. A három eset:
 
-A visszaszámlálás **csak a jelenlét megszűnése után** (friss, érvényes 0 érték)
-indul. Egy kimaradt BLE-olvasás, a
-15 másodperces lease lejárta vagy a Master átmeneti elérhetetlensége nem számít
-jelenlétvesztésnek: a kijelző az utolsó ismert aktív jel alapján világos marad.
-Tíz perc néma jel után az utolsó ismert állapot elévül, és onnan a megszokott
-visszaszámlálás indul – így egy végleg elérhetetlen Master mellett sem marad
-örökre világos a kijelző.
+- **„Sötétítés éjszaka, ha nincs jelenlét" kikapcsolva** → a kijelző egész éjjel
+  az éjszakai fényerőn marad, a jelenlétjel nem számít.
+- **Bekapcsolva, beállított jelenlétforrással** → folyamatos 1 mellett soha nem
+  sötétül el; a visszaszámlálás csak a jelenlét megszűnésekor (érvényes 0 érték)
+  indul, és a profil időkorlátja után sötétít. Ha a Master nem kap érvényes
+  jelenlétértéket (nincs Loxone-kapcsolat, vagy a kiválasztott állapot nem küld
+  értéket), **nem kér sötétítést**: a kijelző világos marad.
+- **Bekapcsolva, jelenlétjel nélkül** („Csak érintéses ébresztés") → éjszakai
+  módban azonnal elsötétül, és csak érintésre ébred.
+
+A Loxone csak változáskor küld értéket, ezért a jelenlét órákig ugyanaz az 1
+vagy 0 lehet; a Master a megkapott állapotot tartja, a frissességet a
+15 másodperces keepalive adja. A jelenlétvesztés ideje a WS-kapcsolat
+újraépülését is túléli, különben az újra megkapott, változatlan 0 újraindítaná
+a visszaszámlálást, és a kijelző kigyulladna az éjszaka közepén.
+
+BLE-kapcsolatvesztéskor a Master utolsó döntése marad érvényben. A Slave helyi
+jelenléttartása 15 másodperc – csak egy-két kimaradt olvasást hidal át, nem ez
+dönt a sötétítésről.
 
 Az érintés mindig ébreszt: az első, sötétből indított érintést a felület
-elnyeli (nem kattint), de a fényerőt visszakapcsolja. Nulla fényerőről
+elnyeli (nem kattint), de a fényerőt visszakapcsolja, legalább 15 másodpercre –
+akkor is, ha a profil időkorlátja ennél rövidebb. Nulla fényerőről
 visszatéréskor a BSP háttérvilágítását külön is felkapcsoljuk.
+
+Nyitott diagnosztika alatt nincs sötétítés: a hibakeresést nem szakíthatja meg
+az időkorlát lejárta.
 
 ## Kijelző tájolása és hálózati cím
 
@@ -230,19 +270,3 @@ kör nem érvénytelenít. Kezelés: [gesztusok](gestures.md#waveshare-4b-slave-
 ## Kaputelefon
 
 A Masteren kezelt kamera, hang, kapunyitás és csengőhang a 4B-n is elérhető; a hívásfoglalás központi. [Részletes működés és hardveres átvétel](slave-intercom.md).
-
-## Háttérvilágítás: a panel valódi tartománya
-
-A 4B háttérvilágítását boost meghajtó kapcsolja (GPIO26 PWM, GPIO33 BL_EN), és
-mérés szerint **48% alatt egyszerűen kialszik**: 48%-on még világít, 47%-on már
-sötét. Ez a panel sajátossága, nem szoftverhiba – a BSP a kért értéket hibátlanul
-beállítja, a napló is azt mutatja.
-
-Ezért a Slave a kijelzőlogika 1–100%-os skáláját a hardver valódi tartományára
-képezi le: **0% = teljes sötét** (az éjszakai sötétítéshez ez kell), **1% = 48%**
-(a leghalványabb még látható fokozat), **100% = 100%**, közte lineárisan. Így a
-Mastertől kapott 20–30%-os éjszakai fényerő is látható képet ad (57–63% a
-panelen), a teljes sötétítés pedig változatlanul működik.
-
-A diagnosztika mindkét értéket mutatja: `Fényerő: 30% (panel 63%)`.
-
