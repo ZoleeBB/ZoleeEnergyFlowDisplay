@@ -23,7 +23,8 @@ typedef struct
     uint16_t rotation_degrees;
     uint32_t uptime_seconds;
     bool night;
-    unsigned brightness;         /* Ténylegesen beállított fényerő (%). */
+    unsigned brightness;         /* A kijelzőlogika fényereje (%). */
+    unsigned panel_brightness;   /* A panelre adott, átskálázott érték (%). */
     unsigned day_brightness;     /* A Mastertől kapott nappali fényerő (%). */
     unsigned night_brightness;   /* A Mastertől kapott éjszakai fényerő (%). */
     bool blank_at_night;         /* A Master pillanatnyi sötétítési kérése. */

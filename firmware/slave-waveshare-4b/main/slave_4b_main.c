@@ -117,8 +117,23 @@ static void rotation_follow(int64_t now, bool busy)
 /* A kijelzőkör megállása (zárra várás, beragadt driver) eddig csak tápelvétellel
  * volt feloldható: az érintés sem ébresztett, mert az LVGL-kör sem futott. */
 #define SLAVE_UI_STALL_US INT64_C(30000000)
-/* Nyitott diagnosztikánál ennél sötétebb nem lesz a kijelző (%). */
-#define SLAVE_DIAGNOSTICS_BRIGHTNESS 30
+/* A 4B háttérvilágítását boost meghajtó kapcsolja (GPIO26 PWM, GPIO33 BL_EN),
+ * és mérés szerint 48% alatt egyszerűen kialszik: 48%-on még világít, 47%-on
+ * már sötét. Ez a panel sajátossága, nem szoftverhiba, ezért a kijelzőlogika
+ * 1-100%-os skáláját a hardver valódi tartományára képezzük le: 0% marad teljes
+ * sötét (a sötétítéshez ez kell), 1% a leghalványabb még látható fokozat, 100%
+ * a maximum. A diagnosztika és a napló a logikai értéket mutatja. */
+#define SLAVE_BACKLIGHT_MIN_PERCENT 48
+
+static int backlight_hardware(int percent)
+{
+    if (percent <= 0)
+        return 0;
+    if (percent >= 100)
+        return 100;
+    return SLAVE_BACKLIGHT_MIN_PERCENT +
+           (percent - 1) * (100 - SLAVE_BACKLIGHT_MIN_PERCENT) / 99;
+}
 
 static _Atomic int64_t ui_tick_us;
 
@@ -134,6 +149,44 @@ static void slave_restart(const char *reason)
     }
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();
+}
+
+/* Az ESP saját reset oka: pánik, watchdog és brownout is ide esik. Sötét
+ * kijelzőnél ez az első kérdés – a tápelvétel utáni naplóban megmarad. */
+static void slave_report_reset(void)
+{
+    const char *text = NULL;
+    app_event_level_t level = APP_EVENT_WARNING;
+    switch (esp_reset_reason())
+    {
+        case ESP_RST_PANIC:
+            text = "programhiba (pánik)";
+            break;
+        case ESP_RST_INT_WDT:
+            text = "megszakítási watchdog";
+            break;
+        case ESP_RST_TASK_WDT:
+            text = "feladat-watchdog (befagyott feladat)";
+            break;
+        case ESP_RST_WDT:
+            text = "watchdog";
+            break;
+        case ESP_RST_BROWNOUT:
+            text = "tápfeszültség-esés (brownout)";
+            break;
+        case ESP_RST_POWERON:
+            text = "bekapcsolás";
+            level = APP_EVENT_INFO;
+            break;
+        case ESP_RST_EXT:
+            text = "külső reset";
+            level = APP_EVENT_INFO;
+            break;
+        default:
+            break;
+    }
+    if (text)
+        app_events_add(level, "Indulás: az előző leállás oka %s.", text);
 }
 
 static void slave_report_restart(void)
@@ -306,6 +359,7 @@ static void status_refresh(int64_t now, unsigned brightness)
         .uptime_seconds = (uint32_t)(now / 1000000),
         .night = display_state.night,
         .brightness = brightness,
+        .panel_brightness = (unsigned)backlight_hardware((int)brightness),
         .day_brightness = display_state.profile.day_brightness,
         .night_brightness = display_state.profile.night_brightness,
         .blank_at_night = display_state.profile.blank_at_night,
@@ -420,11 +474,6 @@ static void refresh(lv_timer_t *timer)
                        "A Master kérésére indított frissítésellenőrzés nem indult el "
                        "(nincs Wi-Fi, vagy másik művelet fut).");
     int brightness = (int)app_slave_display_brightness(&display_state, now);
-    /* A diagnosztika olvasható fényerőt kap akkor is, ha a Master éjszakai
-     * fényereje nagyon alacsony: a vaksötét kijelzőn ez az egyetlen esély a
-     * hibakeresésre. */
-    if (slave_4b_ui_diagnostics_visible() && brightness < SLAVE_DIAGNOSTICS_BRIGHTNESS)
-        brightness = SLAVE_DIAGNOSTICS_BRIGHTNESS;
     if (intercom_visible) {
         unsigned day, night;
         app_intercom_control_brightness(&day, &night);
@@ -436,11 +485,13 @@ static void refresh(lv_timer_t *timer)
          * az ébresztés akkor is látható legyen, ha a 0% leállította a PWM-et. */
         if (last_brightness <= 0 && brightness > 0)
             bsp_display_backlight_on();
-        bsp_display_brightness_set(brightness);
+        int hardware = backlight_hardware(brightness);
+        bsp_display_brightness_set(hardware);
         if (last_brightness >= 0)
             app_events_add(APP_EVENT_INFO, brightness == 0 ?
                            "Kijelző elsötétült (éjszakai mód, nincs jelenlét)." :
-                           "Kijelző felébredt (fényerő: %d%%).", brightness);
+                           "Kijelző felébredt (fényerő: %d%%, panel %d%%).",
+                           brightness, hardware);
         last_brightness = brightness;
     }
     /* A diagnosztikán látszódjon, hogy az érintés és a jelenlét tényleg beért. */
@@ -484,6 +535,7 @@ void app_main(void)
     ESP_ERROR_CHECK(error);
     app_state_init();
     app_events_init();
+    slave_report_reset();
     slave_report_restart();
     app_ota_report_boot_state();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
@@ -577,7 +629,17 @@ void app_main(void)
          * fényerő is onnan jönne. Ilyenkor az eszköz inkább újraindul. */
         int64_t now = esp_timer_get_time();
         int64_t tick = atomic_load(&ui_tick_us);
-        if (tick && now - tick >= SLAVE_UI_STALL_US && !app_ota_operation_active())
+        /* Az OTA alatt a kijelzőkör állhat, de egy beragadt foglalás nem
+         * tilthatja le örökre a figyelőt: fél óra után mindenképp újraindítunk. */
+        static int64_t ota_since_us;
+        bool ota = app_ota_operation_active();
+        if (!ota)
+            ota_since_us = 0;
+        else if (!ota_since_us)
+            ota_since_us = now;
+        else if (now - ota_since_us >= INT64_C(1800000000))
+            ota = false;
+        if (tick && now - tick >= SLAVE_UI_STALL_US && !ota)
         {
             char reason[96];
             snprintf(reason, sizeof(reason), "a kijelzőkör %u másodperce áll",

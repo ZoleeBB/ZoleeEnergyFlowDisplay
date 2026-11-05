@@ -99,6 +99,31 @@ visszanézhetők legyenek:
 
 MQTT indítási hiba a kommunikációs állapotban látszik; nem azonos a rendszer végzetes inicializálási hibájával. Az időjárási `null` érték nem hiba, csak a kapcsolódó kijelzés marad rejtve.
 
+## A Slave (4B) kijelzője sötét, érintésre sem ébred
+
+Először a **fényerőt** zárd ki, mert a 4B háttérvilágítása **48% alatt kialszik**
+(48%-on világít, 47%-on sötét, éles küszöb). A v3.3.5-től a Slave ezt
+automatikusan kezeli: az 1–100%-os kérést a 48–100%-os valódi tartományra
+skálázza, és a diagnosztika is kiírja mindkét értéket
+(`Fényerő: 30% (panel 63%)`). Régebbi firmware-en a Mastertől kapott 20–30%-os
+éjszakai fényerő teljesen sötét képet ad.
+
+A tünet szoftveres sötétítéstől így különböztethető meg: kösd a Slave-et a
+**USB TO UART** Type-C portjára (nem az OTG-re), és nyiss egy 115200-as
+terminált ([hardver](hardware.md)). A BSP minden változást kiír:
+
+- `Setting LCD backlight: 0%` → a firmware sötétít (jelenlét/éjszakai szabály,
+  lásd [jelenlétprotokoll](slave-presence-protocol.md));
+- `Setting LCD backlight: 30%` és utána semmi, mégis sötét a kép → a panel alsó
+  korlátja alatt vagyunk, a fenti skálázás kell;
+- pánik/backtrace vagy a napló elhallgatása → összeomlás vagy befagyás; a
+  következő indulásnál a Slave kiírja az előző leállás okát (pánik,
+  megszakítási vagy feladat-watchdog, brownout).
+
+Ha a Master naplójában megjelenik, hogy *„A(z) <név> jelenlétforrása nem küldött
+értéket a Loxone-ból"*, akkor a Slave profiljában kiválasztott állapot nem az,
+amit a Loxone ténylegesen küld – ilyenkor a kijelző szándékosan világos marad.
+
 ## Fekete képernyő és újraindulás a kijelző indításakor
 
 A `Display initialized` után következő `alloc partial draw buffer 80000 bytes failed`, majd `bsp_display_start_with_config` assert a belső RAM-ból történő rajzpuffer-foglalás hibája. A 32 MB PSRAM ettől még működhet. A firmware a Waveshare BSP 2.0.3 MIPI regisztrációját PSRAM-pufferre állítja; induláskor `app_display: MIPI LVGL draw buffers use PSRAM` naplósor jelzi ezt. A Master a három meglévő panelpuffert teljes képkockás `TRIPLE_FULL` módban használja; külön 50 soros részleges rajzpuffer nincs. A fekvő tájolás megmarad. A managed component forrásfájljait nem módosítja.

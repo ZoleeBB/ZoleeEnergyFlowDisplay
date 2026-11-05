@@ -5,6 +5,7 @@
  * A helyi weboldal ezt a puffert jeleníti meg.
  */
 #include "app_events.h"
+#include "esp_log.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -109,6 +110,21 @@ void app_events_add(app_event_level_t level, const char *fmt, ...)
     vsnprintf(entry->text_en, sizeof(entry->text_en), english_format(fmt), english_args);
     va_end(english_args);
     va_end(args);
+
+    /* A soros konzolra is kiírjuk: sötét kijelzőnél és webfelület nélkül ez az
+     * egyetlen mód, hogy élőben lássuk, mit csinál az eszköz. */
+    switch (level)
+    {
+        case APP_EVENT_ERROR:
+            ESP_LOGE("event", "%s", entry->text);
+            break;
+        case APP_EVENT_WARNING:
+            ESP_LOGW("event", "%s", entry->text);
+            break;
+        default:
+            ESP_LOGI("event", "%s", entry->text);
+            break;
+    }
 
     s_next = (s_next + 1) % APP_EVENT_LOG_CAPACITY;
     if (s_count < APP_EVENT_LOG_CAPACITY)
