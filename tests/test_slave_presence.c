@@ -108,25 +108,25 @@ static void table_tests(void)
     memcpy(profile.presence_uuid, UUID_B, 36);
     assert(app_slave_presence_update(&table, 2, &profile, &changed) && changed);
 
-    assert(!app_slave_presence_source(&table, "bad", true, 1));
-    assert(!app_slave_presence_source(&table, "", true, 1));
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    assert(!app_slave_presence_source(&table, "bad", true, 1, 0));
+    assert(!app_slave_presence_source(&table, "", true, 1, 0));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, 0));
     assert(table.peers[0].valid && !table.peers[0].active && !table.peers[0].counter);
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, 0));
     assert(table.peers[0].counter == 1 && table.peers[1].counter == 1);
     assert(!table.peers[2].valid && !table.peers[2].counter);
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, 0));
     assert(table.peers[0].counter == 1);
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, 0));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, 0));
     assert(table.peers[0].counter == 2);
-    assert(app_slave_presence_source(&table, UUID_A, true, NAN));
+    assert(app_slave_presence_source(&table, UUID_A, true, NAN, 0));
     assert(!table.peers[0].valid && !table.peers[0].active);
-    assert(app_slave_presence_source(&table, UUID_A, true, INFINITY));
+    assert(app_slave_presence_source(&table, UUID_A, true, INFINITY, 0));
     assert(!table.peers[0].valid);
-    assert(app_slave_presence_source(&table, UUID_A, true, -1));
+    assert(app_slave_presence_source(&table, UUID_A, true, -1, 0));
     assert(!table.peers[0].valid);
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, 0));
     assert(table.peers[0].counter == 3);
     app_slave_presence_invalidate(&table);
     assert(!table.peers[0].valid && !table.peers[1].active);
@@ -148,7 +148,7 @@ static void table_tests(void)
     assert(app_slave_presence_update(&table, 0, &profile, &changed) && changed);
     assert(table.peers[0].revision == 1 && !table.peers[0].counter && !table.peers[0].valid);
     table.peers[0].counter = UINT32_MAX;
-    assert(app_slave_presence_source(&table, UUID_B, true, 1));
+    assert(app_slave_presence_source(&table, UUID_B, true, 1, 0));
     assert(table.peers[0].counter == 0);
     assert(app_slave_presence_remove(&table, 1));
     assert(!app_slave_presence_remove(&table, 1));
@@ -177,7 +177,7 @@ static void send_packet(app_slave_presence_receiver_t *receiver,
                          app_slave_presence_peer_t *peer, uint32_t sequence, int64_t second)
 {
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_encode(peer, sequence, true, false, wire));
+    assert(app_slave_presence_encode(peer, sequence, true, false, SECONDS(second), wire));
     assert(app_slave_presence_receive(receiver, wire, sizeof(wire), true, SECONDS(second)));
 }
 
@@ -201,10 +201,11 @@ static void wire_tests(void)
     peer.counter = UINT32_C(0xabcdef12);
     peer.active = true;
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    uint8_t expected[] = {'Z', 'P', 1, 7, 0x78, 0x56, 0x34, 0x12,
+    /* Aktív jelenlét: érvényes és aktív jelzőbit, sötétítési kérés nélkül. */
+    uint8_t expected[] = {'Z', 'P', 1, 6, 0x78, 0x56, 0x34, 0x12,
                           30, 0, 0, 0, 0x12, 0xef, 0xcd, 0xab,
                           0x44, 0x33, 0x22, 0x11};
-    assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344), true, false, wire));
+    assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344), true, false, 0, wire));
     assert(memcmp(wire, expected, sizeof(wire)) == 0);
     app_slave_presence_receiver_t receiver = {0};
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), false, 0));
@@ -244,24 +245,58 @@ static void wire_tests(void)
     memcpy(wire, expected, sizeof(wire));
     assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 0));
     assert(receiver.active && receiver.valid && !receiver.pending_pulse);
+    assert(!receiver.blank_at_night);
     assert(receiver.counter == peer.counter && receiver.revision == peer.revision);
-    assert(app_slave_presence_encode(&peer, 1, false, false, wire) && wire[3] == 1);
+
+    /* A 0. bit a Master pillanatnyi kérése. Beállított jelenlétforrásnál három
+     * feltétel kell hozzá: élő forrás, megszűnt jelenlét, letelt időkorlát. */
+    peer.active = false;
+    assert(app_slave_presence_encode(&peer, 2, true, false, SECONDS(100), wire) && wire[3] == 2);
+    peer.inactive_since_us = SECONDS(100);
+    assert(app_slave_presence_encode(&peer, 3, true, false, SECONDS(129), wire) && wire[3] == 2);
+    assert(app_slave_presence_encode(&peer, 4, true, false, SECONDS(130), wire) && wire[3] == 3);
+    /* Néma (nem élő) Loxone-kapcsolat: a Slave inkább világos maradjon. */
+    assert(app_slave_presence_encode(&peer, 5, false, false, SECONDS(130), wire) && wire[3] == 0);
+    peer.valid = false;
+    assert(app_slave_presence_encode(&peer, 6, true, false, SECONDS(130), wire) && wire[3] == 0);
+    peer.valid = true;
+    /* Jelenlétforrás nélkül csak az éjszakai beállítás és az érintés dönt. */
     peer.profile.presence_uuid[0] = 0;
-    assert(app_slave_presence_encode(&peer, 1, true, false, wire) && wire[3] == 1);
+    assert(app_slave_presence_encode(&peer, 7, true, false, 0, wire) && wire[3] == 1);
+    peer.profile.blank_at_night = false;
+    assert(app_slave_presence_encode(&peer, 8, true, false, 0, wire) && wire[3] == 0);
+    peer.profile.blank_at_night = true;
+
+    /* A sötétítési kérés ugyanazon a revízión belül is változhat: a Slave a
+     * Master döntését követi. A tájolás és az időkorlát viszont profiladat. */
+    app_slave_presence_receiver_t toggling = {0};
+    memcpy(peer.profile.presence_uuid, UUID_A, 36);
+    peer.revision = 7;
+    peer.inactive_since_us = SECONDS(10);
+    assert(app_slave_presence_encode(&peer, 10, true, false, SECONDS(50), wire));
+    assert((wire[3] & 1) && app_slave_presence_receive(&toggling, wire, sizeof(wire), true, SECONDS(50)));
+    assert(toggling.blank_at_night);
+    peer.active = true;
+    peer.counter++;
+    assert(app_slave_presence_encode(&peer, 11, true, false, SECONDS(51), wire));
+    assert(!(wire[3] & 1) && app_slave_presence_receive(&toggling, wire, sizeof(wire), true, SECONDS(51)));
+    assert(!toggling.blank_at_night && toggling.active);
+    peer.active = false;
+
     /* A tájolás a jelzőbájt 3-4. bitjén utazik, és a 0 fok bitjei nullák, így a
      * korábbi Slave is elfogadja az alapértelmezett csomagot. */
-    memcpy(peer.profile.presence_uuid, UUID_A, 36);
     for (uint16_t degrees = 0; degrees <= 270; degrees = (uint16_t)(degrees + 90))
     {
         peer.profile.rotation_degrees = degrees;
         peer.revision = UINT32_C(0x12345678) + degrees;
-        assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344) + degrees, true, false, wire));
-        assert((wire[3] >> 3) == degrees / 90 && (wire[3] & 7) == 7);
+        assert(app_slave_presence_encode(&peer, UINT32_C(0x11223344) + degrees, true, false,
+                                         SECONDS(50), wire));
+        assert((wire[3] >> 3) == degrees / 90 && (wire[3] & 7) == 3);
         app_slave_presence_receiver_t rotated = {0};
         assert(app_slave_presence_receive(&rotated, wire, sizeof(wire), true, 0));
         assert(rotated.have_profile && rotated.rotation_degrees == degrees);
         /* Azonos revízióval nem változhat a profil: a visszafordított tájolás
-         * ugyanúgy hamisítás, mint az időkorlát vagy a sötétítés átírása. */
+         * ugyanúgy hamisítás, mint az időkorlát átírása. */
         uint8_t tampered[APP_SLAVE_PRESENCE_PACKET_SIZE];
         memcpy(tampered, wire, sizeof(tampered));
         tampered[3] = (uint8_t)((tampered[3] & 7) | (((degrees / 90 + 1) % 4) << 3));
@@ -275,17 +310,17 @@ static void wire_tests(void)
     peer.profile.rotation_degrees = 0;
     peer.revision = UINT32_C(0x12345678);
     app_slave_presence_receiver_t ota = {0};
-    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, 0, wire));
     assert(!(wire[3] & 32) && app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
     assert(!ota.ota_check_pending);
-    assert(app_slave_presence_encode(&peer, 2, true, true, wire));
+    assert(app_slave_presence_encode(&peer, 2, true, true, 0, wire));
     assert((wire[3] & 32) && app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
     assert(ota.ota_check_pending && ota.ota_check_level);
     ota.ota_check_pending = false;
-    assert(app_slave_presence_encode(&peer, 3, true, true, wire));
+    assert(app_slave_presence_encode(&peer, 3, true, true, 0, wire));
     assert(app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
     assert(!ota.ota_check_pending); /* Ugyanaz a szint nem indít új ellenőrzést. */
-    assert(app_slave_presence_encode(&peer, 4, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 4, true, false, 0, wire));
     assert(app_slave_presence_receive(&ota, wire, sizeof(wire), true, 0));
     assert(!ota.ota_check_pending && !ota.ota_check_level);
     peer.profile.rotation_degrees = 45;
@@ -296,112 +331,118 @@ static void wire_tests(void)
     peer.profile.presence_uuid[0] = 0;
     peer.profile.timeout_seconds = 0;
     memset(wire, 0x42, sizeof(wire));
-    assert(!app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(!app_slave_presence_encode(&peer, 1, true, false, 0, wire));
     for (unsigned i = 0; i < sizeof(wire); ++i)
         assert(wire[i] == 0x42);
 }
 
+/* A teljes út: Loxone-delta -> Master peer -> 20 bájt -> Slave kijelző. A
+ * sötétítés időzítése a Masteren van, mert csak ő látja a jelenlétállapotot. */
 static void runtime_tests(void)
 {
-    app_slave_presence_peer_t peer = peer_fixture();
+    app_slave_presence_table_t table = {0};
+    app_slave_identity_t identity = {0, {1, 2, 3, 4, 5, 6}};
+    assert(app_slave_presence_register(&table, &identity, "Háló") == 0);
+    app_slave_presence_profile_t profile = table.peers[0].profile;
+    profile.blank_at_night = true;
+    profile.timeout_seconds = 30;
+    memcpy(profile.presence_uuid, UUID_A, 36);
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    app_slave_presence_peer_t *peer = &table.peers[0];
     app_slave_presence_receiver_t receiver = {0};
     app_slave_display_profile_t own = {83, 17, false, 30, false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
-    peer.counter = 100; /* A kapcsolat előtti impulzusok nem játszhatók vissza. */
-    send_packet(&receiver, &peer, 1, 1);
+
+    /* A beállított forrás még nem szólalt meg: a kijelző szándékosan világos. */
+    send_packet(&receiver, peer, 1, 1);
     app_slave_presence_apply(&receiver, &display, SECONDS(1));
+    assert(!receiver.valid && !receiver.blank_at_night && !display.profile.blank_at_night);
     assert(display.profile.day_brightness == 83 && display.profile.night_brightness == 17);
-    assert(app_slave_display_brightness(&display, SECONDS(1)) == 0);
+    assert(app_slave_display_brightness(&display, SECONDS(1)) == 17);
 
-    /* A termelő oldalon két BLE-poll közé eső rövid 1->0 is ébreszt. */
-    peer.counter++;
-    send_packet(&receiver, &peer, 2, 2);
-    assert(receiver.pending_pulse && !receiver.active);
-    app_slave_presence_apply(&receiver, &display, SECONDS(2));
-    assert(app_slave_display_brightness(&display, SECONDS(2)) == 17);
-    assert(!receiver.pending_pulse);
-    /* Friss, inaktív heartbeat mellett jár le az ébrenlét. */
-    for (int64_t second = 3; second <= 32; ++second)
-    {
-        send_packet(&receiver, &peer, (uint32_t)second, second);
-        app_slave_presence_apply(&receiver, &display, SECONDS(second));
-        assert(app_slave_display_brightness(&display, SECONDS(second)) ==
-               (second < 32 ? 17 : 0));
-    }
+    /* Folyamatos 1-es jelenlétjel: a kijelző soha nem sötétedik el. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(2)));
+    heartbeat_until(&receiver, peer, &display, 2, 60);
+    assert(receiver.valid && receiver.active && !receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(60)) == 17);
+    /* Kimaradó BLE-olvasások alatt sem: a Master utolsó szava a világos kijelző. */
+    assert(app_slave_display_brightness(&display, SECONDS(600)) == 17);
 
-    /* Néma forrás: a lease lejárta után nem sötétítünk, mert nem tudhatjuk,
-     * tényleg megszűnt-e a jelenlét. Friss minta visszakapcsolja a szabályt. */
-    app_slave_presence_apply(&receiver, &display, SECONDS(48));
+    /* A jelenlét megszűnése indítja a visszaszámlálást, nem az éjszaka kezdete. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(601)));
+    heartbeat_until(&receiver, peer, &display, 601, 630);
+    assert(!receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(630)) == 17);
+    heartbeat_until(&receiver, peer, &display, 631, 631);
+    assert(receiver.blank_at_night && display.profile.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(631)) == 0);
+
+    /* Érintés a vaksötétben: az első érintést lenyeljük, de ébreszt. */
+    assert(app_slave_display_pointer(&display, true, SECONDS(632)));
+    assert(app_slave_display_brightness(&display, SECONDS(632)) == 17);
+    assert(app_slave_display_pointer(&display, false, SECONDS(633)));
+    /* A felengedés is ad teljes időkorlátot: 633 + 30 másodperc. */
+    assert(app_slave_display_brightness(&display, SECONDS(662)) == 17);
+    assert(app_slave_display_brightness(&display, SECONDS(663)) == 0);
+
+    /* Visszatérő jelenlét azonnal visszavonja a Master kérését. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(700)));
+    send_packet(&receiver, peer, 700, 700);
+    app_slave_presence_apply(&receiver, &display, SECONDS(700));
     assert(!display.profile.blank_at_night);
-    assert(app_slave_display_brightness(&display, SECONDS(48)) == 17);
+    assert(app_slave_display_brightness(&display, SECONDS(700)) == 17);
 
-    /* Profilváltás és hosszú csend utáni első minta is csak számlálóbázis. */
-    peer.counter += 10;
-    send_packet(&receiver, &peer, 60, 60);
-    app_slave_presence_apply(&receiver, &display, SECONDS(60));
-    assert(display.profile.blank_at_night);
-    assert(app_slave_display_brightness(&display, SECONDS(60)) == 0);
-    peer.revision++;
-    peer.counter++;
-    peer.profile.timeout_seconds = 20;
-    send_packet(&receiver, &peer, 61, 61);
-    app_slave_presence_apply(&receiver, &display, SECONDS(61));
-    assert(display.profile.presence_timeout_seconds == 20);
-    assert(app_slave_display_brightness(&display, SECONDS(61)) == 0);
+    /* Loxone-kiesés: a forrás érvénytelen lesz, a kijelző világos marad. */
+    app_slave_presence_invalidate(&table);
+    send_packet(&receiver, peer, 701, 701);
+    app_slave_presence_apply(&receiver, &display, SECONDS(701));
+    assert(!receiver.valid && !display.profile.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(1000)) == 17);
 
-    peer.active = true;
-    peer.counter++;
-    heartbeat_until(&receiver, &peer, &display, 62, 70);
-    assert(app_slave_display_brightness(&display, SECONDS(70)) == 17);
-    peer.active = false;
-    send_packet(&receiver, &peer, 71, 71);
-    app_slave_presence_apply(&receiver, &display, SECONDS(71));
-    int64_t awake = display.awake_until_us;
-    send_packet(&receiver, &peer, 72, 72);
-    app_slave_presence_apply(&receiver, &display, SECONDS(72));
-    assert(display.awake_until_us == awake && awake == SECONDS(91));
-    heartbeat_until(&receiver, &peer, &display, 73, 90);
-    assert(app_slave_display_brightness(&display, SECONDS(90)) == 17);
-    heartbeat_until(&receiver, &peer, &display, 91, 91);
-    assert(app_slave_display_brightness(&display, SECONDS(91)) == 0);
+    /* A Loxone csak változáskor küld: órákig ugyanaz a 0 érkezik, és a
+     * kapcsolat újraépülése után is. Ez nem indítja újra a visszaszámlálást,
+     * tehát a kijelző nem gyullad ki az éjszaka közepén. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(1001)));
+    heartbeat_until(&receiver, peer, &display, 1001, 1031);
+    assert(app_slave_display_brightness(&display, SECONDS(1031)) == 0);
+    app_slave_presence_invalidate(&table);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2000)));
+    send_packet(&receiver, peer, 2000, 2000);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2000));
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2000)) == 0);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2001)));
+    send_packet(&receiver, peer, 2001, 2001);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2001));
+    assert(app_slave_display_brightness(&display, SECONDS(2001)) == 0);
+    /* Új jelenlét viszont azonnal világít, és onnan indul új visszaszámlálás. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(2002)));
+    send_packet(&receiver, peer, 2002, 2002);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2002));
+    assert(!receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2002)) == 17);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2003)));
+    heartbeat_until(&receiver, peer, &display, 2003, 2032);
+    assert(!receiver.blank_at_night);
+    heartbeat_until(&receiver, peer, &display, 2033, 2033);
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2033)) == 0);
 
-    peer.active = true;
-    peer.counter++;
-    send_packet(&receiver, &peer, 92, 92);
-    app_slave_presence_apply(&receiver, &display, SECONDS(92));
+    /* BLE-kapcsolatvesztés: az utolsó döntés marad érvényben. */
     app_slave_presence_disconnected(&receiver);
-    app_slave_presence_apply(&receiver, &display, SECONDS(93));
-    /* A kapcsolatvesztés nem jelenlétvesztés: az utolsó ismert aktív jel tart,
-     * a kijelző nem sötétedik el a következő érvényes minta nélkül. */
-    assert(display.presence_active && display.night);
-    assert(app_slave_display_brightness(&display, SECONDS(300)) == 17);
-    /* Néma forrásnál a sötétítés is ki van függesztve; friss minta visszahozza. */
-    assert(!display.profile.blank_at_night);
-    peer.active = false;
-    peer.counter += 100;
-    send_packet(&receiver, &peer, 1, 301); /* Új kapcsolat, új sequence. */
-    app_slave_presence_apply(&receiver, &display, SECONDS(301));
-    /* Friss, érvényes 0: innen indul a visszaszámlálás. */
-    assert(!display.presence_active);
-    heartbeat_until(&receiver, &peer, &display, 302, 320);
-    assert(app_slave_display_brightness(&display, SECONDS(320)) == 17);
-    heartbeat_until(&receiver, &peer, &display, 321, 321);
-    assert(app_slave_display_brightness(&display, SECONDS(321)) == 0);
-    peer.active = true;
-    peer.counter++;
-    send_packet(&receiver, &peer, 322, 322);
-    app_slave_presence_apply(&receiver, &display, SECONDS(322));
-    assert(app_slave_display_brightness(&display, SECONDS(322)) == 17);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2034));
+    assert(display.profile.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2200)) == 0);
 
     /* Ténylegesen régi Master: a biztonságos alap nem sötétít. */
     app_slave_presence_legacy(&receiver);
-    app_slave_presence_apply(&receiver, &display, SECONDS(200));
+    app_slave_presence_apply(&receiver, &display, SECONDS(2201));
     assert(!display.profile.blank_at_night && display.profile.day_brightness == 83);
-    assert(app_slave_display_brightness(&display, SECONDS(200)) == 17);
-    app_slave_display_night(&display, false, SECONDS(201));
-    assert(app_slave_display_brightness(&display, SECONDS(201)) == 83);
+    assert(app_slave_display_brightness(&display, SECONDS(2201)) == 17);
+    app_slave_display_night(&display, false, SECONDS(2202));
+    assert(app_slave_display_brightness(&display, SECONDS(2202)) == 83);
 }
 
 static void replay_and_lease_tests(void)
@@ -416,109 +457,90 @@ static void replay_and_lease_tests(void)
     peer.counter = UINT32_MAX;
     send_packet(&receiver, &peer, UINT32_MAX, 1);
     app_slave_presence_apply(&receiver, &display, SECONDS(1));
-    peer.counter = 0;
+    peer.counter = 0; /* Átfordulás: a számláló előre lép. */
     send_packet(&receiver, &peer, 0, 2);
     app_slave_presence_apply(&receiver, &display, SECONDS(2));
     assert(app_slave_display_brightness(&display, SECONDS(2)) == 10);
     app_slave_presence_receiver_t saved = receiver;
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_encode(&peer, 0, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 0, true, false, SECONDS(3), wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
     uint32_t invalid_sequences[] = {UINT32_MAX, UINT32_C(0x80000000)};
     for (unsigned i = 0; i < 2; ++i)
     {
-        assert(app_slave_presence_encode(&peer, invalid_sequences[i], true, false, wire));
+        assert(app_slave_presence_encode(&peer, invalid_sequences[i], true, false, SECONDS(3), wire));
         assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
         assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
     }
     peer.counter = UINT32_MAX; /* Regresszív számláló. */
-    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, SECONDS(3), wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     peer.counter = 0;
     peer.revision = UINT32_MAX; /* Regresszív profil. */
-    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, SECONDS(3), wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     peer.revision = 1;
     peer.profile.timeout_seconds = 2; /* Ugyanaz a revízió más profillal. */
-    assert(app_slave_presence_encode(&peer, 1, true, false, wire));
+    assert(app_slave_presence_encode(&peer, 1, true, false, SECONDS(3), wire));
     assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(3)));
     assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
-
     peer.profile.timeout_seconds = 1;
+
+    /* Aktív jelenlét: a lejárt lease és a néma Master sem sötétít el. Pontosan
+     * ez volt a hibajelenség: folyamatos jelenlétjel mellett is elaludt. */
     peer.active = true;
     peer.counter++;
     send_packet(&receiver, &peer, 1, 3);
     app_slave_presence_apply(&receiver, &display, SECONDS(3));
-    app_slave_presence_apply(&receiver, &display, SECONDS(17));
     assert(display.presence_active);
-    int64_t awake = display.awake_until_us;
     app_slave_presence_apply(&receiver, &display, SECONDS(18));
-    /* A lejárt lease nem jelenlétvesztés: a kijelző az utolsó ismert aktív jel
-     * alapján világos marad, és nem kap új időkorlátot sem. */
-    assert(display.presence_active && display.awake_until_us == awake);
-    assert(app_slave_display_brightness(&display, SECONDS(18)) == 10);
-    peer.active = false;
-    peer.counter++;
-    send_packet(&receiver, &peer, 2, 19);
-    app_slave_presence_apply(&receiver, &display, SECONDS(19));
-    /* Friss, érvényes 0 után indul az egy másodperces visszaszámlálás. */
-    assert(app_slave_display_brightness(&display, SECONDS(19)) == 10);
-    assert(app_slave_display_brightness(&display, SECONDS(20)) == 0);
-    peer.counter++;
-    send_packet(&receiver, &peer, 3, 20);
-    int64_t stale_awake = display.awake_until_us;
-    app_slave_presence_apply(&receiver, &display, SECONDS(35)); /* Lejárt, még fel nem dolgozott impulzus. */
-    assert(display.awake_until_us == stale_awake); /* A régi impulzus nem ébreszt. */
-    assert(!receiver.pending_pulse);
-    /* A forrás közben elnémult: a sötétítés addig fel van függesztve. */
     assert(!display.profile.blank_at_night);
-    assert(app_slave_display_brightness(&display, SECONDS(35)) == 10);
-    saved = receiver;
-    assert(app_slave_presence_encode(&peer, 4, true, false, wire));
-    assert(!app_slave_presence_receive(&receiver, wire, sizeof(wire), true, SECONDS(34)));
-    assert(memcmp(&saved, &receiver, sizeof(receiver)) == 0);
+    assert(app_slave_display_brightness(&display, SECONDS(300)) == 10);
 
-    /* Érvénytelen érték nem ad érvényes lefutó élt és nem ad új időkorlátot;
-     * a forrás átmeneti kiesése viszont nem oltja le azonnal a kijelzőt. */
-    peer.active = true;
-    send_packet(&receiver, &peer, 4, 36);
-    app_slave_presence_apply(&receiver, &display, SECONDS(36));
-    awake = display.awake_until_us;
-    peer.valid = false;
-    send_packet(&receiver, &peer, 5, 37);
-    app_slave_presence_apply(&receiver, &display, SECONDS(37));
-    assert(display.presence_active && display.awake_until_us == awake);
-    assert(!receiver.valid && !receiver.active);
-    assert(app_slave_display_brightness(&display, SECONDS(37)) == 10);
-
-    /* Profilcserénél a régi forrás aktív szintjét nem szabad lefutó élnek venni. */
-    peer.valid = true;
-    peer.active = true;
-    send_packet(&receiver, &peer, 6, 38);
-    app_slave_presence_apply(&receiver, &display, SECONDS(38));
-    awake = display.awake_until_us;
-    peer.revision++;
-    peer.counter = 0;
+    /* A Master a jelenlét megszűnése után az időkorláttal kéri a sötétítést. */
     peer.active = false;
-    peer.profile.timeout_seconds = 100;
-    send_packet(&receiver, &peer, 7, 39);
-    app_slave_presence_apply(&receiver, &display, SECONDS(39));
-    /* Nincs lefutó él: a tartott aktív jel az új profil időkorlátjával számol
-     * vissza, nem alszik el azonnal. */
-    assert(display.awake_until_us == SECONDS(139) && awake == SECONDS(39));
-    assert(app_slave_display_brightness(&display, SECONDS(138)) == 10);
-    assert(app_slave_display_brightness(&display, SECONDS(139)) == 0);
+    peer.inactive_since_us = SECONDS(301);
+    peer.counter++;
+    send_packet(&receiver, &peer, 2, 301);
+    app_slave_presence_apply(&receiver, &display, SECONDS(301));
+    assert(!receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(301)) == 10);
+    send_packet(&receiver, &peer, 3, 302);
+    app_slave_presence_apply(&receiver, &display, SECONDS(302));
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(302)) == 0);
+
+    /* Érintés 1 másodperces időkorlát mellett is olvasható ideig világít. */
+    assert(app_slave_display_pointer(&display, true, SECONDS(303)));
+    assert(app_slave_display_pointer(&display, false, SECONDS(303)));
+    assert(app_slave_display_brightness(&display, SECONDS(317)) == 10);
+    assert(app_slave_display_brightness(&display, SECONDS(318)) == 0);
+
+    /* Érvénytelen érték nem ad érvényes lefutó élt és nem ad új időkorlátot. */
+    peer.active = true;
+    peer.inactive_since_us = 0;
+    peer.counter++;
+    send_packet(&receiver, &peer, 4, 320);
+    app_slave_presence_apply(&receiver, &display, SECONDS(320));
+    int64_t awake = display.awake_until_us;
+    peer.valid = false;
+    send_packet(&receiver, &peer, 5, 321);
+    app_slave_presence_apply(&receiver, &display, SECONDS(321));
+    assert(display.presence_active && display.awake_until_us == awake);
+    assert(!receiver.valid && !receiver.active && !receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(321)) == 10);
 
     /* A receiver saját monoton órája akkor is megmarad, ha a hívó visszalép. */
-    app_slave_presence_apply(&receiver, &display, SECONDS(38));
-    assert(receiver.last_now_us == SECONDS(139)); /* A kijelző órája a későbbi. */
+    app_slave_presence_apply(&receiver, &display, SECONDS(300));
+    assert(receiver.last_now_us == SECONDS(321));
     app_slave_presence_disconnected(NULL);
     app_slave_presence_legacy(NULL);
     app_slave_presence_apply(NULL, &display, 0);
     app_slave_presence_apply(&receiver, NULL, 0);
 }
 
+/* A két BLE-olvasás közé eső rövid 1->0 jelenlétimpulzus nem veszhet el. */
 static void actual_delta_to_display_test(void)
 {
     app_slave_presence_table_t table = {0};
@@ -534,54 +556,63 @@ static void actual_delta_to_display_test(void)
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
     app_slave_presence_receiver_t receiver = {0};
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(1)));
     send_packet(&receiver, &table.peers[0], 1, 1);
     app_slave_presence_apply(&receiver, &display, SECONDS(1));
-    assert(app_slave_display_brightness(&display, SECONDS(1)) == 0);
+    assert(app_slave_display_brightness(&display, SECONDS(1)) == 13);
+    send_packet(&receiver, &table.peers[0], 6, 6);
+    app_slave_presence_apply(&receiver, &display, SECONDS(6));
+    assert(app_slave_display_brightness(&display, SECONDS(6)) == 0);
 
     /* Ugyanazon BLE-poll előtt a valódi deltafeldolgozó már 1-et és 0-t is kapott. */
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(7)));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(7)));
     assert(!table.peers[0].active && table.peers[0].counter == 1);
-    send_packet(&receiver, &table.peers[0], 2, 2);
-    send_packet(&receiver, &table.peers[0], 3, 3); /* Későbbi heartbeat ne nyelje el. */
+    send_packet(&receiver, &table.peers[0], 7, 7);
+    send_packet(&receiver, &table.peers[0], 8, 8); /* Későbbi heartbeat ne nyelje el. */
     assert(receiver.pending_pulse);
-    app_slave_presence_apply(&receiver, &display, SECONDS(3));
-    assert(app_slave_display_brightness(&display, SECONDS(3)) == 13);
-    assert(app_slave_display_brightness(&display, SECONDS(8)) == 0);
+    app_slave_presence_apply(&receiver, &display, SECONDS(8));
+    assert(app_slave_display_brightness(&display, SECONDS(8)) == 13);
+    /* A helyi impulzusébresztés az időkorláttal jár le, és közben a Master is
+     * megkéri a sötétítést (jelenlétvesztés + 5 másodperc). */
+    heartbeat_until(&receiver, &table.peers[0], &display, 9, 12);
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(13)) == 0);
     assert(display.profile.day_brightness == 92 && display.profile.night_brightness == 13);
 
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
-    send_packet(&receiver, &table.peers[0], 4, 9);
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(14)));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(14)));
+    send_packet(&receiver, &table.peers[0], 13, 14);
     assert(receiver.pending_pulse);
     app_slave_presence_invalidate(&table);
-    send_packet(&receiver, &table.peers[0], 5, 10);
+    send_packet(&receiver, &table.peers[0], 14, 15);
     assert(!receiver.pending_pulse);
-    app_slave_presence_apply(&receiver, &display, SECONDS(10));
+    app_slave_presence_apply(&receiver, &display, SECONDS(15));
     /* Érvénytelenné vált forrás (Loxone-kiesés) nem sötétít: világos marad. */
     assert(!display.profile.blank_at_night);
-    assert(app_slave_display_brightness(&display, SECONDS(10)) == 13);
+    assert(app_slave_display_brightness(&display, SECONDS(15)) == 13);
 
     /* Folyamatos inaktív heartbeat sem fiatalíthatja a UI-ra váró régi impulzust. */
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
-    send_packet(&receiver, &table.peers[0], 6, 11);
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
-    send_packet(&receiver, &table.peers[0], 7, 12);
-    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(12));
-    send_packet(&receiver, &table.peers[0], 8, 20);
-    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(12));
-    app_slave_presence_apply(&receiver, &display, SECONDS(27));
-    assert(app_slave_display_brightness(&display, SECONDS(27)) == 0);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(16)));
+    send_packet(&receiver, &table.peers[0], 15, 16);
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(17)));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(17)));
+    send_packet(&receiver, &table.peers[0], 16, 17);
+    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(17));
+    send_packet(&receiver, &table.peers[0], 17, 25);
+    assert(receiver.pending_pulse && receiver.pulse_received_us == SECONDS(17));
+    /* A lease-nél régebbi impulzus már nem ébreszt, a Master pedig sötétít. */
+    app_slave_presence_apply(&receiver, &display, SECONDS(32));
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(32)) == 0);
 
     /* Újabb valódi impulzus viszont frissíti az esemény saját idejét. */
-    assert(app_slave_presence_source(&table, UUID_A, true, 1));
-    assert(app_slave_presence_source(&table, UUID_A, true, 0));
-    send_packet(&receiver, &table.peers[0], 9, 28);
-    send_packet(&receiver, &table.peers[0], 10, 29);
-    app_slave_presence_apply(&receiver, &display, SECONDS(29));
-    assert(app_slave_display_brightness(&display, SECONDS(29)) == 13);
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(33)));
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(33)));
+    send_packet(&receiver, &table.peers[0], 18, 33);
+    send_packet(&receiver, &table.peers[0], 19, 34);
+    app_slave_presence_apply(&receiver, &display, SECONDS(34));
+    assert(app_slave_display_brightness(&display, SECONDS(34)) == 13);
 }
 
 int main(void)

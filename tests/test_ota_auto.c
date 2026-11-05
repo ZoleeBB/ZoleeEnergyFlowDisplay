@@ -11,6 +11,92 @@
 #define mbedtls_sha256_update mbedtls_sha256_update_ret
 #define mbedtls_sha256_finish mbedtls_sha256_finish_ret
 #endif
+/* Üzenetsor és NVS stub: a napváltási jelző és a kérések útja is valódi kód. */
+#include <stdbool.h>
+#include <stdint.h>
+#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "nvs.h"
+#include "esp_ota_ops.h"
+
+struct queue_stub
+{
+    unsigned count, capacity, item;
+    unsigned char data[4][sizeof(int)];
+};
+static struct queue_stub queues[6];
+static unsigned queue_count;
+static bool fail_queue;
+QueueHandle_t xQueueCreate(unsigned count, unsigned item_size)
+{
+    if (fail_queue || queue_count >= 6 || count > 4 || item_size > sizeof(int))
+        return NULL;
+    struct queue_stub *queue = &queues[queue_count++];
+    *queue = (struct queue_stub){.capacity = count, .item = item_size};
+    return queue;
+}
+void vQueueDelete(QueueHandle_t queue) { (void)queue; }
+int xQueueSend(QueueHandle_t queue, const void *item, TickType_t ticks)
+{
+    (void)ticks;
+    if (!queue || queue->count == queue->capacity)
+        return 0;
+    memcpy(queue->data[queue->count++], item, queue->item);
+    return pdTRUE;
+}
+int xQueueReceive(QueueHandle_t queue, void *item, TickType_t ticks)
+{
+    (void)ticks;
+    if (!queue || !queue->count)
+        return 0;
+    memcpy(item, queue->data[0], queue->item);
+    memmove(queue->data[0], queue->data[1], (queue->count - 1) * sizeof(queue->data[0]));
+    queue->count--;
+    return pdTRUE;
+}
+static uint8_t nvs_value;
+static bool nvs_present;
+esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *handle)
+{
+    (void)name;
+    (void)mode;
+    *handle = 1;
+    return ESP_OK;
+}
+esp_err_t nvs_get_u8(nvs_handle_t handle, const char *key, uint8_t *value)
+{
+    (void)handle;
+    (void)key;
+    if (!nvs_present)
+        return ESP_ERR_NVS_NOT_FOUND;
+    *value = nvs_value;
+    return ESP_OK;
+}
+esp_err_t nvs_set_u8(nvs_handle_t handle, const char *key, uint8_t value)
+{
+    (void)handle;
+    (void)key;
+    nvs_value = value;
+    nvs_present = true;
+    return ESP_OK;
+}
+esp_err_t nvs_erase_key(nvs_handle_t handle, const char *key)
+{
+    (void)handle;
+    (void)key;
+    nvs_present = false;
+    return ESP_OK;
+}
+esp_err_t nvs_commit(nvs_handle_t handle)
+{
+    (void)handle;
+    return ESP_OK;
+}
+void nvs_close(nvs_handle_t handle) { (void)handle; }
+
+static esp_ota_img_states_t running_state;
+
 #include "../main/app_ota_auto.c"
 
 static esp_app_desc_t running_desc = {.version = "v2.0.0",
@@ -177,7 +263,7 @@ const esp_partition_t *esp_ota_get_last_invalid_partition(void)
 esp_err_t esp_ota_get_state_partition(const esp_partition_t *p, esp_ota_img_states_t *s)
 {
     (void)p;
-    *s = 0;
+    *s = running_state;
     return ESP_OK;
 }
 esp_err_t esp_ota_get_partition_description(const esp_partition_t *p, esp_app_desc_t *d)
@@ -449,24 +535,68 @@ int main(void)
     assert(!strstr(logs, "SECRET") && strstr(logs, "URL=1600 B"));
     assert(strstr(logs, "max-int=32768") && strstr(logs, "max-PSRAM=4194304"));
     reset();
+    /* Az ellenőrzőfeladat induláskor jön létre, ezért a kérés nem hiúsulhat
+     * meg memóriahiány miatt. Feladat nélkül viszont nincs kérés sem. */
+    app_config_t cfg = {0};
+    cfg.statistics.max_integration_gap_seconds = 1;
+    assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
+    fail_queue = true;
+    assert(app_ota_start_auto_update(&cfg) == ESP_ERR_NO_MEM);
+    fail_queue = false;
+    fail_task = true;
+    assert(app_ota_start_auto_update(&cfg) == ESP_ERR_NO_MEM);
+    fail_task = false;
+    assert(app_ota_start_auto_update(NULL) == ESP_ERR_INVALID_ARG);
+    assert(app_ota_start_auto_update(&cfg) == ESP_OK && scheduled_task);
     wifi = false;
-    assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE && !scheduled_task);
+    assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
     wifi = true;
     assert(app_ota_try_begin_operation());
     assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
     app_ota_end_operation();
-    fail_task = true;
-    assert(app_ota_request_auto_update() == ESP_ERR_NO_MEM);
-    assert(app_ota_try_begin_operation());
-    app_ota_end_operation();
-    fail_task = false;
-    assert(app_ota_request_auto_update() == ESP_OK && scheduled_task);
+    assert(app_ota_request_auto_update() == ESP_OK);
     assert(!requests && !begins); /* A HTTP kérés nem végzi el az OTA-t. */
     assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
-    scheduled_task(NULL);
-    assert(restarts == 1 && task_deletes == 1);
+    assert(ota_worker_step() && restarts == 1);
     assert(app_ota_try_begin_operation());
     app_ota_end_operation();
+
+    /* Napváltás: a mentés után újraindítás, az ellenőrzés a következő
+     * indulásban fut – így nem a legtöredezettebb memóriában kell helyet
+     * találni. A friss, még ellenőrzés alatt álló firmware-t nem indítjuk újra. */
+    reset();
+    nvs_present = false;
+    running_state = ESP_OTA_IMG_PENDING_VERIFY;
+    day_changed();
+    assert(ota_worker_step() && !restarts && !nvs_present);
+    /* A helyi ellenőrzés is kihagyja a letöltést, amíg a firmware nincs
+     * véglegesítve – de újraindítás nélkül, így a rollback-ablak megmarad. */
+    assert(!requests && strstr(logs, "helyben ellenőrzünk"));
+    reset();
+    running_state = 0;
+    day_changed();
+    day_changed(); /* Egyszerre csak egy napváltási kérés. */
+    assert(ota_worker_step() && restarts == 1 && nvs_present && nvs_value == 1);
+    assert(!requests && strstr(logs, "Napváltás kész"));
+    assert(!ota_worker_step());
+    /* A valódi eszközön az esp_restart() után nincs mit feloldani; a teszt
+     * visszatér belőle, ezért itt mi adjuk vissza a foglalást. */
+    app_ota_end_operation();
+
+    /* Az új indulás a jelzőből magától elvégzi az ellenőrzést. */
+    reset();
+    s_requests = NULL;
+    s_auto_enabled = false;
+    assert(app_ota_start_auto_update(&cfg) == ESP_OK && !nvs_present);
+    /* Itt már a teljes frissítés lefut: letöltés, aktiválás, újraindítás. */
+    assert(ota_worker_step() && requests && restarts == 1);
+    assert(strstr(logs, "Automatikus frissítés kész"));
+    /* Jelző nélkül nincs induláskori ellenőrzés. */
+    reset();
+    s_requests = NULL;
+    s_auto_enabled = false;
+    assert(app_ota_start_auto_update(&cfg) == ESP_OK);
+    assert(!ota_worker_step() && !requests);
     /* A hálózati hiba szakaszának és részleteinek megkülönböztetése. */
     for (int request = 1; request <= 3; request++)
     {

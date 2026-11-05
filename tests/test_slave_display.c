@@ -39,30 +39,26 @@ int main(void)
     assert(app_slave_display_brightness(&state, SECONDS(198)) == 17);
     assert(app_slave_display_brightness(&state, SECONDS(199)) == 0);
 
-    /* Tartós aktív jel nem aludhat el. A kimaradt minta (lejárt lease, elvesztett
-     * BLE-olvasás) nem jelenlétvesztés: az utolsó ismert aktív jel tartja ébren,
-     * és csak friss, érvényes 0 indítja a visszaszámlálást. */
+    /* Tartós aktív jel nem aludhat el, és a kimaradt minta sem jelenlétvesztés:
+     * a tartás egy-két elvesztett BLE-olvasást áthidal. Utána a megszokott
+     * visszaszámlálás indul – sötétíteni amúgy is csak a Master kérésére lehet,
+     * ő látja a Loxone jelenlétállapotát. */
     app_slave_display_presence(&state, true, true, SECONDS(200));
-    assert(app_slave_display_brightness(&state, SECONDS(240)) == 17);
-    app_slave_display_presence(&state, false, false, SECONDS(241));
-    assert(app_slave_display_brightness(&state, SECONDS(241)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(500)) == 17);
-    app_slave_display_presence(&state, true, true, SECONDS(501));
-    app_slave_display_presence(&state, true, false, SECONDS(510));
-    assert(app_slave_display_brightness(&state, SECONDS(539)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(540)) == 0);
-    /* Tartósan néma jel 10 perc után elévül, de akkor is a megszokott
-     * visszaszámlálással, nem azonnali sötétítéssel. */
-    app_slave_display_presence(&state, true, true, SECONDS(600));
-    assert(app_slave_display_brightness(&state, SECONDS(1199)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(1200)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(1229)) == 17);
-    assert(app_slave_display_brightness(&state, SECONDS(1230)) == 0);
-    /* Elévülés után egy friss aktív minta azonnal visszahozza a fényt. */
-    app_slave_display_presence(&state, true, true, SECONDS(1231));
-    assert(app_slave_display_brightness(&state, SECONDS(1800)) == 17);
-    app_slave_display_presence(&state, true, false, SECONDS(1801));
-    assert(app_slave_display_brightness(&state, SECONDS(1831)) == 0);
+    app_slave_display_presence(&state, false, false, SECONDS(201));
+    for (int64_t second = 202; second <= 244; ++second)
+        assert(app_slave_display_brightness(&state, SECONDS(second)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(245)) == 0);
+
+    /* Friss, érvényes 0 azonnal elindítja a visszaszámlálást. */
+    app_slave_display_presence(&state, true, true, SECONDS(300));
+    app_slave_display_presence(&state, true, false, SECONDS(310));
+    assert(app_slave_display_brightness(&state, SECONDS(339)) == 17);
+    assert(app_slave_display_brightness(&state, SECONDS(340)) == 0);
+    /* Egy friss aktív minta azonnal visszahozza a fényt. */
+    app_slave_display_presence(&state, true, true, SECONDS(341));
+    assert(app_slave_display_brightness(&state, SECONDS(341)) == 17);
+    app_slave_display_presence(&state, true, false, SECONDS(342));
+    assert(app_slave_display_brightness(&state, SECONDS(372)) == 0);
 
     /* Nappal saját nappali fényerő; az éjszakai sötétítés kikapcsolható. */
     app_slave_display_night(&state, false, SECONDS(281));

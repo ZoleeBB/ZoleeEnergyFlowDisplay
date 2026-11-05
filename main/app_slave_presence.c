@@ -233,13 +233,15 @@ bool app_slave_presence_remove(app_slave_presence_table_t *table, unsigned index
 }
 
 bool app_slave_presence_source(app_slave_presence_table_t *table, const char *uuid,
-                               bool valid, double value)
+                               bool valid, double value, int64_t now_us)
 {
     if (!table || !uuid || !uuid[0] || !uuid_valid(uuid))
         return false;
     bool matched = false;
     valid = valid && isfinite(value) && value >= 0;
     bool active = valid && value > 0;
+    if (now_us < 0)
+        now_us = 0;
     for (unsigned i = 0; i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i)
     {
         app_slave_presence_peer_t *peer = &table->peers[i];
@@ -248,6 +250,14 @@ bool app_slave_presence_source(app_slave_presence_table_t *table, const char *uu
         matched = true;
         if (active && (!peer->valid || !peer->active))
             ++peer->counter; /* A modulo-2^32 átfordulás a vezetéken is kezelt. */
+        /* A sötétítés visszaszámlálása a jelenlét megszűnésekor indul, és csak
+         * akkor, ha a Loxone tényleg küldött érvényes 0 értéket. Egy ismételt
+         * 0 nem indítja újra, különben soha nem telne le az időkorlát: a Loxone
+         * csak változáskor küld, így órákig ugyanaz a 0 vagy 1 jön vissza. */
+        if (active)
+            peer->inactive_since_us = 0;
+        else if (valid && !peer->inactive_since_us)
+            peer->inactive_since_us = now_us > 0 ? now_us : 1;
         peer->valid = valid;
         peer->active = active;
     }
@@ -262,6 +272,9 @@ void app_slave_presence_invalidate(app_slave_presence_table_t *table)
     {
         table->peers[i].valid = false;
         table->peers[i].active = false;
+        /* A jelenlétvesztés ideje szándékosan megmarad: a Loxone-kapcsolat
+         * újraépülése után ugyanaz a 0 érkezik vissza, és ilyenkor a kijelző
+         * nem gyulladhat ki újra egy időkorlátra az éjszaka közepén. */
     }
 }
 
@@ -281,6 +294,7 @@ static uint32_t read_u32(const uint8_t *data)
 
 bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
                                uint32_t sequence, bool live, bool ota_check,
+                               int64_t now_us,
                                uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE])
 {
     if (!peer || !out || !peer->used || !peer->revision ||
@@ -288,12 +302,25 @@ bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
         !app_slave_presence_profile_valid(&peer->profile))
         return false;
     bool valid = live && peer->valid && peer->profile.presence_uuid[0];
+    bool active = valid && peer->active;
+    /* A sötétítésről a Master dönt, mert nála van a Loxone-állapot. Beállított
+     * jelenlétforrásnál három feltétel kell: élő forrás, megszűnt jelenlét és
+     * letelt időkorlát. Így a néma vagy még fel sem épült forrás mellett a
+     * kijelző világos marad, folyamatos jelenlétnél pedig soha nem sötétül. */
+    bool blank = peer->profile.blank_at_night;
+    if (blank && peer->profile.presence_uuid[0])
+    {
+        int64_t timeout = (int64_t)peer->profile.timeout_seconds * 1000000;
+        blank = valid && !active && peer->inactive_since_us > 0 &&
+                now_us >= peer->inactive_since_us &&
+                now_us - peer->inactive_since_us >= timeout;
+    }
     memset(out, 0, APP_SLAVE_PRESENCE_PACKET_SIZE);
     out[0] = 'Z';
     out[1] = 'P';
     out[2] = 1;
-    out[3] = (uint8_t)((peer->profile.blank_at_night ? 1 : 0) |
-                       (valid ? 2 : 0) | (valid && peer->active ? 4 : 0) |
+    out[3] = (uint8_t)((blank ? 1 : 0) |
+                       (valid ? 2 : 0) | (active ? 4 : 0) |
                        ((peer->profile.rotation_degrees / 90u) << 3) |
                        (ota_check ? 32 : 0));
     write_u32(out + 4, peer->revision);
@@ -356,8 +383,10 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
         return false;
     bool blank = (data[3] & 1) != 0;
     uint16_t rotation = (uint16_t)(((data[3] >> 3) & 3u) * 90u);
-    if (!new_revision && (blank != receiver->blank_at_night ||
-                         rotation != receiver->rotation_degrees ||
+    /* A tájolás és az időkorlát profiladat: revízió nélkül nem változhat. A 0.
+     * bit viszont a Master pillanatnyi sötétítési kérése, ezért szabadon váltja
+     * az értékét ugyanazon a revízión belül is. */
+    if (!new_revision && (rotation != receiver->rotation_degrees ||
                          timeout != receiver->timeout_seconds))
         return false;
     bool valid = (data[3] & 2) != 0;
@@ -410,12 +439,10 @@ void app_slave_presence_apply(app_slave_presence_receiver_t *receiver,
     bool fresh = receiver->baseline && now >= receiver->received_us &&
                  now - receiver->received_us < APP_SLAVE_PRESENCE_LEASE_US;
     app_slave_display_profile_t profile = display->profile;
-    /* Jelenlétforrással beállított profilnál csak akkor sötétítünk éjszaka, ha
-     * tényleg van friss, érvényes jelenlétadat. Néma vagy érvénytelen forrásnál
-     * (Loxone-kiesés, elmaradt BLE-olvasás) a kijelző maradjon világos: a
-     * felhasználó a folyamatos 1-es jelre vár fényt, nem sötétséget. */
-    profile.blank_at_night = receiver->have_profile && receiver->blank_at_night &&
-                             (!receiver->ever_valid || (fresh && receiver->valid));
+    /* A jelzőbit a Master pillanatnyi döntése: ő figyeli a jelenlétforrást és a
+     * visszaszámlálást. A Slave csak végrehajtja, és a helyi érintés ébreszti.
+     * Kiesett kapcsolatnál az utolsó döntés marad érvényben. */
+    profile.blank_at_night = receiver->have_profile && receiver->blank_at_night;
     if (receiver->have_profile)
         profile.presence_timeout_seconds = receiver->timeout_seconds;
     /* Az időkorlát változása új ébrenléti keretet ad; a sötétítés ki-be

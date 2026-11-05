@@ -117,6 +117,8 @@ static void rotation_follow(int64_t now, bool busy)
 /* A kijelzőkör megállása (zárra várás, beragadt driver) eddig csak tápelvétellel
  * volt feloldható: az érintés sem ébresztett, mert az LVGL-kör sem futott. */
 #define SLAVE_UI_STALL_US INT64_C(30000000)
+/* Nyitott diagnosztikánál ennél sötétebb nem lesz a kijelző (%). */
+#define SLAVE_DIAGNOSTICS_BRIGHTNESS 30
 
 static _Atomic int64_t ui_tick_us;
 
@@ -304,6 +306,8 @@ static void status_refresh(int64_t now, unsigned brightness)
         .uptime_seconds = (uint32_t)(now / 1000000),
         .night = display_state.night,
         .brightness = brightness,
+        .day_brightness = display_state.profile.day_brightness,
+        .night_brightness = display_state.profile.night_brightness,
         .blank_at_night = display_state.profile.blank_at_night,
         .presence_source = known && presence.source,
         .presence_fresh = known && presence.fresh,
@@ -396,9 +400,11 @@ static void refresh(lv_timer_t *timer)
     if (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale))
         app_slave_display_night(&display_state, runtime.energy_flow_disabled ? runtime.standalone_night : sample.night_mode, now);
     bool intercom_visible = slave_4b_intercom_update();
+    /* Nyitott diagnosztika alatt nem sötétítünk: a hibakeresést nem szakíthatja
+     * meg az időkorlát lejárta. */
     app_slave_display_keep_visible(&display_state,
                                    intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
-                                   !input_gate.input, now);
+                                   !input_gate.input || slave_4b_ui_diagnostics_visible(), now);
     app_slave_presence_service_apply(&display_state, now);
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
@@ -414,6 +420,11 @@ static void refresh(lv_timer_t *timer)
                        "A Master kérésére indított frissítésellenőrzés nem indult el "
                        "(nincs Wi-Fi, vagy másik művelet fut).");
     int brightness = (int)app_slave_display_brightness(&display_state, now);
+    /* A diagnosztika olvasható fényerőt kap akkor is, ha a Master éjszakai
+     * fényereje nagyon alacsony: a vaksötét kijelzőn ez az egyetlen esély a
+     * hibakeresésre. */
+    if (slave_4b_ui_diagnostics_visible() && brightness < SLAVE_DIAGNOSTICS_BRIGHTNESS)
+        brightness = SLAVE_DIAGNOSTICS_BRIGHTNESS;
     if (intercom_visible) {
         unsigned day, night;
         app_intercom_control_brightness(&day, &night);

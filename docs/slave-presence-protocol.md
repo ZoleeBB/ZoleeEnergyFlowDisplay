@@ -52,7 +52,7 @@ A több bájtos számok unsigned little-endian értékek.
 | --- | --- | --- |
 | 0 | 2 | ASCII `ZP` |
 | 2 | 1 | Verzió: 1 |
-| 3 | 1 | Bit 0: éjszakai sötétítés; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése |
+| 3 | 1 | Bit 0: **sötétítési kérés most**; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése |
 | 4 | 4 | Nem nulla profilrevízió |
 | 8 | 4 | Timeout másodpercben, 1–86400 |
 | 12 | 4 | Jelenlét felfutóéleinek modulo-2^32 számlálója |
@@ -62,8 +62,32 @@ A 6–7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
 A 0 fokos tájolás bitjei nullák, így a korábbi, a 3–7. bitet még tiltó Slave is
 elfogadja az alapértelmezett csomagot; elforgatott kijelzőhöz a Slave firmware-ét
 is frissíteni kell.
-Egy revízión belül timeout/sötétítés/tájolás nem változhat; az érvényes/aktív és
-a frissítéskérés bitje viszont a revízión belül is változik.
+Egy revízión belül timeout és tájolás nem változhat (ezek profiladatok); a 0.
+bit, az érvényes/aktív bit és a frissítéskérés bitje viszont a revízión belül is
+változik, mert ezek pillanatnyi állapotok.
+
+**A sötétítésről a Master dönt** (v3.3.4-től), mert csak ő látja a Loxone
+jelenlétállapotát. A 0. bit nem a profil „éjszakai sötétítés" beállítása, hanem
+pillanatnyi kérés, és három feltétel együtt kell hozzá:
+
+1. a profilban be van kapcsolva az éjszakai sötétítés;
+2. ha van kiválasztott jelenlétforrás: a Loxone-kapcsolat friss (`live`) **és**
+   a forrás érvényes értéket adott;
+3. a jelenlét érvényesen megszűnt (0 értéket kaptunk), és a 1→0 él óta letelt a
+   profil időkorlátja.
+
+A Loxone **csak változáskor** küld értéket, ezért a jelenlét órákig ugyanaz az
+1 vagy 0 lehet: a Master a megkapott állapotot tartja, és a `live` frissességét a
+15 másodperces keepalive adja, nem az állapot-UUID változása. A jelenlétvesztés
+ideje a WS-kapcsolat újraépülését is túléli, különben az újra megkapott,
+változatlan 0 újraindítaná a visszaszámlálást, és a kijelző kigyulladna egy
+időkorlátra az éjszaka közepén.
+
+Jelenlétforrás nélküli profilnál (csak érintéses ébresztés) a bit az éjszakai
+beállítást követi. Néma, még fel sem épült vagy érvénytelen forrásnál a bit 0:
+a kijelző inkább maradjon világos, mint hogy folyamatos jelenlét alatt aludjon
+el. Ez a 3.3.3-ig meglévő hiba gyökere: a Slave próbálta helyben kitalálni, mit
+jelent a „nincs érvényes minta”, és a legrosszabb irányba tippelt.
 
 A frissítéskérés **szintjel**: a Master a webes „frissítések keresése" gomb után
 60 másodpercig küldi, a Slave pedig a felfutó élre indít egyetlen ellenőrzést a
@@ -123,9 +147,22 @@ az első teljes ébresztő érintést elnyelő kapu a meglévő közös állapot
 Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
 Profilváltás/invalid/disconnect nem ad új timeoutot és nem szimulál lefutó élt.
 Érvénytelen minta (lejárt lease, kimaradt olvasás, kapcsolatvesztés) nem
-jelenlétvesztés: az utolsó ismert állapot marad érvényben, így a folyamatos
-jelenlét alatt a kijelző nem sötétedhet el. Tíz perc néma jel után az utolsó
-ismert aktív jel elévül, és a megszokott visszaszámlálás indul.
+jelenlétvesztés: az utolsó ismert állapot marad érvényben. A jelenléttartás
+15 másodperc (egy-két kimaradt olvasás áthidalása) – nem ez védi a kijelzőt a
+sötétedéstől, hanem a Master 0. bitje, ami csak tényleges jelenlétvesztés után
+engedi el. Kapcsolatvesztéskor a Master utolsó döntése marad érvényben, a helyi
+érintés viszont mindig ébreszt: legalább 15 másodpercre, akkor is, ha a profil
+időkorlátja ennél rövidebb.
+
+Az érintés a nyers inputkapuból érkezik, ezért a vaksötét kijelzőn is hat (az
+első teljes érintést a kapu elnyeli, csak ébreszt). Nyitott diagnosztika alatt a
+Slave nem sötétít, és legalább 30% fényerőt ad, hogy a hibakeresés a legalacsonyabb
+éjszakai fényerő mellett is olvasható legyen.
+
+A 4B háttérvilágítása GPIO26-on LEDC PWM (invertált kimenet, 10 bit, 5 kHz), a
+GT911 érintés pedig I2C-polling INT/RST nélkül: a 0% fényerő tényleg teljesen
+lekapcsolja a világítást, de az érintést nem érinti. A 0% kizárólag a sötétítési
+ágból jöhet, a nappali/éjszakai fényerő érvényességi köre 1–100%.
 Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átállás kapcsolja ki.
 
 ## Master NVS és háttérmentés

@@ -24,7 +24,9 @@ typedef struct
     uint32_t uptime_seconds;
     bool night;
     unsigned brightness;         /* Ténylegesen beállított fényerő (%). */
-    bool blank_at_night;
+    unsigned day_brightness;     /* A Mastertől kapott nappali fényerő (%). */
+    unsigned night_brightness;   /* A Mastertől kapott éjszakai fényerő (%). */
+    bool blank_at_night;         /* A Master pillanatnyi sötétítési kérése. */
     bool presence_source;        /* Van kiválasztott jelenlétforrás. */
     bool presence_fresh;         /* Friss, érvényes jelenlétminta. */
     bool presence_active;
