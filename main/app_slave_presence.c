@@ -252,12 +252,11 @@ bool app_slave_presence_source(app_slave_presence_table_t *table, const char *uu
             ++peer->counter; /* A modulo-2^32 átfordulás a vezetéken is kezelt. */
         /* A sötétítés visszaszámlálása a jelenlét megszűnésekor indul, és csak
          * akkor, ha a Loxone tényleg küldött érvényes 0 értéket. Egy ismételt
-         * 0 nem indítja újra, különben soha nem telne le az időkorlát. */
-        if (!valid)
+         * 0 nem indítja újra, különben soha nem telne le az időkorlát: a Loxone
+         * csak változáskor küld, így órákig ugyanaz a 0 vagy 1 jön vissza. */
+        if (active)
             peer->inactive_since_us = 0;
-        else if (active)
-            peer->inactive_since_us = 0;
-        else if (!peer->inactive_since_us)
+        else if (valid && !peer->inactive_since_us)
             peer->inactive_since_us = now_us > 0 ? now_us : 1;
         peer->valid = valid;
         peer->active = active;
@@ -273,7 +272,9 @@ void app_slave_presence_invalidate(app_slave_presence_table_t *table)
     {
         table->peers[i].valid = false;
         table->peers[i].active = false;
-        table->peers[i].inactive_since_us = 0;
+        /* A jelenlétvesztés ideje szándékosan megmarad: a Loxone-kapcsolat
+         * újraépülése után ugyanaz a 0 érkezik vissza, és ilyenkor a kijelző
+         * nem gyulladhat ki újra egy időkorlátra az éjszaka közepén. */
     }
 }
 

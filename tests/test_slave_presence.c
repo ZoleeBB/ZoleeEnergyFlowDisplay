@@ -401,22 +401,48 @@ static void runtime_tests(void)
     assert(!receiver.valid && !display.profile.blank_at_night);
     assert(app_slave_display_brightness(&display, SECONDS(1000)) == 17);
 
-    /* BLE-kapcsolatvesztés: az utolsó döntés marad érvényben. */
+    /* A Loxone csak változáskor küld: órákig ugyanaz a 0 érkezik, és a
+     * kapcsolat újraépülése után is. Ez nem indítja újra a visszaszámlálást,
+     * tehát a kijelző nem gyullad ki az éjszaka közepén. */
     assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(1001)));
     heartbeat_until(&receiver, peer, &display, 1001, 1031);
     assert(app_slave_display_brightness(&display, SECONDS(1031)) == 0);
+    app_slave_presence_invalidate(&table);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2000)));
+    send_packet(&receiver, peer, 2000, 2000);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2000));
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2000)) == 0);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2001)));
+    send_packet(&receiver, peer, 2001, 2001);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2001));
+    assert(app_slave_display_brightness(&display, SECONDS(2001)) == 0);
+    /* Új jelenlét viszont azonnal világít, és onnan indul új visszaszámlálás. */
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(2002)));
+    send_packet(&receiver, peer, 2002, 2002);
+    app_slave_presence_apply(&receiver, &display, SECONDS(2002));
+    assert(!receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2002)) == 17);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2003)));
+    heartbeat_until(&receiver, peer, &display, 2003, 2032);
+    assert(!receiver.blank_at_night);
+    heartbeat_until(&receiver, peer, &display, 2033, 2033);
+    assert(receiver.blank_at_night);
+    assert(app_slave_display_brightness(&display, SECONDS(2033)) == 0);
+
+    /* BLE-kapcsolatvesztés: az utolsó döntés marad érvényben. */
     app_slave_presence_disconnected(&receiver);
-    app_slave_presence_apply(&receiver, &display, SECONDS(1032));
+    app_slave_presence_apply(&receiver, &display, SECONDS(2034));
     assert(display.profile.blank_at_night);
-    assert(app_slave_display_brightness(&display, SECONDS(1200)) == 0);
+    assert(app_slave_display_brightness(&display, SECONDS(2200)) == 0);
 
     /* Ténylegesen régi Master: a biztonságos alap nem sötétít. */
     app_slave_presence_legacy(&receiver);
-    app_slave_presence_apply(&receiver, &display, SECONDS(1201));
+    app_slave_presence_apply(&receiver, &display, SECONDS(2201));
     assert(!display.profile.blank_at_night && display.profile.day_brightness == 83);
-    assert(app_slave_display_brightness(&display, SECONDS(1201)) == 17);
-    app_slave_display_night(&display, false, SECONDS(1202));
-    assert(app_slave_display_brightness(&display, SECONDS(1202)) == 83);
+    assert(app_slave_display_brightness(&display, SECONDS(2201)) == 17);
+    app_slave_display_night(&display, false, SECONDS(2202));
+    assert(app_slave_display_brightness(&display, SECONDS(2202)) == 83);
 }
 
 static void replay_and_lease_tests(void)

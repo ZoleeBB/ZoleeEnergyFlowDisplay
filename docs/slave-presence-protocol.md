@@ -76,6 +76,13 @@ pillanatnyi kérés, és három feltétel együtt kell hozzá:
 3. a jelenlét érvényesen megszűnt (0 értéket kaptunk), és a 1→0 él óta letelt a
    profil időkorlátja.
 
+A Loxone **csak változáskor** küld értéket, ezért a jelenlét órákig ugyanaz az
+1 vagy 0 lehet: a Master a megkapott állapotot tartja, és a `live` frissességét a
+15 másodperces keepalive adja, nem az állapot-UUID változása. A jelenlétvesztés
+ideje a WS-kapcsolat újraépülését is túléli, különben az újra megkapott,
+változatlan 0 újraindítaná a visszaszámlálást, és a kijelző kigyulladna egy
+időkorlátra az éjszaka közepén.
+
 Jelenlétforrás nélküli profilnál (csak érintéses ébresztés) a bit az éjszakai
 beállítást követi. Néma, még fel sem épült vagy érvénytelen forrásnál a bit 0:
 a kijelző inkább maradjon világos, mint hogy folyamatos jelenlét alatt aludjon
