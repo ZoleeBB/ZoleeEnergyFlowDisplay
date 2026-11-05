@@ -26,7 +26,7 @@ static const char app_loxone_page[] =
 "<button id=\"intercom-save\" type=\"button\">Kaputelefon mentése</button><p id=\"intercom-status\" role=\"status\" aria-live=\"polite\"></p></section></div>\n"
 "<section id=\"slave-editor\"><h2>Slave-kijelzők</h2>\n"
 "<p>Legfeljebb három, PIN-kóddal párosított kijelző állítható be. Új kijelző párosítását a Master diagnosztikai oldalán indíthatod.</p>\n"
-"<p><small>A jelenlétállapot 0 értéke inaktív, pozitív értéke aktív. Az éjszakai sötétítés kikapcsolva marad, amíg külön nem engedélyezed. A nappali és éjszakai fényerőt a Slave saját beállításai adják; érintéssel is felébreszthető. Jelenlétforrás nélkül csak az érintés ébreszt.</small></p>\n"
+"<p><small>A jelenlétállapot 0 értéke inaktív, pozitív értéke aktív. Kikapcsolt sötétítésnél a kijelző egész éjjel az éjszakai fényerőn marad. Bekapcsolt sötétítésnél, beállított jelenlétjellel a kijelző folyamatos jelenlét alatt soha nem sötétül el, csak a jelenlét megszűnése után a megadott másodperccel; ha a Master nem kap érvényes jelenlétértéket (nincs Loxone-kapcsolat, vagy a kiválasztott állapot nem küld értéket), a kijelző inkább világos marad. Jelenlétjel nélkül („Csak érintéses ébresztés”) éjszakai módban azonnal elsötétül, és csak érintésre ébred. A nappali és éjszakai fényerőt a Master beállításai adják, a Slave átveszi őket.</small></p>\n"
 "<p><a href=\"/settings\">Master adat seed beállítása</a></p>\n"
 "<div class=\"grid\"><label>Helyiség<select id=\"slave-room\"></select></label><label>Funkció<select id=\"slave-category\"></select></label></div>\n"
 "<p id=\"slave-status\" role=\"status\" aria-live=\"polite\">Eszközlista betöltése…</p><div id=\"slave-profiles\"></div></section>\n"
