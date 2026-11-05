@@ -136,6 +136,44 @@ static void slave_restart(const char *reason)
     esp_restart();
 }
 
+/* Az ESP saját reset oka: pánik, watchdog és brownout is ide esik. Sötét
+ * kijelzőnél ez az első kérdés – a tápelvétel utáni naplóban megmarad. */
+static void slave_report_reset(void)
+{
+    const char *text = NULL;
+    app_event_level_t level = APP_EVENT_WARNING;
+    switch (esp_reset_reason())
+    {
+        case ESP_RST_PANIC:
+            text = "programhiba (pánik)";
+            break;
+        case ESP_RST_INT_WDT:
+            text = "megszakítási watchdog";
+            break;
+        case ESP_RST_TASK_WDT:
+            text = "feladat-watchdog (befagyott feladat)";
+            break;
+        case ESP_RST_WDT:
+            text = "watchdog";
+            break;
+        case ESP_RST_BROWNOUT:
+            text = "tápfeszültség-esés (brownout)";
+            break;
+        case ESP_RST_POWERON:
+            text = "bekapcsolás";
+            level = APP_EVENT_INFO;
+            break;
+        case ESP_RST_EXT:
+            text = "külső reset";
+            level = APP_EVENT_INFO;
+            break;
+        default:
+            break;
+    }
+    if (text)
+        app_events_add(level, "Indulás: az előző leállás oka %s.", text);
+}
+
 static void slave_report_restart(void)
 {
     nvs_handle_t handle;
@@ -484,6 +522,7 @@ void app_main(void)
     ESP_ERROR_CHECK(error);
     app_state_init();
     app_events_init();
+    slave_report_reset();
     slave_report_restart();
     app_ota_report_boot_state();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
@@ -577,7 +616,17 @@ void app_main(void)
          * fényerő is onnan jönne. Ilyenkor az eszköz inkább újraindul. */
         int64_t now = esp_timer_get_time();
         int64_t tick = atomic_load(&ui_tick_us);
-        if (tick && now - tick >= SLAVE_UI_STALL_US && !app_ota_operation_active())
+        /* Az OTA alatt a kijelzőkör állhat, de egy beragadt foglalás nem
+         * tilthatja le örökre a figyelőt: fél óra után mindenképp újraindítunk. */
+        static int64_t ota_since_us;
+        bool ota = app_ota_operation_active();
+        if (!ota)
+            ota_since_us = 0;
+        else if (!ota_since_us)
+            ota_since_us = now;
+        else if (now - ota_since_us >= INT64_C(1800000000))
+            ota = false;
+        if (tick && now - tick >= SLAVE_UI_STALL_US && !ota)
         {
             char reason[96];
             snprintf(reason, sizeof(reason), "a kijelzőkör %u másodperce áll",
