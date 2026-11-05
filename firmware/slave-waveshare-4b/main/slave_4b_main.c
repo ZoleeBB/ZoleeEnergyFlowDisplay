@@ -18,6 +18,7 @@
 #include "app_time.h"
 #include "app_wifi.h"
 #include "bsp/esp-bsp.h"
+#include "driver/ledc.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
@@ -511,6 +512,34 @@ static void fatal(const char *detail)
         vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
+/* A 4B háttérvilágítását boost meghajtó kapcsolja, a BSP pedig 5 kHz-es,
+ * invertált PWM-et ad rá (GPIO26). Alacsony kitöltésnél – épp az éjszakai
+ * fényerőnél – az impulzus 60 µs-ra rövidül, amit az ilyen meghajtók gyakran
+ * már nem tudnak szabályozni: a világítás egyszerűen kialszik, miközben a
+ * firmware szerint 20-30%-on áll. A lassabb PWM ötször hosszabb impulzust ad,
+ * a felbontás és a csatorna viszont változatlan, így a BSP százalékszámítása
+ * érvényes marad. A BSP az 1-es időzítőt használja a háttérvilágításhoz. */
+#define SLAVE_BACKLIGHT_PWM_HZ 500
+
+static void backlight_slow_pwm(void)
+{
+    const ledc_timer_config_t timer = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .timer_num = LEDC_TIMER_1,
+        .freq_hz = SLAVE_BACKLIGHT_PWM_HZ,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    esp_err_t error = ledc_timer_config(&timer);
+    if (error == ESP_OK)
+        app_events_add(APP_EVENT_INFO, "Háttérvilágítás PWM: %u Hz.",
+                       (unsigned)SLAVE_BACKLIGHT_PWM_HZ);
+    else
+        app_events_add(APP_EVENT_WARNING,
+                       "A háttérvilágítás PWM-frekvenciája maradt a BSP alapértékén (%d).",
+                       (int)error);
+}
+
 void app_main(void)
 {
     esp_err_t error = nvs_flash_init();
@@ -547,6 +576,7 @@ void app_main(void)
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     slave_4b_ui_create(lv_screen_active());
     bsp_display_unlock();
+    backlight_slow_pwm();
     bsp_display_backlight_on();
 
     char explanation[256] = {0};
