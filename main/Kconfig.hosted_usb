@@ -6,17 +6,24 @@
 # kconfig option after retry" hibával leáll – a projekt forrása változatlanul is.
 #
 # A C6 társprocesszorral SDIO-n beszélünk, USB-s hosztátvitelt nem használunk,
-# ezért a három kapcsoló itt kap definíciót, kikapcsolva. Ha az upstream
-# komponens saját Kconfigban definiálja őket, ez a fájl törölhető.
+# ezért a három kapcsoló itt kap definíciót, kikapcsolva. Promptot is kapnak,
+# különben a rejtett, hamis értékű kapcsolók ki sem kerülnek a generált
+# sdkconfig-ba, és a függőségfeloldó továbbra sem látná őket. Ez az eszköz
+# saját USB-konzolját és USB-s telepítését nem érinti.
+# Ha az upstream komponens saját Kconfigban definiálja őket, ez a fájl törölhető.
+
+menu "Zolee: esp_hosted USB manifest pótlás"
 
 config ESP_HOSTED_HOST_USB_CDC_ACM_MANIFEST
-	bool
+	bool "esp_hosted USB CDC-ACM átvitel (nem használt)"
 	default n
 
 config ESP_HOSTED_HOST_USB_CHERRYUSB_MANIFEST
-	bool
+	bool "esp_hosted CherryUSB átvitel (nem használt)"
 	default n
 
 config ESP_HOSTED_HOST_USB_RNDIS_MANIFEST
-	bool
+	bool "esp_hosted USB RNDIS átvitel (nem használt)"
 	default n
+
+endmenu
