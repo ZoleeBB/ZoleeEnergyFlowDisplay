@@ -90,6 +90,14 @@ void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now
     }
 }
 
+void app_slave_display_blank_at_night(app_slave_display_t *state, bool blank, int64_t now_us)
+{
+    if (!state)
+        return;
+    monotonic(state, now_us);
+    state->profile.blank_at_night = blank;
+}
+
 void app_slave_display_presence(app_slave_display_t *state, bool valid, bool active, int64_t now_us)
 {
     if (!state)

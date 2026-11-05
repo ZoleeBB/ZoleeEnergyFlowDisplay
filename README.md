@@ -228,6 +228,13 @@ minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nu
 | Türelmesebb OTA | Ha a Slave frissítése közben a Master is újraindul, a hiányzó masterkapcsolat miatt az ellenőrzés 20 percig vár a visszaállás helyett. |
 | OTA-visszaállás nyoma | Az ellenőrzési ablak 3-ról 5 percre nőtt (a Slave indulása lassabb); időtúllépéskor NVS-be kerül, melyik feltétel hiányzott, és a következő induláskor a napló kiírja a nem véglegesült verziót és az okot is. [Részletek](docs/ota.md) |
 
+### Javítás – 4B Slave: néma jelenlétforrásnál nincs sötétítés, és nem fagyhat sötéten (`fix/slave-4b-night-blank`)
+
+| Funkció | Röviden |
+| --- | --- |
+| Csak valódi 0-ra sötétít | Jelenlétforrással beállított profilnál a kijelző csak akkor sötétedik el, ha friss, érvényes jelenlétadat mondja, hogy nincs jelenlét. Néma vagy érvénytelen forrásnál (elmaradt BLE-olvasás, lejárt lease, Loxone-kiesés) a sötétítés fel van függesztve. [Részletek](docs/slave-waveshare-4b.md) |
+| Nem marad sötét és néma | Ha a 33 ms-os kijelzőkör megáll, a fényerő és az érintés is halott: a főciklus 30 másodperc után újraindítja az eszközt, és a napló a következő induláskor megmondja az okot. |
+
 ### Javítás – 4B Slave: jelenlét alatt nem sötétedik el, teljes képernyős diagnosztika (`fix/slave-4b-presence-hold`)
 
 | Funkció | Röviden |

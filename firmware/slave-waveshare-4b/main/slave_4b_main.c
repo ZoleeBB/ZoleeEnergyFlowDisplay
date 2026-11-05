@@ -1,5 +1,6 @@
 /* Dedikált 4B Slave: nincs SD, konfigurálható adatforrás vagy master indítás. */
 #include <math.h>
+#include <stdio.h>
 #include "slave_4b_ui.h"
 #include "slave_4b_intercom.h"
 #include "app_intercom.h"
@@ -112,6 +113,43 @@ static void rotation_follow(int64_t now, bool busy)
  * a Masterrel sokáig nincs kapcsolat, a kijelző adat nélkül marad: ilyenkor az
  * eszköz magától újraindul. A próbálkozások között növekvő szünet van, hogy egy
  * tartósan kikapcsolt Master mellett ne induljon percenként újra. */
+#define SLAVE_RESTART_KEY "restart"
+/* A kijelzőkör megállása (zárra várás, beragadt driver) eddig csak tápelvétellel
+ * volt feloldható: az érintés sem ébresztett, mert az LVGL-kör sem futott. */
+#define SLAVE_UI_STALL_US INT64_C(30000000)
+
+static _Atomic int64_t ui_tick_us;
+
+/* Az újraindítás oka túléli az újraindítást; a RAM-napló nem. */
+static void slave_restart(const char *reason)
+{
+    nvs_handle_t handle;
+    if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
+    {
+        if (nvs_set_str(handle, SLAVE_RESTART_KEY, reason) == ESP_OK)
+            nvs_commit(handle);
+        nvs_close(handle);
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+    esp_restart();
+}
+
+static void slave_report_restart(void)
+{
+    nvs_handle_t handle;
+    char reason[96] = {0};
+    if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+        return;
+    size_t length = sizeof(reason);
+    if (nvs_get_str(handle, SLAVE_RESTART_KEY, reason, &length) == ESP_OK && reason[0])
+    {
+        app_events_add(APP_EVENT_WARNING, "Az előző újraindítás oka: %.80s", reason);
+        if (nvs_erase_key(handle, SLAVE_RESTART_KEY) == ESP_OK)
+            nvs_commit(handle);
+    }
+    nvs_close(handle);
+}
+
 #define SLAVE_BLE_SYNC_LIMIT_US INT64_C(90000000)
 #define SLAVE_BLE_LINK_LIMIT_US INT64_C(600000000)
 #define SLAVE_BLE_BACKOFF_KEY "ble_restarts"
@@ -168,12 +206,12 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
             nvs_commit(handle);
         nvs_close(handle);
     }
-    app_events_add(APP_EVENT_WARNING, runtime->ble_ready ?
-                   "Nincs masterkapcsolat %u perce; a Slave újraindul." :
-                   "A BLE host nem szinkronizált %u perc alatt; a Slave újraindul.",
-                   (unsigned)(limit / 60000000));
-    vTaskDelay(pdMS_TO_TICKS(200));
-    esp_restart();
+    char reason[96];
+    snprintf(reason, sizeof(reason), runtime->ble_ready ?
+             "nincs masterkapcsolat %u perce" : "a BLE host nem szinkronizált %u perc alatt",
+             (unsigned)(limit / 60000000));
+    app_events_add(APP_EVENT_WARNING, "Újraindítás: %.80s.", reason);
+    slave_restart(reason);
 }
 
 /* A diagnosztika naplója és az eseménymásolat PSRAM-ban él, és csak nyitott
@@ -322,6 +360,7 @@ static void refresh(lv_timer_t *timer)
 {
     (void)timer;
     static int64_t previous;
+    atomic_store(&ui_tick_us, esp_timer_get_time());
     app_energy_sample_t sample = {0};
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
@@ -434,6 +473,7 @@ void app_main(void)
     ESP_ERROR_CHECK(error);
     app_state_init();
     app_events_init();
+    slave_report_restart();
     app_ota_report_boot_state();
     ESP_ERROR_CHECK(app_ota_start_validation_task());
     rotation_degrees = rotation_load();
@@ -522,6 +562,18 @@ void app_main(void)
     for (;;) {
         app_intercom_audio_poll();
         slave_4b_intercom_prepare();
+        /* A kijelzőkör megállását nem tudja kezelni önmagában: az érintés és a
+         * fényerő is onnan jönne. Ilyenkor az eszköz inkább újraindul. */
+        int64_t now = esp_timer_get_time();
+        int64_t tick = atomic_load(&ui_tick_us);
+        if (tick && now - tick >= SLAVE_UI_STALL_US && !app_ota_operation_active())
+        {
+            char reason[96];
+            snprintf(reason, sizeof(reason), "a kijelzőkör %u másodperce áll",
+                     (unsigned)((now - tick) / 1000000));
+            app_events_add(APP_EVENT_ERROR, "Újraindítás: %.80s.", reason);
+            slave_restart(reason);
+        }
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }

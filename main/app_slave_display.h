@@ -41,6 +41,8 @@ bool app_slave_display_init(app_slave_display_t *state,
 bool app_slave_display_profile(app_slave_display_t *state,
                                const app_slave_display_profile_t *profile, int64_t now_us);
 void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now_us);
+/* Csak az éjszakai sötétítés engedélyezése; időkorlátot és ébresztést nem ad. */
+void app_slave_display_blank_at_night(app_slave_display_t *state, bool blank, int64_t now_us);
 /* Érvénytelen jelenlét (pl. kapcsolatvesztés) nem hosszabbítja meg az ébrenlétet,
  * de nem is számít jelenlétvesztésnek: az utolsó ismert állapot marad érvényben,
  * amíg friss, érvényes minta mást nem mond (vagy el nem évül a tartás). */
