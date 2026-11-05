@@ -18,7 +18,6 @@
 #include "app_time.h"
 #include "app_wifi.h"
 #include "bsp/esp-bsp.h"
-#include "driver/ledc.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
@@ -118,6 +117,23 @@ static void rotation_follow(int64_t now, bool busy)
 /* A kijelzőkör megállása (zárra várás, beragadt driver) eddig csak tápelvétellel
  * volt feloldható: az érintés sem ébresztett, mert az LVGL-kör sem futott. */
 #define SLAVE_UI_STALL_US INT64_C(30000000)
+/* A 4B háttérvilágítását boost meghajtó kapcsolja (GPIO26 PWM, GPIO33 BL_EN),
+ * és mérés szerint 48% alatt egyszerűen kialszik: 48%-on még világít, 47%-on
+ * már sötét. Ez a panel sajátossága, nem szoftverhiba, ezért a kijelzőlogika
+ * 1-100%-os skáláját a hardver valódi tartományára képezzük le: 0% marad teljes
+ * sötét (a sötétítéshez ez kell), 1% a leghalványabb még látható fokozat, 100%
+ * a maximum. A diagnosztika és a napló a logikai értéket mutatja. */
+#define SLAVE_BACKLIGHT_MIN_PERCENT 48
+
+static int backlight_hardware(int percent)
+{
+    if (percent <= 0)
+        return 0;
+    if (percent >= 100)
+        return 100;
+    return SLAVE_BACKLIGHT_MIN_PERCENT +
+           (percent - 1) * (100 - SLAVE_BACKLIGHT_MIN_PERCENT) / 99;
+}
 /* Nyitott diagnosztikánál ennél sötétebb nem lesz a kijelző (%). */
 #define SLAVE_DIAGNOSTICS_BRIGHTNESS 30
 
@@ -345,6 +361,7 @@ static void status_refresh(int64_t now, unsigned brightness)
         .uptime_seconds = (uint32_t)(now / 1000000),
         .night = display_state.night,
         .brightness = brightness,
+        .panel_brightness = (unsigned)backlight_hardware((int)brightness),
         .day_brightness = display_state.profile.day_brightness,
         .night_brightness = display_state.profile.night_brightness,
         .blank_at_night = display_state.profile.blank_at_night,
@@ -475,11 +492,13 @@ static void refresh(lv_timer_t *timer)
          * az ébresztés akkor is látható legyen, ha a 0% leállította a PWM-et. */
         if (last_brightness <= 0 && brightness > 0)
             bsp_display_backlight_on();
-        bsp_display_brightness_set(brightness);
+        int hardware = backlight_hardware(brightness);
+        bsp_display_brightness_set(hardware);
         if (last_brightness >= 0)
             app_events_add(APP_EVENT_INFO, brightness == 0 ?
                            "Kijelző elsötétült (éjszakai mód, nincs jelenlét)." :
-                           "Kijelző felébredt (fényerő: %d%%).", brightness);
+                           "Kijelző felébredt (fényerő: %d%%, panel %d%%).",
+                           brightness, hardware);
         last_brightness = brightness;
     }
     /* A diagnosztikán látszódjon, hogy az érintés és a jelenlét tényleg beért. */
@@ -510,34 +529,6 @@ static void fatal(const char *detail)
     }
     for (;;)
         vTaskDelay(pdMS_TO_TICKS(1000));
-}
-
-/* A 4B háttérvilágítását boost meghajtó kapcsolja, a BSP pedig 5 kHz-es,
- * invertált PWM-et ad rá (GPIO26). Alacsony kitöltésnél – épp az éjszakai
- * fényerőnél – az impulzus 60 µs-ra rövidül, amit az ilyen meghajtók gyakran
- * már nem tudnak szabályozni: a világítás egyszerűen kialszik, miközben a
- * firmware szerint 20-30%-on áll. A lassabb PWM ötször hosszabb impulzust ad,
- * a felbontás és a csatorna viszont változatlan, így a BSP százalékszámítása
- * érvényes marad. A BSP az 1-es időzítőt használja a háttérvilágításhoz. */
-#define SLAVE_BACKLIGHT_PWM_HZ 500
-
-static void backlight_slow_pwm(void)
-{
-    const ledc_timer_config_t timer = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .duty_resolution = LEDC_TIMER_10_BIT,
-        .timer_num = LEDC_TIMER_1,
-        .freq_hz = SLAVE_BACKLIGHT_PWM_HZ,
-        .clk_cfg = LEDC_AUTO_CLK,
-    };
-    esp_err_t error = ledc_timer_config(&timer);
-    if (error == ESP_OK)
-        app_events_add(APP_EVENT_INFO, "Háttérvilágítás PWM: %u Hz.",
-                       (unsigned)SLAVE_BACKLIGHT_PWM_HZ);
-    else
-        app_events_add(APP_EVENT_WARNING,
-                       "A háttérvilágítás PWM-frekvenciája maradt a BSP alapértékén (%d).",
-                       (int)error);
 }
 
 void app_main(void)
@@ -576,7 +567,6 @@ void app_main(void)
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     slave_4b_ui_create(lv_screen_active());
     bsp_display_unlock();
-    backlight_slow_pwm();
     bsp_display_backlight_on();
 
     char explanation[256] = {0};

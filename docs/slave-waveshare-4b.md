@@ -230,3 +230,19 @@ kör nem érvénytelenít. Kezelés: [gesztusok](gestures.md#waveshare-4b-slave-
 ## Kaputelefon
 
 A Masteren kezelt kamera, hang, kapunyitás és csengőhang a 4B-n is elérhető; a hívásfoglalás központi. [Részletes működés és hardveres átvétel](slave-intercom.md).
+
+## Háttérvilágítás: a panel valódi tartománya
+
+A 4B háttérvilágítását boost meghajtó kapcsolja (GPIO26 PWM, GPIO33 BL_EN), és
+mérés szerint **48% alatt egyszerűen kialszik**: 48%-on még világít, 47%-on már
+sötét. Ez a panel sajátossága, nem szoftverhiba – a BSP a kért értéket hibátlanul
+beállítja, a napló is azt mutatja.
+
+Ezért a Slave a kijelzőlogika 1–100%-os skáláját a hardver valódi tartományára
+képezi le: **0% = teljes sötét** (az éjszakai sötétítéshez ez kell), **1% = 48%**
+(a leghalványabb még látható fokozat), **100% = 100%**, közte lineárisan. Így a
+Mastertől kapott 20–30%-os éjszakai fényerő is látható képet ad (57–63% a
+panelen), a teljes sötétítés pedig változatlanul működik.
+
+A diagnosztika mindkét értéket mutatja: `Fényerő: 30% (panel 63%)`.
+

@@ -18,7 +18,7 @@ foreach(size 20 24 28 34)
 endforeach()
 idf_component_register(SRCS ${sources}
     INCLUDE_DIRS "${shared}" "${board}/ui"
-    REQUIRES app_update bt esp_driver_jpeg esp_driver_ledc esp_event esp_http_client esp_netif esp_timer esp_wifi
+    REQUIRES app_update bt esp_driver_jpeg esp_event esp_http_client esp_netif esp_timer esp_wifi
              fatfs sdmmc json mbedtls nvs_flash)
 execute_process(COMMAND "${PYTHON}" "${board}/tools/assets.py"
     "${CMAKE_CURRENT_BINARY_DIR}/slave_4b_assets.c" COMMAND_ERROR_IS_FATAL ANY)

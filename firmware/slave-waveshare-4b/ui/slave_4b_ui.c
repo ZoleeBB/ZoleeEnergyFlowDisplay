@@ -431,7 +431,7 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              "Master: %s\n"
              "BLE: %s · RSSI: %d dBm · host: %s · keresés: %s\n"
              "Wi-Fi: %s · IP: %s · Időszinkron: %s\n"
-             "Napszak: %s · Fényerő: %u%%\n"
+             "Napszak: %s · Fényerő: %u%% (panel %u%%)\n"
              "Fényerő a Mastertől: nappal %u%% · éjjel %u%%\n"
              "Sötétítési kérés: %s · Időkorlát: %u mp\n"
              "%s\n%s\n"
@@ -449,6 +449,7 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              or_dash(status->ip),
              have_runtime && last_runtime.time_synced ? "OK" : "várakozás",
              status->night ? "éjszaka" : "nappal", status->brightness,
+             status->panel_brightness,
              status->day_brightness, status->night_brightness,
              status->blank_at_night ? "igen" : "nem", (unsigned)status->timeout_seconds,
              presence, blanking, (unsigned)status->touch_count);
