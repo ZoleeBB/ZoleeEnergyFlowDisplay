@@ -407,15 +407,24 @@ void app_slave_presence_apply(app_slave_presence_receiver_t *receiver,
         app_slave_display_presence(display, false, false, now);
         receiver->reset_presence = false;
     }
+    bool fresh = receiver->baseline && now >= receiver->received_us &&
+                 now - receiver->received_us < APP_SLAVE_PRESENCE_LEASE_US;
     app_slave_display_profile_t profile = display->profile;
-    profile.blank_at_night = receiver->have_profile && receiver->blank_at_night;
+    /* Jelenlétforrással beállított profilnál csak akkor sötétítünk éjszaka, ha
+     * tényleg van friss, érvényes jelenlétadat. Néma vagy érvénytelen forrásnál
+     * (Loxone-kiesés, elmaradt BLE-olvasás) a kijelző maradjon világos: a
+     * felhasználó a folyamatos 1-es jelre vár fényt, nem sötétséget. */
+    profile.blank_at_night = receiver->have_profile && receiver->blank_at_night &&
+                             (!receiver->ever_valid || (fresh && receiver->valid));
     if (receiver->have_profile)
         profile.presence_timeout_seconds = receiver->timeout_seconds;
-    if (profile.blank_at_night != display->profile.blank_at_night ||
-        profile.presence_timeout_seconds != display->profile.presence_timeout_seconds)
+    /* Az időkorlát változása új ébrenléti keretet ad; a sötétítés ki-be
+     * kapcsolása viszont önmagában nem ébreszt és nem hosszabbít. */
+    if (profile.presence_timeout_seconds != display->profile.presence_timeout_seconds)
         (void)app_slave_display_profile(display, &profile, now);
-    bool valid = receiver->baseline && receiver->valid && now >= receiver->received_us &&
-                 now - receiver->received_us < APP_SLAVE_PRESENCE_LEASE_US;
+    else if (profile.blank_at_night != display->profile.blank_at_night)
+        app_slave_display_blank_at_night(display, profile.blank_at_night, now);
+    bool valid = fresh && receiver->valid;
     bool pulse_fresh = now >= receiver->pulse_received_us &&
                        now - receiver->pulse_received_us < APP_SLAVE_PRESENCE_LEASE_US;
     if (valid && receiver->pending_pulse && pulse_fresh)

@@ -59,6 +59,15 @@ maradt: a kijelzőn egy pillanatra megjelent a Master címe és az RSSI, utána
 semmi, és a keresés sem indult újra. Mostantól 15 másodperc után a próbálkozás
 megszakad, a napló rögzíti („csatlakozás időtúllépés"), és a keresés folytatódik.
 
+## Önjavítás: a kijelzőkör megállása
+
+A fényerő és az érintés is a 33 ms-os LVGL-körből jön: ha az megáll (beragadt
+zár vagy driver), a kijelző sötét marad, és érintésre sem ébred – korábban ezt
+csak tápelvétel oldotta fel. A főciklus mostantól figyeli a kör időbélyegét, és
+30 másodperc állás után újraindítja az eszközt (OTA-művelet alatt nem). Az
+újraindítás oka NVS-be kerül, és a következő induláskor a napló első sorai
+között olvasható a diagnosztikán.
+
 ## Önjavítás: BLE-figyelő
 
 A kijelző a Mastertől kapja az összes adatot, ezért ha a kapcsolat tartósan
@@ -73,8 +82,8 @@ A további próbálkozások között 30, majd 120 perc szünet van (a számlál�
 kikapcsolt Master mellett sem indul újra percenként. PIN-bevitel és
 kaputelefon-hívás alatt a figyelő vár.
 
-Az újraindítás okát a napló rögzíti, és a következő induláskor is látszik a
-diagnosztikán.
+Az újraindítás oka minden esetben NVS-be kerül, és a következő induláskor a
+napló első sorai között megjelenik a diagnosztikán.
 
 ## Fényerő SD-kártya nélkül
 
@@ -99,8 +108,15 @@ fényerejét tartja meg.
 
 ## Éjszakai sötétítés és jelenlét
 
-Ha van kiválasztott jelenlétforrás, a visszaszámlálás **csak a jelenlét
-megszűnése után** (friss, érvényes 0 érték) indul. Egy kimaradt BLE-olvasás, a
+Ha van kiválasztott jelenlétforrás, a kijelző **csak akkor sötétedik el, ha
+tényleg érkezik friss, érvényes jelenlétadat, és az 0-t mond**. Amíg a jel
+folyamatosan 1, nincs sötétítés; ha pedig a forrás elnémul (elmaradt
+BLE-olvasás, lejárt lease, Loxone-kiesés, érvénytelen érték), a sötétítés addig
+fel van függesztve – a kijelző világos marad, nem sötétül el „biztos, ami
+biztos" alapon.
+
+A visszaszámlálás **csak a jelenlét megszűnése után** (friss, érvényes 0 érték)
+indul. Egy kimaradt BLE-olvasás, a
 15 másodperces lease lejárta vagy a Master átmeneti elérhetetlensége nem számít
 jelenlétvesztésnek: a kijelző az utolsó ismert aktív jel alapján világos marad.
 Tíz perc néma jel után az utolsó ismert állapot elévül, és onnan a megszokott
