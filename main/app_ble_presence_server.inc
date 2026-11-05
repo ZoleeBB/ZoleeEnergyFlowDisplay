@@ -58,7 +58,8 @@ static int read_presence(uint16_t conn, uint16_t attr,
             .used = true, .identity = identity, .revision = 1,
             .profile = {.name = "Slave", .timeout_seconds = 30},
         };
-        if (!app_slave_presence_encode(&disabled, ++peer->presence_sequence, false, false, data))
+        if (!app_slave_presence_encode(&disabled, ++peer->presence_sequence, false, false,
+                                       esp_timer_get_time(), data))
             return BLE_ATT_ERR_UNLIKELY;
     }
     return os_mbuf_append(ctxt->om, data, sizeof(data)) == 0

@@ -293,6 +293,52 @@ bool app_slave_presence_service_update(const app_slave_identity_t *identity,
     return ok;
 }
 
+/* A naplóban legyen nyoma, ha a beállított jelenlétforrás nem küld értéket: a
+ * Slave ilyenkor szándékosan világos marad, és ez volt eddig láthatatlan. */
+static void source_report(int index, bool live, int64_t now)
+{
+    static bool warned[APP_SLAVE_PRESENCE_MAX_PEERS];
+    static bool reported_active[APP_SLAVE_PRESENCE_MAX_PEERS];
+    static bool known[APP_SLAVE_PRESENCE_MAX_PEERS];
+    if (index < 0 || index >= (int)APP_SLAVE_PRESENCE_MAX_PEERS)
+        return;
+    const app_slave_presence_peer_t *peer = &s_presence_state.table.peers[index];
+    if (!peer->profile.presence_uuid[0])
+    {
+        warned[index] = false;
+        known[index] = false;
+        return;
+    }
+    bool valid = live && peer->valid;
+    if (!valid)
+    {
+        known[index] = false;
+        /* Csak a Loxone-kapcsolat felépülése után van értelme figyelmeztetni. */
+        if (!warned[index] && live && s_presence_online_us &&
+            now - s_presence_online_us > INT64_C(60000000))
+        {
+            warned[index] = true;
+            app_events_add(APP_EVENT_WARNING,
+                           "A(z) %.40s jelenlétforrása nem küldött értéket a Loxone-ból, "
+                           "ezért a Slave kijelzője éjjel is világos marad.",
+                           peer->profile.name);
+        }
+        return;
+    }
+    warned[index] = false;
+    if (known[index] && reported_active[index] == peer->active)
+        return;
+    known[index] = true;
+    reported_active[index] = peer->active;
+    if (peer->active)
+        app_events_add(APP_EVENT_INFO, "A(z) %.40s jelenléte aktív, a kijelző világos.",
+                       peer->profile.name);
+    else
+        app_events_add(APP_EVENT_INFO,
+                       "A(z) %.40s jelenléte megszűnt, sötétítés %u másodperc múlva.",
+                       peer->profile.name, (unsigned)peer->profile.timeout_seconds);
+}
+
 bool app_slave_presence_service_packet(const app_slave_identity_t *identity,
                                        uint32_t sequence,
                                        uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE])
@@ -305,7 +351,9 @@ bool app_slave_presence_service_packet(const app_slave_identity_t *identity,
                 now - s_presence_online_us < INT64_C(45000000);
     bool ota = s_presence_ota_until_us && now < s_presence_ota_until_us;
     bool ok = index >= 0 && app_slave_presence_encode(&s_presence_state.table.peers[index],
-                                                      sequence, live, ota, out);
+                                                      sequence, live, ota, now, out);
+    if (ok)
+        source_report(index, live, now);
     xSemaphoreGive(s_presence_mutex);
     return ok;
 }
@@ -315,7 +363,8 @@ void app_slave_presence_service_source(const char *uuid, bool valid, double valu
     if (!service_lock(true))
         return;
     if (s_presence_online)
-        (void)app_slave_presence_source(&s_presence_state.table, uuid, valid, value);
+        (void)app_slave_presence_source(&s_presence_state.table, uuid, valid, value,
+                                        esp_timer_get_time());
     xSemaphoreGive(s_presence_mutex);
 }
 

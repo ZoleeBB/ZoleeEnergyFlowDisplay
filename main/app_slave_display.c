@@ -19,10 +19,24 @@ static int64_t monotonic(app_slave_display_t *state, int64_t now)
     return state->last_now_us;
 }
 
+static void wake_for(app_slave_display_t *state, int64_t now, int64_t duration)
+{
+    int64_t until = now > INT64_MAX - duration ? INT64_MAX : now + duration;
+    if (until > state->awake_until_us)
+        state->awake_until_us = until;
+}
+
 static void wake(app_slave_display_t *state, int64_t now)
 {
-    int64_t duration = (int64_t)state->profile.presence_timeout_seconds * 1000000;
-    state->awake_until_us = now > INT64_MAX - duration ? INT64_MAX : now + duration;
+    state->awake_until_us = 0;
+    wake_for(state, now, (int64_t)state->profile.presence_timeout_seconds * 1000000);
+}
+
+/* Érintés: a profil időkorlátja, de legalább a minimális olvasási idő. */
+static void wake_touch(app_slave_display_t *state, int64_t now)
+{
+    wake(state, now);
+    wake_for(state, now, APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US);
 }
 
 static bool presence_holds(const app_slave_display_t *state, int64_t now)
@@ -140,7 +154,7 @@ bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t
     bool was_down = state->pointer_down;
     state->pointer_down = pressed;
     if (pressed || was_down)
-        wake(state, now);
+        wake_touch(state, now);
     if (!pressed)
         state->swallow_pointer = false;
     return consume;

@@ -422,7 +422,7 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
     else if (status->brightness == 0)
         snprintf(blanking, sizeof(blanking), "Sötétítés: a kijelző sötét, érintésre ébred");
     else if (status->blank_in_seconds < 0)
-        snprintf(blanking, sizeof(blanking), "Sötétítés: nem fut (jelenlét tartja ébren)");
+        snprintf(blanking, sizeof(blanking), "Sötétítés: nem fut (jelenlét vagy érintés tartja)");
     else
         snprintf(blanking, sizeof(blanking), "Sötétítés: %d mp múlva", (int)status->blank_in_seconds);
     snprintf(text, sizeof(text),
@@ -432,7 +432,8 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              "BLE: %s · RSSI: %d dBm · host: %s · keresés: %s\n"
              "Wi-Fi: %s · IP: %s · Időszinkron: %s\n"
              "Napszak: %s · Fényerő: %u%%\n"
-             "Éjszakai sötétítés: %s · Időkorlát: %u mp\n"
+             "Fényerő a Mastertől: nappal %u%% · éjjel %u%%\n"
+             "Sötétítési kérés: %s · Időkorlát: %u mp\n"
              "%s\n%s\n"
              "Érintések indulás óta: %u",
              or_dash(status->firmware),
@@ -448,7 +449,8 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              or_dash(status->ip),
              have_runtime && last_runtime.time_synced ? "OK" : "várakozás",
              status->night ? "éjszaka" : "nappal", status->brightness,
-             status->blank_at_night ? "be" : "ki", (unsigned)status->timeout_seconds,
+             status->day_brightness, status->night_brightness,
+             status->blank_at_night ? "igen" : "nem", (unsigned)status->timeout_seconds,
              presence, blanking, (unsigned)status->touch_count);
     text_if_changed(diagnostics_info, text);
     text_if_changed(diagnostics_log, status->log && status->log[0] ? status->log :

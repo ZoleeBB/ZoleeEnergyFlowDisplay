@@ -171,6 +171,12 @@ static void server_tests(void)
 {
     s_config.data_recept_mode = APP_DATA_LOXONE;
     presence_register_peers();
+    /* Élő Loxone-forrás, megszűnt jelenlét és letelt időkorlát: csak így kér a
+     * Master sötétítést. Hideg indulás után a forrás még érvénytelen. */
+    now_us = 0;
+    app_slave_presence_service_online(true);
+    app_slave_presence_service_source("01234567-89ab-cdef-0123456789abcdef", true, 0);
+    now_us = 10000000;
     struct os_mbuf out = {0};
     struct ble_gatt_access_ctxt ctx = {BLE_GATT_ACCESS_OP_WRITE_CHR, &out};
     assert(read_presence(7, 1006, &ctx, NULL) == BLE_ATT_ERR_WRITE_NOT_PERMITTED);
@@ -192,7 +198,9 @@ static void server_tests(void)
     assert(read_presence(7, 1006, &ctx, NULL) == BLE_ATT_ERR_INSUFFICIENT_RES);
     append_fail = false;
     s_config.data_recept_mode = APP_DATA_HTTP;
+    out.length = 0;
     assert(read_presence(7, 1006, &ctx, NULL) == 0 && out.data[3] == 0);
+    now_us = 0;
 }
 
 static void codec_tests(void)
@@ -290,12 +298,17 @@ int main(void)
     app_slave_presence_service_source(profile.presence_uuid, true, 1);
     app_slave_presence_service_source(profile.presence_uuid, true, 0);
     uint8_t packet[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_service_packet(&first, 1, packet) && packet[3] == 3);
+    /* Érvényes, épp megszűnt jelenlét: még nincs sötétítési kérés. */
+    assert(app_slave_presence_service_packet(&first, 1, packet) && packet[3] == 2);
     app_slave_presence_receiver_t receiver = {0};
     assert(app_slave_presence_receive(&receiver, packet, sizeof(packet), true, 0));
     assert(receiver.counter == 1);
+    /* Az 5 másodperces időkorlát letelte után igen. */
+    now_us = 10000000;
+    assert(app_slave_presence_service_packet(&first, 2, packet) && packet[3] == 3);
+    /* Néma Loxone-kapcsolat: nincs élő forrás, ezért nincs sötétítés sem. */
     now_us = 45000000;
-    assert(app_slave_presence_service_packet(&first, 2, packet) && packet[3] == 1);
+    assert(app_slave_presence_service_packet(&first, 3, packet) && packet[3] == 0);
     now_us = 0;
     assert(app_slave_presence_service_packet(&second, 1, packet) && packet[3] == 0);
     assert(app_slave_presence_service_snapshot(&snapshot));
@@ -336,7 +349,8 @@ int main(void)
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
-    assert(app_slave_presence_encode(&peer, 1, false, false, packet));
+    /* Jelenlétforrás nélküli profil: az éjszakai sötétítés azonnal érvényes. */
+    assert(app_slave_presence_encode(&peer, 1, false, false, 0, packet));
     assert(!app_slave_presence_service_receive(packet, sizeof(packet), false));
     assert(app_slave_presence_service_receive(packet, sizeof(packet), true));
     app_slave_presence_service_apply(&display, 0);
@@ -345,27 +359,32 @@ int main(void)
     assert(app_slave_display_pointer(&display, false, 2));
     assert(app_slave_display_brightness(&display, 3) == 17);
     app_slave_presence_service_disconnected();
-    app_slave_presence_service_apply(&display, 6000000);
-    assert(display.profile.blank_at_night && app_slave_display_brightness(&display, 6000000) == 0);
+    /* Az érintéses ébrenlét (legalább 15 másodperc) lejárta után a kapcsolat
+     * nélkül is érvényben marad a Master utolsó sötétítési kérése. */
+    app_slave_presence_service_apply(&display, 20000000);
+    assert(display.profile.blank_at_night && app_slave_display_brightness(&display, 20000000) == 0);
     app_slave_presence_service_legacy();
-    app_slave_presence_service_apply(&display, 7000000);
+    app_slave_presence_service_apply(&display, 21000000);
     assert(!display.profile.blank_at_night && display.profile.day_brightness == 83);
-    assert(app_slave_display_brightness(&display, 7000000) == 17);
+    assert(app_slave_display_brightness(&display, 21000000) == 17);
     /* Közben jött BLE-csomagot a korábban vett UI-idő nem nyelhet el. */
     memcpy(peer.profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
     peer.valid = true;
-    now_us = 10000000;
-    assert(app_slave_presence_encode(&peer, 1, true, false, packet));
+    /* Beállított forrás: a Master a jelenlétvesztés után az időkorláttal kér
+     * sötétítést (1 s-nál szűnt meg, az időkorlát 5 s). */
+    peer.inactive_since_us = 1000000;
+    now_us = 30000000;
+    assert(app_slave_presence_encode(&peer, 1, true, false, now_us, packet));
     assert(app_slave_presence_service_receive(packet, sizeof(packet), true));
-    app_slave_presence_service_apply(&display, 9000000);
-    assert(app_slave_display_brightness(&display, 10000000) == 0);
+    app_slave_presence_service_apply(&display, 29000000);
+    assert(app_slave_display_brightness(&display, 30000000) == 0);
     peer.counter++;
-    now_us = 11000000;
-    assert(app_slave_presence_encode(&peer, 2, true, false, packet));
+    now_us = 31000000;
+    assert(app_slave_presence_encode(&peer, 2, true, false, now_us, packet));
     assert(app_slave_presence_service_receive(packet, sizeof(packet), true));
-    app_slave_presence_service_apply(&display, 10000000);
-    assert(app_slave_display_brightness(&display, 11000000) == 17);
-    assert(display.last_now_us == 11000000);
+    app_slave_presence_service_apply(&display, 30000000);
+    assert(app_slave_display_brightness(&display, 31000000) == 17);
+    assert(display.last_now_us == 31000000);
     printf("PASS: actual presence NVS worker, canonical %u-byte CRC blob, coalescing, "
            "auth receiver, commit/OOM/corruption, reboot, no flash per activity\n", (unsigned)PRESENCE_STORE_SIZE);
     return 0;

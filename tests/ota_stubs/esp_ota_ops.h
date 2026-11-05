@@ -9,6 +9,7 @@ typedef struct
 typedef unsigned esp_ota_handle_t;
 typedef int esp_ota_img_states_t;
 #define ESP_OTA_IMG_PENDING_VERIFY 1
+#define ESP_OTA_IMG_VALID 2
 const esp_partition_t *esp_ota_get_running_partition(void);
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *partition);
 const esp_partition_t *esp_ota_get_last_invalid_partition(void);

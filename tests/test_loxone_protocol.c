@@ -29,7 +29,7 @@ void app_slave_presence_service_online(bool online)
 void app_slave_presence_service_source(const char *uuid, bool valid, double value)
 {
     if (presence_online)
-        (void)app_slave_presence_source(&presence_fixture, uuid, valid, value);
+        (void)app_slave_presence_source(&presence_fixture, uuid, valid, value, 0);
 }
 uint32_t app_slave_presence_service_source_revision(void) { return 0; }
 
@@ -450,7 +450,7 @@ static void presence_stream_test(lx_config_t *energy)
     assert(update_values(2, numeric, sizeof(numeric)));
     app_slave_presence_receiver_t receiver = {0};
     uint8_t wire[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    assert(app_slave_presence_encode(&presence_fixture.peers[0], 1, true, false, wire));
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 1, true, false, 0, wire));
     assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 0));
     value = 1;
     memcpy(numeric + 16, &value, sizeof(value));
@@ -459,7 +459,7 @@ static void presence_stream_test(lx_config_t *energy)
     memcpy(numeric + 16, &value, sizeof(value));
     assert(update_values(2, numeric, sizeof(numeric)));
     assert(presence_fixture.peers[0].counter == 1 && !presence_fixture.peers[0].active);
-    assert(app_slave_presence_encode(&presence_fixture.peers[0], 2, true, false, wire));
+    assert(app_slave_presence_encode(&presence_fixture.peers[0], 2, true, false, 0, wire));
     assert(app_slave_presence_receive(&receiver, wire, sizeof(wire), true, 1));
     assert(receiver.pending_pulse);
     uint32_t counter = presence_fixture.peers[0].counter;

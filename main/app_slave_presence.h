@@ -38,6 +38,9 @@ typedef struct
     uint32_t counter;
     bool valid;
     bool active;
+    /* Mikor lett a jelenlét érvényesen inaktív (monoton, 0 = soha). Ebből indul
+     * a sötétítés visszaszámlálása; aktív jelenlétnél nullázva. Csak futásidő. */
+    int64_t inactive_since_us;
 } app_slave_presence_peer_t;
 
 typedef struct
@@ -64,7 +67,7 @@ bool app_slave_presence_remove(app_slave_presence_table_t *table, unsigned index
 /* Már normalizált, kisbetűs Loxone állapot-UUID; minden WS-delta után hívható.
  * A számláló minden felfutó élnél lép, a BLE-polltól függetlenül. */
 bool app_slave_presence_source(app_slave_presence_table_t *table, const char *uuid,
-                               bool valid, double value);
+                               bool valid, double value, int64_t now_us);
 void app_slave_presence_invalidate(app_slave_presence_table_t *table);
 
 /* Opcionális, célzott 1006 karakterisztikához. A 20 bájt a legkisebb ATT MTU-ba
@@ -74,9 +77,13 @@ void app_slave_presence_invalidate(app_slave_presence_table_t *table);
  * Slave frissítése is kell. Csak védett olvasás/értesítés adhatja tovább;
  * jelszó és fényerő nincs.
  * A sequence kapcsolatonként, minden új mintánál lép; a live az egyetlen
- * hitelesített Loxone adatkapcsolat frissessége, nem a UUID utolsó változásáé. */
+ * hitelesített Loxone adatkapcsolat frissessége, nem a UUID utolsó változásáé.
+ * A 0. bit nem beállítás, hanem kérés: „most sötétülhet". A Master dönt, mert
+ * nála van a Loxone-állapot; beállított jelenlétforrásnál csak élő forrásnál,
+ * megszűnt jelenlét után, a profil időkorlátjának letelte után kéri. */
 bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
                                uint32_t sequence, bool live, bool ota_check,
+                               int64_t now_us,
                                uint8_t out[APP_SLAVE_PRESENCE_PACKET_SIZE]);
 
 typedef struct

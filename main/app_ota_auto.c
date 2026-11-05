@@ -19,14 +19,33 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "mbedtls/sha256.h"
+#include "nvs.h"
+#include "app_task_mem.h"
 
 static atomic_flag s_operation = ATOMIC_FLAG_INIT;
-/* Napváltáskor egyszer fut le; állandó feladat nem köti le a belső RAM-ot. */
 static volatile bool s_auto_busy;
 static bool s_auto_enabled;
 static uint32_t s_settle_seconds;
+
+/* Egyetlen, induláskor létrehozott ellenőrzőfeladat. Korábban minden kérés új
+ * taskot indított, és pont a kritikus pillanatban (napváltás, kézi gomb) nem
+ * volt rá elég összefüggő belső RAM: „nincs memória a háttérfeladathoz". Az
+ * állandó feladat verme az RTC-területről megy, így a DMA-képes keret szabad
+ * marad, és a kérés sosem hiúsul meg memóriahiány miatt. */
+typedef enum
+{
+    OTA_REQUEST_DAY_CHANGE = 1,
+    OTA_REQUEST_MANUAL = 2,
+    OTA_REQUEST_AFTER_RESTART = 3,
+} ota_request_t;
+
+static QueueHandle_t s_requests;
+/* A Slave egy perccel később indul újra, így a Master már fogadni tudja a
+ * BLE-kapcsolatát, amikor felébred. */
+static bool s_slave_role;
 
 /* A kijelző runtime feladata olvassa; az atomic_flag nem kérdezhető le. */
 static volatile bool s_operation_active;
@@ -570,82 +589,192 @@ failed:
     app_events_add(APP_EVENT_INFO, "Automatikus frissítés: új próba a következő napváltáskor.");
 }
 
-/* Kézi kérésnél a HTTP-task nem végez hálózati vagy flash-műveletet.
- * A foglalást még a task létrehozása előtt megszerezzük: dupla kattintás,
- * éjféli ellenőrzés és kézi feltöltés sem indulhat egymásra. */
-static void manual_auto_update_task(void *arg)
+/* A napváltási újraindítás jelzése a következő rendszerindításnak. */
+#define OTA_AUTO_NAMESPACE "ota_auto"
+#define OTA_AUTO_RESTART_KEY "midnight"
+
+static void restart_flag_set(void)
 {
-    (void)arg;
+    nvs_handle_t handle;
+    if (nvs_open(OTA_AUTO_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+        return;
+    if (nvs_set_u8(handle, OTA_AUTO_RESTART_KEY, 1) == ESP_OK)
+        (void)nvs_commit(handle);
+    nvs_close(handle);
+}
+
+static bool restart_flag_take(void)
+{
+    nvs_handle_t handle;
+    if (nvs_open(OTA_AUTO_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+        return false;
+    uint8_t value = 0;
+    bool pending = nvs_get_u8(handle, OTA_AUTO_RESTART_KEY, &value) == ESP_OK && value;
+    if (pending && nvs_erase_key(handle, OTA_AUTO_RESTART_KEY) == ESP_OK)
+        (void)nvs_commit(handle);
+    nvs_close(handle);
+    return pending;
+}
+
+/* Frissen telepített firmware-t nem indítunk újra: a visszaállítási ablakot a
+ * validáló feladat zárja le, egy közbeeső újraindítás visszarollbackolná. */
+static bool restart_safe(void)
+{
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state = ESP_OTA_IMG_VALID;
+    if (running && esp_ota_get_state_partition(running, &state) == ESP_OK &&
+        state == ESP_OTA_IMG_PENDING_VERIFY)
+        return false;
+    return true;
+}
+
+static void checked_release(const char *context)
+{
+    if (!app_wifi_is_connected())
+    {
+        app_events_add(APP_EVENT_WARNING, "Automatikus frissítés kihagyva [%s]: nincs Wi-Fi.",
+                       context);
+        return;
+    }
+    if (!app_ota_try_begin_operation())
+    {
+        app_events_add(APP_EVENT_WARNING,
+                       "Automatikus frissítés kihagyva [%s]: másik OTA/újraindítás folyamatban.",
+                       context);
+        return;
+    }
     check_release();
     app_ota_end_operation();
-    vTaskDelete(NULL);
 }
 
+/*
+ * Napváltás: a statisztika mentése és alapállása után a készülék újraindul, és
+ * a frissítésellenőrzés már a friss, töredezettség nélküli memóriában fut.
+ */
+static void day_change_work(void)
+{
+    /* A napváltást átfedő, megengedett mintaköz végét megvárjuk.
+     * Ezalatt a statisztika, a BLE és a kijelző zavartalanul fut. */
+    vTaskDelay(pdMS_TO_TICKS((s_settle_seconds + 1) * 1000U));
+    if (s_slave_role)
+        vTaskDelay(pdMS_TO_TICKS(60000));
+    if (!restart_safe())
+    {
+        app_events_add(APP_EVENT_INFO,
+                       "Napváltás: a friss firmware ellenőrzése még tart, "
+                       "újraindítás helyett helyben ellenőrzünk.");
+        checked_release("napváltás");
+        return;
+    }
+    if (!app_ota_try_begin_operation())
+    {
+        app_events_add(APP_EVENT_WARNING,
+                       "Napváltási újraindítás kihagyva: másik OTA/újraindítás folyamatban.");
+        return;
+    }
+    restart_flag_set();
+    app_events_add(APP_EVENT_INFO,
+                   "Napváltás kész: újraindítás, majd automatikus frissítésellenőrzés.");
+    vTaskDelay(pdMS_TO_TICKS(1500));
+    esp_restart();
+}
+
+/* Újraindítás után a hálózat felépülésére várunk, majd egyszer ellenőrzünk. */
+static void after_restart_work(void)
+{
+    for (unsigned attempt = 0; attempt < 120 && !app_wifi_is_connected(); ++attempt)
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    checked_release("napváltási újraindítás");
+}
+
+/* Egy kérés feldolgozása; a blokkoló olvasás miatt üresjárat nincs. */
+static bool ota_worker_step(void)
+{
+    ota_request_t request = 0;
+    if (xQueueReceive(s_requests, &request, portMAX_DELAY) != pdTRUE)
+        return false;
+    if (request == OTA_REQUEST_DAY_CHANGE)
+    {
+        day_change_work();
+        s_auto_busy = false;
+    }
+    else if (request == OTA_REQUEST_AFTER_RESTART)
+        after_restart_work();
+    else
+    {
+        /* Kézi kérésnél a foglalást már a weblap kérése megszerezte. */
+        check_release();
+        app_ota_end_operation();
+    }
+    return true;
+}
+
+static void ota_worker(void *arg)
+{
+    (void)arg;
+    for (;;)
+        (void)ota_worker_step();
+}
+
+static bool request_post(ota_request_t request)
+{
+    return s_requests && xQueueSend(s_requests, &request, 0) == pdTRUE;
+}
+
+/* Kézi kérésnél a HTTP-task nem végez hálózati vagy flash-műveletet.
+ * A foglalást még a kérés beadása előtt megszerezzük: dupla kattintás,
+ * éjféli ellenőrzés és kézi feltöltés sem indulhat egymásra. */
 esp_err_t app_ota_request_auto_update(void)
 {
-    if (!app_wifi_is_connected() || !app_ota_try_begin_operation())
+    if (!app_wifi_is_connected() || !s_requests || !app_ota_try_begin_operation())
         return ESP_ERR_INVALID_STATE;
-    app_events_add(APP_EVENT_INFO, "Automatikus frissítés kézi ellenőrzése kérve a weboldalról.");
-    if (xTaskCreate(manual_auto_update_task, "manual_auto_ota", 8192, NULL, 3, NULL) != pdPASS)
+    if (!request_post(OTA_REQUEST_MANUAL))
     {
-        ota_memory("kézi indítás");
-        app_events_add(APP_EVENT_WARNING, "OTA kézi indítás: nincs memória a háttérfeladathoz.");
+        app_events_add(APP_EVENT_WARNING, "OTA kézi indítás: már fut egy ellenőrzési kérés.");
         app_ota_end_operation();
-        return ESP_ERR_NO_MEM;
+        return ESP_ERR_INVALID_STATE;
     }
+    app_events_add(APP_EVENT_INFO, "Automatikus frissítés kézi ellenőrzése kérve a weboldalról.");
     return ESP_OK;
 }
-
-static void auto_update_task(void *arg);
 
 static void day_changed(void)
 {
     if (s_auto_busy)
         return;
     s_auto_busy = true;
-    if (xTaskCreate(auto_update_task, "auto_ota", 8192, NULL, 3, NULL) != pdPASS)
+    if (!request_post(OTA_REQUEST_DAY_CHANGE))
     {
         s_auto_busy = false;
-        ota_memory("napváltás");
         app_events_add(APP_EVENT_WARNING,
-                       "Automatikus frissítés kihagyva: nincs memória a feladathoz. "
+                       "Napváltási frissítés kihagyva: már fut egy ellenőrzési kérés. "
                        "Új próba a következő napváltáskor.");
     }
-}
-
-/*
- * Napváltáskor induló, egyszer lefutó feladat. Korábban állandóan élt, és
- * napi egy ellenőrzésért 8 KiB belső RAM-ot kötött le; a kijelzőnek, az SD
- * DMA-nak és a TLS-nek viszont pont ez a szűk keret hiányzott.
- */
-static void auto_update_task(void *arg)
-{
-    (void)arg;
-    /* A napváltást átfedő, megengedett mintaköz végét megvárjuk.
-     * Ezalatt a statisztika, a BLE és a kijelző zavartalanul fut. */
-    vTaskDelay(pdMS_TO_TICKS((s_settle_seconds + 1) * 1000U));
-    if (!app_wifi_is_connected())
-        app_events_add(
-            APP_EVENT_WARNING,
-            "Automatikus frissítés kihagyva: nincs Wi-Fi. Új próba a következő napváltáskor.");
-    else if (!app_ota_try_begin_operation())
-        app_events_add(APP_EVENT_WARNING,
-                       "Automatikus frissítés kihagyva: másik OTA/újraindítás folyamatban.");
-    else
-    {
-        check_release();
-        app_ota_end_operation();
-    }
-    s_auto_busy = false;
-    vTaskDelete(NULL);
 }
 
 esp_err_t app_ota_start_auto_update(const app_config_t *cfg)
 {
     if (!cfg)
         return ESP_ERR_INVALID_ARG;
+    if (!s_requests)
+    {
+        s_requests = xQueueCreate(2, sizeof(ota_request_t));
+        if (!s_requests)
+            return ESP_ERR_NO_MEM;
+        if (app_task_create_lp(ota_worker, "ota_check", 8192, NULL, 3, NULL) != pdPASS)
+        {
+            vQueueDelete(s_requests);
+            s_requests = NULL;
+            ota_memory("ellenőrzőfeladat");
+            return ESP_ERR_NO_MEM;
+        }
+        /* A napváltási újraindítás után az ellenőrzés magától elindul. */
+        if (restart_flag_take())
+            (void)request_post(OTA_REQUEST_AFTER_RESTART);
+    }
     if (!cfg->ota.auto_update || s_auto_enabled)
         return ESP_OK;
+    s_slave_role = cfg->cardless_slave;
     s_settle_seconds = cfg->statistics.max_integration_gap_seconds;
     s_auto_enabled = true;
     app_stats_set_day_change_callback(day_changed);

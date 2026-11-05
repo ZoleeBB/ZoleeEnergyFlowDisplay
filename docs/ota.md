@@ -7,10 +7,23 @@ engedélyezhető. A `config.json` mezője `ota.auto_update` (0/1), alapértéke 
 A kapcsoló mentése újraindítást kér, de induláskor nem keres és nem telepít frissítést.
 
 A működő kijelző minden előrehaladó **helyi napváltáskor** egyszer elindítja a
-frissítő háttérfeladatot, amely lefutás után meg is szűnik: napi egy
-ellenőrzésért nem köt le állandóan 8 KiB-nyi, DMA-képes belső RAM-ot
-([teljesítmény](performance.md)). A statisztikai integrálási mintaköz végét megvárja
-(alapból 31 másodperc), majd a beégetett
+napváltási folyamatot. A statisztika mentése és alapállása után, a statisztikai
+integrálási mintaköz végét megvárva (alapból 31 másodperc) **a készülék
+újraindul**, és a frissítésellenőrzés már a friss rendszerindítás töredezettség
+nélküli memóriájában fut. A Slave egy perccel később indul újra, így a Master
+már fogadni tudja a BLE-kapcsolatát. Újraindítás nélkül fut le az ellenőrzés
+akkor, ha a futó firmware még a visszaállítási ablakban van (frissen telepített,
+nem véglegesített image), vagy ha épp másik OTA-művelet tart.
+
+Az ellenőrzést egy állandó, induláskor létrehozott háttérfeladat végzi, amelynek
+verme az RTC-területről megy, ezért nem fogyasztja a DMA-képes belső RAM-ot
+([teljesítmény](performance.md)). Korábban minden kérés új taskot indított, és
+pont a szűk pillanatban nem volt rá elég összefüggő belső RAM: ebből jött az
+`OTA kézi indítás: nincs memória a háttérfeladathoz` üzenet. A kérés (napváltás,
+webes „frissítések keresése" gomb, napváltási újraindítás utáni ellenőrzés) most
+csak egy üzenetsorba kerül, és memóriahiány miatt nem hiúsulhat meg.
+
+Az ellenőrzés a beégetett
 `https://api.github.com/repos/ZoleeBB/ZoleeEnergyFlowDisplay/releases/latest`
 végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy URL-beállítás.
 

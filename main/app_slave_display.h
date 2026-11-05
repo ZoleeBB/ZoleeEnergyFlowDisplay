@@ -16,11 +16,15 @@ typedef struct
     bool blank_on_presence_loss;
 } app_slave_display_profile_t;
 
-/* A jelenlétjel kimaradása nem jelenlétvesztés: a BLE-olvasás kihagyása vagy a
- * lease lejárta önmagában nem indítja a visszaszámlálást. Ennyi néma idő után
- * viszont elévül az utolsó ismert aktív jel, és a szokásos visszaszámlálás
- * indul – egy végleg elérhetetlen Master mellett sem marad örökre világos. */
-#define APP_SLAVE_DISPLAY_PRESENCE_HOLD_US INT64_C(600000000)
+/* A Slave másodpercenként olvassa a jelenlétcsomagot, a sötétítés időzítését
+ * pedig a Master végzi (ő látja a Loxone-állapotot). Itt csak annyi tartás kell,
+ * amennyi egy-két kimaradt olvasást áthidal: a jelenlétjel eltűnése önmagában
+ * nem sötétít, azt a Master kérése dönti el. */
+#define APP_SLAVE_DISPLAY_PRESENCE_HOLD_US INT64_C(15000000)
+
+/* Érintésre ennyi ideig biztosan világít, akkor is, ha a profil időkorlátja
+ * ennél rövidebb: a vaksötétből felébresztett kijelzőt el kell tudni olvasni. */
+#define APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US INT64_C(15000000)
 
 typedef struct
 {
