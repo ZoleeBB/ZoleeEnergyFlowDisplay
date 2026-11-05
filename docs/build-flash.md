@@ -45,6 +45,26 @@ Kilépés a monitorból:
 
 `Ctrl+]`
 
+## esp_hosted USB-manifest pótlás
+
+2026-11-05-től a komponensregiszterből érkező `espressif/esp_hosted`
+függőségi szabályok három olyan Kconfig-kapcsolóra hivatkoznak, amelyet egyik
+telepített komponens sem definiál. Enélkül az ESP-IDF konfigurációs lépése
+`Missing required kconfig option after retry` hibával leáll – változatlan
+forrás és változatlan komponensverziók mellett is.
+
+A `main/Kconfig.hosted_usb` ezért definiálja a három kapcsolót (a Slave
+projekt ugyanezt a fájlt hivatkozza), és az `sdkconfig.defaults` rögzíti a
+0 értéküket. A szabályok `$CONFIG{...} == 1` alakúak, ezért a kapcsolók
+**egész** típusúak és promptot kapnak: logikai típusnál a komponenskezelő
+`Invalid boolean "1"` hibát ad, prompt nélkül pedig ki sem kerülnének a
+generált sdkconfig-ba.
+
+A C6 társprocesszorral SDIO-n beszélünk, USB-s hosztátvitelt nem használunk,
+így a 0 érték a helyes. Az eszköz saját USB-Serial-JTAG konzolját és az USB-ről
+történő telepítést ez nem érinti. Ha az upstream komponens saját Kconfigban
+definiálja a kapcsolókat, a pótlás törölhető.
+
 ## Teljes törlés
 
 Ha tiszta telepítés szükséges:

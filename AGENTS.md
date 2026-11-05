@@ -127,6 +127,10 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   `app_templates.c` POSIX olvasási útja ilyen blokkban van, és az oda csúszott
   `app_templates_sd_write` az MSVC-s szimulátorban linkelési hibát adott
   (`LNK2019: unresolved external symbol`). A `tests/run_tests.py` ezt ellenőrzi.
+- A `main/Kconfig.hosted_usb` az `espressif/esp_hosted` függőségi szabályaihoz
+  pótolja a hiányzó USB-manifest kapcsolókat (egész típus, 0 érték, prompttal).
+  Nélküle a konfigurációs lépés `Missing required kconfig option after retry`
+  hibával leáll. Ha az upstream definiálja őket, a pótlás törölhető.
 - A kiadott kép szilíciumtartománya panelenként eltér, és a csomagolás
   ellenőrzi: a Master 10.1 v3.0-v3.99, a 4B Slave v1.0-v1.99
   (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3`). A két ESP32-P4 revíziócsalád kizárja
