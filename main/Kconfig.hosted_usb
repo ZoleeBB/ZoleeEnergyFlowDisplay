@@ -1,29 +1,32 @@
 # Átmeneti pótlás, 2026-11-05.
 #
 # Az espressif/esp_hosted függőségi szabályai azóta olyan Kconfig-kapcsolókra
-# hivatkoznak, amelyeket a telepített komponensek egyike sem definiál. Az
-# ESP-IDF konfigurációs lépése ilyenkor újrapróbálkozik, majd "Missing required
-# kconfig option after retry" hibával leáll – a projekt forrása változatlanul is.
+# hivatkoznak, amelyeket a telepített komponensek egyike sem definiál, és az
+# ESP-IDF konfigurációs lépése emiatt "Missing required kconfig option after
+# retry" hibával leáll – a projekt forrása változatlanul is.
+#
+# A szabályok "$CONFIG{...} == 1" alakúak, ezért a kapcsolók egész típusúak:
+# logikai típusnál a komponenskezelő "Invalid boolean 1" hibával elutasítja a
+# feltételt. Prompt is kell hozzájuk, különben a rejtett kapcsolók ki sem
+# kerülnek a generált sdkconfig-ba.
 #
 # A C6 társprocesszorral SDIO-n beszélünk, USB-s hosztátvitelt nem használunk,
-# ezért a három kapcsoló itt kap definíciót, kikapcsolva. Promptot is kapnak,
-# különben a rejtett, hamis értékű kapcsolók ki sem kerülnek a generált
-# sdkconfig-ba, és a függőségfeloldó továbbra sem látná őket. Ez az eszköz
-# saját USB-konzolját és USB-s telepítését nem érinti.
-# Ha az upstream komponens saját Kconfigban definiálja őket, ez a fájl törölhető.
+# ezért az értékük 0. Ez az eszköz saját USB-konzolját és USB-s telepítését nem
+# érinti. Ha az upstream komponens saját Kconfigban definiálja őket, ez a fájl
+# törölhető.
 
 menu "Zolee: esp_hosted USB manifest pótlás"
 
 config ESP_HOSTED_HOST_USB_CDC_ACM_MANIFEST
-	bool "esp_hosted USB CDC-ACM átvitel (nem használt)"
-	default n
+	int "esp_hosted USB CDC-ACM átvitel (nem használt)"
+	default 0
 
 config ESP_HOSTED_HOST_USB_CHERRYUSB_MANIFEST
-	bool "esp_hosted CherryUSB átvitel (nem használt)"
-	default n
+	int "esp_hosted CherryUSB átvitel (nem használt)"
+	default 0
 
 config ESP_HOSTED_HOST_USB_RNDIS_MANIFEST
-	bool "esp_hosted USB RNDIS átvitel (nem használt)"
-	default n
+	int "esp_hosted USB RNDIS átvitel (nem használt)"
+	default 0
 
 endmenu
