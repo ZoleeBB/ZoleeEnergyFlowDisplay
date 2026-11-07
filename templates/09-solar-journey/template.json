@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 25,
+  "version": 26,
   "light": {
     "home_hotspot": {
       "x": 970,
@@ -935,8 +935,8 @@
         "source": "consumption_yesterday_pct",
         "color": "#1C7955",
         "align": "center",
-        "positive_color": "#1C7955",
-        "negative_color": "#C83C49"
+        "positive_color": "#C83C49",
+        "negative_color": "#1C7955"
       },
       {
         "type": "box",
@@ -2088,8 +2088,8 @@
         "source": "consumption_yesterday_pct",
         "color": "#62DCA4",
         "align": "center",
-        "positive_color": "#62DCA4",
-        "negative_color": "#FF7E88"
+        "positive_color": "#FF7E88",
+        "negative_color": "#62DCA4"
       },
       {
         "type": "box",
