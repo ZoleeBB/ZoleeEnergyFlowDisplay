@@ -936,7 +936,8 @@
         "color": "#1C7955",
         "align": "center",
         "positive_color": "#C83C49",
-        "negative_color": "#1C7955"
+        "negative_color": "#1C7955",
+        "zero_color": "#1C7955"
       },
       {
         "type": "box",
@@ -2089,7 +2090,8 @@
         "color": "#62DCA4",
         "align": "center",
         "positive_color": "#FF7E88",
-        "negative_color": "#62DCA4"
+        "negative_color": "#62DCA4",
+        "zero_color": "#62DCA4"
       },
       {
         "type": "box",

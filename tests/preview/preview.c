@@ -574,12 +574,16 @@ static void test_solar_comparison_colors(const app_energy_sample_t *sample)
                 if (!strstr(source, "_yesterday_pct"))
                     continue;
                 found++;
-                bool negative = !strcmp(source, "consumption_yesterday_pct") ? ratio > 1 : ratio < 1;
+                bool consumption = !strcmp(source, "consumption_yesterday_pct");
+                bool down = consumption ? ratio > 1 : ratio < 1;
                 const char *text = lv_label_get_text(node->obj);
-                assert(strstr(text, negative ? "↓" : "↑"));
+                assert(strstr(text, down ? "↓" : "↑"));
                 assert((text[0] == '~') == (bool)partial);
-                uint32_t expected = negative ? (sample->night_mode ? 0xFF7E88 : 0xC83C49) :
-                    tc(node->spec, "color", 0);
+                /* A fogyasztásnál a csökkenés a jó hír, ezért ott fordított a
+                 * színezés: a kevesebb zöld, a több piros. */
+                bool good = consumption ? down : !down;
+                uint32_t expected = good ? tc(node->spec, "color", 0) :
+                    (sample->night_mode ? 0xFF7E88 : 0xC83C49);
                 assert(lv_color_eq(lv_obj_get_style_text_color(node->obj, 0), c(expected)));
             }
             assert(found == 5);
@@ -611,7 +615,7 @@ static void test_solar_comparison_colors(const app_energy_sample_t *sample)
     }
     free(stats);
     template_update(sample, &fixture);
-    puts("PASS: all five solar comparison colors, mixed signs, partial data, zero/missing data and idle redraw");
+    puts("PASS: all five solar comparison colors with inverted consumption, mixed signs, partial data, zero/missing data and idle redraw");
 }
 
 static void test_solar_dashboard(const app_energy_sample_t *original){
