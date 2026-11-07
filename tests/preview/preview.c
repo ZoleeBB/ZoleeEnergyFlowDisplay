@@ -1772,10 +1772,15 @@ static void test_render_work(app_runtime_state_t runtime, app_energy_sample_t sa
     puts("PASS: actual LVGL animation redraw work measured in production partial and previous full refresh modes; idle template updates invalidate nothing");
 }
 
+/* A kiterjesztett rajzterület lekérdezése LVGL 9.5-ben privát fejlécben lakik,
+ * a lvgl.h nem hozza be. A régi, aláhúzásos név csak makró rá, ezért implicit
+ * deklarációt adott – ami a GCC 14 óta hiba, nem figyelmeztetés. */
+#include "src/core/lv_obj_draw_private.h"
+
 static lv_obj_t *idle_find(lv_obj_t *obj, const lv_area_t *a, lv_obj_t *best)
 {
     lv_area_t c; lv_obj_get_coords(obj, &c);
-    int32_t ext = _lv_obj_get_ext_draw_size(obj);
+    int32_t ext = lv_obj_get_ext_draw_size(obj);
     lv_area_t e = {c.x1 - ext, c.y1 - ext, c.x2 + ext, c.y2 + ext};
     if (a->x1 >= e.x1 && a->y1 >= e.y1 && a->x2 <= e.x2 && a->y2 <= e.y2)
     {
