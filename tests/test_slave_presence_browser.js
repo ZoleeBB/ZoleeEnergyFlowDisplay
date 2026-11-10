@@ -15,7 +15,7 @@ const state = {schema:1, enabled:true, ready:true, revision:123, saved_revision:
     profiles:[id,'ble-0-070504030201','ble-0-080504030201'].map((id, index) => ({
         id, name:['Nappali kijelző','Emeleti kijelző','Konyhai kijelző'][index],
         presence_uuid:index ? '' : uuid, timeout_seconds:30, blank_at_night:false,
-        rotation_degrees:0}))};
+        rotation_degrees:0, day_brightness:null, night_brightness:null}))};
 let posts = 0, gets = 0;
 const server = http.createServer(async (req, res) => {
     res.setHeader('Cache-Control','no-store');
@@ -61,11 +61,19 @@ const server = http.createServer(async (req, res) => {
         assert(await name.evaluate((node, original) => node === original && document.activeElement === node,handle));
         await page.locator('#slave-room').selectOption(JSON.stringify('Nappali'));
         await page.locator('#slave-' + id + '-blank_at_night').check();
+        const day = page.locator('#slave-' + id + '-day_brightness');
+        const night = page.locator('#slave-' + id + '-night_brightness');
+        assert.equal(await day.inputValue(),'');
+        assert.equal(await night.getAttribute('placeholder'),'Master értéke');
+        await day.fill('72');
+        await night.fill('14');
         await page.locator('#slave-' + id + '-rotation_degrees').selectOption('180');
         await page.locator('#slave-' + id + '-save').click();
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartós mentés folyamatban'}).waitFor();
         assert.equal(posts,1);
         assert.equal(state.profiles[0].rotation_degrees,180);
+        assert.equal(state.profiles[0].day_brightness,72);
+        assert.equal(state.profiles[0].night_brightness,14);
         assert(await page.locator('#slave-' + id + '-save').isDisabled());
         state.saved_revision = state.revision;
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartósan elmentve'}).waitFor();
@@ -78,11 +86,14 @@ const server = http.createServer(async (req, res) => {
         await page.locator('#slave-editor').scrollIntoViewIfNeeded();
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
         await name.fill('Mobil kijelző');
+        await day.fill(''); /* A nappali mező visszaáll a Master öröklésére. */
         await page.locator('#slave-' + id + '-save').click();
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartós mentés folyamatban'}).waitFor();
         state.saved_revision = state.revision;
         await page.locator('#slave-' + id + '-status').filter({hasText:'tartósan elmentve'}).waitFor();
         assert.equal(posts,2);
+        assert.equal(state.profiles[0].day_brightness,null);
+        assert.equal(state.profiles[0].night_brightness,14);
         await page.locator('#slave-editor').screenshot({path:path.join(output,'slave-editor-mobile.png')});
         assert.deepEqual(errors,[]);
         console.log('PASS: full embedded-source page in Chromium, 3 peers, real focus/node retention over two polls, accepted vs durable, safe text, desktop/mobile and no JS exceptions');
