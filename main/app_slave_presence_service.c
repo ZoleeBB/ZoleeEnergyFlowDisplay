@@ -14,7 +14,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PRESENCE_STORE_ENTRY_SIZE 134
+/* A korábbi v1-es 410 bájtos blob kompatibilis marad a v2 dekóderrel. */
+#define PRESENCE_STORE_LEGACY_ENTRY_SIZE 134
+#define PRESENCE_STORE_LEGACY_SIZE (8 + APP_SLAVE_PRESENCE_MAX_PEERS * PRESENCE_STORE_LEGACY_ENTRY_SIZE)
+#define PRESENCE_STORE_ENTRY_SIZE 136
 #define PRESENCE_STORE_SIZE (8 + APP_SLAVE_PRESENCE_MAX_PEERS * PRESENCE_STORE_ENTRY_SIZE)
 
 static SemaphoreHandle_t s_presence_mutex;
@@ -55,13 +58,17 @@ static uint32_t store_crc(const uint8_t *data, size_t size)
     return ~crc;
 }
 
-static bool store_encode(const app_slave_presence_table_t *table,
-                          uint8_t out[PRESENCE_STORE_SIZE])
+static bool store_encode_version(const app_slave_presence_table_t *table,
+                                 uint8_t *out, uint8_t version)
 {
-    memset(out, 0, PRESENCE_STORE_SIZE);
+    if (!table || !out || (version != 1 && version != 2))
+        return false;
+    size_t stride = version == 1 ? PRESENCE_STORE_LEGACY_ENTRY_SIZE : PRESENCE_STORE_ENTRY_SIZE;
+    size_t size = 8 + APP_SLAVE_PRESENCE_MAX_PEERS * stride;
+    memset(out, 0, size);
     out[0] = 'Z';
     out[1] = 'S';
-    out[2] = 1;
+    out[2] = version;
     out[3] = APP_SLAVE_PRESENCE_MAX_PEERS;
     for (unsigned i = 0; i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i)
     {
@@ -76,35 +83,46 @@ static bool store_encode(const app_slave_presence_table_t *table,
                 table->peers[j].identity.type == peer->identity.type &&
                 !memcmp(table->peers[j].identity.address, peer->identity.address, 6))
                 return false;
-        uint8_t *entry = out + 4 + i * PRESENCE_STORE_ENTRY_SIZE;
+        uint8_t *entry = out + 4 + i * stride;
         entry[0] = 1;
         entry[1] = peer->identity.type;
         memcpy(entry + 2, peer->identity.address, 6);
         memcpy(entry + 8, peer->profile.name, strlen(peer->profile.name));
         memcpy(entry + 89, peer->profile.presence_uuid, strlen(peer->profile.presence_uuid));
         store_write_u32(entry + 125, peer->profile.timeout_seconds);
-        /* A tájolás a jelzőbájt szabad bitjeire került, így a korábban mentett
-         * blob mérete és minden más mezője változatlan: a meglévő profilok
-         * frissítés után is betöltődnek, 0 fokos tájolással. */
+        /* A v1-es bájtok eltolása nem változhat: migrációkor is olvashatók. */
         entry[129] = (uint8_t)((peer->profile.blank_at_night ? 1 : 0) |
                                ((peer->profile.rotation_degrees / 90u) << 1));
         store_write_u32(entry + 130, peer->revision);
+        if (version == 2)
+        {
+            entry[134] = peer->profile.day_brightness;
+            entry[135] = peer->profile.night_brightness;
+        }
     }
-    store_write_u32(out + PRESENCE_STORE_SIZE - 4,
-                     store_crc(out, PRESENCE_STORE_SIZE - 4));
+    store_write_u32(out + size - 4, store_crc(out, size - 4));
     return true;
+}
+
+static bool store_encode(const app_slave_presence_table_t *table,
+                         uint8_t out[PRESENCE_STORE_SIZE])
+{
+    return store_encode_version(table, out, 2);
 }
 
 static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_table_t *out)
 {
-    if (size != PRESENCE_STORE_SIZE || data[0] != 'Z' || data[1] != 'S' ||
-        data[2] != 1 || data[3] != APP_SLAVE_PRESENCE_MAX_PEERS ||
+    if (!data || !out ||
+        !((size == PRESENCE_STORE_LEGACY_SIZE && data[2] == 1) ||
+          (size == PRESENCE_STORE_SIZE && data[2] == 2)) ||
+        data[0] != 'Z' || data[1] != 'S' || data[3] != APP_SLAVE_PRESENCE_MAX_PEERS ||
         store_u32(data + size - 4) != store_crc(data, size - 4))
         return false;
+    size_t stride = data[2] == 1 ? PRESENCE_STORE_LEGACY_ENTRY_SIZE : PRESENCE_STORE_ENTRY_SIZE;
     app_slave_presence_table_t table = {0};
     for (unsigned i = 0; i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i)
     {
-        const uint8_t *entry = data + 4 + i * PRESENCE_STORE_ENTRY_SIZE;
+        const uint8_t *entry = data + 4 + i * stride;
         if (!entry[0])
             continue;
         if (entry[0] != 1 || entry[129] > 7)
@@ -119,9 +137,14 @@ static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_ta
         peer->profile.blank_at_night = (entry[129] & 1) != 0;
         peer->profile.rotation_degrees = (uint16_t)(((entry[129] >> 1) & 3u) * 90u);
         peer->revision = store_u32(entry + 130);
+        if (data[2] == 2)
+        {
+            peer->profile.day_brightness = entry[134];
+            peer->profile.night_brightness = entry[135];
+        }
     }
     uint8_t canonical[PRESENCE_STORE_SIZE];
-    if (!store_encode(&table, canonical) || memcmp(data, canonical, sizeof(canonical)))
+    if (!store_encode_version(&table, canonical, data[2]) || memcmp(data, canonical, size))
         return false;
     *out = table;
     return true;
@@ -271,6 +294,21 @@ bool app_slave_presence_service_snapshot(app_slave_presence_snapshot_t *out)
         out->table.peers[i].counter = 0;
     xSemaphoreGive(s_presence_mutex);
     return true;
+}
+
+bool app_slave_presence_service_brightness(const app_slave_identity_t *identity,
+                                           uint8_t *day, uint8_t *night)
+{
+    if (!day || !night || !app_slave_identity_valid(identity) || !service_lock(true))
+        return false;
+    int index = app_slave_presence_find(&s_presence_state.table, identity);
+    if (index >= 0)
+    {
+        *day = s_presence_state.table.peers[index].profile.day_brightness;
+        *night = s_presence_state.table.peers[index].profile.night_brightness;
+    }
+    xSemaphoreGive(s_presence_mutex);
+    return index >= 0;
 }
 
 bool app_slave_presence_service_update(const app_slave_identity_t *identity,

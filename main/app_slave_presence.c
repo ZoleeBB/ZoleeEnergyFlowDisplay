@@ -133,7 +133,8 @@ bool app_slave_presence_profile_valid(const app_slave_presence_profile_t *profil
 {
     return profile && name_valid(profile->name) && uuid_valid(profile->presence_uuid) &&
            profile->timeout_seconds >= 1 && profile->timeout_seconds <= 86400 &&
-           profile->rotation_degrees % 90 == 0 && profile->rotation_degrees <= 270;
+           profile->rotation_degrees % 90 == 0 && profile->rotation_degrees <= 270 &&
+           profile->day_brightness <= 100 && profile->night_brightness <= 100;
 }
 
 int app_slave_presence_find(const app_slave_presence_table_t *table,
@@ -201,7 +202,9 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     if (same_source && strcmp(peer->profile.name, profile->name) == 0 &&
         peer->profile.timeout_seconds == profile->timeout_seconds &&
         peer->profile.blank_at_night == profile->blank_at_night &&
-        peer->profile.rotation_degrees == profile->rotation_degrees)
+        peer->profile.rotation_degrees == profile->rotation_degrees &&
+        peer->profile.day_brightness == profile->day_brightness &&
+        peer->profile.night_brightness == profile->night_brightness)
         return true;
     /* Mezőnkénti másolás: a strukturális padding és a szöveg utáni bájtok nem
      * részei a profilnak, így nem indítanak felesleges tartós mentést. */
@@ -211,6 +214,8 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     clean.timeout_seconds = profile->timeout_seconds;
     clean.blank_at_night = profile->blank_at_night;
     clean.rotation_degrees = profile->rotation_degrees;
+    clean.day_brightness = profile->day_brightness;
+    clean.night_brightness = profile->night_brightness;
     peer->profile = clean;
     peer->revision = next_revision(peer->revision);
     if (!same_source)
