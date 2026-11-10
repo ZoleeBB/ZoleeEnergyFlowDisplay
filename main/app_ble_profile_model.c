@@ -32,6 +32,17 @@ void app_ble_profile_encode(const app_config_t *cfg, uint8_t out[APP_BLE_PROFILE
     }
 }
 
+void app_ble_profile_override_brightness(uint8_t out[APP_BLE_PROFILE_SIZE],
+                                         uint8_t day, uint8_t night)
+{
+    if (!out || out[5] > APP_BLE_PROFILE_BRIGHTNESS_MAX_PASSWORD)
+        return;
+    if (day >= 1 && day <= 100)
+        out[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] = day;
+    if (night >= 1 && night <= 100)
+        out[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] = night;
+}
+
 bool app_ble_profile_decode(const uint8_t *data, size_t length, app_config_t *cfg)
 {
     if (!data || !cfg || length != APP_BLE_PROFILE_SIZE || data[0] != 'Z' || data[1] != 'B' ||

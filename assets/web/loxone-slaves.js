@@ -4,10 +4,13 @@ const LoxoneSlaves = (() => {
     'use strict';
     const get = id => document.getElementById(id);
     const rows = new Map();
-    const keys = ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_night', 'rotation_degrees'];
+    const keys = ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_night',
+        'rotation_degrees', 'day_brightness', 'night_brightness'];
     const rotations = [['0', 'Álló (0°)'], ['90', 'Elforgatva 90°-kal'],
         ['180', 'Fejjel lefelé (180°)'], ['270', 'Elforgatva 270°-kal']];
-    const profile = value => Object.fromEntries(keys.map(key => [key, value[key]]));
+    const brightnessKeys = ['day_brightness', 'night_brightness'];
+    const profile = value => Object.fromEntries(keys.map(key => [key,
+        brightnessKeys.includes(key) && value[key] == null ? null : value[key]]));
     const same = (a, b) => keys.every(key => a[key] === b[key]);
     let catalog = [], catalogKey = '', state = null, fetching = null;
     let online = false, writing = null, otherBusy = false;
@@ -75,7 +78,7 @@ const LoxoneSlaves = (() => {
         for (const key of keys) {
             const input = row.inputs[key];
             if (key === 'blank_at_night') input.checked = value[key];
-            else input.value = String(value[key]);
+            else input.value = value[key] == null ? '' : String(value[key]);
         }
         row.legend.textContent = value.name;
         choices(row);
@@ -92,13 +95,19 @@ const LoxoneSlaves = (() => {
             ['presence_uuid', 'Loxone jelenlétállapot', 'select'],
             ['timeout_seconds', 'Ébrenlét az utolsó jel / érintés után (másodperc)', 'number'],
             ['blank_at_night', 'Sötétítés éjszaka, ha nincs jelenlét', 'checkbox'],
-            ['rotation_degrees', 'Kijelző elforgatása (a Slave újraindul)', 'rotation']]) {
+            ['rotation_degrees', 'Kijelző elforgatása (a Slave újraindul)', 'rotation'],
+            ['day_brightness', 'Nappali fényerő (%)', 'brightness'],
+            ['night_brightness', 'Éjszakai fényerő (%)', 'brightness']]) {
             const list = type === 'select' || type === 'rotation';
             const label = create('label', title), input = create(list ? 'select' : 'input');
             input.id = 'slave-' + value.id + '-' + key;
-            if (!list) input.type = type;
+            if (!list) input.type = type === 'brightness' ? 'number' : type;
             if (type === 'text') input.maxLength = 80;
             if (type === 'number') { input.min = 1; input.max = 86400; input.step = 1; }
+            if (type === 'brightness') {
+                input.min = 1; input.max = 100; input.step = 1;
+                input.placeholder = 'Master értéke';
+            }
             if (type === 'rotation') for (const [option, text] of rotations) {
                 const node = create('option', text);
                 node.value = option;
@@ -108,7 +117,8 @@ const LoxoneSlaves = (() => {
                 const current = state?.profiles.find(value => value.id === row.id);
                 if (row.pending && current && same(current, row.pending)) row.base = profile(current);
                 row.draft[key] = type === 'checkbox' ? input.checked :
-                    type === 'rotation' ? Number(input.value) : type === 'number' ?
+                    type === 'rotation' ? Number(input.value) : type === 'brightness' ?
+                    (input.value.trim() ? Number(input.value) : null) : type === 'number' ?
                     (input.value.trim() ? Number(input.value) : NaN) : input.value;
                 row.pending = null;
                 row.dirty = !same(row.base, row.draft);
@@ -211,6 +221,11 @@ const LoxoneSlaves = (() => {
             return 'Válassz érvényes Loxone jelenlétállapotot.';
         if (![0, 90, 180, 270].includes(value.rotation_degrees))
             return 'A kijelző elforgatása 0, 90, 180 vagy 270 fok lehet.';
+        for (const key of brightnessKeys) {
+            if (value[key] !== null &&
+                (!Number.isInteger(value[key]) || value[key] < 1 || value[key] > 100))
+                return 'A nappali és éjszakai fényerő 1–100 közötti egész százalék legyen, vagy maradjon üres.';
+        }
         return '';
     }
     async function save(row) {

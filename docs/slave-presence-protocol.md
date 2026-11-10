@@ -167,9 +167,12 @@ Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átáll
 
 ## Master NVS és háttérmentés
 
-A `ble_presence` névtér `peers` blobja 410 bájt. A 4 bájtos fejléc:
-ASCII `ZS`, verzió=1, slotok=3. Három 134 bájtos slot követi, majd 4 bájt
-little-endian CRC32 (IEEE, a megelőző 406 bájtra).
+A `ble_presence` névtér `peers` blobja a v2 formátumban **416 bájt**.
+A 4 bájtos fejléc ASCII `ZS`, verzió=2, slotok=3. Három **136 bájtos**
+slot követi, majd 4 bájt little-endian CRC32 (IEEE). A korábbi, 410 bájtos
+v1 változat is betölthető: ott három 134 bájtos slot van, és a fényerő
+két opcionális mezője alapértelmezés szerint öröklésre áll. Az első módosításkor
+a háttérmentés az új v2 formátumot írja.
 
 | Sloton belüli offset | Hossz | Tartalom |
 | --- | --- | --- |
@@ -181,12 +184,15 @@ little-endian CRC32 (IEEE, a megelőző 406 bájtra).
 | 125 | 4 | Timeout másodpercben, little-endian |
 | 129 | 1 | Bit 0: éjszakai sötétítés; bit 1-2: tájolás negyedfordulatban |
 | 130 | 4 | Nem nulla profilrevízió, little-endian |
+| 134 | 1 | Opcionális nappali fényerő: 0 = Master, 1–100 = százalék (csak v2) |
+| 135 | 1 | Opcionális éjszakai fényerő: 0 = Master, 1–100 = százalék (csak v2) |
 
 A tájolás a sötétítés bájtjának szabad bitjeire került, ezért a blob mérete és a
 korábbi verzióval mentett profilok változatlanul betöltődnek (0 fokkal).
 Üres slot minden bájtja nulla. A dekóder CRC, mezővalidálás és identitás-egyediség
 után újrakódolással ellenőrzi a kanonikus kitöltést. A C-struktúra paddingje nem
-kerül tárolásra. Impulzus, aktív szint, sorszám és fényerő nem része a blobnak.
+kerül tárolásra. Impulzus, aktív szint és sorszám nem része a blobnak; a beállított
+fényerő-felülírások viszont tartósan mentettek.
 
 Az egyhelyes értesítési sor mögötti 4096 bájtos háttértask csak konfigurációs
 revízióeltéréskor nyit NVS-t. Az állapotzárat I/O előtt elengedi. Hibánál a
@@ -260,3 +266,19 @@ hitelesítés/mód/korlátok/revízió/hibás JSON és cJSON-allokációs hibák
 DOM-megőrzéssel, ütközéssel, mentési hibával és elveszett válasszal.
 A CI mindkét ESP-IDF firmware-t és a Linux/Windows szimulátorokat is fordítja.
 Ezek nem helyettesítik a fizikai panel/radio/DMA/PSRAM/FPS próbát.
+
+## Slave-enkénti fényerő és átadás (2026-11)
+
+A Master Loxone oldalának Slave-kártyáin a nappali és éjszakai fényerő
+külön-külön állítható 1–100% között. Üres mező esetén a Master megfelelő
+beállítása öröklődik. Az API `day_brightness` és `night_brightness` mezői
+ilyenkor `null` értékűek; NVS-ben a 0 jelöli a felülírás hiányát.
+
+A hitelesített 1004 BLE-profil olvasásakor a Master kizárólag a feloldott
+peer identitásához tartozó felülírásokat teszi a már létező 102 bájtos
+profil 100/101-es fényerőbájtjaiba, egyenként. Ez nem változtatja a BLE
+profil méretét vagy az OTA/Wi-Fi mezőket. A kijelzők futás közben
+alkalmazzák a változást újraindítás nélkül. A korábbi BLE-formátum
+korlátja megmarad: 63–64 karakteres Wi-Fi-jelszó mellett nincs hely
+a profilban a két fényerőbájtnak, így az ilyen speciális konfiguráció
+fényerő-szinkronját külön meg kell vizsgálni.

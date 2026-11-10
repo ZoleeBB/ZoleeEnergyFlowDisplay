@@ -27,6 +27,9 @@ typedef struct
     /* A Slave kijelzőjének tájolása: 0, 90, 180 vagy 270 fok. A Slave a saját
      * indulásakor alkalmazza (az érintéssel együtt), futás közben nem váltható. */
     uint16_t rotation_degrees;
+    /* 0 = a Master megfelelő fényerejének öröklése; 1–100 = Slave-specifikus %. */
+    uint8_t day_brightness;
+    uint8_t night_brightness;
 } app_slave_presence_profile_t;
 
 typedef struct

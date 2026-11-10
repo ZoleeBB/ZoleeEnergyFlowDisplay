@@ -16,6 +16,9 @@ typedef struct
 esp_err_t app_slave_presence_service_init(bool master);
 bool app_slave_presence_service_register(const app_slave_identity_t *identity);
 bool app_slave_presence_service_snapshot(app_slave_presence_snapshot_t *out);
+/* Csak a hitelesített peer identitásához tartozó opcionális értékek (0 = öröklés). */
+bool app_slave_presence_service_brightness(const app_slave_identity_t *identity,
+                                           uint8_t *day, uint8_t *night);
 /* Az elavult webes szerkesztés nem írhat felül újabb profilt. */
 bool app_slave_presence_service_update(const app_slave_identity_t *identity,
                                        const app_slave_presence_profile_t *profile,

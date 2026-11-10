@@ -44,6 +44,12 @@ static cJSON *slave_presence_json(void)
             !cJSON_AddNumberToObject(item, "timeout_seconds", peer->profile.timeout_seconds) ||
             !cJSON_AddBoolToObject(item, "blank_at_night", peer->profile.blank_at_night) ||
             !cJSON_AddNumberToObject(item, "rotation_degrees", peer->profile.rotation_degrees) ||
+            !(peer->profile.day_brightness
+                  ? cJSON_AddNumberToObject(item, "day_brightness", peer->profile.day_brightness)
+                  : cJSON_AddNullToObject(item, "day_brightness")) ||
+            !(peer->profile.night_brightness
+                  ? cJSON_AddNumberToObject(item, "night_brightness", peer->profile.night_brightness)
+                  : cJSON_AddNullToObject(item, "night_brightness")) ||
             !cJSON_AddItemToArray(profiles, item))
         {
             cJSON_Delete(item);
@@ -139,7 +145,7 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     free(body);
     const char *const root_fields[] = {"schema", "revision", "id", "profile"};
     const char *const profile_fields[] = {"name", "presence_uuid", "timeout_seconds",
-                                          "blank_at_night", "rotation_degrees"};
+                                          "blank_at_night", "rotation_degrees", "day_brightness", "night_brightness"};
     const cJSON *schema = cJSON_GetObjectItemCaseSensitive(root, "schema");
     const cJSON *revision = cJSON_GetObjectItemCaseSensitive(root, "revision");
     const cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
@@ -149,15 +155,19 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(data, "timeout_seconds");
     const cJSON *blank = cJSON_GetObjectItemCaseSensitive(data, "blank_at_night");
     const cJSON *rotation = cJSON_GetObjectItemCaseSensitive(data, "rotation_degrees");
+    const cJSON *day = cJSON_GetObjectItemCaseSensitive(data, "day_brightness");
+    const cJSON *night = cJSON_GetObjectItemCaseSensitive(data, "night_brightness");
     app_slave_presence_profile_t profile = {0};
-    bool valid = slave_fields(root, root_fields, 4) && slave_fields(data, profile_fields, 5) &&
+    bool valid = slave_fields(root, root_fields, 4) && slave_fields(data, profile_fields, 7) &&
                  slave_integer(schema, 1, 1) && slave_integer(revision, 1, UINT32_MAX) &&
                  cJSON_IsString(id) && strlen(id->valuestring) == APP_SLAVE_PRESENCE_ID_SIZE - 1 &&
                  cJSON_IsString(name) && strlen(name->valuestring) < sizeof(profile.name) &&
                  cJSON_IsString(uuid) && strlen(uuid->valuestring) < sizeof(profile.presence_uuid) &&
                  slave_integer(timeout, 1, 86400) && cJSON_IsBool(blank) &&
                  slave_integer(rotation, 0, 270) &&
-                 (uint32_t)rotation->valuedouble % 90 == 0;
+                 (uint32_t)rotation->valuedouble % 90 == 0 &&
+                  (cJSON_IsNull(day) || slave_integer(day, 1, 100)) &&
+                  (cJSON_IsNull(night) || slave_integer(night, 1, 100));
     if (valid)
     {
         memcpy(profile.name, name->valuestring, strlen(name->valuestring));
@@ -165,6 +175,8 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
         profile.timeout_seconds = (uint32_t)timeout->valuedouble;
         profile.blank_at_night = cJSON_IsTrue(blank);
         profile.rotation_degrees = (uint16_t)rotation->valuedouble;
+        profile.day_brightness = cJSON_IsNull(day) ? 0 : (uint8_t)day->valuedouble;
+        profile.night_brightness = cJSON_IsNull(night) ? 0 : (uint8_t)night->valuedouble;
         valid = app_slave_presence_profile_valid(&profile);
     }
     int index = -1;
@@ -181,7 +193,7 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     if (!valid || index < 0)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
                                     "Ellenőrizd a párosított eszközt, a nevet, a jelenlétforrást, "
-                                    "az időkorlátot és a kijelző elforgatását.");
+                                    "az időkorlátot, a tájolást és az 1–100%-os fényerőt.");
     if (expected != snapshot.revision ||
         !app_slave_presence_service_update(&snapshot.table.peers[index].identity, &profile, expected))
     {

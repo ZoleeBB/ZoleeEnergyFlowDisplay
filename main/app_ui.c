@@ -7,6 +7,9 @@
  */
 #include "app_ui.h"
 #include "app_ble_seed.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "app_ble_profile.h"
+#endif
 #include "app_slave_display_input.h"
 #include "app_slave_presence_service.h"
 #include "app_display_orientation.h"
@@ -2305,6 +2308,18 @@ static void slave_display_update(const app_runtime_state_t *state,
 {
     if (s_cfg.data_recept_mode != APP_DATA_SLAVE || !s_slave_display_ready)
         return;
+#ifndef APP_TEMPLATE_DESKTOP
+    /* Nappali és éjszakai fényerő élő alkalmazása a meglévő ébresztési állapotban. */
+    app_ble_profile_apply(&s_cfg);
+    if (s_slave_display.profile.day_brightness != s_cfg.display.day_brightness ||
+        s_slave_display.profile.night_brightness != s_cfg.display.night_brightness)
+    {
+        app_slave_display_profile_t profile = s_slave_display.profile;
+        profile.day_brightness = s_cfg.display.day_brightness;
+        profile.night_brightness = s_cfg.display.night_brightness;
+        (void)app_slave_display_profile(&s_slave_display, &profile, now);
+    }
+#endif
     if (!s_slave_input.input)
     {
         for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))

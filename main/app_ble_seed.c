@@ -128,6 +128,9 @@ void ble_transport_ll_deinit(void)
 {
 }
 
+/* A célprofil lekérése a hitelesített BLE peer identitásához kötött. */
+static bool presence_identity(uint16_t connection, app_slave_identity_t *identity);
+
 /* A nyilvános mérési karakterisztikák nem tartalmaznak Wi-Fi-t vagy PIN-t. */
 static int read_packet(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -151,6 +154,11 @@ static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
         return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
     uint8_t profile[APP_BLE_PROFILE_SIZE];
     app_ble_profile_encode(&s_config, profile);
+    app_slave_identity_t identity;
+    uint8_t day = 0, night = 0;
+    if (presence_identity(conn, &identity) &&
+        app_slave_presence_service_brightness(&identity, &day, &night))
+        app_ble_profile_override_brightness(profile, day, night);
     int rc = os_mbuf_append(ctxt->om, profile, sizeof(profile));
     memset(profile, 0, sizeof(profile));
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
