@@ -168,7 +168,7 @@ static int allocation, fail_at;
 static void *fail_malloc(size_t size) { return ++allocation == fail_at ? NULL : malloc(size); }
 static void slave_tests(void)
 {
-    const char *body = "{\"schema\":1,\"revision\":4294967295,\"id\":\"ble-0-060504030201\",\"profile\":{\"name\":\"Nappali <img>\",\"presence_uuid\":\"11223344-5566-7788-99aabbccddeeff00\",\"timeout_seconds\":42,\"blank_at_night\":true,\"rotation_degrees\":90}}";
+    const char *body = "{\"schema\":1,\"revision\":4294967295,\"id\":\"ble-0-060504030201\",\"profile\":{\"name\":\"Nappali <img>\",\"presence_uuid\":\"11223344-5566-7788-99aabbccddeeff00\",\"timeout_seconds\":42,\"blank_at_night\":true,\"rotation_degrees\":90,\"day_brightness\":70,\"night_brightness\":null}}";
     s_config.data_seed_enabled = true;
     slave_state.revision = UINT32_MAX;
     slave_state.saved_revision = 123;
@@ -185,6 +185,9 @@ static void slave_tests(void)
     assert(cJSON_GetObjectItemCaseSensitive(json,"revision")->valuedouble == UINT32_MAX);
     assert(cJSON_GetObjectItemCaseSensitive(json,"saved_revision")->valuedouble == 123);
     assert(cJSON_GetObjectItemCaseSensitive(json,"save_error")->valuedouble == ESP_FAIL);
+    cJSON *first_profile = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(json,"profiles"), 0);
+    assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(first_profile,"day_brightness")));
+    assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(first_profile,"night_brightness")));
     assert(!strstr(response,"\"video_password\"") && !strstr(response,"\"password\"") && !strstr(response,"counter") && !strstr(response,"address"));
     cJSON_Delete(json);
     authorized = false;
@@ -219,10 +222,11 @@ static void slave_tests(void)
         assert(status_code == 400 && !slave_updates);
     }
     const char *fields[] = {"schema", "revision", "id", "name", "presence_uuid", "timeout_seconds",
-                            "blank_at_night", "rotation_degrees", "rotation_degrees"};
+                            "blank_at_night", "rotation_degrees", "rotation_degrees",
+                             "day_brightness", "day_brightness", "night_brightness", "night_brightness"};
     const char *values[] = {"2", "1.5", "\"ble-0-990504030201\"", "\"\\u0000hidden\"", "\"wrong\"", "86401",
-                            "1", "45", "360"};
-    for (unsigned i = 0; i < 9; ++i)
+                            "1", "45", "360", "0", "101", "1.5", "-1"};
+    for (unsigned i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i)
     {
         json = cJSON_Parse(body);
         cJSON *parent = i < 3 ? json : cJSON_GetObjectItemCaseSensitive(json,"profile");
@@ -248,8 +252,11 @@ static void slave_tests(void)
     assert(!strcmp(slave_state.table.peers[0].profile.name,"Nappali <img>"));
     assert(slave_state.table.peers[0].profile.timeout_seconds == 42 && slave_state.table.peers[0].profile.blank_at_night);
     assert(slave_state.table.peers[0].profile.rotation_degrees == 90);
+    assert(slave_state.table.peers[0].profile.day_brightness == 70);
+    assert(slave_state.table.peers[0].profile.night_brightness == 0);
     slave_get();
     assert(status_code == 200 && strstr(response, "\"rotation_degrees\":90"));
+    assert(strstr(response, "\"day_brightness\":70") && strstr(response, "\"night_brightness\":null"));
     assert(!strcmp(slave_state.table.peers[1].profile.name,"Slave"));
     assert(slave_state.saved_revision == 123); /* A HTTP nem ígér NVS-commitot. */
     /* Minden cJSON-allokáció hibája tiszta 500-as válasz legyen. */
