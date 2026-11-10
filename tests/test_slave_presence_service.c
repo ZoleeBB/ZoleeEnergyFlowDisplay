@@ -230,8 +230,14 @@ static void codec_tests(void)
     assert(decoded.peers[0].profile.rotation_degrees == 270 &&
            decoded.peers[0].profile.blank_at_night);
     profile.rotation_degrees = 0;
+    profile.day_brightness = 65;
+    profile.night_brightness = 9;
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
     assert(store_encode(&table, wire));
+    assert(wire[2] == 2 && wire[4 + 134] == 65 && wire[4 + 135] == 9);
+    assert(store_decode(wire, sizeof(wire), &decoded));
+    assert(decoded.peers[0].profile.day_brightness == 65);
+    assert(decoded.peers[0].profile.night_brightness == 9);
     app_slave_presence_table_t saved = decoded;
     for (unsigned i = 0; i < sizeof(wire); ++i)
     {
@@ -241,6 +247,21 @@ static void codec_tests(void)
         wire[i] ^= 1;
     }
     assert(!store_decode(wire, sizeof(wire) - 1, &decoded));
+    /* A régi (v1, 410 B) profilt új firmware nem dobhatja el: a fényerő öröklődik. */
+    profile.day_brightness = profile.night_brightness = 0;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    uint8_t legacy[PRESENCE_STORE_LEGACY_SIZE];
+    assert(store_encode_version(&table, legacy, 1));
+    assert(legacy[2] == 1);
+    assert(store_decode(legacy, sizeof(legacy), &decoded));
+    assert(decoded.peers[0].profile.day_brightness == 0);
+    assert(decoded.peers[0].profile.night_brightness == 0);
+    assert(!store_decode(legacy, sizeof(legacy) - 1, &decoded));
+    assert(store_encode(&table, wire));
+    wire[4 + 134] = 101;
+    store_write_u32(wire + sizeof(wire) - 4, store_crc(wire, sizeof(wire) - 4));
+    assert(!store_decode(wire, sizeof(wire), &decoded));
+    assert(store_encode(&table, wire));
     /* Érvényes CRC sem tesz érvényessé duplikált identitást vagy rejtett adatot. */
     memcpy(wire + 4 + PRESENCE_STORE_ENTRY_SIZE, wire + 4, PRESENCE_STORE_ENTRY_SIZE);
     store_write_u32(wire + sizeof(wire) - 4, store_crc(wire, sizeof(wire) - 4));
