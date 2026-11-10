@@ -234,6 +234,22 @@ int main(void)
     app_ble_profile_apply(&slave);
     assert(slave.display.day_brightness == 65 && slave.display.night_brightness == 7);
     assert(reboots == restarts);
+    /* A Slave saját fényereje csak a saját, védetten olvasott profiljára kerül. */
+    uint8_t customized[APP_BLE_PROFILE_SIZE];
+    memcpy(customized, data, sizeof(customized));
+    app_ble_profile_override_brightness(customized, 45, 0);
+    assert(customized[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] == 45);
+    assert(customized[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] == 7);
+    app_config_t customized_slave = slave;
+    assert(app_ble_profile_decode(customized, sizeof(customized), &customized_slave));
+    assert(customized_slave.display.day_brightness == 45);
+    assert(customized_slave.display.night_brightness == 7);
+    app_ble_profile_override_brightness(customized, 0, 11);
+    assert(customized[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] == 45);
+    assert(customized[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] == 11);
+    /* A másik Slave master profilját nem szabad módosítanunk. */
+    assert(data[APP_BLE_PROFILE_BRIGHTNESS_OFFSET] == 65);
+    assert(data[APP_BLE_PROFILE_BRIGHTNESS_OFFSET + 1] == 7);
     /* Régebbi Master nullákat hagy a jelszó mögött: ilyenkor a Slave a saját
      * mentett fényerejét tartja meg, és a profil egyébként érvényes marad. */
     uint8_t legacy[APP_BLE_PROFILE_SIZE];
