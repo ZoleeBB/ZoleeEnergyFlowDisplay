@@ -16,6 +16,9 @@
 #define APP_BLE_PROFILE_LIVE_OFFSET APP_BLE_PROFILE_BRIGHTNESS_OFFSET
 
 void app_ble_profile_encode(const app_config_t *cfg, uint8_t out[APP_BLE_PROFILE_SIZE]);
+/* A 102 bájtos profilban egyenként felülírhatók a fényerők (0 = Master). */
+void app_ble_profile_override_brightness(uint8_t out[APP_BLE_PROFILE_SIZE],
+                                         uint8_t day, uint8_t night);
 bool app_ble_profile_decode(const uint8_t *data, size_t length, app_config_t *cfg);
 
 /* Induláskor NVS-ből visszatölt; a master automatikus PIN-jét is előkészíti. */
