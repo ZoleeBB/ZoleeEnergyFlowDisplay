@@ -11,6 +11,13 @@ A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a te
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](docs/loxone-direct.md).
 
+**Loxone világításvezérlő kártyák:** automatikusan felismert világítási blokkok,
+kompakt `− / Ki / +` gombok, aktív világításikép-név és külön kapcsoló-, dimmer-,
+RGB/RGBW-kezelő. Csak a megnyitott Otthon-oldal kártyaállapotait dolgozza fel;
+a részletes, görgethető ablak egyetlen színválasztót és legfeljebb nyolc élő
+körsort tart memóriában. [Beállítás, működés és korlátok](docs/lighting-controller.md).
+
+
 Loxone módban opcionális [relatív páratartalom](docs/relative-humidity.md) párosítható,
 szorzóval és eltolással, egész százalékként. A szélsebességes témákon és a Slave-eken
 ikonnal jelenik meg; párosítás/érvényes adat nélkül rejtett. A Nap pálya igazított

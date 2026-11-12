@@ -1041,7 +1041,15 @@ static void home_command_poll(int64_t now)
         xSemaphoreGive(s_lock);
         cJSON *answer = valid ? reply(command, true) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (!answer)
+        if (!door && request.visibility_revision != s_light_generation)
+        {
+            /* A nyugta közben elhagyott lap nem tarthat fenn visszajelzésre
+             * várást. A már elküldött kérés nem vonható vissza. */
+            s_command_pending = false;
+            s_command_deadline = 0;
+            s_command_status[0] = 0;
+        }
+        else if (!answer)
         {
             s_command_pending = false;
             snprintf(s_command_status, sizeof(s_command_status), "%s",
@@ -1065,17 +1073,19 @@ static void home_command_poll(int64_t now)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (s_command_pending && s_command_deadline)
     {
+        bool hidden = s_pending_command.visibility_revision != s_light_generation;
         bool confirmed = false;
         for (unsigned i = 0; i < s_home->card_count; i++)
             if (!strcmp(s_home->cards[i].id, s_pending_command.id) && s_home_values.cards[i].valid &&
                 s_home_values.cards[i].value == (s_pending_command.action == LX_HOME_COMMAND_ON ? 1 : 0))
                 confirmed = true;
-        if (confirmed || now >= s_command_deadline)
+        if (hidden || confirmed || now >= s_command_deadline)
         {
             s_command_pending = false;
             s_command_deadline = 0;
             snprintf(s_command_status, sizeof(s_command_status), "%s", confirmed ?
                      "Loxone-állapot visszaigazolva." : "Nem érkezett megfelelő Loxone-állapot.");
+            if (hidden) s_command_status[0] = 0;
         }
     }
     xSemaphoreGive(s_lock);

@@ -13,9 +13,27 @@
 #define LX_LIGHT_INTERVAL_US 100000LL
 #define LX_LIGHT_CONFIRM_US 2000000LL
 
-typedef enum { LX_LIGHT_UNSUPPORTED, LX_LIGHT_SWITCH, LX_LIGHT_DIMMER, LX_LIGHT_COLOR } lx_light_type_t;
-typedef enum { LX_LIGHT_MODE_UNKNOWN, LX_LIGHT_MODE_HSV, LX_LIGHT_MODE_WHITE } lx_light_mode_t;
-typedef enum { LX_LIGHT_UNKNOWN, LX_LIGHT_OFF, LX_LIGHT_CUSTOM, LX_LIGHT_ONE_MOOD, LX_LIGHT_MANY_MOODS } lx_light_label_t;
+typedef enum
+{
+    LX_LIGHT_UNSUPPORTED,
+    LX_LIGHT_SWITCH,
+    LX_LIGHT_DIMMER,
+    LX_LIGHT_COLOR
+} lx_light_type_t;
+typedef enum
+{
+    LX_LIGHT_MODE_UNKNOWN,
+    LX_LIGHT_MODE_HSV,
+    LX_LIGHT_MODE_WHITE
+} lx_light_mode_t;
+typedef enum
+{
+    LX_LIGHT_UNKNOWN,
+    LX_LIGHT_OFF,
+    LX_LIGHT_CUSTOM,
+    LX_LIGHT_ONE_MOOD,
+    LX_LIGHT_MANY_MOODS
+} lx_light_label_t;
 
 typedef struct
 {
@@ -46,11 +64,16 @@ typedef struct
     bool valid, on;
 } lx_light_observation_t;
 
-typedef struct { unsigned id; char name[LX_LIGHT_NAME_SIZE]; } lx_light_mood_t;
+typedef struct
+{
+    unsigned id;
+    char name[LX_LIGHT_NAME_SIZE];
+} lx_light_mood_t;
 typedef struct
 {
     char action[LX_LIGHT_ACTION_SIZE];
-    char active_state[LX_UUID_LEN], moods_state[LX_UUID_LEN], names_state[LX_UUID_LEN], lock_state[LX_UUID_LEN];
+    char active_state[LX_UUID_LEN], moods_state[LX_UUID_LEN], names_state[LX_UUID_LEN],
+        lock_state[LX_UUID_LEN];
     bool blocked, locked, lock_known, active_known;
     unsigned active_count, active_ids[LX_LIGHT_MAX_MOODS];
     unsigned mood_count, circuit_count;
@@ -79,14 +102,28 @@ lx_light_block_t *lx_light_block_create(const cJSON *entry);
 bool lx_light_block_minimize(lx_light_block_t *block);
 void lx_light_block_free(lx_light_block_t *block);
 void lx_light_block_cancel(lx_light_block_t *block);
-void lx_light_block_event(lx_light_block_t *block, const char *uuid,
-                          bool numeric, double value, const char *text, size_t length, int64_t now);
+void lx_light_block_event(lx_light_block_t *block,
+                          const char *uuid,
+                          bool numeric,
+                          double value,
+                          const char *text,
+                          size_t length,
+                          int64_t now);
 void lx_light_summary(const lx_light_block_t *block, lx_light_summary_t *out);
 bool lx_light_color_parse(const char *text, size_t length, lx_light_value_t *value);
-bool lx_light_command_build(const lx_light_block_t *block, unsigned circuit,
-                            const lx_light_value_t *value, char out[LX_LIGHT_COMMAND_SIZE]);
-bool lx_light_queue(lx_light_block_t *block, unsigned circuit, const lx_light_value_t *value, int64_t now);
-bool lx_light_take(lx_light_block_t *block, unsigned circuit, int64_t now,
+bool lx_light_command_build(const lx_light_block_t *block,
+                            unsigned circuit,
+                            const lx_light_value_t *value,
+                            char out[LX_LIGHT_COMMAND_SIZE]);
+bool lx_light_queue(lx_light_block_t *block,
+                    unsigned circuit,
+                    const lx_light_value_t *value,
+                    int64_t now);
+bool lx_light_take(lx_light_block_t *block,
+                   unsigned circuit,
+                   int64_t now,
                    char out[LX_LIGHT_COMMAND_SIZE]);
-void lx_light_circuit_snapshot(const lx_light_block_t *block, unsigned circuit, int64_t now,
+void lx_light_circuit_snapshot(const lx_light_block_t *block,
+                               unsigned circuit,
+                               int64_t now,
                                lx_light_circuit_t *out);

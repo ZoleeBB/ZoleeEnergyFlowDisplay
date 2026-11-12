@@ -126,7 +126,8 @@ static void lighting_service_test(lx_config_t *energy)
     lighting_test_numeric(101, 90);
     assert(app_loxone_light_circuit(handle, 0, &circuit) && !circuit.pending);
     lighting_test_text(103, "temp(75,4000)");
-    assert(app_loxone_light_circuit(handle, 2, &circuit) && circuit.actual.mode == LX_LIGHT_MODE_WHITE);
+    assert(app_loxone_light_circuit(handle, 2, &circuit) &&
+           circuit.actual.mode == LX_LIGHT_MODE_WHITE);
     value.brightness = 99;
     assert(app_loxone_light_set(handle, 0, &value) == ESP_OK);
     app_loxone_light_close(handle);
@@ -194,5 +195,6 @@ static void lighting_service_test(lx_config_t *energy)
     free(s_home);
     s_home = NULL;
     s_session_config = NULL;
-    puts("PASS: actual lighting worker, compact shared cards, resnapshot, rate, visible-only values, cancellation and reconnect");
+    puts("PASS: actual lighting worker, compact shared cards, resnapshot, rate, visible-only "
+         "values, cancellation and reconnect");
 }

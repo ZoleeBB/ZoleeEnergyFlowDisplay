@@ -35,13 +35,16 @@ static bool lighting_current_locked(void)
 
 static void lighting_page_free(light_page_t *page)
 {
-    if (!page) return;
+    if (!page)
+        return;
     for (unsigned i = 0; i < page->count; ++i)
     {
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
-            if (page->blocks[j] == page->blocks[i]) shared = true;
-        if (!shared) lx_light_block_free(page->blocks[i]);
+            if (page->blocks[j] == page->blocks[i])
+                shared = true;
+        if (!shared)
+            lx_light_block_free(page->blocks[i]);
     }
     free(page);
 }
@@ -62,7 +65,8 @@ static void lighting_invalidate_locked(void)
 
 void app_loxone_home_visible(int page)
 {
-    if (!s_lock || !s_home) return;
+    if (!s_lock || !s_home)
+        return;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     unsigned first, count;
     if (page < 0 || !lx_home_page_range(s_home, (unsigned)page, &first, &count))
@@ -83,7 +87,8 @@ void app_loxone_home_visible(int page)
 
 static int lighting_slot_locked(const char *card_id)
 {
-    if (!card_id || !lighting_current_locked()) return -1;
+    if (!card_id || !lighting_current_locked())
+        return -1;
     for (unsigned i = 0; i < s_light_context->count; ++i)
         if (!strcmp(s_home->cards[s_light_context->first + i].id, card_id))
             return (int)i;
@@ -92,9 +97,11 @@ static int lighting_slot_locked(const char *card_id)
 
 bool app_loxone_light_summary(const char *card_id, unsigned revision, lx_light_summary_t *out)
 {
-    if (!out) return false;
+    if (!out)
+        return false;
     memset(out, 0, sizeof(*out));
-    if (!s_lock) return false;
+    if (!s_lock)
+        return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
     bool valid = slot >= 0 && lighting_live_locked();
@@ -109,14 +116,16 @@ bool app_loxone_light_summary(const char *card_id, unsigned revision, lx_light_s
 
 unsigned app_loxone_light_open(const char *card_id, unsigned revision)
 {
-    if (!s_lock) return 0;
+    if (!s_lock)
+        return 0;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
     unsigned handle = 0;
     if (slot >= 0 && lighting_live_locked() && s_light_context->blocks[slot])
     {
         lx_light_block_cancel(s_light_detail);
-        if (++s_light_next_handle == 0) ++s_light_next_handle;
+        if (++s_light_next_handle == 0)
+            ++s_light_next_handle;
         handle = s_light_modal = s_light_next_handle;
         s_light_modal_card = s_light_context->first + (unsigned)slot;
         s_light_detail_failed = false;
@@ -127,7 +136,8 @@ unsigned app_loxone_light_open(const char *card_id, unsigned revision)
 
 void app_loxone_light_close(unsigned handle)
 {
-    if (!s_lock || !handle) return;
+    if (!s_lock || !handle)
+        return;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (handle == s_light_modal)
     {
@@ -139,9 +149,11 @@ void app_loxone_light_close(unsigned handle)
 
 bool app_loxone_light_info(unsigned handle, app_loxone_light_info_t *out)
 {
-    if (!out) return false;
+    if (!out)
+        return false;
     memset(out, 0, sizeof(*out));
-    if (!s_lock || !handle) return false;
+    if (!s_lock || !handle)
+        return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool valid = handle == s_light_modal && lighting_current_locked() && lighting_live_locked();
     out->connected = valid;
@@ -157,13 +169,15 @@ bool app_loxone_light_info(unsigned handle, app_loxone_light_info_t *out)
 
 bool app_loxone_light_circuit(unsigned handle, unsigned index, lx_light_circuit_t *out)
 {
-    if (!out) return false;
+    if (!out)
+        return false;
     memset(out, 0, sizeof(*out));
-    if (!s_lock || !handle) return false;
+    if (!s_lock || !handle)
+        return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool valid = handle == s_light_modal && handle == s_light_detail_handle &&
-                 lighting_current_locked() && lighting_live_locked() &&
-                 s_light_initial_ready && s_light_detail && index < s_light_detail->circuit_count;
+                 lighting_current_locked() && lighting_live_locked() && s_light_initial_ready &&
+                 s_light_detail && index < s_light_detail->circuit_count;
     if (valid)
         lx_light_circuit_snapshot(s_light_detail, index, esp_timer_get_time(), out);
     xSemaphoreGive(s_lock);
@@ -172,12 +186,14 @@ bool app_loxone_light_circuit(unsigned handle, unsigned index, lx_light_circuit_
 
 esp_err_t app_loxone_light_set(unsigned handle, unsigned index, const lx_light_value_t *value)
 {
-    if (!s_lock || !handle || !value) return ESP_ERR_INVALID_STATE;
+    if (!s_lock || !handle || !value)
+        return ESP_ERR_INVALID_STATE;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool allowed = handle == s_light_modal && handle == s_light_detail_handle &&
                    lighting_current_locked() && lighting_live_locked() && s_light_initial_ready &&
                    lx_light_queue(s_light_detail, index, value, esp_timer_get_time());
-    if (allowed) s_light_detail_failed = false;
+    if (allowed)
+        s_light_detail_failed = false;
     xSemaphoreGive(s_lock);
     return allowed ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
@@ -186,9 +202,11 @@ esp_err_t app_loxone_light_set(unsigned handle, unsigned index, const lx_light_v
  * A kaputelefon ettől független, mindig elérhető vezérlés marad. */
 static bool lighting_home_command_allowed_locked(const char *id)
 {
-    if (!strcmp(id, LX_INTERCOM_GATE_ID)) return true;
+    if (!strcmp(id, LX_INTERCOM_GATE_ID))
+        return true;
     int slot = lighting_slot_locked(id);
-    if (slot < 0 || !s_light_initial_ready) return false;
+    if (slot < 0 || !s_light_initial_ready)
+        return false;
     if (s_home->cards[s_light_context->first + (unsigned)slot].type != LX_HOME_CARD_LIGHTING)
         return true;
     lx_light_summary_t summary;
@@ -200,9 +218,11 @@ static bool lighting_home_command_allowed_locked(const char *id)
  * felépítés alatt nem kell másolni vagy GUI-mutex alatt feldolgozni. */
 static light_page_t *lighting_page_create(int page, unsigned generation, unsigned revision)
 {
-    if (page < 0) return NULL;
+    if (page < 0)
+        return NULL;
     light_page_t *next = lx_light_alloc(1, sizeof(*next));
-    if (!next) return NULL;
+    if (!next)
+        return NULL;
     next->page = page;
     next->generation = generation;
     next->revision = revision;
@@ -214,7 +234,8 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
     for (unsigned i = 0; i < next->count; ++i)
     {
         const lx_home_card_t *card = &s_home->cards[next->first + i];
-        if (card->type != LX_HOME_CARD_LIGHTING) continue;
+        if (card->type != LX_HOME_CARD_LIGHTING)
+            continue;
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
             if (!strcmp(s_home->cards[next->first + j].control_uuid, card->control_uuid) &&
@@ -224,8 +245,10 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
                 shared = true;
                 break;
             }
-        if (shared) continue;
-        lx_light_block_t *block = lx_light_block_create(lx_light_catalog_find(s_catalog, card->control_uuid));
+        if (shared)
+            continue;
+        lx_light_block_t *block =
+            lx_light_block_create(lx_light_catalog_find(s_catalog, card->control_uuid));
         if (block && !lx_light_block_minimize(block))
         {
             lx_light_block_free(block);
@@ -282,16 +305,18 @@ static void lighting_reconcile(void)
         old_detail = s_light_detail;
         s_light_detail = NULL;
         if (handle && lighting_current_locked() && s_light_modal_card < s_home->card_count)
-            snprintf(control, sizeof(control), "%s", s_home->cards[s_light_modal_card].control_uuid);
+            snprintf(
+                control, sizeof(control), "%s", s_home->cards[s_light_modal_card].control_uuid);
     }
     xSemaphoreGive(s_lock);
     lx_light_block_free(old_detail);
     if (detail_change)
     {
-        lx_light_block_t *next = control[0] ?
-            lx_light_block_create(lx_light_catalog_find(s_catalog, control)) : NULL;
+        lx_light_block_t *next =
+            control[0] ? lx_light_block_create(lx_light_catalog_find(s_catalog, control)) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (handle == s_light_modal && generation == s_light_generation && revision == s_home_revision && !s_dead)
+        if (handle == s_light_modal && generation == s_light_generation &&
+            revision == s_home_revision && !s_dead)
         {
             s_light_detail = next;
             next = NULL;
@@ -309,17 +334,20 @@ static void lighting_reconcile(void)
     }
 }
 
-static void lighting_event_locked(const char *uuid, bool numeric, double value,
-                                  const char *text, size_t length, int64_t now)
+static void lighting_event_locked(
+    const char *uuid, bool numeric, double value, const char *text, size_t length, int64_t now)
 {
-    if (!lighting_current_locked()) return;
+    if (!lighting_current_locked())
+        return;
     for (unsigned i = 0; i < s_light_context->count; ++i)
     {
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
-            if (s_light_context->blocks[j] == s_light_context->blocks[i]) shared = true;
+            if (s_light_context->blocks[j] == s_light_context->blocks[i])
+                shared = true;
         if (!shared)
-            lx_light_block_event(s_light_context->blocks[i], uuid, numeric, value, text, length, now);
+            lx_light_block_event(
+                s_light_context->blocks[i], uuid, numeric, value, text, length, now);
     }
     if (s_light_modal && s_light_modal == s_light_detail_handle)
         lx_light_block_event(s_light_detail, uuid, numeric, value, text, length, now);
@@ -327,14 +355,17 @@ static void lighting_event_locked(const char *uuid, bool numeric, double value,
 
 static bool lighting_events_locked(int type, const uint8_t *data, size_t size)
 {
-    if (type != 2 && type != 3) return true;
-    if (!data && size) return false;
+    if (type != 2 && type != 3)
+        return true;
+    if (!data && size)
+        return false;
     int64_t now = esp_timer_get_time();
     size_t position = 0;
     while (position < size)
     {
         size_t header = type == 2 ? 24 : 36;
-        if (size - position < header) return false;
+        if (size - position < header)
+            return false;
         char uuid[LX_UUID_LEN];
         lx_uuid_string(data + position, uuid);
         if (type == 2)
@@ -352,9 +383,11 @@ static bool lighting_events_locked(int type, const uint8_t *data, size_t size)
             uint32_t length = 0;
             for (unsigned i = 0; i < 4; ++i)
                 length |= (uint32_t)data[position + 32 + i] << (8 * i);
-            if (length > size - position - 36) return false;
+            if (length > size - position - 36)
+                return false;
             size_t padding = (4 - (length & 3)) & 3;
-            if (padding > size - position - 36 - length) return false;
+            if (padding > size - position - 36 - length)
+                return false;
             lighting_event_locked(uuid, false, 0, (const char *)data + position + 36, length, now);
             position += 36 + length + padding;
         }
@@ -386,7 +419,8 @@ static void lighting_poll(int64_t now)
         if (generation == s_light_generation)
         {
             s_light_initial_ready = answer != NULL && !s_dead;
-            if (!answer) s_light_detail_failed = true;
+            if (!answer)
+                s_light_detail_failed = true;
         }
         xSemaphoreGive(s_lock);
         cJSON_Delete(answer);
@@ -416,7 +450,8 @@ static void lighting_poll(int64_t now)
         }
     }
     xSemaphoreGive(s_lock);
-    if (!handle) return;
+    if (!handle)
+        return;
     /* A meglévő soros kérés/válasz út megőrzi az ACK-k sorrendjét.
      * A nyugta önmagában nem helyettesíti a bináris állapot-visszajelzést. */
     cJSON *answer = reply(command, true);

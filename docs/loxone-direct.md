@@ -217,3 +217,18 @@ A `11-electric-car` téma az élő teljesítményt, a mai töltési energiát é
 becsült közvetlen napelemes arányát mutatja. Töltő nélkül is választható,
 rejtett autós adatokkal; az Energiaáramlás tiltás ezt a témát is letiltja.
 [Telepítés, adathiány és számítások](electric-car.md).
+
+
+## Világításvezérlés és látható Otthon-oldal
+
+A Világításvezérlő kártyához csak a `LightControllerV2` szülőblokkot kell
+kiválasztani. A külön körök, a színkezelés és a zárolások automatikusan a
+struktúrából érkeznek. [Használat és memóriahatárok](lighting-controller.md).
+
+Az Otthon-kártyák értéktára csak a ténylegesen látható oldalhoz frissül.
+Oldalnyitás és részletes blokk megnyitása közös bináris kezdőállapot-kérést
+indít a meglévő kapcsolaton. Ez helyi feldolgozási/tárolási szűrés, nem
+szerveroldali UUID-előfizetés. Az energia-, fogyasztó-, jelenlét-, postaláda-,
+kaputelefon- és Slave-adatok szükséges háttérkövetése változatlan.
+Kapcsolatvesztéskor a világítási ablak a türelmi idő előtt bezáródik,
+a függő világítási parancsok nem játszódnak vissza.

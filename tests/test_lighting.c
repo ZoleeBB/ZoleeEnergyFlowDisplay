@@ -136,6 +136,12 @@ int main(int argc, char **argv)
     assert(values.cards[1].valid && !values.cards[0].valid);
     assert(!lx_home_values_update_visible(&values, home, 8, 2, packet, sizeof(packet)));
     assert(!lx_home_values_update_visible(&values, home, 1, 2, packet, 23));
+    char unicode_names[256] = "{\"AI1\":\"X";
+    for (unsigned i = 0; i < 40; ++i) strcat(unicode_names, "é");
+    strcat(unicode_names, "\"}");
+    event(block, 6, unicode_names);
+    assert(strlen(block->circuits[0].name) == LX_LIGHT_NAME_SIZE - 2);
+    assert((unsigned char)block->circuits[0].name[LX_LIGHT_NAME_SIZE - 3] == 0xA9);
     free(home);
     /* A kártyaállapot a teljes körmodell töredékét foglalja. */
     assert(sizeof(lx_light_observation_t) * 4 < sizeof(lx_light_circuit_t));

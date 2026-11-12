@@ -5,7 +5,8 @@ static light_ui_row_t *lighting_test_row(unsigned index)
 {
     for (unsigned i = 0; i < LIGHT_UI_ROWS; ++i)
         if (light_rows[i].bound && light_rows[i].index == index &&
-            !lv_obj_has_flag(light_rows[i].root, LV_OBJ_FLAG_HIDDEN)) return &light_rows[i];
+            !lv_obj_has_flag(light_rows[i].root, LV_OBJ_FLAG_HIDDEN))
+            return &light_rows[i];
     return NULL;
 }
 
@@ -29,7 +30,8 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     lighting_card_update(0, 0, true);
     assert(!strcmp(lv_label_get_text(home_labels[0]), "TV nézés"));
     assert(lv_obj_get_height(lv_obj_get_parent(home_labels[0])) == LX_HOME_CARD_HEIGHT);
-    for (unsigned i = 0; i < 3; ++i) assert(light_card_buttons[0][i]);
+    for (unsigned i = 0; i < 3; ++i)
+        assert(light_card_buttons[0][i]);
     app_sim_light_summary.label = LX_LIGHT_MANY_MOODS;
     app_sim_light_summary.active_count = 3;
     lighting_card_update(0, 0, true);
@@ -45,10 +47,25 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     assert(!strcmp(lv_label_get_text(home_labels[0]), "Nincs adat"));
     app_sim_light_summary.label = LX_LIGHT_ONE_MOOD;
     lighting_card_update(0, 0, true);
+    strcpy(app_sim_light_summary.name,
+           "Egy nagyon hosszú világítási kép neve a nappali esti megvilágításához");
+    lighting_card_update(0, 0, true);
+    lv_obj_update_layout(s_screen);
+    lv_refr_now(display);
+    unsigned card_invalidations = 0;
+    lv_display_add_event_cb(
+        display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &card_invalidations);
+    lighting_card_update(0, 0, true);
+    lv_obj_update_layout(s_screen);
+    lv_refr_now(display);
+    assert(card_invalidations == 0);
+    lv_display_remove_event_cb_with_user_data(display, count_invalidations, &card_invalidations);
+    strcpy(app_sim_light_summary.name, "TV nézés");
+    lighting_card_update(0, 0, true);
     save_frame("lighting-cards-day");
 
-    const lx_home_command_t actions[] = {LX_HOME_COMMAND_LIGHT_PREV,
-        LX_HOME_COMMAND_LIGHT_OFF, LX_HOME_COMMAND_LIGHT_NEXT};
+    const lx_home_command_t actions[] = {
+        LX_HOME_COMMAND_LIGHT_PREV, LX_HOME_COMMAND_LIGHT_OFF, LX_HOME_COMMAND_LIGHT_NEXT};
     for (unsigned i = 0; i < 3; ++i)
     {
         home_command_wait = app_sim_home_pending = false;
@@ -62,15 +79,26 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     assert(lv_obj_get_x(light_panel) == 190 && lv_obj_get_y(light_panel) == 60);
     assert(lv_obj_get_width(light_panel) == 900 && lv_obj_get_height(light_panel) == 680);
     assert(lv_obj_get_child_count(light_content) == LIGHT_UI_ROWS);
-    light_ui_row_t *row0 = lighting_test_row(0), *row1 = lighting_test_row(1), *row2 = lighting_test_row(2);
+    light_ui_row_t *row0 = lighting_test_row(0), *row1 = lighting_test_row(1),
+                   *row2 = lighting_test_row(2);
     assert(row0 && row1 && row2);
     assert(lv_obj_check_type(row0->control, &lv_switch_class));
     assert(lv_obj_check_type(row1->control, &lv_slider_class));
     assert(!row2->control && row2->swatch);
-    strcpy(app_sim_light_circuits[1].name, "Egy hosszabb világítási körnév a nappali mennyezeti részéhez");
+    strcpy(app_sim_light_circuits[1].name,
+           "Egy hosszabb világítási körnév a nappali mennyezeti részéhez");
     lighting_ui_update();
     assert(lv_label_get_long_mode(row1->name) == LV_LABEL_LONG_MODE_DOTS);
     assert(lv_obj_get_height(row1->root) == LIGHT_ROW_HEIGHT);
+    lv_obj_update_layout(s_screen);
+    assert(lv_obj_get_height(row1->name) == lv_font_get_line_height(APP_FONT_20));
+    strcpy(app_sim_light_circuits[1].name, "Étkező\nvilágítás");
+    lighting_ui_update();
+    assert(!strchr(lv_label_get_text(row1->name), '\n'));
+    assert(strchr(app_sim_light_circuits[1].name, '\n'));
+    strcpy(app_sim_light_circuits[1].name,
+           "Egy hosszabb világítási körnév a nappali mennyezeti részéhez");
+    lighting_ui_update();
 
     unsigned sent = app_sim_light_commands;
     lv_obj_add_state(row0->control, LV_STATE_CHECKED);
@@ -91,6 +119,10 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     lv_obj_send_event(row2->root, LV_EVENT_CLICKED, NULL);
     lv_obj_update_layout(s_screen);
     assert(light_expanded == 2 && light_picker_row == row2 && light_wheel_pixels);
+    assert(lv_color_eq(lv_obj_get_style_text_color(lv_obj_get_child(light_mode_buttons[0], 0), 0),
+                       c(0xFFFFFF)));
+    assert(lv_color_eq(lv_obj_get_style_text_color(lv_obj_get_child(light_mode_buttons[1], 0), 0),
+                       c(light_ui_foreground())));
     assert(light_wheel_image.data_size == 192U * 192U * 2U);
     assert(!light_temperature || lv_obj_has_flag(light_temperature, LV_OBJ_FLAG_HIDDEN));
     unsigned brightness = app_sim_light_circuits[2].actual.brightness;
@@ -115,6 +147,15 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     lv_obj_send_event(light_mode_buttons[0], LV_EVENT_CLICKED, NULL);
     assert(light_wheel_pixels);
     save_frame("lighting-color-day");
+    unsigned expanded_invalidations = 0;
+    lv_display_add_event_cb(
+        display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &expanded_invalidations);
+    lighting_ui_update();
+    lv_obj_update_layout(s_screen);
+    lv_refr_now(display);
+    assert(expanded_invalidations == 0);
+    lv_display_remove_event_cb_with_user_data(
+        display, count_invalidations, &expanded_invalidations);
 
     /* Valós inputkezelés: a tárcsa elengedése nem kapcsol másik kártyát. */
     lv_area_t wheel_area;
@@ -154,7 +195,8 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     assert(app_sim_home_commands == home_commands);
     app_sim_light_count = LX_LIGHT_MAX_CIRCUITS;
     light_ui_open(0);
-    assert(light_count == LX_LIGHT_MAX_CIRCUITS && lv_obj_get_child_count(light_content) == LIGHT_UI_ROWS);
+    assert(light_count == LX_LIGHT_MAX_CIRCUITS &&
+           lv_obj_get_child_count(light_content) == LIGHT_UI_ROWS);
     lv_obj_update_layout(s_screen);
     lv_obj_scroll_to_y(light_body, 45 * LIGHT_ROW_PITCH, LV_ANIM_OFF);
     lighting_ui_update();
@@ -187,5 +229,6 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     assert(!light_overlay && !light_rows && !light_wheel_pixels);
     home_request_set(0);
     home_release();
-    puts("PASS: actual lighting cards, 900x680 modal, 8 virtual rows, switches/dimmers/HSV/TW, touch, live sync, 0 idle redraws and repeated cleanup");
+    puts("PASS: actual lighting cards, 900x680 modal, 8 virtual rows, switches/dimmers/HSV/TW, "
+         "touch, live sync, 0 idle redraws and repeated cleanup");
 }

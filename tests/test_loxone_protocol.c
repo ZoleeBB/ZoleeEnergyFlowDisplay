@@ -356,6 +356,21 @@ static void home_control_test(lx_config_t *energy)
     s_home_session++; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent && !s_command_pending);
     clock_us += 46000000;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    /* Rejtett lapnál nem várunk öt másodpercig olyan kapcsolóválaszra,
+     * amelynek állapotát szándékosan már nem követjük. */
+    mark_response();
+    card->type = LX_HOME_CARD_SWITCH;
+    s_home_values.cards[0] = (lx_home_value_t){.value = 0, .valid = true};
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) == ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(s_command_pending && s_command_deadline);
+    app_loxone_home_visible(-1);
+    home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && !s_command_deadline);
+    card->type = LX_HOME_CARD_PULSE;
+    app_loxone_home_visible(0);
+    clock_us += 300000;
+    lighting_poll(esp_timer_get_time());
     /* A minimális asszisztens-pillanatkép ugyanazt a valódi WS-értéktárat olvassa. */
     s_home->consumer_count = 1;
     lx_home_consumer_t *consumer = &s_home->consumers[0];
