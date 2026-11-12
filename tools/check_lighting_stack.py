@@ -52,8 +52,10 @@ def inspect(root, model_only=False):
     for source, name, size, qualifier in selected:
         if size > FRAME_LIMIT:
             failures.append(f'{name}: {size} B > {FRAME_LIMIT} B')
-        if qualifier != 'static':
-            failures.append(f'{name}: nem statikus veremkeret ({qualifier})')
+        # A bounded érték a hívási argumentumok átmeneti veremhelyét is
+        # tartalmazó felső korlát; a puszta dynamic nem bizonyított maximum.
+        if qualifier not in ('static', 'dynamic,bounded'):
+            failures.append(f'{name}: nem korlátos vagy ismeretlen veremkeret ({qualifier})')
     for _, name, size, qualifier in sorted(selected, key=lambda row: (-row[2], row[1])):
         print(f'LIGHTING STACK {name}: {size} B ({qualifier})')
     print('Hívókeretek; nem teljes hívásilánc-mélységek:')
@@ -63,7 +65,7 @@ def inspect(root, model_only=False):
     if failures:
         raise ValueError('\n'.join(failures))
     print(f'PASS: {len(selected)} világítási keret <= {FRAME_LIMIT} B; '
-          'taskverem és DMA-foglalás változatlan.')
+          'a teljes taskverem külön ellenőrzendő.')
 
 
 def main():

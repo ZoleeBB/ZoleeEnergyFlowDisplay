@@ -30,9 +30,18 @@ class StackReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '1537 B > 1536 B'):
             self.run_report(size=1537)
 
-    def test_dynamic_stack_fails(self):
-        with self.assertRaisesRegex(ValueError, 'nem statikus'):
-            self.run_report(qualifier='dynamic,bounded')
+    def test_bounded_dynamic_stack_is_a_maximum(self):
+        self.run_report(qualifier='dynamic,bounded')
+        with self.assertRaisesRegex(ValueError, '1537 B > 1536 B'):
+            self.run_report(size=1537, qualifier='dynamic,bounded')
+
+    def test_unbounded_dynamic_stack_fails(self):
+        with self.assertRaisesRegex(ValueError, 'nem korlátos'):
+            self.run_report(qualifier='dynamic')
+
+    def test_unknown_qualifier_fails(self):
+        with self.assertRaisesRegex(ValueError, 'ismeretlen'):
+            self.run_report(qualifier='unknown')
 
     def test_missing_function_fails(self):
         with self.assertRaisesRegex(ValueError, 'Hiányzó'):
