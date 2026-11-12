@@ -12,20 +12,14 @@ jobs:
   workspace:
     if: github.ref == 'refs/heads/feature/loxone-lighting-cards'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
-      - name: Inspect integration points
-        run: |
-          grep -nE 'home_prepare|home_preload|home_render|home_is_open|loxone_display_is_held|intercom_render|static void clear' main/app_ui.c
-          find assets/web simulator tests -iname '*loxone*' -o -iname '*stub*'
-          grep -nE 'app_loxone_home_snapshot|app_loxone_home_command|app_ui.c|int main' tests/preview/preview.c simulator/*.[ch] || true
-          grep -nE 'cardType|card.type|control_uuid|cardOptions|supportedControl|typeOptions' assets/web/* || true
-      - name: Install C test dependencies
-        run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
+      - name: Install native test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev python3-pil
       - name: Apply verified integration edit
         env:
           EXPECTED_SHA: ${{ github.sha }}
@@ -36,16 +30,38 @@ jobs:
           python3 tools/.lighting-edit.py
           python3 tools/prepare_web.py
           git diff --check
-          git add main assets/web tests simulator docs README.md tools
-      - name: Check lighting model with sanitizers
-        run: python3 tests/test_lighting.py
-      - name: Commit integrated source on the authorized branch
+      - name: Check lighting model and actual client protocol
+        run: |
+          python3 tests/test_lighting.py
+          python3 tests/test_loxone_protocol.py
+      - uses: actions/checkout@v4
+        with:
+          repository: lvgl/lvgl
+          ref: v9.5.0
+          path: .preview-lvgl
+      - name: Build and exercise actual lighting UI
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+        run: |
+          if ! grep -q 'include "app_loxone_lighting_ui.inc"' main/app_loxone_home_ui.inc; then exit 0; fi
+          cmake -S tests/preview -B .preview-build -DLVGL_SOURCE_DIR="$PWD/.preview-lvgl" -DCMAKE_BUILD_TYPE=Release -DZOLEE_PREVIEW_ASAN=ON > /tmp/lighting-cmake.log 2>&1 || { tail -100 /tmp/lighting-cmake.log; exit 1; }
+          cmake --build .preview-build -j 4 > /tmp/lighting-build.log 2>&1 || { tail -100 /tmp/lighting-build.log; exit 1; }
+          python3 tools/prepare_home_resources.py
+          mkdir -p .preview-images
+          cp -r templates .preview-template-sd
+          export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
+          export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
+          cd .preview-images
+          ZOLEE_LIGHTING_ONLY=1 ../.preview-build/ui_preview
+          ZOLEE_LIGHTING_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
+      - name: Commit verified source on the authorized branch
         env:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           if test ! -f tools/.lighting-edit.py; then exit 0; fi
           remote=$(git ls-remote origin refs/heads/feature/loxone-lighting-cards | cut -f1)
           test "$remote" = "$EXPECTED_SHA"
+          git add main assets/web tests simulator docs README.md tools
           git rm tools/.lighting-edit.py
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate lighting controls with bounded visible-page state'
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate verified lighting UI, configuration and visible-page state'
           git push origin HEAD:refs/heads/feature/loxone-lighting-cards
