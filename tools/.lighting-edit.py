@@ -16,6 +16,7 @@ p = 'main/app_loxone.c'
 edit(p, '    unsigned revision, session, intercom_revision;\n', '    unsigned revision, session, intercom_revision, visibility_revision;\n')
 edit(p, 'static void invalidate(bool configured)\n', '#include "app_loxone_lighting_service.inc"\n\nstatic void invalidate(bool configured)\n')
 edit(p, '    s_home_live = false;\n', '    s_home_live = false;\n    lighting_invalidate_locked();\n')
+edit(p, '        s_home_revision++;\n', '        s_home_revision++;\n        lighting_invalidate_locked();\n')
 edit(p, '            home_command_poll(now);\n', '            home_command_poll(now);\n            if (!s_dead) lighting_poll(esp_timer_get_time());\n')
 edit(p, '    bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);', '''    int visible_page = s_light_page;
     unsigned visible_first, visible_count;
@@ -43,6 +44,41 @@ edit(p, '    bool allowed = (!check_generation || s_intercom_generation == gener
 edit(p, '    request.intercom_revision = s_intercom_generation;\n', '    request.intercom_revision = s_intercom_generation;\n    request.visibility_revision = s_light_generation;\n')
 edit(p, '                     request.session == s_home_session && now >= request.queued_us &&\n', '                     request.session == s_home_session &&\n                     (door || request.visibility_revision == s_light_generation) &&\n                     lighting_home_command_allowed_locked(request.id) && now >= request.queued_us &&\n')
 edit(p, '        else if (request.action == LX_HOME_COMMAND_PULSE)\n', '        else if (request.action == LX_HOME_COMMAND_PULSE || request.action >= LX_HOME_COMMAND_LIGHT_PREV)\n')
-# A valódi kliens, a titkosítás és az új szolgáltatás ugyanabban a host buildben fordul.
+
+p = 'tests/test_loxone_protocol.c'
+edit(p, 'static bool test_audio_active;\n', '''static bool test_audio_active;
+static bool lighting_test_active;
+static unsigned lighting_initial_count, lighting_command_count;
+static void lighting_test_initial(void);
+''')
+edit(p, '''            assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
+            home_command_count++;''', '''            if (lighting_test_active)
+            {
+                assert(strstr(cmd, "jdev/sps/io/10000000-0000-0000-0000000000000001/") == cmd);
+                ++lighting_command_count;
+            }
+            else
+            {
+                assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
+                home_command_count++;
+            }''')
+edit(p, '    else if(strcmp(text,"jdev/sys/getkey")==0)', '''    else if(strcmp(text,"jdev/sps/enablebinstatusupdate")==0)
+    {
+        ++lighting_initial_count;
+        if (lighting_test_active) lighting_test_initial();
+        server_response("{\\"LL\\":{\\"Code\\":200}}");
+    }
+    else if(strcmp(text,"jdev/sys/getkey")==0)''')
+edit(p, '    s_session_config = energy; mark_response();\n', '''    s_session_config = energy; mark_response();
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    app_loxone_home_visible(0);
+    lighting_poll(esp_timer_get_time());
+    assert(s_light_initial_ready);
+''')
+edit(p, '    s_home_live = true; mark_response(); home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);', '''    s_home_live = true; mark_response();
+    lighting_poll(esp_timer_get_time());
+    home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);''')
+edit(p, '\nint main(int argc,char **argv)\n', '\n#include "test_lighting_service.inc"\n\nint main(int argc,char **argv)\n')
+edit(p, '    home_control_test(&cfg);\n', '    home_control_test(&cfg);\n    lighting_service_test(&cfg);\n')
 subprocess.run(['python3', 'tests/test_loxone_protocol.py'], check=True)
-print('Integrated lighting worker, visibility guard and snapshot filtering.')
+print('Integrated lighting worker, visibility guard and real protocol regressions.')
