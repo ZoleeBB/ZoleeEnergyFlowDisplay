@@ -158,6 +158,7 @@ További képi ellenőrzések: [beépített ikonok](docs/previews/icons.png), [r
 - [Automatikus kiadás](docs/releases.md)
 - [Felépítés](docs/architecture.md)
 - [Memória- és képfrissítési optimalizálás](docs/performance.md)
+- [Világításvezérlés – veremvédelem, fordítási javítás és ellenőrzési korlátok](docs/lighting-stack-validation.md)
 - [Fejlesztői instrukciók](AGENTS.md)
 - [Master/Slave átadási és lezárási jegyzet](docs/master-slave-handover.md)
 - [Waveshare 4B Slave – 720×720-as firmware és szimulátor](docs/slave-waveshare-4b.md) (külön alkalmazás, falra vagy asztali tartóra)
