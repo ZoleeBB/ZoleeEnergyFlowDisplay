@@ -132,11 +132,21 @@ bool lx_light_catalog_attach(cJSON *entry, const cJSON *control, bool parent_sec
         }
         else if (lx_light_action_valid(key))
             light_copy(action, sizeof(action), key);
-        else if (strlen(parent) + strlen(key) + 2 <= sizeof(action))
+        else
         {
-            snprintf(action, sizeof(action), "%s/%s", parent, key);
-            if (!lx_light_action_valid(action))
-                action[0] = 0;
+            size_t parent_length = strlen(parent), key_length = strlen(key);
+            /* A perjel és a lezáró nulla is férjen el. Kivonással ellenőrzünk,
+             * így a hosszösszeg sem csordulhat túl. Nincs csonkolt parancscím,
+             * nagyobb puffer vagy variadikus formázóhívás a veremláncban. */
+            if (parent_length < sizeof(action) - 1 &&
+                key_length < sizeof(action) - parent_length - 1)
+            {
+                memcpy(action, parent, parent_length);
+                action[parent_length] = '/';
+                memcpy(action + parent_length + 1, key, key_length + 1);
+                if (!lx_light_action_valid(action))
+                    action[0] = 0;
+            }
         }
         if (light_master(light_string(details, "masterValue"), key, action) ||
             light_master(light_string(details, "masterColor"), key, action))
