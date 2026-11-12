@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="226" height="36" viewBox="0 0 226 36" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" width="226" height="36" viewBox="0 0 226 36" role="img" aria-labelledby="title description">
   <title id="title">Revolut-me támogatás</title>
-  <rect width="226" height="36" rx="7" fill="#155FC5"/>
-  <circle cx="19" cy="18" r="11" fill="#fff"/>
-  <path d="M19 26.2 12.6 20c-4.2-4.2 2-10.3 6.4-5.2 4.4-5.1 10.6 1 6.4 5.2Z" fill="#155FC5"/>
-  <text x="38" y="23" fill="#fff" font-size="15" font-weight="700" font-family="Arial, Helvetica, sans-serif">Revolut-me támogatás</text>
+  <desc id="description">Fekete támogatási gomb R betűs jelvénnyel. A 6 képpontos felső térköz a Ko-fi gomb látható magasságához igazít.</desc>
+  <rect x="0" y="6" width="226" height="30" rx="7" fill="#111111"/>
+  <circle cx="20" cy="21" r="10" fill="#ffffff"/>
+  <text x="20" y="26" text-anchor="middle" fill="#111111" font-size="15" font-weight="700" font-family="Arial, Helvetica, sans-serif">R</text>
+  <text x="39" y="26" fill="#ffffff" font-size="15" font-weight="700" font-family="Arial, Helvetica, sans-serif">Revolut-me támogatás</text>
 </svg>
