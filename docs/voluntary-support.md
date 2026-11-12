@@ -28,8 +28,11 @@ a tárolás viszont nem duplikálja a képet (a generált fejléc 10 949 helyett
 A kiszolgálás közvetlenül a flashben tárolt állandóból történik, verempufferbe
 másolás nélkül. A README nagyobb [fejlécképe](../assets/branding/readme-banner.png)
 és az [eredeti felbontású logó](../assets/branding/logo.png) nem kerül a firmware-be.
-A szerkeszthető [banner SVG](../assets/branding/readme-banner.svg) a mellette lévő
-`logo.png` fájlt használja; a README a belőle renderelt, önálló PNG-t jeleníti meg.
+A README jelenlegi [bannerképe](../assets/branding/readme-banner.png) önálló,
+jóváhagyott PNG-összeállítás, amelyben a Nap pálya téma tényleges LVGL-előnézete
+szerepel. A korábbi, egyszerűbb változat [SVG-forrása](../assets/branding/readme-banner.svg)
+történeti állomány: már **nem** a jelenlegi PNG generálási forrása, ezért abból
+nem szabad automatikusan felülírni a jóváhagyott bannerképet.
 
 A kártya a két engedélyezett szolgáltatóhoz vezethet:
 
