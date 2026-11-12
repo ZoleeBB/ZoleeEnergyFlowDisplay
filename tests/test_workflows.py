@@ -49,17 +49,29 @@ class WorkflowContractTests(unittest.TestCase):
                 if step.get('uses') == 'actions/checkout@v4' and not step.get('with', {}).get('repository'):
                     self.assertEqual(step['with']['ref'], '${{ inputs.source_sha }}')
 
-    def test_four_unique_outputs_and_exact_release_handoff(self):
+    def test_four_build_outputs_one_preview_and_exact_release_handoff(self):
         uploads = [(job, step) for job in self.shared['jobs'].values()
                    for step in job.get('steps', []) if step.get('uses') == 'actions/upload-artifact@v4']
-        names = [s['with']['name'] for _, s in uploads]
+        # A diagnosztikai render nem kiadási csomag; a négy meglévő build-
+        # kimenet és a publikálás pontos firmware-átadása változatlan marad.
+        preview_name = 'zolee-lighting-previews-${{ inputs.source_sha }}'
+        previews = [(j, s) for j, s in uploads if s['with']['name'] == preview_name]
+        self.assertEqual(len(previews), 1)
+        job, preview = previews[0]
+        self.assertIs(job, self.shared['jobs']['ui-preview'])
+        self.assertEqual(preview['with']['path'], '.preview-images/lighting-*.ppm')
+        self.assertEqual(preview['with']['retention-days'], '7')
+        self.assertEqual(preview['with']['overwrite'], 'true')
+        outputs = [(j, s) for j, s in uploads if s['with']['name'] != preview_name]
+        names = [s['with']['name'] for _, s in outputs]
         self.assertEqual(len(names), 4)
         self.assertEqual(len(set(names)), 4)
+        self.assertEqual(len({s['with']['name'] for _, s in uploads}), 5)
         for _, step in uploads:
             self.assertTrue(step['with']['name'].startswith('zolee-'))
             self.assertIn('${{ inputs.source_sha }}', step['with']['name'])
             self.assertEqual(step['with']['if-no-files-found'], 'error')
-        firmware = next(s for _, s in uploads if s['with']['name'].startswith('zolee-firmware-'))
+        firmware = next(s for _, s in outputs if s['with']['name'].startswith('zolee-firmware-'))
         self.assertEqual(firmware['with']['overwrite'], 'false')
         slave = self.shared['jobs']['simulator-slave']
         self.assertEqual(slave['strategy']['matrix']['os'], ['ubuntu-latest', 'windows-latest'])
@@ -93,7 +105,6 @@ class WorkflowContractTests(unittest.TestCase):
         runtime = steps['Install pinned browser test runtime']
         dependencies = steps['Install Chromium system dependencies']
         browser = steps['Install Chromium headless shell']
-        # Az időkeretek után maradjon idő checkout-ra és a két valódi tesztre is.
         install_budget = sum(int(step['timeout-minutes'])
                              for step in (runtime, dependencies, browser))
         self.assertGreaterEqual(int(job['timeout-minutes']), install_budget + 3)
