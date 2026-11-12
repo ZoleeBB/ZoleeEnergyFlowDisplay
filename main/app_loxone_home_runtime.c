@@ -16,7 +16,10 @@ static bool home_values_update_range(lx_home_values_t *values, const lx_home_con
         return true;
     if (size % 24 || (!data && size))
         return false;
-    lx_home_values_t next = *values;
+    /* A teljes numerikus tábla és minden indexhatár ellenőrzése megelőzi az
+     * első írást; a ciklusban már nincs visszautasító hibaág. A kliens a teljes
+     * hívás alatt ugyanazt a mutexet tartja, mint a pillanatképek olvasói.
+     * Nem kell az összes 96 kártya értéktárát a taskveremre másolni. */
     for (size_t position = 0; position < size; position += 24)
     {
         char uuid[LX_UUID_LEN];
@@ -32,7 +35,7 @@ static bool home_values_update_range(lx_home_values_t *values, const lx_home_con
             if (strcmp(uuid, source->uuid))
                 continue;
             double value = raw * source->scale;
-            next.consumers[i] = (lx_home_value_t){
+            values->consumers[i] = (lx_home_value_t){
                 .value = isfinite(value) ? value : 0,
                 .valid = isfinite(value) && value >= 0 && value <= 1000};
         }
@@ -42,13 +45,12 @@ static bool home_values_update_range(lx_home_values_t *values, const lx_home_con
             if (card->type == LX_HOME_CARD_PULSE || card->type == LX_HOME_CARD_LIGHTING || strcmp(uuid, card->source.uuid))
                 continue;
             double value = raw * card->source.scale + card->source.offset;
-            next.cards[i] = (lx_home_value_t){
+            values->cards[i] = (lx_home_value_t){
                 .value = isfinite(value) ? value : 0,
                 .valid = isfinite(value) && (card->type != LX_HOME_CARD_SWITCH ||
                                               value == 0 || value == 1)};
         }
     }
-    *values = next;
     return true;
 }
 

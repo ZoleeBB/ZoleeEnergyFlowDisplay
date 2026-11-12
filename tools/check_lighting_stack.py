@@ -10,10 +10,12 @@ import re
 import sys
 
 FRAME_LIMIT = 1536
-PREFIXES = ('lx_light_', 'light_', 'lighting_', 'app_loxone_light_')
+PREFIXES = ('lx_light_', 'light_', 'lighting_', 'app_loxone_light_', 'lx_home_values_')
+GUARDED = {'app_loxone_home_visible', 'home_values_update_range'}
 CALLERS = {'worker', 'runtime', 'reply', 'pump', 'wait_reply', 'update_values',
            'home_command_poll', 'home_render', 'home_build', 'home_prepare'}
-REQUIRED = {'lx_light_catalog_attach', 'lx_light_block_event', 'lx_light_command_build'}
+REQUIRED = {'lx_light_catalog_attach', 'lx_light_block_event', 'lx_light_command_build',
+            'lx_home_values_update_visible'}
 RECORD = re.compile(r'^(.*):(\d+):(\d+):([^\t]+)\t(\d+)\t(.+)$')
 
 
@@ -26,15 +28,15 @@ def parse_record(line):
 
 
 def lighting_name(name):
-    return name.startswith(PREFIXES) or name.split('.')[0] == 'app_loxone_home_visible'
+    return name.startswith(PREFIXES) or name.split('.')[0] in GUARDED
 
 
 def inspect(root, model_only=False):
     records = []
     for path in sorted(root.rglob('*.su')):
-        # Csak a kiválasztott három valódi fordítási egység oldalfájljai.
+        # Csak a kiválasztott négy valódi fordítási egység oldalfájljai.
         if not any(unit in path.name for unit in
-                   ('app_loxone_model', 'app_loxone.', 'app_ui.')):
+                   ('app_loxone_model', 'app_loxone_home_runtime', 'app_loxone.', 'app_ui.')):
             continue
         for line in path.read_text(encoding='utf-8').splitlines():
             if line.strip():

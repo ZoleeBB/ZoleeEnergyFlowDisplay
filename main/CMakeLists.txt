@@ -155,7 +155,7 @@ target_compile_options(
 # A világítás új kódját a valódi, optimalizált RISC-V fordítóval is mérjük.
 # A .su csak build-oldalfájl, nem kerül a firmware-be. Nem növeljük a taskok
 # vermét, és a meglévő általános fordítói korlát is változatlan marad.
-set_property(SOURCE app_loxone_model.c app_loxone.c app_ui.c
+set_property(SOURCE app_loxone_model.c app_loxone_home_runtime.c app_loxone.c app_ui.c
     APPEND PROPERTY COMPILE_OPTIONS -fstack-usage)
 add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
     COMMAND "${PYTHON}" "${CMAKE_CURRENT_LIST_DIR}/../tools/check_lighting_stack.py"

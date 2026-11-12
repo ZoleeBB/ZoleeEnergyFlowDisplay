@@ -31,17 +31,33 @@ vezérelhető: nincs csonkolás, és hibás explicit `uuidAction` mellett sem
 választunk találgatott tartalékcímet. Ezen az úton a variadikus formázóhívás
 is megszűnik; a figyelmeztetést nem kapcsoljuk ki.
 
+## Kivett teljes értéktár-másolat
+
+Az állapotfeldolgozó hívási útban a `home_values_update_range` az egész
+`lx_home_values_t` példányt a veremre másolta (host ABI-n 1824 bájt), akkor is,
+ha csak egy oldal vagy kizárólag a háttérben szükséges fogyasztók frissültek.
+A teljes numerikus tábla rekordhosszát, a nulladatot és az indexhatárokat
+már a feldolgozás előtt ellenőrizzük; a ciklusban nincs visszautasító hibaág.
+A kliens hívója és a snapshotolvasók ugyanazt a mutexet használják.
+
+Ezért az értékek a meglévő, zárolt értéktárban frissülnek, teljes veremmásolat,
+heapfoglalás vagy másik statikus puffer nélkül. A hibás csomag nem frissít
+részlegesen: ezt a `tests/test_home_values_stack.c` az érvényes rekordokat
+követő hibás maradékkal, minden 1–49 bájtos hibás hosszal, üres/nem numerikus
+csomaggal, látható/rejtett oldallal, közös fogyasztói UUID-val és NaN-nal is
+ellenőrzi. Az eredeti, teljes Otthon- és Loxone-protokolltesztek is megmaradnak.
+
 ## Automatizált veremellenőrzés
 
 A forráskódbeli `tests/test_lighting.py` a meglévő ASan/UBSan-próbák
-mellett külön címhatár-tesztet futtat, és `-O0`/`-O2` hostfordítást készít
-sanitizer nélkül, `-fstack-usage` kapcsolóval. Így nem a sanitizer által
+mellett külön címhatár- és értéktártesztet futtat, és `-O0`/`-O2` hostfordítást
+készít sanitizer nélkül, `-fstack-usage` kapcsolóval. Így nem a sanitizer által
 megnövelt keretből következtetünk a firmware-re.
 
 A Master `main/CMakeLists.txt` beállítása az `app_loxone_model.c`,
-`app_loxone.c` és `app_ui.c` tényleges célhardveri fordításából is elkészíti
-az oldalfájlokat. A komponens elkészültekor a
-`tools/check_lighting_stack.py` az emitált világítási
+`app_loxone_home_runtime.c`, `app_loxone.c` és `app_ui.c` tényleges célhardveri
+fordításából is elkészíti az oldalfájlokat. A komponens elkészültekor a
+`tools/check_lighting_stack.py` az emitált világítási és Otthon-értékfrissítő
 függvényekre **1536 bájtos** felső határt vizsgál, kiírja a hívók helyi
 kereteit, és hiányzó / ismeretlen / nem korlátos adatoknál megállítja a buildet.
 A `.su` oldalfájl és a Python-ellenőr nem kerül a futó firmware-be.
