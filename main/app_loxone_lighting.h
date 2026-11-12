@@ -37,6 +37,15 @@ typedef struct
     int64_t last_sent_us, pending_until_us;
 } lx_light_circuit_t;
 
+/* A zárt kártyának csak az ismert/be állapot kell; nem őriz parancscélt,
+ * nevet vagy színválasztó-munkapéldányt minden egyes körhöz. */
+typedef struct
+{
+    char state[LX_UUID_LEN];
+    lx_light_type_t type;
+    bool valid, on;
+} lx_light_observation_t;
+
 typedef struct { unsigned id; char name[LX_LIGHT_NAME_SIZE]; } lx_light_mood_t;
 typedef struct
 {
@@ -47,6 +56,7 @@ typedef struct
     unsigned mood_count, circuit_count;
     lx_light_mood_t *moods;
     lx_light_circuit_t *circuits;
+    lx_light_observation_t *observations;
 } lx_light_block_t;
 
 typedef struct
@@ -64,6 +74,9 @@ const cJSON *lx_light_catalog_find(const cJSON *catalog, const char *control_uui
 bool lx_light_action_valid(const char *action);
 void *lx_light_alloc(size_t count, size_t size);
 lx_light_block_t *lx_light_block_create(const cJSON *entry);
+/* A részletes állapottárból kompakt kártyaállapotot készít; hiba esetén
+ * változatlan marad. A részletes ablak külön, igény szerinti blokkot kap. */
+bool lx_light_block_minimize(lx_light_block_t *block);
 void lx_light_block_free(lx_light_block_t *block);
 void lx_light_block_cancel(lx_light_block_t *block);
 void lx_light_block_event(lx_light_block_t *block, const char *uuid,

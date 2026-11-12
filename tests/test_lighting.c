@@ -137,6 +137,26 @@ int main(int argc, char **argv)
     assert(!lx_home_values_update_visible(&values, home, 8, 2, packet, sizeof(packet)));
     assert(!lx_home_values_update_visible(&values, home, 1, 2, packet, 23));
     free(home);
+    /* A kártyaállapot a teljes körmodell töredékét foglalja. */
+    assert(sizeof(lx_light_observation_t) * 4 < sizeof(lx_light_circuit_t));
+    assert(lx_light_block_minimize(block));
+    assert(!block->circuits && block->observations);
+    lx_light_summary(block, &summary); assert(summary.label == LX_LIGHT_OFF);
+    number_event(block, 101, 42);
+    lx_light_summary(block, &summary); assert(summary.label == LX_LIGHT_CUSTOM);
+    event(block, 4, "[1]");
+    lx_light_summary(block, &summary); assert(summary.label == LX_LIGHT_ONE_MOOD);
+    event(block, 4, "[1,2]");
+    lx_light_summary(block, &summary); assert(summary.label == LX_LIGHT_MANY_MOODS);
+    assert(!lx_light_command_build(block, 0, &color, command));
+    assert(!lx_light_take(block, 0, 2000000, command));
+    lx_light_block_cancel(block);
+    lx_light_circuit_snapshot(block, 0, 2000000, &snapshot);
+    assert(!snapshot.actual.valid);
+    event(block, 6, "{\"AI1\":\"Zárt kártya\"}");
+    assert(lx_light_block_minimize(block));
+    printf("Lighting memory: compact circuit %zu, detailed circuit %zu bytes\n",
+           sizeof(lx_light_observation_t), sizeof(lx_light_circuit_t));
     lx_light_block_free(block); cJSON_Delete(catalog); free(source);
     puts("Lighting model, state, command, rate and visible-page tests: OK");
     return 0;

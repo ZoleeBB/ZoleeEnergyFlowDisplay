@@ -295,17 +295,39 @@ lx_light_block_t *lx_light_block_create(const cJSON *entry)
     return block;
 }
 
+bool lx_light_block_minimize(lx_light_block_t *block)
+{
+    if (!block) return false;
+    if (!block->circuits) return true;
+    lx_light_observation_t *small = block->circuit_count ?
+        lx_light_alloc(block->circuit_count, sizeof(*small)) : NULL;
+    if (block->circuit_count && !small) return false;
+    for (unsigned i = 0; i < block->circuit_count; ++i)
+    {
+        const lx_light_circuit_t *circuit = &block->circuits[i];
+        light_copy(small[i].state, sizeof(small[i].state), circuit->state);
+        small[i].type = circuit->type;
+        small[i].valid = circuit->actual.valid;
+        small[i].on = circuit->actual.brightness > 0;
+    }
+    free(block->circuits);
+    block->circuits = NULL;
+    block->observations = small;
+    return true;
+}
+
 void lx_light_block_free(lx_light_block_t *block)
 {
     if (!block) return;
     free(block->moods);
     free(block->circuits);
+    free(block->observations);
     free(block);
 }
 
 void lx_light_block_cancel(lx_light_block_t *block)
 {
-    if (!block) return;
+    if (!block || !block->circuits) return;
     for (unsigned i = 0; i < block->circuit_count; ++i)
     {
         block->circuits[i].dirty = block->circuits[i].pending = false;
@@ -425,7 +447,7 @@ void lx_light_block_event(lx_light_block_t *block, const char *uuid,
     if (!numeric && block->names_state[0] && !strcmp(uuid, block->names_state))
     {
         cJSON *names = light_json(text, length);
-        if (cJSON_IsObject(names))
+        if (block->circuits && cJSON_IsObject(names))
             for (unsigned i = 0; i < block->circuit_count; ++i)
             {
                 lx_light_circuit_t *circuit = &block->circuits[i];
@@ -436,6 +458,27 @@ void lx_light_block_event(lx_light_block_t *block, const char *uuid,
                 if (name[0]) light_copy(circuit->name, sizeof(circuit->name), name);
             }
         cJSON_Delete(names);
+    }
+    if (block->observations)
+    {
+        for (unsigned i = 0; i < block->circuit_count; ++i)
+        {
+            lx_light_observation_t *item = &block->observations[i];
+            if (!item->state[0] || strcmp(uuid, item->state)) continue;
+            if (numeric && (item->type == LX_LIGHT_SWITCH || item->type == LX_LIGHT_DIMMER))
+            {
+                item->valid = isfinite(value) && value >= 0 && value <= 100 &&
+                    (item->type != LX_LIGHT_SWITCH || value == 0 || value == 1);
+                item->on = item->valid && value > 0;
+            }
+            else if (!numeric && item->type == LX_LIGHT_COLOR)
+            {
+                lx_light_value_t color = {0};
+                item->valid = lx_light_color_parse(text, length, &color);
+                item->on = item->valid && color.brightness > 0;
+            }
+        }
+        return;
     }
     for (unsigned i = 0; i < block->circuit_count; ++i)
     {
@@ -477,9 +520,17 @@ void lx_light_summary(const lx_light_block_t *block, lx_light_summary_t *out)
     bool all_known = block->circuit_count > 0, any_on = false;
     for (unsigned i = 0; i < block->circuit_count; ++i)
     {
-        const lx_light_value_t *value = &block->circuits[i].actual;
-        if (!value->valid) all_known = false;
-        else if (value->brightness) any_on = true;
+        if (block->observations)
+        {
+            if (!block->observations[i].valid) all_known = false;
+            else if (block->observations[i].on) any_on = true;
+        }
+        else
+        {
+            const lx_light_value_t *value = &block->circuits[i].actual;
+            if (!value->valid) all_known = false;
+            else if (value->brightness) any_on = true;
+        }
     }
     if (all_known && !any_on) { out->label = LX_LIGHT_OFF; return; }
     if (block->active_known && block->active_count > 1)
@@ -502,7 +553,7 @@ void lx_light_summary(const lx_light_block_t *block, lx_light_summary_t *out)
 bool lx_light_command_build(const lx_light_block_t *block, unsigned index,
                             const lx_light_value_t *value, char out[LX_LIGHT_COMMAND_SIZE])
 {
-    if (!light_allowed(block) || index >= block->circuit_count || !value || !out ||
+    if (!light_allowed(block) || !block->circuits || index >= block->circuit_count || !value || !out ||
         !value->valid || value->brightness > 100)
         return false;
     const lx_light_circuit_t *circuit = &block->circuits[index];
@@ -544,7 +595,7 @@ bool lx_light_queue(lx_light_block_t *block, unsigned index, const lx_light_valu
 
 bool lx_light_take(lx_light_block_t *block, unsigned index, int64_t now, char out[LX_LIGHT_COMMAND_SIZE])
 {
-    if (!block || index >= block->circuit_count || now < 0) return false;
+    if (!block || !block->circuits || index >= block->circuit_count || now < 0) return false;
     lx_light_circuit_t *circuit = &block->circuits[index];
     if (!circuit->dirty || (circuit->last_sent_us && now - circuit->last_sent_us < LX_LIGHT_INTERVAL_US))
         return false;
@@ -563,7 +614,7 @@ void lx_light_circuit_snapshot(const lx_light_block_t *block, unsigned index, in
 {
     if (!out) return;
     memset(out, 0, sizeof(*out));
-    if (!block || index >= block->circuit_count) return;
+    if (!block || !block->circuits || index >= block->circuit_count) return;
     *out = block->circuits[index];
     out->blocked = out->blocked || !light_allowed(block) || !out->lock_known || out->locked;
     if (out->pending && (out->dirty || now < out->pending_until_us))
