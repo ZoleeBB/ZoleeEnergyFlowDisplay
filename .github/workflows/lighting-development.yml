@@ -1,0 +1,21 @@
+name: Lighting development workspace
+on:
+  push:
+    branches: [feature/loxone-lighting-cards]
+    paths: [.github/workflows/lighting-development.yml]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export tracked sources only
+        run: git archive --format=tar HEAD | gzip > /tmp/lighting-source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lighting-source
+          path: /tmp/lighting-source.tar.gz
+          retention-days: 1
