@@ -1,8 +1,11 @@
 <h1 align="center"><img src="assets/branding/readme-banner.png" alt="Zolee Energy Flow Display" width="1600"></h1>
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1H8299KGN)
+<p align="center">
+  <a href="https://ko-fi.com/E1H8299KGN"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi támogatás" height="36"></a>
+  <a href="https://revolut.me/zoleebb"><img src="assets/branding/revolut-support.svg" alt="Revolut-me támogatás" height="36"></a>
+</p>
 
-Otthoni energiaáramlás-kijelző a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150) panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja.
+Otthoni energiaáramlás-kijelző a **Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150)** panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja. A külön Slave firmware a **Waveshare ESP32-P4-WIFI6-Touch-LCD-4B (SKU 31416)** panelen fut, 720×720-as felbontással.
 
 A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát, a Slave pedig Bluetooth-on a mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, tizenegy, módtól függően választható, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
 
@@ -42,7 +45,7 @@ Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott 
 - [Téma-előnézetek](#téma-előnézetek)
 - [Dokumentáció](#dokumentáció)
 - [Fejlesztői ellenőrzés](#fejlesztői-ellenőrzés)
-- [Verziók és fejlesztési bejegyzések](#verziók-és-fejlesztési-bejegyzések)
+- [Verziók](#verziók)
 
 ## Első indítás
 
@@ -186,213 +189,11 @@ Az NTP `sys_timeout` újraindulását a 10 napos SDK időzítő és fordítási 
 
 A [memória- és képfrissítési optimalizálás](docs/performance.md) ismerteti a Waveshare/Espressif példák alapján alkalmazott fix SDIO DMA-ablakot, PSRAM geometriát, natív képcache-t és a hardveres mérés korlátait, valamint a gyors témaváltást (igazított SD-olvasás, egyszeri PNG-ellenőrzés), az Otthon-kártyák háttér-újraolvasás nélküli lapozását és a csak változáskor rajzoló Master/4B Slave frissítést. A fejlesztői teljesítményszabályok az [AGENTS.md](AGENTS.md) fájlban vannak. A webes diagnosztika külön mutatja a belső RAM és a legnagyobb DMA-blokk állapotát.
 
-## Verziók és fejlesztési bejegyzések
+## Verziók
 
-Az alábbi bejegyzések a korábbi fejlesztési köröket és kiadásokat foglalják össze; az aktuális használati leírások fent, a dokumentációs jegyzékben találhatók.
+A részletes kiadási leírások és a korábbi fejlesztési bejegyzések külön dokumentumokban találhatók:
 
-### Kaputelefon utáni témavisszatöltés (`fix/intercom-theme-restore`)
-
-A csengetés megszűnése utáni kamera-/hangfeladat-leállás időzített naplózást kapott. A normál témák és a Loxone Otthon-oldalak külön betöltési időkorlátot használnak; a téma elakadásakor az ideiglenes **Rendszer** nézet nem írja felül a felhasználó mentett választását. A helyreállítás nem blokkoló katalóguszárolást használ, a tartós médiamegakadásnál kezdeményezett újraindítást pedig az OTA-műveletfoglalás és az SD-zár védi. Az új tesztek a teljes regressziós tesztcsomag részei.
-
-**Állapot:** fejlesztési ág / PR; a teljes ESP-IDF- és CI-futtatás, illetve a valódi kijelzőn végzett memória- és újracsengési próba szükséges az összevonás előtt. Ez a bejegyzés nem jelöl ki önálló kiadási verziót. [Részletes működés](docs/intercom.md#kaputelefon-utáni-témahelyreállítás) · [Hibaelhárítás](docs/errors.md#kaputelefon-bezárása-után-beragadt-témabetöltés).
-
-### Elektromos autó, Loxone-szerkesztő és újrarajzolás (`feature/electric-home`)
-
-Az új `11-electric-car` téma 5-ös csomagverziója csak közvetlen Loxone módban
-használható. A nappali és éjszakai háttérhez külön illesztett energiaút követi a
-töltőkábelt. Az irányfüggő hálózati cím, az akkuhőmérséklet és az áttetsző fejléc
-mellett a kártyán a mai autótöltés kWh-értéke és becsült napelemes százaléka is látszik.
-A ház teljes fogyasztása továbbra is a `PowerFull`; az autó nincs kétszer elszámolva.
-Hiányzó töltőadat nem válik nulla fogyasztássá, kimaradásra nincs energiabecslés.
-
-A webes fogyasztó- és Otthon-kártyaszerkesztő kompakt mezőrácsot, nagyobb
-ikonelőnézetet és magyar ABC-sorrendű ikonlistát kapott. A Nap pálya naphalója,
-a Rendszer nézet energiaútjai és ikonjai csak változáskor frissülnek; a hostteszt
-minden telepített témán nappal/éjjel és a Loxone-lapokon is ellenőrzi a nulla
-üresjárati érvénytelenítést. Ez nem fizikai CPU-/FPS-mérés.
-
-**Telepítés:** előbb a Master firmware, utána a `/templates` oldalon az
-`11-electric-car.zip` (v5). A külön 720×720-as 4B Slave nem kap új autós oldalt.
-[Használat és számítások](docs/electric-car.md) ·
-[Ellenőrzési állapot](docs/electric-car-development.md) ·
-[Újrarajzolási mérések](docs/performance.md#csak-változáskor-rajzoló-frissítés--master-és-4b-slave).
-
-### Újdonság – 4B Slave: fényerő a Mastertől, OTA-visszaállás naplózása (`feature/slave-4b-brightness`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Fényerő SD nélkül | A Slave-nek nincs SD-kártyája és beállítóoldala, ezért a nappali/éjszakai fényerőt a védett profilban (változatlan hosszal és verzióval, a jelszó mögötti szabad bájtokban) a Mastertől kapja – a Beállítások oldalon átírt érték újraindítás nélkül érvényesül. [Részletek](docs/slave-waveshare-4b.md) |
-| Nem ragad be a csatlakozás | Elmaradt CONNECT eseménynél a Slave eddig örökre „csatlakozás alatt" maradt (a Master címe és az RSSI felvillant, majd semmi). Most 15 másodperc után megszakítja és újra keres. |
-| Párosítás nem vész el | A Slave eddig minden hitelesítési hibánál eldobta a párosítási kulcsot, így egy újrainduló Master után véglegesen leállt a kapcsolat. Mostantól csak a Master kulcshiány-jelzése (HCI 0x06) dobja el, és a kijelző kiírja, hogy újrapárosítás kell. |
-| BLE-önjavítás | Ha a BLE host 90 mp alatt nem szinkronizál, vagy 10 percig nincs masterkapcsolat, a Slave magától újraindul (növekvő szünettel), és a napló rögzíti az okot. |
-| Türelmesebb OTA | Ha a Slave frissítése közben a Master is újraindul, a hiányzó masterkapcsolat miatt az ellenőrzés 20 percig vár a visszaállás helyett. |
-| OTA-visszaállás nyoma | Az ellenőrzési ablak 3-ról 5 percre nőtt (a Slave indulása lassabb); időtúllépéskor NVS-be kerül, melyik feltétel hiányzott, és a következő induláskor a napló kiírja a nem véglegesült verziót és az okot is. [Részletek](docs/ota.md) |
-
-### Javítás – 4B Slave: néma jelenlétforrásnál nincs sötétítés, és nem fagyhat sötéten (`fix/slave-4b-night-blank`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Csak valódi 0-ra sötétít | Jelenlétforrással beállított profilnál a kijelző csak akkor sötétedik el, ha friss, érvényes jelenlétadat mondja, hogy nincs jelenlét. Néma vagy érvénytelen forrásnál (elmaradt BLE-olvasás, lejárt lease, Loxone-kiesés) a sötétítés fel van függesztve. [Részletek](docs/slave-waveshare-4b.md) |
-| Nem marad sötét és néma | Ha a 33 ms-os kijelzőkör megáll, a fényerő és az érintés is halott: a főciklus 30 másodperc után újraindítja az eszközt, és a napló a következő induláskor megmondja az okot. |
-
-### Javítás – 4B Slave: jelenlét alatt nem sötétedik el, teljes képernyős diagnosztika (`fix/slave-4b-presence-hold`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Csak valódi jelenlétvesztésre sötétít | A visszaszámlálás kizárólag friss, érvényes 0 jelenlétérték után indul. A kimaradt BLE-olvasás, a lejárt lease és a Master átmeneti kiesése nem jelenlétvesztés; 10 perc néma jel után évül el az utolsó ismert állapot. [Részletek](docs/slave-waveshare-4b.md) |
-| Biztosabb ébresztés | Nulla fényerőről visszatéréskor a BSP háttérvilágítását is felkapcsoljuk, és a napló rögzíti az érintéseket, az elsötétülést és az ébredést. |
-| Teljes képernyős diagnosztika | Firmware-verzió, üzemidő, tájolás, BLE/Wi-Fi/IP, napszak és fényerő, jelenlét- és sötétítésállapot, érintésszámláló, valamint a rendszernapló utolsó bejegyzései – görgethetően, „Bezárás" gombbal. |
-
-### Újdonság – 4B Slave: nagyobb betűk mindenhol a fejlécen kívül (`feature/slave-4b-font-scale`)
-
-| Funkció | Röviden |
-| --- | --- |
-| +20% betűméret | A fejlécen kívül minden felirat és érték egy mérettel nagyobb (16 → 20, 20 → 24, 28 → 34): csomópontnevek, teljesítményértékek, akkumulátor-részletek, állapotsor, diagnosztika, napi összesítő, PIN-pad és kaputelefon. [Részletek](docs/slave-waveshare-4b.md) |
-| Új betűméretek | A 24 és 34 képpontos készlet ugyanabból a Noto Sans forrásból, a meglévő `tools/prepare_fonts.py`-vel készült; a Slave a 16 képpontosat már nem fordítja be. |
-| Igazított elrendezés | A nagyobb sorokhoz a körök melletti és alatti feliratok helye is változott, így semmi nem lóg egymásba. |
-| Javítás | A várakozó üzenetek „…" karaktere üres négyzetként jelent meg (nincs a betűkészletben); mostantól három pont, mint a fő kijelzőn. |
-
-### Újdonság – 4B Slave: olvashatóbb felület és állítható tájolás (`feature/slave-4b-readability`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Vastagabb energiautak | Az energiautak, a körök és a mozgó pontok kétszer olyan vastagok, így a háttérkép felett is jól követhetők. |
-| Félkövér feliratok | A Hálózat/Akkumulátor/Napelem/Ház nevek és a teljesítményértékek szintetikus félkövérrel rajzolódnak – új font nélkül, változatlan elrendezésben. |
-| Egysoros fejléc | Az időjárás ikon és a hőmérséklet rögtön a „Zolee Energy" felirat után áll, a felszabadult helyre a páratartalom került az ikonjával. |
-| Állítható tájolás | A Master `/loxone` oldalán, a Slave kártyáján választható 0/90/180/270°. A beállítás a jelenlétprofillal megy át BLE-n, a Slave elmenti és újraindul; az érintés is forog. [Részletek](docs/slave-waveshare-4b.md) |
-| Slave IP-cím | A 4B diagnosztikai rétege kiírja a Wi-Fi IP-címet is. |
-| Frissítés a gombról | A Master „frissítések keresése" gombja a párosított Slave-eket is megkéri, hogy nézzék meg a saját kiadásukat (a napváltáskori automatikus ellenőrzést a Slave eddig is futtatta). |
-
-### Javítás – a 4B Slave régebbi szilíciumon is települ (`fix/slave-4b-chip-revision`)
-
-| Funkció | Röviden |
-| --- | --- |
-| 4B telepítés v1.x lapkán | A megérkezett 4B panel ESP32-P4 **v1.3** szilíciumú, a Slave csomag viszont v3.0+-t kért: a feltöltés `requires chip revision in range v3.0 - v3.99` hibával állt meg. A Slave firmware mostantól v1.0 – v1.99 lapkára készül (a PSRAM marad 200 MHz). A két revíziócsalád az ESP-IDF-ben kizárja egymást, a Master 10.1 változatlanul v3.0 – v3.99. [Részletek](docs/usb-install.md) |
-| Ellenőrzött csomag | A kiadás csomagolása kiolvassa a bootloader és az alkalmazás fejlécéből a revíziókövetelményt, és eltérésnél nem enged ki csomagot. Így nem maradhat észrevétlen, ha egy build rossz szilíciumra készül. |
-| Célzott hibaüzenet | A `flash.py` a valódi hibához igazítja a tanácsot: revízióhibánál nem a kézi BOOT módot ajánlja (az nem segít), hanem megmondja, mi a baj. |
-
-### Újdonság – visszakereshető eseménynapló (`feature/event-log-history`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Napló az SD-n | A RAM-napló bejegyzései kötegelve az SD-re is kikerülnek (`/sdcard/logs`), így újraindítás után is látszik, mi történt előtte. Mindig a mai és az előző napi fájl marad meg, napi 512 KiB felső korláttal. [Részletek](docs/errors.md) |
-| Nem akad össze semmivel | A kiírás a tárzárat csak nem blokkolóan kéri: ha a kijelző témát tölt vagy telepítés fut, kimarad, és a következő körben újrapróbálja. Az esemény rögzítése továbbra is tisztán RAM-művelet, bármelyik feladatból hívható. |
-| Görgethető eseménylista | Az információs oldal „Legutóbbi események" kártyája fix magasságú és görgethető, a legfrissebb eseménnyel az élen – ahogy a kijelző diagnosztikai nézete is mutatja. Mellette a mai és az előző napi teljes napló is megnyitható, szintén csökkenő időrendben. |
-
-### Javítások – témabetöltés és segédfájlok (`fix/theme-load-starvation`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Nem akad be a kijelző frissítés után | A segédfájlokat készítő háttérmunka nem tartja fél percig az SD-zárat: a dekódolás alatt elengedi, 64 KiB-os blokkokban ír, és félreáll, ha a kijelzőnek kell a kártya. A betöltés-figyelő pedig vár, ha a betöltés csak sorban áll – nem vált tartalék nézetre. [Részletek](docs/errors.md) |
-| Megmarad a témaválasztás | Egy sikertelen betöltés nem írja át a mentett témát: a kijelző ideiglenesen a Rendszer nézetet mutatja, a választás érintetlen. |
-| Nem tűnik el a téma a listából | Átmeneti olvasási vagy foglalási hiba nem dobja ki a témát a katalógusból („nincs telepítve”); a lista megtartja a bejegyzést, és a következő vizsgálat újrapróbálja. |
-| Megmaradnak a segédfájlok | Frissítéskor a változatlan képek előre dekódolt segédfájljai átkerülnek az új könyvtárba, ha azt a méretet az új leíró is használja: a hátterek nem készülnek újra, a téma a frissítés után is azonnal gyorsan tölt. A ZIP-es kézi telepítésre és a GitHubos frissítésre egyaránt él. |
-| Hamarabb készülnek a segédfájlok | Először az aktív téma hátterei; a háttérmunka foglalt zár után 2,5 s-ot vár, nem egy percet. [Részletek](docs/performance.md) |
-| Következetes sablonkezelő | Az előnézetek betöltése alatt a soronkénti frissítés is zárva van. A zár a haladást figyeli: minden beolvasott előnézet kitolja a határidőt, így a teljes, eszközön 30–60 másodperces olvasás alatt zárva marad, és csak akkor oldódik fel, ha elfogytak a képek vagy 20 másodpercig nincs haladás – az „Összes frissítése” nem marad tiltva, de korán sem nyílik meg. |
-
-### Javítások – GitHub-frissítés és memória (`fix/template-update`)
-
-> **A v3.1.4 kiadást ne telepítsd.** A benne lévő kép-segédfájl feladat 4 KiB-os
-> verme túlcsordul, és a készülék indulás közben újraindul. Másik OTA-partícióval
-> a rendszer magától visszaáll, friss USB-telepítés után viszont csak újabb
-> USB-telepítés segít. A javítás ebben a körben van; a következő kiadás már jó.
-
-| Funkció | Röviden |
-| --- | --- |
-| Működő GitHub-frissítés | Az OTA és a gyári témák frissítése ismét lefut. A hibák okát a visszajelző sáv és az eseménynapló is megmutatja (kapcsolódás, HTTP-állapot, kéréskorlát, memória), kapcsolódási hibánál pedig kétszer újrapróbálkozik. [Részletek](docs/automatic-update-diagnostics.md) |
-| Stabil indulás | A kép-segédfájlokat előállító háttérfeladat verme túlcsordult, és az eszköz bootciklusba került. Az útvonalpufferek a kupacba kerültek, a feladat pedig naplózza a szabad vermét. [Részletek](docs/errors.md) |
-| Gyorsabb témaváltás | Az SD-olvasás egyetlen, induláskor foglalt belső DMA-pufferen megy: nem függ a pillanatnyi memóriahelyzettől, és elmaradnak a megszakadt betöltések. |
-| Háttérfeladat-képernyő | Frissítés és telepítés alatt a kijelző statikus „Háttérfeladat miatt foglalt…” üzenetet mutat, így a mag, az SD és a hálózat a műveleté. A csengetés ilyenkor is elsőbbséget kap. |
-| Memóriadiagnosztika | A Diagnosztika oldal alján a belső heap és feladatonként a szabad verem is látszik; a `/api/diagnostics/tasks` a régiós bontást a soros konzolra is kiírja. [Részletek](docs/performance.md) |
-| SD-hiba nem zár ki | Hibás kártyánál is lefut a firmware aktiválása és a webes újraindítás; a sikertelen statisztikamentés csak naplóba kerül. |
-| 90°-os tájolás | Megszűnt a 15 másodperces próbaidőszak: indulás közbeni újraindítás már nem állítja vissza 270°-ra. [Részletek](docs/configuration.md) |
-| Rendezett sablonkezelő | Az előnézetek betöltése alatt a telepítés és a frissítéskeresés gombjai zárva; a keresés mindig üres listával indul. |
-| Azonosítható tesztcsomag | A CI-buildek verziója a commitot is tartalmazza (`v0.0.0-ci.g<commit>`), így az információs oldalon látszik, melyik fut. [Részletek](docs/releases.md) |
-
-### Újdonságok – felhasználói élmény (`feature/ux-improvements`)
-
-| Funkció | Röviden |
-| --- | --- |
-| Akku hátralévő idő | Az Akku diagnosztika témán: „Kb. 1 óra 40 perc múlva tele”, „Még kb. 6 óra 20 percig bírja (15%-ig)”; szigetüzemben és áramszünetre készülve kiemelve. Alsó határ beállítás nélkül normál üzemben 15%, áramszünetnél és szigetüzemben 5%. [Részletek](docs/battery-diagnostics.md#hátralévő-idő) |
-| Jelenlétvezérelt Master | Loxone módban opcionális *Jelenlét* adat: éjjel 0 → teljes sötét, érintés vagy 1 → éjszakai fényerő. Párosítás nélkül minden a régi. [Részletek](docs/loxone-direct.md#jelenlét-és-postaláda-a-master-kijelzőn) |
-| Postaláda-jelzés | Loxone *Posta érkezett* (0/1) állapot: 1-nél postaláda-ikon minden téma fejlécében. |
-| 4B Mai összesítő | A 4B Slave-en vízszintes húzással napi termelés, fogyasztás, hálózat, akku és pénzügy. [Részletek](docs/slave-waveshare-4b.md#mai-összesítő) |
-| Mentés és visszaállítás | Beállítások letöltése/visszatöltése egy fájlban, belső flash-tartalék és automatikus visszaállítás új SD-kártyára. [Részletek](docs/backup.md) |
-| Témafrissítés GitHubról | A Sablonok oldalon jelzi az elavult gyári témákat, és egy kattintással frissíti őket. [Részletek](docs/templates.md#gyári-témák-frissítése-a-githubról) |
-| Gyorsabb témaváltás | Natív 1280×800-as hátterek, valamint telepítés után a háttérben elkészülő, előre dekódolt kép-segédfájlok: a felépítésből és az első képkockából kimarad a PNG-dekódolás és az LVGL-méretezés. [Részletek](docs/performance.md) |
-| Mért témaváltás | Minden váltás egy sorban naplózza a fázisokat (betöltőkép, SD, csere, felépítés, első képkocka) a webes eseménynaplóba is. [Részletek](docs/performance.md#témaváltás-fázisidői-a-valódi-panelen) |
-| Megbízhatóbb lapozás | A betöltés közbeni húzás sem vész el, a sötét/világos háttér váltáskor is betöltődik, elakadt betöltésből a kijelző magától visszatér. [Részletek](docs/gestures.md) |
-| Új webes felület | Egységes, világos/sötét megjelenés, felső menü minden oldalon, mobilbarát elrendezés; a Loxone oldal zöld témával és áttekinthetőbb fogyasztó-/kártyaszerkesztővel. |
-| Egyszerűbb Loxone párosítás | Az időjárás, a nappálya, a jelenlét és a posta sorában nincs szorzó és eltolás; az SD foglaltság két tizedesre látszik. [Részletek](docs/loxone-direct.md) |
-| Kezelési útmutató | Minden gesztus és érintés egy helyen: [Kezelés és gesztusok](docs/gestures.md) |
-
-A Master és a 4B Slave firmware-ét is frissíteni kell. A firmware után érdemes a
-Sablonok oldalon az **Összes frissítése** gombbal letölteni a gyári témák új
-verzióit: az Akku diagnosztika hátralévő idő mezője és a natív hátterek ezekben
-érkeznek. A frissítés után a kijelző a háttérben, fájlonként elkészíti az előre
-dekódolt kép-segédfájlokat; ettől a témaváltás érezhetően gyorsabb lesz.
-
-### Párosított 4B kaputelefon és csengőhangok – PR #23
-
-A Masteren mentett kaputelefont a párosított 720×720-as Waveshare 4B Slave-ek
-is használják, külön Slave-konfiguráció és SD-kártya nélkül. A kamera adatai
-védett BLE-profilon érkeznek; a videó és hang közvetlen Wi-Fi-kapcsolat.
-A Master egyetlen kijelzőnek enged beszélgetést, így nincs párhuzamos SIP-hívás.
-Kapunyitás minden kijelzőn elnémítja a csengőhangot, az aktív beszélgetés
-5 másodperc után bontódik. A Master és a Slave firmware-ét is frissíteni kell.
-
-A Master Loxone-oldalán legfeljebb **8 MiB ZIP és 32 hang** tölthető fel:
-**PCM WAV, 16 bit, mono, 16 kHz, hangonként legfeljebb 60 másodperc**.
-A feltöltés először törli a teljes korábbi hangkészletet, majd egyenként
-ellenőrzi és menti a fájlokat. A hibás fájlt kihagyja, a végén névvel és
-indokkal felsorolja; megszakításkor a régi csomag nem áll vissza.
-A választott hang és az ismétlés külön menthető. A Slave a hangot a Mastertől
-kapja, a lejátszás RAM-ból történik. A repóban tárolt készlet jelenleg 18 hangot tartalmaz; a kiadási ZIP és az
-USB-kezdőkészlet a `ringtone.json` teljes listájából készül. A hangok eredeti
-forrás- és licencadatai a manifestben változatlanul megmaradnak.
-
-A kiadás külön `-ringtones.zip` és `-templates.zip` mellékletet is készít,
-SHA-256 összegekkel; a Master USB-csomagjában SD-kezdőkészlet található.
-Az eszköz főoldalának alján akkumulátor-statisztika és megerősítést kérő
-nullázás érhető el: a napi grafikonok és a névleges kapacitás megmaradnak.
-
-[Master/Slave működés és telepítés](docs/slave-intercom.md) ·
-[SD- és feltöltési működés](docs/intercom.md#csengőhang-betöltés-és-csomagcsere) ·
-[Akkumulátor-statisztika és nullázás](docs/battery-diagnostics.md#webes-akkumulátor-statisztika-és-nullázás) ·
-[PR #23 átadási állapot és ellenőrzések](docs/slave-intercom-handover.md).
-A #23 összevonása a normál patch-kiadási szabályt használja;
-a korábbi #20 egyszeri v3.1.0 szabálya erre nem érvényes.
-
-### v3.1.0 – Kaputelefon
-
-Loxone módban a Master csengetésállapotra teljes képernyős MJPEG-kameraképet nyit,
-opcionális, nagy kapunyitó nyomógombbal és külön gombbal indítható kétirányú
-hangkapcsolattal. A weben külön menthető a hangszóró hangereje és a mikrofon
-erősítése. A kiválasztott csengőhang böngészős hangmintával ellenőrizhető; ez a számítógépen vagy telefonon szólal meg, nem a kijelzőn.
-
-Az aktív beszélgetés a csengetés megszűnése után is nyitva tartja a videót.
-Elfogadott kapunyitás után 5 másodperccel a hang automatikusan bontódik;
-ha addigra nincs csengetés, a videóablak is bezárul. Létrejött kapcsolatnál
-nincsenek folyamatos diagnosztikai feliratok, csak kapcsolódási állapot és hiba.
-A videó, a kétirányú hang és az időzített bontás készüléken visszaigazolt.
-
-[Beállítás, működés és korlátok](docs/intercom.md).
-A korábbi #20 PR mainre összevonásának egyszeri célverziója **v3.1.0** volt;
-[kiadási folyamat](docs/releases.md#automatikus-kiadás-pr-merge-után).
-
-### v3.0.0 újdonságai
-
-A [#16-os PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/16) főbb változásai és részletes leírása:
-
-| Funkció | Működés és dokumentáció |
-| --- | --- |
-| Ház külön mért fogyasztói | Legfeljebb 12 fogyasztó, 64 választható ikon és külön nappali/éjszakai háttér. Az 1 W alatti érték 0 W és kikapcsolt állapot; a fejléc a teljes ház `PowerFull` mérését mutatja. [Beállítás és mintaprofil](docs/v3-home-config.md). |
-| Lapozható Otthon-oldalak | Legfeljebb 8 elnevezhető oldal, oldalanként 12 érték-, kapcsoló- vagy pillanatnyi gombkártya. Webes szerkesztés a `/loxone` oldalon, állapot-visszajelzéshez kötött kapcsolás. [Kártyák, vezérlés és navigáció](docs/v3-home-config.md). |
-| Helyi energiaasszisztens | Külön engedélyezhető indításjavaslat 100%-os akkunál és legalább kétperces elegendő napelemes többletnél; magasabb éjszakai fogyasztás jelzése mért referencia alapján. A jelzés nem kapcsol fogyasztót. [Feltételek és működés](docs/energy-assistant.md). |
-| Slave-jelenlét és saját fényerő | Nappal saját nappali fényerő; engedélyezett éjszakai sötétítésnél jelenlét vagy érintés ébreszt a saját éjszakai fényerőre, időkorlát után újra sötétít. Az első teljes érintés csak ébreszt. [Felhasználói beállítás](docs/loxone-direct.md), [profil és BLE-protokoll](docs/slave-presence-protocol.md). |
-| Megújult témák | Új nappali/éjszakai megjelenés: [Nyugodt otthon](docs/calm-home.md) és [Energiakör](docs/energy-orbit.md); utóbbiban 00:00–24:00 napállás-idővonal. |
-| Stabilitás és kiadási csomagok | Érintés-, navigáció- és villogásjavítások, részleges képfrissítés, egységes CI, Master/Slave OTA és USB telepítő, külön telepíthető témacsomagok. [Javítások](docs/v3-field-fixes.md), [teljesítmény](docs/performance.md), [kiadási folyamat](docs/releases.md). |
-
-A fogyasztói/Otthon-oldalak és az energiaasszisztens **csak Masteren, közvetlen Loxone módban** érhetők el. A kijelzőoldalakhoz működő SD és telepített `loxone-home.zip` szükséges. A Slave jelenlétfunkciójához a Master és a Slave megfelelő firmware-e is kell.
-
-**Frissítési sorrend:** előbb a megfelelő firmware-ek, majd a Master `/templates` oldalán a `loxone-home.zip`, `05-calm-home.zip` és `06-energy-orbit.zip` csomagok. Az OTA önmagában nem frissíti az SD-s témákat. [Telepítési sorrend és eszközös átadás (HU/EN)](docs/v3-handover.md). Az átadási és ellenőrzési jegyzetek a fejlesztéskori állapotokat és a még nem rögzített készülékes méréseket is őrzik.
+- [v3.1.0 – Kaputelefon](docs/versions/v3.1.0.md)
+- [v3.0.0 – Loxone Otthon, energiaasszisztens és Slave](docs/versions/v3.0.0.md)
+- [Korábbi fejlesztések és hibajavítások – részletes napló](docs/versions/development-notes.md)
+- [Minden kiadott verzió, letölthető csomagok (GitHub Releases)](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases)

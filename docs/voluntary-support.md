@@ -60,8 +60,9 @@ A címek egyetlen központi fájlban állíthatók be:
 ```
 
 A projektgazda által megadott két címhez a webfelületen saját, zöld hivatkozásgomb
-készül. A Ko-fi JavaScript-widgetjének betöltése nem szükséges; a README-ben a
-Ko-fi hivatalos GitHub-gombja mutat ugyanerre a profilra. Egy cím kiürítésével
+készül. A Ko-fi JavaScript-widgetjének betöltése nem szükséges; a README fejlécében
+a Ko-fi hivatalos GitHub-gombja és a Revolut-me támogatási gomb is a központilag
+beállított profilcímre mutat. Egy cím kiürítésével
 az adott gomb elrejthető; ha mindkét cím üres, az egész kártya rejtve marad.
 
 Csak `https://revolut.me/` és `https://ko-fi.com/` alatti, egyetlen profilnevet

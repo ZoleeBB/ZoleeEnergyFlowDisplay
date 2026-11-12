@@ -139,3 +139,11 @@ ellenőrizd, és ne vezesd vissza a régi mintákat.
   felhasználó.
 - Ellenőrizd az alkalmazás bináris méretét és a partíciós/OTA korlátokat; méretösszehasonlítás nélkül ne állítsd, hogy a két firmware bájtra azonos.
 - Formázási célú PR nem tartalmazhat funkciómódosítást, konfigurációváltozást, tömörítetlen webes állományt vagy új beágyazott erőforrást.
+
+## README, támogatás és verziótörténet
+
+- A `README.md` elején a hardverek teljes típusjelzései **félkövér** kiemelést kapjanak. A banner alatt a **Ko-fi és Revolut.me támogatási gomb is** maradjon közvetlenül elérhető, lehetőleg azonos magasságú előnézeti képpel.
+- A támogatási cél-URL-ek hiteles forrása az `assets/support-links.json`: minden README-módosításnál innen kell ellenőrizni mindkét címet. Egy meglévő támogatási gomb vagy link nem tűnhet el észrevétlenül.
+- A fő README az aktuális bemutatóra, telepítésre, funkciókra és dokumentációra összpontosítson. A **Verziók** szakaszban csak rövid hivatkozások legyenek: kiadásonként `docs/versions/vX.Y.Z.md`, korábbi fejlesztési és hibajavítási részletekhez `docs/versions/development-notes.md`, az összes kiadáshoz GitHub Releases.
+- Új kiadáshoz külön verziófájlt kell létrehozni, nem hosszú fejlesztési naplót hozzáfűzni a README-hez. Átrendezéskor az összes korábbi kiadási leírást, figyelmeztetést és fejlesztési részletet meg kell őrizni; az archivált állapotokat szükség esetén történetiként kell jelölni.
+- Dokumentációs mozgatáskor a relatív hivatkozásokat a célhelyhez kell igazítani és a célfájlokat ellenőrizni. Nagyobb README-átrendezéskor a korábbi fejezetek és linkek készletét, valamint a támogatási címeket össze kell vetni az új állapottal; dokumentációs módosítás nem okozhat funkcióváltozást.
