@@ -2,7 +2,7 @@ name: Lighting development workspace
 on:
   push:
     branches: [feature/loxone-lighting-cards]
-    paths: [.github/workflows/lighting-development.yml, tools/.lighting-patch.json]
+    paths: [.github/workflows/lighting-development.yml, tools/.lighting-patch.json, tools/.lighting-repair.json]
 permissions:
   contents: write
 concurrency:
@@ -17,16 +17,31 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
+      - name: Preserve input for byte-level verification
+        run: |
+          mkdir -p /tmp/lighting-input
+          cp tools/.lighting-*.json /tmp/lighting-input/ 2>/dev/null || true
       - name: Apply verified development patch on this branch only
         env:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           python3 - <<'PY'
-          import base64, gzip, json, os, pathlib, subprocess
+          import base64, gzip, hashlib, json, os, pathlib, subprocess
           payload = pathlib.Path('tools/.lighting-patch.json')
           if not payload.exists():
               raise SystemExit(0)
           data = json.loads(payload.read_text())
+          repair = pathlib.Path('tools/.lighting-repair.json')
+          if repair.exists():
+              fixes = json.loads(repair.read_text())
+              encoded = data['patch']
+              for start, end, old, new in sorted(fixes['replacements'], reverse=True):
+                  if encoded[start:end] != old:
+                      raise SystemExit('Repair does not match source bytes')
+                  encoded = encoded[:start] + new + encoded[end:]
+              if hashlib.sha256(encoded.encode()).hexdigest() != fixes['sha256']:
+                  raise SystemExit('Repaired base64 checksum mismatch')
+              data['patch'] = encoded
           patch = gzip.decompress(base64.b64decode(data['patch'], validate=True))
           if len(patch) > 2 * 1024 * 1024:
               raise SystemExit('Patch exceeds development limit')
@@ -36,19 +51,15 @@ jobs:
           subprocess.run(['git', 'apply', '--check', '--index', '-'], input=patch, check=True)
           subprocess.run(['git', 'apply', '--index', '-'], input=patch, check=True)
           subprocess.run(['git', 'rm', 'tools/.lighting-patch.json'], check=True)
+          if repair.exists():
+              subprocess.run(['git', 'rm', 'tools/.lighting-repair.json'], check=True)
           subprocess.run(['git', '-c', 'user.name=github-actions[bot]', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit', '-m', data['message']], check=True)
           subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/feature/loxone-lighting-cards'], check=True)
           PY
-      - uses: actions/checkout@v4
-        with:
-          repository: lvgl/lvgl
-          ref: v9.5.0
-          path: .lighting-lvgl
-          persist-credentials: false
-      - name: Export LVGL test dependency without credentials
-        run: tar --exclude=.git -C .lighting-lvgl -czf /tmp/lighting-lvgl.tar.gz .
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: lighting-lvgl
-          path: /tmp/lighting-lvgl.tar.gz
+          name: lighting-input
+          path: /tmp/lighting-input/
+          include-hidden-files: true
           retention-days: 1
