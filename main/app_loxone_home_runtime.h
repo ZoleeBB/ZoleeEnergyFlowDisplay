@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app_loxone_home_model.h"
+#include "app_loxone_lighting.h"
 
 /* A Loxone állapotfolyam delta alapú: az első snapshotból megőrzött 24 szám
  * nem képi/widget-adat, és nem hoz létre további Miniserver-kapcsolatot. */
@@ -21,7 +22,10 @@ typedef enum
 {
     LX_HOME_COMMAND_PULSE,
     LX_HOME_COMMAND_ON,
-    LX_HOME_COMMAND_OFF
+    LX_HOME_COMMAND_OFF,
+    LX_HOME_COMMAND_LIGHT_PREV,
+    LX_HOME_COMMAND_LIGHT_NEXT,
+    LX_HOME_COMMAND_LIGHT_OFF
 } lx_home_command_t;
 
 /* Teljes numerikus WS-tábla; formahibánál a korábbi állapot változatlan.
@@ -40,3 +44,8 @@ bool lx_home_control_supported(const char *type, bool secured, bool pulse);
  * más delta, NaN és kapcsolatvesztés nem jelent csengetésvéget. */
 bool lx_intercom_bell_update(bool *ringing, const lx_intercom_config_t *config,
                              int type, const uint8_t *data, size_t size);
+
+/* Csak a látható lap normál kártyáit frissíti. A fogyasztók (statisztika,
+ * energiaasszisztens) továbbra is követettek. page=-1: nincs látható kártya. */
+bool lx_home_values_update_visible(lx_home_values_t *values, const lx_home_config_t *config,
+                                   int page, int type, const uint8_t *data, size_t size);

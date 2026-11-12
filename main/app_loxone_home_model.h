@@ -29,7 +29,8 @@ typedef enum
 {
     LX_HOME_CARD_VALUE,
     LX_HOME_CARD_PULSE,
-    LX_HOME_CARD_SWITCH
+    LX_HOME_CARD_SWITCH,
+    LX_HOME_CARD_LIGHTING
 } lx_home_card_type_t;
 
 typedef struct

@@ -1,0 +1,116 @@
+{
+  "rooms": {
+    "10000000-0000-0000-0000000000000002": {
+      "name": "Nappali"
+    }
+  },
+  "cats": {
+    "10000000-0000-0000-0000000000000003": {
+      "name": "Világítás"
+    }
+  },
+  "controls": {
+    "10000000-0000-0000-0000000000000001": {
+      "name": "Nappali világítás",
+      "type": "LightControllerV2",
+      "uuidAction": "10000000-0000-0000-0000000000000001",
+      "isSecured": false,
+      "room": "10000000-0000-0000-0000000000000002",
+      "cat": "10000000-0000-0000-0000000000000003",
+      "details": {
+        "masterValue": "masterValue",
+        "masterColor": "10000000-0000-0000-0000000000000001/masterColor"
+      },
+      "states": {
+        "activeMoods": "10000000-0000-0000-0000000000000004",
+        "moodList": "10000000-0000-0000-0000000000000005",
+        "circuitNames": "10000000-0000-0000-0000000000000006"
+      },
+      "subControls": {
+        "masterValue": {
+          "name": "Fő fényerő",
+          "type": "Dimmer",
+          "uuidAction": "10000000-0000-0000-0000000000000001/masterValue",
+          "states": {
+            "position": "10000000-0000-0000-0000000000000007"
+          }
+        },
+        "AI1": {
+          "name": "Mennyezeti lámpák",
+          "type": "Dimmer",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI1",
+          "isSecured": false,
+          "states": {
+            "position": "10000000-0000-0000-0000000000000065"
+          },
+          "details": {}
+        },
+        "AI2": {
+          "name": "Olvasólámpa",
+          "type": "Switch",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI2",
+          "isSecured": false,
+          "states": {
+            "active": "10000000-0000-0000-0000000000000066"
+          },
+          "details": {}
+        },
+        "masterColor": {
+          "name": "Fő szín",
+          "type": "ColorPickerV2",
+          "uuidAction": "10000000-0000-0000-0000000000000001/masterColor",
+          "states": {
+            "color": "10000000-0000-0000-0000000000000008"
+          }
+        },
+        "AI3": {
+          "name": "RGBW hangulatvilágítás",
+          "type": "ColorPickerV2",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI3",
+          "isSecured": false,
+          "states": {
+            "color": "10000000-0000-0000-0000000000000067"
+          },
+          "details": {
+            "pickerType": "Rgb",
+            "TWMin": 2200,
+            "TWMax": 8000
+          }
+        },
+        "AI4": {
+          "name": "Konyhapult hideg–meleg fehér",
+          "type": "ColorPickerV2",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI4",
+          "isSecured": false,
+          "states": {
+            "color": "10000000-0000-0000-0000000000000068"
+          },
+          "details": {
+            "pickerType": "TunableWhite"
+          }
+        },
+        "AI5": {
+          "name": "Csak olvasható kör",
+          "type": "Dimmer",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI5",
+          "isSecured": false,
+          "states": {
+            "position": "10000000-0000-0000-0000000000000069"
+          },
+          "details": {},
+          "restrictions": 2
+        },
+        "AI6": {
+          "name": "Új típusú kör",
+          "type": "FutureLightType",
+          "uuidAction": "10000000-0000-0000-0000000000000001/AI6",
+          "isSecured": false,
+          "states": {
+            "color": "10000000-0000-0000-000000000000006a"
+          },
+          "details": {}
+        }
+      }
+    }
+  }
+}

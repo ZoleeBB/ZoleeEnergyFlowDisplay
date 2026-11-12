@@ -1,5 +1,6 @@
 /* A Loxone protokoll platformfüggetlen adat- és párosításkezelése. */
 #include "app_loxone_model.h"
+#include "app_loxone_lighting.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -344,6 +345,9 @@ static bool catalog_controls(
         if ((unsigned)cJSON_GetArraySize(out) == before && control_action_uuid(control)[0] &&
             !catalog_entry(out, control, NULL, rooms, cats, secured))
             return false;
+        if ((unsigned)cJSON_GetArraySize(out) > before &&
+            !lx_light_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured))
+            return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");
         if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured))
             return false;
@@ -383,3 +387,5 @@ int64_t lx_token_refresh_delay_us(int64_t valid_until, int64_t now_epoch)
     }
     return seconds * 1000000LL;
 }
+
+#include "app_loxone_lighting_model.inc"
