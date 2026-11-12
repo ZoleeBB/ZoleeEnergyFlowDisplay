@@ -1,59 +1,81 @@
 # Loxone világításvezérlő Otthon-kártyák
 
-## Fejlesztési állapot
+## Elérhetőség és beállítás
 
-Fejlesztés alatt a `feature/loxone-lighting-cards` ágon. Ez a dokumentum az elfogadott követelményeket rögzíti; önmagában nem jelenti a firmware-funkció elkészültét. A megvalósítás és az ellenőrzések eredményeit a fejlesztés végén kell aktualizálni.
+A funkció a Master 10.1 kijelző közvetlen Loxone üzemmódjának Otthon-oldalait bővíti. A `LightControllerV2` blokkokat kezeli; a régi `LightController` nem azonos protokoll. A Slave 4B nem kap külön világításvezérlést vagy új Bluetooth-adatfolyamot.
 
-## Elfogadott működés
+A `/loxone` weboldalon kérd le a Loxone adatlistáját, majd az Otthon-kártyák között válaszd a **Világításvezérlő** típust. Add meg a kártya nevét és ikonját, és válaszd ki a Loxone világításvezérlő blokkját. Külön visszajelző állapotot vagy világítási köröket nem kell párosítani. Az Otthon-oldalak a többi funkciótól függetlenül menthetők.
 
-A webes kártyaszerkesztő új Világításvezérlő típusa automatikusan felismeri a `LightControllerV2` blokkokat. Csak a blokkot kell kiválasztani: a külön vezérelhető világítási köröket a struktúrából, a Loxone sorrendjét követve tölti be. Nincs egyedi körpárosítás, szűrés vagy sorrendszerkesztő. A következő sikeres struktúrafrissítés átveszi a körök változását.
+A körök neve, típusa, parancscíme, visszajelzése és fehérfény-tartománya a Loxone struktúrájából jön. A sorrend a struktúra `subControls` sorrendje; nincs saját rendezés vagy elrejtési lista. A gyártói `masterValue`/`masterColor` összesített segédvezérlők nem külön fizikai körök. Az ismeretlen típusú valódi körök is megjelennek, de vezérlésük tiltott. A körök hozzáadása/törlése a következő sikeres struktúralekéréskor érvényesül; a struktúrát nem kérjük le minden érintéskor. A visszajelzett `circuitNames` névváltozások nyitott ablakban is frissülnek.
 
-A kis kártya megtartja a jelenlegi Otthon-kártya méretét, színvilágát és fejlécét. Alul `− / Ki / +` gombok, az ikon megérintése részletes ablakot nyit. A parancsok a blokk action címére mennek: `minus`, `changeTo/0`, `plus`. A kép nevét nem a helyi gombnyomásokból, hanem a visszajelzett állapotból állapítjuk meg.
+## Kis kártya
 
-Állapotfelirat:
+A méret változatlan: 292×200 képpont, a meglévő 12 kártyás oldalelrendezésben. Az ikon nyitja a részletes kezelőt. Alul `− / Ki / +` gombok vannak; a kártya nem nő dupla szélességűre.
 
-- ténylegesen kikapcsolva: **Kikapcsolva**;
-- egy aktív, azonosítható kép: annak neve;
-- több aktív kép: **N aktív világítási kép**;
-- bekapcsolt kör, azonosítható kép nélkül: **Egyedi beállítás**;
-- még ismeretlen állapotot nem szabad kikapcsoltként feltüntetni.
+| Gomb | A blokk action címére küldött parancs |
+| --- | --- |
+| − | `minus` |
+| Ki | `changeTo/0` |
+| + | `plus` |
 
-## Részletes ablak
+Ezek dokumentált vizualizációs parancsok: nem új virtuális bemeneteket vagy fizikai `M+`/`M-`/`Off` bekötést igényelnek. A visszajelzés nem a helyi gombnyomások számolásából készül.
 
-Középre igazított, körülbelül 900×680 képpontos ablak, elsötétített háttérrel. Rögzített fejléc és X, függőlegesen görgethető körlista. Minden kör neve egy sorban, helyhiányban három ponttal rövidítve jelenik meg. A teljes név megmarad az adatmodellben. Világítási képlista nincs.
+| Visszajelzett állapot | Felirat |
+| --- | --- |
+| Minden ismert világítási kör ténylegesen kikapcsolva | Kikapcsolva |
+| Egy azonosítható aktív világítási kép | A kép neve |
+| Több aktív kép | N aktív világítási kép |
+| Van bekapcsolt kör, azonosítható kép nélkül | Egyedi beállítás |
+| Hiányzó/érvénytelen kezdőállapot | Nincs adat |
 
-- Kapcsolt kör: csak be/ki kapcsoló.
-- Dimmer: csak 0–100% csúszka.
-- RGB/RGBW: kompakt sor, lenyitható színtárcsa, külön Színes és Fehérfény mód, közös fényerő. Külön be/ki kapcsoló nincs. A 0% a kikapcsolt érték.
-- Egyszerre csak egy színválasztó nyitható. Másik megnyitása az előzőt összecsukja, világítási parancs nélkül.
-- A színes mód HSV-értéket, a fehér mód fényerőt és Kelvin-értéket ad át. A fizikai RGBW/WW-keverést a Loxone végzi. A képességeket és a TWMin/TWMax tartományt tiszteletben kell tartani.
-- Az ablak X-szel vagy a háttér érintésével záródik, automatikus időkorlát nélkül. A háttérérintés nem aktiválhat mögöttes kártyát.
-- A kaputelefon és a meglévő hiba-/frissítési képernyők elsőbbsége megmarad.
+A hiányzó képnév önmagában nem jelent kikapcsolt állapotot. A hosszú feliratot a rendelkezésre álló helyhez igazítva rövidítjük.
 
-## Vezérlés, szinkronizálás és életciklus
+## Részletes kezelő
 
-Az értékek érintés közben folyamatosan változnak. A hálózati küldés körönként legfeljebb 10 parancs/másodperc; csak a legfrissebb függő értéket tároljuk. Elengedéskor a végérték nem veszhet el, és nem sérülhet a küldési időköz. A kapcsolók azonnali parancsot küldenek.
+Középre igazított 900×680 képpontos ablak, elsötétített háttérrel, rögzített címmel és X bezárógombbal. A körök egy oszlopban, függőlegesen görgethetők. A nevek egysorosak, helyhiányban három ponttal rövidítve. Világítási képlista nincs: a képek csak a kis kártya gombjaival léptethetők.
 
-A nyitott ablak követi a külső kapcsolást, fényerőt, színt és színüzemmódot. Az aktívan húzott vezérlőt a késleltetett visszajelzés nem rángathatja vissza, érintés alatt üzemmódváltás sem történhet. Elengedés után az állapotot a Miniserverrel egyeztetjük. A többi kör közben tovább frissül.
+- **Kapcsolt kör:** csak be/ki kapcsoló.
+- **Dimmer:** csak 0–100% fényerőcsúszka.
+- **RGB/RGBW:** kompakt név/szín/fényerő sor, érintésre lenyitható részletekkel. Egyszerre egy kör lehet lenyitva. Nincs külön be/ki kapcsoló; a 0% jelenti a kikapcsolást.
 
-Kapcsolatvesztéskor az ablak azonnal bezáródik; a függő parancsokat törölni kell. A meglévő Otthon-oldali 10 másodperces türelmi idő és hibakezelés marad. Újracsatlakozáskor nincs parancs-visszajátszás vagy automatikus ablaknyitás.
+A lenyitott kezelő külön **Színes** és **Fehérfény** módot, közös fényerőcsúszkát ad. Színes módban HSV-színtárcsa, fehér módban Kelvin-szabályozás működik. A `TunableWhite` körnél a színes mód tiltott; az `Rgb` és `Lumitech` körök képességeit a struktúra határozza meg. A `TWMin`/`TWMax` határokat betartjuk. A meleg/hideg fehér előnézet csak szemléltetés, nem színmérési referencia.
+
+A parancs `hsv(H,S,V)` vagy `temp(V,K)`. A fizikai RGBW/WW-csatornák keverését **a Loxone** végzi; a kijelző nem számol saját négycsatornás keverést. Ennek konkrét eredményét az adott aktorral és Miniserverrel kell ellenőrizni.
+
+Az ablak X-szel vagy a sötét háttér érintésével záródik. A bezáró érintés nem aktiválja az alatta lévő kártyát. Nincs automatikus bezárási idő. Másik RGBW-kör megnyitása a korábbit csak összecsukja, nem küld világítási parancsot. Éjszakai módváltás nem dobja el a nyitott kezelőt; az ablak stílusa bezárás után igazodik hozzá.
+
+## Vezérlés és hibakezelés
+
+A csúszkák és a tárcsa érintés közben vezérelnek. Körönként legalább 100 ms telik el két küldés között; a köztes értékek helyett csak a legfrissebb függő értéket tartjuk meg. Elengedéskor a végérték bekerül ugyanebbe a korlátos sorba, nem vész el és nem kerüli meg a küldési korlátot. A kapcsoló érintéskor azonnal sorba állítja a parancsot. A tényleges küldést a meglévő Loxone-worker végzi, nem az LVGL callback.
+
+A nyitott kezelő folyamatosan követi a külső kapcsolást, fényerőt, színt és színüzemmódot. A húzott vezérlőt és módját érintés alatt nem módosítja a visszajelzés; a többi kör tovább frissül. A rövid ideig késő visszhang ellen a küldött érték legfeljebb két másodperces visszaigazolási ablaka véd. A parancs ACK-ja nem helyettesíti az állapot-visszajelzést.
+
+Kapcsolatvesztéskor az ablak bezáródik, a függő értékek és munkamenet-azonosítók érvénytelenednek. A meglévő Otthon-oldali tíz másodperces türelmi idő/hibaképernyő érvényesül. Újracsatlakozáskor nincs automatikus ablaknyitás vagy elavult parancs-visszajátszás. A már elküldött parancs természetesen nem vonható vissza. A kaputelefon, OTA és hibaképernyők elsőbbsége megmarad.
+
+A mentés, oldalváltás és ablakbezárás is érvényteleníti a régi kezelő munkamenetét. A Loxone `isSecured`, read-only korlátozásai és `jLocked` állapotai nem kerülhetők meg. Ismeretlen képesség vagy hiányzó állapot esetén a rendszer nem találgat parancsot.
 
 ## Memória és láthatóság
 
-A csak Otthon-kártyákhoz tartozó élő állapotokat kizárólag az Otthon megnyitásakor, az aktuális oldalon látható kártyákhoz kell frissíteni. A részletes világításállapot csak a megnyitott blokkhoz kell. Elrejtett oldalak és bezárt színválasztók nem tarthatnak életben nagy UI-/állapotpuffert vagy külön feladatot.
+**Zárt Otthon-oldalnál nincs világítási munkapéldány, és a kizárólag kártyákhoz tartozó értékeket nem frissítjük.** Nyitva csak az aktuális oldal legfeljebb 12 kártyáját dolgozzuk fel. A fogyasztókhoz, energiához, időjáráshoz, jelenléthez, postaládához, kaputelefonhoz és Slave-funkciókhoz szükséges adatok ettől függetlenül tovább élnek, közös UUID esetén is.
 
-A láthatósági optimalizálás nem szüntetheti meg a továbbra is szükséges energia-, időjárás-, jelenlét-, postaláda-, kaputelefon-, Slave- és energiaasszisztens-adatok követését. Azonos UUID több felhasználóját is figyelembe kell venni. Oldalnyitáskor az újonnan követett állapotokat frissíteni kell; egy korábban kihagyott, azóta változatlan értékre nem szabad örökké várni. A Miniserver hálózati előfizetési lehetősége és a helyi feldolgozás szűrése nem ugyanaz.
+A Loxone közös bináris állapotfolyamot küld. Ez **helyi feldolgozási és állapottárolási szűrés**, nem szerveroldali, UUID-nkénti hálózati előfizetés. Oldalnyitáskor és részletes blokk megnyitásakor ugyanazon kapcsolaton `enablebinstatusupdate` kezdőállapotot kérünk, hogy egy korábban kihagyott, azóta változatlan állapot is megérkezzen. A kérések összevonva, legalább 250 ms közökkel futnak. Ezt az újraindítás nélküli kezdőállapot-kérést a cél Miniserver-verzión is ellenőrizni kell.
 
-Nagy struktúrák ne kerüljenek a verembe. A nagy, tartósan nem szükséges adatok igény szerinti, korlátos PSRAM-tárolót kapjanak. Változatlan LVGL-értékeket ne írjunk újra. Nincs külön WebSocket vagy világítási háttérfeladat.
+A zárt világításkártyák csak a körök UUID/típus/ismert/be állapotát őrzik; nincs minden kártyához teljes körlista és színválasztó. Azonos blokk két kártyája közös kompakt állapotot használ. A host C-tesztben egy kompakt kör 48, egy teljes kör 376 bájt; ez ABI-mérés, nem az eszköz teljes RAM-igénye.
 
-## Ellenőrzési terv
+Csak egy megnyitott blokkhoz létezik teljes részletes állapottár. A görgethető lista legfeljebb **8 LVGL-sort** tart életben, függetlenül a körök számától. A 192×192 RGB565 színtárcsa **73 728 bájtos**, kizárólag szükség esetén foglalt PSRAM-puffer. Fehér mód, összecsukás, képernyőváltás és bezárás felszabadítja. Nincs új háttérfeladat, külön WebSocket, SD-ről olvasott tárcsakép vagy állandó nagy veremtömb.
 
-Parser/command tesztek: action címek és subcontrol utótagok, Switch/Dimmer/ColorPickerV2, TW-tartomány, ismeretlen típus és hibás/sérült JSON, jogosultság, üres és nagy blokkok, képállapotok, UTF-8 nevek, körsorrend és dinamikus nevek.
+Korlátok: blokkonként legfeljebb 64 kör, 128 világítási kép, legfeljebb 32 KiB-os világítási szöveges állapot. A nagyobb/ismeretlen blokk nem jelenhet meg megtévesztően részleges, vezérelhető állapotként. A neveket UTF-8 karakterhatáron, korlátos munkapufferekben kezeljük; az eredeti struktúra a katalógusban marad. Memóriahiányban a funkció hibát jelez, nem használja tartalékként a DMA-heapet.
 
-Runtime tesztek: csak látható oldal, oldalváltási kezdeti állapot, közös UUID, 100 ms-os korlátozás, végérték, külső frissítés aktív érintés alatt/után, bontás és visszacsatlakozás, konfigurációcsere, ablaknyitás/-zárás, nincs elavult parancs.
+## Automatizált ellenőrzések
 
-UI/browser: webes blokkfelismerés és mentés, kompakt kártya, görgetés, ellipszis, egyetlen nyitott RGBW-panel, színtárcsa és fehér mód, háttérérintés, kaputelefon elsőbbség, változatlan frissítéskor nincs felesleges invalidálás.
+A `tests/test_lighting.py` a valódi parser/állapot/parancs modellt járatja AddressSanitizerrel: címek, segédvezérlők, sorrend, képállapotok, HSV/TW, jogosultság, zárolás, hibás és túlméretes adatok, közös/kompakt állapot, parancsösszevonás és látható oldal.
 
-Teljes regresszió, érintett szimulátor és mindkét firmware cél buildje; CI-állapot az utolsó commiton. Fizikai panel és valódi Miniserver nélkül a RAM/DMA/FPS-tartalék, az RGBW-keverés és a firmware-kompatibilitás nem tekinthető hardveresen igazoltnak.
+A `tests/test_loxone_protocol.py` a tényleges klienssel és titkosított teszt-Miniserverrel ellenőrzi az oldalnyitáskori kezdőállapotot, a háttérben szükséges fogyasztói adatot, a parancsgyakoriságot, oldalváltást, konfigurációmentést, bontást és az elavult parancsok eldobását.
 
-Forrás: Loxone Structure File v17, 2026-03-31, LightControllerV2 és ColorPickerV2; https://www.loxone.com/enen/kb/api/ .
+A `tests/test_loxone_home_web.js` a valódi szerkesztő JavaScriptjével ellenőrzi a blokk automatikus kiválasztását, a külön állapotpárosítás nélküli mentést és a szűréskor megtartott kiválasztást.
+
+A natív `tests/preview` cél `ZOLEE_LIGHTING_ONLY=1` módban a firmware tényleges LVGL-kódját futtatja 32 bites és RGB565 kijelzővel: kártyafeliratok/gombok, modal-geometria, kapcsoló/csúszka/tárcsa, érintés alatti szinkron, egyetlen picker, háttérérintés, 64 kör mellett nyolc sor, kapcsolatvesztés, ismételt megnyitás/bezárás és változatlan állapotban nulla felesleges invalidálás. Képei szintetikus Loxone-adatokkal készülnek, nem fizikai panelről.
+
+A teljes regresszió, Windows szimulátorok és mindkét ESP-IDF firmware eredménye a PR utolsó commitjának CI-ellenőrzéseiben követhető. **Fizikai paneles RAM/DMA/FPS-mérés és valódi Gen2/v17 Miniserveres ellenőrzés nem történt.** Kiadás előtt szükséges az RGBW-keverés, az ismételt kezdőállapot-kérés, a jogosultságváltás, több nagy blokk, kaputelefon és tartós járatás próbája.
+
+Forrás: [Loxone API](https://www.loxone.com/enen/kb/api/), Structure File v17 (2026-03-31), LightControllerV2 és ColorPickerV2; Communicating with the Miniserver v17, bináris állapottáblák.
