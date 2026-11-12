@@ -33,24 +33,26 @@ is megszűnik; a figyelmeztetést nem kapcsoljuk ki.
 
 ## Automatizált veremellenőrzés
 
-A [világítási teszt](../tests/test_lighting.py) a meglévő ASan/UBSan-próbák
+A forráskódbeli `tests/test_lighting.py` a meglévő ASan/UBSan-próbák
 mellett külön címhatár-tesztet futtat, és `-O0`/`-O2` hostfordítást készít
 sanitizer nélkül, `-fstack-usage` kapcsolóval. Így nem a sanitizer által
 megnövelt keretből következtetünk a firmware-re.
 
-A Master [CMake-beállítása](../main/CMakeLists.txt) az `app_loxone_model.c`,
+A Master `main/CMakeLists.txt` beállítása az `app_loxone_model.c`,
 `app_loxone.c` és `app_ui.c` tényleges célhardveri fordításából is elkészíti
 az oldalfájlokat. A komponens elkészültekor a
-[veremellenőr](../tools/check_lighting_stack.py) az emitált világítási
+`tools/check_lighting_stack.py` az emitált világítási
 függvényekre **1536 bájtos** felső határt vizsgál, kiírja a hívók helyi
 kereteit, és hiányzó / ismeretlen / nem korlátos adatoknál megállítja a buildet.
 A `.su` oldalfájl és a Python-ellenőr nem kerül a futó firmware-be.
+Az itt megadott forrásútvonalak a Git-repóra vonatkoznak, nem az USB-telepítő
+fájljai: a telepítéshez nincs szükség a teljes fejlesztői tesztkészletre.
 
 A GCC `static` értéke fix helyi keret. A `dynamic,bounded` jelölés is
 fordításkor bizonyított maximum: például a hívási argumentumok átmeneti
 veremhelyét is magában foglalja. Mindkettőre ugyanaz az 1536 bájtos korlát
-érvényes; a puszta `dynamic` nem elfogadható. Ezt külön
-[ellenőrtesztek](../tests/test_lighting_stack.py) védik, a határ +1 bájtos
+érvényes; a puszta `dynamic` nem elfogadható. Ezt külön a
+`tests/test_lighting_stack.py` próbái védik, a határ +1 bájtos
 átlépésével és a hiányzó adat próbájával együtt.
 Forrás: [GCC – Developer Options, fstack-usage](https://gcc.sourceware.org/onlinedocs/gcc/Developer-Options.html).
 
