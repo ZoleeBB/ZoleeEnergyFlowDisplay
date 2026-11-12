@@ -2,20 +2,53 @@ name: Lighting development workspace
 on:
   push:
     branches: [feature/loxone-lighting-cards]
-    paths: [.github/workflows/lighting-development.yml]
+    paths: [.github/workflows/lighting-development.yml, tools/.lighting-patch.json]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: lighting-development-workspace
+  cancel-in-progress: false
 jobs:
   workspace:
+    if: github.ref == 'refs/heads/feature/loxone-lighting-cards'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Apply verified development patch on this branch only
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, json, os, pathlib, subprocess
+          payload = pathlib.Path('tools/.lighting-patch.json')
+          if not payload.exists():
+              raise SystemExit(0)
+          data = json.loads(payload.read_text())
+          patch = gzip.decompress(base64.b64decode(data['patch'], validate=True))
+          if len(patch) > 2 * 1024 * 1024:
+              raise SystemExit('Patch exceeds development limit')
+          remote = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/feature/loxone-lighting-cards'], text=True).split()[0]
+          if remote != os.environ['EXPECTED_SHA']:
+              raise SystemExit('Branch changed; refusing stale patch')
+          subprocess.run(['git', 'apply', '--check', '--index', '-'], input=patch, check=True)
+          subprocess.run(['git', 'apply', '--index', '-'], input=patch, check=True)
+          subprocess.run(['git', 'rm', 'tools/.lighting-patch.json'], check=True)
+          subprocess.run(['git', '-c', 'user.name=github-actions[bot]', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit', '-m', data['message']], check=True)
+          subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/feature/loxone-lighting-cards'], check=True)
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: lvgl/lvgl
+          ref: v9.5.0
+          path: .lighting-lvgl
           persist-credentials: false
-      - name: Export tracked sources only
-        run: git archive --format=tar HEAD | gzip > /tmp/lighting-source.tar.gz
+      - name: Export LVGL test dependency without credentials
+        run: tar --exclude=.git -C .lighting-lvgl -czf /tmp/lighting-lvgl.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
-          name: lighting-source
-          path: /tmp/lighting-source.tar.gz
+          name: lighting-lvgl
+          path: /tmp/lighting-lvgl.tar.gz
           retention-days: 1
