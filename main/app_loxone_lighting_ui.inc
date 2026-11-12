@@ -25,6 +25,7 @@ static light_ui_row_t *light_rows, *light_picker_row;
 static unsigned light_handle, light_count;
 static int light_expanded = -1, light_touch_index = -1;
 static bool light_touch, light_syncing, light_refreshing, light_ui_error;
+static bool light_rows_failed, light_wheel_failed;
 static lx_light_value_t light_edit;
 static uint16_t *light_wheel_pixels;
 static lv_image_dsc_t light_wheel_image;
@@ -123,6 +124,7 @@ static void light_ui_picker_free(void)
     if (light_picker) lv_obj_delete(light_picker);
     light_picker = NULL;
     light_picker_row = NULL;
+    light_wheel_failed = false;
     light_white_preview = light_white_caption = NULL;
     light_brightness = light_brightness_label = NULL;
     light_temperature = light_temperature_label = light_temperature_caption = NULL;
@@ -143,7 +145,7 @@ static void lighting_ui_reset(void)
     light_rows = NULL;
     light_count = 0;
     light_expanded = -1;
-    light_syncing = light_refreshing = light_ui_error = false;
+    light_syncing = light_refreshing = light_ui_error = light_rows_failed = false;
     app_loxone_light_close(handle);
 }
 
@@ -194,7 +196,7 @@ static void light_ui_slider_event(lv_event_t *event)
     {
         light_touch = true;
         light_touch_index = (int)row->index;
-        light_edit = circuit.actual;
+        if (row != light_picker_row) light_edit = circuit.actual;
         lv_obj_remove_flag(light_body, LV_OBJ_FLAG_SCROLLABLE);
     }
     if (code == LV_EVENT_VALUE_CHANGED || code == LV_EVENT_RELEASED)
@@ -276,7 +278,6 @@ static void light_ui_wheel_event(lv_event_t *event)
     {
         light_touch = true;
         light_touch_index = (int)light_picker_row->index;
-        light_edit = circuit.actual;
         lv_obj_remove_flag(light_body, LV_OBJ_FLAG_SCROLLABLE);
     }
     lv_indev_t *input = lv_indev_active();
@@ -305,8 +306,9 @@ static void light_ui_wheel_event(lv_event_t *event)
 static bool light_ui_wheel_create(void)
 {
     if (light_wheel) return true;
+    if (light_wheel_failed) return false;
     light_wheel_pixels = light_ui_alloc(LIGHT_WHEEL_SIZE * LIGHT_WHEEL_SIZE, sizeof(*light_wheel_pixels));
-    if (!light_wheel_pixels) return false;
+    if (!light_wheel_pixels) { light_wheel_failed = true; return false; }
     for (int y = 0; y < LIGHT_WHEEL_SIZE; ++y)
         for (int x = 0; x < LIGHT_WHEEL_SIZE; ++x)
         {
@@ -554,11 +556,17 @@ static void lighting_ui_update(void)
             tr("Világítási körök betöltése...", "Loading lighting circuits..."));
         return;
     }
+    if (!light_rows && light_rows_failed)
+    {
+        label_text_if_changed(light_status, tr("Nincs elegendő memória. Zárd be és nyisd újra.", "Not enough memory. Close and reopen."));
+        return;
+    }
     if (!light_rows)
     {
         light_rows = light_ui_alloc(LIGHT_UI_ROWS, sizeof(*light_rows));
         if (!light_rows)
         {
+            light_rows_failed = true;
             label_text_if_changed(light_status, tr("Nincs elegendő memória.", "Not enough memory."));
             return;
         }
@@ -595,7 +603,7 @@ static void light_ui_open(unsigned index)
     lv_obj_add_event_cb(light_overlay, light_ui_close_event, LV_EVENT_CLICKED, NULL);
     light_panel = shape(light_overlay, 190, 60, 900, 680, home_night ? 0x14272D : 0xFBFDF9, 24);
     lv_obj_remove_flag(light_panel, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_t *title = lbl(light_panel, home_config.cards[index].name, 24, 24, APP_FONT_24, light_ui_foreground());
+    lv_obj_t *title = lbl(light_panel, home_config.cards[index].name, 24, 24, APP_FONT_28, light_ui_foreground());
     lv_obj_set_width(title, 748);
     lv_label_set_long_mode(title, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_t *close = pairing_button(light_panel, "X", 820, 12, 56, 56);

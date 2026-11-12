@@ -2517,6 +2517,8 @@ static void test_energy_disabled_home(app_runtime_state_t rt)
     puts("PASS: actual Master LVGL logo with no Home resource reads, immediate 10/83/24/10 PWM, Intercom return, Home without energy samples, blocked energy navigation and diagnostic return");
 }
 
+#include "lighting_test.inc"
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -2603,7 +2605,7 @@ int main(void)
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .relative_humidity_valid=true,.relative_humidity_pct=61,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
+    if (getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -2618,7 +2620,9 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
-        if (getenv("ZOLEE_ENERGY_DISABLED_ONLY"))
+        if (getenv("ZOLEE_LIGHTING_ONLY"))
+            test_lighting_ui(runtime, sample);
+        else if (getenv("ZOLEE_ENERGY_DISABLED_ONLY"))
             test_energy_disabled_home(runtime);
         else if (getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
         {

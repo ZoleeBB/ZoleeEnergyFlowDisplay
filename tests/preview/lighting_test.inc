@@ -28,7 +28,7 @@ static void test_lighting_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     assert(s_view == VIEW_HOME && home_connected);
     lighting_card_update(0, 0, true);
     assert(!strcmp(lv_label_get_text(home_labels[0]), "TV nézés"));
-    assert(lv_obj_get_height(lv_obj_get_parent(home_labels[0])) == 204);
+    assert(lv_obj_get_height(lv_obj_get_parent(home_labels[0])) == LX_HOME_CARD_HEIGHT);
     for (unsigned i = 0; i < 3; ++i) assert(light_card_buttons[0][i]);
     app_sim_light_summary.label = LX_LIGHT_MANY_MOODS;
     app_sim_light_summary.active_count = 3;
