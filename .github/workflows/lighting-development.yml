@@ -2,7 +2,7 @@ name: Lighting development workspace
 on:
   push:
     branches: [feature/loxone-lighting-cards]
-    paths: [.github/workflows/lighting-development.yml, tools/.lighting-patch.json, tools/.lighting-repair.json]
+    paths: [.github/workflows/lighting-development.yml, tools/.lighting-edit.py]
 permissions:
   contents: write
 concurrency:
@@ -12,54 +12,40 @@ jobs:
   workspace:
     if: github.ref == 'refs/heads/feature/loxone-lighting-cards'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
-      - name: Preserve input for byte-level verification
+      - name: Inspect integration points
         run: |
-          mkdir -p /tmp/lighting-input
-          cp tools/.lighting-*.json /tmp/lighting-input/ 2>/dev/null || true
-      - name: Apply verified development patch on this branch only
+          grep -nE 'home_prepare|home_preload|home_render|home_is_open|loxone_display_is_held|intercom_render|static void clear' main/app_ui.c
+          find assets/web simulator tests -iname '*loxone*' -o -iname '*stub*'
+          grep -nE 'app_loxone_home_snapshot|app_loxone_home_command|app_ui.c|int main' tests/preview/preview.c simulator/*.[ch] || true
+          grep -nE 'cardType|card.type|control_uuid|cardOptions|supportedControl|typeOptions' assets/web/* || true
+      - name: Install C test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev
+      - name: Apply verified integration edit
         env:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
-          python3 - <<'PY'
-          import base64, gzip, hashlib, json, os, pathlib, subprocess
-          payload = pathlib.Path('tools/.lighting-patch.json')
-          if not payload.exists():
-              raise SystemExit(0)
-          data = json.loads(payload.read_text())
-          repair = pathlib.Path('tools/.lighting-repair.json')
-          if repair.exists():
-              fixes = json.loads(repair.read_text())
-              encoded = data['patch']
-              for start, end, old, new in sorted(fixes['replacements'], reverse=True):
-                  if encoded[start:end] != old:
-                      raise SystemExit('Repair does not match source bytes')
-                  encoded = encoded[:start] + new + encoded[end:]
-              if hashlib.sha256(encoded.encode()).hexdigest() != fixes['sha256']:
-                  raise SystemExit('Repaired base64 checksum mismatch')
-              data['patch'] = encoded
-          patch = gzip.decompress(base64.b64decode(data['patch'], validate=True))
-          if len(patch) > 2 * 1024 * 1024:
-              raise SystemExit('Patch exceeds development limit')
-          remote = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/feature/loxone-lighting-cards'], text=True).split()[0]
-          if remote != os.environ['EXPECTED_SHA']:
-              raise SystemExit('Branch changed; refusing stale patch')
-          subprocess.run(['git', 'apply', '--check', '--index', '-'], input=patch, check=True)
-          subprocess.run(['git', 'apply', '--index', '-'], input=patch, check=True)
-          subprocess.run(['git', 'rm', 'tools/.lighting-patch.json'], check=True)
-          if repair.exists():
-              subprocess.run(['git', 'rm', 'tools/.lighting-repair.json'], check=True)
-          subprocess.run(['git', '-c', 'user.name=github-actions[bot]', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit', '-m', data['message']], check=True)
-          subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/feature/loxone-lighting-cards'], check=True)
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: lighting-input
-          path: /tmp/lighting-input/
-          include-hidden-files: true
-          retention-days: 1
+          if test ! -f tools/.lighting-edit.py; then exit 0; fi
+          remote=$(git ls-remote origin refs/heads/feature/loxone-lighting-cards | cut -f1)
+          test "$remote" = "$EXPECTED_SHA"
+          python3 tools/.lighting-edit.py
+          python3 tools/prepare_web.py
+          git diff --check
+          git add main assets/web tests simulator docs README.md tools
+      - name: Check lighting model with sanitizers
+        run: python3 tests/test_lighting.py
+      - name: Commit integrated source on the authorized branch
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          if test ! -f tools/.lighting-edit.py; then exit 0; fi
+          remote=$(git ls-remote origin refs/heads/feature/loxone-lighting-cards | cut -f1)
+          test "$remote" = "$EXPECTED_SHA"
+          git rm tools/.lighting-edit.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate lighting controls with bounded visible-page state'
+          git push origin HEAD:refs/heads/feature/loxone-lighting-cards
