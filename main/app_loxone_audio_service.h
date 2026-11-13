@@ -35,6 +35,12 @@ bool app_loxone_audio_summary(const char *id, unsigned revision, lx_audio_summar
 bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action);
 bool app_loxone_audio_value_allowed(const char *id, unsigned revision,
                                    lx_audio_action_t action, unsigned value);
+bool app_loxone_audio_queued_allowed(const char *id, unsigned revision,
+                                    lx_audio_action_t action, unsigned value,
+                                    unsigned edit_generation);
+/* Csak az adott kártya még el nem küldött hangerő-szerkesztését vonja vissza.
+ * A visszajelzett szerverállapotot és a már elküldött parancsot nem módosítja. */
+void app_loxone_audio_cancel_volume(const char *id, unsigned revision);
 esp_err_t app_loxone_audio_command(const char *id, unsigned revision,
                                   lx_audio_action_t action, unsigned value, bool final);
 esp_err_t app_loxone_audio_favorites_request(const char *id, unsigned revision, unsigned start);
@@ -47,4 +53,5 @@ void app_loxone_audio_detail_close(void);
 /* Az app_loxone.c meglévő sorának hídja. A futtató ezt Audio-mutex NÉLKÜL
  * hívja; a közös kliens a végső elküldés előtt ismét ellenőriz mindent. */
 esp_err_t app_loxone_audio_transport(const char *id, unsigned revision,
-                                    lx_audio_action_t action, unsigned value);
+                                    lx_audio_action_t action, unsigned value,
+                                    unsigned edit_generation);

@@ -9,6 +9,7 @@ static unsigned test_cancel_generation;
 static int test_status = 200;
 static int64_t test_declared = 4;
 static const char *test_redirect;
+static bool test_task_failure;
 
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
 {
@@ -34,7 +35,9 @@ BaseType_t xTaskCreateWithCaps(TaskFunction_t function, const char *name, uint32
                               void *argument, UBaseType_t priority, TaskHandle_t *handle, unsigned caps)
 {
     (void)function; (void)name; (void)argument; (void)priority;
-    assert(stack >= 8192 && caps == MALLOC_CAP_RTCRAM);
+    assert(stack >= 8192 && (caps == MALLOC_CAP_RTCRAM || caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
+    if (test_task_failure)
+        return 0;
     *handle = (void *)1;
     return pdPASS;
 }
@@ -79,9 +82,11 @@ int esp_http_client_read(esp_http_client_handle_t http, char *output, int capaci
     ++test_reads;
     if (test_cancel_generation)
     {
+        assert(!app_loxone_audio_media_idle());
         unsigned generation = test_cancel_generation;
         test_cancel_generation = 0;
         app_loxone_audio_media_clear(generation);
+        assert(!app_loxone_audio_media_idle());
     }
     if (http->position)
         return 0;
@@ -116,6 +121,7 @@ void lx_audio_image_free(lx_audio_image_t *image)
 
 static void initialize_and_generation_test(void)
 {
+    assert(app_loxone_audio_media_idle());
     /* Clear az első inicializálás közben: a generáció nem veszhet el. */
     atomic_flag_test_and_set(&media_initializing);
     app_loxone_audio_media_clear(11);
@@ -123,6 +129,7 @@ static void initialize_and_generation_test(void)
     atomic_flag_clear(&media_initializing);
     app_loxone_audio_media_request(0, 11, "https://covers.example/test.png", 1, 112);
     assert(media_generation == 11 && media_slots[0].pending);
+    assert(!app_loxone_audio_media_idle());
 
     /* A régi implementáció a kész init-zár ütközésénél eldobta a clear-t. */
     atomic_flag_test_and_set(&media_initializing);
@@ -140,7 +147,7 @@ static void initialize_and_generation_test(void)
 static void ownership_test(void)
 {
     media_worker(NULL);
-    assert(!media_task && test_decodes == 1);
+    assert(!media_task && test_decodes == 1 && app_loxone_audio_media_idle());
     lx_audio_image_t *held = app_loxone_audio_media_acquire(0, 12);
     assert(held && held->references == 2 && held->generation == 12);
     app_loxone_audio_media_request(1, 12, "https://covers.example/test.png", 2, 112);
@@ -170,7 +177,7 @@ static void network_cancellation_test(void)
     unsigned decodes = test_decodes;
     media_worker(NULL);
     assert(media_generation == 15 && test_decodes == decodes && !media_slots[0].image);
-    assert(!media_task);
+    assert(!media_task && app_loxone_audio_media_idle());
 
     test_declared = LX_AUDIO_MEDIA_BYTES_MAX + 1;
     app_loxone_audio_media_request(0, 15, "https://covers.example/large.png", 4, 112);
@@ -187,6 +194,12 @@ static void network_cancellation_test(void)
     assert(test_connections == connections + 1 && test_reads == reads);
     assert(!media_slots[0].image && !media_task);
     test_redirect = NULL;
+
+    /* Sikertelen task-foglalás sem tarthatja fogva a kamera indulási kapuját. */
+    test_task_failure = true;
+    app_loxone_audio_media_request(0, 15, "https://covers.example/no-task.png", 6, 112);
+    assert(!media_task && app_loxone_audio_media_idle());
+    test_task_failure = false;
 }
 
 int main(void)

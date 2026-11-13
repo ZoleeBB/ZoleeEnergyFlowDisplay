@@ -5,10 +5,12 @@ lx_controls_summary_t app_sim_controls_summaries[LX_HOME_MAX_TOTAL_CARDS];
 lx_controls_window_t app_sim_controls_windows[LX_CONTROLS_MAX_WINDOWS];
 double app_sim_controls_last_value;
 unsigned app_sim_controls_sets;
+unsigned app_sim_controls_orders;
 
 void app_sim_controls_reset(void)
 {
     app_sim_controls_sets = 0;
+    app_sim_controls_orders = 0;
     app_sim_controls_last_value = 0;
     for (unsigned i = 0; i < LX_HOME_MAX_TOTAL_CARDS; ++i)
     {
@@ -17,7 +19,7 @@ void app_sim_controls_reset(void)
             .open_allowed = true, .close_allowed = true, .value = 45, .maximum = 100, .step = 1,
             .motion_valid = true, .animation = 3, .timer_valid = true, .timer_running = true, .timer_total_valid = true,
             .timer_seconds = 125, .timer_total = 180, .stairway = true, .list_valid = true,
-            .window_count = 14, .counts = {2, 7, 1, 1, 2, 1}, .counts_known = 63
+            .window_count = 14, .list_revision = 1, .counts = {2, 7, 1, 1, 2, 1}, .counts_known = 63
         };
         snprintf(app_sim_controls_summaries[i].unit, sizeof(app_sim_controls_summaries[i].unit), "%%");
     }
@@ -73,6 +75,23 @@ bool app_loxone_controls_window(const char *id, unsigned revision, unsigned inde
         index >= LX_CONTROLS_MAX_WINDOWS)
         return false;
     *out = app_sim_controls_windows[index];
+    return true;
+}
+
+bool app_loxone_controls_window_order(const char *id, unsigned revision,
+                                       unsigned list_revision, uint16_t *out, unsigned capacity)
+{
+    lx_controls_summary_t summary;
+    if (!out || !app_loxone_controls_summary(id, revision, &summary) ||
+        summary.type != LX_HOME_CARD_WINDOW_MONITOR || summary.list_revision != list_revision ||
+        summary.window_count > capacity || summary.window_count > LX_CONTROLS_MAX_WINDOWS)
+        return false;
+    ++app_sim_controls_orders;
+    unsigned index = 0;
+    for (unsigned priority = 0; priority < 4; ++priority)
+        for (unsigned i = 0; i < summary.window_count; ++i)
+            if (lx_controls_window_priority(&app_sim_controls_windows[i]) == priority)
+                out[index++] = (uint16_t)i;
     return true;
 }
 

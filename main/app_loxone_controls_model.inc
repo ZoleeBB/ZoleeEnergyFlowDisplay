@@ -276,6 +276,7 @@ lx_controls_block_t *lx_controls_block_create(const cJSON *entry)
     controls_format(block, light_string(meta, "format"));
     if (block->type == LX_HOME_CARD_WINDOW_MONITOR)
     {
+        block->list_revision = 1;
         const cJSON *list = cJSON_GetObjectItemCaseSensitive(meta, "windows");
         unsigned count = (unsigned)cJSON_GetArraySize(list);
         if (count <= LX_CONTROLS_MAX_WINDOWS && (!count ||
@@ -307,6 +308,8 @@ void lx_controls_block_free(lx_controls_block_t *block)
 
 static void controls_window_states(lx_controls_block_t *block, const char *text, size_t length)
 {
+    if (++block->list_revision == 0)
+        ++block->list_revision;
     block->list_valid = false;
     for (unsigned i = 0; i < block->window_count; ++i)
         block->windows[i].valid = false;
@@ -469,6 +472,7 @@ void lx_controls_summary(const lx_controls_block_t *block, int64_t now,
     out->timer_total_valid = controls_known(block, LX_CONTROL_TOTAL);
     out->timer_total = out->timer_total_valid ? block->values[LX_CONTROL_TOTAL] : 0;
     out->window_count = block->window_count;
+    out->list_revision = block->list_revision;
     out->list_valid = block->list_valid;
     out->list_truncated = block->list_truncated;
     for (unsigned i = 0; i < LX_CONTROLS_COUNT_COUNT; ++i)

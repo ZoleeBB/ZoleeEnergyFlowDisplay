@@ -48,6 +48,12 @@ static unsigned media_generation;
 static atomic_flag media_initializing = ATOMIC_FLAG_INIT;
 static atomic_bool media_ready;
 static atomic_uint media_requested_generation;
+static atomic_uint media_workers;
+
+bool app_loxone_audio_media_idle(void)
+{
+    return atomic_load(&media_workers) == 0;
+}
 
 static void *media_alloc(size_t size)
 {
@@ -335,6 +341,9 @@ static void media_worker(void *argument)
         xSemaphoreGive(media_lock);
     }
     free(job);
+    /* A hálózati/dekódolási pufferek már megszűntek. Számláló kell: az új
+     * kérés a régi task utolsó lépése közben is elindíthat egy új workert. */
+    atomic_fetch_sub(&media_workers, 1);
     ESP_LOGI("lox_audio_media", "Borító worker leáll; verem minimum: %u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
     vTaskDeleteWithCaps(NULL);
 }
@@ -369,18 +378,25 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
     }
     if (slot->pending && !media_task)
     {
+        atomic_fetch_add(&media_workers, 1);
         BaseType_t created = xTaskCreateWithCaps(media_worker, "lox_audio_media", 8192, NULL,
             2, &media_task, MALLOC_CAP_RTCRAM);
         if (created != pdPASS)
             created = xTaskCreateWithCaps(media_worker, "lox_audio_media", 8192, NULL,
                 2, &media_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (created != pdPASS)
+        {
             media_task = NULL;
+            atomic_fetch_sub(&media_workers, 1);
+        }
     }
     xSemaphoreGive(media_lock);
 }
 
 #else
+static bool audio_fixture_media_busy;
+void app_sim_audio_media_busy(bool busy) { audio_fixture_media_busy = busy; }
+bool app_loxone_audio_media_idle(void) { return !audio_fixture_media_busy; }
 void app_loxone_audio_media_request(unsigned slot, unsigned generation, const char *url, unsigned version, unsigned size)
 { (void)slot; (void)generation; (void)url; (void)version; (void)size; }
 lx_audio_image_t *app_loxone_audio_media_acquire(unsigned slot, unsigned generation)

@@ -72,7 +72,7 @@ static char s_command_status[LX_HOME_ERROR_SIZE];
 typedef struct {
     char id[LX_HOME_ID_SIZE];
     lx_home_command_t action;
-    unsigned revision, session, intercom_revision, visibility_revision;
+    unsigned revision, session, intercom_revision, visibility_revision, audio_edit_generation;
     double position_percent;
     int64_t queued_us;
 } home_command_t;
@@ -1008,7 +1008,8 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
 /* Az abszolút pozíció külön, korlátos érték. A kártya szabad szöveget vagy
  * parancsvéget nem adhat át; a katalógus és az élő modell újraellenőrzött. */
 static bool home_command_build_locked(const char *card_id, lx_home_command_t action,
-                                      double position_percent, char command[96])
+                                      double position_percent, unsigned audio_edit_generation,
+                                      char command[96])
 {
     if (action >= LX_HOME_COMMAND_AUDIO_PLAY && action <= LX_HOME_COMMAND_AUDIO_VOLUME_DOWN)
     {
@@ -1019,8 +1020,8 @@ static bool home_command_build_locked(const char *card_id, lx_home_command_t act
         const lx_home_card_t *card = &s_home->cards[s_light_context->first + (unsigned)slot];
         lx_audio_action_t audio_action = (lx_audio_action_t)(action - LX_HOME_COMMAND_AUDIO_PLAY);
         return card->type == LX_HOME_CARD_AUDIO &&
-            app_loxone_audio_value_allowed(card_id, s_home_revision, audio_action,
-                                           (unsigned)position_percent) &&
+            app_loxone_audio_queued_allowed(card_id, s_home_revision, audio_action,
+                                            (unsigned)position_percent, audio_edit_generation) &&
             lx_audio_command_build(lx_audio_catalog_find(s_catalog, card->control_uuid),
                                      audio_action, (unsigned)position_percent, command);
     }
@@ -1051,7 +1052,7 @@ static bool home_command_build_locked(const char *card_id, lx_home_command_t act
 static esp_err_t home_command_request(const char *card_id, lx_home_command_t action,
                                        bool check_generation, unsigned generation,
                                        bool check_revision, unsigned revision,
-                                       double position_percent)
+                                       double position_percent, unsigned audio_edit_generation)
 {
     if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)
         return ESP_ERR_INVALID_STATE;
@@ -1064,7 +1065,7 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
                    (!door || s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                    s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
-                   home_command_build_locked(card_id, action, position_percent, command);
+                   home_command_build_locked(card_id, action, position_percent, audio_edit_generation, command);
     for (unsigned i = 0; allowed && i < s_home->card_count; i++)
     {
         if (!strcmp(s_home->cards[i].id, card_id) && s_home->cards[i].type == LX_HOME_CARD_SWITCH)
@@ -1073,7 +1074,8 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
     }
     home_command_t request = {
         .action = action, .revision = s_home_revision, .session = s_home_session,
-        .position_percent = position_percent, .queued_us = esp_timer_get_time()
+        .position_percent = position_percent, .queued_us = esp_timer_get_time(),
+        .audio_edit_generation = audio_edit_generation
     };
     request.intercom_revision = s_intercom_generation;
     request.visibility_revision = s_light_generation;
@@ -1108,7 +1110,7 @@ esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
     /* Pozíciót csak a külön, revízióval és értékkel ellátott API fogadhat. */
     if (action >= LX_HOME_COMMAND_SHADING_POSITION)
         return ESP_ERR_INVALID_ARG;
-    return home_command_request(card_id, action, false, 0, false, 0, 0);
+    return home_command_request(card_id, action, false, 0, false, 0, 0, 0);
 }
 
 esp_err_t app_loxone_shading_command(const char *card_id, unsigned revision,
@@ -1117,7 +1119,7 @@ esp_err_t app_loxone_shading_command(const char *card_id, unsigned revision,
     if (action != LX_HOME_COMMAND_SHADING_UP && action != LX_HOME_COMMAND_SHADING_DOWN &&
         action != LX_HOME_COMMAND_SHADING_STOP)
         return ESP_ERR_INVALID_ARG;
-    return home_command_request(card_id, action, false, 0, true, revision, 0);
+    return home_command_request(card_id, action, false, 0, true, revision, 0, 0);
 }
 
 esp_err_t app_loxone_shading_position(const char *card_id, unsigned revision,
@@ -1126,16 +1128,16 @@ esp_err_t app_loxone_shading_position(const char *card_id, unsigned revision,
     if (percent > 100)
         return ESP_ERR_INVALID_ARG;
     return home_command_request(card_id, LX_HOME_COMMAND_SHADING_POSITION,
-                                 false, 0, true, revision, percent);
+                                 false, 0, true, revision, percent, 0);
 }
 
 esp_err_t app_loxone_audio_transport(const char *id, unsigned revision,
-                                    lx_audio_action_t action, unsigned value)
+                                    lx_audio_action_t action, unsigned value, unsigned edit_generation)
 {
     if (action < LX_AUDIO_PLAY || action >= LX_AUDIO_FAVORITE || value > 100)
         return ESP_ERR_INVALID_ARG;
     return home_command_request(id, (lx_home_command_t)(LX_HOME_COMMAND_AUDIO_PLAY + action),
-                                 false, 0, true, revision, value);
+                                 false, 0, true, revision, value, edit_generation);
 }
 
 esp_err_t app_loxone_controls_command(const char *card_id, unsigned revision,
@@ -1144,7 +1146,7 @@ esp_err_t app_loxone_controls_command(const char *card_id, unsigned revision,
     if (action < LX_CONTROLS_ON || action >= LX_CONTROLS_SET)
         return ESP_ERR_INVALID_ARG;
     return home_command_request(card_id,
-        (lx_home_command_t)(LX_HOME_COMMAND_CONTROL_ON + action), false, 0, true, revision, 0);
+        (lx_home_command_t)(LX_HOME_COMMAND_CONTROL_ON + action), false, 0, true, revision, 0, 0);
 }
 
 esp_err_t app_loxone_controls_set(const char *card_id, unsigned revision, double value)
@@ -1161,7 +1163,7 @@ esp_err_t app_loxone_controls_set(const char *card_id, unsigned revision, double
     if (dimmer)
         return queued ? ESP_OK : ESP_ERR_INVALID_STATE;
     return home_command_request(card_id, LX_HOME_COMMAND_CONTROL_SET,
-                                 false, 0, true, revision, value);
+                                 false, 0, true, revision, value, 0);
 }
 
 /* A Slave régi gombnyomása nem használhat közben megváltozott kapunyitó
@@ -1169,7 +1171,7 @@ esp_err_t app_loxone_controls_set(const char *card_id, unsigned revision, double
 esp_err_t app_loxone_intercom_gate_request(unsigned revision)
 {
     return home_command_request(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE,
-                                 true, revision, false, 0, 0);
+                                 true, revision, false, 0, 0, 0);
 }
 
 /* Kizárólag a Loxone-worker küldhet a WebSocketre. A kivett parancsot soha
@@ -1193,7 +1195,7 @@ static void home_command_poll(int64_t now)
                      lighting_home_command_allowed_locked(request.id) && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
                      home_command_build_locked(request.id, request.action,
-                                                request.position_percent, command);
+                                                request.position_percent, request.audio_edit_generation, command);
         xSemaphoreGive(s_lock);
         cJSON *answer = valid ? reply(command, true) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);

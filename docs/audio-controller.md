@@ -59,6 +59,11 @@ célérték, az elengedés pedig az utolsó cél továbbítását kéri. A Minis
 parancssorának foglaltsága késleltetheti a küldést. A kijelző megkülönbözteti
 a függő kérést a már visszaigazolt hangerőtől.
 
+Az ablak bezárása törli a még el nem küldött hangerőkérést. Ez az abszolút
+csúszkaértékre és a külső −/+ műveletekre is érvényes, a Miniserver sorában
+várakozó kérésre is. A már visszaigazolt hangerőt a bezárás nem állítja vissza;
+a Play/Pause és számváltó műveleteket ez a szerkesztési törlés nem érinti.
+
 Ha a zóna külső fel/le impulzusos hangerővezérlést jelez, a százalékos
 csúszka helyett **− / +** gombok jelennek meg. Hiányzó maximumértéknél az
 abszolút hangerőállítás tiltott; a maximum csökkenését a tényleges küldés
@@ -153,6 +158,13 @@ utána engedi el a régi képet. Lap- vagy ablakváltáskor a már úton lévő
 letöltés eredménye csak a hozzá tartozó aktuális generációba kerülhet.
 A háttérfeladatok igény szerint indulnak és leállnak. A változatlan
 feliratot vagy képforrást a periodikus UI-frissítés nem állítja be újra.
+
+Kaputelefonos csengéskor a lejátszóablak bezárul, a régi kérések érvényüket
+vesztik, és a képhivatkozások leválnak. A kamera nagy képpuffereinek foglalása
+és a videó indítása megvárja, amíg a borítófeldolgozó a saját ideiglenes
+puffereit elengedi. Ez külön UI-körökben ellenőrzött állapot: közben a
+kaputelefon előkészítési képernyője látható, nincs kijelzőzár alatt végzett
+hálózati várakozás. A csengetés után az eredeti Otthon-oldal újra felépül.
 
 ## Ellenőrzés és fizikai elfogadás
 

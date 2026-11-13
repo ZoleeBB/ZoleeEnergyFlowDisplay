@@ -33,7 +33,7 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     app_sim_home_reset();
     app_sim_home_config.page_count = 1;
     app_sim_home_config.card_count = app_sim_home_config.pages[0].card_count = 7;
-    const char *names[] = {"Olvasólámpa", "Összes világítás", "Szellőztetési érték", "Lépcsőházi időzítés",
+    const char *names[] = {"Olvasólámpa", "Összes világítás", "Hőmérsékleti érték", "Lépcsőházi időzítés",
                           "Ajtók és ablakok", "Kerti kapu", "Motoros ablak"};
     const char *icons[] = {"dimmer", "central-lighting", "slider", "timed-switch", "window-monitor", "gate-double", "motor-window"};
     for (unsigned i = 0; i < 7; ++i)
@@ -44,6 +44,12 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
         snprintf(card->icon, sizeof(card->icon), "%s", icons[i]);
         card->allow_permanent = true;
     }
+    app_sim_controls_summaries[2].minimum = -20;
+    app_sim_controls_summaries[2].maximum = 60;
+    app_sim_controls_summaries[2].step = .5;
+    app_sim_controls_summaries[2].value = 21.5;
+    app_sim_controls_summaries[2].decimals = 1;
+    strcpy(app_sim_controls_summaries[2].unit, "°C");
     app_sim_controls_summaries[5].motion = -1;
     ticks = 31000000;
     home_request_set(2);
@@ -59,8 +65,27 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
 
     /* Dimmer: húzás közben küld, a valódi értéket közben nem hamisítja. */
     lv_obj_send_event(home_icons[0], LV_EVENT_CLICKED, NULL);
-    assert(controls_overlay && controls_slider && !controls_apply);
+    assert(controls_overlay && controls_slider && controls_decrease && controls_increase && !controls_apply);
     unsigned before = app_sim_controls_sets;
+    app_sim_controls_summaries[0].step = 5;
+    lv_obj_send_event(controls_increase, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_controls_sets == before + 1 && app_sim_controls_last_value == 50);
+    assert(controls_target_value == 50 && lv_slider_get_value(controls_slider) == 5000);
+    lv_obj_send_event(controls_decrease, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_controls_sets == before + 2 && app_sim_controls_last_value == 45);
+    lv_slider_set_value(controls_slider, 10000, LV_ANIM_OFF);
+    lv_obj_send_event(controls_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    assert(controls_target_value == 100 && lv_obj_has_state(controls_increase, LV_STATE_DISABLED));
+    before = app_sim_controls_sets;
+    lv_obj_send_event(controls_increase, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_controls_sets == before);
+    lv_slider_set_value(controls_slider, 0, LV_ANIM_OFF);
+    lv_obj_send_event(controls_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    assert(controls_target_value == 0 && lv_obj_has_state(controls_decrease, LV_STATE_DISABLED));
+    before = app_sim_controls_sets;
+    lv_obj_send_event(controls_decrease, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_controls_sets == before);
+    app_sim_controls_summaries[0].step = 1;
     lv_slider_set_value(controls_slider, 7300, LV_ANIM_OFF);
     lv_obj_send_event(controls_slider, LV_EVENT_VALUE_CHANGED, NULL);
     assert(app_sim_controls_sets == before + 1 && app_sim_controls_last_value == 73);
@@ -75,14 +100,26 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
 
     /* Slider: a húzás és az elengedés sem küld a Beállítás gomb nélkül. */
     lv_obj_send_event(controls_cards[2].buttons[0], LV_EVENT_CLICKED, NULL);
-    assert(controls_overlay && controls_slider && controls_apply);
+    assert(controls_overlay && controls_slider && controls_apply && controls_decrease && controls_increase);
     before = app_sim_controls_sets;
+    lv_obj_send_event(controls_increase, LV_EVENT_CLICKED, NULL);
+    assert(controls_target_value == 22 && app_sim_controls_sets == before);
+    lv_obj_send_event(controls_decrease, LV_EVENT_CLICKED, NULL);
+    assert(controls_target_value == 21.5 && app_sim_controls_sets == before);
+    lv_slider_set_value(controls_slider, 0, LV_ANIM_OFF);
+    lv_obj_send_event(controls_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    assert(controls_target_value == -20 && lv_obj_has_state(controls_decrease, LV_STATE_DISABLED));
+    lv_obj_send_event(controls_increase, LV_EVENT_CLICKED, NULL);
+    assert(controls_target_value == -19.5 && app_sim_controls_sets == before);
+    assert(app_sim_controls_summaries[2].value == 21.5);
     lv_slider_set_value(controls_slider, 6200, LV_ANIM_OFF);
     lv_obj_send_event(controls_slider, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_send_event(controls_slider, LV_EVENT_RELEASED, NULL);
-    assert(app_sim_controls_sets == before && controls_target_value == 62);
+    assert(app_sim_controls_sets == before && controls_target_value == 29.5);
+    controls_test_idle(&sample);
+    save_frame("controls-slider-day");
     lv_obj_send_event(controls_apply, LV_EVENT_CLICKED, NULL);
-    assert(app_sim_controls_sets == before + 1 && app_sim_controls_last_value == 62);
+    assert(app_sim_controls_sets == before + 1 && app_sim_controls_last_value == 29.5);
     controls_test_ack(&sample);
     app_sim_home_status[0] = 0;
     controls_test_tick(&sample);
@@ -113,12 +150,28 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     /* A teljes lista lapozható, az oldalszám nem rögzíti nyolc kedvencre/sorra. */
     lv_obj_send_event(controls_cards[4].buttons[0], LV_EVENT_CLICKED, NULL);
     assert(controls_overlay && controls_rows[0] && controls_next);
-    assert(controls_list_start == 0 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 1"));
+    const uint16_t expected[] = {2, 4, 8, 10, 1, 7, 13, 5, 11, 0, 3, 6, 9, 12};
+    assert(!memcmp(controls_window_order, expected, sizeof(expected)));
+    assert(controls_list_start == 0 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 3"));
+    unsigned orders = app_sim_controls_orders;
+    controls_test_idle(&sample);
+    assert(app_sim_controls_orders == orders);
+    app_sim_controls_windows[0].state = 4;
+    ++app_sim_controls_summaries[4].list_revision;
+    controls_test_tick(&sample);
+    assert(app_sim_controls_orders == orders + 1 && controls_window_order[0] == 0);
+    assert(strstr(lv_label_get_text(controls_rows[0]), "Ablak 1"));
+    app_sim_controls_windows[0].state = 1;
+    ++app_sim_controls_summaries[4].list_revision;
+    controls_test_tick(&sample);
+    assert(!memcmp(controls_window_order, expected, sizeof(expected)));
+    assert(!strcmp(app_sim_controls_windows[0].name, "Ablak 1") && app_sim_controls_windows[0].state == 1);
+    assert(app_sim_controls_summaries[4].counts[0] == 2 && app_sim_controls_summaries[4].counts[1] == 7);
     save_frame("controls-monitor-day");
     lv_obj_send_event(controls_next, LV_EVENT_CLICKED, NULL);
-    assert(controls_list_start == 6 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 7"));
+    assert(controls_list_start == 6 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 14"));
     lv_obj_send_event(controls_next, LV_EVENT_CLICKED, NULL);
-    assert(controls_list_start == 12 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 13"));
+    assert(controls_list_start == 12 && strstr(lv_label_get_text(controls_rows[0]), "Ablak 10"));
     assert(lv_obj_has_state(controls_next, LV_STATE_DISABLED));
     assert(lv_obj_has_flag(controls_rows[2], LV_OBJ_FLAG_HIDDEN));
     controls_test_idle(&sample);
@@ -174,6 +227,8 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     lv_obj_t *stale = lv_obj_create(s_screen);
     lv_obj_add_event_cb(stale, controls_modal_command, LV_EVENT_CLICKED,
                         (void *)(uintptr_t)((old_generation << 4) | LX_CONTROLS_SET));
+    lv_obj_add_event_cb(stale, controls_step_event, LV_EVENT_CLICKED,
+                        (void *)(uintptr_t)((old_generation << 4) | 1U));
     before = app_sim_controls_sets;
     lv_obj_send_event(stale, LV_EVENT_CLICKED, NULL);
     assert(app_sim_controls_sets == before && controls_overlay);
@@ -207,5 +262,5 @@ static void test_controls_ui(app_runtime_state_t runtime, app_energy_sample_t sa
     home_request_set(0);
     assert(home_prepare(false));
     home_missing_card_icons = false;
-    puts("PASS: typed controls real LVGL events, target/actual separation, directional locks, popup guards, full monitor pagination, old-pack detail fallback and zero idle invalidations");
+    puts("PASS: typed controls real LVGL events, precise +/- steps, target/actual separation, directional locks, popup guards, stable monitor priority index and full pagination, old-pack detail fallback and zero idle invalidations");
 }

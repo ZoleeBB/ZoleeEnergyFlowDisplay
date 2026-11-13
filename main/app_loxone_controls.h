@@ -38,6 +38,18 @@ typedef struct
     bool valid;
 } lx_controls_window_t;
 
+/* Csak a nézet sorrendje: a protokoll szerinti indexek nem változnak. */
+static inline unsigned lx_controls_window_priority(const lx_controls_window_t *window)
+{
+    if (!window->valid || !window->state)
+        return 2;
+    if (window->state & 4U)
+        return 0;
+    if (window->state & 2U)
+        return 1;
+    return 3;
+}
+
 typedef struct
 {
     lx_home_card_type_t type;
@@ -48,7 +60,7 @@ typedef struct
     int64_t delay_received_us;
     bool blocked, locked, lock_known, stairway, list_valid, list_truncated;
     int animation;
-    unsigned decimals, window_count;
+    unsigned decimals, window_count, list_revision;
     char unit[25], prefix[25], reason[81];
     lx_controls_window_t *windows;
     /* A húzás legfrissebb abszolút célértéke legfeljebb 100 ms-onként megy ki.
@@ -66,7 +78,7 @@ typedef struct
     bool pending, failed;
     double value, minimum, maximum, step, timer_seconds, timer_total;
     int motion, animation;
-    unsigned decimals, window_count, counts[LX_CONTROLS_COUNT_COUNT];
+    unsigned decimals, window_count, list_revision, counts[LX_CONTROLS_COUNT_COUNT];
     uint32_t counts_known;
     char unit[25], prefix[25], reason[81];
 } lx_controls_summary_t;

@@ -89,7 +89,9 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
     assert(app_sim_audio_commands == before + 2 && !audio_dragging);
     audio_test_idle(&sample);
     save_frame("audio-volume-day");
+    unsigned cancelled = app_sim_audio_volume_cancellations;
     audio_ui_reset();
+    assert(app_sim_audio_volume_cancellations == cancelled + 1);
 
     lv_obj_send_event(audio_cards[0].screen, LV_EVENT_CLICKED, NULL);
     assert(audio_overlay && audio_detail && audio_favorites_snapshot && audio_transport_buttons[2]);
@@ -198,6 +200,31 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
     audio_test_idle(&sample);
     save_frame("audio-twelve-cards-day");
 
+    /* Csengetéskor a régi Audio-UI megszűnik; a kamera csak az opcionális
+     * borítóworker saját puffereinek elengedése után foglalhat nagy képeket. */
+    audio_ui_open(0, false);
+    assert(audio_overlay && audio_volume_slider);
+    app_sim_audio_media_busy(true);
+    app_sim_intercom = (app_intercom_snapshot_t){.ringing = true, .connected = true, .revision = 901};
+    assert(intercom_prepare());
+    assert(!audio_overlay && !audio_cards[0].cover.object && home_assets.asset_count == 0);
+    assert(intercom_audio_media_wait && !intercom_prepared && !intercom_front && !intercom_spare);
+    intercom_render();
+    assert(intercom_overlay && strstr(lv_label_get_text(intercom_message), "előkészítése"));
+    assert(intercom_prepare() && !intercom_prepared && !intercom_spare);
+    app_sim_audio_media_busy(false);
+    assert(intercom_prepare() && !intercom_audio_media_wait && intercom_prepared && intercom_spare);
+    intercom_render();
+    assert(intercom_front && !intercom_prepared);
+    app_sim_intercom.ringing = false;
+    assert(!intercom_prepare());
+    intercom_render();
+    assert(!intercom_overlay && !intercom_front && !intercom_spare);
+    assert(home_request_get() == 2);
+    irc_test_open(false, runtime, sample);
+    assert(audio_cards[0].play && home_audio_skin());
+    audio_test_idle(&sample);
+
     /* A régi SD-csomagból hiányzó skin/ikon sem teheti elérhetetlenné a vezérlést. */
     home_request_set(0);
     assert(home_prepare(false));
@@ -214,5 +241,5 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
     home_request_set(0);
     assert(home_prepare(false));
     home_missing_card_icons = false;
-    puts("PASS: actual Audio LVGL card and volume/detail controls, all 70 favorites by ID, stale-event guards, 12-card shared skin, legacy fallback and zero idle invalidations");
+    puts("PASS: actual Audio LVGL card and volume/detail controls, 70 favorites with short pages, stale-event guards, 12-card shared skin, Intercom handoff, legacy fallback and zero idle invalidations");
 }

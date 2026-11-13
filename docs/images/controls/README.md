@@ -51,7 +51,8 @@ for name in names:
 ```
 
 A PNG-ket vizuálisan is ellenőrizni kell. A teszt a hét kártya eseményeit,
-a cél és a visszajelzett érték különválasztását, az iránytiltást, a
+a pontos −/+ léptetést és tartományhatárait, a cél és a visszajelzett
+érték különválasztását, az iránytiltást, az állapot szerint rendezett,
 256 sorig lapozható összesítő kezelőjét, az elavult ablakok elutasítását,
 a régi ikoncsomag képhiányának kezelését és a változatlan állapotnál
 elvárt nulla LVGL-invalidációt is ellenőrzi. A nagy lista korlátját a

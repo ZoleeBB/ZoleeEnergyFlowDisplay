@@ -225,6 +225,29 @@ bool app_loxone_controls_window(const char *card_id, unsigned revision, unsigned
     return valid;
 }
 
+bool app_loxone_controls_window_order(const char *card_id, unsigned revision,
+                                       unsigned list_revision, uint16_t *out, unsigned capacity)
+{
+    if (!out || !s_lock)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    const lx_controls_block_t *block = slot >= 0 ? s_light_context->controls_blocks[slot] : NULL;
+    bool valid = block && lighting_live_locked() && block->type == LX_HOME_CARD_WINDOW_MONITOR &&
+        block->list_revision == list_revision && block->window_count <= capacity;
+    if (valid)
+    {
+        unsigned index = 0;
+        /* Stabil négy csoport, korlátos munka és foglalás nélkül. */
+        for (unsigned priority = 0; priority < 4; ++priority)
+            for (unsigned i = 0; i < block->window_count; ++i)
+                if (lx_controls_window_priority(&block->windows[i]) == priority)
+                    out[index++] = (uint16_t)i;
+    }
+    xSemaphoreGive(s_lock);
+    return valid;
+}
+
 unsigned app_loxone_light_open(const char *card_id, unsigned revision)
 {
     if (!s_lock)

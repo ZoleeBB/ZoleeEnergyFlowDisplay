@@ -13,6 +13,7 @@ static lv_obj_t *intercom_overlay, *intercom_image, *intercom_message, *intercom
 static lv_obj_t *intercom_audio, *intercom_audio_message;
 static uint8_t *intercom_front;
 static uint8_t *intercom_prepared;
+static bool intercom_audio_media_wait;
 /* A dekóder a tartalék pufferbe ír LVGL-lock nélkül. A UI zárolva cseréli
  * fel a két puffert, így a rajzoló által használt kép soha nem módosul. */
 static uint8_t *intercom_spare;
@@ -151,6 +152,13 @@ static bool intercom_prepare(void)
     if (!intercom_next.ringing) {
         intercom_background_suspended = false;
     }
+    /* A clear() már leválasztotta az Audio-widgeteket és visszavonta a
+     * borítókéréseket. A worker saját átmeneti pufferét csak maga szabadíthatja
+     * fel; a kamera nagy foglalásai és a videó indítása ezt követik.
+     * Két UI-kör között várunk, kijelzőzár vagy hálózati várakozás nélkül. */
+    intercom_audio_media_wait = intercom_next.ringing && !app_loxone_audio_media_idle();
+    if (intercom_audio_media_wait)
+        return true;
     if (intercom_next.ringing && !intercom_front && !intercom_prepared)
     {
 #ifdef ESP_PLATFORM
@@ -372,7 +380,8 @@ static void intercom_render(void)
     }
     else
         lv_obj_add_flag(intercom_gate, LV_OBJ_FLAG_HIDDEN);
-    const char *message = !intercom_front || !intercom_spare ? tr("Nincs elég memória a kameraképhez.", "Not enough memory for video.") :
+    const char *message = intercom_audio_media_wait ? tr("Kamera előkészítése...", "Preparing camera...") :
+        !intercom_front || !intercom_spare ? tr("Nincs elég memória a kameraképhez.", "Not enough memory for video.") :
         !intercom_next.connected ? tr("A Loxone-kapcsolat megszakadt. A csengetés végére várunk...",
                                     "Loxone disconnected. Waiting for ringing to end...") :
         intercom_last_press && esp_timer_get_time() - intercom_last_press < 3000000LL &&

@@ -79,6 +79,8 @@ static void audio_picture_release(audio_ui_picture_t *picture)
 
 static void audio_ui_reset(void)
 {
+    if (audio_card_id[0])
+        app_loxone_audio_cancel_volume(audio_card_id, audio_ui_revision);
     if (++audio_ui_generation == 0)
         ++audio_ui_generation;
     if (audio_overlay)
@@ -354,7 +356,7 @@ static void audio_ui_update(void)
         snprintf(text, sizeof(text), "%s", tr("Külső hangerő: − / +", "External volume: − / +"));
     else if (audio_dragging || summary->volume_pending)
         snprintf(text, sizeof(text), "%s: %d%%", tr("Hangerő", "Volume"),
-            audio_volume_slider ? lv_slider_get_value(audio_volume_slider) : 0);
+            audio_volume_slider ? (int)lv_slider_get_value(audio_volume_slider) : 0);
     else if (summary->track.volume_known)
         snprintf(text, sizeof(text), "%s: %u%%", tr("Hangerő", "Volume"), summary->track.volume);
     else

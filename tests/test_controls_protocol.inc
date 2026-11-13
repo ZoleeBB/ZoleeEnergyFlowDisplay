@@ -110,3 +110,66 @@ static void controls_protocol_test(lx_config_t *energy)
     s_session_config = NULL;
     puts("PASS: typed-control encrypted queue, permanent-off option, dimmer Off cancels drag, direction lock recheck, stale revision/page rejection and no ambiguous replay");
 }
+
+/* A natív Audio-futtató saját tesztet kap. Itt az általa átadott szerkesztési
+ * generáció épségét és a tényleges MS-küldés előtti újraellenőrzést vizsgáljuk. */
+static void audio_queue_protocol_test(lx_config_t *energy)
+{
+    const char *json = "{\"mediaServer\":{\"server\":{\"type\":2,\"localIP\":\"192.168.1.40\"}},"
+        "\"controls\":{\"40000000-0000-0000-0000000000000008\":{\"type\":\"AudioZoneV2\","
+        "\"name\":\"Audio\",\"uuidAction\":\"40000000-0000-0000-000000000000006c\","
+        "\"details\":{\"server\":\"server\",\"playerid\":3,\"validOutputs\":true,\"volumeModes\":1},"
+        "\"states\":{\"volume\":\"40000000-0000-0000-0000000000001f40\"}}}}";
+    cJSON *original = s_catalog;
+    s_catalog = lx_catalog_parse(json, strlen(json));
+    s_home = calloc(1, sizeof(*s_home));
+    assert(s_home && s_catalog);
+    s_home->page_count = s_home->card_count = s_home->pages[0].card_count = 1;
+    s_home->cards[0].type = LX_HOME_CARD_AUDIO;
+    strcpy(s_home->cards[0].id, "audio-queue");
+    strcpy(s_home->cards[0].control_uuid, "40000000-0000-0000-0000000000000008");
+    s_home_live = true;
+    s_dead = s_home_busy = s_command_pending = false;
+    s_session_config = energy;
+    controls_test_active = test_home_audio_queue = true;
+    test_home_audio_edit_generation = 9;
+    test_home_audio_max_volume = 60;
+    mark_response();
+    app_loxone_home_visible(0);
+    lighting_poll(esp_timer_get_time());
+    unsigned sent = controls_command_count;
+    assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 40, 8) != ESP_OK);
+    assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 40, 9) == ESP_OK);
+    ++test_home_audio_edit_generation; /* A popup bezárult a sorba vétel után. */
+    home_command_poll(esp_timer_get_time());
+    assert(controls_command_count == sent && !s_command_pending);
+    assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 40, 10) == ESP_OK);
+    test_home_audio_max_volume = 30;
+    home_command_poll(esp_timer_get_time());
+    assert(controls_command_count == sent && !s_command_pending);
+    assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 25, 10) == ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(controls_command_count == ++sent && !s_command_pending && strstr(last_command, "/volume/25"));
+    const lx_audio_action_t directions[] = {LX_AUDIO_VOLUME_UP, LX_AUDIO_VOLUME_DOWN};
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        assert(app_loxone_audio_transport("audio-queue", s_home_revision, directions[i], 0,
+                                          test_home_audio_edit_generation) == ESP_OK);
+        ++test_home_audio_edit_generation;
+        home_command_poll(esp_timer_get_time());
+        assert(controls_command_count == sent && !s_command_pending);
+    }
+    assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_PLAY, 0, 0) == ESP_OK);
+    ++test_home_audio_edit_generation;
+    home_command_poll(esp_timer_get_time());
+    assert(controls_command_count == sent + 1 && !s_command_pending && strstr(last_command, "/play"));
+    invalidate(true);
+    app_loxone_home_visible(-1);
+    controls_test_active = test_home_audio_queue = false;
+    cJSON_Delete(s_catalog);
+    s_catalog = original;
+    free(s_home);
+    s_home = NULL;
+    s_session_config = NULL;
+    puts("PASS: Audio volume edit generation preserved in actual encrypted queue; close and maxVolume rechecked before send; play unaffected");
+}

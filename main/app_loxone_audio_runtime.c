@@ -10,6 +10,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool audio_volume_action(lx_audio_action_t action)
+{
+    return action == LX_AUDIO_VOLUME || action == LX_AUDIO_VOLUME_UP || action == LX_AUDIO_VOLUME_DOWN;
+}
+
 #ifndef APP_TEMPLATE_DESKTOP
 #include <stdatomic.h>
 #include "esp_heap_caps.h"
@@ -36,7 +41,7 @@ typedef struct
     bool configured, hard_lock_known, hard_locked, lock_known, locked;
     bool server_known, client_known, server_online, client_online;
     bool max_known, volume_dirty, volume_final, native_ready;
-    unsigned max_volume, desired_volume;
+    unsigned max_volume, desired_volume, edit_generation;
     int64_t last_volume_sent;
     lx_audio_status_t status;
 } audio_slot_t;
@@ -154,6 +159,38 @@ bool app_loxone_audio_value_allowed(const char *id, unsigned revision,
     return allowed;
 }
 
+bool app_loxone_audio_queued_allowed(const char *id, unsigned revision,
+                                    lx_audio_action_t action, unsigned value,
+                                    unsigned edit_generation)
+{
+    if (!audio_lock)
+        return false;
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    int slot = audio_slot_locked(id, revision);
+    bool allowed = audio_allowed_locked(slot, action) &&
+        (action != LX_AUDIO_VOLUME || value <= audio_page->slots[slot].max_volume) &&
+        (!audio_volume_action(action) ||
+         (edit_generation && edit_generation == audio_page->slots[slot].edit_generation));
+    xSemaphoreGive(audio_lock);
+    return allowed;
+}
+
+void app_loxone_audio_cancel_volume(const char *id, unsigned revision)
+{
+    if (!audio_lock)
+        return;
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    int index = audio_slot_locked(id, revision);
+    if (index >= 0)
+    {
+        audio_slot_t *slot = &audio_page->slots[index];
+        if (++slot->edit_generation == 0)
+            ++slot->edit_generation;
+        slot->volume_dirty = slot->volume_final = false;
+    }
+    xSemaphoreGive(audio_lock);
+}
+
 void app_loxone_audio_session(const char *username, const char *jwt, bool live)
 {
     if (!audio_initialize())
@@ -242,6 +279,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
         slot->client_known = slot->client_online = !slot->endpoint.client_state[0];
         slot->max_known = !slot->endpoint.max_volume_state[0];
         slot->max_volume = 100;
+        slot->edit_generation = 1;
         slot->status = LX_AUDIO_CONNECTING;
         next->live |= slot->configured;
     }
@@ -381,6 +419,7 @@ esp_err_t app_loxone_audio_command(const char *id, unsigned revision,
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     int index = audio_slot_locked(id, revision);
     bool ok = audio_allowed_locked(index, action);
+    unsigned edit_generation = ok && audio_volume_action(action) ? audio_page->slots[index].edit_generation : 0;
     if (ok && action == LX_AUDIO_VOLUME)
     {
         audio_slot_t *slot = &audio_page->slots[index];
@@ -400,7 +439,7 @@ esp_err_t app_loxone_audio_command(const char *id, unsigned revision,
         xSemaphoreGive(audio_wake);
         return ESP_OK;
     }
-    return app_loxone_audio_transport(id, revision, action, value);
+    return app_loxone_audio_transport(id, revision, action, value, edit_generation);
 }
 
 esp_err_t app_loxone_audio_favorites_request(const char *id, unsigned revision, unsigned start)
@@ -758,7 +797,7 @@ static void audio_volume_poll(int64_t now)
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
     {
         char id[LX_HOME_ID_SIZE] = {0};
-        unsigned revision = 0, value = 0, generation = 0;
+        unsigned revision = 0, value = 0, generation = 0, edit_generation = 0;
         xSemaphoreTake(audio_lock, portMAX_DELAY);
         if (audio_page && audio_page->live && i < audio_page->count)
         {
@@ -774,6 +813,7 @@ static void audio_volume_poll(int64_t now)
                 snprintf(id, sizeof(id), "%s", slot->id);
                 revision = audio_page->revision;
                 generation = audio_page->generation;
+                edit_generation = slot->edit_generation;
                 value = slot->desired_volume;
                 slot->volume_dirty = slot->volume_final = false;
                 slot->last_volume_sent = now;
@@ -782,9 +822,10 @@ static void audio_volume_poll(int64_t now)
         xSemaphoreGive(audio_lock);
         if (id[0])
         {
-            esp_err_t result = app_loxone_audio_transport(id, revision, LX_AUDIO_VOLUME, value);
+            esp_err_t result = app_loxone_audio_transport(id, revision, LX_AUDIO_VOLUME, value, edit_generation);
             xSemaphoreTake(audio_lock, portMAX_DELAY);
-            if (audio_page && audio_page->generation == generation)
+            if (audio_page && audio_page->generation == generation &&
+                audio_page->slots[i].edit_generation == edit_generation)
             {
                 audio_slot_t *slot = &audio_page->slots[i];
                 slot->status = result == ESP_OK ? LX_AUDIO_REQUEST_SENT : LX_AUDIO_REQUEST_FAILED;
@@ -977,7 +1018,7 @@ static void audio_worker(void *argument)
 typedef struct
 {
     char id[LX_HOME_ID_SIZE];
-    unsigned revision;
+    unsigned revision, edit_generation;
     lx_audio_summary_t summary;
 } audio_fixture_t;
 
@@ -987,6 +1028,7 @@ static unsigned audio_fixture_count, audio_fixture_favorite_total;
 static unsigned audio_fixture_page_size = LX_AUDIO_FAVORITE_PAGE;
 static char audio_fixture_detail[LX_HOME_ID_SIZE];
 unsigned app_sim_audio_commands, app_sim_audio_last_favorite;
+unsigned app_sim_audio_volume_cancellations;
 lx_audio_action_t app_sim_audio_last_action;
 
 void app_sim_audio_reset(void)
@@ -997,7 +1039,9 @@ void app_sim_audio_reset(void)
     audio_fixture_page_size = LX_AUDIO_FAVORITE_PAGE;
     audio_fixture_detail[0] = 0;
     app_sim_audio_commands = app_sim_audio_last_favorite = 0;
+    app_sim_audio_volume_cancellations = 0;
     app_sim_audio_last_action = LX_AUDIO_PLAY;
+    app_sim_audio_media_busy(false);
 }
 
 bool app_sim_audio_configure(const char *id, unsigned revision, const lx_audio_summary_t *summary)
@@ -1007,6 +1051,7 @@ bool app_sim_audio_configure(const char *id, unsigned revision, const lx_audio_s
     audio_fixture_t *fixture = &audio_fixtures[audio_fixture_count++];
     snprintf(fixture->id, sizeof(fixture->id), "%s", id);
     fixture->revision = revision;
+    fixture->edit_generation = 1;
     fixture->summary = *summary;
     return true;
 }
@@ -1064,6 +1109,27 @@ bool app_loxone_audio_value_allowed(const char *id, unsigned revision,
     audio_fixture_t *fixture = audio_fixture_find(id, revision);
     return app_loxone_audio_allowed(id, revision, action) &&
         (action != LX_AUDIO_VOLUME || value <= fixture->summary.volume_max);
+}
+
+bool app_loxone_audio_queued_allowed(const char *id, unsigned revision,
+                                    lx_audio_action_t action, unsigned value,
+                                    unsigned edit_generation)
+{
+    audio_fixture_t *fixture = audio_fixture_find(id, revision);
+    return app_loxone_audio_value_allowed(id, revision, action, value) &&
+        (!audio_volume_action(action) || (edit_generation && fixture->edit_generation == edit_generation));
+}
+
+void app_loxone_audio_cancel_volume(const char *id, unsigned revision)
+{
+    audio_fixture_t *fixture = audio_fixture_find(id, revision);
+    if (fixture)
+    {
+        if (++fixture->edit_generation == 0)
+            ++fixture->edit_generation;
+        fixture->summary.volume_pending = false;
+        ++app_sim_audio_volume_cancellations;
+    }
 }
 
 esp_err_t app_loxone_audio_command(const char *id, unsigned revision, lx_audio_action_t action, unsigned value, bool final)

@@ -30,9 +30,9 @@ részletes kezelők pedig látható **Részletek** gombbal is elérhetők.
 
 | Kártyatípus | Az alap kártyán | Az ikon megérintése után |
 | --- | --- | --- |
-| **Önálló dimmer** | Tényleges fényerő, **Be**, **Ki** | Fényerőcsúszka; húzás közben küldi a kívánt értéket. |
+| **Önálló dimmer** | Tényleges fényerő, **Be**, **Ki** | Fényerőcsúszka és pontos **−/+**; közvetlenül küldi a kívánt értéket. |
 | **Központi világítás** | **Be**, **Ki**, csoportos vezérlés felirat | Nincs külön kezelő. |
-| **Analóg értékállító – Slider** | Tényleges érték és mértékegység, **Értékállítás** | A csúszka csak célt választ; a **Beállítás** küldi el. |
+| **Analóg értékállító – Slider** | Tényleges érték és mértékegység, **Értékállítás** | A csúszka és a **−/+** csak célt választ; a **Beállítás** küldi el. |
 | **Részletes időzített kapcsoló** | Időzítés/újraindítás vagy kikapcsolás a blokk módja szerint, külön **Ki** | Hátralévő idő, Loxone-időtartam, opcionális **Tartós be**, **Ki**. |
 | **Ajtó–ablak összesítő** | Nyitott és offline elemek száma, **Részletek** | Összesített számok és lapozható állapotlista. |
 | **Kapu / garázsajtó** | Nyitottság és mozgás, **Nyit**, **Stop**, **Zár** | Nincs részleges nyitási csúszka. |
@@ -45,13 +45,18 @@ részletes kezelők pedig látható **Részletek** gombbal is elérhetők.
 ### Dimmer és analóg értékállító
 
 A dimmer a Loxone által közölt minimumot, maximumot és lépésközt követi.
+A csúszka melletti **−/+** gombok a következő érvényes lépést választják,
+és ugyanúgy közvetlenül küldik az értéket. A tartomány végén a megfelelő
+gomb letiltott; a kijelző nem lép a minimum alá vagy a maximum fölé.
 A húzás közben érkező célok összevonódnak: a következő küldéshez mindig a
 legfrissebb cél marad meg. A **Ki** törli a még várakozó fényerőkérést,
 így egy korábbi húzás nem kapcsolhatja vissza később a lámpát.
 
 A Slider a blokk beállított tartományát, lépésközét és formátumát használja.
-A csúszka elengedése önmagában nem küld parancsot; ehhez a **Beállítás**
-gombot kell megnyomni. Mindkét kezelő külön mutatja a tényleges értéket és
+A **−/+** gombokkal tört lépésköz mellett is pontosan állítható a cél.
+A csúszka elengedése és a léptetőgombok megnyomása önmagában nem küld
+parancsot; ehhez a **Beállítás** gombot kell megnyomni.
+Mindkét kezelő külön mutatja a tényleges értéket és
 a kiválasztott célt. A tényleges érték csak Loxone-visszajelzésre változik.
 
 ![Dimmer tényleges és kívánt fényereje](images/controls/controls-dimmer-day.png)
@@ -90,6 +95,12 @@ A lista oldalanként hat sort mutat, névvel és az elérhető helyiség-/hely-
 információval. Egy sor egyszerre jelezheti a nyitási és a reteszelési
 állapotot. A **Nem elérhető** az offline állapot, a **Nincs adat** pedig
 hiányzó vagy érvénytelen részletállapot.
+
+A megjelenítésben a **nyitott**, majd a **bukóra nyitott**, végül az
+**offline vagy ismeretlen állapotú** elemek kerülnek a többi elé.
+Az egyes csoportokon belül megmarad a Loxone eredeti sorrendje.
+Állapotváltozáskor a megjelenítési sorrend frissül; a protokoll szerinti
+sorindexek és az összesített számok nem változnak meg a rendezéstől.
 
 Legfeljebb **256 részletsor** tárolható. Hosszabb listánál a kezelő jelzi a
 korlátot; a Loxone által küldött összesített számok továbbra is a teljes

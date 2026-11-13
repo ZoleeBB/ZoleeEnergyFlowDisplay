@@ -10,6 +10,8 @@
  * nincs Audio-kártya, ezért csak a szolgáltatási határt helyettesítjük. */
 static bool test_home_audio_session;
 static unsigned test_home_audio_hides;
+static bool test_home_audio_queue;
+static unsigned test_home_audio_edit_generation, test_home_audio_max_volume;
 void app_loxone_audio_session(const char *user, const char *token, bool live)
 { (void)user; (void)token; test_home_audio_session = live; }
 void app_loxone_audio_hide(void) { ++test_home_audio_hides; }
@@ -22,6 +24,14 @@ bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action
 { (void)id; (void)revision; (void)action; return false; }
 bool app_loxone_audio_value_allowed(const char *id, unsigned revision, lx_audio_action_t action, unsigned value)
 { (void)id; (void)revision; (void)action; (void)value; return false; }
+bool app_loxone_audio_queued_allowed(const char *id, unsigned revision, lx_audio_action_t action,
+                                      unsigned value, unsigned edit_generation)
+{
+    bool volume = action == LX_AUDIO_VOLUME || action == LX_AUDIO_VOLUME_UP || action == LX_AUDIO_VOLUME_DOWN;
+    return test_home_audio_queue && !strcmp(id, "audio-queue") && revision == s_home_revision &&
+        (!volume || edit_generation == test_home_audio_edit_generation) &&
+        (action != LX_AUDIO_VOLUME || value <= test_home_audio_max_volume);
+}
 
 static bool test_audio_active;
 static bool lighting_test_active;
@@ -594,6 +604,7 @@ int main(int argc,char **argv)
     irc_service_test(&cfg);
     shading_service_test(&cfg);
     controls_protocol_test(&cfg);
+    audio_queue_protocol_test(&cfg);
     presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";

@@ -15,7 +15,11 @@ static lv_obj_t *controls_actual, *controls_target, *controls_note, *controls_ap
 static TEMPLATE_RAM char controls_row_text[6][CONTROLS_TEXT_SIZE];
 static TEMPLATE_RAM char controls_note_text[CONTROLS_TEXT_SIZE];
 static lv_obj_t *controls_permanent, *controls_off, *controls_previous, *controls_next;
+static lv_obj_t *controls_decrease, *controls_increase;
 static lv_obj_t *controls_rows[6], *controls_page_label;
+static TEMPLATE_RAM uint16_t controls_window_order[LX_CONTROLS_MAX_WINDOWS];
+static unsigned controls_order_revision, controls_order_count;
+static bool controls_order_ready;
 static unsigned controls_index, controls_revision, controls_page, controls_generation;
 static unsigned controls_list_start;
 static double controls_target_value;
@@ -63,6 +67,9 @@ static void controls_ui_reset(void)
     controls_overlay = controls_panel = controls_slider = NULL;
     controls_actual = controls_target = controls_note = controls_apply = NULL;
     controls_permanent = controls_off = controls_previous = controls_next = NULL;
+    controls_decrease = controls_increase = NULL;
+    controls_order_ready = false;
+    controls_order_revision = controls_order_count = 0;
     controls_page_label = NULL;
     memset(controls_rows, 0, sizeof(controls_rows));
     memset(controls_row_text, 0, sizeof(controls_row_text));
@@ -154,6 +161,20 @@ static void controls_ui_update(void)
     bool allowed = summary.controllable && !home_command_wait;
     if (summary.type == LX_HOME_CARD_WINDOW_MONITOR)
     {
+        /* Az indexek csak állapotesemény után rendeződnek újra. A GUI
+         * üresjáratban továbbra is csak a hat látható sort kéri le. */
+        if (!controls_order_ready || controls_order_revision != summary.list_revision ||
+            controls_order_count != summary.window_count)
+        {
+            if (!app_loxone_controls_window_order(controls_id, controls_revision, summary.list_revision,
+                                                   controls_window_order, LX_CONTROLS_MAX_WINDOWS))
+                return;
+            controls_order_ready = true;
+            controls_order_revision = summary.list_revision;
+            controls_order_count = summary.window_count;
+            if (controls_list_start >= controls_order_count)
+                controls_list_start = controls_order_count ? ((controls_order_count - 1) / 6) * 6 : 0;
+        }
         char counts[6][44];
         const char *captions[] = {tr("Nyitva", "Open"), tr("Zárva", "Closed"),
             tr("Bukó", "Tilted"), tr("Offline", "Offline"), tr("Reteszelve", "Locked"),
@@ -167,7 +188,8 @@ static void controls_ui_update(void)
         {
             lx_controls_window_t row;
             bool exists = controls_list_start + i < summary.window_count &&
-                app_loxone_controls_window(controls_id, controls_revision, controls_list_start + i, &row);
+                app_loxone_controls_window(controls_id, controls_revision,
+                                             controls_window_order[controls_list_start + i], &row);
             light_ui_hidden(controls_rows[i], !exists);
             if (!exists)
                 continue;
@@ -214,6 +236,8 @@ static void controls_ui_update(void)
         snprintf(text, sizeof(text), tr("Célérték: %s", "Target: %s"), value);
         label_text_if_changed(controls_target, text);
         light_ui_enable(controls_slider, allowed && summary.range_valid);
+        light_ui_enable(controls_decrease, allowed && summary.range_valid && controls_target_value > summary.minimum);
+        light_ui_enable(controls_increase, allowed && summary.range_valid && controls_target_value < summary.maximum);
         bool direction_allowed = summary.type != LX_HOME_CARD_WINDOW ||
             ((summary.open_allowed && summary.close_allowed) ||
              (summary.value_valid &&
@@ -279,6 +303,51 @@ static void controls_slider_event(lv_event_t *event)
     if (summary.type == LX_HOME_CARD_DIMMER)
     {
         controls_error = app_loxone_controls_set(controls_id, controls_revision, controls_target_value) != ESP_OK;
+        controls_submitted = !controls_error;
+    }
+    controls_ui_update();
+}
+
+static void controls_slider_sync(const lx_controls_summary_t *summary)
+{
+    double span = summary->maximum - summary->minimum;
+    double fraction = summary->range_valid && span > 0 ?
+        (controls_target_value - summary->minimum) / span : 0;
+    int position = fraction <= 0 ? 0 : fraction >= 1 ? 10000 : (int)lround(fraction * 10000);
+    lv_slider_set_value(controls_slider, position, LV_ANIM_OFF);
+}
+
+static void controls_step_event(lv_event_t *event)
+{
+    lx_controls_summary_t summary;
+    if (!controls_modal_event(event, &summary) || !summary.controllable || !summary.range_valid ||
+        (summary.type != LX_HOME_CARD_DIMMER && summary.type != LX_HOME_CARD_SLIDER) ||
+        (home_command_wait && summary.type != LX_HOME_CARD_DIMMER))
+        return;
+    bool increase = ((unsigned)(uintptr_t)lv_event_get_user_data(event) & 1U) != 0;
+    if ((increase && controls_target_value >= summary.maximum) ||
+        (!increase && controls_target_value <= summary.minimum))
+        return;
+    /* Az aktuális visszajelzés lehet két lépés közötti érték, vagy a
+     * dimmer kikapcsolt nullája a minimum alatt. A szomszédos érvényes
+     * lépésre állunk; az alsó/felső végpontot nem lépjük túl. */
+    double grid = (controls_target_value - summary.minimum) / summary.step;
+    double step = increase ? floor(grid + 1e-9) + 1 : ceil(grid - 1e-9) - 1;
+    double target = summary.minimum + step * summary.step;
+    if (!isfinite(target))
+        return;
+    if (target < summary.minimum)
+        target = summary.minimum;
+    if (target > summary.maximum)
+        target = summary.maximum;
+    if (target == controls_target_value)
+        return;
+    controls_target_value = target;
+    controls_slider_sync(&summary);
+    controls_error = controls_submitted = false;
+    if (summary.type == LX_HOME_CARD_DIMMER)
+    {
+        controls_error = app_loxone_controls_set(controls_id, controls_revision, target) != ESP_OK;
         controls_submitted = !controls_error;
     }
     controls_ui_update();
@@ -392,19 +461,28 @@ static void controls_ui_open(unsigned index)
         }
         else
         {
+            bool stepped = summary.type == LX_HOME_CARD_DIMMER || summary.type == LX_HOME_CARD_SLIDER;
             controls_slider = lv_slider_create(controls_panel);
-            lv_obj_set_pos(controls_slider, 54, 230);
-            lv_obj_set_size(controls_slider, width - 108, 28);
+            lv_obj_set_pos(controls_slider, stepped ? 120 : 54, 230);
+            lv_obj_set_size(controls_slider, width - (stepped ? 240 : 108), 28);
             lv_slider_set_range(controls_slider, 0, 10000);
-            double span = summary.maximum - summary.minimum;
-            int position = summary.range_valid && span > 0 ? (int)lround(10000 *
-                (controls_target_value - summary.minimum) / span) : 0;
-            lv_slider_set_value(controls_slider, position < 0 ? 0 : position > 10000 ? 10000 : position, LV_ANIM_OFF);
+            controls_slider_sync(&summary);
             lv_obj_remove_flag(controls_slider, LV_OBJ_FLAG_GESTURE_BUBBLE);
             lv_obj_add_event_cb(controls_slider, controls_slider_event, LV_EVENT_VALUE_CHANGED, generation);
             lv_obj_add_event_cb(controls_slider, controls_slider_event, LV_EVENT_RELEASED, generation);
+            if (stepped)
+            {
+                controls_decrease = pairing_button(controls_panel, "-", 28, 216, 64, 56);
+                controls_increase = pairing_button(controls_panel, "+", width - 92, 216, 64, 56);
+                lv_obj_remove_flag(controls_decrease, LV_OBJ_FLAG_GESTURE_BUBBLE);
+                lv_obj_remove_flag(controls_increase, LV_OBJ_FLAG_GESTURE_BUBBLE);
+                lv_obj_add_event_cb(controls_decrease, controls_step_event, LV_EVENT_CLICKED, generation);
+                lv_obj_add_event_cb(controls_increase, controls_step_event, LV_EVENT_CLICKED,
+                                    (void *)(uintptr_t)((controls_generation << 4) | 1U));
+            }
             if (summary.type != LX_HOME_CARD_DIMMER)
-                controls_apply = controls_modal_button(tr("Beállítás", "Apply"), 264, 332, width - 292, LX_CONTROLS_SET);
+                controls_apply = controls_modal_button(tr("Beállítás", "Apply"), stepped ? 28 : 264, 332,
+                                                        width - (stepped ? 56 : 292), LX_CONTROLS_SET);
             if (summary.type == LX_HOME_CARD_WINDOW)
             {
                 lv_obj_t *minimum = lbl(controls_panel, tr("0% · Zárva", "0% · Closed"),

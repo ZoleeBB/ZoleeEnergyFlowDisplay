@@ -7,7 +7,7 @@ typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned cha
 static int64_t test_now = 1000000;
 static unsigned test_transports, test_native_sends, test_task_creations;
 static unsigned test_volume, test_media_generation;
-static bool test_fail_allocation, test_fail_queue;
+static bool test_fail_allocation, test_fail_queue, test_cancel_before_enqueue;
 static char test_native_command[128];
 
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
@@ -124,10 +124,18 @@ char *lx_audio_auth_create(const char *key, const char *user, const char *jwt, c
 void lx_audio_auth_free(char *command) { free(command); }
 void app_loxone_audio_media_clear(unsigned generation) { test_media_generation = generation; }
 void app_loxone_audio_media_close_detail(void) {}
-esp_err_t app_loxone_audio_transport(const char *id, unsigned revision, lx_audio_action_t action, unsigned value)
+esp_err_t app_loxone_audio_transport(const char *id, unsigned revision, lx_audio_action_t action,
+                                    unsigned value, unsigned edit_generation)
 {
     assert(!audio_lock->held);
-    assert(!strcmp(id, "audio-one") && revision == 7 && action == LX_AUDIO_VOLUME);
+    assert(!strcmp(id, "audio-one") && revision == 7);
+    if (test_cancel_before_enqueue)
+    {
+        test_cancel_before_enqueue = false;
+        app_loxone_audio_cancel_volume(id, revision);
+    }
+    if (!app_loxone_audio_queued_allowed(id, revision, action, value, edit_generation))
+        return ESP_ERR_INVALID_STATE;
     ++test_transports;
     test_volume = value;
     return ESP_OK;
@@ -219,6 +227,40 @@ static audio_connection_t *connection_new(void)
     connection->messages = xQueueCreate(4, sizeof(audio_message_t));
     audio_page->slots[0].native_ready = true;
     return connection;
+}
+
+static void volume_cancellation_test(void)
+{
+    unsigned sent = test_transports;
+    unsigned generation = audio_page->slots[0].edit_generation;
+    unsigned actual = audio_page->slots[0].track.volume;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 45, true) == ESP_OK);
+    app_loxone_audio_cancel_volume("other", 7);
+    app_loxone_audio_cancel_volume("audio-one", 6);
+    assert(audio_page->slots[0].volume_dirty && audio_page->slots[0].edit_generation == generation);
+    app_loxone_audio_cancel_volume("audio-one", 7);
+    audio_volume_poll(test_now);
+    assert(test_transports == sent && !audio_page->slots[0].volume_dirty);
+    assert(audio_page->slots[0].track.volume == actual);
+    assert(!app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_VOLUME, 45, generation));
+    assert(!app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_VOLUME_UP, 0, generation));
+    assert(!app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_VOLUME_DOWN, 0, generation));
+    assert(app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_PLAY, 0, 0));
+
+    /* A worker már kivette a célt, de a modal a közös sorba vétel előtt zárul. */
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 42, true) == ESP_OK);
+    test_cancel_before_enqueue = true;
+    audio_volume_poll(test_now);
+    assert(test_transports == sent && !audio_page->slots[0].volume_dirty);
+    assert(audio_page->slots[0].track.volume == actual);
+    test_cancel_before_enqueue = true;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME_UP, 0, true) != ESP_OK);
+    assert(test_transports == sent);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 40, true) == ESP_OK);
+    audio_volume_poll(test_now);
+    assert(test_transports == sent + 1 && test_volume == 40);
+    app_loxone_audio_cancel_volume("audio-one", 7);
+    assert(audio_page->slots[0].track.volume == actual);
 }
 
 static void connection_delete(audio_connection_t *connection)
@@ -342,6 +384,7 @@ int main(void)
 {
     prepare_page();
     volume_test();
+    volume_cancellation_test();
     favorites_test();
     favorites_lifecycle_test();
     worker_allocation_failure_test();
