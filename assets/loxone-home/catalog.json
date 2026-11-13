@@ -930,12 +930,14 @@
       "hu": "Kapu - jobbra tolódó",
       "en": "Gate - right sliding",
       "category": "security",
-      "subject": "a modern charcoal sliding gate with horizontal slats between white square posts. FRONT VIEW, long low brushed-metal floor track. The single gate panel stays parallel to the opening and has slid halfway RIGHT, extending to the RIGHT of the right post, leaving an unobstructed gap on the LEFT. Two small visible track rollers at the bottom. NO swing hinges, no arrows.",
+      "subject": "Exact horizontal mirror of the approved gate-slide-left icon: the gate panel is on the right, with the opening on the left.",
       "file": "icons/gate-slide-right.png",
-      "generator": "built-in image_gen",
-      "prompt": "Use case: product-mockup. Asset type: ONE realistic household smart-home dashboard icon, final use 96x96 pixels. One isolated premium photorealistic 3D product render, realistic white, brushed steel, charcoal and restrained teal materials. Slightly elevated front three-quarter view, soft studio lighting, accurate recognizable silhouette, simple enough at 96 pixels. Entire subject fully visible and centered, occupying 80-85% of square with even transparent padding. Genuine transparent RGBA background. No scene, wall/floor backdrop, badge, surrounding frame, caption, logos, brand names, watermark, letters or numeric readings. This is one finished square icon, not a sheet or grid. Subject: a modern charcoal sliding gate with horizontal slats between white square posts. FRONT VIEW, long low brushed-metal floor track. The single gate panel stays parallel to the opening and has slid halfway RIGHT, extending to the RIGHT of the right post, leaving an unobstructed gap on the LEFT. Two small visible track rollers at the bottom. NO swing hinges, no arrows.",
-      "original_sha256": "9cebd0df4d11f49ea7758dff805c0817b7cae85aafeabd3eea7fa10fa54b2c33",
-      "sha256": "b0d7edeb93f9e3d0593f2cf773ac8b9f7aebaf83ace7ed615d161a9289666853"
+      "generator": "built-in image_gen source; exact horizontal mirror",
+      "prompt": "Replace the right-sliding gate icon with the exact horizontal mirror of the approved left-sliding gate icon. Preserve all 96x96 RGBA pixels, including alpha, without redrawing or rescaling.",
+      "original_sha256": "05f2a62331ac92219d05c8144fa0a5c6a8af9d0e8f795bce10d2ef4103c32d28",
+      "sha256": "4832d0b6ce401abfd453d5b9803d78827f1a6406c8262c154b2eab342426de13",
+      "derived_from": "gate-slide-left",
+      "transform": "horizontal-mirror"
     },
     {
       "id": "audio-player",

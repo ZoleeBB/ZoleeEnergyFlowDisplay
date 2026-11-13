@@ -87,6 +87,11 @@ semleges kép tartozik. A dimmer, Slider és időzített kapcsoló funkcióikonj
 lecserélhető. A központi világítás, nyílászáró-összesítő, motoros ablak és
 Audio kötött képet használ.
 
+A jobbra tolódó kapu (`gate-slide-right`) a jóváhagyott balra tolódó
+(`gate-slide-left`) ikon pontos vízszintes tükörképe, az alfa-csatornával
+együtt. A katalógus a forrásikont, az átalakítást és mindkét fájl
+ellenőrzőösszegét rögzíti; az ikonazonosítók és a típusválasztás megmaradnak.
+
 ### Telepítés és visszaállítás
 
 1. Először telepítsd a v4 csomagot támogató új firmware-t.
