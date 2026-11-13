@@ -102,8 +102,11 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertEqual(header[12:16], b'IHDR')
                 self.assertEqual(struct.unpack('>II', header[16:24]), (1280, 800))
                 self.assertIn('(images/lighting/' + name + '.png)', guide)
-        for name in ('lighting-cards-day', 'lighting-color-day'):
-            self.assertIn('(docs/images/lighting/' + name + '.png)', readme)
+        # A főoldalon csak felsorolásszerű funkcióhivatkozás marad;
+        # a teljes galéria a fenti részletes útmutatóban kötelező.
+        features = readme.split('## Funkciók és üzemmódok', 1)[1].split('\n## ', 1)[0]
+        self.assertIn('(docs/lighting-controller.md)', features)
+        self.assertNotIn('docs/images/lighting/', readme)
         self.assertTrue((folder / 'README.md').is_file())
 
     def test_validation_gates_the_expensive_firmware_and_publication(self):
