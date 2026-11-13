@@ -3,7 +3,31 @@ const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
     const ircIcon = 'thermostat-irc', shadingIcon = 'blinds-shading', previousCardIcons = new WeakMap();
-    const fixedIcon = type => type === 'irc' ? ircIcon : type === 'shading' ? shadingIcon : '';
+    const controlTypes = {
+        dimmer: ['Önálló dimmer', 'Loxone dimmer blokk', 'A fényerő csúszkája húzás közben állít. A Be gomb az utolsó fényerőt állítja vissza.'],
+        'central-lighting': ['Központi világítás', 'Loxone központi világítás blokk', 'Az Összes be / Összes ki gombok a központi blokkot vezérlik. A kártya nem becsül közös állapotot az elküldött parancsból.'],
+        slider: ['Analóg értékállító – Slider', 'Loxone analóg értékállító blokk', 'A Loxone-ban beállított tartomány, lépésköz és formátum érvényes. A kiválasztott értéket a Beállítás gomb küldi el.'],
+        'timed-switch': ['Részletes időzített kapcsoló', 'Loxone időzített kapcsoló blokk', 'Időzített indítás, Tartós be és Ki gomb, a blokkból érkező hátralévő idővel. Az időtartamot a Loxone beállítása határozza meg.'],
+        'window-monitor': ['Ajtó–ablak összesítő', 'Loxone ajtó–ablak összesítő blokk', 'Az összesítő a nyitott, bukó, zárt és ismeretlen állapotokat mutatja. Az ikon megérintése a részletes listát nyitja meg.'],
+        gate: ['Kapu / garázsajtó', 'Loxone kapu / garázsajtó blokk', 'Nyit / Stop / Zár gombok. Az ikon a Loxone-ban beállított kaputípusból következik; részleges nyitás nincs.'],
+        window: ['Motoros ablak', 'Loxone motoros ablak blokk', 'Nyit / Stop / Zár gombok. Az ikonról megnyitott csúszkát a Beállítás gomb küldi el: 0% zárva, 100% nyitva.'],
+        audio: ['Audio', 'Loxone modern Audio lejátszó blokk', 'A borítóra koppintva részletes lejátszó és kedvenclista, a hangszóróra koppintva hangerőcsúszka jelenik meg. Modern Audioserver / AudioZoneV2 szükséges.']
+    };
+    const controlBlocks = {dimmer: 'Dimmer', 'central-lighting': 'CentralLightController', slider: 'Slider',
+        'timed-switch': 'TimedSwitch', 'window-monitor': 'WindowMonitor', gate: 'Gate', window: 'Window', audio: 'AudioZoneV2'};
+    const fixedIcons = {irc: ircIcon, shading: shadingIcon, 'central-lighting': 'central-lighting',
+        'window-monitor': 'window-monitor', window: 'motor-window', audio: 'audio-player'};
+    const gateIcons = ['gate-garage', 'gate-left', 'gate-right', 'gate-double', 'gate-slide-left', 'gate-slide-right'];
+    const gateNames = ['Garázskapu', 'Balra nyíló kapu', 'Jobbra nyíló kapu', 'Dupla kapu', 'Balra nyíló tolóajtó', 'Jobbra nyíló tolóajtó'];
+    const newIcons = new Set([ircIcon, shadingIcon, ...gateIcons, 'dimmer', 'central-lighting', 'slider',
+        'timed-switch', 'window-monitor', 'motor-window', 'audio-player']);
+    const isFixedType = type => type === 'gate' || !!fixedIcons[type];
+    const gateAnimation = entry => catalog.find(item => item.control_uuid === entry.control_uuid && controlMatches('gate', item))?.gate_animation;
+    const gateIndex = entry => { const value = gateAnimation(entry); return Number.isInteger(value) && value >= 0 && value < 6 ? value : -1; };
+    const fixedIcon = entry => fixedIcons[entry.type] || (entry.type === 'gate' ? gateIcons[gateIndex(entry)] || 'gate' : '');
+    const defaultIcon = type => ['dimmer', 'slider', 'timed-switch'].includes(type) ? type :
+        type === 'irc' ? 'thermostat' : type === 'shading' ? 'blinds' : type === 'window' ? 'window' :
+        type === 'gate' ? 'gate' : icons[0].id;
     const iconChoices = [...icons].sort((a, b) =>
         a.hu.localeCompare(b.hu, 'hu', {sensitivity: 'base'})).map(icon => [icon.id, icon.hu]);
     const get = id => document.getElementById(id);
@@ -74,16 +98,16 @@ const LoxoneHome = (() => {
     const ircBlock = item => item.type === 'IRoomControllerV2' && typeof item.irc === 'string' && !!item.irc;
     const shadingBlock = item => ['Jalousie', 'CentralJalousie'].includes(item.type) &&
         typeof item.shading === 'string' && !!item.shading;
-    function cardIcon(entry) {
-        const fixed = fixedIcon(entry.type);
+    function cardIcon(entry, previousType) {
+        const fixed = fixedIcon(entry);
         if (fixed) {
-            if (icons.some(icon => icon.id === entry.icon)) previousCardIcons.set(entry, entry.icon);
+            if (!newIcons.has(entry.icon) && entry.icon !== 'gate' && icons.some(icon => icon.id === entry.icon)) previousCardIcons.set(entry, entry.icon);
             entry.icon = fixed;
-        } else if ([ircIcon, shadingIcon].includes(entry.icon)) {
-            entry.icon = previousCardIcons.get(entry) || (entry.icon === shadingIcon ? 'blinds' : 'thermostat');
-        }
+        } else if (isFixedType(previousType)) {
+            entry.icon = previousCardIcons.get(entry) || defaultIcon(previousType);
+        } else if (previousType === '') entry.icon = defaultIcon(entry.type);
     }
-    function stateChoices(control = false, pulse = false, lighting = false, irc = false, shading = false) {
+    function stateChoices(control = false, pulse = false, lighting = false, irc = false, shading = false, cardType = '') {
         const choices = [['', 'Nincs hozzárendelve']], seen = new Set();
         const room = get('home-room').value, category = get('home-category').value;
         for (const item of catalog) {
@@ -92,33 +116,47 @@ const LoxoneHome = (() => {
             if (lighting && (item.type !== 'LightControllerV2' || !item.lighting)) continue;
             if (irc && !ircBlock(item)) continue;
             if (shading && !shadingBlock(item)) continue;
-            if (control && !lighting && !irc && !shading && !(item.secured === false && (item.type === 'Switch' ||
+            if (cardType && !controlMatches(cardType, item)) continue;
+            if (control && !lighting && !irc && !shading && !cardType && !(item.secured === false && (item.type === 'Switch' ||
                 (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;
-            if (control && item.action_uuid === '') continue;
+            if (control && item.action_uuid === '' && cardType !== 'window-monitor') continue;
             const uuid = control ? item.control_uuid : item.uuid;
             if (!uuid || seen.has(uuid)) continue;
             seen.add(uuid);
             choices.push([uuid, (item.name || 'Névtelen') + ' (' + (item.room || '–') + ' / ' +
-                (item.category || '–') + ')' + (control ? ' · vezérlés' : ' · ' + (item.state || 'állapot'))]);
+                (item.category || '–') + ')' + (control ? cardType === 'window-monitor' ? ' · összesítő' : ' · vezérlés' : ' · ' + (item.state || 'állapot'))]);
         }
         return choices;
     }
     function iconField(parent, entry, previewParent, fixed = false) {
         const input = fixed ? null : select(parent, 'Ikon', entry, 'icon', iconChoices);
-        if (!resourcesInstalled && !fixed) { previewParent.hidden = true; return; }
+        const warning = create('small'); warning.className = 'home-icon-missing'; parent.append(warning);
+        if (!resourcesInstalled) {
+            previewParent.hidden = true;
+            warning.textContent = 'Az ikon előnézetéhez telepítsd a loxone-home.zip Otthon-csomagot.';
+            return;
+        }
         const preview = create('img');
         preview.id = domId(entry, 'icon-preview');
         preview.className = 'home-icon-preview';
         preview.width = preview.height = 80;
         preview.loading = 'lazy'; preview.decoding = 'async';
         const update = () => {
-            preview.hidden = false;
-            previewParent.hidden = false;
-            preview.alt = (fixed ? entry.type === 'shading' ? 'Redőnyvezérlő' : 'IRC termosztát' :
+            const missing = resourcesVersion < 4 && newIcons.has(entry.icon);
+            warning.hidden = !missing;
+            warning.textContent = missing ? 'Az ikon előnézetéhez telepítsd a friss loxone-home.zip Otthon-csomagot.' : '';
+            preview.hidden = previewParent.hidden = missing;
+            if (missing) { preview.removeAttribute('src'); return; }
+            preview.alt = (fixed ? entry.type === 'shading' ? 'Redőnyvezérlő' : entry.type === 'irc' ? 'IRC termosztát' :
+                entry.type === 'gate' ? gateNames[gateIndex(entry)] || 'Kapu' : controlTypes[entry.type]?.[0] :
                 icons.find(icon => icon.id === entry.icon)?.hu || 'Ikon') + ' előnézete';
-            preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + (fixed ? '' : '&v=' + resourcesVersion);
+            preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + '&v=' + resourcesVersion;
         };
-        preview.onerror = () => { preview.hidden = true; previewParent.hidden = true; };
+        preview.onerror = () => {
+            preview.hidden = previewParent.hidden = true;
+            warning.hidden = false;
+            warning.textContent = 'Az ikon nem érhető el. Ellenőrizd vagy frissítsd az Otthon-erőforráscsomagot.';
+        };
         if (input) {
             const change = input.onchange;
             input.onchange = () => { change(); update(); };
@@ -258,11 +296,13 @@ const LoxoneHome = (() => {
         updatePreview();
     }
     function controlMatches(type, item) {
-        if (item.action_uuid === '' || !item.control_uuid) return false;
+        if (!item.control_uuid || (item.action_uuid === '' && type !== 'window-monitor')) return false;
+        if (Object.hasOwn(controlBlocks, type)) return item.type === controlBlocks[type] &&
+            item.controls_type === type && typeof item.controls === 'string' && !!item.controls;
         if (type === 'lighting') return item.type === 'LightControllerV2' && !!item.lighting;
         if (type === 'irc') return ircBlock(item);
         if (type === 'shading') return shadingBlock(item);
-        return item.secured === false && (item.type === 'Switch' ||
+        return ['pulse', 'switch'].includes(type) && item.secured === false && (item.type === 'Switch' ||
             (type === 'pulse' && ['Pushbutton', 'TimedSwitch'].includes(item.type)));
     }
     function restoreFocus(id, start, end) {
@@ -292,11 +332,14 @@ const LoxoneHome = (() => {
                     const first = create('div'); first.className = 'card-grid home-entry-type'; box.append(first);
                     const type = select(first, 'Kártyatípus', entry, 'type', [
                         ['', 'Válassz…'], ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'],
-                        ['lighting', 'Világításvezérlő'], ['irc', 'IRC termosztát'], ['shading', 'Redőnyvezérlő']]);
+                        ['lighting', 'Világításvezérlő'], ['irc', 'IRC termosztát'], ['shading', 'Redőnyvezérlő'],
+                        ...Object.entries(controlTypes).map(([id, data]) => [id, data[0]])]);
                     type.onchange = () => {
                         const previous = entry.type;
+                        if (!isFixedType(previous) && icons.some(icon => icon.id === entry.icon))
+                            previousCardIcons.set(entry, entry.icon);
                         entry.type = type.value;
-                        cardIcon(entry);
+                        cardIcon(entry, previous);
                         if (!entry.type || entry.type === 'value' ||
                             !catalog.some(item => item.control_uuid === entry.control_uuid && controlMatches(entry.type, item)))
                             entry.control_uuid = '';
@@ -320,8 +363,9 @@ const LoxoneHome = (() => {
                         if (entry.type !== 'value') {
                             const input = select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' :
                                 entry.type === 'irc' ? 'Loxone helyiségszabályzó (IRC) blokk' :
-                                entry.type === 'shading' ? 'Loxone automatikus vagy központi árnyékolás blokk' : 'Vezérelhető Loxone objektum',
-                                entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting', entry.type === 'irc', entry.type === 'shading'));
+                                entry.type === 'shading' ? 'Loxone automatikus vagy központi árnyékolás blokk' :
+                                controlTypes[entry.type]?.[1] || 'Vezérelhető Loxone objektum',
+                                entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting', entry.type === 'irc', entry.type === 'shading', controlTypes[entry.type] ? entry.type : ''));
                             input.onchange = () => {
                                 const previousName = catalog.find(item => item.control_uuid === entry.control_uuid)?.name;
                                 entry.control_uuid = input.value;
@@ -345,6 +389,20 @@ const LoxoneHome = (() => {
                             const note = create('p', 'A kijelzőn Fel / Stop / Le gombok jelennek meg. Az egyedi automatikus árnyékolás ikonját megérintve külön ablakban állítható a pozíció: 0% teljesen felhúzva, 100% teljesen leengedve. A központi blokkhoz nincs százalékos állítás.');
                             note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
                         }
+                        if (entry.type === 'timed-switch') {
+                            entry.allow_permanent ??= true;
+                            field(grid, 'Tartós bekapcsolás engedélyezése', entry, 'allow_permanent', 'checkbox');
+                        }
+                        if (controlTypes[entry.type]) {
+                            const note = create('p', controlTypes[entry.type][2]);
+                            note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                            if (entry.type === 'gate') {
+                                const recognized = create('p', 'Felismert kaputípus: ' +
+                                    (gateNames[gateIndex(entry)] || 'ismeretlen / nincs hozzárendelve'));
+                                recognized.id = domId(entry, 'gate-type');
+                                recognized.setAttribute('style', 'grid-column:1/-1'); grid.append(recognized);
+                            }
+                        }
                         if (entry.type === 'value') {
                             field(grid, 'Mértékegység', entry, 'unit');
                             const decimals = field(grid, 'Tizedesek (0–3)', entry, 'decimals', 'number');
@@ -354,7 +412,7 @@ const LoxoneHome = (() => {
                             field(grid, 'Figyelmeztetés színe', entry, 'warning_color', 'color');
                         }
                     }
-                    iconField(grid, entry, preview, section === 'cards' && !!fixedIcon(entry.type));
+                    iconField(grid, entry, preview, section === 'cards' && !!fixedIcon(entry));
                 }
                 const footer = section === 'cards' ? create('div') : box;
                 if (section === 'cards') {
@@ -456,12 +514,13 @@ const LoxoneHome = (() => {
             return 'Adj minden Otthon-oldalnak legfeljebb 80 bájtos címet.';
         for (const section of (scope === 'consumers' ? ['consumers'] : ['cards'])) for (const entry of section === 'consumers' ? model.consumers : model.pages.flatMap(page => page.cards)) {
             const title = entry.name || 'Névtelen elem';
-            if (section === 'cards' && !entry.type) return title + ': először válassz kártyatípust.';
-            const fixed = section === 'cards' && !!fixedIcon(entry.type);
+            if (section === 'cards' && !['value', 'pulse', 'switch', 'lighting', 'irc', 'shading', ...Object.keys(controlTypes)].includes(entry.type))
+                return title + ': először válassz kártyatípust.';
+            const fixed = section === 'cards' && !!fixedIcon(entry);
             if (fixed) cardIcon(entry);
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
             if (!fixed && !icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
-            if (!['pulse', 'lighting', 'irc', 'shading'].includes(entry.type) && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
+            if ((section === 'consumers' || ['value', 'switch'].includes(entry.type)) && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
                 !entry.source.scale || Math.abs(entry.source.scale) > 1e6 || !Number.isFinite(entry.source.offset) || Math.abs(entry.source.offset) > 1e6))
                 return title + ': hiányzó állapotpárosítás vagy érvénytelen átalakítás.';
             if (section === 'consumers') {
@@ -469,6 +528,8 @@ const LoxoneHome = (() => {
                 if (entry.average_kw !== null && (!Number.isFinite(entry.average_kw) || entry.average_kw <= 0 || entry.average_kw > 1000)) return title + ': az üzemi teljesítmény 0 és 1000 kW közötti pozitív szám legyen.';
             } else {
                 if (entry.type !== 'value' && !uuidValid(entry.control_uuid)) return title + ': válassz vezérelhető objektumot; az állapot UUID nem parancscél.';
+                if (entry.type === 'timed-switch' && typeof entry.allow_permanent !== 'boolean')
+                    return title + ': a tartós bekapcsolás engedélye igaz vagy hamis legyen.';
                 if (entry.type === 'switch' && (entry.source.scale !== 1 || entry.source.offset !== 0)) return title + ': a kapcsoló állapota nem skálázható.';
                 if (entry.type === 'value' && (!Number.isInteger(entry.decimals) || entry.decimals < 0 || entry.decimals > 3 ||
                     new TextEncoder().encode(entry.unit || '').length > 16 ||
@@ -544,6 +605,7 @@ const LoxoneHome = (() => {
                     entry.warning_low ??= null;
                     entry.warning_high ??= null;
                     entry.warning_color ||= '#E66B6B';
+                    if (entry.type === 'timed-switch') entry.allow_permanent ??= true;
                 }
                 loaded = true;
             }
@@ -577,8 +639,9 @@ const LoxoneHome = (() => {
         try {
             /* A kötött blokk-kártyákba csak saját mezőik kerülnek; a típusváltáshoz
              * megőrzött általános szerkesztőértékeket nem mentjük velük. */
-            const content = scope === 'pages' ? model.pages.map(page => ({...page, cards: page.cards.map(entry => fixedIcon(entry.type) ?
-                {id: entry.id, name: entry.name, type: entry.type, icon: fixedIcon(entry.type), control_uuid: entry.control_uuid} : entry)})) : model[scope];
+            const content = scope === 'pages' ? model.pages.map(page => ({...page, cards: page.cards.map(entry => (fixedIcon(entry) || controlTypes[entry.type]) ?
+                {id: entry.id, name: entry.name, type: entry.type, icon: fixedIcon(entry) || entry.icon, control_uuid: entry.control_uuid,
+                    ...(entry.type === 'timed-switch' ? {allow_permanent: entry.allow_permanent} : {})} : entry)})) : model[scope];
             const response = await apiFetch('/api/loxone/home', {method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'}, body: JSON.stringify({schema: 2, section: scope, [scope]: content})});
             if (!response.ok) throw Error(await response.text());

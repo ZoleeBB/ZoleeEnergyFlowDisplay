@@ -34,7 +34,7 @@ static void irc_card_command_event(lv_event_t *event)
 {
     unsigned encoded = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     unsigned index = encoded / 2, operation = encoded % 2;
-    if (lighting_ui_is_open() || shading_ui_is_open() || s_pair_pad || loxone_display_is_held() ||
+    if (home_modal_is_open() || s_pair_pad || loxone_display_is_held() ||
         !home_connected || home_command_wait ||
         home_request_get() != 2 + (int)home_card_page || index >= home_config.card_count ||
         home_config.cards[index].type != LX_HOME_CARD_IRC)
@@ -57,11 +57,21 @@ static void irc_card_build(lv_obj_t *card, lv_obj_t *title, unsigned slot, unsig
 {
     irc_ui_card_t *ui = &irc_cards[slot];
     /* A mentett ikonazonosító sem írhatja felül a kötött kijelzőgeometriát. */
-    lv_image_set_src(home_icons[slot], &home_irc_image);
+    int icon = home_icon_index("thermostat-irc");
+    if (icon >= 0)
+        lv_image_set_src(home_icons[slot], &home_images[icon]);
     lv_obj_set_pos(home_icons[slot], 98, 3);
     lv_obj_remove_flag(home_icons[slot], LV_OBJ_FLAG_CLICKABLE);
     ui->target = lbl(card, "--.-°C", 108, 36, APP_FONT_20, 0x233B36);
     lv_obj_set_size(ui->target, 76, 25);
+    if (icon < 0)
+    {
+        /* Régi csomagnál tiszta szöveg: más termosztát eltérő LCD-jére nem rajzolunk. */
+        lv_obj_set_pos(ui->target, 28, 30);
+        lv_obj_set_size(ui->target, 236, 36);
+        lv_obj_set_style_text_font(ui->target, APP_FONT_28, 0);
+        text_color_if_changed(ui->target, c(home_night ? 0xEFF6F5 : 0x071B32), 0);
+    }
     lv_obj_set_style_text_align(ui->target, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(ui->target, LV_LABEL_LONG_MODE_CLIP);
     lv_obj_remove_flag(ui->target, LV_OBJ_FLAG_CLICKABLE);

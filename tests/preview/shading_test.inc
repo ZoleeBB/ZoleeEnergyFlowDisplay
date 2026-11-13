@@ -307,12 +307,14 @@ static void test_shading_ui(app_runtime_state_t runtime, app_energy_sample_t sam
     ticks = 31000000;
     home_request_set(2);
     irc_test_open(false, runtime, sample);
-    assert(home_assets.asset_count == 3 && home_shading_buffer && home_irc_buffer);
-    assert(home_shading_buffer->data_size == 96U * 96U * 4U);
-    assert(home_shading_image.header.w == 96 && home_shading_image.header.h == 96);
+    int icon = home_icon_index("blinds-shading"), irc = home_icon_index("thermostat-irc");
+    assert(home_assets.asset_count == 5 && icon >= 2 && irc >= 2);
+    assert(home_buffers[icon] && home_buffers[irc]);
+    assert(home_buffers[icon]->data_size == 96U * 96U * 4U);
+    assert(home_images[icon].header.w == 96 && home_images[icon].header.h == 96);
     for (unsigned i = 0; i < 6; ++i)
     {
-        assert(lv_image_get_src(home_icons[i]) == &home_shading_image);
+        assert(lv_image_get_src(home_icons[i]) == &home_images[icon]);
         assert(lv_obj_get_height(lv_obj_get_parent(home_labels[i])) == LX_HOME_CARD_HEIGHT);
         assert(lv_obj_get_width(lv_obj_get_parent(home_labels[i])) == LX_HOME_CARD_WIDTH);
         assert(!home_buttons[i] && !light_card_buttons[i][0] && !irc_cards[i].buttons[0]);
@@ -343,18 +345,18 @@ static void test_shading_ui(app_runtime_state_t runtime, app_energy_sample_t sam
     /* Lapváltás a megosztott képet és a megnyitott ablakot is elengedi. */
     home_request_set(3);
     irc_test_open(true, runtime, sample);
-    assert(!shading_overlay && !home_shading_buffer && !home_irc_buffer);
+    assert(!shading_overlay && home_icon_index("blinds-shading") < 0 && home_icon_index("thermostat-irc") < 0);
     home_request_set(2);
     irc_test_open(true, runtime, sample);
-    assert(home_shading_buffer && home_irc_buffer);
+    assert(home_icon_index("blinds-shading") >= 2 && home_icon_index("thermostat-irc") >= 2);
     shading_ui_open(0);
     clear();
     assert(!shading_overlay && !shading_slider && !shading_apply && !shading_stop);
     home_request_set(0);
     assert(home_prepare(true));
-    assert(!home_shading_buffer && !home_irc_buffer);
+    assert(home_icon_index("blinds-shading") < 0 && home_icon_index("thermostat-irc") < 0);
 
-    /* Tizenkét kártya ugyanazt a képpuffert használja, SD-s egyedi ikon nélkül. */
+    /* Tizenkét kártya ugyanazt az SD-ről dekódolt képpuffert használja. */
     app_sim_home_config.page_count = 1;
     app_sim_home_config.card_count = app_sim_home_config.pages[0].card_count = LX_HOME_MAX_CARDS;
     strcpy(app_sim_home_config.pages[0].title, "A ház árnyékolói");
@@ -369,15 +371,31 @@ static void test_shading_ui(app_runtime_state_t runtime, app_energy_sample_t sam
     }
     home_request_set(2);
     irc_test_open(false, runtime, sample);
-    assert(home_assets.asset_count == 2 && home_shading_buffer && !home_irc_buffer);
-    assert(home_shading_buffer->data_size == 36864);
+    icon = home_icon_index("blinds-shading");
+    assert(home_assets.asset_count == 3 && icon >= 2 && home_icon_index("thermostat-irc") < 0);
+    assert(home_buffers[icon] && home_buffers[icon]->data_size == 36864);
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
-        assert(lv_image_get_src(home_icons[i]) == &home_shading_image);
+        assert(lv_image_get_src(home_icons[i]) == &home_images[icon]);
     shading_test_idle(&sample);
     save_frame("shading-cards-twelve");
     home_request_set(0);
     assert(home_prepare(false));
-    assert(!home_shading_buffer && !home_irc_buffer && !shading_overlay);
+    assert(home_icon_index("blinds-shading") < 0 && home_icon_index("thermostat-irc") < 0 && !shading_overlay);
+
+    /* Hiányzó SD-kép mellett a pozícióhoz látható és érinthető cél marad. */
+    home_missing_card_icons = true;
+    home_request_set(2);
+    irc_test_open(false, runtime, sample);
+    assert(home_assets.asset_count == 2 && home_icon_index("blinds-shading") < 0);
+    assert(lv_image_get_src(home_icons[0]) == NULL);
+    assert(lv_obj_get_width(home_icons[0]) == 96 && lv_obj_get_height(home_icons[0]) == 96);
+    assert(lv_obj_get_child_count(home_icons[0]) == 1);
+    lv_obj_send_event(home_icons[0], LV_EVENT_CLICKED, NULL);
+    assert(shading_overlay && shading_slider && shading_apply);
+    save_frame("shading-position-legacy-pack");
+    home_request_set(0);
+    assert(home_prepare(false));
+    home_missing_card_icons = false;
     puts("PASS: shading actual UI Up/Stop/Down, central/no-data, 1% draft with explicit Apply, ACK errors, "
-         "no invented feedback, stale/lock/modal/touch gates, zero idle invalidations and shared 12-card icon cleanup");
+         "no invented feedback, stale/lock/modal/touch gates, zero idle invalidations, shared 12-card SD icon cleanup and old-pack fallback");
 }

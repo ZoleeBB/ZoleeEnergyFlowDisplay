@@ -81,6 +81,24 @@ def validate(require_complete=False):
     if actual != expected:
         raise ValueError("Felesleges vagy hiányzó ikonfájl")
     print(f"Otthonikonok: {ready}/{len(entries)} kész; minden kész PNG 96×96, RGBA és ellenőrzött.")
+    skins = catalog.get("audio_skins", [])
+    if len(skins) != 2 or {item["mode"] for item in skins} != {"day", "night"}:
+        raise ValueError("Hiányzó vagy ismételt Audio-lejátszóburkolat")
+    for item in skins:
+        if item["file"] != f"skins/audio-player-{item['mode']}.png":
+            raise ValueError("Nem biztonságos Audio-burkolatútvonal")
+        path = CATALOG.parent / item["file"]
+        with Image.open(path) as image:
+            if (image.size != (292, 200) or image.mode != "RGB" or
+                    (item["width"], item["height"]) != image.size):
+                raise ValueError("Hibás Audio-lejátszóburkolat: " + item["mode"])
+            image.load()
+        if digest(path) != item["sha256"]:
+            raise ValueError("Eltérő Audio-burkolat ellenőrzőösszeg: " + item["mode"])
+    actual_skins = {f"skins/{path.name}" for path in (CATALOG.parent / "skins").glob("*")}
+    if actual_skins != {item["file"] for item in skins}:
+        raise ValueError("Felesleges vagy hiányzó Audio-burkolatfájl")
+    print("Audio-lejátszóburkolatok: 2/2 kész; mindkettő 292×200, RGB és ellenőrzött.")
 
 
 if __name__ == "__main__":

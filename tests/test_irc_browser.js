@@ -29,7 +29,7 @@ const catalog = [
     {uuid:sensor, control_uuid:switchId, name:'Kapcsoló', room:'Nappali', category:'Világítás', state:'active',
         type:'Switch', secured:false},
 ];
-const image = fs.readFileSync('main/assets/png/irc_thermostat.png');
+const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(icon => [icon.id, 'assets/loxone-home/' + icon.file]));
 (async () => {
     const browser = await chromium.launch({headless:true,
         ...(process.env.CHROMIUM_EXECUTABLE ? {executablePath:process.env.CHROMIUM_EXECUTABLE} : {})});
@@ -59,8 +59,9 @@ const image = fs.readFileSync('main/assets/png/irc_thermostat.png');
                     body = {host:'192.168.2.10', port:80, username:'kijelzo', busy:false, catalog, mappings:{}};
                 } else if (url.pathname === '/api/templates/home-icon') {
                     images.push(url.searchParams.get('id'));
-                    assert.equal(url.searchParams.get('id'), 'thermostat-irc');
-                    return route.fulfill({contentType:'image/png', body:image});
+                    const id = url.searchParams.get('id');
+                    assert(iconPaths.has(id), id);
+                    return route.fulfill({contentType:'image/png', body:fs.readFileSync(iconPaths.get(id))});
                 } else return route.fulfill({status:404, body:'{}'});
                 return route.fulfill({contentType:'application/json', body:JSON.stringify(body)});
             });
@@ -69,12 +70,25 @@ const image = fs.readFileSync('main/assets/png/irc_thermostat.png');
             await page.goto('http://loxone-device.test/');
             const prefix = '#home-cards-thermostat-';
             await page.locator(prefix + 'control_uuid').waitFor();
+            assert.equal(await page.locator(prefix + 'icon-preview').count(), 0);
+            assert.equal(await page.locator('#home-resource-warning').isVisible(), true);
+            assert.equal(await page.locator('#home-save').isDisabled(), false);
+            assert.equal(images.length, 0);
+            home.resources_installed = true;home.resources_version = 3;
+            await page.reload();
+            await page.locator(prefix + 'control_uuid').waitFor();
+            assert.equal(await page.locator(prefix + 'icon-preview').isVisible(), false);
+            assert.match(await page.locator('#home-cards').textContent(), /friss loxone-home.zip/);
+            assert.equal(images.length, 0);
+            home.resources_version = 4;
+            await page.reload();
+            await page.locator(prefix + 'control_uuid').waitFor();
             await page.locator(prefix + 'icon-preview').scrollIntoViewIfNeeded();
             await page.waitForFunction(() => {
                 const preview = document.querySelector('#home-cards-thermostat-icon-preview');
                 return preview?.complete && preview.naturalWidth === 96 && preview.naturalHeight === 96;
             });
-            assert.equal(await page.locator('#home-resource-warning').isVisible(), true);
+            assert.equal(await page.locator('#home-resource-warning').isVisible(), false);
             assert.equal(await page.locator(prefix + 'icon-preview').isVisible(), true);
             assert.equal(await page.locator(prefix + 'type').inputValue(), 'irc');
             assert.deepEqual(await page.locator(prefix + 'control_uuid option').evaluateAll(options => options.map(item => item.value)), ['', irc]);
@@ -118,5 +132,5 @@ const image = fs.readFileSync('main/assets/png/irc_thermostat.png');
     } finally {
         await browser.close();
     }
-    console.log('PASS: actual C-embedded IRC editor, desktop/mobile, real fixed PNG without SD pack, imported/hidden-page save, type changes and incompatible-target rejection');
+    console.log('PASS: actual C-embedded IRC editor, desktop/mobile, real fixed PNG from v4 SD, missing/old pack fallback, imported/hidden-page save, type changes and incompatible-target rejection');
 })().catch(error => {console.error(error); process.exitCode = 1;});

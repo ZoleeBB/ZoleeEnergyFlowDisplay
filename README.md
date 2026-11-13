@@ -27,10 +27,12 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 
 - **Energiaáramlás és statisztika:** pillanatnyi teljesítmények, animált energiautak, napi/heti/havi adatok és pénzügyi mutatók. [Statisztika](docs/statistics.md).
 - **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone és Bluetooth Master/Slave. [Beállítások](docs/integrations/README.md).
-- **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. [Otthon-konfiguráció](docs/v3-home-config.md).
+- **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. A szerkesztés típusválasztással indul, a kártyák fel/le gombokkal rendezhetők. [Otthon-konfiguráció](docs/v3-home-config.md).
 - **Világításvezérlés:** automatikus blokkfelismerés, `− / Ki / +` gombok, dimmer- és RGB/RGBW-kezelés. [Útmutató és képek](docs/lighting-controller.md).
 - **IRC termosztát:** célhőfok a kötött termosztátikonon, mért szobahőmérséklet, fűtési/hűtési üzemmódjel és `− / +` állítás 0,5 °C-os lépéssel. [Használat és beállítás](docs/irc-controller.md).
 - **Redőnyvezérlés:** automatikus és központi árnyékolás fix redőnyikonnal, `Fel / Stop / Le` gombokkal; egyedi redőnynél külön százalékos beállítóablak. [Használat és beállítás](docs/shading-controller.md).
+- **További Loxone-blokkok:** önálló dimmer, központi világítás, analóg értékállító (Slider), részletes időzített kapcsoló, ajtó–ablak összesítő, kapu/garázsajtó és motoros ablak. A kapu ikonja a blokkban beállított típust követi. [Blokkok és kezelésük](docs/loxone-home-controls.md).
+- **Modern Audioserver:** borítókép és zenecím, Play/Pause, külön hangerőablak, részletes előző/következő vezérlés és lapozható kedvencek. A lejátszó megjelenése és az Otthon-ikonok a frissíthető SD-csomagból töltődnek be. [Audio beállítása és használata](docs/audio-controller.md).
 - **Kaputelefon:** élőkép, kétirányú hang, kapunyitás és csengőhangok, Master és 4B Slave támogatással. [Útmutató](docs/intercom.md).
 - **Energiafunkciók:** [akkudiagnosztika](docs/battery-diagnostics.md), [elektromos autó](docs/electric-car.md) és [helyi energiaasszisztens](docs/energy-assistant.md).
 - **Megjelenítés:** világos/sötét témák, saját sablonok és [Loxone Otthon kaputelefon-kijelzőként](docs/energy-flow-disable.md).
@@ -69,7 +71,7 @@ témakörönként csoportosítva.
 | Témakör | Tartalom |
 | --- | --- |
 | [Telepítés és használat](docs/getting-started/README.md) | Első beüzemelés, hardver, SD-kártya és napi kezelés. |
-| [Funkciók és vezérlés](docs/features/README.md) | Energiastatisztika, Loxone Otthon, világítás, kaputelefon és kiegészítő funkciók. |
+| [Funkciók és vezérlés](docs/features/README.md) | Energiastatisztika, Loxone Otthon, világítás, termosztát, árnyékolás, Audio és kaputelefon. |
 | [Adatkapcsolatok és Master/Slave](docs/integrations/README.md) | Adatprotokollok, mintakonfigurációk, közvetlen Loxone-kapcsolat és Bluetooth. |
 | [Témák és megjelenítés](docs/themes/README.md) | Téma-előnézetek, telepítés, saját sablonok, ikonok és képek. |
 | [Karbantartás és hibakeresés](docs/maintenance/README.md) | Frissítés, mentés, diagnosztika, ismert hibák és támogatás. |

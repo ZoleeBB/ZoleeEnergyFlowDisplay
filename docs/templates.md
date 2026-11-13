@@ -413,15 +413,24 @@ beállítással a vonalak és a mozgó pontok fölött pulzál mindkét módban.
 Ehhez a v12-es ZIP mellett a `pulse` előtérjelölését támogató firmware is
 frissítendő. Az energiaáramlás közös sebességképlete változatlan.
 
-## Loxone Otthon – közös erőforrások (v3 fejlesztési ág)
+## Loxone Otthon – közös erőforrások
 
 A fogyasztói és Otthon-kártyás oldal közös `loxone-home.zip` csomagját ugyanitt,
 a témakezelőben lehet ellenőrizni, telepíteni és frissíteni. A csomag külön
 **közös erőforrásként** jelenik meg; nem választható energiaelrendezés, és nem
-kerül a lapozási sorrendbe. 64 ikont, külön fogyasztói és Otthon nappali/éjszakai háttérpárt (összesen négy képet) és helyi logót ad. A csomag v3-tól két 400×250-es, valódi LVGL-előnézetet is tartalmaz a sablonkezelő számára; a nagy kijelzőképek és a méretkorlátok változatlanok.
+kerül a lapozási sorrendbe. A jelenlegi **v4 csomag 79 ikont**, külön fogyasztói
+és Otthon nappali/éjszakai háttérpárt (összesen négy képet), helyi logót,
+két 400×250-es LVGL-előnézetet és két 292×200-as Audio-lejátszóképet tartalmaz.
+Az IRC és a redőny kötött ikonja is ebben az SD-csomagban található.
+A Home-csomag felső határa 96 ikon, 6 MiB PNG-adat, 20 MiB dekódolt képadat,
+8 MiB ZIP és 128 ZIP-bejegyzés. A normál témák korlátai változatlanok.
+[A közös csomag pontos formátuma](../assets/loxone-home/README.md).
 
 A Master teljes USB-csomagjának `sd-card/templates/loxone-home` könyvtárában is
-megtalálható. OTA-frissítésnél az új firmware mellett ezt az SD-csomagot is telepítsd.
+megtalálható. OTA-frissítésnél először az új firmware-t, majd a hozzá tartozó
+SD-csomagot telepítsd. A régi, érvényes v1–v3 csomag az új firmware-rel is
+használható; a hiányzó új képek helyén szöveges kártya marad.
+[Frissítési és visszaállítási sorrend](v3-home-config.md#v4-otthon-erőforráscsomag-frissítése).
 A kártyák a `/loxone` oldalon szerkeszthetők; a kijelzőn a ház érintése a fogyasztókat,
 a lefelé húzás az Otthon-kártyákat nyitja meg. Az Otthon szerkesztőjében legfeljebb 8 oldal nevezhető el, mindegyiken 12 kártyával; jobbra/balra húzás a saját lapok között vált, alul oldalpontokkal. Jobb felső X: vissza az előző témához.
 A diagnosztikát felfelé húzás nyitja, és saját X gombja zárja.

@@ -43,7 +43,7 @@ fogyasztói írás elutasított. A kamera-jelszó megőrzése szerveroldali.
   hiba esetén a korábbi profil marad és a `status` közli az SD-hibát.
 - A mentés a meglévő Loxone-háttérfeladatban fut. Jelenleg egy élő kapcsolatot
   újraépít, ezért mentés után rövid adatkapcsolati szünet lehetséges.
-- A szerkesztő az általános kártyákhoz 64 ikont és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
+- A szerkesztő az Otthon-csomag ikonkatalógusát és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
   felül a helyi szerkesztést. A vezérlési cél listája a `control_uuid` mezőből
   készül, nem a mérési UUID-ból. A parancstámogatást a runtime is ellenőrzi: Switch visszajelzésnél az objektum
   saját `active` állapota szükséges; pulse célként Switch/Pushbutton/TimedSwitch
@@ -146,8 +146,7 @@ ikonkulcsok az `assets/loxone-home/catalog.json` készlethez tartoznak; a modell
 a kulcs biztonságos alakját vizsgálja, a tényleges fájlokat a csomagkezelő
 ellenőrzi. Kivétel az `irc` kártyatípus: annak `icon` mezője mindig
 `thermostat-irc`, a parser és a szerializáló is erre normalizálja, hibás vagy
-hiányzó importált ikon esetén is. A beépített ikon nem a 64 elemű SD-katalógus
-része. Az IRC mentett mezői: `id`, `name`, `type`, `icon`, `control_uuid`;
+hiányzó importált ikon esetén is. Az ikon a v4 Otthon SD-csomag része, nem a firmware-be ágyazott kép. Az IRC mentett mezői: `id`, `name`, `type`, `icon`, `control_uuid`;
 nincs `source` vagy általános értékformázás. [IRC-profilpélda és protokoll](irc-controller.md#konfiguráció-és-protokoll).
 
 A `shading` kártyatípus ugyanezt az öt mezőt menti, rögzített
@@ -157,17 +156,102 @@ A központi/egyedi működést a kiválasztott blokk metaadata határozza meg,
 nem egy második konfigurációs kapcsoló.
 [Redőny-profilpélda és protokoll](shading-controller.md#konfiguráció-és-protokoll).
 
+## További Loxone-blokkok
+
+Az alábbi nyolc típusnál a szülőblokk `control_uuid` azonosítóját kell
+kiválasztani. Külön visszajelző UUID, skálázás vagy általános értékformázás
+nem kerül a profilba; ezek a Loxone-struktúra metaadataiból következnek.
+A szerkesztő a kiválasztott típushoz tartozó katalógusbejegyzéseket kínálja.
+A csak olvasható Ajtó–ablak összesítőhöz parancscím sem szükséges.
+
+| Kártyatípus | JSON `type` | Loxone-blokk | Ikon |
+|---|---|---|---|
+| Önálló dimmer | `dimmer` | `Dimmer` | Választható; alapként `dimmer` |
+| Központi világítás | `central-lighting` | `CentralLightController` | Kötött `central-lighting` |
+| Analóg értékállító – Slider | `slider` | `Slider` | Választható; alapként `slider` |
+| Részletes időzített kapcsoló | `timed-switch` | `TimedSwitch` | Választható; alapként `timed-switch` |
+| Ajtó–ablak összesítő | `window-monitor` | `WindowMonitor` | Kötött `window-monitor` |
+| Kapu / garázsajtó | `gate` | `Gate` | A Loxone kaputípusából automatikus |
+| Motoros ablak | `window` | `Window` | Kötött `motor-window` |
+| Audio | `audio` | `AudioZoneV2` | Kötött `audio-player`, SD-lejátszóképpel |
+
+Ezek a kártyák az `id`, `name`, `type`, `icon`, `control_uuid` mezőket mentik.
+Az időzített kapcsoló további `allow_permanent` logikai mezője alapból `true`.
+A **Tartós bekapcsolás engedélyezése** jelölés kikapcsolásával az adott
+kártyán nem indítható tartós üzem; a Ki művelet ettől függetlenül elérhető.
+Az időtartamot a Loxone-blokk határozza meg, a kijelzőn nincs külön időtartamlista.
+
+A kapu képe az aktuális `gate_animation` katalógusértékből következik:
+
+| Érték | Megjelenített típus | SD-ikon |
+|---|---|---|
+| 0 | Garázskapu | `gate-garage` |
+| 1 | Balra nyíló kapu | `gate-left` |
+| 2 | Jobbra nyíló kapu | `gate-right` |
+| 3 | Dupla kapu | `gate-double` |
+| 4 | Balra nyíló tolóajtó | `gate-slide-left` |
+| 5 | Jobbra nyíló tolóajtó | `gate-slide-right` |
+| Ismeretlen | Kapu | `gate` |
+
+Csak egész, numerikus 0–5 érték jelent ismert típust. A kártyanév és az
+importált ikon nem írja felül a blokk típusát. A firmware a mentett `gate`
+ikont semleges azonosítóra normalizálja; a konkrét képet mindig az aktuális
+katalógus alapján választja. A webes szerkesztő külön kiírja a felismert típust.
+
+Az ikonok, az IRC-termosztát és a redőnyvezérlő képe is az Otthon SD-csomagból
+érkezik. A szerkesztő a telepített csomag verziójával kéri az előnézetet,
+így csomagfrissítés után nem marad a böngészőben a régi kép. Hiányzó vagy
+v1–v3 csomagnál az új képek helyén frissítési útmutatás jelenik meg; ez nem
+akadályozza a konfiguráció mentését. A csomag neve `loxone-home.zip`.
+Az ikonnevek csoportos előtagot kapnak, például „Lámpa - mennyezeti” és
+„Lámpa - oldalfali”; a mentett stabil ikonazonosítók megmaradnak.
+
+## v4 Otthon-erőforráscsomag frissítése
+
+Az új firmware telepítése után frissítsd a Sablonok oldalon a hozzá tartozó
+`loxone-home.zip` csomagot. A v4 csomag 79 különálló 96×96 ikont, két
+292×200 Audio-lejátszóképet, négy hátteret, két előnézetet, logót és
+manifesztet tartalmaz, összesen 89 ZIP-bejegyzéssel. A PNG-k a firmware
+helyett az SD-re kerülnek; az IRC és a redőny jóváhagyott képe is itt van.
+
+A v1–v3 csomagok az új firmware-rel továbbra is betölthetők. A még nem
+szereplő új ikon helyén a kártya szöveges megjelenítése működik; a régi
+redőnyikon felhasználható, az IRC nem kap eltérő geometriájú helyettesítő
+képet. A manifesztben deklarált, de hiányzó vagy sérült fájl továbbra is hiba.
+A webes szerkesztő a hiányzó új képnél frissítési útmutatást ad, a mentést
+ettől függetlenül engedi.
+
+Visszaállításkor a firmware és a csomag összetartozó verzióját használd:
+az új firmware mellett előbb állítsd vissza a v1–v3 csomagot, utána a régi
+firmware-t és szükség szerint az előző konfigurációmentést. A korábbi
+firmware a v4 csomagot és az új kártyatípusokat nem kezeli.
+[A csomag részletes szerződése és méretkeretei](../assets/loxone-home/README.md).
+
 ## A szerkesztő elrendezése
 
-Minden fogyasztó és Otthon-kártya saját, világosabb hátterű kártyalapot kap, a
-nevével címkézve. A mezők 12 oszlopos rácsban sorakoznak: első sorban a név, az
-ikon (mellette az ikon előnézete) és a Loxone visszajelző állapot, alatta a
-számítási és megjelenítési mezők, a kapcsolók külön keretes sorban, a törlés
-pedig a kártya jobb alsó sarkában. Keskenyebb ablakban két, mobilon egy oszlopra
-rendeződik.
+Minden fogyasztó és Otthon-kártya saját, világosabb hátterű kártyalapot kap,
+a nevével címkézve. Az Otthon-kártyán a **Kártyatípus** az első, teljes
+szélességű mező. Új kártyán „Válassz…” állapotból indul; a név, a blokk,
+a megjelenítési mezők és az ikon csak típusválasztás után jelennek meg.
+Típus nélküli kártya nem menthető.
 
-A kiválasztott kártyatípushoz szükséges mezők jelennek meg. IRC-nél és
-redőnynél a név, típus és szülőblokk mellett a kötött ikon előnézete látható;
+A típus után a Loxone-blokk vagy visszajelző állapot, a név, a típusfüggő
+beállítások, végül az ikonválasztó következik. A mezők billentyűzetes
+fókuszsorrendje is ezt követi. A forrás kiválasztásakor az üres vagy korábbi
+blokknevet használó név átveheti az új blokk nevét; az egyedi név megmarad.
+Az ikon előnézete a részletek mellett látható, a színek és a kompakt rács
+megmaradnak. Mobilon a mezők egy oszlopba rendeződnek.
+
+A kártya **bal alsó sarkában a Fel / Le gombok** az aktuális Otthon-oldalon
+belül, egy hellyel mozgatják a teljes kártyát. Az első kártyán a Fel,
+az utolsón a Le inaktív; egyetlen kártyán mindkettő. A törlés jobb alul marad.
+A mozgatás megőrzi az azonosítót, a nem mentett mezőket és a billentyűzetes
+fókuszt. A sorrend az oldal `cards` tömbjében tárolódik, külön sorszám nélkül;
+a szokásos Otthon-mentés után a kijelző is ezt követi. Oldalak közötti
+mozgatást ezek a gombok nem végeznek; az oldalak saját rendezőgombjai megmaradnak.
+
+Csak a kiválasztott kártyatípushoz szükséges mezők jelennek meg. IRC-nél és
+redőnynél a típus, szülőblokk és név mellett a kötött ikon előnézete látható;
 a skálázási, mértékegység-, tizedesjegy- és figyelmeztetési mezők rejtettek.
 Általános kártyatípusra váltva az ikonválasztás visszatér, az inkompatibilis
 vezérlési cél törlődik.
@@ -241,14 +325,16 @@ Ez nem paneles RAM-/FPS-mérés és nem Miniserver-parancsküldési próba.
 
 ## Kijelzőoldalak és közös csomag
 
-A `tools/prepare_home_resources.py` a forrásképekből és az ellenőrzött 64 ikonból
+A `tools/prepare_home_resources.py` a forrásképekből, az ellenőrzött 79 ikonból
+és a két Audio-lejátszóképből a v4
 `dist/templates/loxone-home.zip` fájlt készít. Ez a meglévő `/templates` felületen
 ellenőrizhető, telepíthető és frissíthető. Külön erőforrásként jelenik meg; nem
 lapozható energiaelrendezés, és nem változtatja meg a mentett témaválasztást.
 
-Az IRC termosztátikon és a kötött redőnyikon a firmware része, ezért hozzájuk nem szükséges új
-SD-ikoncsomag. A közös csomag és az SD továbbra is kell az Otthon-oldal
-hátteréhez és logójához.
+Az IRC termosztátikon és a kötött redőnyikon is az SD-csomag része;
+a firmware nem tartalmaz belőlük beágyazott példányt. Az új képekhez a v4
+csomag szükséges. Régebbi, érvényes csomagnál az IRC szöveges megjelenítést,
+a redőny a korábbi, azonos tartalmú `blinds` képet használhatja.
 
 A ház megérintése a fogyasztókat, lefelé húzás az Otthon-kártyákat nyitja meg.
 Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált fogyasztó / legalább egy Otthon-oldal kell.
@@ -270,23 +356,28 @@ az aktuális firmware telepítését az [USB útmutató](usb-install.md) ismerte
 
 ## Többoldalas memória- és képszerződés
 
-A natív profil 32 112 bájt; a parser és az SD-s validálás heapen dolgozik, a két
-UI-pillanatkép PSRAM-ban él. A legfeljebb 96 kártya és 12 fogyasztó értéktára
+A natív gazdagépes mérésben a profil 33 776 bájt; a parser és az SD-s validálás
+heapen dolgozik, a két UI-pillanatkép PSRAM-ban él. A legfeljebb 96 kártya és 12 fogyasztó értéktára
 1824 bájt. A rejtett lapok utolsó állapotait a konfigurált UUID-kre szűrt,
-közös nyers állapottár őrzi; világítási, IRC- és redőnyblokkmodell csak a látható
+közös nyers állapottár őrzi; világítási, IRC-, redőny- és további vezérlőmodell csak a látható
 oldalhoz él. Lapváltáskor a modell ebből a tárból épül fel, új
 állapotfeliratkozás nélkül. [Állapottár és korlátai](lighting-controller.md#memória-és-láthatóság).
 Az aktív lap képei
-legfeljebb egy hátteret, egy logót és 12 külön ikont jelentenek, nem 8 teljes UI-t.
-Az azonos oldali IRC-kártyák egyetlen közös, 96×96-os beépített képet
+legfeljebb egy hátteret, egy logót és 12 külön ikont, valamint Audio-kártyánál
+az aktuális nappali vagy éjszakai lejátszóképet jelentik. Az Audio borítóképei
+külön, korlátos memóriatárolóban élnek; [részletek](audio-controller.md#memória-és-életciklus).
+Az azonos oldali IRC-kártyák egyetlen közös, 96×96-os SD-képet
 használnak; annak tartós ARGB8888-képpontadata 36 864 bájt, lapváltáskor és
 bezáráskor felszabadul. [IRC-memóriakezelés](irc-controller.md#memória-és-láthatóság).
-Az aktív oldal redőnykártyái ugyanígy egyetlen közös, 96×96-os beépített
+Az aktív oldal redőnykártyái ugyanígy egyetlen közös, 96×96-os SD-
 képet használnak, 36 864 bájtos tartós képpontpufferrel. A két fix ikontípus
 saját közös pufferét csak akkor foglalja le, ha szerepel a látható oldalon.
 [Redőny-memóriakezelés](shading-controller.md#memória-és-láthatóság).
 
-A v2 közös erőforráscsomagban 64 ikon, 4×1280×800 háttér és logó van.
+A korábbi **v2 csomag** 64 ikont, 4×1280×800 hátteret és logót tartalmazott.
+A **v3 csomag** ezt két webes előnézettel egészítette ki; a jelenlegi
+**v4 csomag** 79 ikonra és két Audio-lejátszóképre bővült. A manifeszt
+v4-ben 1–96 ikont enged, a v1–v3 kompatibilitási ellenőrzése pontosan 64-et vár.
 A fogyasztók `consumers-light/dark.png`, az Otthon-lapok `background-light/dark.png`
 fájlokat használnak. A világos/sötét lábléc fedő panelje tartja a kontrasztot.
 A teljes csomag dekódolt összes képe legfeljebb 20 MiB lehet (csak speciális
@@ -297,11 +388,13 @@ RGB565 háttér és ARGB ikon/logó, előre kész szürke fogyasztói ikonokkal.
 A Home-rajzolás már nem használ PNG-dekódolást; hiba esetén a teljes betöltés
 visszavonódik, legfeljebb 15 újrapróbálás után visszatér a témára.
 Régi v1 erőforráscsomag betölthető marad közös háttérrel; a külön fogyasztói
-háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
-A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is
-ad. Ezek nem kerülnek az aktív LVGL-képek közé. A webes szerkesztő telepített
+háttér a v2-től érhető el. A v3-tól a webes sablonkezelő 400×250-es
+nappali/éjszakai előnézetet is kap. Ezek nem kerülnek az aktív LVGL-képek közé.
+A webes szerkesztő telepített
 csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan figyelmeztet.
-Az IRC és a redőny kötött ikonelőnézete a firmware-ből csomag nélkül is kiszolgálható.
+Az IRC és a redőny kötött ikonelőnézetét is a telepített SD-csomagból szolgálja
+ki a hitelesített végpont; hiányzó képnél 404-et ad. A v4-re váltás és a régi
+csomagok megjelenési tartalékai a [frissítési szakaszban](#v4-otthon-erőforráscsomag-frissítése) szerepelnek.
 
 ## Kompakt szerkesztő és autótöltés
 

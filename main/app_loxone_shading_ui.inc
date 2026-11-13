@@ -57,7 +57,7 @@ static const char *shading_motion_text(const lx_shading_summary_t *summary)
 
 static bool shading_modal_summary(lx_shading_summary_t *summary)
 {
-    if (!shading_overlay || lighting_ui_is_open() || s_pair_pad ||
+    if (!shading_overlay || lighting_ui_is_open() || controls_ui_is_open() || audio_ui_is_open() || s_pair_pad ||
         loxone_display_is_held() || !home_connected ||
         shading_revision != home_revision || shading_page != home_card_page ||
         home_request_get() != 2 + (int)shading_page ||
@@ -174,7 +174,7 @@ static void shading_close_event(lv_event_t *event)
 
 static void shading_ui_open(unsigned index)
 {
-    if (shading_overlay || lighting_ui_is_open() || s_pair_pad ||
+    if (shading_overlay || lighting_ui_is_open() || controls_ui_is_open() || audio_ui_is_open() || s_pair_pad ||
         loxone_display_is_held() || !home_connected || home_command_wait || home_page != 2 ||
         home_request_get() != 2 + (int)home_card_page || index >= home_config.card_count ||
         index < home_first_card || index >= home_first_card + home_card_count ||
@@ -205,7 +205,9 @@ static void shading_ui_open(unsigned index)
     lv_obj_remove_flag(close, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(close, shading_close_event, LV_EVENT_CLICKED, generation);
     lv_obj_t *icon = lv_image_create(shading_panel);
-    lv_image_set_src(icon, &home_shading_image);
+    int asset = home_icon_index("blinds-shading");
+    if (asset >= 0)
+        lv_image_set_src(icon, &home_images[asset]);
     lv_obj_set_pos(icon, 30, 94);
     lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
     shading_actual = lbl(shading_panel, "", 150, 98, APP_FONT_28, light_ui_foreground());
@@ -256,7 +258,7 @@ static void shading_card_command_event(lv_event_t *event)
     lv_event_stop_bubbling(event);
     unsigned encoded = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     unsigned index = encoded / 4, operation = encoded % 4;
-    if (shading_ui_is_open() || lighting_ui_is_open() || s_pair_pad ||
+    if (home_modal_is_open() || s_pair_pad ||
         loxone_display_is_held() || !home_connected || home_command_wait || home_page != 2 ||
         home_request_get() != 2 + (int)home_card_page || index >= home_config.card_count ||
         index < home_first_card || index >= home_first_card + home_card_count ||
@@ -278,7 +280,16 @@ static void shading_card_command_event(lv_event_t *event)
 static void shading_card_build(lv_obj_t *card, lv_obj_t *title, unsigned slot, unsigned index)
 {
     shading_ui_card_t *ui = &shading_cards[slot];
-    lv_image_set_src(home_icons[slot], &home_shading_image);
+    int icon = home_icon_index("blinds-shading");
+    if (icon >= 0)
+        lv_image_set_src(home_icons[slot], &home_images[icon]);
+    else
+    {
+        lv_obj_set_size(home_icons[slot], 96, 96);
+        lv_obj_t *hint = lbl(home_icons[slot], tr("Pozíció", "Position"), 0, 34,
+                             APP_FONT_16, light_ui_muted());
+        home_text(hint, 96);
+    }
     lv_obj_set_pos(home_icons[slot], 98, 3);
     lv_obj_remove_flag(home_icons[slot], LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(home_icons[slot], shading_card_open_event, LV_EVENT_CLICKED, (void *)(uintptr_t)index);

@@ -209,6 +209,47 @@ static void test_motion(const cJSON *catalog)
     lx_controls_block_free(b);
 }
 
+static void test_monitor_limit(cJSON *structure)
+{
+    cJSON *control = cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(structure, "controls"), ids[4]);
+    cJSON *details = cJSON_GetObjectItemCaseSensitive(control, "details");
+    cJSON_DeleteItemFromObjectCaseSensitive(details, "windows");
+    cJSON *windows = cJSON_AddArrayToObject(details, "windows");
+    assert(windows);
+    for (unsigned i = 0; i <= LX_CONTROLS_MAX_WINDOWS; ++i)
+    {
+        cJSON *row = cJSON_CreateObject();
+        assert(row && cJSON_AddItemToArray(windows, row));
+        /* Egy összesítőre mutató sorból sem járjuk be újra a teljes listát. */
+        assert(cJSON_AddStringToObject(row, i ? "name" : "uuid", i ? "Nyílászáró" : ids[4]));
+    }
+    char *json = cJSON_PrintUnformatted(structure);
+    assert(json);
+    cJSON *catalog = lx_catalog_parse(json, strlen(json));
+    free(json);
+    assert(catalog);
+    lx_controls_block_t *block = create(catalog, 4);
+    assert(block->window_count == LX_CONTROLS_MAX_WINDOWS && block->list_truncated);
+    assert(!strcmp(block->windows[0].name, "WindowMonitor"));
+    char *csv = calloc((LX_CONTROLS_MAX_WINDOWS + 1) * 2, 1);
+    assert(csv);
+    for (unsigned i = 0; i <= LX_CONTROLS_MAX_WINDOWS; ++i)
+    {
+        csv[i * 2] = i % 2 ? '4' : '0';
+        csv[i * 2 + 1] = i < LX_CONTROLS_MAX_WINDOWS ? ',' : 0;
+    }
+    text_event(block, LX_CONTROL_WINDOWS, csv);
+    assert(block->list_valid && block->windows[0].state == 0);
+    assert(block->windows[LX_CONTROLS_MAX_WINDOWS - 1].valid);
+    number(block, LX_CONTROL_NUM_OPEN, 700, 1000000);
+    lx_controls_summary_t summary;
+    lx_controls_summary(block, 1000000, &summary);
+    assert(summary.counts[0] == 700 && summary.list_truncated);
+    free(csv);
+    lx_controls_block_free(block);
+    cJSON_Delete(catalog);
+}
+
 static void test_config(void)
 {
     cJSON *doc = cJSON_Parse("{\"schema\":2,\"pages\":[{\"id\":\"controls\",\"title\":\"Vezérlés\",\"cards\":[]}]}");
@@ -275,6 +316,7 @@ int main(int argc, char **argv)
     assert(!lx_controls_command(blocked, LX_CONTROLS_ON, 0, out));
     lx_controls_block_free(blocked);
     cJSON_Delete(restricted);
+    test_monitor_limit(source);
     cJSON_Delete(source);
     free(data);
     cJSON_Delete(catalog);

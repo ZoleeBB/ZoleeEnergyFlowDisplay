@@ -45,26 +45,31 @@ static void request(const char *uri,const unsigned char *bytes,size_t size){
  for(unsigned i=0;i<route_count;i++)if(!strncmp(uri,routes[i].uri,strlen(routes[i].uri)) && (uri[strlen(routes[i].uri)]==0||uri[strlen(routes[i].uri)]=='?')){routes[i].handler(&req);found=true;break;}
  assert(found);
 }
+/* A kiszolgált kép az SD-ből érkezik, azonos bájtokkal és normál hitelesítéssel. */
+static void home_icon_matches_file(const char *root,const char *id)
+{
+ char uri[128],path[512];
+ snprintf(uri,sizeof(uri),"/api/templates/home-icon?id=%s&v=4",id);
+ request(uri,NULL,0);assert(status==200&&chunk_bytes>0&&chunk_bytes<=32768);
+ assert(!strcmp(cache_control,"private, no-cache"));
+ snprintf(path,sizeof(path),"%s/loxone-home/icon-%s.png",root,id);
+ FILE *file=fopen(path,"rb");assert(file&&!fseek(file,0,SEEK_END));
+ long size=ftell(file);assert(size>0&&(size_t)size==chunk_bytes&&!fseek(file,0,SEEK_SET));
+ unsigned char *bytes=malloc((size_t)size);assert(bytes&&fread(bytes,1,(size_t)size,file)==(size_t)size);
+ fclose(file);assert(!memcmp(response,bytes,(size_t)size));free(bytes);
+ authorized=false;request(uri,NULL,0);assert(status==401&&chunk_bytes==0);authorized=true;
+ storage_available=false;request(uri,NULL,0);assert(status==500&&chunk_bytes==0);storage_available=true;
+}
 int main(int argc,char **argv){
  assert(argc==4);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t size=ftell(f);rewind(f);unsigned char *zip=malloc(size);assert(zip&&fread(zip,1,size,f)==size);fclose(f);
  storage_available=false;
- request("/api/templates/home-icon?id=thermostat-irc",NULL,0);
- assert(status==200&&chunk_bytes==
-        (size_t)(_binary_irc_thermostat_png_end-_binary_irc_thermostat_png_start));
- assert(!memcmp(response,_binary_irc_thermostat_png_start,chunk_bytes));
- assert(!strcmp(cache_control,"private, no-cache"));
- authorized=false;
- request("/api/templates/home-icon?id=thermostat-irc",NULL,0);assert(status==401&&chunk_bytes==0);
- authorized=true;
- request("/api/templates/home-icon?id=blinds-shading",NULL,0);
- assert(status==200&&chunk_bytes==
-        (size_t)(_binary_shading_blinds_png_end-_binary_shading_blinds_png_start));
- assert(!memcmp(response,_binary_shading_blinds_png_start,chunk_bytes));
- assert(!strcmp(cache_control,"private, no-cache"));
- authorized=false;
- request("/api/templates/home-icon?id=blinds-shading",NULL,0);assert(status==401&&chunk_bytes==0);
- authorized=true;
+ const char *fixed_ids[]={"thermostat-irc","blinds-shading"};
+ for(unsigned i=0;i<2;i++){
+  char uri[128];snprintf(uri,sizeof(uri),"/api/templates/home-icon?id=%s",fixed_ids[i]);
+  request(uri,NULL,0);assert(status==404&&chunk_bytes==0);
+  authorized=false;request(uri,NULL,0);assert(status==401&&chunk_bytes==0);authorized=true;
+ }
  request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_light));
  request("/api/templates/preview?id=builtin&mode=dark",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_dark));
  authorized=false;request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==401);authorized=true;
@@ -102,12 +107,17 @@ int main(int argc,char **argv){
  char error[160];assert(app_templates_install(argv[3],error)==ESP_OK);
  request("/api/templates/preview?id=loxone-home&mode=light",NULL,0);assert(status==200&&chunk_bytes>0);
  request("/api/templates/preview?id=loxone-home&mode=dark",NULL,0);assert(status==200&&chunk_bytes>0);
- request("/api/templates/home-icon?id=washing-machine&v=3",NULL,0);assert(status==200&&chunk_bytes>0&&chunk_bytes<=32768);
+ home_icon_matches_file(argv[2],"washing-machine");
+ home_icon_matches_file(argv[2],"thermostat-irc");
+ home_icon_matches_file(argv[2],"blinds-shading");
+ home_icon_matches_file(argv[2],"gate-double");
  authorized=false;request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==401&&chunk_bytes==0);authorized=true;
  request("/api/templates/home-icon?id=../washing-machine",NULL,0);assert(status==400&&chunk_bytes==0);
  request("/api/templates/home-icon?id=unknown",NULL,0);assert(status==404&&chunk_bytes==0);
  assert(app_templates_delete("loxone-home",error)==ESP_OK);
  request("/api/templates/home-icon?id=washing-machine",NULL,0);assert(status==404&&chunk_bytes==0);
+ request("/api/templates/home-icon?id=thermostat-irc",NULL,0);assert(status==404&&chunk_bytes==0);
+ request("/api/templates/home-icon?id=blinds-shading",NULL,0);assert(status==404&&chunk_bytes==0);
  s_config.data_recept_mode=APP_DATA_LOXONE;s_config.energy_flow_disabled=true;
  request("/api/templates",NULL,0);assert(status==200);
  report=cJSON_Parse(response);assert(report);
@@ -122,5 +132,5 @@ int main(int argc,char **argv){
  s_config.energy_flow_disabled=false;
  request("/api/templates",NULL,0);assert(status==200);
  report=cJSON_Parse(response);assert(cJSON_GetArraySize(cJSON_GetObjectItem(report,"templates"))==2);cJSON_Delete(report);
- free(zip);free(response);puts("PASS: real template HTTP preview page, validation without installation, install, safe replacement, preview, auth/header and interrupted upload");return 0;
+ free(zip);free(response);puts("PASS: real template HTTP preview page, validation without installation, install, safe replacement, preview, SD-only Home icons, auth/header and interrupted upload");return 0;
 }

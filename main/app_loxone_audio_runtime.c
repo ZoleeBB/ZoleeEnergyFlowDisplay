@@ -984,6 +984,7 @@ typedef struct
 static audio_fixture_t audio_fixtures[LX_HOME_MAX_CARDS];
 static lx_audio_favorites_t audio_fixture_favorites;
 static unsigned audio_fixture_count, audio_fixture_favorite_total;
+static unsigned audio_fixture_page_size = LX_AUDIO_FAVORITE_PAGE;
 static char audio_fixture_detail[LX_HOME_ID_SIZE];
 unsigned app_sim_audio_commands, app_sim_audio_last_favorite;
 lx_audio_action_t app_sim_audio_last_action;
@@ -993,6 +994,7 @@ void app_sim_audio_reset(void)
     memset(audio_fixtures, 0, sizeof(audio_fixtures));
     memset(&audio_fixture_favorites, 0, sizeof(audio_fixture_favorites));
     audio_fixture_count = audio_fixture_favorite_total = 0;
+    audio_fixture_page_size = LX_AUDIO_FAVORITE_PAGE;
     audio_fixture_detail[0] = 0;
     app_sim_audio_commands = app_sim_audio_last_favorite = 0;
     app_sim_audio_last_action = LX_AUDIO_PLAY;
@@ -1012,6 +1014,11 @@ bool app_sim_audio_configure(const char *id, unsigned revision, const lx_audio_s
 void app_sim_audio_set_favorite_count(unsigned total)
 {
     audio_fixture_favorite_total = total;
+}
+
+void app_sim_audio_set_favorite_page_size(unsigned count)
+{
+    audio_fixture_page_size = count && count <= LX_AUDIO_FAVORITE_PAGE ? count : LX_AUDIO_FAVORITE_PAGE;
 }
 
 static audio_fixture_t *audio_fixture_find(const char *id, unsigned revision)
@@ -1092,8 +1099,8 @@ esp_err_t app_loxone_audio_favorites_request(const char *id, unsigned revision, 
     audio_fixture_favorites.start = start;
     audio_fixture_favorites.total = audio_fixture_favorite_total;
     audio_fixture_favorites.count = audio_fixture_favorite_total - start;
-    if (audio_fixture_favorites.count > LX_AUDIO_FAVORITE_PAGE)
-        audio_fixture_favorites.count = LX_AUDIO_FAVORITE_PAGE;
+    if (audio_fixture_favorites.count > audio_fixture_page_size)
+        audio_fixture_favorites.count = audio_fixture_page_size;
     for (unsigned i = 0; i < audio_fixture_favorites.count; ++i)
     {
         lx_audio_favorite_t *favorite = &audio_fixture_favorites.items[i];

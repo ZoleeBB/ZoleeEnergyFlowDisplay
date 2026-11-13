@@ -87,7 +87,13 @@ class ReleaseTests(unittest.TestCase):
             self.assertTrue((unpack/name).is_file(),name)
         self.assertEqual(len(list((unpack/'sd-card/templates').glob('*/template.json'))),len(list((ROOT/'templates').glob('*/template.json')))+1)
         home=json.loads((unpack/'sd-card/templates/loxone-home/template.json').read_text())
-        self.assertEqual(len(home['icons']),64)
+        catalog=json.loads((ROOT/'assets/loxone-home/catalog.json').read_text())
+        self.assertEqual([item['id'] for item in home['icons']], [item['id'] for item in catalog['icons']])
+        self.assertEqual(home['version'],4)
+        for skin in catalog['audio_skins']:
+            name='audio-player-'+skin['mode']+'.png'
+            self.assertEqual((unpack/'sd-card/templates/loxone-home'/name).read_bytes(),
+                             (ROOT/'assets/loxone-home'/skin['file']).read_bytes())
         self.assertEqual(home['kind'],'loxone-home-resources')
         self.assertTrue((unpack/'sd-card/templates/loxone-home/background-dark.png').is_file())
         for descriptor in (ROOT/'templates').glob('*/template.json'):

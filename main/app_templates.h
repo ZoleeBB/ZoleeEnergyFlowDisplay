@@ -118,7 +118,9 @@ const char *app_templates_root(void);
  * Az általános témák 32 képes korlátja nem változik. */
 #define APP_HOME_RESOURCE_ID "loxone-home"
 #define APP_HOME_RESOURCE_KIND "loxone-home-resources"
-#define APP_HOME_RESOURCE_ICONS 64U
+#define APP_HOME_RESOURCE_ICONS 96U
+#define APP_HOME_RESOURCE_ENCODED_MAX (6U * 1024U * 1024U)
+#define APP_HOME_RESOURCE_ZIP_ENTRIES 128U
 bool app_templates_home_info(app_template_info_t *info, unsigned *generation);
 bool app_templates_home_load(const char *const *icons, unsigned count, bool night,
                               app_template_view_t *out);
@@ -131,3 +133,8 @@ bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, 
  * hogy közben nem cserélődött-e az erőforráscsomag. */
 bool app_templates_home_load_icons(const char *const *icons, unsigned icon_count,
                                     app_template_view_t *out);
+/* Látható kártyalap közös képei. Az Audio-burkolat külön 292×200-as kép,
+ * nem növeli a 96×96-as ikonok méretét; régi csomagból elhagyható. */
+bool app_templates_home_load_page(const char *const *icons, unsigned icon_count,
+                                   bool night, bool consumers, bool icons_only,
+                                   bool audio_skin, app_template_view_t *out);

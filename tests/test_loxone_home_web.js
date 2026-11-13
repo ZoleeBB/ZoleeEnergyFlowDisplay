@@ -80,7 +80,7 @@ const click=id=>nodes.get(id).onclick();
     edit('intercom-gate','','onchange');
     assert(!nodes.get('intercom-gate').value);
     posts.length=0;
-        click('home-add-consumer');assert.equal(nodes.get('home-consumers-item-1-icon').children.length,64);
+        click('home-add-consumer');assert.equal(nodes.get('home-consumers-item-1-icon').children.length,icons.length);
     assert(!nodes.has('home-consumers-item-1-icon-preview'));
     state.resources_installed=true;state.resources_version=3;await sandbox.home.refresh(catalog);
     assert.equal(nodes.get('home-resource-warning').hidden,true);
@@ -252,11 +252,16 @@ const click=id=>nodes.get(id).onclick();
     assert.deepEqual(ircOptions, ['', ircControl, ircSecond]);
     for (const field of ['icon', 'uuid', 'scale', 'offset', 'unit', 'decimals', 'warning_low', 'warning_high', 'warning_color'])
         assert.equal(attached('home-cards-irc-test-' + field), undefined, field);
+    assert.equal(attached('home-cards-irc-test-icon-preview'), undefined);
+    const missingIrcPost = posts.length;await click('home-save');assert.equal(posts.length,missingIrcPost+1);
+    state.resources_installed=true;state.resources_version=3;await ircContext.home.refresh(ircCatalog);
+    assert.equal(attached('home-cards-irc-test-icon-preview').hidden,true);
+    state.resources_version=4;await ircContext.home.refresh(ircCatalog);
     const ircPreview = attached('home-cards-irc-test-icon-preview');
     assert(ircPreview);
     assert.equal(ircPreview.hidden, false);
     assert.equal(ircPreview.parentNode.hidden, false);
-    assert.equal(ircPreview.src, '/api/templates/home-icon?id=thermostat-irc');
+    assert.equal(ircPreview.src, '/api/templates/home-icon?id=thermostat-irc&v=4');
     assert.equal(ircPreview.alt, 'IRC termosztát előnézete');
     const ircPosts = posts.length;
     await click('home-save');
@@ -278,7 +283,7 @@ const click=id=>nodes.get(id).onclick();
     edit('home-cards-irc-test-type', 'irc', 'onchange');
     assert.equal(nodes.get('home-cards-irc-test-control_uuid').value, '');
     assert.equal(attached('home-cards-irc-test-icon'), undefined);
-    assert.equal(attached('home-cards-irc-test-icon-preview').src, '/api/templates/home-icon?id=thermostat-irc');
+    assert.equal(attached('home-cards-irc-test-icon-preview').src, '/api/templates/home-icon?id=thermostat-irc&v=4');
     await click('home-save');
     assert.equal(posts.length, ircPosts + 1);
     edit('home-cards-irc-test-control_uuid', ircControl, 'onchange');
@@ -293,7 +298,7 @@ const click=id=>nodes.get(id).onclick();
     edit('home-page-select', 'irc-hidden', 'onchange');
     edit('home-cards-irc-no-icon-type', 'value', 'onchange');
     assert.equal(attached('home-cards-irc-no-icon-icon').value, 'thermostat');
-    console.log('PASS: IRC parent discovery, fixed icon without SD assets, imported/hidden-page normalization, minimal save, generic type restoration and incompatible-target reset');
+    console.log('PASS: IRC parent discovery, fixed icon from SD and missing/outdated pack fallback, imported/hidden-page normalization, minimal save, generic type restoration and incompatible-target reset');
     /* Csak a C katalógus által támogatottnak jelölt automatikus és központi
      * árnyékolás választható; a kézi Jalousie nem kap shading-metaadatot. */
     const blindControl = '40000000-0000-0000-0000000000000001';
@@ -333,10 +338,12 @@ const click=id=>nodes.get(id).onclick();
         ['', blindControl, centralControl, blockedControl]);
     for (const field of ['icon', 'uuid', 'scale', 'offset', 'unit', 'decimals', 'warning_low', 'warning_high', 'warning_color'])
         assert.equal(attached(shadingPrefix + field), undefined, field);
+    assert.equal(attached(shadingPrefix + 'icon-preview'), undefined);
+    state.resources_installed=true;state.resources_version=4;await shadingContext.home.refresh(shadingCatalog);
     const shadingPreview = attached(shadingPrefix + 'icon-preview');
     assert.equal(shadingPreview.hidden, false);
     assert.equal(shadingPreview.parentNode.hidden, false);
-    assert.equal(shadingPreview.src, '/api/templates/home-icon?id=blinds-shading');
+    assert.equal(shadingPreview.src, '/api/templates/home-icon?id=blinds-shading&v=4');
     assert.equal(shadingPreview.alt, 'Redőnyvezérlő előnézete');
     const shadingPosts = posts.length;
     await click('home-save');
@@ -364,7 +371,7 @@ const click=id=>nodes.get(id).onclick();
     edit(shadingPrefix + 'control_uuid', blindControl, 'onchange');
     edit(shadingPrefix + 'type', 'irc', 'onchange');
     assert.equal(nodes.get(shadingPrefix + 'control_uuid').value, '');
-    assert.equal(attached(shadingPrefix + 'icon-preview').src, '/api/templates/home-icon?id=thermostat-irc');
+    assert.equal(attached(shadingPrefix + 'icon-preview').src, '/api/templates/home-icon?id=thermostat-irc&v=4');
     edit(shadingPrefix + 'control_uuid', ircControl, 'onchange');
     edit(shadingPrefix + 'type', 'shading', 'onchange');
     assert.equal(nodes.get(shadingPrefix + 'control_uuid').value, '');
@@ -389,7 +396,7 @@ const click=id=>nodes.get(id).onclick();
     edit('home-page-select', 'shading-hidden', 'onchange');
     edit('home-cards-shading-no-icon-type', 'value', 'onchange');
     assert.equal(attached('home-cards-shading-no-icon-icon').value, 'blinds');
-    console.log('PASS: automatic/central shading metadata filter, fixed icon without SD, imported/hidden-page normalization, minimal save, room/category filters and fixed/generic type changes');
+    console.log('PASS: automatic/central shading metadata filter, fixed SD icon, imported/hidden-page normalization, minimal save, room/category filters and fixed/generic type changes');
     /* Kártyasorrend: azonos oldalon objektumot mozgatunk, minden mezővel együtt. */
     state = {schema:2, consumers:[], resources_installed:true, resources_version:3, intercom:{}, revision:0, busy:false,
         pages:[{id:'order',title:'Rendezhető',cards:[
@@ -444,5 +451,78 @@ const click=id=>nodes.get(id).onclick();
     assert.deepEqual(order(),['home-cards-other-editor']);
     assert(nodes.get('home-cards-other-move-up').disabled);assert(nodes.get('home-cards-other-move-down').disabled);
     console.log('PASS: type-first empty card validation, DOM field order, per-page up/down boundaries, unsaved data and focus, serialized ordering and reload');
-    console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
+    /* A nyolc új kártya szülőblokkot használ; az állapotmezőket a katalógus oldja fel. */
+    const blockTypes = [['dimmer','Dimmer'],['central-lighting','CentralLightController'],['slider','Slider'],
+        ['timed-switch','TimedSwitch'],['window-monitor','WindowMonitor'],['gate','Gate'],['window','Window'],['audio','AudioZoneV2']];
+    const blockId = index => '60000000-0000-0000-' + String(index).padStart(16,'0');
+    const advancedCatalog = blockTypes.map(([controls_type,type],index)=>({
+        uuid:blockId(index+100),control_uuid:blockId(index+1),action_uuid:controls_type==='window-monitor' ? '' : blockId(index+50),
+        name:'Blokk '+controls_type,room:'Nappali',category:'Új blokkok',type,controls_type,controls:'{}',controls_blocked:false,
+        gate_animation:controls_type==='gate' ? 3 : undefined}));
+    advancedCatalog.push({...advancedCatalog[0],uuid:blockId(200)});
+    for(const change of [{controls:undefined},{controls:''},{controls:{}},{controls_type:'slider'},{type:'Switch'},{action_uuid:''}])
+        advancedCatalog.push({...advancedCatalog[0],control_uuid:blockId(advancedCatalog.length+300),...change});
+    state={schema:2,consumers:[],resources_installed:true,resources_version:4,intercom:{},revision:0,busy:false,pages:[{
+        id:'advanced',title:'Új funkciók',cards:blockTypes.map(([type],index)=>({
+            id:'block-'+type,name:'Kártya '+type,type,icon:'lamp',control_uuid:blockId(index+1),
+            source:{uuid:'bad',scale:0,offset:null},unit:'bad',decimals:99}))}]};
+    const advancedContext={...sandbox};vm.createContext(advancedContext);
+    vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',advancedContext);
+    await advancedContext.home.refresh(advancedCatalog);
+    const expectedIcons={'central-lighting':'central-lighting','window-monitor':'window-monitor',gate:'gate-double',window:'motor-window',audio:'audio-player'};
+    for(const [index,[type]] of blockTypes.entries()) {
+        const prefix='home-cards-block-'+type+'-';
+        assert.deepEqual(nodes.get(prefix+'control_uuid').children.map(option=>option.value),['',blockId(index+1)]);
+        for(const key of ['uuid','scale','offset','unit','decimals','warning_low','warning_high','warning_color'])
+            assert.equal(attached(prefix+key),undefined,type+': '+key);
+        if(expectedIcons[type]) {
+            assert.equal(attached(prefix+'icon'),undefined);
+            assert.equal(attached(prefix+'icon-preview').src,'/api/templates/home-icon?id='+expectedIcons[type]+'&v=4');
+        } else assert.equal(attached(prefix+'icon').value,'lamp');
+    }
+    assert.equal(nodes.get('home-cards-block-timed-switch-allow_permanent').checked,true);
+    assert.match(nodes.get('home-cards-block-window-monitor-control_uuid').children[1].textContent,/összesítő/);
+    const advancedPosts=posts.length;await click('home-save');assert.equal(posts.length,advancedPosts+1);
+    for(const card of posts.at(-1).pages[0].cards) {
+        assert.deepEqual(Object.keys(card).sort(),['control_uuid','icon','id','name','type',...(card.type==='timed-switch' ? ['allow_permanent'] : [])].sort());
+        assert.equal(card.icon,expectedIcons[card.type] || 'lamp');
+    }
+    const permanent=nodes.get('home-cards-block-timed-switch-allow_permanent');permanent.checked=false;permanent.onchange();
+    await click('home-save');assert.equal(posts.at(-1).pages[0].cards.find(card=>card.type==='timed-switch').allow_permanent,false);
+    /* A kapu szigorúan numerikus 0..5 animációs típusból kap képet. */
+    const gateMap=['gate-garage','gate-left','gate-right','gate-double','gate-slide-left','gate-slide-right'];
+    const gateNames=['Garázskapu','Balra nyíló kapu','Jobbra nyíló kapu','Dupla kapu','Balra nyíló tolóajtó','Jobbra nyíló tolóajtó'];
+    const gateEntry=advancedCatalog.find(item=>item.controls_type==='gate');
+    for(let index=0;index<6;index++) {
+        gateEntry.gate_animation=index;await advancedContext.home.refresh(advancedCatalog);
+        assert.equal(attached('home-cards-block-gate-icon-preview').src,'/api/templates/home-icon?id='+gateMap[index]+'&v=4');
+        assert.equal(attached('home-cards-block-gate-gate-type').textContent,'Felismert kaputípus: '+gateNames[index]);
+    }
+    for(const invalid of ['2',6,-1,0.5,undefined]) {
+        gateEntry.gate_animation=invalid;await advancedContext.home.refresh(advancedCatalog);
+        assert.equal(attached('home-cards-block-gate-icon-preview').src,'/api/templates/home-icon?id=gate&v=4');
+    }
+    /* A listanévnek látszó HTML szöveg marad, és az egyedi cím megmarad párosításkor. */
+    advancedCatalog.push({...gateEntry,control_uuid:blockId(999),name:'<img src=x onerror=alert(1)> kapu',gate_animation:0});
+    await advancedContext.home.refresh(advancedCatalog);
+    edit('home-cards-block-gate-name','Saját kapunév');
+    edit('home-cards-block-gate-control_uuid',blockId(999),'onchange');
+    assert.equal(nodes.get('home-cards-block-gate-name').value,'Saját kapunév');
+    assert.equal(attached('home-cards-block-gate-icon-preview').src,'/api/templates/home-icon?id=gate-garage&v=4');
+    /* Új típushoz funkcióikon jár; választható képből kötöttbe és vissza sem vész el a választás. */
+    click('home-add-card');
+    for(const type of ['dimmer','slider','timed-switch']) {
+        edit('home-cards-item-1-type','','onchange');edit('home-cards-item-1-type',type,'onchange');
+        assert.equal(nodes.get('home-cards-item-1-icon').value,type);
+    }
+    edit('home-cards-item-1-icon','washing-machine','onchange');
+    edit('home-cards-item-1-type','gate','onchange');
+    edit('home-cards-item-1-type','slider','onchange');
+    assert.equal(nodes.get('home-cards-item-1-icon').value,'washing-machine');
+    /* Általános kártyán egy új, funkcionális SD-ikon is szabadon használható. */
+    edit('home-cards-item-1-type','value','onchange');edit('home-cards-item-1-icon','gate-double','onchange');
+    edit('home-room','','onchange');assert.equal(nodes.get('home-cards-item-1-icon').value,'gate-double');
+    click('home-cards-item-1-remove');
+    console.log('PASS: eight typed block filters, read-only monitor, minimal save, optional permanent mode, six gate icons and unknown fallback, fixed/selectable SD resources');
+    console.log('PASS: actual home editor, catalog icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

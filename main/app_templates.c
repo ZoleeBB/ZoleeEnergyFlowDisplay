@@ -811,7 +811,9 @@ static bool home_manifest(const cJSON *root)
     else if (backgrounds)
         return false;
     const cJSON *icons = cJSON_GetObjectItemCaseSensitive(root, "icons");
-    if (!cJSON_IsArray(icons) || cJSON_GetArraySize(icons) != APP_HOME_RESOURCE_ICONS)
+    int count = cJSON_GetArraySize(icons);
+    bool expanded = cJSON_GetObjectItemCaseSensitive(root, "version")->valueint >= 4;
+    if (!cJSON_IsArray(icons) || (expanded ? count < 1 || (unsigned)count > APP_HOME_RESOURCE_ICONS : count != 64))
         return false;
     const cJSON *icon;
     cJSON_ArrayForEach(icon, icons)
@@ -827,6 +829,11 @@ static bool home_manifest(const cJSON *root)
             if (!strcmp(str(prior, "id"), id))
                 return false;
     }
+    const cJSON *skins = cJSON_GetObjectItemCaseSensitive(root, "audio_skins");
+    if (skins && (!expanded || !cJSON_IsObject(skins) || cJSON_GetArraySize(skins) != 2 ||
+        !str(skins, "light") || strcmp(str(skins, "light"), "audio-player-day.png") ||
+        !str(skins, "dark") || strcmp(str(skins, "dark"), "audio-player-night.png")))
+        return false;
     return true;
 }
 static bool home_asset(const cJSON *root, const char *name, unsigned width, unsigned height)
@@ -836,6 +843,9 @@ static bool home_asset(const cJSON *root, const char *name, unsigned width, unsi
         return width == 1280 && height == 800;
     if (!strcmp(name, "loxone-logo.png"))
         return width <= 256 && height <= 256;
+    if (cJSON_HasObjectItem(root, "audio_skins") &&
+        (!strcmp(name, "audio-player-day.png") || !strcmp(name, "audio-player-night.png")))
+        return width == 292 && height == 200;
     const cJSON *icon;
     cJSON_ArrayForEach(icon, cJSON_GetObjectItemCaseSensitive(root, "icons"))
         if (!strcmp(str(icon, "file"), name))
@@ -959,7 +969,7 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
             }
             continue;
         }
-        if (!app_templates_safe_asset(entry->d_name) || ++assets > (resources ? 72U : 32U))
+        if (!app_templates_safe_asset(entry->d_name) || ++assets > (resources ? APP_HOME_RESOURCE_ZIP_ENTRIES - 1U : 32U))
         {
             valid = false;
             break;
@@ -990,7 +1000,8 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
                 valid = false;
             decoded += (size_t)w * h * 4;
         }
-        if (encoded > APP_TEMPLATE_ENCODED_MAX || decoded > (resources ? 20U : 12U) * 1024 * 1024)
+        if (encoded > (resources ? APP_HOME_RESOURCE_ENCODED_MAX : APP_TEMPLATE_ENCODED_MAX) ||
+            decoded > (resources ? 20U : 12U) * 1024 * 1024)
         {
             valid = false;
             break;
@@ -998,7 +1009,10 @@ bool app_templates_validate(const char *directory, cJSON **document, char error[
     }
     closedir(dir);
     /* Régi SD-csomag: egyik sincs. Új előnézetek: a két üzemmód együtt érkezik. */
-    if (previews == 1 || (resources && assets != (home_split_backgrounds(root) ? 69U : 67U) + previews))
+    unsigned expected_home_assets = (unsigned)cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(root, "icons")) +
+                                    (home_split_backgrounds(root) ? 5U : 3U) +
+                                    (cJSON_HasObjectItem(root, "audio_skins") ? 2U : 0U);
+    if (previews == 1 || (resources && assets != expected_home_assets + previews))
         valid = false;
     const char *themes[] = {"light", "dark"};
     for (int t = 0; valid && t < 2; t++)
@@ -2568,7 +2582,7 @@ bool app_templates_home_info(app_template_info_t *info, unsigned *version)
  * hívó a már dekódolt hátteret és logót tartja meg, és csak az ikonokat cseréli.
  */
 static bool home_load(const char *const *icons, unsigned icon_count, bool night,
-                      bool consumers, bool icons_only, app_template_view_t *out)
+                      bool consumers, bool icons_only, bool audio_skin, app_template_view_t *out)
 {
     if (!out || icon_count > 12 || (!icons && icon_count) || !lock || !xSemaphoreTake(lock, 0))
         return false;
@@ -2589,6 +2603,11 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
     bool ok = next != NULL;
     char directory[256], path[256];
     path_join(directory, app_templates_root(), APP_HOME_RESOURCE_ID);
+    /* A manifest különbözteti meg a régi csomagban még nem létező képet
+     * a deklarált, de közben sérült/eltűnt fájltól. PNG-t itt nem dekódolunk. */
+    char error[160];
+    cJSON *manifest = ok ? validate_document(directory, error) : NULL;
+    ok = ok && manifest != NULL;
     unsigned start = 0;
     if (ok && icons_only)
     {
@@ -2596,14 +2615,21 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
         next->asset_count = 2;
         start = 2;
     }
-    for (unsigned i = start; ok && i < icon_count + 2; i++)
+    for (unsigned i = start; ok && i < icon_count + 2 + (audio_skin ? 1U : 0U); i++)
     {
-        char filename[65];
+        char filename[65], source_file[65];
+        bool skin = audio_skin && i == icon_count + 2;
         if (i == 0)
             snprintf(filename, sizeof(filename), "%s-%s.png",
                      consumers && home_info.version >= 2 ? "consumers" : "background", night ? "dark" : "light");
         else if (i == 1)
             snprintf(filename, sizeof(filename), "loxone-logo.png");
+        else if (skin)
+        {
+            if (!cJSON_HasObjectItem(manifest, "audio_skins"))
+                continue;
+            snprintf(filename, sizeof(filename), "audio-player-%s.png", night ? "night" : "day");
+        }
         else
         {
             if (!app_templates_safe_id(icons[i - 2]))
@@ -2612,6 +2638,28 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
                 break;
             }
             snprintf(filename, sizeof(filename), "icon-%s.png", icons[i - 2]);
+        }
+        snprintf(source_file, sizeof(source_file), "%s", filename);
+        if (i >= 2 && !skin)
+        {
+            bool declared = false, blinds = false;
+            const cJSON *icon;
+            cJSON_ArrayForEach(icon, cJSON_GetObjectItemCaseSensitive(manifest, "icons"))
+            {
+                const char *file = str(icon, "file");
+                if (!strcmp(file, filename))
+                    declared = true;
+                if (!strcmp(file, "icon-blinds.png"))
+                    blinds = true;
+            }
+            if (!declared && blinds && !strcmp(icons[i - 2], "blinds-shading"))
+            {
+                /* Az eredeti redőnykép változatlan; ugyanaz a geometria. */
+                snprintf(source_file, sizeof(source_file), "icon-blinds.png");
+                declared = true;
+            }
+            if (!declared)
+                continue;
         }
         /* Az ismétlődő ikon egyetlen memóriapéldányon osztozik. */
         bool present = false;
@@ -2622,8 +2670,8 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
             continue;
         app_template_asset_t *asset = &next->assets[next->asset_count++];
         snprintf(asset->name, sizeof(asset->name), "%s", filename);
-        path_join(path, directory, filename);
-        asset->bytes = read_file(path, i < 2 ? APP_TEMPLATE_PNG_MAX : 32768, &asset->size);
+        path_join(path, directory, source_file);
+        asset->bytes = read_file(path, i < 2 ? APP_TEMPLATE_PNG_MAX : skin ? 262144U : 32768U, &asset->size);
         /*
          * A csomagot a scan() már teljesen (zlib-kitömörítéssel) ellenőrizte.
          * Itt csak a szerkezetet és a méretet nézzük: a kép az Otthon-oldal
@@ -2636,7 +2684,9 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
         size_t compressed = 0;
         ok = asset->bytes && png_scan(asset->bytes, asset->size, &asset->width, &asset->height,
                                       &channels, NULL, &compressed, false);
-        if (ok && i >= 2)
+        if (ok && skin)
+            ok = asset->width == 292 && asset->height == 200;
+        else if (ok && i >= 2)
             ok = asset->width == 96 && asset->height == 96;
     }
     if (ok)
@@ -2648,6 +2698,7 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
     else if (next)
         app_templates_view_free(next);
     free(next);
+    cJSON_Delete(manifest);
     STORAGE_GIVE();
     xSemaphoreGive(lock);
     return ok;
@@ -2656,13 +2707,20 @@ static bool home_load(const char *const *icons, unsigned icon_count, bool night,
 bool app_templates_home_load_for(const char *const *icons, unsigned icon_count, bool night,
                                   bool consumers, app_template_view_t *out)
 {
-    return home_load(icons, icon_count, night, consumers, false, out);
+    return home_load(icons, icon_count, night, consumers, false, false, out);
 }
 
 bool app_templates_home_load_icons(const char *const *icons, unsigned icon_count,
                                     app_template_view_t *out)
 {
-    return home_load(icons, icon_count, false, false, true, out);
+    return home_load(icons, icon_count, false, false, true, false, out);
+}
+
+bool app_templates_home_load_page(const char *const *icons, unsigned icon_count,
+                                   bool night, bool consumers, bool icons_only,
+                                   bool audio_skin, app_template_view_t *out)
+{
+    return home_load(icons, icon_count, night, consumers, icons_only, audio_skin, out);
 }
 
 /* A korábbi C-hívók az Otthon-hátteret kapják; a régi SD-csomag is betölthető. */

@@ -2,7 +2,7 @@
 
 [Dokumentációs kezdőlap](../README.md) · [Projektáttekintés](../../README.md)
 
-Energiastatisztika, Loxone Otthon, világítás, kaputelefon és kiegészítő funkciók.
+Energiastatisztika, Loxone Otthon, világítás, Audio, kaputelefon és kiegészítő funkciók.
 
 ## Mit szeretnél használni?
 
@@ -19,6 +19,8 @@ található. A fő README csak a funkciót sorolja fel.
 - [Világításvezérlés – kártyák, dimmerek, RGB/RGBW, teljes statikus képgaléria](../lighting-controller.md)
 - [IRC termosztát – célhőfok, szobahőmérséklet és natív 0,5 °C-os léptetés](../irc-controller.md)
 - [Redőnyvezérlés – automatikus és központi árnyékolás, Fel / Stop / Le és külön százalékos állítás](../shading-controller.md)
+- [További Otthon-blokkok – dimmer, központi világítás, Slider, időzítő, ajtó–ablak összesítő, kapu és motoros ablak](../loxone-home-controls.md)
+- [Modern Audioserver – borítókép, hangerő, részletes vezérlés és teljes kedvenclista](../audio-controller.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](../intercom.md)
 - [Kaputelefon utáni témavisszatöltés – időkorlátok, tartalék nézet és hibaelhárítás](../intercom.md#kaputelefon-utáni-témahelyreállítás)
 - [4B Slave kaputelefon, központi hívásfoglalás és csengőhangcsomagok](../slave-intercom.md)

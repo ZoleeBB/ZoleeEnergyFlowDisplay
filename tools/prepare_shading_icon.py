@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A meglévő natív redőnyikon bájtazonos, beépített változatát készíti el."""
+"""A meglévő natív redőnyikon változatlan SD-példányát készíti el."""
 from pathlib import Path
 import struct
 
@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def prepare():
     source = ROOT / 'assets/loxone-home/icons/blinds.png'
-    target = ROOT / 'main/assets/png/shading_blinds.png'
+    target = ROOT / 'assets/loxone-home/icons/blinds-shading.png'
     data = source.read_bytes()
     if (data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR' or
             struct.unpack('>II', data[16:24]) != (96, 96) or data[25] != 6):

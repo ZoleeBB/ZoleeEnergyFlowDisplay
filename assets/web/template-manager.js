@@ -8,7 +8,7 @@ async function unpackZip(buffer){
  let end=-1;for(let p=bytes.length-22;p>=Math.max(0,bytes.length-65557);p--)if(u32(p)===0x06054b50&&p+22+u16(p+20)===bytes.length){end=p;break;}
  if(end<0)throw Error('Hibás ZIP');
  const count=u16(end+10),offset=u32(end+16),cdSize=u32(end+12);
- if(u16(end+4)||u16(end+6)||u16(end+8)!==count||!count||count>72||offset+cdSize!==end)throw Error('Nem támogatott ZIP');
+ if(u16(end+4)||u16(end+6)||u16(end+8)!==count||!count||count>128||offset+cdSize!==end)throw Error('Nem támogatott ZIP');
  const files=new Map();let p=offset,total=0;
  for(let i=0;i<count;i++){
   if(p+46>end||u32(p)!==0x02014b50)throw Error('Hibás ZIP-könyvtár');
@@ -45,15 +45,16 @@ function pngInfo(bytes){
 function validateManifest(doc,files){
  if(!doc||doc.schema!==1||!Number.isInteger(doc.version)||doc.version<1||doc.version>65535||typeof doc.name!=='string'||new TextEncoder().encode(doc.name).length>80||!/^([a-z0-9_-]{1,32})$/.test(doc.id)||doc.id==='builtin')throw Error('Hibás sablonazonosító');
  const resources=doc.kind==='loxone-home-resources';
- if(resources){if(doc.id!=='loxone-home'||!Array.isArray(doc.icons)||doc.icons.length!==64||new Set(doc.icons.map(icon=>icon.id)).size!==64||doc.icons.some(icon=>!/^([a-z0-9_-]{1,32})$/.test(icon.id)||icon.file!=='icon-'+icon.id+'.png'||!files.has(icon.file)))throw Error('Hibás Loxone-erőforráskatalógus');}
+ if(resources){if(doc.id!=='loxone-home'||!Array.isArray(doc.icons)||(doc.version>=4?(doc.icons.length<1||doc.icons.length>96):doc.icons.length!==64)||new Set(doc.icons.map(icon=>icon.id)).size!==doc.icons.length||doc.icons.some(icon=>!/^([a-z0-9_-]{1,32})$/.test(icon.id)||icon.file!=='icon-'+icon.id+'.png'||!files.has(icon.file)))throw Error('Hibás Loxone-erőforráskatalógus');}
  if(resources&&(doc.version>=2?(!doc.consumer_backgrounds||doc.consumer_backgrounds.light!=='consumers-light.png'||doc.consumer_backgrounds.dark!=='consumers-dark.png'):doc.consumer_backgrounds!==undefined))throw Error('Hiányzó fogyasztói háttérpár');
  else if(!resources&&(doc.kind!==undefined||doc.id==='loxone-home'))throw Error('Fenntartott erőforrásazonosító');
+ if(resources&&doc.audio_skins!==undefined&&(doc.version<4||!doc.audio_skins||typeof doc.audio_skins!=='object'||Object.keys(doc.audio_skins).length!==2||doc.audio_skins.light!=='audio-player-day.png'||doc.audio_skins.dark!=='audio-player-night.png'))throw Error('Hibás Audio-burkolatpár');
  const color=x=>/^#[0-9a-f]{6}$/i.test(x),types=['box','pulse','solar_disc','solar_arc','solar_timeline','label','value','image','weather','bar','gauge','flow','chart'];
  let encoded=0,decoded=0,assets=0;
- for(const [name,data] of files)if(name!=='template.json'){if(++assets>(resources?72:32))throw Error('Túl sok PNG-kép');const info=pngInfo(data);encoded+=data.length;if(['preview-light.png','preview-dark.png'].includes(name)){if(info.w>640||info.h>400)throw Error('Az előnézet legfeljebb 640×400 lehet');}else {decoded+=info.decoded;if(resources){const icon=doc.icons.find(icon=>icon.file===name);if(icon?(info.w!==96||info.h!==96):name==='loxone-logo.png'?(info.w>256||info.h>256):!(doc.version>=2?['background-light.png','background-dark.png','consumers-light.png','consumers-dark.png']:['background-light.png','background-dark.png']).includes(name)||info.w!==1280||info.h!==800)throw Error('Hibás Loxone-erőforráskép');}}}
- if(resources&&files.size!==(doc.version>=2?70:68)+(files.has('preview-light.png')?2:0))throw Error('Hiányzó Loxone-erőforráskép');
+ for(const [name,data] of files)if(name!=='template.json'){if(++assets>(resources?127:32))throw Error('Túl sok PNG-kép');const info=pngInfo(data);encoded+=data.length;if(['preview-light.png','preview-dark.png'].includes(name)){if(info.w>640||info.h>400)throw Error('Az előnézet legfeljebb 640×400 lehet');}else {decoded+=info.decoded;if(resources){const icon=doc.icons.find(icon=>icon.file===name);if(icon?(info.w!==96||info.h!==96):name==='loxone-logo.png'?(info.w>256||info.h>256):doc.audio_skins&&Object.values(doc.audio_skins).includes(name)?(info.w!==292||info.h!==200):!(doc.version>=2?['background-light.png','background-dark.png','consumers-light.png','consumers-dark.png']:['background-light.png','background-dark.png']).includes(name)||info.w!==1280||info.h!==800)throw Error('Hibás Loxone-erőforráskép');}}}
+ if(resources&&files.size!==doc.icons.length+(doc.version>=2?6:4)+(doc.audio_skins?2:0)+(files.has('preview-light.png')?2:0))throw Error('Hiányzó Loxone-erőforráskép');
  if(files.has('preview-light.png')!==files.has('preview-dark.png'))throw Error('Mindkét előnézeti kép szükséges');
- if(encoded>5242880||decoded>(resources?20971520:12582912)||files.get('template.json').length>65536)throw Error('Memóriakorlát túllépve');
+ if(encoded>(resources?6291456:5242880)||decoded>(resources?20971520:12582912)||files.get('template.json').length>65536)throw Error('Memóriakorlát túllépve');
  for(const mode of ['light','dark']){
   const scene=doc[mode];if(!scene||!color(scene.background)||!Array.isArray(scene.elements)||scene.elements.length>96)throw Error('Hiányzó vagy hibás világos/sötét nézet');
   const hotspot=scene.home_hotspot;

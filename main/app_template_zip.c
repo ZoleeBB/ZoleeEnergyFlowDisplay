@@ -38,7 +38,8 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
 
     bool ok = false;
     unsigned char *tail = NULL, *input = NULL, *output = NULL;
-    char names[72][65];
+    /* A nagyobb Home-csomag névtáblája nem terhelheti a kis feladatvermet. */
+    char (*names)[65] = NULL;
     unsigned entries = 0;
     size_t total = 0;
 
@@ -69,8 +70,13 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
     const unsigned char *e = tail + end;
     entries = u16(e + 10);
     uint32_t cd = u32(e + 16), cd_size = u32(e + 12);
-    if (u16(e + 4) || u16(e + 6) || u16(e + 8) != entries || !entries || entries > 72 ||
+    if (u16(e + 4) || u16(e + 6) || u16(e + 8) != entries || !entries ||
+        entries > APP_HOME_RESOURCE_ZIP_ENTRIES ||
         (uint64_t)cd + cd_size != (uint64_t)(length - (long)tail_size + end))
+        goto done;
+
+    names = calloc(entries, sizeof(*names));
+    if (!names)
         goto done;
 
     long next = cd;
@@ -209,6 +215,7 @@ bool app_template_unzip(const char *archive, const char *directory, char error[1
     }
 
 done:
+    free(names);
     /* Minden hibás ágon az összes puffer és a megnyitott ZIP felszabadul. */
     free(input);
     free(output);

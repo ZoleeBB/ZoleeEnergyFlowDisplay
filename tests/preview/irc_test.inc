@@ -43,11 +43,13 @@ static void test_irc_ui(app_runtime_state_t runtime, app_energy_sample_t sample)
     assert(!lv_obj_has_flag(irc_cards[1].cool, LV_OBJ_FLAG_HIDDEN));
     assert(lv_obj_has_flag(irc_cards[2].heat, LV_OBJ_FLAG_HIDDEN));
     assert(lv_obj_has_flag(irc_cards[2].cool, LV_OBJ_FLAG_HIDDEN));
-    assert(home_irc_buffer && home_irc_image.header.w == 96 && home_irc_image.header.h == 96);
-    assert(home_irc_buffer->data_size <= 96U * 96U * 4U);
+    int icon = home_icon_index("thermostat-irc");
+    assert(icon >= 2 && home_buffers[icon]);
+    assert(home_images[icon].header.w == 96 && home_images[icon].header.h == 96);
+    assert(home_buffers[icon]->data_size <= 96U * 96U * 4U);
     for (unsigned i = 0; i < 3; ++i)
     {
-        assert(lv_image_get_src(home_icons[i]) == &home_irc_image);
+        assert(lv_image_get_src(home_icons[i]) == &home_images[icon]);
         assert(!lv_obj_has_flag(home_icons[i], LV_OBJ_FLAG_CLICKABLE));
         assert(lv_obj_get_height(lv_obj_get_parent(home_labels[i])) == LX_HOME_CARD_HEIGHT);
         assert(irc_cards[i].buttons[0] && irc_cards[i].buttons[1]);
@@ -108,7 +110,7 @@ static void test_irc_ui(app_runtime_state_t runtime, app_energy_sample_t sample)
     /* A legnagyobb oldalon is csak egy dekódolt termosztátkép él. */
     home_request_set(0);
     assert(home_prepare(true));
-    assert(!home_irc_buffer);
+    assert(home_icon_index("thermostat-irc") < 0);
     app_sim_home_config.page_count = 1;
     app_sim_home_config.card_count = app_sim_home_config.pages[0].card_count = LX_HOME_MAX_CARDS;
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
@@ -121,12 +123,29 @@ static void test_irc_ui(app_runtime_state_t runtime, app_energy_sample_t sample)
     }
     home_request_set(2);
     irc_test_open(false, runtime, sample);
-    assert(home_assets.asset_count == 2);
+    icon = home_icon_index("thermostat-irc");
+    assert(home_assets.asset_count == 3 && icon >= 2 && home_buffers[icon]);
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
-        assert(lv_image_get_src(home_icons[i]) == &home_irc_image);
+        assert(lv_image_get_src(home_icons[i]) == &home_images[icon]);
     save_frame("irc-cards-twelve");
     home_request_set(0);
     assert(home_prepare(false));
-    assert(!home_irc_buffer);
-    puts("PASS: IRC real UI +/- only, fixed shared icon, external feedback, lock/no-data gates, zero idle invalidations and 12-card page");
+    assert(home_icon_index("thermostat-irc") < 0);
+
+    /* Régi SD-csomagnál a célérték olvasható, a +/- vezérlés megmarad. */
+    home_missing_card_icons = true;
+    home_request_set(2);
+    irc_test_open(false, runtime, sample);
+    assert(home_assets.asset_count == 2 && home_icon_index("thermostat-irc") < 0);
+    assert(lv_image_get_src(home_icons[0]) == NULL);
+    assert(lv_obj_get_width(irc_cards[0].target) == 236);
+    assert(!strcmp(lv_label_get_text(irc_cards[0].target), "22,5°C"));
+    before = app_sim_home_commands;
+    lv_obj_send_event(irc_cards[0].buttons[1], LV_EVENT_CLICKED, NULL);
+    assert(app_sim_home_commands == before + 1);
+    save_frame("irc-cards-legacy-pack");
+    home_request_set(0);
+    assert(home_prepare(false));
+    home_missing_card_icons = false;
+    puts("PASS: IRC real UI +/- only, shared SD icon, old-pack text fallback, external feedback, lock/no-data gates, zero idle invalidations and 12-card page");
 }
