@@ -10,6 +10,9 @@ static bool test_audio_active;
 static bool lighting_test_active;
 static unsigned lighting_initial_count, lighting_command_count;
 static void lighting_test_initial(void);
+static bool irc_test_active, irc_drop_command_reply;
+static unsigned irc_command_count;
+static void irc_test_initial(void);
 static unsigned gate_audio_stops;
 bool app_intercom_audio_active_for(unsigned revision)
 {
@@ -240,7 +243,14 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==0)server_response(catalog_reply);
         }
         else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
-            if (lighting_test_active)
+            if (irc_test_active)
+            {
+                assert(strstr(cmd, "jdev/sps/io/20000000-0000-0000-0000000000000002/") == cmd);
+                ++irc_command_count;
+                if (irc_drop_command_reply)
+                    return len;
+            }
+            else if (lighting_test_active)
             {
                 assert(strstr(cmd, "jdev/sps/io/10000000-0000-0000-0000000000000001/") == cmd);
                 ++lighting_command_count;
@@ -263,6 +273,7 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
     {
         ++lighting_initial_count;
         if (lighting_test_active) lighting_test_initial();
+        if (irc_test_active) irc_test_initial();
         server_response("{\"LL\":{\"Code\":200}}");
     }
     else if(strcmp(text,"jdev/sys/getkey")==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"key\":\"0102030405060708090a0b0c0d0e0f10\",\"hashAlg\":\"SHA256\"}}}");
@@ -513,6 +524,7 @@ static void presence_stream_test(lx_config_t *energy)
 }
 
 #include "test_lighting_service.inc"
+#include "test_irc_service.inc"
 
 int main(int argc,char **argv)
 {
@@ -534,6 +546,7 @@ int main(int argc,char **argv)
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
     home_control_test(&cfg);
     lighting_service_test(&cfg);
+    irc_service_test(&cfg);
     presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";

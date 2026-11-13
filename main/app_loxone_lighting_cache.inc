@@ -79,7 +79,7 @@ static void lighting_cache_prepare(void)
     for (unsigned i = 0; ok && i < s_home->card_count; ++i)
     {
         const lx_home_card_t *card = &s_home->cards[i];
-        if (card->type != LX_HOME_CARD_LIGHTING)
+        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC)
         {
             if (card->type != LX_HOME_CARD_PULSE)
                 ok = lighting_cache_add(card->source.uuid);
@@ -87,22 +87,38 @@ static void lighting_cache_prepare(void)
         }
         bool duplicate = false;
         for (unsigned j = 0; j < i; ++j)
-            if (s_home->cards[j].type == LX_HOME_CARD_LIGHTING &&
+            if (s_home->cards[j].type == card->type &&
                 !strcmp(s_home->cards[j].control_uuid, card->control_uuid))
                 duplicate = true;
         if (duplicate)
             continue;
-        const cJSON *entry = lx_light_catalog_find(s_catalog, card->control_uuid);
+        const cJSON *entry = card->type == LX_HOME_CARD_IRC ?
+            lx_irc_catalog_find(s_catalog, card->control_uuid) :
+            lx_light_catalog_find(s_catalog, card->control_uuid);
         if (!entry)
             continue;
-        const char *encoded = lighting_cache_string(entry, "lighting");
+        const char *encoded = lighting_cache_string(entry,
+            card->type == LX_HOME_CARD_IRC ? "irc" : "lighting");
         /* Saját, normalizált katalógusmetaadat; egyszerre csak egy blokk
          * átmeneti JSON-ja él. Nincs a veremben körlista vagy teljes profil. */
-        cJSON *meta = strlen(encoded) <= LX_LIGHT_TEXT_MAX ? cJSON_Parse(encoded) : NULL;
+        size_t limit = card->type == LX_HOME_CARD_IRC ? LX_IRC_META_MAX : LX_LIGHT_TEXT_MAX;
+        cJSON *meta = strlen(encoded) <= limit ? cJSON_Parse(encoded) : NULL;
         if (!meta)
         {
             ok = false;
             break;
+        }
+        if (card->type == LX_HOME_CARD_IRC)
+        {
+            /* Ugyanabba a nyers tárba kerül az IRC öt állapota. A jLocked
+             * kezdeti üres üzenetét a rejtett kártyánál is meg kell őrizni. */
+            static const char *const keys[] = {
+                "target", "actual", "current_mode", "operating_mode", "lock"
+            };
+            for (unsigned j = 0; ok && j < sizeof(keys) / sizeof(keys[0]); ++j)
+                ok = lighting_cache_add(lighting_cache_string(meta, keys[j]));
+            cJSON_Delete(meta);
+            continue;
         }
         ok = lighting_cache_add(lighting_cache_string(meta, "lock")) &&
              lighting_cache_add(lighting_cache_string(meta, "active")) &&
@@ -194,6 +210,30 @@ static void lighting_cache_replay_block(lx_light_block_t *block)
         if (entry->seen)
             lx_light_block_event(block, entry->uuid, entry->numeric, entry->number,
                                  entry->text, entry->length, now);
+    }
+}
+
+static void lighting_cache_replay_irc(lx_irc_block_t *block)
+{
+    if (!block)
+        return;
+    const char *const states[] = {
+        block->target_state, block->actual_state, block->current_mode_state,
+        block->operating_mode_state, block->lock_state
+    };
+    int64_t now = esp_timer_get_time();
+    for (unsigned i = 0; i < sizeof(states) / sizeof(states[0]); ++i)
+    {
+        bool shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (!strcmp(states[j], states[i]))
+                shared = true;
+        if (shared)
+            continue;
+        light_cache_entry_t *entry = lighting_cache_find(states[i]);
+        if (entry && entry->seen)
+            lx_irc_block_event(block, entry->uuid, entry->numeric, entry->number,
+                                entry->text, entry->length, now);
     }
 }
 

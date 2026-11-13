@@ -2,6 +2,7 @@
  * kizárólag a meglévő Loxone-workerben futnak. A GUI csak rövid mutexelt
  * kéréseket ad át; egy oldal és egy részletes blokk élhet egyszerre. */
 #include "app_loxone_lighting_service.h"
+#include "app_loxone_irc_service.h"
 #include "app_loxone_lighting_cache.inc"
 
 typedef struct
@@ -9,6 +10,7 @@ typedef struct
     int page;
     unsigned generation, revision, first, count;
     lx_light_block_t *blocks[LX_HOME_MAX_CARDS];
+    lx_irc_block_t *irc_blocks[LX_HOME_MAX_CARDS];
 } light_page_t;
 
 static int s_light_page = -1;
@@ -21,8 +23,9 @@ static bool s_light_initial_ready, s_light_detail_failed;
 
 static bool lighting_live_locked(void)
 {
+    int64_t elapsed = esp_timer_get_time() - s_home_response;
     return s_home_live && !s_dead && !s_home_busy &&
-           esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
+           elapsed >= 0 && elapsed < LX_KEEPALIVE_US * 3;
 }
 
 static bool lighting_current_locked(void)
@@ -45,6 +48,12 @@ static void lighting_page_free(light_page_t *page)
                 shared = true;
         if (!shared)
             lx_light_block_free(page->blocks[i]);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (page->irc_blocks[j] == page->irc_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_irc_block_free(page->irc_blocks[i]);
     }
     free(page);
 }
@@ -109,6 +118,26 @@ bool app_loxone_light_summary(const char *card_id, unsigned revision, lx_light_s
     if (valid)
     {
         lx_light_summary(s_light_context->blocks[slot], out);
+        out->controllable = out->controllable && s_light_initial_ready;
+    }
+    xSemaphoreGive(s_lock);
+    return valid;
+}
+
+bool app_loxone_irc_summary(const char *card_id, unsigned revision, lx_irc_summary_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    if (!s_lock)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    bool valid = slot >= 0 && lighting_live_locked() &&
+                 s_home->cards[s_light_context->first + (unsigned)slot].type == LX_HOME_CARD_IRC;
+    if (valid)
+    {
+        lx_irc_summary(s_light_context->irc_blocks[slot], out);
         out->controllable = out->controllable && s_light_initial_ready;
     }
     xSemaphoreGive(s_lock);
@@ -208,7 +237,14 @@ static bool lighting_home_command_allowed_locked(const char *id)
     int slot = lighting_slot_locked(id);
     if (slot < 0 || !s_light_initial_ready)
         return false;
-    if (s_home->cards[s_light_context->first + (unsigned)slot].type != LX_HOME_CARD_LIGHTING)
+    lx_home_card_type_t type = s_home->cards[s_light_context->first + (unsigned)slot].type;
+    if (type == LX_HOME_CARD_IRC)
+    {
+        lx_irc_summary_t summary;
+        lx_irc_summary(s_light_context->irc_blocks[slot], &summary);
+        return summary.available && summary.controllable;
+    }
+    if (type != LX_HOME_CARD_LIGHTING)
         return true;
     lx_light_summary_t summary;
     lx_light_summary(s_light_context->blocks[slot], &summary);
@@ -233,19 +269,27 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
     for (unsigned i = 0; i < next->count; ++i)
     {
         const lx_home_card_t *card = &s_home->cards[next->first + i];
-        if (card->type != LX_HOME_CARD_LIGHTING)
+        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC)
             continue;
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
             if (!strcmp(s_home->cards[next->first + j].control_uuid, card->control_uuid) &&
-                s_home->cards[next->first + j].type == LX_HOME_CARD_LIGHTING)
+                s_home->cards[next->first + j].type == card->type)
             {
                 next->blocks[i] = next->blocks[j];
+                next->irc_blocks[i] = next->irc_blocks[j];
                 shared = true;
                 break;
             }
         if (shared)
             continue;
+        if (card->type == LX_HOME_CARD_IRC)
+        {
+            next->irc_blocks[i] =
+                lx_irc_block_create(lx_irc_catalog_find(s_catalog, card->control_uuid));
+            lighting_cache_replay_irc(next->irc_blocks[i]);
+            continue;
+        }
         lx_light_block_t *block =
             lx_light_block_create(lx_light_catalog_find(s_catalog, card->control_uuid));
         lighting_cache_replay_block(block);
@@ -352,6 +396,13 @@ static void lighting_event_locked(
         if (!shared)
             lx_light_block_event(
                 s_light_context->blocks[i], uuid, numeric, value, text, length, now);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (s_light_context->irc_blocks[j] == s_light_context->irc_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_irc_block_event(
+                s_light_context->irc_blocks[i], uuid, numeric, value, text, length, now);
     }
     if (s_light_modal && s_light_modal == s_light_detail_handle)
         lx_light_block_event(s_light_detail, uuid, numeric, value, text, length, now);

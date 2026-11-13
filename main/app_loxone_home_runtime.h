@@ -2,6 +2,7 @@
 
 #include "app_loxone_home_model.h"
 #include "app_loxone_lighting.h"
+#include "app_loxone_irc.h"
 
 /* A Loxone állapotfolyam delta alapú: az első snapshotból megőrzött 24 szám
  * nem képi/widget-adat, és nem hoz létre további Miniserver-kapcsolatot. */
@@ -25,7 +26,9 @@ typedef enum
     LX_HOME_COMMAND_OFF,
     LX_HOME_COMMAND_LIGHT_PREV,
     LX_HOME_COMMAND_LIGHT_NEXT,
-    LX_HOME_COMMAND_LIGHT_OFF
+    LX_HOME_COMMAND_LIGHT_OFF,
+    LX_HOME_COMMAND_IRC_DECREASE,
+    LX_HOME_COMMAND_IRC_INCREASE
 } lx_home_command_t;
 
 /* Teljes numerikus WS-tábla; formahibánál a korábbi állapot változatlan.

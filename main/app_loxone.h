@@ -57,3 +57,4 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);
 bool app_loxone_ev_snapshot(app_ev_charging_t *out);
 
 #include "app_loxone_lighting_service.h"
+#include "app_loxone_irc_service.h"

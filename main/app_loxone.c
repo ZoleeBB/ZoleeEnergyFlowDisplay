@@ -909,7 +909,8 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
     for (unsigned i = first; i < first + count; ++i)
     {
         lx_home_command_t action = s_home->cards[i].type == LX_HOME_CARD_PULSE ? LX_HOME_COMMAND_PULSE :
-            s_home->cards[i].type == LX_HOME_CARD_LIGHTING ? LX_HOME_COMMAND_LIGHT_NEXT : LX_HOME_COMMAND_ON;
+            s_home->cards[i].type == LX_HOME_CARD_LIGHTING ? LX_HOME_COMMAND_LIGHT_NEXT :
+            s_home->cards[i].type == LX_HOME_CARD_IRC ? LX_HOME_COMMAND_IRC_INCREASE : LX_HOME_COMMAND_ON;
         values->command_supported[i] = lighting_home_command_allowed_locked(s_home->cards[i].id) &&
             lx_home_command_build(s_home, s_catalog, s_home->cards[i].id, action, allowed_command);
     }
@@ -1032,7 +1033,7 @@ static void home_command_poll(int64_t now)
         bool door = !strcmp(request.id, LX_INTERCOM_GATE_ID);
         bool valid = (!door || ((s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                               request.intercom_revision == s_intercom_generation)) &&
-                     s_home_live && !s_dead && request.revision == s_home_revision &&
+                     lighting_live_locked() && request.revision == s_home_revision &&
                      request.session == s_home_session &&
                      (door || request.visibility_revision == s_light_generation) &&
                      lighting_home_command_allowed_locked(request.id) && now >= request.queued_us &&
@@ -1041,7 +1042,8 @@ static void home_command_poll(int64_t now)
         xSemaphoreGive(s_lock);
         cJSON *answer = valid ? reply(command, true) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (!door && request.visibility_revision != s_light_generation)
+        if (request.revision != s_home_revision || request.session != s_home_session ||
+            (!door && request.visibility_revision != s_light_generation))
         {
             /* A nyugta közben elhagyott lap nem tarthat fenn visszajelzésre
              * várást. A már elküldött kérés nem vonható vissza. */
@@ -1055,7 +1057,18 @@ static void home_command_poll(int64_t now)
             snprintf(s_command_status, sizeof(s_command_status), "%s",
                      "A művelet nem igazolható. Ellenőrizd a Loxone állapotát.");
         }
-        else if (request.action == LX_HOME_COMMAND_PULSE || request.action >= LX_HOME_COMMAND_LIGHT_PREV)
+        else if (request.action == LX_HOME_COMMAND_IRC_DECREASE ||
+                 request.action == LX_HOME_COMMAND_IRC_INCREASE)
+        {
+            /* A nyugta csak a léptetési kérés elfogadását jelzi. Célhőfokot
+             * kizárólag a Miniserver állapotfolyama írhat; nincs ismétlés. */
+            s_command_pending = false;
+            s_command_deadline = 0;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", "Hőfokléptetés elküldve.");
+        }
+        else if (request.action == LX_HOME_COMMAND_PULSE ||
+                 (request.action >= LX_HOME_COMMAND_LIGHT_PREV &&
+                  request.action <= LX_HOME_COMMAND_LIGHT_OFF))
         {
             s_command_pending = false;
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Impulzus elküldve.");

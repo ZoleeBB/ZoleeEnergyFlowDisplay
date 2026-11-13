@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A GCC .su adataiból ellenőrzi a világítás helyi veremkereteit.
+"""A GCC .su adataiból ellenőrzi a világítás és az IRC helyi veremkereteit.
 
 Ez nem teljes taskverem-mérés: a libc/cJSON/LVGL és a megszakítások további
 vermet használnak. A feladatméretek és a hardveres high-water próba megmarad.
@@ -10,12 +10,13 @@ import re
 import sys
 
 FRAME_LIMIT = 1536
-PREFIXES = ('lx_light_', 'light_', 'lighting_', 'app_loxone_light_', 'lx_home_values_')
+PREFIXES = ('lx_light_', 'light_', 'lighting_', 'app_loxone_light_', 'lx_home_values_',
+            'lx_irc_', 'irc_', 'app_loxone_irc_', 'home_irc_')
 GUARDED = {'app_loxone_home_visible', 'home_values_update_range'}
 CALLERS = {'worker', 'runtime', 'reply', 'pump', 'wait_reply', 'update_values',
            'home_command_poll', 'home_render', 'home_build', 'home_prepare'}
 REQUIRED = {'lx_light_catalog_attach', 'lx_light_block_event', 'lx_light_command_build',
-            'lx_home_values_update_visible'}
+            'lx_home_values_update_visible', 'lx_irc_catalog_attach', 'lx_irc_block_event'}
 RECORD = re.compile(r'^(.*):(\d+):(\d+):([^\t]+)\t(\d+)\t(.+)$')
 
 
@@ -45,11 +46,14 @@ def inspect(root, model_only=False):
     names = {row[1].split('.')[0] for row in records}
     required = set(REQUIRED)
     if not model_only:
-        required.update(('app_loxone_light_open', 'app_loxone_light_set'))
+        required.update(('app_loxone_light_open', 'app_loxone_light_set', 'app_loxone_irc_summary'))
     for missing in sorted(required - names):
         failures.append('Hiányzó fordítói veremadat: ' + missing)
-    if not model_only and not any(row[0].endswith('app_loxone_lighting_ui.inc') for row in records):
-        failures.append('Hiányzó tényleges világítási UI-veremadat.')
+    if not model_only:
+        for source, label in (('app_loxone_lighting_ui.inc', 'világítási'),
+                              ('app_loxone_irc_ui.inc', 'IRC')):
+            if not any(row[0].endswith(source) for row in records):
+                failures.append(f'Hiányzó tényleges {label} UI-veremadat.')
     selected = [row for row in records if lighting_name(row[1])]
     for source, name, size, qualifier in selected:
         if size > FRAME_LIMIT:
@@ -66,7 +70,7 @@ def inspect(root, model_only=False):
             print(f'CALLER STACK {name}: {size} B ({qualifier})')
     if failures:
         raise ValueError('\n'.join(failures))
-    print(f'PASS: {len(selected)} világítási keret <= {FRAME_LIMIT} B; '
+    print(f'PASS: a világítás és az IRC {len(selected)} kerete <= {FRAME_LIMIT} B; '
           'a teljes taskverem külön ellenőrzendő.')
 
 
