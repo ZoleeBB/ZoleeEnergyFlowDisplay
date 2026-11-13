@@ -414,11 +414,21 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 /* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
 static bool lighting_ui_is_open(void);
 static void lighting_ui_reset(void);
+static bool shading_ui_is_open(void);
+static void shading_ui_reset(void);
+
+/* Képernyőcsere, kapcsolatvesztés és kaputelefon azonos kapun vonja vissza
+ * a kártyakezelők életciklusát. A hívó tartja az LVGL-zárat. */
+static void home_controls_suspend(void)
+{
+    lighting_ui_reset();
+    shading_ui_reset();
+    app_loxone_home_visible(-1);
+}
 
 static void clear(void)
 {
-    lighting_ui_reset();
-    app_loxone_home_visible(-1);
+    home_controls_suspend();
     assistant_reset_widgets();
     mail_reset_widgets();
     lv_obj_clean(s_screen);
@@ -2476,8 +2486,7 @@ static void runtime(void *arg)
          * A kaputelefon elsőbbsége még a rendes Otthon-frissítés előtt él. */
         if ((!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
         {
-            lighting_ui_reset();
-            app_loxone_home_visible(-1);
+            home_controls_suspend();
             bsp_display_unlock();
         }
 

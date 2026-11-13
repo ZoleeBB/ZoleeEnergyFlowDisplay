@@ -34,7 +34,7 @@ static void irc_card_command_event(lv_event_t *event)
 {
     unsigned encoded = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     unsigned index = encoded / 2, operation = encoded % 2;
-    if (lighting_ui_is_open() || s_pair_pad || loxone_display_is_held() ||
+    if (lighting_ui_is_open() || shading_ui_is_open() || s_pair_pad || loxone_display_is_held() ||
         !home_connected || home_command_wait ||
         home_request_get() != 2 + (int)home_card_page || index >= home_config.card_count ||
         home_config.cards[index].type != LX_HOME_CARD_IRC)

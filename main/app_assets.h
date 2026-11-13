@@ -31,6 +31,7 @@ extern const lv_image_dsc_t app_img_wind;
 extern const lv_image_dsc_t app_img_humidity;
 extern const lv_image_dsc_t app_img_mail_box;
 extern const lv_image_dsc_t app_img_irc_thermostat;
+extern const lv_image_dsc_t app_img_shading_blinds;
 
 extern const lv_image_dsc_t app_img_status_normal;
 extern const lv_image_dsc_t app_img_status_prepare;

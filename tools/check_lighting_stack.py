@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A GCC .su adataiból ellenőrzi a világítás és az IRC helyi veremkereteit.
+"""A GCC .su adataiból ellenőrzi a világítás, IRC és árnyékolás helyi veremkereteit.
 
 Ez nem teljes taskverem-mérés: a libc/cJSON/LVGL és a megszakítások további
 vermet használnak. A feladatméretek és a hardveres high-water próba megmarad.
@@ -11,12 +11,15 @@ import sys
 
 FRAME_LIMIT = 1536
 PREFIXES = ('lx_light_', 'light_', 'lighting_', 'app_loxone_light_', 'lx_home_values_',
-            'lx_irc_', 'irc_', 'app_loxone_irc_', 'home_irc_')
-GUARDED = {'app_loxone_home_visible', 'home_values_update_range'}
+            'lx_irc_', 'irc_', 'app_loxone_irc_', 'home_irc_',
+            'lx_shading_', 'shading_', 'app_loxone_shading_', 'home_shading_')
+GUARDED = {'app_loxone_home_visible', 'home_values_update_range',
+           'home_command_build_locked', 'home_command_request', 'lx_home_shading_position_build'}
 CALLERS = {'worker', 'runtime', 'reply', 'pump', 'wait_reply', 'update_values',
            'home_command_poll', 'home_render', 'home_build', 'home_prepare'}
 REQUIRED = {'lx_light_catalog_attach', 'lx_light_block_event', 'lx_light_command_build',
-            'lx_home_values_update_visible', 'lx_irc_catalog_attach', 'lx_irc_block_event'}
+            'lx_home_values_update_visible', 'lx_irc_catalog_attach', 'lx_irc_block_event',
+            'lx_shading_catalog_attach', 'lx_shading_block_event'}
 RECORD = re.compile(r'^(.*):(\d+):(\d+):([^\t]+)\t(\d+)\t(.+)$')
 
 
@@ -46,12 +49,15 @@ def inspect(root, model_only=False):
     names = {row[1].split('.')[0] for row in records}
     required = set(REQUIRED)
     if not model_only:
-        required.update(('app_loxone_light_open', 'app_loxone_light_set', 'app_loxone_irc_summary'))
+        required.update(('app_loxone_light_open', 'app_loxone_light_set', 'app_loxone_irc_summary',
+                         'app_loxone_shading_summary', 'app_loxone_shading_command',
+                         'app_loxone_shading_position'))
     for missing in sorted(required - names):
         failures.append('Hiányzó fordítói veremadat: ' + missing)
     if not model_only:
         for source, label in (('app_loxone_lighting_ui.inc', 'világítási'),
-                              ('app_loxone_irc_ui.inc', 'IRC')):
+                              ('app_loxone_irc_ui.inc', 'IRC'),
+                              ('app_loxone_shading_ui.inc', 'árnyékolási')):
             if not any(row[0].endswith(source) for row in records):
                 failures.append(f'Hiányzó tényleges {label} UI-veremadat.')
     selected = [row for row in records if lighting_name(row[1])]
@@ -70,7 +76,7 @@ def inspect(root, model_only=False):
             print(f'CALLER STACK {name}: {size} B ({qualifier})')
     if failures:
         raise ValueError('\n'.join(failures))
-    print(f'PASS: a világítás és az IRC {len(selected)} kerete <= {FRAME_LIMIT} B; '
+    print(f'PASS: a világítás, IRC és árnyékolás {len(selected)} kerete <= {FRAME_LIMIT} B; '
           'a teljes taskverem külön ellenőrzendő.')
 
 

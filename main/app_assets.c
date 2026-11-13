@@ -51,6 +51,19 @@ const lv_image_dsc_t app_img_irc_thermostat = {
     .data = _binary_irc_thermostat_png_start,
 };
 
+/* A redőnygrafika a meglévő 96×96-os ikon változatlan beépített példánya.
+ * A kártyák közösen dekódolják, az SD-ikonválasztástól függetlenül. */
+extern const uint8_t _binary_shading_blinds_png_start[];
+const lv_image_dsc_t app_img_shading_blinds = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 96, .h = 96, .stride = 0,
+    },
+    .data_size = APP_PNG_SHADING_BLINDS_SIZE,
+    .data = _binary_shading_blinds_png_start,
+};
+
 /* Natív fejlécméret: a kis ikonhoz nem foglalunk 128×128-as dekódolt képet. */
 extern const uint8_t _binary_weather_humidity_png_start[];
 const lv_image_dsc_t app_img_humidity = {

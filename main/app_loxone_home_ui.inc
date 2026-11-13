@@ -36,6 +36,9 @@ static lv_image_dsc_t home_gray_images[14];
 /* Egy közös, natív ARGB-puffer az aktuális lap összes kötött IRC-ikonjához. */
 static lv_image_dsc_t home_irc_image;
 static lv_draw_buf_t *home_irc_buffer;
+/* A redőnylap összes kártyája ugyanazt a natív 36 KiB-os képet használja. */
+static lv_image_dsc_t home_shading_image;
+static lv_draw_buf_t *home_shading_buffer;
 static lv_obj_t *home_icons[12], *home_labels[12], *home_buttons[12], *home_switch_knobs[12], *home_message, *home_total;
 
 static const lv_image_dsc_t *home_gray(unsigned index);
@@ -47,6 +50,16 @@ static void home_irc_icon_release(void)
         lv_draw_buf_destroy(home_irc_buffer);
     home_irc_buffer = NULL;
     memset(&home_irc_image, 0, sizeof(home_irc_image));
+}
+
+static void home_shading_icon_release(void)
+{
+    shading_ui_reset();
+    lv_image_cache_drop(&home_shading_image);
+    if (home_shading_buffer)
+        lv_draw_buf_destroy(home_shading_buffer);
+    home_shading_buffer = NULL;
+    memset(&home_shading_image, 0, sizeof(home_shading_image));
 }
 
 static bool home_is_open(void) { return home_request_get() != 0; }
@@ -74,7 +87,7 @@ static void home_cards_requested(void)
  * át az input callbackből; az SD-képek cseréjét a runtime végzi. */
 static void home_gesture(lv_dir_t direction)
 {
-    if (lighting_ui_is_open()) return;
+    if (lighting_ui_is_open() || shading_ui_is_open()) return;
     if (loxone_display_is_held()) return;
     int requested = home_request_get();
     unsigned pages = lx_home_page_count(&home_config);
@@ -87,6 +100,7 @@ static void home_gesture(lv_dir_t direction)
 static void home_release(void)
 {
     home_irc_icon_release();
+    home_shading_icon_release();
     for (unsigned i = 0; i < 14; i++)
     {
         lv_image_cache_drop(&home_images[i]);
@@ -123,6 +137,7 @@ static void home_assets_trim_icons(void)
 static void home_release_icons(void)
 {
     home_irc_icon_release();
+    home_shading_icon_release();
     for (unsigned i = 2; i < 14; i++)
     {
         lv_image_cache_drop(&home_images[i]);
@@ -256,13 +271,32 @@ static bool home_irc_icon_prepare(bool needed)
     return true;
 }
 
+static bool home_shading_icon_prepare(bool needed)
+{
+    if (!needed || home_shading_buffer)
+        return true;
+    const lv_image_decoder_args_t args = {.no_cache = true};
+    lv_image_decoder_dsc_t decoder;
+    if (lv_image_decoder_open(&decoder, &app_img_shading_blinds, &args) != LV_RESULT_OK)
+        return false;
+    const lv_draw_buf_t *source = decoder.decoded;
+    if (source && source->header.cf == LV_COLOR_FORMAT_ARGB8888 &&
+        source->header.w == 96 && source->header.h == 96)
+        home_shading_buffer = lv_draw_buf_dup(source);
+    lv_image_decoder_close(&decoder);
+    if (!home_shading_buffer)
+        return false;
+    lv_draw_buf_to_image(home_shading_buffer, &home_shading_image);
+    return true;
+}
+
 static bool home_prepare(bool night)
 {
     /* A megnyitott kezelőt egy NightMode-váltás nem dobja el. A fényerő
      * továbbra is követi az éjszakai módot; a stílus bezárás után frissül. */
     if (night != home_night && bsp_display_lock(-1) == ESP_OK)
     {
-        if (lighting_ui_is_open()) night = home_night;
+        if (lighting_ui_is_open() || shading_ui_is_open()) night = home_night;
         bsp_display_unlock();
     }
     int requested = home_request_get();
@@ -360,10 +394,13 @@ static bool home_prepare(bool night)
     const char *icons[12];
     unsigned icon_count = 0;
     bool irc_icon_needed = false;
+    bool shading_icon_needed = false;
     for (unsigned i = 0; i < count; i++)
     {
         if (requested != 1 && home_next_config.cards[first + i].type == LX_HOME_CARD_IRC)
             irc_icon_needed = true;
+        else if (requested != 1 && home_next_config.cards[first + i].type == LX_HOME_CARD_SHADING)
+            shading_icon_needed = true;
         else
             icons[icon_count++] = requested == 1 ? home_next_config.consumers[i].icon :
                                                  home_next_config.cards[first + i].icon;
@@ -419,6 +456,8 @@ static bool home_prepare(bool night)
         loaded = home_decode_images(first_image);
         if (loaded)
             loaded = home_irc_icon_prepare(irc_icon_needed);
+        if (loaded)
+            loaded = home_shading_icon_prepare(shading_icon_needed);
         if (loaded && requested == 1)
         {
             for (unsigned i = 2; loaded && i < home_assets.asset_count; i++)
@@ -482,7 +521,8 @@ static void home_action(lv_event_t *event)
      * nem küldhetnek műveletet ilyen állapot alapján. */
     if (loxone_display_is_held()) return;
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
-    if (s_pair_pad || home_request_get() != 2 + (int)home_card_page || !home_connected || home_command_wait ||
+    if (s_pair_pad || lighting_ui_is_open() || shading_ui_is_open() ||
+        home_request_get() != 2 + (int)home_card_page || !home_connected || home_command_wait ||
         index < home_first_card || index >= home_first_card + home_card_count || index >= home_config.card_count ||
         !home_values.command_supported[index]) return;
     const lx_home_card_t *card = &home_config.cards[index];
@@ -509,6 +549,7 @@ static void home_text(lv_obj_t *label, int width)
 }
 #include "app_loxone_lighting_ui.inc"
 #include "app_loxone_irc_ui.inc"
+#include "app_loxone_shading_ui.inc"
 
 static void home_build(void)
 {
@@ -546,6 +587,7 @@ static void home_build(void)
     memset(home_buttons, 0, sizeof(home_buttons));
     memset(light_card_buttons, 0, sizeof(light_card_buttons));
     memset(irc_cards, 0, sizeof(irc_cards));
+    memset(shading_cards, 0, sizeof(shading_cards));
     memset(home_switch_knobs, 0, sizeof(home_switch_knobs));
     for (unsigned i = 0; i < count; i++)
     {
@@ -568,6 +610,11 @@ static void home_build(void)
         if (home_page == 2 && home_config.cards[index].type == LX_HOME_CARD_IRC)
         {
             irc_card_build(card, title, i, index);
+            continue;
+        }
+        if (home_page == 2 && home_config.cards[index].type == LX_HOME_CARD_SHADING)
+        {
+            shading_card_build(card, title, i, index);
             continue;
         }
         if (home_page == 2 && home_config.cards[index].type == LX_HOME_CARD_LIGHTING)
@@ -649,6 +696,7 @@ static const char *home_feedback(void)
         {"A művelet nem igazolható. Ellenőrizd a Loxone állapotát.", "The action could not be confirmed. Check the Loxone status."},
         {"Impulzus elküldve.", "Pulse sent."},
         {"Hőfokléptetés elküldve.", "Temperature adjustment sent."},
+        {"Redőnyparancs elküldve.", "Shading command sent."},
         {"Állapot-visszajelzésre várunk...", "Waiting for state feedback..."},
         {"Loxone-állapot visszaigazolva.", "Loxone state confirmed."},
         {"Nem érkezett megfelelő Loxone-állapot.", "No matching Loxone state received."},
@@ -679,6 +727,11 @@ static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
         if (home_page == 2 && card->type == LX_HOME_CARD_IRC)
         {
             irc_card_update(i, index, home_connected && !loxone_display_is_held());
+            continue;
+        }
+        if (home_page == 2 && card->type == LX_HOME_CARD_SHADING)
+        {
+            shading_card_update(i, index, home_connected && !loxone_display_is_held());
             continue;
         }
         if (home_page == 2 && card->type == LX_HOME_CARD_LIGHTING)
@@ -760,6 +813,7 @@ static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
     label_text_if_changed(home_message, !home_connected ? tr("Nincs Loxone-kapcsolat; a vezérlés tiltva.", "No Loxone connection; controls disabled.") :
                           home_status[0] ? home_feedback() : tr("Élő Loxone-adatok", "Live Loxone data"));
     lighting_ui_update();
+    shading_ui_update();
     return true;
 }
 static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene)

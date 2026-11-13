@@ -110,6 +110,8 @@ static esp_err_t template_preview_get(httpd_req_t *req){
  * Előnézetéhez nincs SD-olvasás, de a közös adminhitelesítés itt is kötelező. */
 extern const unsigned char _binary_irc_thermostat_png_start[];
 extern const unsigned char _binary_irc_thermostat_png_end[];
+extern const unsigned char _binary_shading_blinds_png_start[];
+extern const unsigned char _binary_shading_blinds_png_end[];
 
 /* A telepített csomag kiválasztott 96×96-os ikonja, általános fájlböngészés nélkül. */
 static esp_err_t template_home_icon_get(httpd_req_t *req)
@@ -126,6 +128,15 @@ static esp_err_t template_home_icon_get(httpd_req_t *req)
         size_t size = (size_t)(_binary_irc_thermostat_png_end - _binary_irc_thermostat_png_start);
         esp_err_t result = httpd_resp_send_chunk(
             req, (const char *)_binary_irc_thermostat_png_start, size);
+        return result == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : result;
+    }
+    if (!strcmp(id, "blinds-shading"))
+    {
+        httpd_resp_set_type(req, "image/png");
+        httpd_resp_set_hdr(req, "Cache-Control", "private, no-cache");
+        size_t size = (size_t)(_binary_shading_blinds_png_end - _binary_shading_blinds_png_start);
+        esp_err_t result = httpd_resp_send_chunk(
+            req, (const char *)_binary_shading_blinds_png_start, size);
         return result == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : result;
     }
     if (!app_templates_home_info(NULL, NULL))

@@ -3,6 +3,7 @@
  * kéréseket ad át; egy oldal és egy részletes blokk élhet egyszerre. */
 #include "app_loxone_lighting_service.h"
 #include "app_loxone_irc_service.h"
+#include "app_loxone_shading_service.h"
 #include "app_loxone_lighting_cache.inc"
 
 typedef struct
@@ -11,6 +12,7 @@ typedef struct
     unsigned generation, revision, first, count;
     lx_light_block_t *blocks[LX_HOME_MAX_CARDS];
     lx_irc_block_t *irc_blocks[LX_HOME_MAX_CARDS];
+    lx_shading_block_t *shading_blocks[LX_HOME_MAX_CARDS];
 } light_page_t;
 
 static int s_light_page = -1;
@@ -54,6 +56,12 @@ static void lighting_page_free(light_page_t *page)
                 shared = true;
         if (!shared)
             lx_irc_block_free(page->irc_blocks[i]);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (page->shading_blocks[j] == page->shading_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_shading_block_free(page->shading_blocks[i]);
     }
     free(page);
 }
@@ -138,6 +146,27 @@ bool app_loxone_irc_summary(const char *card_id, unsigned revision, lx_irc_summa
     if (valid)
     {
         lx_irc_summary(s_light_context->irc_blocks[slot], out);
+        out->controllable = out->controllable && s_light_initial_ready;
+    }
+    xSemaphoreGive(s_lock);
+    return valid;
+}
+
+bool app_loxone_shading_summary(const char *card_id, unsigned revision,
+                               lx_shading_summary_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    if (!s_lock)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    bool valid = slot >= 0 && lighting_live_locked() &&
+                 s_home->cards[s_light_context->first + (unsigned)slot].type == LX_HOME_CARD_SHADING;
+    if (valid)
+    {
+        lx_shading_summary(s_light_context->shading_blocks[slot], out);
         out->controllable = out->controllable && s_light_initial_ready;
     }
     xSemaphoreGive(s_lock);
@@ -244,6 +273,12 @@ static bool lighting_home_command_allowed_locked(const char *id)
         lx_irc_summary(s_light_context->irc_blocks[slot], &summary);
         return summary.available && summary.controllable;
     }
+    if (type == LX_HOME_CARD_SHADING)
+    {
+        lx_shading_summary_t summary;
+        lx_shading_summary(s_light_context->shading_blocks[slot], &summary);
+        return summary.available && summary.controllable;
+    }
     if (type != LX_HOME_CARD_LIGHTING)
         return true;
     lx_light_summary_t summary;
@@ -269,7 +304,8 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
     for (unsigned i = 0; i < next->count; ++i)
     {
         const lx_home_card_t *card = &s_home->cards[next->first + i];
-        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC)
+        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC &&
+            card->type != LX_HOME_CARD_SHADING)
             continue;
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
@@ -278,6 +314,7 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
             {
                 next->blocks[i] = next->blocks[j];
                 next->irc_blocks[i] = next->irc_blocks[j];
+                next->shading_blocks[i] = next->shading_blocks[j];
                 shared = true;
                 break;
             }
@@ -288,6 +325,13 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
             next->irc_blocks[i] =
                 lx_irc_block_create(lx_irc_catalog_find(s_catalog, card->control_uuid));
             lighting_cache_replay_irc(next->irc_blocks[i]);
+            continue;
+        }
+        if (card->type == LX_HOME_CARD_SHADING)
+        {
+            next->shading_blocks[i] =
+                lx_shading_block_create(lx_shading_catalog_find(s_catalog, card->control_uuid));
+            lighting_cache_replay_shading(next->shading_blocks[i]);
             continue;
         }
         lx_light_block_t *block =
@@ -403,6 +447,13 @@ static void lighting_event_locked(
         if (!shared)
             lx_irc_block_event(
                 s_light_context->irc_blocks[i], uuid, numeric, value, text, length, now);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (s_light_context->shading_blocks[j] == s_light_context->shading_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_shading_block_event(
+                s_light_context->shading_blocks[i], uuid, numeric, value, text, length, now);
     }
     if (s_light_modal && s_light_modal == s_light_detail_handle)
         lx_light_block_event(s_light_detail, uuid, numeric, value, text, length, now);

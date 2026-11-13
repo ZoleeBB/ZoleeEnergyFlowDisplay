@@ -2,6 +2,7 @@
 #include "app_loxone_model.h"
 #include "app_loxone_lighting.h"
 #include "app_loxone_irc.h"
+#include "app_loxone_shading.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -349,7 +350,8 @@ static bool catalog_controls(
             return false;
         if ((unsigned)cJSON_GetArraySize(out) > before &&
             (!lx_light_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured) ||
-             !lx_irc_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, temp_unit)))
+             !lx_irc_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, temp_unit) ||
+             !lx_shading_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured)))
             return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");
         if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured, temp_unit))
@@ -398,3 +400,4 @@ int64_t lx_token_refresh_delay_us(int64_t valid_until, int64_t now_epoch)
 
 #include "app_loxone_lighting_model.inc"
 #include "app_loxone_irc_model.inc"
+#include "app_loxone_shading_model.inc"

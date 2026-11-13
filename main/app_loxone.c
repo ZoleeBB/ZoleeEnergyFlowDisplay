@@ -73,6 +73,7 @@ typedef struct {
     char id[LX_HOME_ID_SIZE];
     lx_home_command_t action;
     unsigned revision, session, intercom_revision, visibility_revision;
+    unsigned position_percent;
     int64_t queued_us;
 } home_command_t;
 static home_command_t s_pending_command;
@@ -910,7 +911,8 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
     {
         lx_home_command_t action = s_home->cards[i].type == LX_HOME_CARD_PULSE ? LX_HOME_COMMAND_PULSE :
             s_home->cards[i].type == LX_HOME_CARD_LIGHTING ? LX_HOME_COMMAND_LIGHT_NEXT :
-            s_home->cards[i].type == LX_HOME_CARD_IRC ? LX_HOME_COMMAND_IRC_INCREASE : LX_HOME_COMMAND_ON;
+            s_home->cards[i].type == LX_HOME_CARD_IRC ? LX_HOME_COMMAND_IRC_INCREASE :
+            s_home->cards[i].type == LX_HOME_CARD_SHADING ? LX_HOME_COMMAND_SHADING_UP : LX_HOME_COMMAND_ON;
         values->command_supported[i] = lighting_home_command_allowed_locked(s_home->cards[i].id) &&
             lx_home_command_build(s_home, s_catalog, s_home->cards[i].id, action, allowed_command);
     }
@@ -963,8 +965,27 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
     return true;
 }
 
+/* Az abszolút pozíció külön, korlátos érték. A kártya szabad szöveget vagy
+ * parancsvéget nem adhat át; a katalógus és az élő modell újraellenőrzött. */
+static bool home_command_build_locked(const char *card_id, lx_home_command_t action,
+                                      unsigned position_percent, char command[96])
+{
+    if (action != LX_HOME_COMMAND_SHADING_POSITION)
+        return lx_home_command_build(s_home, s_catalog, card_id, action, command);
+    int slot = lighting_slot_locked(card_id);
+    if (slot < 0)
+        return false;
+    lx_shading_summary_t summary;
+    lx_shading_summary(s_light_context->shading_blocks[slot], &summary);
+    return summary.available && summary.controllable && !summary.central &&
+           summary.position_valid && lx_home_shading_position_build(
+               s_home, s_catalog, card_id, position_percent, command);
+}
+
 static esp_err_t home_command_request(const char *card_id, lx_home_command_t action,
-                                       bool check_generation, unsigned generation)
+                                       bool check_generation, unsigned generation,
+                                       bool check_revision, unsigned revision,
+                                       unsigned position_percent)
 {
     if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)
         return ESP_ERR_INVALID_STATE;
@@ -973,17 +994,21 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
     bool door = !strcmp(card_id, LX_INTERCOM_GATE_ID);
     bool allowed = lighting_home_command_allowed_locked(card_id) &&
                    (!check_generation || s_intercom_generation == generation) &&
+                   (!check_revision || s_home_revision == revision) &&
                    (!door || s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                    s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
-                   lx_home_command_build(s_home, s_catalog, card_id, action, command);
+                   home_command_build_locked(card_id, action, position_percent, command);
     for (unsigned i = 0; allowed && i < s_home->card_count; i++)
     {
         if (!strcmp(s_home->cards[i].id, card_id) && s_home->cards[i].type == LX_HOME_CARD_SWITCH)
             allowed = s_home_values.cards[i].valid &&
                       s_home_values.cards[i].value == (action == LX_HOME_COMMAND_ON ? 0 : 1);
     }
-    home_command_t request = {.action = action, .revision = s_home_revision, .session = s_home_session, .queued_us = esp_timer_get_time()};
+    home_command_t request = {
+        .action = action, .revision = s_home_revision, .session = s_home_session,
+        .position_percent = position_percent, .queued_us = esp_timer_get_time()
+    };
     request.intercom_revision = s_intercom_generation;
     request.visibility_revision = s_light_generation;
     snprintf(request.id, sizeof(request.id), "%s", card_id);
@@ -1008,14 +1033,36 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
 
 esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
 {
-    return home_command_request(card_id, action, false, 0);
+    /* Pozíciót csak a külön, revízióval és értékkel ellátott API fogadhat. */
+    if (action == LX_HOME_COMMAND_SHADING_POSITION)
+        return ESP_ERR_INVALID_ARG;
+    return home_command_request(card_id, action, false, 0, false, 0, 0);
+}
+
+esp_err_t app_loxone_shading_command(const char *card_id, unsigned revision,
+                                    lx_home_command_t action)
+{
+    if (action != LX_HOME_COMMAND_SHADING_UP && action != LX_HOME_COMMAND_SHADING_DOWN &&
+        action != LX_HOME_COMMAND_SHADING_STOP)
+        return ESP_ERR_INVALID_ARG;
+    return home_command_request(card_id, action, false, 0, true, revision, 0);
+}
+
+esp_err_t app_loxone_shading_position(const char *card_id, unsigned revision,
+                                     unsigned percent)
+{
+    if (percent > 100)
+        return ESP_ERR_INVALID_ARG;
+    return home_command_request(card_id, LX_HOME_COMMAND_SHADING_POSITION,
+                                 false, 0, true, revision, percent);
 }
 
 /* A Slave régi gombnyomása nem használhat közben megváltozott kapunyitó
  * beállítást. A generáció és a sorba helyezés ugyanazon Loxone-zár alatt áll. */
 esp_err_t app_loxone_intercom_gate_request(unsigned revision)
 {
-    return home_command_request(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE, true, revision);
+    return home_command_request(LX_INTERCOM_GATE_ID, LX_HOME_COMMAND_PULSE,
+                                 true, revision, false, 0, 0);
 }
 
 /* Kizárólag a Loxone-worker küldhet a WebSocketre. A kivett parancsot soha
@@ -1038,7 +1085,8 @@ static void home_command_poll(int64_t now)
                      (door || request.visibility_revision == s_light_generation) &&
                      lighting_home_command_allowed_locked(request.id) && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
-                     lx_home_command_build(s_home, s_catalog, request.id, request.action, command);
+                     home_command_build_locked(request.id, request.action,
+                                                request.position_percent, command);
         xSemaphoreGive(s_lock);
         cJSON *answer = valid ? reply(command, true) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -1065,6 +1113,15 @@ static void home_command_poll(int64_t now)
             s_command_pending = false;
             s_command_deadline = 0;
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Hőfokléptetés elküldve.");
+        }
+        else if (request.action >= LX_HOME_COMMAND_SHADING_UP &&
+                 request.action <= LX_HOME_COMMAND_SHADING_POSITION)
+        {
+            /* A nyugta után a Stop ismét használható; nem várjuk meg a
+             * teljes mozgás végét. Pozíciót kizárólag a valódi delta írhat. */
+            s_command_pending = false;
+            s_command_deadline = 0;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", "Redőnyparancs elküldve.");
         }
         else if (request.action == LX_HOME_COMMAND_PULSE ||
                  (request.action >= LX_HOME_COMMAND_LIGHT_PREV &&

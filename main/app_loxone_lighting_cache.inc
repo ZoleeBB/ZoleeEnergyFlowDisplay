@@ -79,7 +79,8 @@ static void lighting_cache_prepare(void)
     for (unsigned i = 0; ok && i < s_home->card_count; ++i)
     {
         const lx_home_card_t *card = &s_home->cards[i];
-        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC)
+        if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC &&
+            card->type != LX_HOME_CARD_SHADING)
         {
             if (card->type != LX_HOME_CARD_PULSE)
                 ok = lighting_cache_add(card->source.uuid);
@@ -94,14 +95,18 @@ static void lighting_cache_prepare(void)
             continue;
         const cJSON *entry = card->type == LX_HOME_CARD_IRC ?
             lx_irc_catalog_find(s_catalog, card->control_uuid) :
+            card->type == LX_HOME_CARD_SHADING ?
+            lx_shading_catalog_find(s_catalog, card->control_uuid) :
             lx_light_catalog_find(s_catalog, card->control_uuid);
         if (!entry)
             continue;
         const char *encoded = lighting_cache_string(entry,
-            card->type == LX_HOME_CARD_IRC ? "irc" : "lighting");
+            card->type == LX_HOME_CARD_IRC ? "irc" :
+            card->type == LX_HOME_CARD_SHADING ? "shading" : "lighting");
         /* Saját, normalizált katalógusmetaadat; egyszerre csak egy blokk
          * átmeneti JSON-ja él. Nincs a veremben körlista vagy teljes profil. */
-        size_t limit = card->type == LX_HOME_CARD_IRC ? LX_IRC_META_MAX : LX_LIGHT_TEXT_MAX;
+        size_t limit = card->type == LX_HOME_CARD_IRC ? LX_IRC_META_MAX :
+                       card->type == LX_HOME_CARD_SHADING ? LX_SHADING_META_MAX : LX_LIGHT_TEXT_MAX;
         cJSON *meta = strlen(encoded) <= limit ? cJSON_Parse(encoded) : NULL;
         if (!meta)
         {
@@ -114,6 +119,18 @@ static void lighting_cache_prepare(void)
              * kezdeti üres üzenetét a rejtett kártyánál is meg kell őrizni. */
             static const char *const keys[] = {
                 "target", "actual", "current_mode", "operating_mode", "lock"
+            };
+            for (unsigned j = 0; ok && j < sizeof(keys) / sizeof(keys[0]); ++j)
+                ok = lighting_cache_add(lighting_cache_string(meta, keys[j]));
+            cJSON_Delete(meta);
+            continue;
+        }
+        if (card->type == LX_HOME_CARD_SHADING)
+        {
+            /* Egyetlen közös, korlátos nyers tár; a rejtett árnyékolóhoz
+             * nincs blokkmodell vagy külön hálózati állapotlekérés. */
+            static const char *const keys[] = {
+                "lock", "locked", "device", "position", "up", "down", "safety"
             };
             for (unsigned j = 0; ok && j < sizeof(keys) / sizeof(keys[0]); ++j)
                 ok = lighting_cache_add(lighting_cache_string(meta, keys[j]));
@@ -234,6 +251,30 @@ static void lighting_cache_replay_irc(lx_irc_block_t *block)
         if (entry && entry->seen)
             lx_irc_block_event(block, entry->uuid, entry->numeric, entry->number,
                                 entry->text, entry->length, now);
+    }
+}
+
+static void lighting_cache_replay_shading(lx_shading_block_t *block)
+{
+    if (!block)
+        return;
+    const char *const states[] = {
+        block->position_state, block->up_state, block->down_state,
+        block->locked_state, block->safety_state, block->device_state, block->lock_state
+    };
+    int64_t now = esp_timer_get_time();
+    for (unsigned i = 0; i < sizeof(states) / sizeof(states[0]); ++i)
+    {
+        bool shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (!strcmp(states[j], states[i]))
+                shared = true;
+        if (shared)
+            continue;
+        light_cache_entry_t *entry = lighting_cache_find(states[i]);
+        if (entry && entry->seen)
+            lx_shading_block_event(block, entry->uuid, entry->numeric, entry->number,
+                                    entry->text, entry->length, now);
     }
 }
 

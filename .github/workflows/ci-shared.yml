@@ -100,6 +100,10 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_irc_browser.js
+      - name: Check fixed shading cards on desktop and mobile
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_shading_browser.js
 
   ui-preview:
     name: Master 10.1 | LVGL és ASan, 32 bit + RGB565
@@ -136,11 +140,13 @@ jobs:
           ZOLEE_LIGHTING_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
           ZOLEE_IRC_ONLY=1 ../.preview-build/ui_preview
           ZOLEE_IRC_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
+          ZOLEE_SHADING_ONLY=1 ../.preview-build/ui_preview
+          ZOLEE_SHADING_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ZOLEE_PREVIEW_FULL_REFRESH=1 ../.preview-build/ui_preview
 
       # A render- és memóriatesztek megmaradnak; az előnézetek statikus
-      # dokumentációs PNG-k, nem külön Actions-artifactok.
+      # dokumentációs képek, nem külön Actions-artifactok.
 
   template-packages:
     name: Sablonok | 9 téma és Loxone-erőforrások

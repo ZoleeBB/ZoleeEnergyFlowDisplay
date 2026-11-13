@@ -43,7 +43,8 @@ static bool home_values_update_range(lx_home_values_t *values, const lx_home_con
         {
             const lx_home_card_t *card = &config->cards[i];
             if (card->type == LX_HOME_CARD_PULSE || card->type == LX_HOME_CARD_LIGHTING ||
-                card->type == LX_HOME_CARD_IRC || strcmp(uuid, card->source.uuid))
+                card->type == LX_HOME_CARD_IRC || card->type == LX_HOME_CARD_SHADING ||
+                strcmp(uuid, card->source.uuid))
                 continue;
             double value = raw * card->source.scale + card->source.offset;
             values->cards[i] = (lx_home_value_t){
@@ -80,11 +81,25 @@ bool lx_home_control_supported(const char *type, bool secured, bool pulse)
            (pulse && (!strcmp(type, "Pushbutton") || !strcmp(type, "TimedSwitch")));
 }
 
+static const char *home_shading_target(const lx_home_card_t *card, const cJSON *catalog,
+                                       bool position)
+{
+    if (!card || card->type != LX_HOME_CARD_SHADING)
+        return NULL;
+    const cJSON *entry = lx_shading_catalog_find(catalog, card->control_uuid);
+    if (!entry || !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(entry, "shading_blocked")) ||
+        (position && !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(entry, "shading_central"))))
+        return NULL;
+    const cJSON *action = cJSON_GetObjectItemCaseSensitive(entry, "action_uuid");
+    const char *target = action ? cJSON_GetStringValue(action) : card->control_uuid;
+    return lx_uuid_valid(target) ? target : NULL;
+}
+
 bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
                            const char *card_id, lx_home_command_t action, char out[96])
 {
     if (!config || !card_id || !out || !cJSON_IsArray(catalog) ||
-        config->card_count > LX_HOME_MAX_TOTAL_CARDS || action > LX_HOME_COMMAND_IRC_INCREASE ||
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS || action > LX_HOME_COMMAND_SHADING_STOP ||
         action < LX_HOME_COMMAND_PULSE)
         return false;
     const lx_home_card_t *card = NULL;
@@ -129,6 +144,18 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
         snprintf(out, 96, "jdev/sps/io/%s/%s/%s", target, command, step);
         return true;
     }
+    if (card && card->type == LX_HOME_CARD_SHADING)
+    {
+        if (action < LX_HOME_COMMAND_SHADING_UP || action > LX_HOME_COMMAND_SHADING_STOP)
+            return false;
+        const char *target = home_shading_target(card, catalog, false);
+        if (!target)
+            return false;
+        const char *command = action == LX_HOME_COMMAND_SHADING_UP ? "FullUp" :
+                              action == LX_HOME_COMMAND_SHADING_DOWN ? "FullDown" : "stop";
+        snprintf(out, 96, "jdev/sps/io/%s/%s", target, command);
+        return true;
+    }
     if (action > LX_HOME_COMMAND_OFF) return false;
     if (!card || !lx_uuid_valid(card->control_uuid) || card->type == LX_HOME_CARD_VALUE ||
         (card->type == LX_HOME_CARD_PULSE) != (action == LX_HOME_COMMAND_PULSE))
@@ -157,6 +184,26 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
         const char *command = action == LX_HOME_COMMAND_PULSE ? "pulse" :
                               action == LX_HOME_COMMAND_ON ? "On" : "Off";
         snprintf(out, 96, "jdev/sps/io/%s/%s", action_target->valuestring, command);
+        return true;
+    }
+    return false;
+}
+
+bool lx_home_shading_position_build(const lx_home_config_t *config, const cJSON *catalog,
+                                    const char *card_id, unsigned percent, char out[96])
+{
+    if (!config || !card_id || !out || !cJSON_IsArray(catalog) || percent > 100 ||
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS)
+        return false;
+    for (unsigned i = 0; i < config->card_count; ++i)
+    {
+        const lx_home_card_t *card = &config->cards[i];
+        if (strcmp(card->id, card_id))
+            continue;
+        const char *target = home_shading_target(card, catalog, true);
+        if (!target)
+            return false;
+        snprintf(out, 96, "jdev/sps/io/%s/manualPosition/%u", target, percent);
         return true;
     }
     return false;

@@ -7,6 +7,7 @@ set(app_png_files
     "assets/png/flow_solar.png"
     "assets/png/grid_off.png"
     "assets/png/irc_thermostat.png"
+    "assets/png/shading_blinds.png"
     "assets/png/mail_box.png"
     "assets/png/header_home_leaf.png"
     "assets/png/metric_coins.png"

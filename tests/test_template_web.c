@@ -57,6 +57,14 @@ int main(int argc,char **argv){
  authorized=false;
  request("/api/templates/home-icon?id=thermostat-irc",NULL,0);assert(status==401&&chunk_bytes==0);
  authorized=true;
+ request("/api/templates/home-icon?id=blinds-shading",NULL,0);
+ assert(status==200&&chunk_bytes==
+        (size_t)(_binary_shading_blinds_png_end-_binary_shading_blinds_png_start));
+ assert(!memcmp(response,_binary_shading_blinds_png_start,chunk_bytes));
+ assert(!strcmp(cache_control,"private, no-cache"));
+ authorized=false;
+ request("/api/templates/home-icon?id=blinds-shading",NULL,0);assert(status==401&&chunk_bytes==0);
+ authorized=true;
  request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_light));
  request("/api/templates/preview?id=builtin&mode=dark",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_dark));
  authorized=false;request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==401);authorized=true;

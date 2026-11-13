@@ -113,6 +113,7 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_slave_presence_service
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_loxone_home.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_lighting.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_irc.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_shading.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_audio.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_distributed.py')], check=True)
