@@ -465,8 +465,10 @@ const LoxoneHome = (() => {
                 if (section === 'cards') {
                     footer.className = 'home-entry-actions';
                     const moves = create('div'); moves.className = 'home-entry-moves'; footer.append(moves);
-                    for (const [key, label, step] of [['up', '↑ Fel', -1], ['down', '↓ Le', 1]]) {
-                        const move = create('button', label); move.type = 'button'; move.className = 'secondary';
+                    for (const [key, label, step] of [['up', 'Fel', -1], ['down', 'Le', 1]]) {
+                        const move = create('button', step < 0 ? '↑' : '↓'), caption = create('span', label);
+                        caption.className = 'home-entry-move-label'; move.append(caption);
+                        move.type = 'button'; move.className = 'secondary';
                         move.id = domId(entry, 'move-' + key);
                         move.setAttribute('aria-label', (entry.name || 'Új kártya') + (step < 0 ? ' feljebb mozgatása' : ' lejjebb mozgatása'));
                         const index = activeCards().indexOf(entry);

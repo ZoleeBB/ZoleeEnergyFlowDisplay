@@ -139,9 +139,21 @@ async function homePreview(page, width, name) {
             assert.equal(await page.locator(prefix + 'move-up').isDisabled(), true);
             assert.equal(await page.locator(prefix + 'move-down').isDisabled(), true);
             const moveBounds = await page.locator(prefix + 'move-up').boundingBox();
+            const downBounds = await page.locator(prefix + 'move-down').boundingBox();
             const removeBounds = await page.locator(prefix + 'remove').boundingBox();
             assert(moveBounds.x < removeBounds.x);
             assert(Math.abs(moveBounds.y - removeBounds.y) < 2);
+            assert(Math.abs(downBounds.y - removeBounds.y) < 2);
+            for (const [name, button] of [['up', moveBounds], ['down', downBounds], ['remove', removeBounds]])
+                assert(button.width >= 44 && button.height >= 44, name + ': at least 44×44 px touch target');
+            assert(moveBounds.x + moveBounds.width < downBounds.x, 'Movement buttons must not overlap');
+            assert(downBounds.x + downBounds.width < removeBounds.x, 'Delete stays to the right of movement');
+            const footerBounds = await page.locator('#home-cards .home-entry-actions').boundingBox();
+            assert(Math.abs(moveBounds.x - footerBounds.x) < 2, 'Movement stays at the left edge');
+            assert(Math.abs(removeBounds.x + removeBounds.width - footerBounds.x - footerBounds.width) < 2,
+                'Delete stays at the right edge');
+            assert.equal(await page.locator(prefix + 'move-up').getAttribute('aria-label'), 'Nappali redőny feljebb mozgatása');
+            assert.equal(await page.locator(prefix + 'move-down').getAttribute('aria-label'), 'Nappali redőny lejjebb mozgatása');
             const bounds = await page.locator('#home-cards fieldset').boundingBox();
             assert(bounds.width > 0 && bounds.x >= 0 && bounds.x + bounds.width <= width);
             const text = await page.locator('#home-cards').textContent();
