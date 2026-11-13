@@ -2,6 +2,7 @@
  * kizárólag a meglévő Loxone-workerben futnak. A GUI csak rövid mutexelt
  * kéréseket ad át; egy oldal és egy részletes blokk élhet egyszerre. */
 #include "app_loxone_lighting_service.h"
+#include "app_loxone_lighting_cache.inc"
 
 typedef struct
 {
@@ -16,8 +17,7 @@ static unsigned s_light_next_handle, s_light_modal, s_light_modal_card, s_light_
 static unsigned s_light_send_cursor;
 static light_page_t *s_light_context;
 static lx_light_block_t *s_light_detail;
-static bool s_light_initial_ready, s_light_resync, s_light_detail_failed;
-static int64_t s_light_last_refresh;
+static bool s_light_initial_ready, s_light_detail_failed;
 
 static bool lighting_live_locked(void)
 {
@@ -50,17 +50,17 @@ static void lighting_page_free(light_page_t *page)
 }
 
 /* A hívó a kliensmutex tulajdonosa. Kapcsolatvesztéskor semmilyen elavult
- * parancs vagy ablakazonosító nem élheti túl a munkamenetet. */
+ * parancs, állapot vagy ablakazonosító nem élheti túl a munkamenetet. */
 static void lighting_invalidate_locked(void)
 {
     ++s_light_generation;
     s_light_modal = s_light_detail_handle = 0;
-    s_light_initial_ready = s_light_resync = s_light_detail_failed = false;
-    s_light_last_refresh = 0;
+    s_light_initial_ready = s_light_detail_failed = false;
     lighting_page_free(s_light_context);
     s_light_context = NULL;
     lx_light_block_free(s_light_detail);
     s_light_detail = NULL;
+    lighting_cache_clear();
 }
 
 void app_loxone_home_visible(int page)
@@ -78,7 +78,8 @@ void app_loxone_home_visible(int page)
         s_light_modal = 0;
         s_light_initial_ready = false;
         lx_light_block_cancel(s_light_detail);
-        /* A rejtett lap értékeit nem tekintjük frissnek újranyitáskor. */
+        /* A nézet újraépítésekor a worker a kapcsolat legutolsó nyers
+         * állapotaiból tölt. A rejtett oldalak modellje továbbra sem frissül. */
         memset(s_home_values.cards, 0, sizeof(s_home_values.cards));
         memset(s_home_values.command_supported, 0, sizeof(s_home_values.command_supported));
     }
@@ -214,8 +215,6 @@ static bool lighting_home_command_allowed_locked(const char *id)
     return summary.available && summary.controllable;
 }
 
-/* A kliensworker írja a katalógust és a konfigurációt, ezért ezeket a
- * felépítés alatt nem kell másolni vagy GUI-mutex alatt feldolgozni. */
 static light_page_t *lighting_page_create(int page, unsigned generation, unsigned revision)
 {
     if (page < 0)
@@ -249,6 +248,7 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
             continue;
         lx_light_block_t *block =
             lx_light_block_create(lx_light_catalog_find(s_catalog, card->control_uuid));
+        lighting_cache_replay_block(block);
         if (block && !lx_light_block_minimize(block))
         {
             lx_light_block_free(block);
@@ -261,6 +261,9 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
 
 static void lighting_reconcile(void)
 {
+    /* Csak a worker hívja; a nyers cache olvasója és írója ugyanaz a feladat.
+     * A GUI soha nem járja be a katalógust és nem foglal hozzá memóriát. */
+    lighting_cache_prepare();
     xSemaphoreTake(s_lock, portMAX_DELAY);
     unsigned generation = s_light_generation, revision = s_home_revision;
     int page = s_light_page;
@@ -289,7 +292,10 @@ static void lighting_reconcile(void)
             next = NULL;
             s_light_built_generation = generation;
             s_light_built_revision = revision;
-            s_light_resync = page >= 0 && s_light_context;
+            lighting_cache_replay_page(page);
+            /* Ez a nézet elkészültét jelzi, nem hamis állapot-nyugtát.
+             * A kör érvényessége és a jLocked ismerete továbbra is külön kapu. */
+            s_light_initial_ready = page >= 0 && s_light_context;
         }
         xSemaphoreGive(s_lock);
         lighting_page_free(next);
@@ -305,8 +311,7 @@ static void lighting_reconcile(void)
         old_detail = s_light_detail;
         s_light_detail = NULL;
         if (handle && lighting_current_locked() && s_light_modal_card < s_home->card_count)
-            snprintf(
-                control, sizeof(control), "%s", s_home->cards[s_light_modal_card].control_uuid);
+            snprintf(control, sizeof(control), "%s", s_home->cards[s_light_modal_card].control_uuid);
     }
     xSemaphoreGive(s_lock);
     lx_light_block_free(old_detail);
@@ -314,6 +319,7 @@ static void lighting_reconcile(void)
     {
         lx_light_block_t *next =
             control[0] ? lx_light_block_create(lx_light_catalog_find(s_catalog, control)) : NULL;
+        lighting_cache_replay_block(next);
         xSemaphoreTake(s_lock, portMAX_DELAY);
         if (handle == s_light_modal && generation == s_light_generation &&
             revision == s_home_revision && !s_dead)
@@ -323,11 +329,6 @@ static void lighting_reconcile(void)
             s_light_detail_handle = handle;
             s_light_detail_failed = handle && !s_light_detail;
             s_light_send_cursor = 0;
-            if (s_light_detail)
-            {
-                s_light_initial_ready = false;
-                s_light_resync = true;
-            }
         }
         xSemaphoreGive(s_lock);
         lx_light_block_free(next);
@@ -337,6 +338,9 @@ static void lighting_reconcile(void)
 static void lighting_event_locked(
     const char *uuid, bool numeric, double value, const char *text, size_t length, int64_t now)
 {
+    /* A kezdeti üres jLocked sem veszhet el az oldal megnyitása előtt.
+     * Rejtett oldalon csak szűrt nyers másolás van, JSON/model/UI-frissítés nincs. */
+    lighting_cache_store(uuid, numeric, value, text, length);
     if (!lighting_current_locked())
         return;
     for (unsigned i = 0; i < s_light_context->count; ++i)
@@ -359,6 +363,7 @@ static bool lighting_events_locked(int type, const uint8_t *data, size_t size)
         return true;
     if (!data && size)
         return false;
+    lighting_cache_prepare();
     int64_t now = esp_timer_get_time();
     size_t position = 0;
     while (position < size)
@@ -398,34 +403,8 @@ static bool lighting_events_locked(int type, const uint8_t *data, size_t size)
 static void lighting_poll(int64_t now)
 {
     lighting_reconcile();
-    now = esp_timer_get_time();
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool refresh = s_light_resync && lighting_current_locked() && lighting_live_locked() &&
-                   (!s_light_last_refresh || now - s_light_last_refresh >= 250000);
-    unsigned generation = s_light_generation;
-    if (refresh)
-    {
-        s_light_resync = false;
-        s_light_last_refresh = now;
-    }
-    xSemaphoreGive(s_lock);
-    if (refresh)
-    {
-        /* A protokoll közös állapotfolyamot ad, nem UUID-nkénti előfizetést.
-         * Új nézethez új kezdőállapotot kérünk, kapcsolatbontás nélkül;
-         * az érkező táblából kizárólag a szükséges adatokat tartjuk meg. */
-        cJSON *answer = reply("jdev/sps/enablebinstatusupdate", false);
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (generation == s_light_generation)
-        {
-            s_light_initial_ready = answer != NULL && !s_dead;
-            if (!answer)
-                s_light_detail_failed = true;
-        }
-        xSemaphoreGive(s_lock);
-        cJSON_Delete(answer);
-    }
-
+    /* Az enablebinstatusupdate kizárólag a kapcsolat indulásához tartozik.
+     * Lap-/ablaknyitásra nem küldjük újra és nem bontjuk a közös kapcsolatot. */
     char command[LX_LIGHT_COMMAND_SIZE] = "";
     unsigned handle = 0;
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -438,7 +417,6 @@ static void lighting_poll(int64_t now)
         {
             unsigned index = (s_light_send_cursor + step) % count;
             lx_light_circuit_t *circuit = &s_light_detail->circuits[index];
-            /* Hosszú hálózati várakozás után nem játsszuk vissza az elavult húzást. */
             if (circuit->dirty && now > circuit->pending_until_us)
                 circuit->dirty = circuit->pending = false;
             if (lx_light_take(s_light_detail, index, now, command))
@@ -452,8 +430,6 @@ static void lighting_poll(int64_t now)
     xSemaphoreGive(s_lock);
     if (!handle)
         return;
-    /* A meglévő soros kérés/válasz út megőrzi az ACK-k sorrendjét.
-     * A nyugta önmagában nem helyettesíti a bináris állapot-visszajelzést. */
     cJSON *answer = reply(command, true);
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (!answer && handle == s_light_modal)
