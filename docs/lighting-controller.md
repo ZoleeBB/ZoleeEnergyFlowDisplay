@@ -8,6 +8,27 @@ A `/loxone` weboldalon kérd le a Loxone adatlistáját, majd az Otthon-kártyá
 
 A körök neve, típusa, parancscíme, visszajelzése és fehérfény-tartománya a Loxone struktúrájából jön. A sorrend a struktúra `subControls` sorrendje; nincs saját rendezés vagy elrejtési lista. A gyártói `masterValue`/`masterColor` összesített segédvezérlők nem külön fizikai körök. Az ismeretlen típusú valódi körök is megjelennek, de vezérlésük tiltott. A körök hozzáadása/törlése a következő sikeres struktúralekéréskor érvényesül; a struktúrát nem kérjük le minden érintéskor. A visszajelzett `circuitNames` névváltozások nyitott ablakban is frissülnek.
 
+## Statikus előnézetek
+
+Az alábbi öt, 1280×800 képpontos PNG a firmware tényleges LVGL-felületének
+RGB565 tesztrenderéből készült, szintetikus Loxone-adatokkal. Nem külön
+látványtervek és nem fizikai kijelzőfotók. A képek verziókezeltek, nem lejáró
+Actions-artifactra hivatkoznak; nem futásidejű vagy SD-s erőforrások.
+
+| Otthon-kártya | Kapcsolók és dimmerek |
+| --- | --- |
+| ![Világításvezérlő kártya az Otthon-oldalon](images/lighting/lighting-cards-day.png) | ![Görgethető világítási körlista kapcsolókkal és dimmerekkel](images/lighting/lighting-circuits-day.png) |
+
+| Színes mód nappal | Színes mód éjjel |
+| --- | --- |
+| ![RGB/RGBW színtárcsa és fényerő nappali módban](images/lighting/lighting-color-day.png) | ![RGB/RGBW színtárcsa és fényerő éjszakai módban](images/lighting/lighting-color-night.png) |
+
+**Fehérfény mód – színhőmérséklet és fényerő:**
+
+![Fehérfény-szabályozás Kelvin- és fényerőcsúszkával](images/lighting/lighting-white-day.png)
+
+[Képek eredete és frissítése](images/lighting/README.md).
+
 ## Kis kártya
 
 A méret változatlan: 292×200 képpont, a meglévő 12 kártyás oldalelrendezésben. Az ikon nyitja a részletes kezelőt. Alul `− / Ki / +` gombok vannak; a kártya nem nő dupla szélességűre.
@@ -80,6 +101,36 @@ A `tests/test_loxone_home_web.js` a valódi szerkesztő JavaScriptjével ellenő
 
 A natív `tests/preview` cél `ZOLEE_LIGHTING_ONLY=1` módban a firmware tényleges LVGL-kódját futtatja 32 bites és RGB565 kijelzővel: kártyafeliratok/gombok, modal-geometria, kapcsoló/csúszka/tárcsa, érintés alatti szinkron, egyetlen picker, háttérérintés, 64 kör mellett nyolc sor, kapcsolatvesztés, ismételt megnyitás/bezárás és változatlan állapotban nulla felesleges invalidálás. Képei szintetikus Loxone-adatokkal készülnek, nem fizikai panelről.
 
-A teljes regresszió, Windows szimulátorok és mindkét ESP-IDF firmware eredménye a PR utolsó commitjának CI-ellenőrzéseiben követhető. A 2026-11-13-i készülékes hibajelzés igazolta, hogy a régi kezdőállapot-kezelés nem volt megfelelő. **A javított verzió fizikai paneles/Miniserveres eredménye még nem igazolt.** Próba: telefonos beavatkozás nélküli első nyitás, −/Ki/+, dimmer/RGBW vezérlés, zárt nézet közbeni külső változás utáni újranyitás, zárolás és újracsatlakozás. A RAM/DMA/FPS-tartalékot, több nagy blokkot, kaputelefont és tartós járatást is mérni kell.
+A teljes regresszió, a Windows szimulátorok és mindkét ESP-IDF firmware
+fordítása/csomagolása sikeres volt a javítást ellenőrző
+[Actions #168](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/43391155102)
+futásban. A forráscommit `d965a6b`, a tesztelt PR-merge commit `bbce050`.
+Az aktuális PR-fej eredményét mindig a hozzá tartozó CI-ellenőrzések mutatják.
+
+A `ui-preview` job továbbra is futtatja a valódi LVGL-világítási próbákat
+32 bites és RGB565 módban, ASan/leak ellenőrzéssel. Csak a külön képartifact
+feltöltése szűnt meg: a helyi PPM-ek tesztkimenetek maradnak, az itt bemutatott
+PNG-k statikus dokumentációs fájlok. A workflow-teszt a négy megmaradó
+build-artifactot, a világítási renderpróbák megtartását és az öt dokumentációs
+kép meglétét, felbontását és hivatkozásait is ellenőrzi.
+
+## Készülékes visszaellenőrzés – 2026-11-13
+
+A korábbi verzió készülékes próbáján első nyitáskor „Nincs adat” jelent meg;
+telefonos világításikép-váltás után az értékek megérkeztek, de a kijelzőről
+indított vezérlés visszaállt, fizikai változás nélkül. A `d965a6b` javítás
+a kezdeti értékek és az üres zárolásállapot elvesztését szüntette meg.
+
+**A javítás utáni felhasználói visszajelzés: „Most működik minden.”**
+A saját kijelzővel és Miniserverrel végzett funkcionális próbán a korábban
+jelzett kezdőállapot- és vezérlési hibát a felhasználó javítottnak igazolta
+vissza. A fejlesztés dokumentációja ennek megfelelően lezárásra előkészített;
+a PR összevonása és a kiadás külön művelet.
+
+Ez a visszajelzés nem számszerű RAM-/DMA-/FPS- vagy teljes taskveremmérés,
+nem bizonyítja minden Miniserver-/aktorváltozat kompatibilitását, és nem
+helyettesít maximális körszámú vagy hosszan tartó terhelési próbát.
+A [veremellenőrzési jegyzet](lighting-stack-validation.md) ezeket a mérési
+korlátokat külön kezeli.
 
 Forrás: [Loxone API](https://www.loxone.com/enen/kb/api/), Structure File v17 (2026-03-31), 16–17. oldal, LightControllerV2 és ColorPickerV2; Communicating with the Miniserver v17, 17. oldal, kezdeti állapottáblák és változásküldés.

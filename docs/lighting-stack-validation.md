@@ -12,7 +12,9 @@ fordítás önmagában nem bizonyít elegendő tartalékot.
 
 A világítás javítása nem módosít taskméretet, RTC-/PSRAM-veremelhelyezést,
 DMA-tartalékot vagy a meglévő `-Werror=frame-larger-than=8192` korlátot.
-Nincs új task, közös statikus munkapuffer vagy új futásidejű heapfoglalás.
+A cím-/veremjavítás önmagában nem vezet be új taskot, közös statikus
+munkapuffert vagy új futásidejű heapfoglalást. Az utólagos kezdőállapot-javítás
+PSRAM-állapottára ettől külön változás; részletei alább szerepelnek.
 A `loxone` worker 12 288 bájtos verme változatlan marad. A JSON-mélység
 előzetes nyolcszintes korlátozása és a 32 KiB-os szöveghatár is megmarad.
 
@@ -71,6 +73,26 @@ veremhelyét is magában foglalja. Mindkettőre ugyanaz az 1536 bájtos korlát
 `tests/test_lighting_stack.py` próbái védik, a határ +1 bájtos
 átlépésével és a hiányzó adat próbájával együtt.
 Forrás: [GCC – Developer Options, fstack-usage](https://gcc.sourceware.org/onlinedocs/gcc/Developer-Options.html).
+
+## A kezdőállapot-javítás PSRAM-állapottára
+
+A `d965a6b` javítás a konfigurált Otthon-kártyákhoz szükséges nyers állapotot
+rejtett nézetnél is megőrzi. A tábla 16 bejegyzéstől nő, legfeljebb 512 külön
+UUID-ig; a szövegek közös foglalási kerete 64 KiB, egy állapoté legfeljebb
+32 KiB. A 64 KiB nem a tábla és a modellek teljes memóriaigénye.
+A tartós tábla és a szövegek kizárólag PSRAM-ból foglalódnak, belső/DMA-heapre
+visszaesés nélkül. Tárolási hibánál az adott korábbi érték érvénytelenedik;
+régi feloldott zárolás nem maradhat érvényben. Nincs új task vagy verembővítés.
+
+A `lighting_cache_*` függvényekre is érvényes a célfordítás 1536 bájtos helyi
+keretkorlátja. Az Actions #168 ezt mindkét firmware sikeres buildjével együtt
+ellenőrizte. A nyers tár működését, korlátját és az újracsatlakozáskori törlést
+a valódi kliens protokolltesztje is vizsgálja.
+[Működés, korlátok és készülékes visszaellenőrzés](lighting-controller.md).
+
+A 2026-11-13-i felhasználói visszajelzés a javított funkció működését
+megerősítette. Ez nem mért taskverem-, DMA- vagy FPS-eredmény; ilyen számot
+a készülékes visszajelzés nem tartalmazott.
 
 ## Amit ez nem bizonyít
 

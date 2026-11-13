@@ -13,9 +13,18 @@ A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [L
 
 **Loxone világításvezérlő kártyák:** automatikusan felismert világítási blokkok,
 kompakt `− / Ki / +` gombok, aktív világításikép-név és külön kapcsoló-, dimmer-,
-RGB/RGBW-kezelő. Csak a megnyitott Otthon-oldal kártyaállapotait dolgozza fel;
-a részletes, görgethető ablak egyetlen színválasztót és legfeljebb nyolc élő
-körsort tart memóriában. [Beállítás, működés és korlátok](docs/lighting-controller.md).
+RGB/RGBW-kezelő. Feldolgozott kártyamodell csak a megnyitott Otthon-oldalhoz
+készül; a konfigurált kártyák utolsó nyers állapotait a kapcsolat idejére
+megőrzi, így első megnyitáskor sem kell telefonról változtatni a világítást.
+A részletes, görgethető ablak egyetlen színválasztót és legfeljebb nyolc élő
+körsort tart memóriában. [Beállítás, működés és készülékes visszaellenőrzés](docs/lighting-controller.md).
+
+| Világításvezérlő Otthon-kártya | RGB/RGBW-kezelő |
+| --- | --- |
+| ![Világításvezérlő kártya nappali módban](docs/images/lighting/lighting-cards-day.png) | ![Lenyitott színes világításkezelő nappali módban](docs/images/lighting/lighting-color-day.png) |
+
+A képek a tényleges LVGL-felület szintetikus adatokkal készült, statikus
+előnézetei, nem készülékfotók. [Mind az öt előnézet, éjszakai és fehérfény-kezeléssel](docs/lighting-controller.md#statikus-előnézetek).
 
 
 Loxone módban opcionális [relatív páratartalom](docs/relative-humidity.md) párosítható,
@@ -75,7 +84,7 @@ A Nap pálya érvényes `SunPosition` esetén lapozható. SD-vel a témák weben
 
 - **Energiaáramlás és statisztika:** élő teljesítmények, animált energiautak, napi/heti/havi adatok, pénzügyi mutatók és akkumulátordiagnosztika.
 - **Adatfogadás:** MQTT, HTTP POST, közvetlen Loxone vagy Bluetooth Slave; világos/sötét megjelenés a `NightMode` szerint.
-- **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák, energiaasszisztens, jelenlét és postaláda-jelzés. Rövid, legfeljebb 10 másodperces adatkapcsolati kimaradáskor a már megjelenített energianézet/Otthon-oldal figyelmeztetés nélkül, változatlan adatokkal marad látható; a vezérlés ilyenkor nem aktív. [Loxone kapcsolat és türelmi idő](docs/loxone-direct.md#kapcsolat-és-hibák).
+- **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor-, állapot- és világításvezérlő-kártyák, energiaasszisztens, jelenlét és postaláda-jelzés. Rövid, legfeljebb 10 másodperces adatkapcsolati kimaradáskor a már megjelenített energianézet/Otthon-oldal figyelmeztetés nélkül, változatlan adatokkal marad látható; a vezérlés ilyenkor nem aktív. [Loxone kapcsolat és türelmi idő](docs/loxone-direct.md#kapcsolat-és-hibák).
 - **Elektromos autó:** nappali/éjszakai házjelenet, összegzett töltési teljesítmény, mai töltési energia és becsült közvetlen napelemes arány. Töltő konfigurálása nélkül is választható, rejtett autós adatokkal. [Beállítás](docs/electric-car.md).
 - **Kaputelefon:** MJPEG-kép, kétirányú hang, kapunyitás, csengőhangok és párosított 4B kijelzők központi híváskezelése. Csengetés után a médiafeladatok leállása megelőzi a háttértéma visszatöltését; elhúzódó betöltésnél korlátozott újrapróbálás és biztonságos tartalék nézet áll rendelkezésre. [Kaputelefon útmutató](docs/intercom.md) · [Helyreállítás és korlátok](docs/intercom.md#kaputelefon-utáni-témahelyreállítás).
 - **Karbantartás:** webes konfiguráció, mentés/visszaállítás, OTA, gyári témák GitHub-frissítése és részletes diagnosztika.

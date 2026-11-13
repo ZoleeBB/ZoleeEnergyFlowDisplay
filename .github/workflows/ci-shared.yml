@@ -133,16 +133,8 @@ jobs:
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ZOLEE_PREVIEW_FULL_REFRESH=1 ../.preview-build/ui_preview
 
-      - name: Preserve actual lighting UI renders
-        uses: actions/upload-artifact@v4
-        with:
-          name: zolee-lighting-previews-${{ inputs.source_sha }}
-          retention-days: 7
-          overwrite: true
-          # Csak a saját renderelt képek, nem a teljes rejtett munkakönyvtár.
-          include-hidden-files: true
-          path: .preview-images/lighting-*.ppm
-          if-no-files-found: error
+      # A render- és memóriatesztek megmaradnak; az előnézetek statikus
+      # dokumentációs PNG-k, nem külön Actions-artifactok.
 
   template-packages:
     name: Sablonok | 9 téma és Loxone-erőforrások

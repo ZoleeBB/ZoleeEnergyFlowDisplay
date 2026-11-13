@@ -131,7 +131,7 @@ Forrás: [Communicating with the Miniserver v17](https://www.loxone.com/enen/kb/
 - Valódi AES-GCM és fájlrendszeres eszközkulcs-/rongálás-/mentéshiba-tesztek: sikeresek.
 - Valódi LVGL render mind a 18 témaváltozattal, külön Loxone beállító,
   kapcsolódási és kapcsolathiba-képernyő, automatikus visszatérés: sikeres.
-- Valódi Miniserver és fizikai panel: még nincs ellenőrizve.
+- Valódi Miniserver és fizikai panel: a 2026-10-17-i ellenőrzés idején még nem volt visszaigazolva. A világításvezérlés későbbi, 2026-11-13-i felhasználói próbája az alábbi világítási fejezetben szerepel; ez nem helyettesíti az összes kapcsolat- és terhelési eset mérését.
 
 
 ## Jelenlét és postaláda a Master kijelzőn
@@ -225,10 +225,26 @@ A Világításvezérlő kártyához csak a `LightControllerV2` szülőblokkot ke
 kiválasztani. A külön körök, a színkezelés és a zárolások automatikusan a
 struktúrából érkeznek. [Használat és memóriahatárok](lighting-controller.md).
 
-Az Otthon-kártyák értéktára csak a ténylegesen látható oldalhoz frissül.
-Oldalnyitás és részletes blokk megnyitása közös bináris kezdőállapot-kérést
-indít a meglévő kapcsolaton. Ez helyi feldolgozási/tárolási szűrés, nem
-szerveroldali UUID-előfizetés. Az energia-, fogyasztó-, jelenlét-, postaláda-,
-kaputelefon- és Slave-adatok szükséges háttérkövetése változatlan.
+A feldolgozott kártyaértékek és világítási modellek csak a ténylegesen látható
+Otthon-oldalhoz frissülnek. A konfigurált kártyákhoz szükséges utolsó nyers
+numerikus és szöveges állapotot viszont a kapcsolat kezdetétől, rejtett nézetnél
+is megőrizzük. Az oldal és a részletes blokk ebből épül fel: megnyitásuk nem
+küld ismételt `enablebinstatusupdate` parancsot és nem bontja a WebSocketet.
+A kezdeti, üres `jLocked` ismert feloldott állapot; a még nem fogadott,
+hibás vagy valóban aktív zárolás továbbra sem enged vezérlést.
+
+A szűrt nyers tár legfeljebb 512 külön UUID-t tartalmaz; a szövegek közös
+kerete 64 KiB, állapotonként legfeljebb 32 KiB. A tartós tárolás PSRAM-ból
+foglalódik, belső/DMA-heapre visszaesés nélkül. Rejtett oldalon nincs részletes
+világítási modell vagy UI-frissítés. Ez helyi feldolgozási/tárolási szűrés,
+nem szerveroldali UUID-előfizetés és nem a teljes Miniserver állapotmásolata.
+Az energia-, fogyasztó-, jelenlét-, postaláda-, kaputelefon- és Slave-adatok
+szükséges háttérkövetése változatlan.
+
 Kapcsolatvesztéskor a világítási ablak a türelmi idő előtt bezáródik,
-a függő világítási parancsok nem játszódnak vissza.
+a nyers tár érvénytelenedik, a függő világítási parancsok nem játszódnak vissza.
+A 2026-11-13-i felhasználói visszajelzés a javítás utáni működést a saját
+kijelzőn és Miniserveren megerősítette. A korábbi kezdőállapot- és helyi
+vezérlési hibát ezzel visszaellenőrzöttként tartjuk nyilván; ez nem RAM-,
+DMA-, FPS- vagy tartósterhelési mérés.
+[Statikus előnézetek és részletes ellenőrzési jegyzet](lighting-controller.md).
