@@ -65,6 +65,28 @@ felirat alatt a friss PowerFull értéket mutatja, W/kW formázással. Hiányzó
 elavult vagy megszakadt adatkapcsolatnál „Nincs adat” látszik. Az egyedi
 fogyasztók hiányzó értékei nem helyettesítik a teljes ház mérését.
 
+### Otthon-oldalak fülei
+
+Az Otthon-kártyák szerkesztőjében minden oldal külön fülön választható.
+A fül az oldal nevét és a kártyák számát mutatja; az aktív panelen található
+az oldalnév, az **Oldal előrébb / Oldal hátrébb** rendezés, az oldal és
+kártyáinak törlése, valamint a kártyák szerkesztője. Az oldalnév gépelés
+közben frissíti a fül feliratát, a mező és a kurzor megmarad.
+
+Az utolsó **+** fül új oldalt hoz létre, azt rögtön kiválasztja, és a
+névmezőre helyezi a fókuszt. Nyolc oldalnál a hozzáadás eltűnik, törlés után
+ismét elérhető. Üres Otthonnál a + gomb indítja az első oldal létrehozását.
+A kártyánkénti típusválasztás és fel/le mozgatás az aktuális oldalon működik;
+az oldalátrendezés a teljes oldalt mozgatja a kártyáival együtt.
+
+Mobilon a fülsáv oldalra görgethető, az aktív fül kiválasztáskor látható
+területre kerül. A füleken a bal/jobb nyíl, valamint a Home/End billentyű
+is oldalt vált. Oldalváltás és rendezés megtartja a nem mentett mezőket.
+Az **Otthon-beállítások mentése** valamennyi oldal módosítását menti;
+a fülváltás önmagában nem ment. A mentés és a tartós írásra várakozás
+közben a fülek és a szerkesztő zároltak, a háttérfrissítés továbbra sem
+írja felül a helyi módosításokat.
+
 ## Formátum
 
 A [letölthető mintaprofil](../examples/loxone-home.sample.json) a valódi

@@ -60,6 +60,11 @@ catalog.push(...advancedTypes.map(([controls_type, type], index) => ({
     gate_animation:controls_type === 'gate' ? 3 : undefined,
 })));
 const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(icon => [icon.id, 'assets/loxone-home/' + icon.file]));
+async function homePreview(page, width, name) {
+    if (!process.env.ZOLEE_HOME_WEB_PREVIEWS) return;
+    fs.mkdirSync(process.env.ZOLEE_HOME_WEB_PREVIEWS, {recursive:true});
+    await page.locator('#cards-section').screenshot({path:path.join(process.env.ZOLEE_HOME_WEB_PREVIEWS, `${name}-${width}.png`)});
+}
 (async () => {
     const browser = await chromium.launch({headless:true,
         ...(process.env.CHROMIUM_EXECUTABLE ? {executablePath:process.env.CHROMIUM_EXECUTABLE} : {})});
@@ -67,6 +72,7 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
         for (const width of [390, 1280]) {
             const context = await browser.newContext({viewport:{width, height:900}});
             const posts = [], errors = [], images = [];
+            let holdSave = false;
             let home = {schema:2, revision:1, busy:false, consumers:[], resources_installed:true, resources_version:4, intercom:{}, pages:[
                 {id:'floor', title:'Földszint', cards:[{id:'shutter', name:'Nappali redőny', type:'shading', icon:'lamp',
                     control_uuid:blind, source:{uuid:'invalid', scale:0, offset:null}, unit:'bad', decimals:99,
@@ -84,7 +90,8 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
                         const value = route.request().postDataJSON();
                         assert.equal(route.request().headers()['x-zolee-loxone'], '1');
                         posts.push(value);
-                        home = {...home, ...structuredClone(value), revision:home.revision + 1, status:'Elmentve.'};
+                        home = {...home, ...structuredClone(value), busy:holdSave,
+                            revision:home.revision + (holdSave ? 0 : 1), status:holdSave ? 'Mentés folyamatban.' : 'Elmentve.'};
                         body = {accepted:true};
                     } else body = home;
                 } else if (url.pathname === '/api/loxone/slaves') {
@@ -110,6 +117,13 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
                 return preview?.complete && preview.naturalWidth === 96 && preview.naturalHeight === 96;
             });
             assert.equal(await page.locator('#home-resource-warning').isVisible(), false);
+            assert.equal(await page.locator('#home-page-select').count(), 0);
+            assert.equal(await page.getByRole('tab').count(), 2);
+            assert.equal(await page.locator('#home-page-tab-floor').getAttribute('aria-selected'), 'true');
+            assert.equal(await page.getByRole('tabpanel').getAttribute('aria-labelledby'), 'home-page-tab-floor');
+            assert.equal(await page.locator('#home-page-strip').evaluate(node=>node.lastElementChild.id), 'home-add-page');
+            assert.equal(await page.locator('#home-page-panel #home-page-title').count(), 1);
+            assert.equal(await page.locator('#home-page-panel #home-cards').count(), 1);
             assert.equal(await page.locator(prefix + 'icon-preview').isVisible(), true);
             assert.equal(await page.locator(prefix + 'icon-preview').getAttribute('alt'), 'Redőnyvezérlő előnézete');
             assert.equal(await page.locator(prefix + 'type').inputValue(), 'shading');
@@ -139,6 +153,7 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
                 fs.mkdirSync(process.env.ZOLEE_SHADING_WEB_PREVIEWS, {recursive:true});
                 await page.locator('#home-cards fieldset').screenshot({path:path.join(process.env.ZOLEE_SHADING_WEB_PREVIEWS, `shading-editor-${width}.png`)});
             }
+            await homePreview(page, width, 'home-editor');
             await page.locator('#home-save').click();
             await page.waitForFunction(() => document.querySelector('#home-status').textContent.includes('Elmentve'));
             assert.equal(posts.length, 1);
@@ -181,7 +196,7 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
             assert.equal(posts.length, 2);
             assert.equal(posts[1].pages[0].cards[0].control_uuid, central);
             assert.equal(posts[1].pages[0].cards[0].icon, 'blinds-shading');
-            await page.locator('#home-page-select').selectOption('upper');
+            await page.locator('#home-page-tab-upper').click();
             assert.equal(await page.locator('#home-cards-central-icon').count(), 0);
             assert.equal(await page.locator('#home-cards-central-icon-preview').getAttribute('src'), '/api/templates/home-icon?id=blinds-shading&v=4');
             await page.locator('#home-cards-central-type').selectOption('value');
@@ -202,7 +217,7 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
             assert.deepEqual(posts.at(-1).pages[1].cards.map(card=>card.id), ['imported', 'central']);
             assert.equal(posts.at(-1).pages[1].cards[1].name, 'Még nem mentett cím');
             await page.reload();
-            await page.locator('#home-page-select').selectOption('upper');
+            await page.locator('#home-page-tab-upper').click();
             assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes=>boxes.map(box=>box.id)),
                 ['home-cards-imported-editor', 'home-cards-central-editor']);
             assert.equal(await page.locator('#home-cards-central-name').inputValue(), 'Még nem mentett cím');
@@ -295,15 +310,134 @@ const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog
                 '/api/templates/home-icon?id=gate-double&v=4');
             for (const [index, [type]] of advancedTypes.entries())
                 assert.equal(await page.locator('#home-cards-block-' + type + '-control_uuid').inputValue(), advancedId(index));
-            await page.locator('#home-page-select').selectOption('upper');
+            await page.locator('#home-page-tab-upper').click();
             assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes => boxes.map(box => box.id)),
                 ['home-cards-imported-editor', 'home-cards-central-editor']);
             assert.equal(await page.locator('#home-cards-central-name').inputValue(), 'Még nem mentett cím');
+
+            /* A kiadott tabos oldalkezelő határhelyzetei valódi DOM-mal. */
+            home = {...home, revision:home.revision + 1, pages:[
+                {id:'tabs-floor', title:'Földszint', cards:[{id:'tabs-card', name:'Olvasólámpa', type:'dimmer',
+                    icon:'dimmer', control_uuid:advancedId(0)}]},
+                {id:'tabs-upper', title:'Emelet – hálószobák és hosszú közlekedő', cards:[]},
+            ]};
+            await page.reload();
+            const firstTab = '#home-page-tab-tabs-floor', secondTab = '#home-page-tab-tabs-upper';
+            const activeTab = '#home-page-tabs [aria-selected="true"]';
+            const title = page.locator('#home-page-title');
+            await title.fill('Földszint ');
+            await title.evaluate(node=>{
+                window.homeTitleProbe=node;
+                window.homeCardProbe=document.querySelector('#home-cards-tabs-card-editor');
+            });
+            await page.keyboard.type('– nappali, étkező és konyha');
+            const longName = 'Földszint – nappali, étkező és konyha';
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator(firstTab + ' .home-page-tab-name').textContent(), longName);
+            assert.equal(await page.evaluate(()=>document.activeElement===window.homeTitleProbe &&
+                document.querySelector('#home-page-title')===window.homeTitleProbe &&
+                document.querySelector('#home-cards-tabs-card-editor')===window.homeCardProbe), true);
+            assert.equal(await title.evaluate(node=>node.selectionStart), longName.length);
+            await title.fill('Kert <b>nyári fények</b>');
+            assert.equal(await page.locator(firstTab + ' b').count(), 0);
+            assert.equal(await page.locator(firstTab + ' .home-page-tab-name').textContent(), 'Kert <b>nyári fények</b>');
+            await title.fill(longName);
+            await page.locator('#home-cards-tabs-card-name').fill('Még nem mentett olvasólámpa');
+            await page.locator(secondTab).click();
+            assert.equal(await page.locator('#home-cards>fieldset').count(), 0);
+            await page.locator(secondTab).press('Home');
+            assert.equal(await page.evaluate(()=>document.activeElement.id), firstTab.slice(1));
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+            await page.locator(firstTab).press('ArrowLeft');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), secondTab.slice(1));
+            await page.locator(secondTab).press('ArrowRight');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await page.locator('#home-page-tabs [tabindex="0"]').count(), 1);
+            await page.locator('#home-page-down').click();
+            assert.deepEqual(await page.getByRole('tab').evaluateAll(nodes=>nodes.map(node=>node.id)),
+                [secondTab.slice(1), firstTab.slice(1)]);
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-up');
+            await page.locator('#home-page-up').click();
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-down');
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+
+            holdSave = true;
+            const heldPost = page.waitForResponse(response=>new URL(response.url()).pathname==='/api/loxone/home' &&
+                response.request().method()==='POST');
+            await page.locator('#home-save').click();
+            assert.equal((await (await heldPost).json()).accepted, true);
+            assert.equal(await page.getByRole('tab').evaluateAll(nodes=>nodes.every(node=>node.disabled)), true);
+            for (const id of ['home-add-page', 'home-page-title', 'home-remove-page', 'home-page-down'])
+                assert.equal(await page.locator('#' + id).isDisabled(), true);
+            await page.locator(secondTab).dispatchEvent('click');
+            await page.locator(firstTab).dispatchEvent('keydown', {key:'End'});
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            holdSave = false;
+            home = {...home, busy:false, revision:home.revision + 1, status:'Elmentve.'};
+            await page.waitForFunction(()=>!document.querySelector('#home-save').disabled);
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+
+            for (let count = 3; count <= 8; ++count) {
+                await page.locator('#home-add-page').click();
+                assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-title');
+                const name = `${count}. oldal – hosszú helyiségnév és további részletek`;
+                assert(Buffer.byteLength(name, 'utf8') <= 80);
+                await title.fill(name);
+                assert.equal(await page.getByRole('tab').count(), count);
+                assert.equal(await page.locator(activeTab + ' .home-page-tab-name').textContent(), name);
+                assert.equal(await page.locator('#home-page-strip').evaluate(node=>node.lastElementChild.id), 'home-add-page');
+            }
+            assert.equal(await page.locator('#home-add-page').isVisible(), false);
+            const geometry = await page.locator('#home-page-strip').evaluate(node=>({
+                inner:node.clientWidth, content:node.scrollWidth, document:document.documentElement.scrollWidth,
+                viewport:innerWidth,
+            }));
+            assert(geometry.content > geometry.inner, 'Long page names scroll inside the tab strip');
+            assert(geometry.document <= geometry.viewport + 1, 'The page must not overflow horizontally');
+            await page.locator(activeTab).focus();
+            await page.locator(activeTab).press('Home');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+            await page.locator(firstTab).press('End');
+            assert.equal(await page.locator(activeTab).evaluate(node=>{
+                const tab=node.getBoundingClientRect(), strip=document.querySelector('#home-page-strip').getBoundingClientRect();
+                return tab.left>=strip.left-1 && tab.right<=strip.right+1;
+            }), true);
+            assert(await page.locator('#home-page-strip').evaluate(node=>node.scrollLeft) > 0);
+            await page.locator(activeTab).press('Tab');
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-title');
+            await page.locator('#home-save').click();
+            await page.waitForFunction(()=>document.querySelector('#home-status').textContent.includes('Elmentve'));
+            const tabSaved = structuredClone(posts.at(-1).pages);
+            assert.equal(tabSaved.length, 8);
+            assert.equal(tabSaved[0].cards[0].name, 'Még nem mentett olvasólámpa');
+            await page.reload();
+            await page.locator(firstTab).waitFor();
+            assert.deepEqual(await page.getByRole('tab').evaluateAll(nodes=>nodes.map(node=>node.id)),
+                tabSaved.map(item=>'home-page-tab-' + item.id));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator('#home-add-page').isVisible(), false);
+            await homePreview(page, width, 'home-editor-eight-tabs');
+            await page.locator('#home-remove-page').click();
+            assert.equal(await page.getByRole('tab').count(), 7);
+            assert.equal(await page.locator('#home-add-page').isVisible(), true);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), secondTab.slice(1));
+            while (await page.getByRole('tab').count()) await page.locator('#home-remove-page').click();
+            assert.equal(await page.getByRole('tabpanel').count(), 0);
+            assert.equal(await page.locator('#home-pages-empty').isVisible(), true);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-add-page');
+            await page.locator('#home-add-page').click();
+            assert.equal(await page.getByRole('tab').count(), 1);
+            assert.equal(await page.locator('#home-page-up').isDisabled(), true);
+            assert.equal(await page.locator('#home-page-down').isDisabled(), true);
             assert.deepEqual(errors, []);
             await context.close();
         }
     } finally {
         await browser.close();
     }
-    console.log('PASS: actual C-embedded editor, desktop/mobile, shading and eight typed blocks, SD icons, type-first DOM, arrow geometry, custom name/icon and permanent-mode retention, per-page ordering, minimal save and reload');
+    console.log('PASS: actual C-embedded editor, desktop/mobile, typed blocks and SD icons, type-first DOM, tab rename/keyboard/focus/scroll, 0/1/8 pages, held save, unsaved card and page ordering, minimal save and reload');
 })().catch(error => {console.error(error); process.exitCode = 1;});

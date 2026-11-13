@@ -60,6 +60,7 @@ const LoxoneHome = (() => {
         get('home-add-consumer').disabled = busy() || model.consumers.length >= 12;
         get('home-add-card').disabled = busy() || !model.pages.length || activeCards().length >= 12;
         get('home-add-page').disabled = busy() || model.pages.length >= 8;
+        get('home-add-page').hidden = model.pages.length >= 8;
     }
     function field(parent, title, entry, key, type = 'text', optional = false) {
         const label = create('label', title), input = create('input');
@@ -181,26 +182,66 @@ const LoxoneHome = (() => {
         }
         if (entry.type === 'switch') scale.homeFixed = true;
     }
+    const pageTabId = page => 'home-page-tab-' + page.id;
+    function updatePageTab(page) {
+        const tab = get(pageTabId(page)), title = page.title.trim() || 'Új oldal';
+        tab.children[0].textContent = title;
+        tab.title = title;
+        tab.setAttribute('aria-label', title + ' · ' + page.cards.length + '/12 kártya');
+    }
+    function revealPageTab(page, focus = false) {
+        const tab = page && get(pageTabId(page));
+        if (!tab) return;
+        if (focus) restoreFocus(tab.id);
+        tab.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    }
+    function activatePage(id) {
+        if (busy()) return;
+        const next = model.pages.findIndex(page => page.id === id);
+        if (next < 0) return;
+        if (selectedPage !== next) { selectedPage = next; render(); }
+        revealPageTab(model.pages[next], true);
+    }
     function renderPages() {
-        const target = get('home-pages'); target.replaceChildren();
-        if (!model.pages.length) {
-            target.append(create('p', 'Először adj hozzá egy Otthon-oldalt, majd azon kártyákat.'));
-            return;
-        }
-        selectedPage = Math.min(selectedPage, model.pages.length - 1);
+        const target = get('home-pages'), tabs = get('home-page-tabs'), panel = get('home-page-panel');
+        target.replaceChildren(); tabs.replaceChildren();
+        tabs.hidden = panel.hidden = !model.pages.length;
+        get('home-pages-empty').hidden = !!model.pages.length;
+        if (!model.pages.length) { panel.removeAttribute('aria-labelledby'); return; }
+        selectedPage = Math.max(0, Math.min(selectedPage, model.pages.length - 1));
         const page = model.pages[selectedPage];
+        for (const [index, item] of model.pages.entries()) {
+            const tab = create('button'), name = create('span'), count = create('span', item.cards.length + '/12');
+            tab.id = pageTabId(item); tab.type = 'button'; tab.className = 'home-page-tab';
+            tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', 'home-page-panel');
+            tab.setAttribute('aria-selected', String(index === selectedPage));
+            tab.tabIndex = index === selectedPage ? 0 : -1;
+            name.className = 'home-page-tab-name'; count.className = 'home-page-tab-count';
+            count.setAttribute('aria-hidden', 'true'); tab.append(name); tab.append(count);
+            controls.push(tab); tabs.append(tab); updatePageTab(item);
+            tab.onclick = () => activatePage(item.id);
+            tab.onkeydown = event => {
+                if (busy() || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const current = model.pages.indexOf(item), total = model.pages.length;
+                if (current < 0) return;
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? total - 1 :
+                    (current + (event.key === 'ArrowLeft' ? -1 : 1) + total) % total;
+                activatePage(model.pages[next].id);
+            };
+        }
+        panel.setAttribute('aria-labelledby', pageTabId(page));
         currentSection = 'pages';
-        const selector = select(target, 'Szerkesztett oldal', {id: 'selector', selected: page.id}, 'selected',
-            model.pages.map((item, index) => [item.id, (index + 1) + '. ' + item.title + ' · ' + item.cards.length + '/12 kártya']));
-        selector.id = 'home-page-select';
-        selector.onchange = () => { selectedPage = model.pages.findIndex(item => item.id === selector.value); render(); };
         const title = field(target, 'Oldal címe (a kijelző fejlécében)', page, 'title');
         title.id = 'home-page-title';
         const updateTitle = title.oninput;
         title.oninput = title.onchange = () => {
             updateTitle();
-            selector.children[selectedPage].textContent = (selectedPage + 1) + '. ' + page.title + ' · ' + page.cards.length + '/12 kártya';
+            /* Gépeléskor csak a felirat változik: a mező, a kurzor és a
+             * mentetlen kártyák DOM-ja ugyanaz marad. */
+            updatePageTab(page);
         };
+        const actions = create('div'); actions.className = 'home-page-actions'; target.append(actions);
         for (const [id, label, step] of [['home-page-up', 'Oldal előrébb', -1], ['home-page-down', 'Oldal hátrébb', 1]]) {
             const button = create('button', label); button.type = 'button'; button.id = id;
             button.homeFixed = selectedPage + step < 0 || selectedPage + step >= model.pages.length;
@@ -209,15 +250,19 @@ const LoxoneHome = (() => {
                 const next = selectedPage + step;
                 [model.pages[selectedPage], model.pages[next]] = [model.pages[next], model.pages[selectedPage]];
                 selectedPage = next; render();
+                restoreFocus(get(id).disabled ? (step < 0 ? 'home-page-down' : 'home-page-up') : id);
+                revealPageTab(model.pages[selectedPage]);
             };
-            controls.push(button); target.append(button);
+            controls.push(button); actions.append(button);
         }
         const remove = create('button', 'Oldal és kártyáinak törlése'); remove.type = 'button'; remove.id = 'home-remove-page';
         remove.onclick = () => {
             if (busy()) return;
             model.pages.splice(selectedPage, 1); selectedPage = Math.max(0, selectedPage - 1); render();
+            if (model.pages.length) revealPageTab(model.pages[selectedPage], true);
+            else restoreFocus('home-add-page');
         };
-        controls.push(remove); target.append(remove);
+        controls.push(remove); actions.append(remove);
     }
     function addPage() {
         if (busy() || model.pages.length >= 8) return;
@@ -225,6 +270,8 @@ const LoxoneHome = (() => {
         while (model.pages.some(page => page.id === 'page-' + serial)) serial++;
         model.pages.push({id: 'page-' + serial, title: 'Új oldal', cards: []});
         selectedPage = model.pages.length - 1; render();
+        restoreFocus('home-page-title', 0, model.pages[selectedPage].title.length);
+        revealPageTab(model.pages[selectedPage]);
     }
     function renderIntercom() {
         const target = get('intercom-config');

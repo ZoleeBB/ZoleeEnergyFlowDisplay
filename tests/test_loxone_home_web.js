@@ -11,8 +11,9 @@ class Element {
     replaceChildren() { this.children=[];this.value=''; }
     focus() { sandbox.document.activeElement=this; }
     setSelectionRange(start,end) { this.selectionStart=start;this.selectionEnd=end; }
+    scrollIntoView(options) { this.lastScroll=options; }
 }
-for(const id of ['ringtone-file','ringtone-upload','ringtone-status','consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
+for(const id of ['ringtone-file','ringtone-upload','ringtone-status','consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-page-tabs','home-page-panel','home-pages-empty','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
 }
 const icons=JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(({id,hu,en})=>({id,hu,en}));
@@ -47,9 +48,14 @@ vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',sandbox);
 const edit=(id,value,event='oninput')=>{const node=nodes.get(id);assert(node,id);node.value=value;node[event]();return node;};
 const click=id=>nodes.get(id).onclick();
+const pageTabs=()=>nodes.get('home-page-tabs').children;
+const activeTab=()=>pageTabs().find(tab=>tab['aria-selected']==='true');
+const key=(id,value)=>{let prevented=false;nodes.get(id).onkeydown({key:value,preventDefault(){prevented=true;}});return prevented;};
 (async()=>{
     assert(nodes.get('home-save').disabled);
     await sandbox.home.refresh(catalog);assert(!nodes.get('home-save').disabled);
+    assert.equal(pageTabs().length,0);assert(nodes.get('home-page-panel').hidden);
+    assert.equal(nodes.get('home-pages-empty').hidden,false);assert.equal(nodes.get('home-add-page').hidden,false);
     edit('intercom-speaker-volume', '73');
     edit('intercom-microphone-gain', '90');
     assert.equal(nodes.get('intercom-ringtone-preview').parentNode.hidden,true);
@@ -102,7 +108,13 @@ const click=id=>nodes.get(id).onclick();
     edit('home-consumers-item-1-average_kw','-1');await click('consumers-save');assert.equal(posts.length,1);
     edit('home-consumers-item-1-average_kw','2.1');const suggest=nodes.get('home-consumers-item-1-suggest_start');suggest.checked=true;suggest.onchange();
     click('home-add-page'); edit('home-page-title','Földszint');
+    assert.equal(activeTab().id,'home-page-tab-page-1');assert.equal(activeTab().tabIndex,0);
+    assert.equal(activeTab().children[0].textContent,'Földszint');assert.equal(activeTab().children[1].textContent,'0/12');
+    assert.equal(nodes.get('home-page-panel').hidden,false);assert(nodes.get('home-pages-empty').hidden);
+    assert(nodes.get('home-page-up').disabled && nodes.get('home-page-down').disabled);
+    assert.equal(sandbox.document.activeElement.id,'home-page-title');
     click('home-add-card');
+    assert.equal(activeTab().children[1].textContent,'1/12');
     const freshBox=nodes.get('home-cards').children[0];
     assert.equal(nodes.get('home-cards-item-1-type').value,'');
     assert.equal(freshBox.children.length,3); /* Legenda, típus, mozgatás/törlés. */
@@ -130,6 +142,7 @@ const click=id=>nodes.get(id).onclick();
     reject=true;await click('home-save');assert(nodes.get('home-status').textContent.includes('nem írható'));reject=false;
     offline=true;await sandbox.home.refresh(catalog);assert(nodes.get('home-status').textContent.includes('megszakadt'));offline=false;
     hold=true;await click('home-save');assert(nodes.get('home-save').disabled);assert(nodes.get('home-add-card').disabled);
+    assert(pageTabs().every(tab=>tab.disabled));assert(nodes.get('home-add-page').disabled);
     state.busy=false;state.status='Az SD-mentés sikertelen.';await sandbox.home.refresh(catalog);
     assert(!nodes.get('home-save').disabled);assert.equal(nodes.get('home-status').className,'feedback-error');
     /* Háttérből érkező másik böngészőmódosítás sem írja felül a helyi szerkesztést. */
@@ -153,15 +166,43 @@ const click=id=>nodes.get(id).onclick();
     assert.equal(nodes.get('home-consumers').children.length,11);assert(!nodes.get('home-add-consumer').disabled);
     /* Több oldal, címek és kártyák megmaradnak lapváltás és átrendezés után. */
     click('home-add-page'); edit('home-page-title','Kert <b>fények</b>');
+    const pageTitle=nodes.get('home-page-title'), sameTab=activeTab();
+    pageTitle.focus();pageTitle.setSelectionRange(4,9);
+    edit('home-page-title','Kert <b>fények</b>!');
+    assert.equal(nodes.get('home-page-title'),pageTitle);assert.equal(activeTab(),sameTab);
+    assert.equal(activeTab().children[0].textContent,'Kert <b>fények</b>!');
+    assert.equal(sandbox.document.activeElement,pageTitle);assert.equal(pageTitle.selectionStart,4);
+    edit('home-page-title','');assert.equal(activeTab().children[0].textContent,'Új oldal');
+    edit('home-page-title','Kert <b>fények</b>');
     assert.equal(nodes.get('home-cards').children.length,0);
     click('home-add-card'); edit('home-cards-item-1-type','pulse','onchange');
     edit('home-cards-item-1-name','Kerti gomb');
     edit('home-cards-item-1-control_uuid',control,'onchange');
-    edit('home-page-select','home','onchange');
+    click('home-page-tab-home');
     assert.equal(nodes.get('home-cards-saved-pulse-name').value,'Mentett gomb');
-    edit('home-page-select','page-1','onchange');
+    click('home-page-tab-page-1');
     assert.equal(nodes.get('home-page-title').value,'Kert <b>fények</b>');
-    click('home-page-up'); assert.equal(nodes.get('home-page-select').value,'page-1');
+    assert.equal(sandbox.document.activeElement.id,'home-page-tab-page-1');
+    assert.equal(activeTab()['aria-controls'],'home-page-panel');
+    assert.equal(pageTabs().filter(tab=>tab.tabIndex===0).length,1);
+    assert(key(activeTab().id,'Home'));assert.equal(activeTab().id,'home-page-tab-home');
+    assert(key(activeTab().id,'ArrowLeft'));assert.equal(activeTab().id,'home-page-tab-page-1');
+    assert(key(activeTab().id,'ArrowRight'));assert.equal(activeTab().id,'home-page-tab-home');
+    assert(key(activeTab().id,'End'));assert.equal(activeTab().id,'home-page-tab-page-1');
+    assert(!key(activeTab().id,'ArrowDown'));assert.equal(activeTab().id,'home-page-tab-page-1');
+    assert.equal(nodes.get('home-cards-item-1-name').value,'Kerti gomb');
+    hold=true;await click('home-save');
+    assert(pageTabs().every(tab=>tab.disabled));assert(nodes.get('home-page-title').disabled);
+    click('home-page-tab-home');assert.equal(activeTab().id,'home-page-tab-page-1');
+    assert(!key(activeTab().id,'Home'));assert.equal(activeTab().id,'home-page-tab-page-1');
+    assert(nodes.get('home-add-page').disabled && nodes.get('home-remove-page').disabled);
+    hold=false;state.busy=false;state.revision++;state.status='Elmentve.';
+    await secondContext.home.refresh(catalog);
+    assert(!activeTab().disabled);assert.equal(nodes.get('home-cards-item-1-name').value,'Kerti gomb');
+    click('home-page-up'); assert.equal(nodes.get('home-page-panel')['aria-labelledby'],'home-page-tab-page-1');
+    assert.deepEqual(pageTabs().map(tab=>tab.id),['home-page-tab-page-1','home-page-tab-home']);
+    assert.equal(sandbox.document.activeElement.id,'home-page-down');
+    assert.equal(activeTab().children[0].textContent,'Kert <b>fények</b>');
     await click('home-save');
     /* A névtelen fogyasztók nem akadályozhatják az Otthon-oldalak külön mentését. */
     while(nodes.get('home-consumers').children.length) nodes.get('home-consumers').children[0].children.at(-1).onclick();
@@ -171,8 +212,14 @@ const click=id=>nodes.get(id).onclick();
     for(let i=0;i<12;i++)click('home-add-card');
     assert.equal(nodes.get('home-cards').children.length,12);assert(nodes.get('home-add-card').disabled);
     for(let i=0;i<9;i++)click('home-add-page');
-    assert(nodes.get('home-add-page').disabled);assert.equal(nodes.get('home-page-select').children.length,8);
-    click('home-remove-page');assert(!nodes.get('home-add-page').disabled);
+    assert(nodes.get('home-add-page').disabled && nodes.get('home-add-page').hidden);assert.equal(pageTabs().length,8);
+    click('home-remove-page');assert(!nodes.get('home-add-page').disabled && !nodes.get('home-add-page').hidden);
+    assert.equal(sandbox.document.activeElement,activeTab());
+    while(pageTabs().length)click('home-remove-page');
+    assert(nodes.get('home-page-panel').hidden && nodes.get('home-page-tabs').hidden);
+    assert.equal(nodes.get('home-pages-empty').hidden,false);assert.equal(sandbox.document.activeElement.id,'home-add-page');
+    click('home-add-page');assert.equal(pageTabs().length,1);assert.equal(activeTab().id,'home-page-tab-page-1');
+    console.log('PASS: page tabs, live safe titles without DOM replacement, keyboard/focus, unsaved fields, page order, busy guards and 0/1/8-page limits');
     await sandbox.home.refresh(catalog,false,true);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false);assert.equal(nodes.get('consumers-section').hidden,true);
     await sandbox.home.refresh(catalog,false,false);assert.equal(nodes.get('consumers-section').hidden,false);
@@ -295,7 +342,7 @@ const click=id=>nodes.get(id).onclick();
     assert.equal(nodes.get('home-cards-irc-test-control_uuid').value, '');
     assert(nodes.get('home-cards-irc-test-control_uuid').children.some(option => option.value === lightControl));
     assert(!nodes.get('home-cards-irc-test-control_uuid').children.some(option => option.value === ircControl));
-    edit('home-page-select', 'irc-hidden', 'onchange');
+    click('home-page-tab-irc-hidden');
     edit('home-cards-irc-no-icon-type', 'value', 'onchange');
     assert.equal(attached('home-cards-irc-no-icon-icon').value, 'thermostat');
     console.log('PASS: IRC parent discovery, fixed icon from SD and missing/outdated pack fallback, imported/hidden-page normalization, minimal save, generic type restoration and incompatible-target reset');
@@ -393,7 +440,7 @@ const click=id=>nodes.get(id).onclick();
     assert.equal(nodes.get(shadingPrefix + 'control_uuid').value, '');
     assert(nodes.get(shadingPrefix + 'control_uuid').children.some(option => option.value === lightControl));
     assert(!nodes.get(shadingPrefix + 'control_uuid').children.some(option => option.value === blindControl));
-    edit('home-page-select', 'shading-hidden', 'onchange');
+    click('home-page-tab-shading-hidden');
     edit('home-cards-shading-no-icon-type', 'value', 'onchange');
     assert.equal(attached('home-cards-shading-no-icon-icon').value, 'blinds');
     console.log('PASS: automatic/central shading metadata filter, fixed SD icon, imported/hidden-page normalization, minimal save, room/category filters and fixed/generic type changes');
@@ -447,7 +494,7 @@ const click=id=>nodes.get(id).onclick();
     vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',reloadContext);
     await reloadContext.home.refresh(catalog);
     assert.deepEqual(order(),['second','first','third'].map(id=>'home-cards-'+id+'-editor'));
-    edit('home-page-select','unchanged','onchange');
+    click('home-page-tab-unchanged');
     assert.deepEqual(order(),['home-cards-other-editor']);
     assert(nodes.get('home-cards-other-move-up').disabled);assert(nodes.get('home-cards-other-move-down').disabled);
     console.log('PASS: type-first empty card validation, DOM field order, per-page up/down boundaries, unsaved data and focus, serialized ordering and reload');
