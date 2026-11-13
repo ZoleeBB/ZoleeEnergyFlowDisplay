@@ -4,6 +4,7 @@
  * mintavételnél egy legfeljebb 512 pixeles, csak JPEG-et kezelő tartalékút. */
 #include "app_loxone_audio_media.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
@@ -289,7 +290,17 @@ static lx_audio_image_t *audio_png_decode(const uint8_t *data, size_t length, un
 #define AUDIO_JPEG_WORKING_MAX (4U * 1024U * 1024U)
 typedef union
 {
+#ifdef _MSC_VER
+    /* Az MSVC C fejléceiben nincs max_align_t. A Windows-heap alapillesztését
+     * a fejléc mérete is őrizze meg: 64 biten 16, 32 biten 8 bájt. */
+#ifdef _WIN64
+    __declspec(align(16)) unsigned char alignment[16];
+#else
+    __declspec(align(8)) unsigned char alignment[8];
+#endif
+#else
     max_align_t alignment;
+#endif
     size_t bytes;
 } audio_jpeg_allocation_t;
 
