@@ -80,7 +80,7 @@ jobs:
       - name: Install Chromium system dependencies
         timeout-minutes: 15
         run: node /tmp/zolee-web-browser/node_modules/playwright/cli.js install-deps chromium
-      # Mindkét teszt headless módban fut; teljes Chrome nem szükséges.
+      # A böngészőtesztek headless módban futnak; teljes Chrome nem szükséges.
       - name: Install Chromium headless shell
         timeout-minutes: 5
         run: node /tmp/zolee-web-browser/node_modules/playwright/cli.js install --only-shell chromium
@@ -96,6 +96,10 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_support_browser.js
+      - name: Check fixed IRC thermostat cards on desktop and mobile
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_irc_browser.js
 
   ui-preview:
     name: Master 10.1 | LVGL és ASan, 32 bit + RGB565
@@ -130,6 +134,8 @@ jobs:
           ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
           ZOLEE_LIGHTING_ONLY=1 ../.preview-build/ui_preview
           ZOLEE_LIGHTING_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
+          ZOLEE_IRC_ONLY=1 ../.preview-build/ui_preview
+          ZOLEE_IRC_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ZOLEE_RENDER_COST_ONLY=1 ZOLEE_PREVIEW_FULL_REFRESH=1 ../.preview-build/ui_preview
 

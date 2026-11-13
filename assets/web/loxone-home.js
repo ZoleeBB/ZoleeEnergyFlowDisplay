@@ -2,6 +2,7 @@
 const LoxoneHome = (() => {
     'use strict';
     const icons = /*HOME_ICONS*/;
+    const ircIcon = 'thermostat-irc', previousCardIcons = new WeakMap();
     const iconChoices = [...icons].sort((a, b) =>
         a.hu.localeCompare(b.hu, 'hu', {sensitivity: 'base'})).map(icon => [icon.id, icon.hu]);
     const get = id => document.getElementById(id);
@@ -69,14 +70,24 @@ const LoxoneHome = (() => {
         controls.push(input); label.append(input); parent.append(label);
         return input;
     }
-    function stateChoices(control = false, pulse = false, lighting = false) {
+    const ircBlock = item => item.type === 'IRoomControllerV2' && typeof item.irc === 'string' && !!item.irc;
+    function cardIcon(entry) {
+        if (entry.type === 'irc') {
+            if (icons.some(icon => icon.id === entry.icon)) previousCardIcons.set(entry, entry.icon);
+            entry.icon = ircIcon;
+        } else if (entry.icon === ircIcon) {
+            entry.icon = previousCardIcons.get(entry) || 'thermostat';
+        }
+    }
+    function stateChoices(control = false, pulse = false, lighting = false, irc = false) {
         const choices = [['', 'Nincs hozzárendelve']], seen = new Set();
         const room = get('home-room').value, category = get('home-category').value;
         for (const item of catalog) {
             if ((room && JSON.stringify(item.room || '') !== room) ||
                 (category && JSON.stringify(item.category || '') !== category)) continue;
             if (lighting && (item.type !== 'LightControllerV2' || !item.lighting)) continue;
-            if (control && !lighting && !(item.secured === false && (item.type === 'Switch' ||
+            if (irc && !ircBlock(item)) continue;
+            if (control && !lighting && !irc && !(item.secured === false && (item.type === 'Switch' ||
                 (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;
             if (control && item.action_uuid === '') continue;
             const uuid = control ? item.control_uuid : item.uuid;
@@ -87,9 +98,9 @@ const LoxoneHome = (() => {
         }
         return choices;
     }
-    function iconField(parent, entry, previewParent) {
-        const input = select(parent, 'Ikon', entry, 'icon', iconChoices);
-        if (!resourcesInstalled) { previewParent.hidden = true; return; }
+    function iconField(parent, entry, previewParent, fixed = false) {
+        const input = fixed ? null : select(parent, 'Ikon', entry, 'icon', iconChoices);
+        if (!resourcesInstalled && !fixed) { previewParent.hidden = true; return; }
         const preview = create('img');
         preview.id = domId(entry, 'icon-preview');
         preview.className = 'home-icon-preview';
@@ -98,12 +109,14 @@ const LoxoneHome = (() => {
         const update = () => {
             preview.hidden = false;
             previewParent.hidden = false;
-            preview.alt = (icons.find(icon => icon.id === entry.icon)?.hu || 'Ikon') + ' előnézete';
-            preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + '&v=' + resourcesVersion;
+            preview.alt = (fixed ? 'IRC termosztát' : icons.find(icon => icon.id === entry.icon)?.hu || 'Ikon') + ' előnézete';
+            preview.src = '/api/templates/home-icon?id=' + encodeURIComponent(entry.icon) + (fixed ? '' : '&v=' + resourcesVersion);
         };
         preview.onerror = () => { preview.hidden = true; previewParent.hidden = true; };
-        const change = input.onchange;
-        input.onchange = () => { change(); update(); };
+        if (input) {
+            const change = input.onchange;
+            input.onchange = () => { change(); update(); };
+        }
         /* A nagyobb ikon külön oszlopot kap; a mezők tömör rácsa megmarad. */
         previewParent.append(preview);
         update();
@@ -242,31 +255,40 @@ const LoxoneHome = (() => {
             currentSection = section;
             const target = get('home-' + section); target.replaceChildren();
             for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
+                if (section === 'cards') cardIcon(entry);
                 const box = create('fieldset'), legend = create('legend', entry.name || 'Új elem');
                 box.append(legend);
                 const body = create('div'); body.className = 'home-entry-body'; box.append(body);
                 const preview = create('div'); preview.className = 'home-entry-icon'; body.append(preview);
                 const grid = create('div'); grid.className = 'grid card-grid'; body.append(grid);
                 field(grid, 'Név', entry, 'name');
-                iconField(grid, entry, preview);
+                iconField(grid, entry, preview, section === 'cards' && entry.type === 'irc');
                 if (section === 'consumers') {
                     source(grid, entry);
                     field(grid, 'Átlagos üzemi teljesítmény (kW, opcionális)', entry, 'average_kw', 'number', true);
                     field(grid, 'Indítás javasolható (alapból kikapcsolva)', entry, 'suggest_start', 'checkbox');
                 } else {
                     const type = select(grid, 'Kártyatípus', entry, 'type', [
-                        ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'], ['lighting', 'Világításvezérlő']]);
+                        ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'], ['lighting', 'Világításvezérlő'], ['irc', 'IRC termosztát']]);
                     type.onchange = () => {
+                        const wasIrc = entry.type === 'irc';
                         entry.type = type.value;
+                        cardIcon(entry);
+                        if ((entry.type === 'irc' && !catalog.some(item => ircBlock(item) && item.control_uuid === entry.control_uuid && item.action_uuid !== '')) ||
+                            (wasIrc && entry.type !== 'irc')) entry.control_uuid = '';
                         if (entry.type === 'switch') { entry.source.scale = 1; entry.source.offset = 0; }
                         render();
                     };
-                    if (!['pulse', 'lighting'].includes(entry.type)) source(grid, entry);
+                    if (!['pulse', 'lighting', 'irc'].includes(entry.type)) source(grid, entry);
                     if (entry.type !== 'value')
-                        select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' : 'Vezérelhető Loxone objektum',
-                            entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting'));
+                        select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' : entry.type === 'irc' ? 'Loxone helyiségszabályzó (IRC) blokk' : 'Vezérelhető Loxone objektum',
+                            entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting', entry.type === 'irc'));
                     if (entry.type === 'lighting') {
                         const note = create('p', 'A világítási körök automatikusan, a Loxone sorrendjében jelennek meg. Csak a megnyitott Otthon-oldal adatait dolgozzuk fel.');
+                        note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                    }
+                    if (entry.type === 'irc') {
+                        const note = create('p', 'A termosztát a célhőfokot, a mért szobahőmérsékletet és a fűtési vagy hűtési üzemmódot mutatja. A − / + gombok 0,5 °C-os lépésekben állítják a célhőfokot.');
                         note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
                     }
                     if (entry.type === 'value') {
@@ -352,9 +374,11 @@ const LoxoneHome = (() => {
             return 'Adj minden Otthon-oldalnak legfeljebb 80 bájtos címet.';
         for (const section of (scope === 'consumers' ? ['consumers'] : ['cards'])) for (const entry of section === 'consumers' ? model.consumers : model.pages.flatMap(page => page.cards)) {
             const title = entry.name || 'Névtelen elem';
+            const irc = section === 'cards' && entry.type === 'irc';
+            if (irc) cardIcon(entry);
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
-            if (!icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
-            if (!['pulse', 'lighting'].includes(entry.type) && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
+            if (!irc && !icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
+            if (!['pulse', 'lighting', 'irc'].includes(entry.type) && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
                 !entry.source.scale || Math.abs(entry.source.scale) > 1e6 || !Number.isFinite(entry.source.offset) || Math.abs(entry.source.offset) > 1e6))
                 return title + ': hiányzó állapotpárosítás vagy érvénytelen átalakítás.';
             if (section === 'consumers') {
@@ -429,6 +453,7 @@ const LoxoneHome = (() => {
                 model = {schema: 2, intercom: state.intercom || {enabled: false, stream_url: '', bell_uuid: '', gate: null}, consumers: state.consumers || [], pages: state.pages ||
                     (state.cards?.length ? [{id: 'home', title: 'Otthon', cards: state.cards}] : [])};
                 for (const entry of model.pages.flatMap(page => page.cards)) {
+                    cardIcon(entry);
                     entry.source ||= {uuid: '', scale: 1, offset: 0};
                     entry.control_uuid ||= '';
                     entry.unit ??= '';
@@ -467,8 +492,12 @@ const LoxoneHome = (() => {
         pending = true; buttons(); notify('Otthon-beállítások mentése…');
         saveRevision = revision;
         try {
+            /* Az IRC mezői rögzítettek; a típusváltáshoz megőrzött általános
+             * szerkesztőértékek nem kerülnek a mentett termosztátkártyába. */
+            const content = scope === 'pages' ? model.pages.map(page => ({...page, cards: page.cards.map(entry => entry.type === 'irc' ?
+                {id: entry.id, name: entry.name, type: 'irc', icon: ircIcon, control_uuid: entry.control_uuid} : entry)})) : model[scope];
             const response = await apiFetch('/api/loxone/home', {method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'}, body: JSON.stringify({schema: 2, section: scope, [scope]: model[scope]})});
+                headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'}, body: JSON.stringify({schema: 2, section: scope, [scope]: content})});
             if (!response.ok) throw Error(await response.text());
             waiting = true;
             await refresh(catalog, connectionBusy);

@@ -106,6 +106,11 @@ static esp_err_t template_preview_get(httpd_req_t *req){
     fclose(f);app_storage_unlock();
     return result==ESP_OK?httpd_resp_send_chunk(req,NULL,0):result;
 }
+/* A kötött termosztátikon ugyanaz a kis PNG, mint amit az LVGL használ.
+ * Előnézetéhez nincs SD-olvasás, de a közös adminhitelesítés itt is kötelező. */
+extern const unsigned char _binary_irc_thermostat_png_start[];
+extern const unsigned char _binary_irc_thermostat_png_end[];
+
 /* A telepített csomag kiválasztott 96×96-os ikonja, általános fájlböngészés nélkül. */
 static esp_err_t template_home_icon_get(httpd_req_t *req)
 {
@@ -114,6 +119,15 @@ static esp_err_t template_home_icon_get(httpd_req_t *req)
     char id[33];
     if (!template_query_id(req, id) || !strcmp(id, "builtin"))
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen ikonazonosító");
+    if (!strcmp(id, "thermostat-irc"))
+    {
+        httpd_resp_set_type(req, "image/png");
+        httpd_resp_set_hdr(req, "Cache-Control", "private, no-cache");
+        size_t size = (size_t)(_binary_irc_thermostat_png_end - _binary_irc_thermostat_png_start);
+        esp_err_t result = httpd_resp_send_chunk(
+            req, (const char *)_binary_irc_thermostat_png_start, size);
+        return result == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : result;
+    }
     if (!app_templates_home_info(NULL, NULL))
         return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "A Loxone Otthon csomag nincs telepítve");
     if (app_storage_lock() != ESP_OK)

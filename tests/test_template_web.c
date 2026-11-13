@@ -49,6 +49,14 @@ int main(int argc,char **argv){
  assert(argc==4);setenv("ZOLEE_TEMPLATE_ROOT",argv[2],1);assert(app_templates_init()==ESP_OK);assert(template_register(NULL)==ESP_OK);
  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t size=ftell(f);rewind(f);unsigned char *zip=malloc(size);assert(zip&&fread(zip,1,size,f)==size);fclose(f);
  storage_available=false;
+ request("/api/templates/home-icon?id=thermostat-irc",NULL,0);
+ assert(status==200&&chunk_bytes==
+        (size_t)(_binary_irc_thermostat_png_end-_binary_irc_thermostat_png_start));
+ assert(!memcmp(response,_binary_irc_thermostat_png_start,chunk_bytes));
+ assert(!strcmp(cache_control,"private, no-cache"));
+ authorized=false;
+ request("/api/templates/home-icon?id=thermostat-irc",NULL,0);assert(status==401&&chunk_bytes==0);
+ authorized=true;
  request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_light));
  request("/api/templates/preview?id=builtin&mode=dark",NULL,0);assert(status==200&&chunk_bytes==sizeof(app_builtin_preview_dark));
  authorized=false;request("/api/templates/preview?id=builtin&mode=light",NULL,0);assert(status==401);authorized=true;

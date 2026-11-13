@@ -212,5 +212,78 @@ const click=id=>nodes.get(id).onclick();
     assert(nodes.get('home-cards-lighting-test-control_uuid').children.some(option => option.value === lightControl));
     assert.equal(nodes.get('home-cards-lighting-test-name').value, 'Nappali világítás');
     console.log('PASS: lighting block auto-discovery, no per-circuit/state mapping, save and retained filtered selection');
+    /* Az IRC saját ikonja importból és rejtett oldalról sem cserélhető le.
+     * A ténylegesen csatolt DOM-ot vizsgáljuk, nem a stub régi ID-bejegyzéseit. */
+    const attached = (id, parent = nodes.get('home-cards')) => parent.id === id ? parent :
+        parent.children.map(child => attached(id, child)).find(Boolean);
+    const ircControl = '20000000-0000-0000-0000000000000001';
+    const ircSecond = '20000000-0000-0000-0000000000000002';
+    const ircEntry = {uuid:'20000000-0000-0000-0000000000000003', control_uuid:ircControl,
+        action_uuid:ircControl, name:'Nappali IRC', type:'IRoomControllerV2', secured:false,
+        room:'Nappali', category:'Klíma', irc:'{}', irc_blocked:false};
+    const ircCatalog = [...lightCatalog, ircEntry,
+        {...ircEntry, uuid:'20000000-0000-0000-0000000000000004'},
+        {...ircEntry, control_uuid:ircSecond, name:'Háló IRC', room:'Háló'},
+        {...ircEntry, control_uuid:'30000000-0000-0000-0000000000000001', type:'IRoomController'},
+        {...ircEntry, control_uuid:'30000000-0000-0000-0000000000000002', irc:''},
+        {...ircEntry, control_uuid:'30000000-0000-0000-0000000000000003', action_uuid:''}];
+    state = {schema:2, consumers:[], resources_installed:false, pages:[
+        {id:'irc-page', title:'Földszint', cards:[{id:'irc-test', name:'Nappali termosztát', icon:'lamp',
+            type:'irc', control_uuid:ircControl, source:{uuid:'invalid', scale:0, offset:null}, unit:'bad', decimals:99}]},
+        {id:'irc-hidden', title:'Emelet', cards:[
+            {id:'irc-no-icon', name:'Háló termosztát', type:'irc', control_uuid:ircSecond},
+            {id:'irc-bad-icon', name:'Importált termosztát', icon:'<img onerror=alert(1)>', type:'irc', control_uuid:ircControl}]}],
+        intercom:{}, revision:0, busy:false, status:''};
+    const ircContext = {...sandbox}; vm.createContext(ircContext);
+    vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',ircContext);
+    await ircContext.home.refresh(ircCatalog);
+    edit('home-room', '', 'onchange');
+    assert(nodes.get('home-cards-irc-test-type').children.some(option => option.value === 'irc'));
+    const ircOptions = nodes.get('home-cards-irc-test-control_uuid').children.map(option => option.value);
+    assert.deepEqual(ircOptions, ['', ircControl, ircSecond]);
+    for (const field of ['icon', 'uuid', 'scale', 'offset', 'unit', 'decimals', 'warning_low', 'warning_high', 'warning_color'])
+        assert.equal(attached('home-cards-irc-test-' + field), undefined, field);
+    const ircPreview = attached('home-cards-irc-test-icon-preview');
+    assert(ircPreview);
+    assert.equal(ircPreview.hidden, false);
+    assert.equal(ircPreview.parentNode.hidden, false);
+    assert.equal(ircPreview.src, '/api/templates/home-icon?id=thermostat-irc');
+    assert.equal(ircPreview.alt, 'IRC termosztát előnézete');
+    const ircPosts = posts.length;
+    await click('home-save');
+    assert.equal(posts.length, ircPosts + 1);
+    const storedIrc = posts.at(-1).pages.flatMap(page => page.cards);
+    for (const card of storedIrc) {
+        assert.equal(card.icon, 'thermostat-irc');
+        assert.deepEqual(Object.keys(card).sort(), ['control_uuid', 'icon', 'id', 'name', 'type']);
+    }
+    /* Visszaváltáskor a korábbi általános ikon/mezők maradnak meg;
+     * a más típusú blokk viszont nem kerülhet automatikusan az IRC céljába. */
+    edit('home-cards-irc-test-type', 'value', 'onchange');
+    assert.equal(attached('home-cards-irc-test-icon').value, 'lamp');
+    assert(attached('home-cards-irc-test-uuid'));
+    assert(attached('home-cards-irc-test-decimals'));
+    edit('home-cards-irc-test-icon', 'washing-machine', 'onchange');
+    edit('home-cards-irc-test-type', 'switch', 'onchange');
+    edit('home-cards-irc-test-control_uuid', control, 'onchange');
+    edit('home-cards-irc-test-type', 'irc', 'onchange');
+    assert.equal(nodes.get('home-cards-irc-test-control_uuid').value, '');
+    assert.equal(attached('home-cards-irc-test-icon'), undefined);
+    assert.equal(attached('home-cards-irc-test-icon-preview').src, '/api/templates/home-icon?id=thermostat-irc');
+    await click('home-save');
+    assert.equal(posts.length, ircPosts + 1);
+    edit('home-cards-irc-test-control_uuid', ircControl, 'onchange');
+    await click('home-save');
+    assert.equal(posts.length, ircPosts + 2);
+    assert.equal(posts.at(-1).pages[0].cards[0].icon, 'thermostat-irc');
+    edit('home-cards-irc-test-type', 'lighting', 'onchange');
+    assert.equal(attached('home-cards-irc-test-icon').value, 'washing-machine');
+    assert.equal(nodes.get('home-cards-irc-test-control_uuid').value, '');
+    assert(nodes.get('home-cards-irc-test-control_uuid').children.some(option => option.value === lightControl));
+    assert(!nodes.get('home-cards-irc-test-control_uuid').children.some(option => option.value === ircControl));
+    edit('home-page-select', 'irc-hidden', 'onchange');
+    edit('home-cards-irc-no-icon-type', 'value', 'onchange');
+    assert.equal(attached('home-cards-irc-no-icon-icon').value, 'thermostat');
+    console.log('PASS: IRC parent discovery, fixed icon without SD assets, imported/hidden-page normalization, minimal save, generic type restoration and incompatible-target reset');
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});
