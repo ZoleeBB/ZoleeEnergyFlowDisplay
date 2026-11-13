@@ -1,6 +1,8 @@
 /* A Loxone protokoll platformfüggetlen adat- és párosításkezelése. */
 #include "app_loxone_model.h"
 #include "app_loxone_lighting.h"
+#include "app_loxone_irc.h"
+#include "app_loxone_shading.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -321,7 +323,8 @@ static bool catalog_entry(cJSON *out, const cJSON *control, const cJSON *state,
     return false;
 }
 static bool catalog_controls(
-    cJSON *out, const cJSON *controls, const cJSON *rooms, const cJSON *cats, int depth, bool parent_secured)
+    cJSON *out, const cJSON *controls, const cJSON *rooms, const cJSON *cats, int depth,
+    bool parent_secured, lx_irc_unit_t temp_unit)
 {
     if (depth > 8)
         return false;
@@ -346,10 +349,12 @@ static bool catalog_controls(
             !catalog_entry(out, control, NULL, rooms, cats, secured))
             return false;
         if ((unsigned)cJSON_GetArraySize(out) > before &&
-            !lx_light_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured))
+            (!lx_light_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured) ||
+             !lx_irc_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, temp_unit) ||
+             !lx_shading_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured)))
             return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");
-        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured))
+        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured, temp_unit))
             return false;
     }
     return true;
@@ -360,12 +365,17 @@ cJSON *lx_catalog_parse(const char *json, size_t length)
         return NULL;
     cJSON *root = cJSON_ParseWithLength(json, length), *out = cJSON_CreateArray();
     const cJSON *controls = cJSON_GetObjectItemCaseSensitive(root, "controls");
+    const cJSON *unit = cJSON_GetObjectItemCaseSensitive(
+        cJSON_GetObjectItemCaseSensitive(root, "msInfo"), "tempUnit");
+    lx_irc_unit_t temp_unit = !unit ? LX_IRC_UNIT_UNKNOWN :
+        cJSON_IsNumber(unit) && unit->valuedouble == 0 ? LX_IRC_UNIT_CELSIUS :
+        cJSON_IsNumber(unit) && unit->valuedouble == 1 ? LX_IRC_UNIT_FAHRENHEIT : LX_IRC_UNIT_INVALID;
     if (!root || !out || !cJSON_IsObject(controls) ||
         !catalog_controls(out,
                           controls,
                           cJSON_GetObjectItemCaseSensitive(root, "rooms"),
                           cJSON_GetObjectItemCaseSensitive(root, "cats"),
-                          0, false))
+                          0, false, temp_unit))
     {
         cJSON_Delete(root);
         cJSON_Delete(out);
@@ -389,3 +399,5 @@ int64_t lx_token_refresh_delay_us(int64_t valid_until, int64_t now_epoch)
 }
 
 #include "app_loxone_lighting_model.inc"
+#include "app_loxone_irc_model.inc"
+#include "app_loxone_shading_model.inc"

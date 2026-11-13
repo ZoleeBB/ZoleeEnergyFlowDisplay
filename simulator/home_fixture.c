@@ -2,21 +2,27 @@
  * A valódi parser/parancsküldő tesztje külön, a tényleges C-modulokon fut. */
 #include "home_fixture.h"
 #include "lighting_fixture.h"
+#include "irc_fixture.h"
+#include "shading_fixture.h"
 #include <stdio.h>
 #include <string.h>
 bool app_sim_home_enabled, app_sim_home_connected, app_sim_home_pending;
 unsigned app_sim_home_commands;
 lx_home_command_t app_sim_home_last_action;
 char app_sim_home_last_id[LX_HOME_ID_SIZE];
+char app_sim_home_status[LX_HOME_ERROR_SIZE];
 lx_home_config_t app_sim_home_config;
 lx_home_values_t app_sim_home_values;
 void app_sim_home_reset(void)
 {
     app_sim_lighting_reset();
+    app_sim_irc_reset();
+    app_sim_shading_reset();
     memset(&app_sim_home_config,0,sizeof(app_sim_home_config));
     memset(&app_sim_home_values,0,sizeof(app_sim_home_values));
     app_sim_home_enabled=app_sim_home_connected=true;app_sim_home_pending=false;
     app_sim_home_commands=0;
+    app_sim_home_status[0] = 0;
     const char *names[]={"Hűtőszekrény","Mosógép","Szárítógép","Mosogatógép","Sütő","Főzőlap","Klíma"};
     const char *icons[]={"refrigerator","washing-machine","tumble-dryer","dishwasher","oven","hob","ac-indoor"};
     const double power[]={.084,0,0,1.2,0,.85,.43};
@@ -71,7 +77,9 @@ bool app_loxone_home_snapshot(lx_home_config_t *config,lx_home_values_t *values,
 {
     if(!app_sim_home_enabled)return false;
     *config=app_sim_home_config;*values=app_sim_home_values;*revision=1;
-    *connected=app_sim_home_connected;*pending=app_sim_home_pending;status[0]=0;return true;
+    *connected=app_sim_home_connected;*pending=app_sim_home_pending;
+    snprintf(status, LX_HOME_ERROR_SIZE, "%s", app_sim_home_status);
+    return true;
 }
 esp_err_t app_loxone_home_command(const char *id,lx_home_command_t action)
 {
@@ -165,3 +173,5 @@ bool app_sim_media_idle = true;
 bool app_intercom_idle(void) { return app_sim_media_idle; }
 
 #include "lighting_fixture.inc"
+#include "irc_fixture.inc"
+#include "shading_fixture.inc"

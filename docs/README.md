@@ -10,6 +10,8 @@ az új kezdőoldalak összerendezik őket, nem cserélik le a tartalmukat.
 
 [Első indítás](first-start.md) · [Közvetlen Loxone](loxone-direct.md) ·
 [Világításvezérlés és képgaléria](lighting-controller.md) ·
+[IRC termosztát](irc-controller.md) ·
+[Redőnyvezérlés](shading-controller.md) ·
 [Kaputelefon](intercom.md) · [Hibakeresés](errors.md)
 
 ## Témakörök

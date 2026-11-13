@@ -29,6 +29,8 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 - **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone és Bluetooth Master/Slave. [Beállítások](docs/integrations/README.md).
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. [Otthon-konfiguráció](docs/v3-home-config.md).
 - **Világításvezérlés:** automatikus blokkfelismerés, `− / Ki / +` gombok, dimmer- és RGB/RGBW-kezelés. [Útmutató és képek](docs/lighting-controller.md).
+- **IRC termosztát:** célhőfok a kötött termosztátikonon, mért szobahőmérséklet, fűtési/hűtési üzemmódjel és `− / +` állítás 0,5 °C-os lépéssel. [Használat és beállítás](docs/irc-controller.md).
+- **Redőnyvezérlés:** automatikus és központi árnyékolás fix redőnyikonnal, `Fel / Stop / Le` gombokkal; egyedi redőnynél külön százalékos beállítóablak. [Használat és beállítás](docs/shading-controller.md).
 - **Kaputelefon:** élőkép, kétirányú hang, kapunyitás és csengőhangok, Master és 4B Slave támogatással. [Útmutató](docs/intercom.md).
 - **Energiafunkciók:** [akkudiagnosztika](docs/battery-diagnostics.md), [elektromos autó](docs/electric-car.md) és [helyi energiaasszisztens](docs/energy-assistant.md).
 - **Megjelenítés:** világos/sötét témák, saját sablonok és [Loxone Otthon kaputelefon-kijelzőként](docs/energy-flow-disable.md).

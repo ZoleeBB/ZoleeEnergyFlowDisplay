@@ -38,6 +38,32 @@ PNG_IMAGE(app_img_weather_snow, weather_snow_png, APP_PNG_WEATHER_SNOW_SIZE);
 PNG_IMAGE(app_img_weather_moon, weather_moon_png, APP_PNG_WEATHER_MOON_SIZE);
 PNG_IMAGE(app_img_wind, wind_png, APP_PNG_WIND_SIZE);
 
+/* A kötött IRC-ikon natív méretben, az SD-csomag verziójától függetlenül él.
+ * A közös képleíró miatt az azonos oldali kártyák ugyanazt a dekódolást használják. */
+extern const uint8_t _binary_irc_thermostat_png_start[];
+const lv_image_dsc_t app_img_irc_thermostat = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 96, .h = 96, .stride = 0,
+    },
+    .data_size = APP_PNG_IRC_THERMOSTAT_SIZE,
+    .data = _binary_irc_thermostat_png_start,
+};
+
+/* A redőnygrafika a meglévő 96×96-os ikon változatlan beépített példánya.
+ * A kártyák közösen dekódolják, az SD-ikonválasztástól függetlenül. */
+extern const uint8_t _binary_shading_blinds_png_start[];
+const lv_image_dsc_t app_img_shading_blinds = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 96, .h = 96, .stride = 0,
+    },
+    .data_size = APP_PNG_SHADING_BLINDS_SIZE,
+    .data = _binary_shading_blinds_png_start,
+};
+
 /* Natív fejlécméret: a kis ikonhoz nem foglalunk 128×128-as dekódolt képet. */
 extern const uint8_t _binary_weather_humidity_png_start[];
 const lv_image_dsc_t app_img_humidity = {

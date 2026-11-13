@@ -1,6 +1,8 @@
 /* Korlátos, platformfüggetlen konfiguráció a v3 Master Loxone-oldalaihoz.
  * A hálózati klienshez és a widgetekhez kötés külön munkaszakaszban készül. */
 #include "app_loxone_home_model.h"
+#include "app_loxone_irc.h"
+#include "app_loxone_shading.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -133,11 +135,21 @@ static bool warnings(const cJSON *entry, lx_home_card_t *out)
 
 static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *error)
 {
-    if (!common(entry, out->id, out->name, out->icon, "cards", index, error))
-        return false;
     char type[16];
     if (!text(entry, "type", type, sizeof(type)))
         return fail(error, "cards", index, "type");
+    /* Importált vagy régi profil sem cserélheti le a kötött vezérlők képét.
+     * Ezeknél a hiányzó/hibás ikonmező sem felhasználói hiba. */
+    if (!strcmp(type, "irc") || !strcmp(type, "shading"))
+    {
+        if (!identifier(entry, "id", out->id))
+            return fail(error, "cards", index, "id");
+        if (!text(entry, "name", out->name, sizeof(out->name)))
+            return fail(error, "cards", index, "name");
+        strcpy(out->icon, !strcmp(type, "irc") ? LX_IRC_ICON_ID : LX_SHADING_ICON_ID);
+    }
+    else if (!common(entry, out->id, out->name, out->icon, "cards", index, error))
+        return false;
     if (!strcmp(type, "value"))
         out->type = LX_HOME_CARD_VALUE;
     else if (!strcmp(type, "pulse"))
@@ -146,12 +158,17 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
         out->type = LX_HOME_CARD_SWITCH;
     else if (!strcmp(type, "lighting"))
         out->type = LX_HOME_CARD_LIGHTING;
+    else if (!strcmp(type, "irc"))
+        out->type = LX_HOME_CARD_IRC;
+    else if (!strcmp(type, "shading"))
+        out->type = LX_HOME_CARD_SHADING;
     else
         return fail(error, "cards", index, "type");
 
     if (out->type != LX_HOME_CARD_VALUE && !uuid(entry, "control_uuid", out->control_uuid))
         return fail(error, "cards", index, "control_uuid");
     if (out->type != LX_HOME_CARD_PULSE && out->type != LX_HOME_CARD_LIGHTING &&
+        out->type != LX_HOME_CARD_IRC && out->type != LX_HOME_CARD_SHADING &&
         !mapping(cJSON_GetObjectItemCaseSensitive(entry, "source"), &out->source))
         return fail(error, "cards", index, "source");
     if (out->type == LX_HOME_CARD_SWITCH &&
@@ -403,16 +420,22 @@ static bool add_source(cJSON *entry, const lx_mapping_t *source)
 
 static cJSON *card_json(const lx_home_card_t *card)
 {
-    cJSON *entry = common_json(card->id, card->name, card->icon);
+    cJSON *entry = common_json(card->id, card->name,
+                               card->type == LX_HOME_CARD_IRC ? LX_IRC_ICON_ID :
+                               card->type == LX_HOME_CARD_SHADING ? LX_SHADING_ICON_ID : card->icon);
     if (!entry)
         return NULL;
     const char *type = card->type == LX_HOME_CARD_VALUE ? "value" :
                        card->type == LX_HOME_CARD_PULSE ? "pulse" :
+                       card->type == LX_HOME_CARD_IRC ? "irc" :
+                       card->type == LX_HOME_CARD_SHADING ? "shading" :
                        card->type == LX_HOME_CARD_LIGHTING ? "lighting" : "switch";
     if (!cJSON_AddStringToObject(entry, "type", type) ||
         (card->type != LX_HOME_CARD_VALUE &&
          !cJSON_AddStringToObject(entry, "control_uuid", card->control_uuid)) ||
-        (card->type != LX_HOME_CARD_PULSE && card->type != LX_HOME_CARD_LIGHTING && !add_source(entry, &card->source)))
+        (card->type != LX_HOME_CARD_PULSE && card->type != LX_HOME_CARD_LIGHTING &&
+         card->type != LX_HOME_CARD_IRC && card->type != LX_HOME_CARD_SHADING &&
+         !add_source(entry, &card->source)))
         goto failed;
     if (card->type == LX_HOME_CARD_VALUE &&
         (!cJSON_AddStringToObject(entry, "unit", card->unit) ||

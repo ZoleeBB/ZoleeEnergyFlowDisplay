@@ -2,6 +2,8 @@
 
 #include "app_loxone_home_model.h"
 #include "app_loxone_lighting.h"
+#include "app_loxone_irc.h"
+#include "app_loxone_shading.h"
 
 /* A Loxone állapotfolyam delta alapú: az első snapshotból megőrzött 24 szám
  * nem képi/widget-adat, és nem hoz létre további Miniserver-kapcsolatot. */
@@ -25,7 +27,13 @@ typedef enum
     LX_HOME_COMMAND_OFF,
     LX_HOME_COMMAND_LIGHT_PREV,
     LX_HOME_COMMAND_LIGHT_NEXT,
-    LX_HOME_COMMAND_LIGHT_OFF
+    LX_HOME_COMMAND_LIGHT_OFF,
+    LX_HOME_COMMAND_IRC_DECREASE,
+    LX_HOME_COMMAND_IRC_INCREASE,
+    LX_HOME_COMMAND_SHADING_UP,
+    LX_HOME_COMMAND_SHADING_DOWN,
+    LX_HOME_COMMAND_SHADING_STOP,
+    LX_HOME_COMMAND_SHADING_POSITION
 } lx_home_command_t;
 
 /* Teljes numerikus WS-tábla; formahibánál a korábbi állapot változatlan.
@@ -38,6 +46,10 @@ bool lx_home_values_update(lx_home_values_t *values, const lx_home_config_t *con
 bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
                            const char *card_id, lx_home_command_t action,
                            char out[96]);
+/* A százalék az egyedi automatikus árnyékoló zártsága: 0 = fent, 100 = lent.
+ * Központi blokk és a paraméter nélküli parancs-API nem állíthat pozíciót. */
+bool lx_home_shading_position_build(const lx_home_config_t *config, const cJSON *catalog,
+                                    const char *card_id, unsigned percent, char out[96]);
 bool lx_home_control_supported(const char *type, bool secured, bool pulse);
 
 /* Csak egy kifejezett 0/1 módosítja a csengetés reteszét. Hiányzó állapot,
