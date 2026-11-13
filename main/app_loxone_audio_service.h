@@ -16,10 +16,13 @@ typedef enum
 
 typedef struct
 {
+    /* track kizárólag szerver-visszajelzés. Függő hangerőnél a GUI külön
+     * desired_volume célt mutathat; ez legfeljebb 2 s után lezárul hibával.
+     * A hangerőhiba külön állapot, nem írja felül a natív kapcsolat statusát. */
     lx_audio_track_t track;
-    unsigned generation, volume_max;
+    unsigned generation, volume_max, desired_volume;
     lx_audio_status_t status;
-    bool available, controllable, native_ready, volume_up_down, volume_pending;
+    bool available, controllable, native_ready, volume_up_down, volume_pending, volume_failed;
 } lx_audio_summary_t;
 
 /* A Miniserver-worker hívja. A JWT privát másolat, sohasem része pillanatképnek,
@@ -30,6 +33,9 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
 void app_loxone_audio_hide(void);
 void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                             const char *text, size_t length, int64_t now);
+/* Kizárólag a Miniserver-worker hívja, a közös parancssor feldolgozása előtt,
+ * Loxone-zár nélkül. A hangerő nem várhat a natív Audio hálózati műveleteire. */
+void app_loxone_audio_poll(int64_t now);
 
 bool app_loxone_audio_summary(const char *id, unsigned revision, lx_audio_summary_t *out);
 bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action);

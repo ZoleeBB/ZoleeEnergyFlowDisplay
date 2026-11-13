@@ -68,6 +68,26 @@ static bool audio_host(const char *value, char out[LX_AUDIO_HOST_SIZE], unsigned
     return true;
 }
 
+static bool audio_server_address(const cJSON *server, char out[LX_AUDIO_HOST_SIZE], unsigned *port)
+{
+    const char *declared = audio_string(server, "host");
+    const char *local = audio_string(server, "localIP");
+    if (declared[0] && !audio_host(declared, out, port))
+        return false;
+    if (local[0])
+    {
+        unsigned local_port;
+        if (!audio_host(local, out, &local_port))
+            return false;
+        /* A localIP a feloldott cím. A kommunikáció portját a host mező
+         * adja; az IP-cím választása nem állíthatja vissza azt 7091-re. */
+        if (!declared[0])
+            *port = local_port;
+        return true;
+    }
+    return declared[0] != 0;
+}
+
 static bool audio_state_meta(cJSON *meta, const cJSON *states, const char *name,
                               bool *blocked)
 {
@@ -88,12 +108,9 @@ bool lx_audio_catalog_attach(cJSON *entry, const cJSON *control, bool secured,
     const cJSON *server = cJSON_GetObjectItemCaseSensitive(servers, audio_string(details, "server"));
     unsigned player = 0, type = 0, modes = 0, port = 7091;
     char host[LX_AUDIO_HOST_SIZE] = {0};
-    const char *address = audio_string(server, "localIP");
-    if (!address[0])
-        address = audio_string(server, "host");
     bool valid = audio_uint(cJSON_GetObjectItemCaseSensitive(details, "playerid"), &player) && player &&
                  audio_uint(cJSON_GetObjectItemCaseSensitive(server, "type"), &type) && type == 2 &&
-                 audio_host(address, host, &port);
+                 audio_server_address(server, host, &port);
     const cJSON *mode = cJSON_GetObjectItemCaseSensitive(details, "volumeModes");
     if (mode && (!audio_uint(mode, &modes) || modes > 7))
         valid = false;
@@ -240,12 +257,108 @@ bool lx_audio_cover_url(const char *url)
     return true;
 }
 
-static bool audio_text_update(char *out, size_t capacity, const cJSON *row, const char *key)
+static int audio_hex_digit(unsigned char value)
+{
+    if (value >= '0' && value <= '9')
+        return value - '0';
+    if (value >= 'A' && value <= 'F')
+        return value - 'A' + 10;
+    if (value >= 'a' && value <= 'f')
+        return value - 'a' + 10;
+    return -1;
+}
+
+static void audio_display_text(char out[LX_AUDIO_TEXT_SIZE], const char *text)
+{
+    size_t used = 0, complete = 0;
+    unsigned remaining = 0, codepoint = 0, minimum = 0;
+    bool truncated = false;
+    const unsigned char *next = (const unsigned char *)text;
+    while (*next)
+    {
+        unsigned char value = *next++;
+        if (value == '%')
+        {
+            if (!next[0] || !next[1])
+                goto undecoded;
+            int high = audio_hex_digit(next[0]), low = audio_hex_digit(next[1]);
+            if (high < 0 || low < 0)
+                goto undecoded;
+            value = (unsigned char)(high * 16 + low);
+            next += 2;
+        }
+        /* A gyártói kliens decodeURIComponent szerint dekódol, tehát a +
+         * megmarad, a hibás escape/UTF-8 pedig eredeti szövegként jelenik meg.
+         * Beágyazott NUL nem rövidítheti le észrevétlenül a C-sztringet. */
+        if (!value)
+            goto undecoded;
+        if (remaining)
+        {
+            if ((value & 0xc0U) != 0x80U)
+                goto undecoded;
+            codepoint = (codepoint << 6) | (value & 0x3fU);
+            --remaining;
+        }
+        else if (value < 0x80U)
+        {
+            codepoint = value;
+            minimum = 0;
+        }
+        else if (value >= 0xc2U && value <= 0xdfU)
+        {
+            codepoint = value & 0x1fU;
+            remaining = 1;
+            minimum = 0x80;
+        }
+        else if (value >= 0xe0U && value <= 0xefU)
+        {
+            codepoint = value & 0x0fU;
+            remaining = 2;
+            minimum = 0x800;
+        }
+        else if (value >= 0xf0U && value <= 0xf4U)
+        {
+            codepoint = value & 7U;
+            remaining = 3;
+            minimum = 0x10000;
+        }
+        else
+            goto undecoded;
+        if (used < LX_AUDIO_TEXT_SIZE - 1)
+            out[used++] = (char)value;
+        else
+            truncated = true;
+        if (!remaining)
+        {
+            if (codepoint < minimum || codepoint > 0x10ffffU ||
+                (codepoint >= 0xd800U && codepoint <= 0xdfffU))
+                goto undecoded;
+            if (!truncated)
+                complete = used;
+        }
+    }
+    if (remaining)
+        goto undecoded;
+    out[complete] = 0;
+    return;
+
+undecoded:
+    light_copy(out, LX_AUDIO_TEXT_SIZE, text);
+}
+
+static bool audio_text_update(char *out, size_t capacity, const cJSON *row, const char *key,
+                               bool uri_encoded)
 {
     const cJSON *value = cJSON_GetObjectItemCaseSensitive(row, key);
     if (!value)
         return false;
     const char *text = cJSON_IsString(value) && value->valuestring ? value->valuestring : "";
+    char decoded[LX_AUDIO_TEXT_SIZE];
+    if (uri_encoded)
+    {
+        audio_display_text(decoded, text);
+        text = decoded;
+    }
     if (strlen(text) >= capacity)
         text = "";
     if (!strcmp(out, text))
@@ -270,11 +383,11 @@ bool lx_audio_track_update(lx_audio_track_t *track, unsigned player, const cJSON
         unsigned id = 0;
         if (!audio_uint(cJSON_GetObjectItemCaseSensitive(row, "playerid"), &id) || id != player)
             continue;
-        artwork_changed |= audio_text_update(track->title, sizeof(track->title), row, "title");
-        artwork_changed |= audio_text_update(track->artist, sizeof(track->artist), row, "artist");
-        artwork_changed |= audio_text_update(track->album, sizeof(track->album), row, "album");
-        artwork_changed |= audio_text_update(track->station, sizeof(track->station), row, "station");
-        artwork_changed |= audio_text_update(track->cover, sizeof(track->cover), row, "coverurl");
+        artwork_changed |= audio_text_update(track->title, sizeof(track->title), row, "title", true);
+        artwork_changed |= audio_text_update(track->artist, sizeof(track->artist), row, "artist", true);
+        artwork_changed |= audio_text_update(track->album, sizeof(track->album), row, "album", true);
+        artwork_changed |= audio_text_update(track->station, sizeof(track->station), row, "station", true);
+        artwork_changed |= audio_text_update(track->cover, sizeof(track->cover), row, "coverurl", false);
         if (track->cover[0] && !lx_audio_cover_url(track->cover))
         {
             track->cover[0] = 0;
@@ -368,7 +481,7 @@ bool lx_audio_favorites_parse(lx_audio_favorites_t *out, unsigned player,
         if (audio_uint(cJSON_GetObjectItemCaseSensitive(row, "slot"), &slot) && slot <= INT_MAX)
             item->slot = (int)slot;
         if (name[0])
-            light_copy(item->name, sizeof(item->name), name);
+            audio_display_text(item->name, name);
         else
             snprintf(item->name, sizeof(item->name), "Kedvenc %u", item->id);
         ++next->count;

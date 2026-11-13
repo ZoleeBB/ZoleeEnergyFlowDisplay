@@ -118,26 +118,52 @@ static void audio_ui_suspend(void)
     app_loxone_audio_hide();
 }
 
+/* A beépített Noto betűkészletben nincs U+2026 és U+2212: a saját
+ * feliratainkhoz a meglévő pontot és kötőjelet használjuk. */
+static const char *audio_connection_text(const lx_audio_summary_t *summary)
+{
+    if (summary->status == LX_AUDIO_AUTH_FAILED)
+        return tr("Audio: sikertelen belépés", "Audio authentication failed");
+    if (summary->status == LX_AUDIO_CONNECTING)
+        return tr("Audio kapcsolódás...", "Connecting audio...");
+    return tr("Audio-kapcsolat nem érhető el", "Audio connection unavailable");
+}
+
 static const char *audio_status_text(const lx_audio_summary_t *summary)
 {
     if (!summary->available)
         return tr("Nincs adat", "No data");
+    /* A Miniserver lejátszási állapota a natív Audio-kapcsolat kiesése
+     * mellett is megmaradhat. Ez nem fedheti el az adatkapcsolat hibáját. */
+    if (!summary->native_ready || summary->status == LX_AUDIO_AUTH_FAILED ||
+        summary->status == LX_AUDIO_UNAVAILABLE || summary->status == LX_AUDIO_CONNECTING)
+        return audio_connection_text(summary);
     if (!summary->controllable)
         return tr("Vezérlés nem elérhető", "Control unavailable");
-    if (summary->status == LX_AUDIO_AUTH_FAILED)
-        return tr("Audio: sikertelen belépés", "Audio authentication failed");
+    if (summary->volume_failed)
+        return tr("Hangerőállítás sikertelen", "Volume change failed");
     if (summary->status == LX_AUDIO_REQUEST_FAILED)
         return tr("A kérés nem fogadható el", "Request not accepted");
     if (summary->volume_pending)
-        return tr("Hangerő küldése…", "Setting volume…");
+        return tr("Hangerő küldése...", "Setting volume...");
     if (summary->track.mode == LX_AUDIO_MODE_PLAY)
         return tr("Lejátszás", "Playing");
     if (summary->track.mode == LX_AUDIO_MODE_PAUSE)
         return tr("Szünet", "Paused");
     if (summary->track.mode == LX_AUDIO_MODE_STOP)
         return tr("Leállítva", "Stopped");
-    return summary->status == LX_AUDIO_CONNECTING ? tr("Audio kapcsolódás…", "Connecting audio…") :
-        tr("Állapotra vár", "Waiting for status");
+    return tr("Állapotra vár", "Waiting for status");
+}
+
+static const char *audio_title_text(const lx_audio_summary_t *summary, bool detail)
+{
+    if (summary->track.title[0])
+        return summary->track.title;
+    if (summary->track.station[0])
+        return summary->track.station;
+    /* Az üres metaadat nem bizonyítja, hogy nincs lejátszott zeneszám. */
+    return detail ? tr("Zeneszámadat nem érhető el", "Track information unavailable") :
+        tr("Nincs zeneszámadat", "No track data");
 }
 
 static bool audio_card_current(unsigned index)
@@ -332,17 +358,19 @@ static void audio_ui_update(void)
     }
     const lx_audio_summary_t *summary = &audio_ui_summary;
     bool allowed = summary->controllable;
-    if (!audio_dragging && !summary->volume_pending && summary->track.volume_known && audio_volume_slider)
-    {
-        audio_syncing = true;
-        if ((unsigned)lv_slider_get_max_value(audio_volume_slider) != summary->volume_max)
-            lv_slider_set_range(audio_volume_slider, 0, summary->volume_max ? (int)summary->volume_max : 1);
-        if ((unsigned)lv_slider_get_value(audio_volume_slider) != summary->track.volume)
-            lv_slider_set_value(audio_volume_slider, (int)summary->track.volume, LV_ANIM_OFF);
-        audio_syncing = false;
-    }
     if (audio_volume_slider)
     {
+        audio_syncing = true;
+        unsigned maximum = summary->volume_max ? summary->volume_max : 1;
+        if ((unsigned)lv_slider_get_max_value(audio_volume_slider) != maximum)
+            lv_slider_set_range(audio_volume_slider, 0, (int)maximum);
+        if (!audio_dragging && (summary->volume_pending || summary->track.volume_known))
+        {
+            unsigned value = summary->volume_pending ? summary->desired_volume : summary->track.volume;
+            if ((unsigned)lv_slider_get_value(audio_volume_slider) != value)
+                lv_slider_set_value(audio_volume_slider, (int)value, LV_ANIM_OFF);
+        }
+        audio_syncing = false;
         light_ui_hidden(audio_volume_slider, summary->volume_up_down);
         light_ui_enable(audio_volume_slider, allowed && !summary->volume_up_down && summary->volume_max > 0);
     }
@@ -353,23 +381,24 @@ static void audio_ui_update(void)
     }
     char text[80];
     if (summary->volume_up_down)
-        snprintf(text, sizeof(text), "%s", tr("Külső hangerő: − / +", "External volume: − / +"));
+        snprintf(text, sizeof(text), "%s", tr("Külső hangerő: - / +", "External volume: - / +"));
     else if (audio_dragging || summary->volume_pending)
-        snprintf(text, sizeof(text), "%s: %d%%", tr("Hangerő", "Volume"),
-            audio_volume_slider ? (int)lv_slider_get_value(audio_volume_slider) : 0);
+        snprintf(text, sizeof(text), "%s: %u%%", tr("Célhangerő", "Target volume"),
+            audio_dragging && audio_volume_slider ? (unsigned)lv_slider_get_value(audio_volume_slider) : summary->desired_volume);
     else if (summary->track.volume_known)
         snprintf(text, sizeof(text), "%s: %u%%", tr("Hangerő", "Volume"), summary->track.volume);
     else
         snprintf(text, sizeof(text), "%s", tr("Hangerő: nincs adat", "Volume: no data"));
     label_text_if_changed(audio_volume_label, text);
-    label_text_if_changed(audio_status, audio_submit_error ? tr("A kérés nem fogadható el.", "Request not accepted.") :
+    bool request_error = audio_submit_error && summary->available && summary->controllable && summary->native_ready;
+    label_text_if_changed(audio_status, request_error ? tr("A kérés nem fogadható el.", "Request not accepted.") :
         audio_status_text(summary));
     if (!audio_detail)
         return;
-    audio_cached_text(audio_track_title, audio_modal_text[0], LX_AUDIO_TEXT_SIZE, summary->track.title[0] ? summary->track.title :
-        tr("Nincs lejátszott zeneszám", "No current track"));
+    audio_cached_text(audio_track_title, audio_modal_text[0], LX_AUDIO_TEXT_SIZE, audio_title_text(summary, true));
     audio_cached_text(audio_track_artist, audio_modal_text[1], LX_AUDIO_TEXT_SIZE, summary->track.artist);
-    audio_cached_text(audio_track_source, audio_modal_text[2], LX_AUDIO_TEXT_SIZE, summary->track.station[0] ? summary->track.station : summary->track.album);
+    audio_cached_text(audio_track_source, audio_modal_text[2], LX_AUDIO_TEXT_SIZE,
+        summary->track.title[0] && summary->track.station[0] ? summary->track.station : summary->track.album);
     audio_picture_update(&audio_detail_cover, LX_AUDIO_MEDIA_SLOTS - 1, summary);
     for (unsigned i = 0; i < 3; ++i)
         light_ui_enable(audio_transport_buttons[i], allowed && !home_command_wait &&
@@ -415,8 +444,10 @@ static void audio_ui_update(void)
     }
     if (favorites->failed)
         snprintf(text, sizeof(text), "%s", tr("A kedvenclista nem érhető el.", "Favorites unavailable."));
+    else if (!summary->native_ready)
+        snprintf(text, sizeof(text), "%s", audio_connection_text(summary));
     else if (!favorites->ready)
-        snprintf(text, sizeof(text), "%s", tr("Kedvencek betöltése…", "Loading favorites…"));
+        snprintf(text, sizeof(text), "%s", tr("Kedvencek betöltése...", "Loading favorites..."));
     else if (!favorites->total)
         snprintf(text, sizeof(text), "%s", tr("Nincs beállított kedvenc.", "No configured favorites."));
     else
@@ -428,8 +459,8 @@ static void audio_ui_update(void)
             favorites->start + last, favorites->total);
     }
     label_text_if_changed(audio_favorites_label, text);
-    light_ui_enable(audio_favorites_prev, favorites->ready && (favorites->start || audio_favorites_offset));
-    light_ui_enable(audio_favorites_next, favorites->ready &&
+    light_ui_enable(audio_favorites_prev, summary->native_ready && favorites->ready && (favorites->start || audio_favorites_offset));
+    light_ui_enable(audio_favorites_next, summary->native_ready && favorites->ready &&
         (audio_favorites_offset + AUDIO_UI_VISIBLE_ROWS < favorites->count ||
          favorites->start + favorites->count < favorites->total));
 }
@@ -480,7 +511,7 @@ static void audio_ui_open(unsigned index, bool detail)
     lv_obj_add_event_cb(audio_volume_slider, audio_ui_volume_event, LV_EVENT_PRESS_LOST, generation);
     for (unsigned i = 0; i < 2; ++i)
     {
-        audio_volume_buttons[i] = pairing_button(audio_panel, i ? "+" : "−", slider_x + i * 130,
+        audio_volume_buttons[i] = pairing_button(audio_panel, i ? "+" : "-", slider_x + i * 130,
             slider_y - 8, 112, 44);
         lv_obj_remove_flag(audio_volume_buttons[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
         lv_obj_add_event_cb(audio_volume_buttons[i], audio_ui_transport_event, LV_EVENT_CLICKED, generation);
@@ -607,8 +638,7 @@ static void audio_card_update(unsigned slot, unsigned index, bool live)
     if (!current)
         memset(&audio_ui_summary, 0, sizeof(audio_ui_summary));
     const lx_audio_summary_t *summary = &audio_ui_summary;
-    audio_cached_text(ui->title, ui->title_cache, sizeof(ui->title_cache), summary->track.title[0] ? summary->track.title :
-        summary->track.station[0] ? summary->track.station : tr("Zene", "Music"));
+    audio_cached_text(ui->title, ui->title_cache, sizeof(ui->title_cache), audio_title_text(summary, false));
     audio_cached_text(ui->status, ui->status_cache, sizeof(ui->status_cache), audio_status_text(summary));
     audio_symbol(ui->play, summary->track.mode == LX_AUDIO_MODE_PLAY ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
     light_ui_enable(ui->play, live && current && summary->controllable && !home_command_wait &&

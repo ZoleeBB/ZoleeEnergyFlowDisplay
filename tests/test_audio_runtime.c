@@ -5,10 +5,21 @@
 struct test_audio_semaphore { bool binary, held; };
 typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned char *data; } test_queue_t;
 static int64_t test_now = 1000000;
-static unsigned test_transports, test_native_sends, test_task_creations;
+static unsigned test_transports, test_transport_attempts, test_native_sends, test_task_creations;
 static unsigned test_volume, test_media_generation;
-static bool test_fail_allocation, test_fail_queue, test_cancel_before_enqueue;
+static bool test_fail_allocation, test_fail_queue, test_fail_task, test_cancel_before_enqueue;
+static bool test_transport_busy;
+enum { TEST_NATIVE_NONE, TEST_NATIVE_INIT, TEST_NATIVE_AUTH, TEST_NATIVE_SEND, TEST_NATIVE_STOP };
+static unsigned test_native_wait_point, test_native_wait_checks;
+static void test_miniserver_during_native_wait(unsigned point);
 static char test_native_command[128];
+static void (*test_native_sleep_hook)(void);
+static void (*test_native_send_hook)(const char *command);
+static void (*test_audio_lock_hook)(void);
+static void (*test_native_event_callback)(void *, esp_event_base_t, int32_t, void *);
+static void *test_native_event_argument;
+static bool test_native_start_error, test_native_stop_disconnect;
+static unsigned test_native_starts;
 
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
 {
@@ -30,9 +41,12 @@ SemaphoreHandle_t xSemaphoreCreateBinary(void)
 }
 int xSemaphoreTake(SemaphoreHandle_t lock, TickType_t timeout)
 {
-    (void)timeout;
+    if (lock->binary && timeout && test_native_sleep_hook)
+        test_native_sleep_hook();
     if (!lock->binary)
     {
+        if (lock == audio_lock && test_audio_lock_hook)
+            test_audio_lock_hook();
         assert(!lock->held);
         lock->held = true;
     }
@@ -51,8 +65,13 @@ BaseType_t xTaskCreateWithCaps(TaskFunction_t function, const char *name, uint32
                               void *argument, UBaseType_t priority, TaskHandle_t *handle, unsigned caps)
 {
     (void)function; (void)name; (void)argument; (void)priority;
-    assert(stack >= 8192 && caps == MALLOC_CAP_RTCRAM);
+    assert(stack >= 8192 && (caps == MALLOC_CAP_RTCRAM || caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
     ++test_task_creations;
+    if (test_fail_task)
+    {
+        *handle = NULL;
+        return 0;
+    }
     *handle = (void *)1;
     return pdPASS;
 }
@@ -99,19 +118,48 @@ void vQueueDelete(QueueHandle_t queue)
 }
 
 esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_client_config_t *options)
-{ assert(!strcmp(options->subprotocol, "remotecontrol")); return (void *)1; }
+{
+    assert(!strcmp(options->subprotocol, "remotecontrol"));
+    test_miniserver_during_native_wait(TEST_NATIVE_INIT);
+    return (void *)1;
+}
 esp_err_t esp_websocket_register_events(esp_websocket_client_handle_t handle, int event,
     void (*callback)(void *, esp_event_base_t, int32_t, void *), void *argument)
-{ (void)handle; (void)event; (void)callback; (void)argument; return ESP_OK; }
-esp_err_t esp_websocket_client_start(esp_websocket_client_handle_t handle) { (void)handle; return ESP_OK; }
-esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t handle) { (void)handle; return ESP_OK; }
+{
+    (void)handle; (void)event;
+    test_native_event_callback = callback;
+    test_native_event_argument = argument;
+    return ESP_OK;
+}
+esp_err_t esp_websocket_client_start(esp_websocket_client_handle_t handle)
+{
+    (void)handle;
+    ++test_native_starts;
+    if (test_native_start_error)
+    {
+        test_native_start_error = false;
+        test_native_event_callback(test_native_event_argument, NULL, WEBSOCKET_EVENT_ERROR, NULL);
+    }
+    return ESP_OK;
+}
+esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t handle)
+{
+    (void)handle;
+    test_miniserver_during_native_wait(TEST_NATIVE_STOP);
+    if (test_native_stop_disconnect)
+        test_native_event_callback(test_native_event_argument, NULL, WEBSOCKET_EVENT_DISCONNECTED, NULL);
+    return ESP_OK;
+}
 esp_err_t esp_websocket_client_destroy(esp_websocket_client_handle_t handle) { (void)handle; return ESP_OK; }
 int esp_websocket_client_send_text(esp_websocket_client_handle_t handle, const char *command, int length, TickType_t timeout)
 {
     (void)handle; (void)timeout;
     assert(!audio_lock->held);
+    test_miniserver_during_native_wait(TEST_NATIVE_SEND);
     snprintf(test_native_command, sizeof(test_native_command), "%s", command);
     ++test_native_sends;
+    if (test_native_send_hook)
+        test_native_send_hook(command);
     return length;
 }
 void mbedtls_platform_zeroize(void *data, size_t length) { memset(data, 0, length); }
@@ -119,6 +167,7 @@ char *lx_audio_auth_create(const char *key, const char *user, const char *jwt, c
     int (*random_bytes)(void *, unsigned char *, size_t), void *context)
 {
     (void)key; (void)user; (void)jwt; (void)session; (void)random_bytes; (void)context;
+    test_miniserver_during_native_wait(TEST_NATIVE_AUTH);
     return strdup("unit-test-auth");
 }
 void lx_audio_auth_free(char *command) { free(command); }
@@ -129,6 +178,9 @@ esp_err_t app_loxone_audio_transport(const char *id, unsigned revision, lx_audio
 {
     assert(!audio_lock->held);
     assert(!strcmp(id, "audio-one") && revision == 7);
+    ++test_transport_attempts;
+    if (test_transport_busy)
+        return ESP_ERR_INVALID_STATE;
     if (test_cancel_before_enqueue)
     {
         test_cancel_before_enqueue = false;
@@ -167,7 +219,8 @@ static void prepare_page(void)
     app_loxone_audio_session("user", "test.jwt", true);
     app_loxone_audio_page(config, catalog, 0, 7);
     free(config); cJSON_Delete(catalog);
-    assert(audio_page && audio_task && test_media_generation == audio_page->generation);
+    assert(audio_page && test_media_generation == audio_page->generation);
+    assert(test_fail_task || audio_task);
     assert(!app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
     state("12", 0); state("14", 60); state("11", 25);
     assert(!app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
@@ -181,18 +234,18 @@ static void volume_test(void)
 {
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 10, false) == ESP_OK);
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 20, false) == ESP_OK);
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == 1 && test_volume == 20);
     test_now += 50000;
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 30, false) == ESP_OK);
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == 1);
     test_now += 50000;
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == 2 && test_volume == 30);
     test_now += 10000;
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 40, true) == ESP_OK);
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == 3 && test_volume == 40);
     assert(audio_page->slots[0].track.volume == 25); /* Kérés != visszajelzés. */
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 61, true) != ESP_OK);
@@ -201,7 +254,7 @@ static void volume_test(void)
     state("14", 50);
     assert(!app_loxone_audio_value_allowed("audio-one", 7, LX_AUDIO_VOLUME, 60));
     assert(app_loxone_audio_value_allowed("audio-one", 7, LX_AUDIO_VOLUME, 50));
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == 3 && !audio_page->slots[0].volume_dirty);
     state("12", 1);
     assert(!app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
@@ -239,7 +292,7 @@ static void volume_cancellation_test(void)
     app_loxone_audio_cancel_volume("audio-one", 6);
     assert(audio_page->slots[0].volume_dirty && audio_page->slots[0].edit_generation == generation);
     app_loxone_audio_cancel_volume("audio-one", 7);
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == sent && !audio_page->slots[0].volume_dirty);
     assert(audio_page->slots[0].track.volume == actual);
     assert(!app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_VOLUME, 45, generation));
@@ -250,14 +303,14 @@ static void volume_cancellation_test(void)
     /* A worker már kivette a célt, de a modal a közös sorba vétel előtt zárul. */
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 42, true) == ESP_OK);
     test_cancel_before_enqueue = true;
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == sent && !audio_page->slots[0].volume_dirty);
     assert(audio_page->slots[0].track.volume == actual);
     test_cancel_before_enqueue = true;
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME_UP, 0, true) != ESP_OK);
     assert(test_transports == sent);
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 40, true) == ESP_OK);
-    audio_volume_poll(test_now);
+    app_loxone_audio_poll(test_now);
     assert(test_transports == sent + 1 && test_volume == 40);
     app_loxone_audio_cancel_volume("audio-one", 7);
     assert(audio_page->slots[0].track.volume == actual);
@@ -274,6 +327,165 @@ static void message_reply(audio_connection_t *connection, const char *reply)
 {
     audio_message_t message = {.data = (char *)reply, .length = strlen(reply)};
     audio_message(connection, &message);
+}
+
+static void test_miniserver_during_native_wait(unsigned point)
+{
+    if (test_native_wait_point != point)
+        return;
+    test_native_wait_point = TEST_NATIVE_NONE;
+    ++test_native_wait_checks;
+    assert(!audio_lock->held);
+    unsigned sent = test_transports;
+    unsigned actual = audio_page->slots[0].track.volume;
+    lx_audio_summary_t summary;
+    /* A natív művelet még nem tért vissza. E közben érkezik a GUI új húzása,
+     * és fut a másik feladatban a Miniserver normál 100 ms-os köre. */
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 14, false) == ESP_OK);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 35, false) == ESP_OK);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 44, true) == ESP_OK);
+    test_now += 50000;
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent + 1 && test_volume == 44);
+    assert(!audio_page->slots[0].volume_dirty);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && summary.desired_volume == 44 && summary.track.volume == actual);
+    state("11", 44);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && !summary.volume_failed && summary.track.volume == 44);
+}
+
+static void native_waiting_volume_test(void)
+{
+    audio_connection_t *connection = connection_new();
+    unsigned checks = test_native_wait_checks;
+    test_native_wait_point = TEST_NATIVE_INIT;
+    audio_connection_open(connection, 0);
+    assert(test_native_wait_checks == ++checks);
+    test_native_wait_point = TEST_NATIVE_AUTH;
+    connection->phase = 2;
+    message_reply(connection, "{\"getkey_result\":[{\"pubkey\":\"fixture public key\"}]}");
+    assert(test_native_wait_checks == ++checks);
+    test_native_wait_point = TEST_NATIVE_SEND;
+    assert(audio_send(connection, "audio/3/status"));
+    assert(test_native_wait_checks == ++checks);
+    test_native_wait_point = TEST_NATIVE_STOP;
+    audio_connection_close(connection);
+    assert(test_native_wait_checks == ++checks);
+    connection_delete(connection);
+}
+
+static void volume_feedback_and_backpressure_test(void)
+{
+    lx_audio_summary_t summary;
+    unsigned sent = test_transports;
+    audio_page->slots[0].status = LX_AUDIO_AUTH_FAILED;
+    audio_page->slots[0].native_ready = false;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 40, true) == ESP_OK);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && summary.desired_volume == 40 && summary.track.volume == 44);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == ++sent);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && !summary.volume_failed && summary.status == LX_AUDIO_AUTH_FAILED);
+    state("11", 30);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && summary.desired_volume == 40 && summary.track.volume == 30);
+    state("11", 40);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && !summary.volume_failed && summary.track.volume == 40);
+
+    /* Foglalt MS-sornál egy célérték marad, a köztes húzások nem torlódnak.
+     * A végső, már elfogadott értéket a futtató nem küldi el újra. */
+    test_transport_busy = true;
+    unsigned attempts = test_transport_attempts;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 15, true) == ESP_OK);
+    app_loxone_audio_poll(test_now);
+    assert(test_transport_attempts == ++attempts && test_transports == sent);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 21, false) == ESP_OK);
+    test_now += 50000;
+    app_loxone_audio_poll(test_now);
+    assert(test_transport_attempts == attempts);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 34, false) == ESP_OK);
+    test_now += 50000;
+    test_transport_busy = false;
+    app_loxone_audio_poll(test_now);
+    assert(test_transport_attempts == ++attempts && test_transports == ++sent && test_volume == 34);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && summary.desired_volume == 34 && summary.track.volume == 40);
+    test_now += AUDIO_VOLUME_CONFIRM_US;
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && summary.volume_failed && summary.track.volume == 40);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent && test_transport_attempts == attempts);
+    state("11", 34);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && !summary.volume_failed && summary.track.volume == 34);
+    state("11", 40);
+
+    /* Tartós sorfoglaltság és a friss válasz hiánya külön sem tarthatja
+     * végtelen ideig a régi célt. A lejárt szerkesztés generációja is érvénytelen. */
+    test_transport_busy = true;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 25, true) == ESP_OK);
+    unsigned edit = audio_page->slots[0].edit_generation;
+    app_loxone_audio_poll(test_now);
+    test_now += AUDIO_VOLUME_CONFIRM_US;
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && summary.volume_failed && summary.track.volume == 40);
+    test_transport_busy = false;
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent);
+    assert(!app_loxone_audio_queued_allowed("audio-one", 7, LX_AUDIO_VOLUME, 25, edit));
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 44, true) == ESP_OK);
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.volume_pending && !summary.volume_failed);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent + 1);
+    state("11", 44);
+}
+
+static void observed_radio_event_test(void)
+{
+    audio_connection_t *connection = connection_new();
+    audio_page->slots[0].endpoint.player = 5;
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"station\":\"95.8 Sláger FM\","
+        "\"title\":\"\",\"artist\":\"\",\"album\":\"\",\"mode\":\"stop\",\"volume\":6,"
+        "\"coverurl\":\"https://cdn-profiles.tunein.com/s25966/images/logoq.jpg?t=637069206200000000\","
+        "\"clientState\":\"on\"}]}");
+    lx_audio_summary_t summary;
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(summary.native_ready && !strcmp(summary.track.station, "95.8 Sláger FM"));
+    assert(!summary.track.title[0] && summary.track.mode == LX_AUDIO_MODE_STOP);
+    assert(summary.track.volume_known && summary.track.volume == 6);
+    assert(!strcmp(summary.track.cover,
+        "https://cdn-profiles.tunein.com/s25966/images/logoq.jpg?t=637069206200000000"));
+    assert(summary.track.version != 0);
+
+    /* Natív visszajelzés is nyugta, de csak a megfelelő zóna tényleges
+     * volume mezője. A borító/állomás változása nem friss hangerőérték. */
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 6, true) == ESP_OK);
+    app_loxone_audio_poll(test_now);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"station\":\"95.8 Sláger FM\"}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary) && summary.volume_pending);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":4,\"volume\":6},{\"playerid\":5,\"title\":\"\"}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary) && summary.volume_pending);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"volume\":5}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary) && summary.volume_pending && summary.track.volume == 5);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"volume\":6}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && !summary.volume_failed && summary.track.volume == 6);
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 40, false) == ESP_OK);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"volume\":40}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary) && summary.volume_pending);
+    test_now += AUDIO_VOLUME_INTERVAL_US;
+    app_loxone_audio_poll(test_now);
+    message_reply(connection, "{\"audio_event\":[{\"playerid\":5,\"station\":\"95.8 Sláger FM\"}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary) && summary.volume_pending);
+    message_reply(connection, "{\"status_result\":[{\"playerid\":5,\"volume\":40}]}");
+    assert(app_loxone_audio_summary("audio-one", 7, &summary));
+    assert(!summary.volume_pending && !summary.volume_failed && summary.track.volume == 40);
+    audio_page->slots[0].endpoint.player = 3;
+    connection_delete(connection);
 }
 
 static void favorites_test(void)
@@ -366,33 +578,65 @@ static void favorites_lifecycle_test(void)
 
 static void worker_allocation_failure_test(void)
 {
-    /* A régi kód új taskot indított minden sikertelen foglalás után. */
+    /* Natív memóriahiány nem indíthat task-hurkot és nem törölheti a
+     * továbbra is élő Miniserver-alapvezérlés oldalmodelljét. */
     audio_page->live = true;
     test_fail_allocation = true;
     unsigned created = test_task_creations;
     audio_worker(NULL);
-    assert(!audio_task && !audio_page && test_task_creations == created);
+    assert(!audio_task && audio_page && test_task_creations == created);
+    assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
+    unsigned sent = test_transports;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 12, true) == ESP_OK);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent + 1 && test_volume == 12);
 
     prepare_page();
     test_fail_queue = true;
     created = test_task_creations;
     audio_worker(NULL);
-    assert(!audio_task && !audio_page && test_task_creations == created);
+    assert(!audio_task && audio_page && test_task_creations == created);
+    assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
+    sent = test_transports;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 18, true) == ESP_OK);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent + 1 && test_volume == 18);
+
+    test_fail_task = true;
+    prepare_page();
+    test_fail_task = false;
+    assert(!audio_task && audio_page && test_task_creations == created + 2);
+    assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
+    sent = test_transports;
+    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 22, true) == ESP_OK);
+    app_loxone_audio_poll(test_now);
+    assert(test_transports == sent + 1 && test_volume == 22);
 }
+
+#include "test_audio_native.inc"
 
 int main(void)
 {
     prepare_page();
     volume_test();
     volume_cancellation_test();
+    native_waiting_volume_test();
+    volume_feedback_and_backpressure_test();
+    observed_radio_event_test();
+    native_startup_metadata_test();
+    native_fragment_test();
+    native_status_backpressure_test();
+    native_worker_retry_test();
+    native_favorite_close_race_test();
     favorites_test();
     favorites_lifecycle_test();
     worker_allocation_failure_test();
     app_loxone_audio_session(NULL, NULL, false);
     assert(!audio_credentials->jwt[0] && !audio_credentials->live);
+    assert(!audio_page); /* Task nélküli hibás natív ág sem tarthat rejtett modellt. */
     free(audio_page); audio_page = NULL;
     free(audio_credentials); audio_credentials = NULL;
     free(audio_lock); free(audio_wake);
-    puts("PASS: ESP Audio runtime guards, volume limits, favorites IDs/correlation/reconnect and OOM lifecycle");
+    puts("PASS: ESP Audio native-wait independent volume, bounded feedback/coalescing, radio event and lifecycle guards");
     return 0;
 }

@@ -31,6 +31,7 @@ static bool audio_volume_action(lx_audio_action_t action)
 
 #define AUDIO_TIMEOUT_US 8000000LL
 #define AUDIO_VOLUME_INTERVAL_US 100000LL
+#define AUDIO_VOLUME_CONFIRM_US 2000000LL
 #define AUDIO_WORKER_STACK 8192
 
 typedef struct
@@ -40,9 +41,9 @@ typedef struct
     lx_audio_track_t track;
     bool configured, hard_lock_known, hard_locked, lock_known, locked;
     bool server_known, client_known, server_online, client_online;
-    bool max_known, volume_dirty, volume_final, native_ready;
+    bool max_known, volume_dirty, volume_final, volume_pending, volume_failed, native_ready;
     unsigned max_volume, desired_volume, edit_generation;
-    int64_t last_volume_sent;
+    int64_t last_volume_sent, volume_deadline;
     lx_audio_status_t status;
 } audio_slot_t;
 
@@ -80,13 +81,30 @@ typedef struct
     char session[LX_AUDIO_SESSION_SIZE];
     char *rx;
     size_t used, capacity;
+    unsigned rx_opcode;
     atomic_bool dead;
     unsigned phase;
     int64_t deadline, last_rotate, favorites_deadline;
     int favorites_slot;
     unsigned favorites_start, favorites_request;
     unsigned favorites_player;
+    lx_audio_track_t *staged_tracks;
+    unsigned staged_mask;
+    unsigned status_pending;
+    atomic_uint text_frames, binary_frames;
+    _Atomic(const char *) failure_reason;
+    bool diagnostic, first_native_data;
+    unsigned invalid_json;
+    int64_t next_diagnostic;
 } audio_connection_t;
+
+typedef struct
+{
+    unsigned generation, revision, request, list_generation, favorite_id;
+    int slot;
+    char id[LX_HOME_ID_SIZE];
+    bool favorite;
+} audio_detail_command_t;
 
 static SemaphoreHandle_t audio_lock, audio_wake;
 static audio_page_t *audio_page;
@@ -108,6 +126,8 @@ static bool audio_initialize(void)
         audio_wake = xSemaphoreCreateBinary();
     if (!audio_credentials)
         audio_credentials = audio_alloc(sizeof(*audio_credentials));
+    if (!audio_lock || !audio_wake || !audio_credentials)
+        ESP_LOGW("lox_audio", "Audio futtató erőforrásai nem foglalhatók.");
     return audio_lock && audio_wake && audio_credentials;
 }
 
@@ -136,6 +156,51 @@ static bool audio_allowed_locked(int index, lx_audio_action_t action)
     return action >= LX_AUDIO_PLAY && action <= LX_AUDIO_FAVORITE;
 }
 
+static void audio_volume_cancel_locked(audio_slot_t *slot, bool failed)
+{
+    if (++slot->edit_generation == 0)
+        ++slot->edit_generation;
+    slot->volume_dirty = slot->volume_final = slot->volume_pending = false;
+    slot->volume_failed = failed;
+    slot->volume_deadline = 0;
+}
+
+static void audio_volume_expire_locked(audio_slot_t *slot, int64_t now)
+{
+    if (slot->volume_pending && now >= slot->volume_deadline)
+        audio_volume_cancel_locked(slot, true);
+}
+
+static void audio_volume_confirm_locked(audio_slot_t *slot)
+{
+    /* Régi köztes érték és még el nem küldött húzás nem nyugta. A később
+     * megérkező valódi célérték a korábbi időtúllépés jelzését is feloldja. */
+    if (!slot->volume_dirty && (slot->volume_pending || slot->volume_failed) &&
+        slot->track.volume_known && slot->track.volume == slot->desired_volume)
+    {
+        slot->volume_pending = slot->volume_failed = false;
+        slot->volume_deadline = 0;
+    }
+}
+
+static bool audio_volume_in_message(const cJSON *message, unsigned player)
+{
+    const cJSON *rows = cJSON_GetObjectItemCaseSensitive(message, "audio_event");
+    if (!rows)
+        rows = cJSON_GetObjectItemCaseSensitive(message, "status_result");
+    if (!cJSON_IsArray(rows))
+        return false;
+    const cJSON *row;
+    cJSON_ArrayForEach(row, rows)
+    {
+        const cJSON *id = cJSON_GetObjectItemCaseSensitive(row, "playerid");
+        if (cJSON_IsNumber(id) && id->valuedouble == player &&
+            cJSON_GetObjectItemCaseSensitive(row, "volume"))
+            return true;
+    }
+    return false;
+}
+
 bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action)
 {
     if (!audio_lock)
@@ -153,6 +218,8 @@ bool app_loxone_audio_value_allowed(const char *id, unsigned revision,
         return false;
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     int slot = audio_slot_locked(id, revision);
+    if (slot >= 0)
+        audio_volume_expire_locked(&audio_page->slots[slot], esp_timer_get_time());
     bool allowed = audio_allowed_locked(slot, action) &&
         (action != LX_AUDIO_VOLUME || value <= audio_page->slots[slot].max_volume);
     xSemaphoreGive(audio_lock);
@@ -167,6 +234,8 @@ bool app_loxone_audio_queued_allowed(const char *id, unsigned revision,
         return false;
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     int slot = audio_slot_locked(id, revision);
+    if (slot >= 0)
+        audio_volume_expire_locked(&audio_page->slots[slot], esp_timer_get_time());
     bool allowed = audio_allowed_locked(slot, action) &&
         (action != LX_AUDIO_VOLUME || value <= audio_page->slots[slot].max_volume) &&
         (!audio_volume_action(action) ||
@@ -184,9 +253,7 @@ void app_loxone_audio_cancel_volume(const char *id, unsigned revision)
     if (index >= 0)
     {
         audio_slot_t *slot = &audio_page->slots[index];
-        if (++slot->edit_generation == 0)
-            ++slot->edit_generation;
-        slot->volume_dirty = slot->volume_final = false;
+        audio_volume_cancel_locked(slot, false);
     }
     xSemaphoreGive(audio_lock);
 }
@@ -213,7 +280,7 @@ void app_loxone_audio_session(const char *username, const char *jwt, bool live)
         if (audio_page)
             for (unsigned i = 0; i < audio_page->count; ++i)
             {
-                audio_page->slots[i].volume_dirty = false;
+                audio_volume_cancel_locked(&audio_page->slots[i], false);
                 audio_page->slots[i].status = valid ? LX_AUDIO_CONNECTING : LX_AUDIO_UNAVAILABLE;
                 audio_page->slots[i].native_ready = false;
             }
@@ -230,19 +297,39 @@ void app_loxone_audio_hide(void)
         return;
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     ++audio_generation;
+    audio_page_t *released = NULL;
     if (audio_page)
     {
         audio_page->live = false;
         audio_page->detail = -1;
         audio_page->favorite_queued = false;
+        /* Sikertelen natív taskindítás után nincs worker, amely a rejtett
+         * oldal PSRAM-modelljét később felszabadítaná. */
+        if (!audio_task)
+        {
+            released = audio_page;
+            audio_page = NULL;
+        }
     }
     unsigned generation = audio_generation;
     xSemaphoreGive(audio_lock);
+    free(released);
     app_loxone_audio_media_clear(generation);
     xSemaphoreGive(audio_wake);
 }
 
 static void audio_worker(void *argument);
+
+static void audio_native_unavailable_locked(void)
+{
+    if (audio_page)
+        for (unsigned i = 0; i < audio_page->count; ++i)
+            if (audio_page->slots[i].configured)
+            {
+                audio_page->slots[i].native_ready = false;
+                audio_page->slots[i].status = LX_AUDIO_UNAVAILABLE;
+            }
+}
 
 void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
                            int page, unsigned revision)
@@ -258,6 +345,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
     audio_page_t *next = audio_alloc(sizeof(*next));
     if (!next)
     {
+        ESP_LOGW("lox_audio", "Audio oldalmodell nem foglalható (PSRAM).");
         app_loxone_audio_hide();
         return;
     }
@@ -298,7 +386,11 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
             created = xTaskCreateWithCaps(audio_worker, "lox_audio", AUDIO_WORKER_STACK,
                 NULL, 3, &audio_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (created != pdPASS)
+        {
             audio_task = NULL;
+            audio_native_unavailable_locked();
+            ESP_LOGW("lox_audio", "Audio worker nem indítható (RTC/belső verem).");
+        }
     }
     unsigned generation = next->generation;
     xSemaphoreGive(audio_lock);
@@ -333,7 +425,6 @@ static bool audio_lock_value(const char *text, size_t length, bool *known)
 void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                             const char *text, size_t length, int64_t now)
 {
-    (void)now;
     if (!audio_lock || !uuid)
         return;
     xSemaphoreTake(audio_lock, portMAX_DELAY);
@@ -368,6 +459,7 @@ void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                 slot->track.volume_known = numeric && isfinite(value) && value >= 0 && value <= 100;
                 if (slot->track.volume_known)
                     slot->track.volume = (unsigned)lround(value);
+                audio_volume_confirm_locked(slot);
             }
             if (e->max_volume_state[0] && !strcmp(uuid, e->max_volume_state))
             {
@@ -379,8 +471,10 @@ void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                 slot->track.mode = !numeric ? LX_AUDIO_MODE_UNKNOWN :
                     value == 2 ? LX_AUDIO_MODE_PLAY : value == 1 ? LX_AUDIO_MODE_PAUSE :
                     value == 0 ? LX_AUDIO_MODE_STOP : LX_AUDIO_MODE_UNKNOWN;
-            if (!audio_allowed_locked((int)i, LX_AUDIO_VOLUME))
-                slot->volume_dirty = false;
+            if (slot->volume_pending && (!audio_allowed_locked((int)i, LX_AUDIO_VOLUME) ||
+                (slot->max_known && slot->desired_volume > slot->max_volume)))
+                audio_volume_cancel_locked(slot, true);
+            audio_volume_expire_locked(slot, now);
         }
     xSemaphoreGive(audio_lock);
 }
@@ -396,14 +490,19 @@ bool app_loxone_audio_summary(const char *id, unsigned revision, lx_audio_summar
     int index = audio_slot_locked(id, revision);
     if (index >= 0)
     {
-        const audio_slot_t *slot = &audio_page->slots[index];
+        audio_slot_t *slot = &audio_page->slots[index];
+        /* Az MS-kliens egy válaszra várhat; a GUI ettől függetlenül lezárja
+         * az időkorlátos jelzést, a tényleges hangerő átírása nélkül. */
+        audio_volume_expire_locked(slot, esp_timer_get_time());
         out->track = slot->track;
         out->generation = audio_page->generation;
         out->available = true;
         out->controllable = audio_allowed_locked(index, LX_AUDIO_PLAY);
         out->volume_up_down = (slot->endpoint.volume_modes & 4U) != 0;
         out->volume_max = slot->max_known ? slot->max_volume : 0;
-        out->volume_pending = slot->volume_dirty;
+        out->desired_volume = slot->desired_volume;
+        out->volume_pending = slot->volume_pending;
+        out->volume_failed = slot->volume_failed;
         out->status = slot->status;
         out->native_ready = slot->native_ready;
     }
@@ -428,6 +527,9 @@ esp_err_t app_loxone_audio_command(const char *id, unsigned revision,
         {
             slot->desired_volume = value;
             slot->volume_dirty = true;
+            slot->volume_pending = true;
+            slot->volume_failed = false;
+            slot->volume_deadline = esp_timer_get_time() + AUDIO_VOLUME_CONFIRM_US;
             slot->volume_final |= final;
         }
     }
@@ -521,14 +623,41 @@ void app_loxone_audio_detail_close(void)
     xSemaphoreGive(audio_wake);
 }
 
+static void audio_fail(audio_connection_t *connection, const char *reason)
+{
+    /* Kizárólag az alábbi, fordításkor ismert oknevek kerülnek naplóba;
+     * szerverválasz, parancs, JWT vagy munkamenetkulcs soha. */
+    const char *empty = NULL;
+    atomic_compare_exchange_strong(&connection->failure_reason, &empty, reason);
+    connection->dead = true;
+    xSemaphoreGive(audio_wake);
+}
+
+static void audio_diagnostic(const audio_connection_t *connection, const char *step)
+{
+    if (!connection->diagnostic)
+        return;
+    const char *reason = atomic_load(&connection->failure_reason);
+    (void)step;
+    (void)reason;
+    ESP_LOGI("lox_audio", "Audio natív %s: phase=%u, text=%u, binary=%u, invalid_json=%u, ok=%s",
+        step, connection->phase, atomic_load(&connection->text_frames),
+        atomic_load(&connection->binary_frames), connection->invalid_json, reason ? reason : "nincs");
+}
+
 static void audio_receive(void *argument, esp_event_base_t base, int32_t event, void *data)
 {
     (void)base;
     audio_connection_t *connection = argument;
+    if (event == WEBSOCKET_EVENT_CONNECTED)
+    {
+        if (connection->diagnostic)
+            ESP_LOGI("lox_audio", "Audio natív WebSocket felépült.");
+        return;
+    }
     if (event == WEBSOCKET_EVENT_DISCONNECTED || event == WEBSOCKET_EVENT_ERROR)
     {
-        connection->dead = true;
-        xSemaphoreGive(audio_wake);
+        audio_fail(connection, event == WEBSOCKET_EVENT_ERROR ? "transport" : "disconnect");
         return;
     }
     if (event != WEBSOCKET_EVENT_DATA || connection->dead)
@@ -536,17 +665,39 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     esp_websocket_event_data_t *part = data;
     if (part->op_code == 8)
     {
-        connection->dead = true;
+        audio_fail(connection, "server-close");
         return;
     }
-    if (part->op_code != 0 && part->op_code != 1)
+    if (part->op_code != 0 && part->op_code != 1 && part->op_code != 2)
         return;
+    if ((part->op_code == 1 || part->op_code == 2) && !part->payload_offset)
+        connection->rx_opcode = part->op_code;
+    if (connection->rx_opcode == 2)
+    {
+        if (part->op_code == 2 && !part->payload_offset &&
+            atomic_fetch_add(&connection->binary_frames, 1) == 0 && connection->diagnostic)
+            ESP_LOGW("lox_audio", "Audio natív bináris üzenetet küldött; a szöveges protokoll nem dolgozza fel.");
+        if (part->fin && part->payload_len >= 0 && part->payload_offset >= 0 && part->data_len >= 0 &&
+            (size_t)part->payload_offset + (size_t)part->data_len == (size_t)part->payload_len)
+            connection->rx_opcode = 0;
+        return;
+    }
+    if (connection->rx_opcode != 1)
+    {
+        audio_fail(connection, "unexpected-continuation");
+        return;
+    }
     if (part->op_code == 1 && !part->payload_offset)
+    {
         connection->used = 0;
+        atomic_fetch_add(&connection->text_frames, 1);
+    }
     if (part->data_len < 0 || part->payload_len < 0 || part->payload_offset < 0 ||
+        part->payload_offset > part->payload_len || part->data_len > part->payload_len - part->payload_offset ||
+        (part->data_len && !part->data_ptr) || connection->used > LX_AUDIO_JSON_MAX ||
         (size_t)part->data_len > LX_AUDIO_JSON_MAX - connection->used)
     {
-        connection->dead = true;
+        audio_fail(connection, "frame-limit");
         return;
     }
     size_t need = connection->used + (size_t)part->data_len + 1;
@@ -556,15 +707,17 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
         char *next = audio_alloc(capacity);
         if (!next)
         {
-            connection->dead = true;
+            audio_fail(connection, "receive-memory");
             return;
         }
-        memcpy(next, connection->rx, connection->used);
+        if (connection->used)
+            memcpy(next, connection->rx, connection->used);
         free(connection->rx);
         connection->rx = next;
         connection->capacity = capacity;
     }
-    memcpy(connection->rx + connection->used, part->data_ptr, part->data_len);
+    if (part->data_len)
+        memcpy(connection->rx + connection->used, part->data_ptr, part->data_len);
     connection->used += part->data_len;
     connection->rx[connection->used] = 0;
     if (part->payload_offset + part->data_len != part->payload_len || !part->fin)
@@ -572,28 +725,84 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     audio_message_t message = {.data = connection->rx, .length = connection->used};
     connection->rx = NULL;
     connection->capacity = connection->used = 0;
+    connection->rx_opcode = 0;
     if (xQueueSend(connection->messages, &message, 0) != pdTRUE)
     {
         free(message.data);
-        connection->dead = true;
+        audio_fail(connection, "receive-queue-full");
     }
     xSemaphoreGive(audio_wake);
 }
 
-static bool audio_send(audio_connection_t *connection, const char *command)
+static bool audio_connection_current_locked(const audio_connection_t *connection)
 {
-    xSemaphoreTake(audio_lock, portMAX_DELAY);
-    bool current = audio_page && audio_page->live && audio_credentials->live &&
+    return audio_page && audio_page->live && audio_credentials && audio_credentials->live &&
         audio_page->generation == connection->generation &&
         audio_credentials->generation == connection->credential_generation;
+}
+
+static bool audio_connection_matches(const audio_connection_t *connection, const audio_slot_t *slot)
+{
+    return connection->port == slot->endpoint.port && !strcmp(connection->host, slot->endpoint.host);
+}
+
+static bool audio_detail_current_locked(const audio_connection_t *connection,
+                                         const audio_detail_command_t *detail)
+{
+    if (!audio_connection_current_locked(connection) || detail->slot < 0 ||
+        (unsigned)detail->slot >= audio_page->count || audio_page->detail != detail->slot ||
+        audio_page->generation != detail->generation || audio_page->revision != detail->revision ||
+        audio_page->favorites_requested != detail->request)
+        return false;
+    const audio_slot_t *slot = &audio_page->slots[detail->slot];
+    if (strcmp(slot->id, detail->id) || !slot->native_ready || !audio_connection_matches(connection, slot))
+        return false;
+    if (!detail->favorite)
+        return true;
+    if (!audio_page->favorites.ready || audio_page->favorites.generation != detail->list_generation ||
+        !audio_allowed_locked(detail->slot, LX_AUDIO_FAVORITE))
+        return false;
+    for (unsigned i = 0; i < audio_page->favorites.count; ++i)
+        if (audio_page->favorites.items[i].id == detail->favorite_id)
+            return true;
+    return false;
+}
+
+static bool audio_send_guarded(audio_connection_t *connection, const char *command,
+                               const audio_detail_command_t *detail, bool *cancelled)
+{
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    bool current = audio_connection_current_locked(connection) &&
+        (!detail || audio_detail_current_locked(connection, detail));
     xSemaphoreGive(audio_lock);
-    return current && connection->ws && !connection->dead &&
-        esp_websocket_client_send_text(connection->ws, command, strlen(command),
-                                        pdMS_TO_TICKS(1000)) == (int)strlen(command);
+    if (cancelled)
+        *cancelled = !current;
+    if (!current || !connection->ws || connection->dead)
+        return false;
+    /* A rövid kapu a hálózati átadás pontja; előtte a modal bezárása még
+     * visszavonhatja a kivett kérést. Hálózati várakozás alatt nincs modellzár. */
+    bool sent = esp_websocket_client_send_text(connection->ws, command, strlen(command),
+                                               pdMS_TO_TICKS(1000)) == (int)strlen(command);
+    if (!sent)
+        audio_fail(connection, "send");
+    return sent;
+}
+
+static bool audio_send(audio_connection_t *connection, const char *command)
+{
+    return audio_send_guarded(connection, command, NULL, NULL);
+}
+
+static void audio_staged_clear(audio_connection_t *connection)
+{
+    free(connection->staged_tracks);
+    connection->staged_tracks = NULL;
+    connection->staged_mask = 0;
 }
 
 static void audio_connection_close(audio_connection_t *connection)
 {
+    audio_staged_clear(connection);
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     if (audio_page && audio_page->generation == connection->generation)
     {
@@ -625,9 +834,11 @@ static void audio_connection_close(audio_connection_t *connection)
     xSemaphoreGive(audio_lock);
     if (connection->ws)
     {
+        audio_diagnostic(connection, "zárás előtt");
         esp_websocket_client_stop(connection->ws);
         esp_websocket_client_destroy(connection->ws);
         connection->ws = NULL;
+        audio_diagnostic(connection, "lezárva");
     }
     if (connection->messages)
     {
@@ -638,18 +849,67 @@ static void audio_connection_close(audio_connection_t *connection)
     free(connection->rx);
     connection->rx = NULL;
     connection->used = connection->capacity = 0;
+    connection->rx_opcode = 0;
     connection->phase = 0;
     connection->favorites_slot = -1;
+    connection->status_pending = 0;
+    /* A régi WS-task már leállt. A hibát most elfogyasztjuk, különben a
+     * worker minden körben újra öt másodpercre tolná az újracsatlakozást. */
+    connection->dead = false;
     mbedtls_platform_zeroize(connection->session, sizeof(connection->session));
 }
 
-static bool audio_connection_matches(const audio_connection_t *connection, const audio_slot_t *slot)
+static bool audio_stage_message(audio_connection_t *connection, const cJSON *message)
 {
-    return connection->port == slot->endpoint.port && !strcmp(connection->host, slot->endpoint.host);
+    if (!cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(message, "audio_event")))
+        return true;
+    bool fresh = !connection->staged_tracks;
+    if (fresh)
+        connection->staged_tracks = audio_alloc(LX_HOME_MAX_CARDS * sizeof(*connection->staged_tracks));
+    if (!connection->staged_tracks)
+    {
+        ESP_LOGW("lox_audio", "Audio kezdeti metaadat nem foglalható (PSRAM).");
+        audio_fail(connection, "initial-metadata-memory");
+        return false;
+    }
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    bool current = audio_connection_current_locked(connection);
+    if (current)
+        for (unsigned i = 0; i < audio_page->count; ++i)
+        {
+            audio_slot_t *slot = &audio_page->slots[i];
+            if (!slot->configured || !audio_connection_matches(connection, slot))
+                continue;
+            if (fresh)
+                connection->staged_tracks[i] = slot->track;
+            if (lx_audio_track_update(&connection->staged_tracks[i], slot->endpoint.player, message))
+                connection->staged_mask |= 1U << i;
+        }
+    xSemaphoreGive(audio_lock);
+    if (!current)
+        audio_staged_clear(connection);
+    return current;
+}
+
+static void audio_staged_publish_locked(audio_connection_t *connection, unsigned index)
+{
+    if (!connection->staged_tracks || !(connection->staged_mask & (1U << index)))
+        return;
+    lx_audio_track_t *target = &audio_page->slots[index].track;
+    const lx_audio_track_t *staged = &connection->staged_tracks[index];
+    /* A nyitáskori zene-meta csak sikeres, még aktuális auth után látszik.
+     * Volume/mode közben frissebben jöhetett a Miniserverről: azt megtartjuk. */
+    memcpy(target->title, staged->title, sizeof(target->title));
+    memcpy(target->artist, staged->artist, sizeof(target->artist));
+    memcpy(target->album, staged->album, sizeof(target->album));
+    memcpy(target->station, staged->station, sizeof(target->station));
+    memcpy(target->cover, staged->cover, sizeof(target->cover));
+    target->version = staged->version;
 }
 
 static void audio_connection_open(audio_connection_t *connection, unsigned selected)
 {
+    audio_staged_clear(connection);
     char uri[LX_AUDIO_HOST_SIZE + 32];
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     if (!audio_page || !audio_page->live || selected >= audio_page->count || !audio_credentials->live)
@@ -663,6 +923,21 @@ static void audio_connection_open(audio_connection_t *connection, unsigned selec
     connection->generation = audio_page->generation;
     connection->credential_generation = audio_credentials->generation;
     xSemaphoreGive(audio_lock);
+    int64_t now = esp_timer_get_time();
+    /* Ismétlődő hálózati hibánál legfeljebb 30 másodpercenként egy próbálkozás
+     * részleteit írjuk. Nincs periodikus, zeneszám- vagy tokennaplózás. */
+    connection->diagnostic = now >= connection->next_diagnostic;
+    if (connection->diagnostic)
+    {
+        connection->next_diagnostic = now + 30000000LL;
+        ESP_LOGI("lox_audio", "Audio natív nyitás: host=%s, port=%u, kártya=%u, gen=%u",
+            connection->host, connection->port, selected, connection->generation);
+    }
+    atomic_store(&connection->text_frames, 0);
+    atomic_store(&connection->binary_frames, 0);
+    atomic_store(&connection->failure_reason, NULL);
+    connection->invalid_json = 0;
+    connection->first_native_data = false;
     snprintf(uri, sizeof(uri), "ws://%s:%u/", connection->host, connection->port);
     esp_websocket_client_config_t options = {
         .uri = uri, .subprotocol = "remotecontrol", .disable_auto_reconnect = true,
@@ -670,12 +945,12 @@ static void audio_connection_open(audio_connection_t *connection, unsigned selec
     };
     connection->dead = false;
     connection->phase = 1;
-    connection->deadline = esp_timer_get_time() + AUDIO_TIMEOUT_US;
-    connection->last_rotate = esp_timer_get_time();
+    connection->deadline = now + AUDIO_TIMEOUT_US;
+    connection->last_rotate = now;
     connection->ws = esp_websocket_client_init(&options);
     if (!connection->ws || esp_websocket_register_events(connection->ws, WEBSOCKET_EVENT_ANY,
         audio_receive, connection) != ESP_OK || esp_websocket_client_start(connection->ws) != ESP_OK)
-        connection->dead = true;
+        audio_fail(connection, "websocket-start");
 }
 
 static int audio_random(void *context, unsigned char *bytes, size_t length)
@@ -687,8 +962,11 @@ static int audio_random(void *context, unsigned char *bytes, size_t length)
 
 static void audio_message(audio_connection_t *connection, const audio_message_t *message)
 {
+    if (connection->dead)
+        return;
     if (connection->phase == 1 && lx_audio_session_token(message->data, connection->session))
     {
+        audio_diagnostic(connection, "greeting rendben");
         if (!audio_send(connection, "audio/cfg/getkey/full"))
             connection->dead = true;
         connection->phase = 2;
@@ -696,7 +974,16 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
     }
     cJSON *root = lx_home_document_parse(message->data, message->length);
     if (!root)
+    {
+        if (++connection->invalid_json == 1)
+            audio_diagnostic(connection, "nem feldolgozható JSON/greeting");
         return;
+    }
+    if (connection->phase > 0 && connection->phase < 4 && !audio_stage_message(connection, root))
+    {
+        cJSON_Delete(root);
+        return;
+    }
     if (connection->phase == 2)
     {
         const cJSON *keys = cJSON_GetObjectItemCaseSensitive(root, "getkey_result");
@@ -704,6 +991,7 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
         const cJSON *pem = cJSON_GetObjectItemCaseSensitive(key, "pubkey");
         if (cJSON_IsString(pem))
         {
+            audio_diagnostic(connection, "nyilvános kulcs megérkezett");
             audio_credentials_t *copy = audio_alloc(sizeof(*copy));
             xSemaphoreTake(audio_lock, portMAX_DELAY);
             bool current = audio_credentials->live && connection->credential_generation == audio_credentials->generation;
@@ -717,8 +1005,10 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
                 mbedtls_platform_zeroize(copy, sizeof(*copy));
                 free(copy);
             }
-            if (!command || !audio_send(connection, command))
-                connection->dead = true;
+            if (!command)
+                audio_fail(connection, "authentication-envelope");
+            else if (!audio_send(connection, command))
+                audio_fail(connection, "authentication-send");
             lx_audio_auth_free(command);
             connection->phase = 3;
         }
@@ -730,46 +1020,40 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
         {
             bool ok = cJSON_IsString(result) && !strcmp(result->valuestring, "authentication successful");
             connection->phase = ok ? 4 : 3;
-            connection->dead = !ok;
+            if (!ok)
+                audio_fail(connection, "authentication-rejected");
+            audio_diagnostic(connection, ok ? "hitelesítés kész" : "hitelesítés elutasítva");
             xSemaphoreTake(audio_lock, portMAX_DELAY);
-            if (audio_page && audio_page->generation == connection->generation)
+            if (audio_connection_current_locked(connection))
                 for (unsigned i = 0; i < audio_page->count; ++i)
                     if (audio_page->slots[i].configured && audio_connection_matches(connection, &audio_page->slots[i]))
                     {
+                        if (ok)
+                        {
+                            audio_staged_publish_locked(connection, i);
+                            connection->status_pending |= 1U << i;
+                        }
                         audio_page->slots[i].status = ok ? LX_AUDIO_READY : LX_AUDIO_AUTH_FAILED;
                         audio_page->slots[i].native_ready = ok;
                     }
             xSemaphoreGive(audio_lock);
-            if (ok)
-            {
-                for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
-                {
-                    unsigned player = 0;
-                    xSemaphoreTake(audio_lock, portMAX_DELAY);
-                    if (audio_page && audio_page->generation == connection->generation &&
-                        i < audio_page->count && audio_page->slots[i].configured &&
-                        audio_connection_matches(connection, &audio_page->slots[i]))
-                        player = audio_page->slots[i].endpoint.player;
-                    xSemaphoreGive(audio_lock);
-                    if (player)
-                    {
-                        char command[64];
-                        snprintf(command, sizeof(command), "audio/%u/status", player);
-                        if (!audio_send(connection, command))
-                            connection->dead = true;
-                    }
-                }
-            }
+            audio_staged_clear(connection);
         }
     }
     else if (connection->phase == 4)
     {
         xSemaphoreTake(audio_lock, portMAX_DELAY);
-        if (audio_page && audio_page->live && audio_page->generation == connection->generation)
+        bool changed = false;
+        if (audio_connection_current_locked(connection))
         {
             for (unsigned i = 0; i < audio_page->count; ++i)
                 if (audio_page->slots[i].configured && audio_connection_matches(connection, &audio_page->slots[i]))
-                    lx_audio_track_update(&audio_page->slots[i].track, audio_page->slots[i].endpoint.player, root);
+                {
+                    audio_slot_t *slot = &audio_page->slots[i];
+                    changed |= lx_audio_track_update(&slot->track, slot->endpoint.player, root);
+                    if (audio_volume_in_message(root, slot->endpoint.player))
+                        audio_volume_confirm_locked(slot);
+                }
             if (cJSON_GetObjectItemCaseSensitive(root, "getroomfavs_result") && connection->favorites_slot >= 0)
             {
                 if (audio_page->detail == connection->favorites_slot &&
@@ -781,6 +1065,9 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
                         audio_page->favorites.generation = connection->favorites_request;
                     else
                         audio_page->favorites.failed = true;
+                    if (connection->diagnostic)
+                        ESP_LOGI("lox_audio", "Audio kedvenclista válasz: player=%u, start=%u, parsed=%u",
+                            connection->favorites_player, connection->favorites_start, (unsigned)parsed);
                 }
                 /* Egyetlen in-flight listakérés él. A régi ablak válaszát
                  * elfogyasztjuk, de nem írhatja át az időközben nyitottat. */
@@ -788,12 +1075,22 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
             }
         }
         xSemaphoreGive(audio_lock);
+        if (changed && !connection->first_native_data)
+        {
+            connection->first_native_data = true;
+            audio_diagnostic(connection, "első zónaadat feldolgozva");
+        }
     }
     cJSON_Delete(root);
 }
 
-static void audio_volume_poll(int64_t now)
+void app_loxone_audio_poll(int64_t now)
 {
+    if (!audio_lock)
+        return;
+    /* A natív WS felépítése, bontása és hitelesítése másik feladatban várhat.
+     * A Miniserver rövid köre csak a legfrissebb abszolút célértéket veszi ki;
+     * a két kapcsolat nem osztozik a hangerő ütemezésén. */
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
     {
         char id[LX_HOME_ID_SIZE] = {0};
@@ -802,11 +1099,9 @@ static void audio_volume_poll(int64_t now)
         if (audio_page && audio_page->live && i < audio_page->count)
         {
             audio_slot_t *slot = &audio_page->slots[i];
-            if (slot->volume_dirty && slot->max_known && slot->desired_volume > slot->max_volume)
-            {
-                slot->volume_dirty = false;
-                slot->status = LX_AUDIO_REQUEST_FAILED;
-            }
+            audio_volume_expire_locked(slot, now);
+            if (slot->volume_pending && slot->max_known && slot->desired_volume > slot->max_volume)
+                audio_volume_cancel_locked(slot, true);
             if (slot->volume_dirty && audio_allowed_locked((int)i, LX_AUDIO_VOLUME) &&
                 (slot->volume_final || now - slot->last_volume_sent >= AUDIO_VOLUME_INTERVAL_US))
             {
@@ -824,35 +1119,72 @@ static void audio_volume_poll(int64_t now)
         {
             esp_err_t result = app_loxone_audio_transport(id, revision, LX_AUDIO_VOLUME, value, edit_generation);
             xSemaphoreTake(audio_lock, portMAX_DELAY);
-            if (audio_page && audio_page->generation == generation &&
-                audio_page->slots[i].edit_generation == edit_generation)
+            if (audio_page && audio_page->generation == generation)
             {
                 audio_slot_t *slot = &audio_page->slots[i];
-                slot->status = result == ESP_OK ? LX_AUDIO_REQUEST_SENT : LX_AUDIO_REQUEST_FAILED;
+                audio_volume_expire_locked(slot, esp_timer_get_time());
                 /* A sor által még el nem fogadott abszolút célérték felülírható.
-                 * Elfogadott parancsot időtúllépés után nem ismétlünk meg. */
-                if (result == ESP_ERR_INVALID_STATE && !slot->volume_dirty &&
-                    audio_allowed_locked((int)i, LX_AUDIO_VOLUME))
-                    slot->volume_dirty = true;
+                 * Elfogadott parancsot időtúllépés után nem ismétlünk meg.
+                 * Az MS-eredmény nem írhatja felül a natív kapcsolat hibáját. */
+                if (slot->edit_generation == edit_generation && result != ESP_OK && !slot->volume_dirty)
+                {
+                    if (result == ESP_ERR_INVALID_STATE && slot->volume_pending &&
+                        audio_allowed_locked((int)i, LX_AUDIO_VOLUME))
+                        slot->volume_dirty = true;
+                    else
+                        audio_volume_cancel_locked(slot, true);
+                }
             }
             xSemaphoreGive(audio_lock);
         }
     }
 }
 
+static void audio_status_poll(audio_connection_t *connection)
+{
+    unsigned player = 0;
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    if (audio_connection_current_locked(connection) && connection->phase == 4)
+        for (unsigned i = 0; i < audio_page->count; ++i)
+            if (connection->status_pending & (1U << i))
+            {
+                connection->status_pending &= ~(1U << i);
+                if (audio_page->slots[i].configured && audio_connection_matches(connection, &audio_page->slots[i]))
+                {
+                    player = audio_page->slots[i].endpoint.player;
+                    break;
+                }
+            }
+    xSemaphoreGive(audio_lock);
+    if (!player)
+        return;
+    /* Körönként egy kérés; közben a fogadási sor kiürül. A magasabb
+     * prioritású WS-task gyors válaszai így 12 kártyánál sem torlódnak. */
+    char command[48];
+    snprintf(command, sizeof(command), "audio/%u/status", player);
+    if (!audio_send(connection, command))
+        audio_fail(connection, "status-send");
+}
+
 static void audio_native_poll(audio_connection_t *connection)
 {
     char command[96] = {0};
-    unsigned generation = 0;
     int detail = -1;
     bool favorite = false;
+    audio_detail_command_t guard = {0};
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     if (audio_page && audio_page->live && audio_page->generation == connection->generation &&
         audio_page->detail >= 0 && connection->phase == 4)
     {
         detail = audio_page->detail;
         audio_slot_t *slot = &audio_page->slots[detail];
-        generation = audio_page->generation;
+        guard.generation = audio_page->generation;
+        guard.revision = audio_page->revision;
+        guard.request = audio_page->favorites_requested;
+        guard.list_generation = audio_page->favorites.generation;
+        guard.favorite_id = audio_page->favorite_id;
+        guard.slot = detail;
+        snprintf(guard.id, sizeof(guard.id), "%s", slot->id);
         if (audio_connection_matches(connection, slot))
         {
             if (audio_page->favorite_queued)
@@ -878,10 +1210,23 @@ static void audio_native_poll(audio_connection_t *connection)
     }
     xSemaphoreGive(audio_lock);
     if (!command[0])
+    {
+        audio_status_poll(connection);
         return;
-    bool sent = audio_send(connection, command);
+    }
+    if (!favorite)
+        audio_diagnostic(connection, "kedvenclista kérés");
+    guard.favorite = favorite;
+    bool cancelled = false;
+    bool sent = audio_send_guarded(connection, command, &guard, &cancelled);
+    if (cancelled)
+    {
+        if (!favorite && connection->favorites_slot == detail && connection->favorites_request == guard.request)
+            connection->favorites_slot = -1;
+        return;
+    }
     xSemaphoreTake(audio_lock, portMAX_DELAY);
-    if (audio_page && audio_page->generation == generation && detail >= 0)
+    if (audio_detail_current_locked(connection, &guard))
     {
         if (favorite)
             audio_page->slots[detail].status = sent ? LX_AUDIO_REQUEST_SENT : LX_AUDIO_REQUEST_FAILED;
@@ -905,7 +1250,7 @@ static void audio_favorites_timeout(audio_connection_t *connection, int64_t now)
     connection->favorites_slot = -1;
     /* A válasz nem hordoz kérésazonosítót. Időtúllépés után új kapcsolaton
      * folytatjuk, így egy nagyon késői régi válasz sem nyelheti el az újat. */
-    connection->dead = true;
+    audio_fail(connection, "favorites-timeout");
 }
 
 static void audio_worker(void *argument)
@@ -916,7 +1261,11 @@ static void audio_worker(void *argument)
     {
         connection->messages = xQueueCreate(4, sizeof(audio_message_t));
         connection->favorites_slot = -1;
+        if (!connection->messages)
+            ESP_LOGW("lox_audio", "Audio fogadási sor nem foglalható.");
     }
+    else
+        ESP_LOGW("lox_audio", "Audio kapcsolatpuffer nem foglalható (PSRAM).");
     bool initialized = connection && connection->messages;
     unsigned selected = 0;
     int64_t retry = 0;
@@ -960,6 +1309,8 @@ static void audio_worker(void *argument)
         if (stale || switch_server || connection->dead ||
             (connection->phase > 0 && connection->phase < 4 && now > connection->deadline))
         {
+            if (!connection->dead && connection->phase > 0 && connection->phase < 4 && now > connection->deadline)
+                audio_fail(connection, "handshake-timeout");
             bool failed = connection->dead || (connection->phase > 0 && connection->phase < 4 &&
                 now > connection->deadline);
             audio_connection_close(connection);
@@ -973,7 +1324,6 @@ static void audio_worker(void *argument)
             audio_message(connection, &message);
             free(message.data);
         }
-        audio_volume_poll(now);
         audio_native_poll(connection);
         audio_favorites_timeout(connection, now);
         xSemaphoreTake(audio_wake, pdMS_TO_TICKS(50));
@@ -990,8 +1340,10 @@ static void audio_worker(void *argument)
     audio_task = NULL;
     /* Memóriahiány nem indíthat azonnali task-létrehozó hurkot. Újrapróba
      * csak egy későbbi oldalépítéskor; normál leállásnál az időközben nyitott
-     * új oldal folytathatja a már felépített futtató életciklusát. */
-    bool restart = initialized && audio_page && audio_page->live && audio_credentials->live;
+     * új oldal folytathatja a már felépített futtató életciklusát. A látható
+     * oldal Miniserver-alapvezérlése natív erőforráshiba mellett is megmarad. */
+    bool live = audio_page && audio_page->live && audio_credentials->live;
+    bool restart = initialized && live;
     if (restart)
     {
         BaseType_t result = xTaskCreateWithCaps(audio_worker, "lox_audio", AUDIO_WORKER_STACK,
@@ -1000,13 +1352,19 @@ static void audio_worker(void *argument)
             result = xTaskCreateWithCaps(audio_worker, "lox_audio", AUDIO_WORKER_STACK,
                 NULL, 3, &audio_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (result != pdPASS)
+        {
             audio_task = NULL;
+            audio_native_unavailable_locked();
+            ESP_LOGW("lox_audio", "Audio worker újraindítása sikertelen (RTC/belső verem).");
+        }
     }
-    else if (audio_page)
+    else if (audio_page && !live)
     {
         free(audio_page);
         audio_page = NULL;
     }
+    else if (audio_page)
+        audio_native_unavailable_locked();
     xSemaphoreGive(audio_lock);
     vTaskDeleteWithCaps(NULL);
 }
@@ -1042,6 +1400,7 @@ void app_sim_audio_reset(void)
     app_sim_audio_volume_cancellations = 0;
     app_sim_audio_last_action = LX_AUDIO_PLAY;
     app_sim_audio_media_busy(false);
+    app_sim_audio_media_request_reset();
 }
 
 bool app_sim_audio_configure(const char *id, unsigned revision, const lx_audio_summary_t *summary)
@@ -1066,6 +1425,12 @@ void app_sim_audio_set_favorite_page_size(unsigned count)
     audio_fixture_page_size = count && count <= LX_AUDIO_FAVORITE_PAGE ? count : LX_AUDIO_FAVORITE_PAGE;
 }
 
+void app_sim_audio_set_favorite_state(bool ready, bool failed)
+{
+    audio_fixture_favorites.ready = ready;
+    audio_fixture_favorites.failed = failed;
+}
+
 static audio_fixture_t *audio_fixture_find(const char *id, unsigned revision)
 {
     if (!id)
@@ -1076,6 +1441,15 @@ static audio_fixture_t *audio_fixture_find(const char *id, unsigned revision)
     return NULL;
 }
 
+bool app_sim_audio_update(const char *id, unsigned revision, const lx_audio_summary_t *summary)
+{
+    audio_fixture_t *fixture = audio_fixture_find(id, revision);
+    if (!fixture || !summary)
+        return false;
+    fixture->summary = *summary;
+    return true;
+}
+
 void app_loxone_audio_session(const char *username, const char *jwt, bool live)
 { (void)username; (void)jwt; (void)live; }
 void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog, int page, unsigned revision)
@@ -1083,6 +1457,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
 void app_loxone_audio_hide(void) { app_loxone_audio_media_clear(0); }
 void app_loxone_audio_state(const char *uuid, bool numeric, double value, const char *text, size_t length, int64_t now)
 { (void)uuid; (void)numeric; (void)value; (void)text; (void)length; (void)now; }
+void app_loxone_audio_poll(int64_t now) { (void)now; }
 
 bool app_loxone_audio_summary(const char *id, unsigned revision, lx_audio_summary_t *out)
 {

@@ -655,6 +655,9 @@ static void worker(void *arg)
                 if(!update_values(m.type,m.data,m.length))s_dead=true;
                 free_message(&m);
             }
+            /* A hangerő a Miniserver alapvezérlése. A külön Audioserver
+             * kapcsolódása vagy hitelesítése nem késleltetheti a húzást. */
+            if (!s_dead) app_loxone_audio_poll(esp_timer_get_time());
             home_command_poll(now);
             if (!s_dead) lighting_poll(esp_timer_get_time());
             if (!s_dead) controls_poll(esp_timer_get_time());

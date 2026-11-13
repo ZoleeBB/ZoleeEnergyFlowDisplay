@@ -1,6 +1,7 @@
 /* A valódi LVGL Audio-kártyát és modalt vizsgáljuk explicit helyi adatokkal.
  * Ez nem állít élő Audioserver-elérést; annak protokolltesztje külön fut. */
 #include "../../simulator/audio_fixture.h"
+#include "src/misc/lv_text_private.h"
 
 static void audio_test_tick(const app_energy_sample_t *sample)
 {
@@ -48,6 +49,302 @@ static void audio_test_configure(unsigned count)
         assert(app_sim_audio_configure(card->id, 1, &summary));
     }
     app_sim_audio_set_favorite_count(70);
+}
+
+/* A widget tényleges betűkészletét kérdezzük le minden látható karakterhez.
+ * Így az ASCII és a magyar ékezetek mellett a kapcsolódás/pending feliratok
+ * és a külön szimbólumfontot használó gombok is fedettek. */
+static void audio_test_glyphs(lv_obj_t *object)
+{
+    if (!object || lv_obj_has_flag(object, LV_OBJ_FLAG_HIDDEN))
+        return;
+    if (lv_obj_check_type(object, &lv_label_class))
+    {
+        const char *text = lv_label_get_text(object);
+        const lv_font_t *font = lv_obj_get_style_text_font(object, 0);
+        uint32_t offset = 0;
+        while (text[offset])
+        {
+            uint32_t codepoint = lv_text_encoded_next(text, &offset);
+            if (codepoint == '\n' || codepoint == '\r')
+                continue;
+            lv_font_glyph_dsc_t glyph;
+            bool found = lv_font_get_glyph_dsc(font, &glyph, codepoint, 0);
+            if (!found || glyph.is_placeholder)
+                fprintf(stderr, "Audio label missing U+%04X: %s\n", (unsigned)codepoint, text);
+            assert(found && !glyph.is_placeholder);
+        }
+    }
+    for (unsigned i = 0; i < lv_obj_get_child_count(object); ++i)
+        audio_test_glyphs(lv_obj_get_child(object, (int)i));
+}
+
+static void audio_test_state_labels(const app_energy_sample_t *sample)
+{
+    lx_audio_summary_t saved, summary;
+    assert(app_loxone_audio_summary(home_config.cards[0].id, home_revision, &saved));
+    char language[sizeof(s_cfg.project.language)];
+    snprintf(language, sizeof(language), "%s", s_cfg.project.language);
+    for (unsigned english = 0; english < 2; ++english)
+    {
+        audio_ui_reset();
+        snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", english ? "en" : "hu");
+        summary = saved;
+        summary.track.title[0] = summary.track.artist[0] = summary.track.album[0] = summary.track.station[0] = 0;
+        summary.track.mode = LX_AUDIO_MODE_PLAY;
+        summary.native_ready = false;
+        summary.status = LX_AUDIO_CONNECTING;
+        summary.volume_pending = false;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_ui_open(0, true);
+        app_sim_audio_set_favorite_state(false, false);
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_track_title), tr("Zeneszámadat nem érhető el", "Track information unavailable")));
+        assert(!strcmp(lv_label_get_text(audio_track_source), ""));
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Audio kapcsolódás...", "Connecting audio...")));
+        assert(!strcmp(lv_label_get_text(audio_favorites_label), lv_label_get_text(audio_status)));
+        assert(lv_obj_has_state(audio_favorites_next, LV_STATE_DISABLED));
+        audio_test_glyphs(audio_panel);
+        audio_test_glyphs(lv_obj_get_parent(audio_cards[0].play));
+        audio_test_idle(sample);
+
+        /* A natív kapcsolat állapotát a Miniserver felé függő hangerő sem fedi el. */
+        summary.volume_pending = true;
+        summary.desired_volume = 63;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Audio kapcsolódás...", "Connecting audio...")));
+        assert(!strcmp(lv_label_get_text(audio_favorites_label), lv_label_get_text(audio_status)));
+        summary.native_ready = true;
+        summary.status = LX_AUDIO_READY;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Hangerő küldése...", "Setting volume...")));
+        assert(!strcmp(lv_label_get_text(audio_favorites_label), tr("Kedvencek betöltése...", "Loading favorites...")));
+        audio_test_glyphs(audio_panel);
+        audio_test_glyphs(lv_obj_get_parent(audio_cards[0].play));
+        audio_test_idle(sample);
+        if (!english)
+            save_frame("audio-detail-pending");
+
+        /* A külső hangerő gombjai is a meglévő fontot használják. */
+        summary.volume_pending = false;
+        summary.volume_up_down = true;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(lv_obj_has_flag(audio_volume_slider, LV_OBJ_FLAG_HIDDEN));
+        assert(!lv_obj_has_flag(audio_volume_buttons[0], LV_OBJ_FLAG_HIDDEN));
+        assert(!strcmp(lv_label_get_text(lv_obj_get_child(audio_volume_buttons[0], 0)), "-"));
+        audio_test_glyphs(audio_panel);
+        audio_test_idle(sample);
+        summary.volume_up_down = false;
+
+        /* A rádióállomás címként használható, a forrássor nem ismétli meg. */
+        snprintf(summary.track.station, sizeof(summary.track.station), "%s", "95.8 Sláger FM");
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_track_title), "95.8 Sláger FM"));
+        assert(!strcmp(lv_label_get_text(audio_track_source), ""));
+        snprintf(summary.track.title, sizeof(summary.track.title), "%s", "Visszatért cím");
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_track_title), "Visszatért cím"));
+        assert(!strcmp(lv_label_get_text(audio_track_source), "95.8 Sláger FM"));
+
+        /* Régi PLAY állapot mellett a kapcsolat és a belépés hibája látszik.
+         * A Miniserver-gombok működhetnek, a natív kedvencek nem. */
+        summary.native_ready = false;
+        summary.status = LX_AUDIO_UNAVAILABLE;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_submit_error = true;
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Audio-kapcsolat nem érhető el", "Audio connection unavailable")));
+        assert(!strcmp(lv_label_get_text(audio_favorites_label), lv_label_get_text(audio_status)));
+        assert(!lv_obj_has_state(audio_transport_buttons[1], LV_STATE_DISABLED));
+        assert(lv_obj_has_state(audio_favorites_next, LV_STATE_DISABLED));
+        audio_test_glyphs(audio_panel);
+        audio_test_idle(sample);
+        summary.status = LX_AUDIO_AUTH_FAILED;
+        summary.controllable = false;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Audio: sikertelen belépés", "Audio authentication failed")));
+        assert(lv_obj_has_state(audio_transport_buttons[1], LV_STATE_DISABLED));
+        audio_test_glyphs(audio_panel);
+        audio_test_idle(sample);
+        if (!english)
+            save_frame("audio-detail-unavailable");
+
+        summary.native_ready = summary.controllable = true;
+        summary.status = LX_AUDIO_READY;
+        audio_submit_error = false;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        app_sim_audio_set_favorite_state(false, true);
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_favorites_label), tr("A kedvenclista nem érhető el.", "Favorites unavailable.")));
+        audio_test_glyphs(audio_panel);
+        app_sim_audio_set_favorite_state(true, false);
+        audio_test_tick(sample);
+        assert(!strcmp(lv_label_get_text(audio_status), tr("Lejátszás", "Playing")));
+        assert(audio_favorites_ids[0] == 1000 && !lv_obj_has_state(audio_favorites_rows[0], LV_STATE_DISABLED));
+        assert(!lv_obj_has_state(audio_favorites_next, LV_STATE_DISABLED));
+        audio_test_glyphs(audio_panel);
+        audio_test_idle(sample);
+    }
+    audio_ui_reset();
+    snprintf(s_cfg.project.language, sizeof(s_cfg.project.language), "%s", language);
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &saved));
+    audio_ui_open(0, true);
+    puts("PASS: actual Audio label glyphs in Hungarian/English, missing track metadata, pending/offline/auth/recovery states and zero idle invalidations");
+}
+
+static void audio_test_volume_feedback(const app_energy_sample_t *sample)
+{
+    lx_audio_summary_t saved, summary, actual;
+    assert(app_loxone_audio_summary(home_config.cards[0].id, home_revision, &saved));
+    audio_ui_reset();
+    summary = saved;
+    summary.track.volume = 6;
+    summary.track.volume_known = true;
+    summary.volume_pending = summary.volume_failed = false;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_ui_open(0, false);
+    assert(lv_slider_get_value(audio_volume_slider) == 6);
+    lv_obj_send_event(audio_volume_slider, LV_EVENT_PRESSED, NULL);
+    lv_slider_set_value(audio_volume_slider, 63, LV_ANIM_OFF);
+    lv_obj_send_event(audio_volume_slider, LV_EVENT_VALUE_CHANGED, NULL);
+    summary.volume_pending = true;
+    summary.desired_volume = 63;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    lv_obj_send_event(audio_volume_slider, LV_EVENT_RELEASED, NULL);
+    assert(!audio_dragging && lv_slider_get_value(audio_volume_slider) == 63);
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Célhangerő: 63%"));
+    /* A helyi parancsfixture gyors visszajelzése helyett most explicit a még
+     * régi szerverértéket adjuk vissza: a csúszka nem ugorhat 6%-ra. */
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_slider_get_value(audio_volume_slider) == 63);
+    assert(app_loxone_audio_summary(home_config.cards[0].id, home_revision, &actual));
+    assert(actual.track.volume == 6 && actual.desired_volume == 63 && actual.volume_pending);
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Célhangerő: 63%"));
+    audio_test_glyphs(audio_panel);
+    audio_test_idle(sample);
+    save_frame("audio-volume-pending");
+    /* Egy korábbi köztes állapot sem helyettesítheti az újabb célt. */
+    summary.track.volume = 31;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_slider_get_value(audio_volume_slider) == 63);
+    summary.track.volume = 63;
+    summary.volume_pending = false;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_slider_get_value(audio_volume_slider) == 63);
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Hangerő: 63%"));
+
+    summary.desired_volume = 22;
+    summary.volume_pending = true;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_slider_get_value(audio_volume_slider) == 22);
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Célhangerő: 22%"));
+    summary.volume_pending = false;
+    summary.volume_failed = true;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_slider_get_value(audio_volume_slider) == 63);
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Hangerő: 63%"));
+    assert(!strcmp(lv_label_get_text(audio_status), "Hangerőállítás sikertelen"));
+    audio_test_glyphs(audio_panel);
+    audio_test_idle(sample);
+    /* Adat/maximum hiányánál a tartalék 0..1 tartomány stabil, tiltott. */
+    summary.volume_failed = false;
+    summary.track.volume_known = false;
+    summary.volume_max = 0;
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+    audio_test_tick(sample);
+    assert(lv_obj_has_state(audio_volume_slider, LV_STATE_DISABLED));
+    assert(!strcmp(lv_label_get_text(audio_volume_label), "Hangerő: nincs adat"));
+    audio_test_idle(sample);
+    audio_ui_reset();
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &saved));
+    audio_ui_open(0, true);
+    puts("PASS: Audio RELEASED keeps the pending target, confirmed volume stays independent, failure restores actual value, zero idle invalidations");
+}
+
+static void audio_test_user_tracks(const app_energy_sample_t *sample)
+{
+    lx_audio_summary_t saved, summary;
+    assert(app_loxone_audio_summary(home_config.cards[0].id, home_revision, &saved));
+    /* Felhasználói eseményből származó adatok. Csak a UI átadását vizsgáljuk,
+     * a JPEG letöltése/dekódolása külön, a valódi médiakóddal tesztelendő. */
+    const struct
+    {
+        const char *title, *artist, *album, *station, *cover;
+        unsigned volume;
+    } tracks[] = {
+        {"", "", "", "95.8 Sláger FM",
+         "https://cdn-profiles.tunein.com/s25966/images/logoq.jpg?t=637069206200000000", 6},
+        {"Here Comes the Hotstepper - Heartical Mix", "iNi Kamoze", "Here Comes The Hotstepper", "",
+         "https://i.scdn.co/image/ab67616d0000b2736ffa23f19d8c125204e6220c", 12},
+    };
+    for (unsigned i = 0; i < sizeof(tracks) / sizeof(tracks[0]); ++i)
+    {
+        summary = saved;
+        summary.track.mode = LX_AUDIO_MODE_STOP;
+        summary.track.volume = tracks[i].volume;
+        summary.track.volume_known = true;
+        summary.native_ready = true;
+        summary.status = LX_AUDIO_READY;
+        summary.volume_pending = summary.volume_failed = false;
+        snprintf(summary.track.title, sizeof(summary.track.title), "%s", tracks[i].title);
+        snprintf(summary.track.artist, sizeof(summary.track.artist), "%s", tracks[i].artist);
+        snprintf(summary.track.album, sizeof(summary.track.album), "%s", tracks[i].album);
+        snprintf(summary.track.station, sizeof(summary.track.station), "%s", tracks[i].station);
+        snprintf(summary.track.cover, sizeof(summary.track.cover), "%s", tracks[i].cover);
+        summary.track.version = 17 + i;
+        assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+        app_sim_audio_media_request_reset();
+        audio_test_tick(sample);
+        const char *title = i ? tracks[i].title : tracks[i].station;
+        assert(!strcmp(lv_label_get_text(audio_track_title), title));
+        assert(!strcmp(audio_cards[0].title_cache, title));
+        assert(!strcmp(lv_label_get_text(audio_track_artist), tracks[i].artist));
+        assert(!strcmp(lv_label_get_text(audio_track_source), tracks[i].album));
+        assert(!strcmp(lv_label_get_text(audio_status), "Leállítva"));
+        for (unsigned detail = 0; detail < 2; ++detail)
+        {
+            app_sim_audio_media_request_t request;
+            assert(app_sim_audio_media_request_get(detail ? LX_AUDIO_MEDIA_SLOTS - 1 : 0, &request));
+            assert(!strcmp(request.url, tracks[i].cover));
+            assert(request.generation == summary.generation && request.version == summary.track.version);
+            assert(request.size == (detail ? 256U : 112U));
+        }
+        audio_test_glyphs(audio_panel);
+        audio_test_glyphs(lv_obj_get_parent(audio_cards[0].play));
+        audio_test_idle(sample);
+        save_frame(i ? "audio-detail-user-spotify" : "audio-detail-user-radio");
+
+        /* Azonos URL új verziója és az üres URL is továbbjut a médiaréteghez. */
+        for (unsigned clear = 0; clear < 2; ++clear)
+        {
+            ++summary.track.version;
+            if (clear)
+                summary.track.cover[0] = 0;
+            assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &summary));
+            app_sim_audio_media_request_reset();
+            audio_test_tick(sample);
+            for (unsigned detail = 0; detail < 2; ++detail)
+            {
+                app_sim_audio_media_request_t request;
+                assert(app_sim_audio_media_request_get(detail ? LX_AUDIO_MEDIA_SLOTS - 1 : 0, &request));
+                assert(!strcmp(request.url, summary.track.cover) && request.version == summary.track.version);
+            }
+        }
+    }
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &saved));
+    audio_test_tick(sample);
+    puts("PASS: user radio/Spotify titles, source fallback and exact cover URL/version/generation forwarded to card/detail media slots");
 }
 
 static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sample)
@@ -163,6 +460,9 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
     }
     app_sim_audio_set_favorite_page_size(32);
     audio_ui_open(0, true);
+    audio_test_state_labels(&sample);
+    audio_test_volume_feedback(&sample);
+    audio_test_user_tracks(&sample);
 
     /* A törölt modal régi eseménye és a megszakadt oldal nem vezérelhet. */
     unsigned old_generation = audio_ui_generation;

@@ -394,11 +394,38 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
 }
 
 #else
+#include "../simulator/audio_fixture.h"
+
 static bool audio_fixture_media_busy;
+static app_sim_audio_media_request_t audio_fixture_media_requests[LX_AUDIO_MEDIA_SLOTS];
+
+void app_sim_audio_media_request_reset(void)
+{
+    memset(audio_fixture_media_requests, 0, sizeof(audio_fixture_media_requests));
+}
+
+bool app_sim_audio_media_request_get(unsigned slot, app_sim_audio_media_request_t *out)
+{
+    if (slot >= LX_AUDIO_MEDIA_SLOTS || !out || !audio_fixture_media_requests[slot].calls)
+        return false;
+    *out = audio_fixture_media_requests[slot];
+    return true;
+}
+
 void app_sim_audio_media_busy(bool busy) { audio_fixture_media_busy = busy; }
 bool app_loxone_audio_media_idle(void) { return !audio_fixture_media_busy; }
 void app_loxone_audio_media_request(unsigned slot, unsigned generation, const char *url, unsigned version, unsigned size)
-{ (void)slot; (void)generation; (void)url; (void)version; (void)size; }
+{
+    if (slot >= LX_AUDIO_MEDIA_SLOTS)
+        return;
+    /* Kizárólag a UI átadását rögzíti; nincs hálózati kérés vagy hamis kép. */
+    app_sim_audio_media_request_t *request = &audio_fixture_media_requests[slot];
+    snprintf(request->url, sizeof(request->url), "%s", url ? url : "");
+    request->generation = generation;
+    request->version = version;
+    request->size = size;
+    ++request->calls;
+}
 lx_audio_image_t *app_loxone_audio_media_acquire(unsigned slot, unsigned generation)
 { (void)slot; (void)generation; return NULL; }
 void app_loxone_audio_media_release(lx_audio_image_t *image)

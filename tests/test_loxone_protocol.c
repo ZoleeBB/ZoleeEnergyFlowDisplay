@@ -20,6 +20,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
 void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                             const char *text, size_t length, int64_t now)
 { (void)uuid; (void)numeric; (void)value; (void)text; (void)length; (void)now; }
+void app_loxone_audio_poll(int64_t now) { (void)now; }
 bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action)
 { (void)id; (void)revision; (void)action; return false; }
 bool app_loxone_audio_value_allowed(const char *id, unsigned revision, lx_audio_action_t action, unsigned value)

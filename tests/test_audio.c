@@ -86,6 +86,98 @@ static void test_events(void)
     free(track);
 }
 
+static void test_native_display_text(void)
+{
+    lx_audio_track_t *track = calloc(1, sizeof(*track));
+    assert(track);
+    cJSON *message = cJSON_Parse("{\"audio_event\":[{\"playerid\":3,"
+        "\"title\":\"%C5%90szi%20dal%20%2B%20r%C3%A1di%C3%B3\","
+        "\"artist\":\"El%C5%91ad%C3%B3\",\"album\":\"A+B\","
+        "\"station\":\"R%C3%A1di%C3%B3%20Teszt\","
+        "\"coverurl\":\"https://cdn.example/cover%20image.png\"}]}");
+    assert(lx_audio_track_update(track, 3, message));
+    assert(!strcmp(track->title, "Őszi dal + rádió"));
+    assert(!strcmp(track->artist, "Előadó") && !strcmp(track->album, "A+B"));
+    assert(!strcmp(track->station, "Rádió Teszt"));
+    assert(!strcmp(track->cover, "https://cdn.example/cover%20image.png"));
+    unsigned version = track->version;
+    assert(!lx_audio_track_update(track, 3, message) && track->version == version);
+    cJSON *row = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(message, "audio_event"), 0);
+    char encoded[481];
+    for (unsigned i = 0; i < 80; ++i)
+        memcpy(encoded + i * 6, "%C5%91", 6);
+    encoded[480] = 0;
+    cJSON_ReplaceItemInObjectCaseSensitive(row, "title", cJSON_CreateString(encoded));
+    assert(lx_audio_track_update(track, 3, message));
+    assert(strlen(track->title) == 160 && !strncmp(track->title, "őőő", 6));
+    assert(!lx_audio_track_update(track, 3, message));
+    const char *invalid[] = {"100%", "%GG", "%C3%28", "%00title", "%C0%AF", "%ED%A0%80"};
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        cJSON_ReplaceItemInObjectCaseSensitive(row, "title", cJSON_CreateString(invalid[i]));
+        assert(lx_audio_track_update(track, 3, message));
+        assert(!strcmp(track->title, invalid[i]));
+    }
+    cJSON_Delete(message);
+    free(track);
+}
+
+static void test_endpoint_port(void)
+{
+    const char *json = "{\"mediaServer\":{\"server-one\":{\"type\":2,"
+        "\"localIP\":\"192.168.1.40\",\"host\":\"audio.example:17091\"}},"
+        "\"controls\":{\"" ZONE "\":{\"type\":\"AudioZoneV2\",\"name\":\"Audio\","
+        "\"uuidAction\":\"" ACTION "\",\"details\":{\"server\":\"server-one\",\"playerid\":3}}}}";
+    cJSON *list = lx_catalog_parse(json, strlen(json));
+    assert(list);
+    lx_audio_endpoint_t endpoint;
+    assert(lx_audio_endpoint(lx_audio_catalog_find(list, ZONE), &endpoint));
+    assert(!endpoint.blocked && !strcmp(endpoint.host, "192.168.1.40") && endpoint.port == 17091);
+    cJSON_Delete(list);
+}
+
+static void test_observed_native_events(void)
+{
+    /* Valós paneles DevTools-események; a helyiség- és fióknév tesztadat.
+     * A borító URL-jét a parser nem dekódolja vagy helyettesíti. */
+    const char *radio = "{\"audio_event\":[{\"album\":\"\",\"artist\":\"\","
+        "\"audiopath\":\"tunein:station:s25966\",\"audiotype\":1,\"clientState\":\"on\","
+        "\"coverurl\":\"https://cdn-profiles.tunein.com/s25966/images/logoq.jpg?t=637069206200000000\","
+        "\"duration\":0,\"duration_ms\":0,\"mode\":\"stop\",\"name\":\"Tesztszoba\","
+        "\"parent\":null,\"pbr\":16397,\"playerid\":5,\"plrepeat\":0,\"plshuffle\":1,"
+        "\"position_ms\":0,\"power\":\"on\",\"qid\":\"7EMD53ei\",\"qindex\":0,"
+        "\"station\":\"95.8 Sláger FM\",\"time\":0,\"title\":\"\",\"type\":2,\"volume\":6}]}";
+    const char *spotify = "{\"audio_event\":[{\"album\":\"Here Comes The Hotstepper\","
+        "\"artist\":\"iNi Kamoze\",\"audiopath\":\"spotify:track:3QRM0qZB7oMYavveH0iEqx\","
+        "\"audiotype\":0,\"clientState\":\"on\","
+        "\"coverurl\":\"https://i.scdn.co/image/ab67616d0000b2736ffa23f19d8c125204e6220c\","
+        "\"duration\":250.46600000000001,\"mode\":\"stop\",\"name\":\"Tesztszoba\","
+        "\"parent\":null,\"pbr\":15423,\"playerid\":5,\"plrepeat\":1,\"plshuffle\":1,"
+        "\"power\":\"on\",\"qid\":\"50b592d16d0a1bb47256\",\"qindex\":0,"
+        "\"sourceName\":\"Tesztfelhasználó\",\"station\":\"\",\"time\":0,"
+        "\"title\":\"Here Comes the Hotstepper - Heartical Mix\",\"type\":3,\"volume\":12}]}";
+    lx_audio_track_t *track = calloc(1, sizeof(*track));
+    assert(track);
+    cJSON *message = cJSON_Parse(radio);
+    assert(message && lx_audio_track_update(track, 5, message));
+    assert(track->mode == LX_AUDIO_MODE_STOP && track->volume_known && track->volume == 6);
+    assert(!track->title[0] && !track->artist[0] && !strcmp(track->station, "95.8 Sláger FM"));
+    assert(!strcmp(track->cover, "https://cdn-profiles.tunein.com/s25966/images/logoq.jpg?t=637069206200000000"));
+    assert(!lx_audio_track_update(track, 5, message));
+    unsigned version = track->version;
+    cJSON_Delete(message);
+    message = cJSON_Parse(spotify);
+    assert(message && !lx_audio_track_update(track, 4, message) && track->version == version);
+    assert(lx_audio_track_update(track, 5, message));
+    assert(!strcmp(track->title, "Here Comes the Hotstepper - Heartical Mix"));
+    assert(!strcmp(track->artist, "iNi Kamoze") && !strcmp(track->album, "Here Comes The Hotstepper"));
+    assert(!track->station[0] && track->volume_known && track->volume == 12);
+    assert(!strcmp(track->cover, "https://i.scdn.co/image/ab67616d0000b2736ffa23f19d8c125204e6220c"));
+    assert(track->version != version && !lx_audio_track_update(track, 5, message));
+    cJSON_Delete(message);
+    free(track);
+}
+
 static void test_favorites(void)
 {
     lx_audio_favorites_t *page = calloc(1, sizeof(*page));
@@ -101,6 +193,9 @@ static void test_favorites(void)
     assert(page->items[0].id == 400);
     cJSON *group = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(message, "getroomfavs_result"), 0);
     cJSON *second = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(group, "items"), 1);
+    cJSON_ReplaceItemInObjectCaseSensitive(second, "title", cJSON_CreateString("R%C3%A1di%C3%B3%20%2B%20Jazz"));
+    assert(lx_audio_favorites_parse(page, 3, 32, message));
+    assert(!strcmp(page->items[1].name, "Rádió + Jazz"));
     cJSON_ReplaceItemInObjectCaseSensitive(second, "id", cJSON_CreateNumber(400));
     assert(!lx_audio_favorites_parse(page, 3, 32, message));
     assert(page->items[1].id == 9001);
@@ -131,7 +226,10 @@ static void test_inputs(void)
 int main(void)
 {
     test_catalog();
+    test_endpoint_port();
     test_events();
+    test_native_display_text();
+    test_observed_native_events();
     test_favorites();
     test_inputs();
     puts("PASS: Audio-katalógus, parancsok, részleges események és lapozott kedvencek");
