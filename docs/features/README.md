@@ -18,6 +18,7 @@ található. A fő README csak a funkciót sorolja fel.
 - [Helyi energiaasszisztens – napelemes indításjavaslat és éjszakai fogyasztás](../energy-assistant.md)
 - [Világításvezérlés – kártyák, dimmerek, RGB/RGBW, teljes statikus képgaléria](../lighting-controller.md)
 - [IRC termosztát – célhőfok, szobahőmérséklet és natív 0,5 °C-os léptetés](../irc-controller.md)
+- [Redőnyvezérlés – automatikus és központi árnyékolás, Fel / Stop / Le és külön százalékos állítás](../shading-controller.md)
 - [Kaputelefon – videó, kétirányú hang, hangerők és időzített kapunyitás utáni bontás](../intercom.md)
 - [Kaputelefon utáni témavisszatöltés – időkorlátok, tartalék nézet és hibaelhárítás](../intercom.md#kaputelefon-utáni-témahelyreállítás)
 - [4B Slave kaputelefon, központi hívásfoglalás és csengőhangcsomagok](../slave-intercom.md)

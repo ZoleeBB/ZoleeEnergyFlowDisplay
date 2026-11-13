@@ -62,6 +62,12 @@ Az új ikon webes előnézete a csomag telepítése nélkül is elérhető, az
 Otthon-oldal háttere és logója azonban továbbra is a közös csomagból jön.
 [Az IRC-ikon forrása és generátora](../../docs/assets.md#irc-termosztátikon).
 
+A [Redőnyvezérlő kártya](../../docs/shading-controller.md) szintén rögzített,
+beépített ikont használ, `blinds-shading` azonosítóval. A már meglévő
+`icons/blinds.png` natív 96×96-os kép változatlan másolata kerül a firmware-be;
+új nagy forráskép vagy SD-csomag nem szükséges. Az általános `blinds` ikon
+továbbra is a 64 választható kép része. [Redőnyikon és előállítása](../../docs/assets.md#redőnyikon).
+
 A `dist/templates/loxone-home.zip` a meglévő témakezelővel telepíthető és frissíthető.
 A normál témák 32 PNG-s korlátja nem változik. A fenntartott közös csomag kizárólag
 64 egyedi ikont, két 1280×800 hátteret, kis logót és opcionális előnézeti párt fogad.
