@@ -24,6 +24,7 @@ keverednek a használati útmutatókkal: lásd a [történeti gyűjteményt](../
 - [Fejlesztői ellenőrzés – parancsok, megjelenítés és memóriakezelés](../developer-checks.md)
 - [Memória- és képfrissítési optimalizálás](../performance.md)
 - [Világításvezérlés – veremvédelem, fordítási javítás és ellenőrzési korlátok](../lighting-stack-validation.md)
+- [IRC termosztát – konfiguráció, protokoll, közös állapottár és ellenőrzés](../irc-controller.md#konfiguráció-és-protokoll)
 - [Automatikus kiadás](../releases.md)
 - [Képek és licencek](../assets.md)
 - [Waveshare 4B Slave – megjelenési rétegek és geometria](../../firmware/slave-waveshare-4b/design/README.md)

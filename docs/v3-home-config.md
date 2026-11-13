@@ -43,12 +43,16 @@ fogyasztói írás elutasított. A kamera-jelszó megőrzése szerveroldali.
   hiba esetén a korábbi profil marad és a `status` közli az SD-hibát.
 - A mentés a meglévő Loxone-háttérfeladatban fut. Jelenleg egy élő kapcsolatot
   újraépít, ezért mentés után rövid adatkapcsolati szünet lehetséges.
-- A szerkesztő 64 ikont és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
+- A szerkesztő az általános kártyákhoz 64 ikont és helyiség-/funkciószűrőt ad; a háttérfrissítés nem írja
   felül a helyi szerkesztést. A vezérlési cél listája a `control_uuid` mezőből
   készül, nem a mérési UUID-ból. A parancstámogatást a runtime is ellenőrzi: Switch visszajelzésnél az objektum
   saját `active` állapota szükséges; pulse célként Switch/Pushbutton/TimedSwitch
-  támogatott. Védett és más típusú objektum tiltott; ilyen funkcióhoz Loxone-ban
+  támogatott. Általános kapcsoló-/impulzusparancshoz védett és más típusú objektum tiltott; ilyen funkcióhoz Loxone-ban
   megfelelő virtuális nyomógomb/kapcsoló párosítható.
+- A [világításvezérlő](lighting-controller.md) és az [IRC termosztát](irc-controller.md)
+  saját blokktípust és natív parancsokat használ. IRC-nél csak az
+  `IRoomControllerV2` szülőblokk választható; a `thermostat-irc` ikon rögzített,
+  nincs ikonválasztó vagy külön visszajelzőállapot-párosítás.
 
 A fogyasztói képernyő címe „Ház külön mért fogyasztói”. Az érvényes,
 1 W-nál kisebb készülékfogyasztás 0 W-ként és szürke, kikapcsolt ikonként
@@ -133,9 +137,14 @@ után újraindítás szükséges. A webes mentés a javasolt út.
 }
 ```
 
-Az UUID-k szemléltetők, nem egy telepítés valós vezérlői. Az ikonkulcsok az `assets/loxone-home/catalog.json` készlethez tartoznak (a fenti
-példakulcsok szemléltetők); a modell még csak a kulcs biztonságos
-alakját vizsgálja, a tényleges fájlok meglétét a csomagkezelő fogja ellenőrizni.
+Az UUID-k szemléltetők, nem egy telepítés valós vezérlői. Az általános
+ikonkulcsok az `assets/loxone-home/catalog.json` készlethez tartoznak; a modell
+a kulcs biztonságos alakját vizsgálja, a tényleges fájlokat a csomagkezelő
+ellenőrzi. Kivétel az `irc` kártyatípus: annak `icon` mezője mindig
+`thermostat-irc`, a parser és a szerializáló is erre normalizálja, hibás vagy
+hiányzó importált ikon esetén is. A beépített ikon nem a 64 elemű SD-katalógus
+része. Az IRC mentett mezői: `id`, `name`, `type`, `icon`, `control_uuid`;
+nincs `source` vagy általános értékformázás. [IRC-profilpélda és protokoll](irc-controller.md#konfiguráció-és-protokoll).
 
 ## A szerkesztő elrendezése
 
@@ -146,12 +155,19 @@ számítási és megjelenítési mezők, a kapcsolók külön keretes sorban, a 
 pedig a kártya jobb alsó sarkában. Keskenyebb ablakban két, mobilon egy oszlopra
 rendeződik.
 
+A kiválasztott kártyatípushoz szükséges mezők jelennek meg. IRC-nél a név,
+típus és szülőblokk mellett a kötött termosztátikon előnézete látható;
+a skálázási, mértékegység-, tizedesjegy- és figyelmeztetési mezők rejtettek.
+Más típusra váltva az általános ikonválasztás visszatér, az inkompatibilis
+vezérlési cél törlődik.
+
 ## Korlátok és hibák
 
 - Legfeljebb 12 fogyasztó és 8 elnevezhető Otthon-oldal, oldalanként legfeljebb 12 kártya.
 - A schema 1 `cards` tömbje automatikusan egy `home` azonosítójú, „Otthon” című oldalra kerül. A mentés már schema 2 formátumú; az üres oldal is érvényes.
 - A `pages[].title` legfeljebb 80 UTF-8 bájt, szabad szöveg; nem HTML. A szerkesztő a sorrendet is módosíthatja.
-- Az `id` és `icon` 1–32 kisbetű, szám, kötőjel vagy aláhúzás; nincs fájlútvonal.
+- Az `id` és az általános `icon` 1–32 kisbetű, szám, kötőjel vagy aláhúzás; nincs fájlútvonal.
+  Az IRC-kártya ikonja minden esetben `thermostat-irc`.
 - Az oldalak azonosítója egyedi; a kártyaazonosító az összes oldalon együtt egyedi (oldalváltás közben sem változhat meg a parancscél). A fogyasztók külön névtérben élnek. A név legfeljebb 80 UTF-8 bájt,
   vezérlőkarakterek nélkül. A mértékegység legfeljebb 16 UTF-8 bájt.
 - A Loxone UUID 35 karakteres gyártói formátum, nem szabványos kötőjelezésű UUID.
@@ -166,6 +182,9 @@ rendeződik.
   opcionálisak; mindkettőnél az alsó nem lehet nagyobb a felsőnél. A szín `#RRGGBB`.
 - Pulse esetén vezérlési cél kötelező, állapotforrás nem kell. Kapcsolónál mindkettő
   kötelező; a visszajelzéshez skálázás 1 és eltolás 0 szükséges.
+- Világításvezérlő és IRC esetén a szülőblokk `control_uuid` mezője kötelező,
+  külön `source` nem kell. Az IRC kizárólag natív `− / +`, 0,5 °C-os léptetést
+  ad; Auto gomb vagy saját szabályozási időprogram nincs.
 - Hiányzó teljes profil (`NULL`) régi telepítésnél üres konfiguráció.
 - Hibás profil, túl sok elem vagy foglalási hiba esetén a korábbi kimenet változatlan.
   A hiba pl. `consumers[2].duplicate_id` alakban mutatja az érintett mezőt.
@@ -212,6 +231,10 @@ A `tools/prepare_home_resources.py` a forrásképekből és az ellenőrzött 64 
 ellenőrizhető, telepíthető és frissíthető. Külön erőforrásként jelenik meg; nem
 lapozható energiaelrendezés, és nem változtatja meg a mentett témaválasztást.
 
+Az IRC termosztátikon a firmware része, ezért hozzá nem szükséges új
+SD-ikoncsomag. A közös csomag és az SD továbbra is kell az Otthon-oldal
+hátteréhez és logójához.
+
 A ház megérintése a fogyasztókat, lefelé húzás az Otthon-kártyákat nyitja meg.
 Ehhez Master Loxone mód, működő SD, érvényes közös csomag és konfigurált fogyasztó / legalább egy Otthon-oldal kell.
 A jobb felső X pontosan az előző témát állítja vissza. Speciális oldalon a
@@ -234,8 +257,15 @@ az aktuális firmware telepítését az [USB útmutató](usb-install.md) ismerte
 
 A natív profil 32 112 bájt; a parser és az SD-s validálás heapen dolgozik, a két
 UI-pillanatkép PSRAM-ban él. A legfeljebb 96 kártya és 12 fogyasztó értéktára
-1824 bájt; a rejtett lapok delta állapotai sem vesznek el. Az aktív lap képei
+1824 bájt. A rejtett lapok utolsó állapotait a konfigurált UUID-kre szűrt,
+közös nyers állapottár őrzi; világítási és IRC-blokkmodell csak a látható
+oldalhoz él. Lapváltáskor a modell ebből a tárból épül fel, új
+állapotfeliratkozás nélkül. [Állapottár és korlátai](lighting-controller.md#memória-és-láthatóság).
+Az aktív lap képei
 legfeljebb egy hátteret, egy logót és 12 külön ikont jelentenek, nem 8 teljes UI-t.
+Az azonos oldali IRC-kártyák egyetlen közös, 96×96-os beépített képet
+használnak; annak tartós ARGB8888-képpontadata 36 864 bájt, lapváltáskor és
+bezáráskor felszabadul. [IRC-memóriakezelés](irc-controller.md#memória-és-láthatóság).
 
 A v2 közös erőforráscsomagban 64 ikon, 4×1280×800 háttér és logó van.
 A fogyasztók `consumers-light/dark.png`, az Otthon-lapok `background-light/dark.png`
@@ -252,6 +282,7 @@ háttérhez a v2 `loxone-home.zip` SD-csomag is frissítendő.
 A v3 csomag a webes sablonkezelőhöz 400×250-es nappali/éjszakai előnézetet is
 ad. Ezek nem kerülnek az aktív LVGL-képek közé. A webes szerkesztő telepített
 csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan figyelmeztet.
+Az IRC kötött ikonelőnézete a firmware-ből csomag nélkül is kiszolgálható.
 
 ## Kompakt szerkesztő és autótöltés
 
