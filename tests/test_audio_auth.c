@@ -2,6 +2,7 @@
 #include "app_loxone_audio_auth.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mbedtls/aes.h"
@@ -12,9 +13,17 @@
 static int test_random(void *context, unsigned char *output, size_t size)
 {
     (void)context;
-    static unsigned counter;
+    /* Csak teszt-RNG: a korábbi 255 bájtos ciklus az RSA blinding
+     * tartomány-mintavételében újra és újra ugyanazt a hibás jelöltet adta.
+     * A firmware továbbra is az esp_fill_random hardveres forrását kapja. */
+    static uint32_t state = 0x6d2b79f5U;
     for (size_t i = 0; i < size; ++i)
-        output[i] = (unsigned char)(++counter % 255 + 1);
+    {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        output[i] = (unsigned char)state;
+    }
     return 0;
 }
 
@@ -82,7 +91,12 @@ int main(int argc, char **argv)
 #else
     assert(!mbedtls_pk_parse_key(&key, (const unsigned char *)private_key, strlen(private_key) + 1, NULL, 0));
 #endif
-    assert(!mbedtls_pk_decrypt(&key, rsa, rsa_size, plain, &plain_size, sizeof(plain), test_random, NULL));
+    int decrypt_result = mbedtls_pk_decrypt(&key, rsa, rsa_size, plain, &plain_size,
+                                           sizeof(plain), test_random, NULL);
+    if (decrypt_result)
+        fprintf(stderr, "Audio RSA decrypt: -0x%04X (mbedTLS %s)\n",
+            (unsigned)-decrypt_result, MBEDTLS_VERSION_STRING);
+    assert(decrypt_result == 0);
     plain[plain_size] = 0;
     assert(plain_size == 64 + 1 + 32 + 1 + strlen(session));
     assert(!strcmp((char *)plain + 98, session));

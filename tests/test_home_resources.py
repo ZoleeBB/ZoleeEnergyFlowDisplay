@@ -8,6 +8,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from unittest.mock import patch
 import zipfile
 import zlib
 
@@ -65,7 +66,15 @@ def pad_encoded(files, target):
 
 with tempfile.TemporaryDirectory(prefix='home-resources-') as directory:
     folder = Path(directory)
-    archive = package_home_resources(folder)
+    # A Windows-szimulátor CI-jében a magyar katalógus cp1252 olvasása hibát
+    # adott. A tényleges generátort itt is nem UTF-8 alapértelmezéssel járatjuk.
+    original_read_text = Path.read_text
+
+    def windows_read_text(path, encoding=None, errors=None):
+        return original_read_text(path, encoding=encoding or 'cp1252', errors=errors)
+
+    with patch.object(Path, 'read_text', windows_read_text):
+        archive = package_home_resources(folder)
     with zipfile.ZipFile(archive) as source:
         original = {name: source.read(name) for name in source.namelist()}
     original_doc = json.loads(original['template.json'])

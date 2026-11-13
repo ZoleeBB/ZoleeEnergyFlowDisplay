@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def home_resource_files():
     source = ROOT / 'assets/loxone-home'
-    catalog = json.loads((source / 'catalog.json').read_text())
+    catalog = json.loads((source / 'catalog.json').read_text(encoding='utf-8'))
     icons = catalog['icons']
     if not 1 <= len(icons) <= 96 or len({icon['id'] for icon in icons}) != len(icons):
         raise ValueError('A home csomaghoz 1–96 egyedi ikon szükséges')
