@@ -88,11 +88,9 @@ lecserélhető. A központi világítás, nyílászáró-összesítő, motoros a
 Audio kötött képet használ.
 
 A jobbra tolódó kapu (`gate-slide-right`) a jóváhagyott balra tolódó
-(`gate-slide-left`) ikon vízszintes tükörképéből készült. A külön kért
-képminőség-javítás élesebb lamellákat és tisztább fémkontúrokat ad, a
-kapulap jobb oldali és a nyílás bal oldali helyzete megmarad.
-A katalógus a forrásikont, a szerkesztést és az ellenőrzőösszegeket rögzíti;
-az ikonazonosítók és a típusválasztás megmaradnak.
+(`gate-slide-left`) ikon pontos vízszintes tükörképe, az alfa-csatornával
+együtt. A katalógus a forrásikont, az átalakítást és mindkét fájl
+ellenőrzőösszegét rögzíti; az ikonazonosítók és a típusválasztás megmaradnak.
 
 ### Telepítés és visszaállítás
 

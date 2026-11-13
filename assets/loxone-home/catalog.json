@@ -930,15 +930,14 @@
       "hu": "Kapu - jobbra tolódó",
       "en": "Gate - right sliding",
       "category": "security",
-      "subject": "High-resolution quality restoration of the approved left-sliding gate mirrored horizontally: sharp charcoal slats on the right, opening on the left, white brushed-metal posts and turquoise indicators.",
+      "subject": "Exact horizontal mirror of the approved gate-slide-left icon: the gate panel is on the right, with the opening on the left.",
       "file": "icons/gate-slide-right.png",
-      "generator": "built-in image_gen",
-      "prompt": "Quality restoration of the selected right-sliding gate image. Preserve the gate panel on the right and open gap on the left, the same posts, proportions, composition and transparent background. Reconstruct sharp horizontal slats, clean metal contours and fine brushed-metal detail; remove blur, enlarged-thumbnail texture, white fringes and noisy halos. Native high-resolution transparent RGBA render with no extra objects, arrows or text.",
-      "original_sha256": "9c277bc3304865db2d6e5c4c0d5b42cc950349e0db5979d4f593c8619d125961",
-      "sha256": "80af72140bcf78db846604d2926a02f10cd36c3423598c9a54bda5ffc4e49c31",
+      "generator": "built-in image_gen source; exact horizontal mirror",
+      "prompt": "Replace the right-sliding gate icon with the exact horizontal mirror of the approved left-sliding gate icon. Preserve all 96x96 RGBA pixels, including alpha, without redrawing or rescaling.",
+      "original_sha256": "05f2a62331ac92219d05c8144fa0a5c6a8af9d0e8f795bce10d2ef4103c32d28",
+      "sha256": "4832d0b6ce401abfd453d5b9803d78827f1a6406c8262c154b2eab342426de13",
       "derived_from": "gate-slide-left",
-      "transform": "horizontal-mirror; quality-restoration",
-      "edit_source_sha256": "8ef1ee8764b9b7d686eccef40e4579f0a51a426a7df31e8db3b84f43b05e0f3d"
+      "transform": "horizontal-mirror"
     },
     {
       "id": "audio-player",
