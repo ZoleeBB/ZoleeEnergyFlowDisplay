@@ -29,6 +29,43 @@ def png_rgba(width, height, raw, filter_type=0):
             png_chunk(b'IDAT', zlib.compress(bytes([filter_type]) + raw)) + png_chunk(b'IEND', b''))
 
 
+def asymmetric_jpeg(width, height):
+    """Saját egyszínű JPEG: a valódi rádiólogó Y=2x2, Cb=1x1, Cr=2x2 mintája."""
+    def segment(marker, payload):
+        return bytes([255, marker]) + struct.pack('!H', len(payload) + 2) + payload
+
+    sampling = ((2, 2), (1, 1), (2, 2))
+    result = b'\xff\xd8'
+    result += segment(0xdb, b'\0' + bytes([16] * 64) + b'\1' + bytes([16] * 64))
+    frame = bytes([8]) + struct.pack('!HHB', height, width, 3)
+    for index, (horizontal, vertical) in enumerate(sampling):
+        frame += bytes([index + 1, horizontal * 16 + vertical, 0 if index == 0 else 1])
+    result += segment(0xc0, frame)
+    tables = b''
+    for table in (0, 1):
+        tables += bytes([table]) + bytes([0, 0, 0, 12] + [0] * 12) + bytes(range(12))
+        tables += bytes([0x10 + table]) + bytes([1] + [0] * 15) + b'\0'
+    result += segment(0xc4, tables)
+    result += segment(0xda, bytes([3, 1, 0, 2, 0x11, 3, 0x11, 0, 63, 0]))
+    previous = [0, 0, 0]
+    dc = [-16, -8, 16]
+    bits = ''
+    for _ in range(((width + 15) // 16) * ((height + 15) // 16)):
+        for component, (horizontal, vertical) in enumerate(sampling):
+            for _ in range(horizontal * vertical):
+                difference = dc[component] - previous[component]
+                previous[component] = dc[component]
+                category = abs(difference).bit_length()
+                bits += f'{category:04b}'
+                if category:
+                    value = difference if difference > 0 else (1 << category) - 1 + difference
+                    bits += f'{value:0{category}b}'
+                bits += '0'  # A többi AC-együttható nulla.
+    bits += '1' * (-len(bits) % 8)
+    entropy = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8))
+    return result + entropy.replace(b'\xff', b'\xff\0') + b'\xff\xd9'
+
+
 with tempfile.TemporaryDirectory(prefix='loxone-audio-') as directory:
     temp = Path(directory)
     model = str(temp / 'model')
@@ -139,8 +176,34 @@ with tempfile.TemporaryDirectory(prefix='loxone-audio-') as directory:
         dimensions, pixels = decoded(path, 32, jpeg_decoder)
         assert dimensions == (32, 16) and len(pixels) == 512
         assert all(abs(((value >> 11) << 3) - 240) <= 8 for value in pixels)
-        Image.new('RGB', (513, 64), (240, 80, 32)).save(path)
+        path.write_bytes(path.read_bytes() + b'\0\r\n')
+        assert decoded(path, 32, jpeg_decoder) == (dimensions, pixels), 'Baseline JPEG trailer regression'
+        spotify = temp / 'spotify-size.jpg'
+        Image.new('RGB', (640, 640), (240, 80, 32)).save(spotify, quality=95, subsampling=0)
+        for size in (112, 256):
+            dimensions, pixels = decoded(spotify, size, jpeg_decoder)
+            assert dimensions == (size, size) and len(pixels) == size * size
+        radio = temp / 'radio-sampling.jpg'
+        radio.write_bytes(asymmetric_jpeg(145, 145))
+        with Image.open(radio) as reference_radio:
+            expected = reference(reference_radio, 112)
+            dimensions, pixels = decoded(radio, 112, jpeg_decoder)
+            assert dimensions == (112, 112)
+            assert pixels == expected[1], 'Asymmetric JPEG component sampling changed the colors'
+        progressive = temp / 'progressive-cmyk.jpg'
+        Image.new('CMYK', (512, 512), (20, 40, 90, 10)).save(progressive, progressive=True)
+        assert decoded(progressive, 256, jpeg_decoder)[0] == (256, 256)
+        Image.new('RGB', (513, 64), (240, 80, 32)).save(path, progressive=True)
+        assert decoded(path, 32, jpeg_decoder) is None, 'Fallback source limit exceeded'
+        Image.new('RGB', (1025, 64), (240, 80, 32)).save(path)
         assert decoded(path, 32, jpeg_decoder) is None
-        print('PASS: actual TJpgDec JPEG decoding and source size rejection')
+        path.write_bytes(radio.read_bytes()[:-2])
+        assert decoded(path, 32, jpeg_decoder) is None, 'Truncated fallback JPEG accepted'
+        memory = str(temp / 'image-memory')
+        run(COMMON + ['-Itests/loxone_audio_stubs', '-DLV_CONF_SKIP', '-DLV_USE_TJPGD=1',
+                      '-I' + lvgl, 'tests/test_audio_image_memory.c',
+                      str(Path(lvgl) / 'src/libs/tjpgd/tjpgd.c'), '-lz', '-o', memory])
+        run([memory, str(radio), str(spotify), str(progressive)], timeout=20)
+        print('PASS: actual TJpgDec 640px JPEG, asymmetric chroma, bounded progressive fallback and truncation rejection')
     else:
         print('JPEG host test skipped: set LVGL_SOURCE_DIR; firmware/preview still build the actual decoder.')

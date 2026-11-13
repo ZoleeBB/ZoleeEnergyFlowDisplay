@@ -1,6 +1,7 @@
 /* Borítók szoftveres dekódolása, LVGL- és JPEG-hardverhívások nélkül.
  * PNG: 1/2/4/8 bites paletta/szürke, 8 bites RGB/RGBA; nem interlace.
- * JPEG: a meglévő LVGL TJpgDec saját, feladatonkénti példánya. */
+ * JPEG: a meglévő LVGL TJpgDec saját, feladatonkénti példánya; ritka
+ * mintavételnél egy legfeljebb 512 pixeles, csak JPEG-et kezelő tartalékút. */
 #include "app_loxone_audio_media.h"
 
 #include <stdlib.h>
@@ -35,9 +36,10 @@ static uint16_t audio_rgb565(unsigned red, unsigned green, unsigned blue, unsign
     return (uint16_t)((red >> 3) << 11 | (green >> 2) << 5 | (blue >> 3));
 }
 
-static lx_audio_image_t *audio_image_create(unsigned width, unsigned height, unsigned size)
+static lx_audio_image_t *audio_image_create(unsigned width, unsigned height, unsigned size,
+                                            unsigned source_max)
 {
-    if (!width || !height || width > LX_AUDIO_MEDIA_SOURCE_MAX || height > LX_AUDIO_MEDIA_SOURCE_MAX ||
+    if (!width || !height || width > source_max || height > source_max ||
         !size || size > 256)
         return NULL;
     lx_audio_image_t *image = audio_image_alloc(sizeof(*image));
@@ -224,7 +226,8 @@ static lx_audio_image_t *audio_png_decode(const uint8_t *data, size_t length, un
                 filter == 3 ? (left + up) / 2 : filter == 4 ? audio_paeth(left, up, corner) : 0));
         }
     }
-    lx_audio_image_t *image = ok ? audio_image_create(png->width, png->height, size) : NULL;
+    lx_audio_image_t *image = ok ? audio_image_create(png->width, png->height, size,
+                                                     LX_AUDIO_MEDIA_SOURCE_MAX) : NULL;
     for (unsigned y = 0; image && y < image->height; ++y)
     {
         unsigned sy = y * png->height / image->height;
@@ -280,6 +283,136 @@ static lx_audio_image_t *audio_png_decode(const uint8_t *data, size_t length, un
 }
 
 #if LV_USE_TJPGD
+/* A tartalékdekóder összes foglalása közös, kemény korlát alá esik.
+ * A számláló párhuzamos hívásnál sem engedi a keret túllépését; a fejléc
+ * megőrzi a méretet, így a hibautak és a realloc is pontosan felszabadít. */
+#define AUDIO_JPEG_WORKING_MAX (4U * 1024U * 1024U)
+typedef union
+{
+    max_align_t alignment;
+    size_t bytes;
+} audio_jpeg_allocation_t;
+
+#ifdef _MSC_VER
+#include <intrin.h>
+static volatile long audio_jpeg_working_bytes;
+
+static bool audio_jpeg_claim(size_t bytes)
+{
+    long previous = _InterlockedCompareExchange(&audio_jpeg_working_bytes, 0, 0);
+    while (bytes <= AUDIO_JPEG_WORKING_MAX - (size_t)previous)
+    {
+        long observed = _InterlockedCompareExchange(&audio_jpeg_working_bytes,
+            previous + (long)bytes, previous);
+        if (observed == previous)
+            return true;
+        previous = observed;
+    }
+    return false;
+}
+
+static void audio_jpeg_unclaim(size_t bytes)
+{
+    (void)_InterlockedExchangeAdd(&audio_jpeg_working_bytes, -(long)bytes);
+}
+#else
+#include <stdatomic.h>
+static atomic_size_t audio_jpeg_working_bytes;
+
+static bool audio_jpeg_claim(size_t bytes)
+{
+    size_t previous = atomic_load(&audio_jpeg_working_bytes);
+    while (bytes <= AUDIO_JPEG_WORKING_MAX - previous)
+        if (atomic_compare_exchange_weak(&audio_jpeg_working_bytes, &previous, previous + bytes))
+            return true;
+    return false;
+}
+
+static void audio_jpeg_unclaim(size_t bytes)
+{
+    atomic_fetch_sub(&audio_jpeg_working_bytes, bytes);
+}
+#endif
+
+static void *audio_jpeg_alloc(size_t bytes)
+{
+    if (!bytes || bytes > AUDIO_JPEG_WORKING_MAX - sizeof(audio_jpeg_allocation_t))
+        return NULL;
+    size_t total = bytes + sizeof(audio_jpeg_allocation_t);
+    if (!audio_jpeg_claim(total))
+        return NULL;
+    audio_jpeg_allocation_t *allocation = audio_image_alloc(total);
+    if (!allocation)
+    {
+        audio_jpeg_unclaim(total);
+        return NULL;
+    }
+    allocation->bytes = total;
+    return allocation + 1;
+}
+
+static void audio_jpeg_free(void *pointer)
+{
+    if (!pointer)
+        return;
+    audio_jpeg_allocation_t *allocation = (audio_jpeg_allocation_t *)pointer - 1;
+    size_t bytes = allocation->bytes;
+    free(allocation);
+    audio_jpeg_unclaim(bytes);
+}
+
+static inline void *audio_jpeg_realloc(void *pointer, size_t bytes)
+{
+    if (!pointer)
+        return audio_jpeg_alloc(bytes);
+    if (!bytes)
+    {
+        audio_jpeg_free(pointer);
+        return NULL;
+    }
+    void *next = audio_jpeg_alloc(bytes);
+    if (!next)
+        return NULL;
+    size_t previous = ((audio_jpeg_allocation_t *)pointer - 1)->bytes - sizeof(audio_jpeg_allocation_t);
+    memcpy(next, pointer, previous < bytes ? previous : bytes);
+    audio_jpeg_free(pointer);
+    return next;
+}
+
+/* A TuneIn valódi rádiólogója 2x2-es Cr-mintát is használ; ezt a TJpgDec
+ * nem támogatja. Az upstream fejléc változatlan marad. Csak a JPEG-kód
+ * fordul, minden foglalás PSRAM, a forrás legfeljebb 512x512 pixel.
+ * A legnagyobb (4 komponenses progresszív) átmeneti munkatér is 4 MiB
+ * alatt marad; nincs új feladat, állandó puffer vagy hardver-JPEG használat. */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#define STBI_NO_HDR
+#define STBI_NO_LINEAR
+#define STBI_NO_SIMD
+#define STBI_NO_FAILURE_STRINGS
+#define STBI_NO_THREAD_LOCALS
+#define STBI_MAX_DIMENSIONS LX_AUDIO_MEDIA_SOURCE_MAX
+#define STBI_MALLOC(size) audio_jpeg_alloc(size)
+#define STBI_FREE(pointer) audio_jpeg_free(pointer)
+#define STBI_REALLOC_SIZED(pointer, old_size, new_size) audio_jpeg_realloc((pointer), (new_size))
+/* A fejléc nyilvános, itt nem használt belépési pontjai nem részei az
+ * alkalmazásnak. A figyelmeztetés-kivétel kizárólag az upstream fejlécé. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4505)
+#endif
+#include "third_party/stb_image.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
 typedef struct
 {
     const uint8_t *bytes;
@@ -319,14 +452,19 @@ static int audio_jpeg_write(JDEC *decoder, void *bitmap, JRECT *rectangle)
     return 1;
 }
 
-static lx_audio_image_t *audio_jpeg_decode(const uint8_t *data, size_t length, unsigned size)
+static lx_audio_image_t *audio_jpeg_decode(const uint8_t *data, size_t length, unsigned size,
+                                           bool *unsupported)
 {
     JDEC *decoder = audio_image_alloc(sizeof(*decoder));
     void *workspace = audio_image_alloc(16384);
     audio_jpeg_t input = {.bytes = data, .length = length};
-    if (decoder && workspace && jd_prepare(decoder, audio_jpeg_read, workspace, 16384, &input) == JDR_OK)
+    JRESULT prepared = decoder && workspace ?
+        jd_prepare(decoder, audio_jpeg_read, workspace, 16384, &input) : JDR_MEM1;
+    *unsupported = prepared == JDR_FMT2 || prepared == JDR_FMT3;
+    if (prepared == JDR_OK)
     {
-        input.image = audio_image_create(decoder->width, decoder->height, size);
+        input.image = audio_image_create(decoder->width, decoder->height, size,
+                                          LX_AUDIO_MEDIA_JPEG_SOURCE_MAX);
         if (input.image && jd_decomp(decoder, audio_jpeg_write, 0) != JDR_OK)
         {
             lx_audio_image_free(input.image);
@@ -336,6 +474,24 @@ static lx_audio_image_t *audio_jpeg_decode(const uint8_t *data, size_t length, u
     free(workspace);
     free(decoder);
     return input.image;
+}
+
+static lx_audio_image_t *audio_jpeg_fallback(const uint8_t *data, size_t length, unsigned size)
+{
+    int width = 0, height = 0, channels = 0;
+    uint8_t *rgb = stbi_load_from_memory(data, (int)length, &width, &height, &channels, 3);
+    lx_audio_image_t *image = rgb ? audio_image_create((unsigned)width, (unsigned)height,
+                                                       size, LX_AUDIO_MEDIA_SOURCE_MAX) : NULL;
+    for (unsigned y = 0; image && y < image->height; ++y)
+        for (unsigned x = 0; x < image->width; ++x)
+        {
+            unsigned source_x = x * (unsigned)width / image->width;
+            unsigned source_y = y * (unsigned)height / image->height;
+            const uint8_t *pixel = rgb + ((size_t)source_y * (unsigned)width + source_x) * 3;
+            image->pixels[y * image->width + x] = audio_rgb565(pixel[0], pixel[1], pixel[2], 255);
+        }
+    stbi_image_free(rgb);
+    return image;
 }
 #endif
 
@@ -347,7 +503,14 @@ lx_audio_image_t *lx_audio_image_decode(const uint8_t *data, size_t length, unsi
         return audio_png_decode(data, length, size);
 #if LV_USE_TJPGD
     if (data[0] == 0xff && data[1] == 0xd8)
-        return audio_jpeg_decode(data, length, size);
+    {
+        bool unsupported = false;
+        lx_audio_image_t *image = audio_jpeg_decode(data, length, size, &unsupported);
+        /* A normál út megőrzi az EOI utáni bájtok korábbi elfogadását.
+         * Csonka JPEG viszont nem válhat a tartalékút kitöltött képévé. */
+        bool complete = data[length - 2] == 0xff && data[length - 1] == 0xd9;
+        return !image && unsupported && complete ? audio_jpeg_fallback(data, length, size) : image;
+    }
 #endif
     return NULL;
 }
