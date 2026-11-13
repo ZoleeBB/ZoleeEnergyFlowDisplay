@@ -9,6 +9,8 @@ class Element {
     setAttribute(key,value) { this[key]=value; }
     removeAttribute(key) { delete this[key]; }
     replaceChildren() { this.children=[];this.value=''; }
+    focus() { sandbox.document.activeElement=this; }
+    setSelectionRange(start,end) { this.selectionStart=start;this.selectionEnd=end; }
 }
 for(const id of ['ringtone-file','ringtone-upload','ringtone-status','consumers-save','consumers-status','consumers-section','intercom-config','intercom-save','intercom-status','home-resource-warning','home-pages','home-add-page','home-editor','home-status','home-save','home-add-consumer','home-add-card','home-consumers','home-cards','home-room','home-category']) {
     const node=new Element(id.includes('room')||id.includes('category')?'select':'div');node.id=id;
@@ -101,6 +103,13 @@ const click=id=>nodes.get(id).onclick();
     edit('home-consumers-item-1-average_kw','2.1');const suggest=nodes.get('home-consumers-item-1-suggest_start');suggest.checked=true;suggest.onchange();
     click('home-add-page'); edit('home-page-title','Földszint');
     click('home-add-card');
+    const freshBox=nodes.get('home-cards').children[0];
+    assert.equal(nodes.get('home-cards-item-1-type').value,'');
+    assert.equal(freshBox.children.length,3); /* Legenda, típus, mozgatás/törlés. */
+    const beforeType=posts.length;await click('home-save');
+    assert.equal(posts.length,beforeType);assert.match(nodes.get('home-status').textContent,/kártyatípust/);
+    assert.equal(nodes.get('home-cards-item-1-move-up').disabled,true);
+    assert.equal(nodes.get('home-cards-item-1-move-down').disabled,true);
     edit('home-cards-item-1-type','pulse','onchange');
     assert(nodes.get('home-consumers-item-1-name') !== nodes.get('home-cards-item-1-name'));
     /* A két oldal azonos elemkulcsai külön DOM-névtérben élnek. */
@@ -145,8 +154,8 @@ const click=id=>nodes.get(id).onclick();
     /* Több oldal, címek és kártyák megmaradnak lapváltás és átrendezés után. */
     click('home-add-page'); edit('home-page-title','Kert <b>fények</b>');
     assert.equal(nodes.get('home-cards').children.length,0);
-    click('home-add-card'); edit('home-cards-item-1-name','Kerti gomb');
-    edit('home-cards-item-1-type','pulse','onchange');
+    click('home-add-card'); edit('home-cards-item-1-type','pulse','onchange');
+    edit('home-cards-item-1-name','Kerti gomb');
     edit('home-cards-item-1-control_uuid',control,'onchange');
     edit('home-page-select','home','onchange');
     assert.equal(nodes.get('home-cards-saved-pulse-name').value,'Mentett gomb');
@@ -381,5 +390,59 @@ const click=id=>nodes.get(id).onclick();
     edit('home-cards-shading-no-icon-type', 'value', 'onchange');
     assert.equal(attached('home-cards-shading-no-icon-icon').value, 'blinds');
     console.log('PASS: automatic/central shading metadata filter, fixed icon without SD, imported/hidden-page normalization, minimal save, room/category filters and fixed/generic type changes');
+    /* Kártyasorrend: azonos oldalon objektumot mozgatunk, minden mezővel együtt. */
+    state = {schema:2, consumers:[], resources_installed:true, resources_version:3, intercom:{}, revision:0, busy:false,
+        pages:[{id:'order',title:'Rendezhető',cards:[
+            {id:'first',name:'Első',type:'value',icon:'lamp',source:{uuid,scale:2,offset:1},unit:'kW',decimals:2},
+            {id:'second',name:'Második',type:'pulse',icon:'door',control_uuid:control},
+            {id:'third',name:'Harmadik',type:'pulse',icon:'gate',control_uuid:control}]},
+            {id:'unchanged',title:'Másik oldal',cards:[{id:'other',name:'Marad',type:'pulse',icon:'door',control_uuid:control}]}]};
+    const orderContext = {...sandbox}; vm.createContext(orderContext);
+    vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',orderContext);
+    await orderContext.home.refresh(catalog);
+    const order = () => nodes.get('home-cards').children.map(box=>box.id);
+    assert.deepEqual(order(),['first','second','third'].map(id=>'home-cards-'+id+'-editor'));
+    assert(nodes.get('home-cards-first-move-up').disabled);
+    assert(nodes.get('home-cards-third-move-down').disabled);
+    const typeGrid=nodes.get('home-cards').children[0].children[1];
+    assert.equal(typeGrid.children[0]['data-field'],'type');
+    const firstGrid=nodes.get('home-cards').children[0].children[2].children[0];
+    assert.deepEqual(firstGrid.children.slice(0,2).map(label=>label['data-field']),['uuid','name']);
+    edit('home-cards-first-name','Szerkesztett, még nem mentett');
+    edit('home-cards-first-scale','3.5');
+    edit('home-cards-first-offset','-4');
+    const nameInput=nodes.get('home-cards-first-name');nameInput.focus();nameInput.setSelectionRange(2,8);
+    edit('home-room','','onchange');
+    assert.equal(sandbox.document.activeElement.id,'home-cards-first-name');
+    assert.equal(sandbox.document.activeElement.selectionStart,2);
+    assert.equal(sandbox.document.activeElement.selectionEnd,8);
+    nodes.get('home-cards-first-move-down').focus();click('home-cards-first-move-down');
+    assert.deepEqual(order(),['second','first','third'].map(id=>'home-cards-'+id+'-editor'));
+    assert.equal(sandbox.document.activeElement.id,'home-cards-first-move-down');
+    assert.equal(nodes.get('home-cards-first-name').value,'Szerkesztett, még nem mentett');
+    assert.equal(nodes.get('home-cards-first-scale').value,'3.5');
+    click('home-cards-first-move-down');
+    assert.deepEqual(order(),['second','third','first'].map(id=>'home-cards-'+id+'-editor'));
+    assert.equal(nodes.get('home-cards-first-move-down').disabled,true);
+    assert.equal(sandbox.document.activeElement.id,'home-cards-first-move-up');
+    click('home-cards-first-move-down'); /* A tiltott határ programból sem léphető át. */
+    assert.deepEqual(order(),['second','third','first'].map(id=>'home-cards-'+id+'-editor'));
+    click('home-cards-first-move-up');
+    const orderPosts=posts.length;await click('home-save');
+    assert.equal(posts.length,orderPosts+1);
+    assert.deepEqual(posts.at(-1).pages[0].cards.map(card=>card.id),['second','first','third']);
+    const savedFirst=posts.at(-1).pages[0].cards[1];
+    assert.equal(savedFirst.name,'Szerkesztett, még nem mentett');
+    assert.deepEqual(savedFirst.source,{uuid,scale:3.5,offset:-4});
+    assert.equal(savedFirst.unit,'kW');assert.equal(savedFirst.decimals,2);
+    assert.equal(posts.at(-1).pages[1].cards[0].id,'other');
+    const reloadContext={...sandbox};vm.createContext(reloadContext);
+    vm.runInContext(fs.readFileSync('assets/web/loxone-home.js','utf8').replace('/*HOME_ICONS*/',JSON.stringify(icons))+'\nglobalThis.home=LoxoneHome;',reloadContext);
+    await reloadContext.home.refresh(catalog);
+    assert.deepEqual(order(),['second','first','third'].map(id=>'home-cards-'+id+'-editor'));
+    edit('home-page-select','unchanged','onchange');
+    assert.deepEqual(order(),['home-cards-other-editor']);
+    assert(nodes.get('home-cards-other-move-up').disabled);assert(nodes.get('home-cards-other-move-down').disabled);
+    console.log('PASS: type-first empty card validation, DOM field order, per-page up/down boundaries, unsaved data and focus, serialized ordering and reload');
     console.log('PASS: actual home editor, 64 icons, consumer transforms, explicit command target, pulse/switch, filters retaining mappings, pending/failure states, separate video credentials, retained blank password, no integration secret or background edit loss');
 })().catch(error=>{console.error(error);process.exitCode=1;});

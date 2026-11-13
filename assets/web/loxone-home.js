@@ -127,10 +127,14 @@ const LoxoneHome = (() => {
         previewParent.append(preview);
         update();
     }
-    function source(parent, entry) {
+    function source(parent, entry, transforms = true) {
         const wrapper = {id: entry.id, uuid: entry.source?.uuid || ''};
         const input = select(parent, 'Loxone visszajelző állapot', wrapper, 'uuid', stateChoices());
         input.onchange = () => { entry.source.uuid = input.value; };
+        if (transforms) sourceTransforms(parent, entry);
+        return input;
+    }
+    function sourceTransforms(parent, entry) {
         const scale = field(parent, 'Szorzó (W → kW: 0.001)', entry.source, 'scale', 'number');
         scale.id = domId(entry, 'scale');
         if (entry.type === 'value') {
@@ -253,7 +257,26 @@ const LoxoneHome = (() => {
         ringtone.onchange = () => { changed(); updatePreview(); };
         updatePreview();
     }
+    function controlMatches(type, item) {
+        if (item.action_uuid === '' || !item.control_uuid) return false;
+        if (type === 'lighting') return item.type === 'LightControllerV2' && !!item.lighting;
+        if (type === 'irc') return ircBlock(item);
+        if (type === 'shading') return shadingBlock(item);
+        return item.secured === false && (item.type === 'Switch' ||
+            (type === 'pulse' && ['Pushbutton', 'TimedSwitch'].includes(item.type)));
+    }
+    function restoreFocus(id, start, end) {
+        const node = id && get(id);
+        if (!node || node.disabled) return;
+        if (typeof node.focus === 'function') node.focus({preventScroll: true});
+        if (typeof start === 'number' && typeof node.setSelectionRange === 'function') {
+            try { node.setSelectionRange(start, end); }
+            catch (_) { /* A számmező nem támogat kijelölést. */ }
+        }
+    }
     function render() {
+        const focused = document.activeElement;
+        const focusId = focused?.id, selectionStart = focused?.selectionStart, selectionEnd = focused?.selectionEnd;
         controls.length = 0;
         renderIntercom();
         renderPages();
@@ -263,67 +286,113 @@ const LoxoneHome = (() => {
             for (const entry of section === 'consumers' ? model.consumers : activeCards()) {
                 if (section === 'cards') cardIcon(entry);
                 const box = create('fieldset'), legend = create('legend', entry.name || 'Új elem');
+                box.id = domId(entry, 'editor');
                 box.append(legend);
-                const body = create('div'); body.className = 'home-entry-body'; box.append(body);
-                const preview = create('div'); preview.className = 'home-entry-icon'; body.append(preview);
-                const grid = create('div'); grid.className = 'grid card-grid'; body.append(grid);
-                field(grid, 'Név', entry, 'name');
-                iconField(grid, entry, preview, section === 'cards' && !!fixedIcon(entry.type));
-                if (section === 'consumers') {
-                    source(grid, entry);
-                    field(grid, 'Átlagos üzemi teljesítmény (kW, opcionális)', entry, 'average_kw', 'number', true);
-                    field(grid, 'Indítás javasolható (alapból kikapcsolva)', entry, 'suggest_start', 'checkbox');
-                } else {
-                    const type = select(grid, 'Kártyatípus', entry, 'type', [
-                        ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'], ['lighting', 'Világításvezérlő'],
-                        ['irc', 'IRC termosztát'], ['shading', 'Redőnyvezérlő']]);
+                if (section === 'cards') {
+                    const first = create('div'); first.className = 'card-grid home-entry-type'; box.append(first);
+                    const type = select(first, 'Kártyatípus', entry, 'type', [
+                        ['', 'Válassz…'], ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'],
+                        ['lighting', 'Világításvezérlő'], ['irc', 'IRC termosztát'], ['shading', 'Redőnyvezérlő']]);
                     type.onchange = () => {
-                        const wasFixed = !!fixedIcon(entry.type);
+                        const previous = entry.type;
                         entry.type = type.value;
                         cardIcon(entry);
-                        const block = entry.type === 'irc' ? ircBlock : entry.type === 'shading' ? shadingBlock : null;
-                        if ((block && !catalog.some(item => block(item) && item.control_uuid === entry.control_uuid && item.action_uuid !== '')) ||
-                            (wasFixed && !block)) entry.control_uuid = '';
+                        if (!entry.type || entry.type === 'value' ||
+                            !catalog.some(item => item.control_uuid === entry.control_uuid && controlMatches(entry.type, item)))
+                            entry.control_uuid = '';
+                        /* A másik típus rejtett visszajelzése nem válhat kapcsolóállapottá. */
+                        if (previous !== entry.type && !['value', 'switch'].includes(previous))
+                            entry.source = {uuid: '', scale: 1, offset: 0};
                         if (entry.type === 'switch') { entry.source.scale = 1; entry.source.offset = 0; }
                         render();
                     };
-                    if (!['pulse', 'lighting', 'irc', 'shading'].includes(entry.type)) source(grid, entry);
-                    if (entry.type !== 'value')
-                        select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' : entry.type === 'irc' ? 'Loxone helyiségszabályzó (IRC) blokk' :
-                            entry.type === 'shading' ? 'Loxone automatikus vagy központi árnyékolás blokk' : 'Vezérelhető Loxone objektum',
-                            entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting', entry.type === 'irc', entry.type === 'shading'));
-                    if (entry.type === 'lighting') {
-                        const note = create('p', 'A világítási körök automatikusan, a Loxone sorrendjében jelennek meg. Csak a megnyitott Otthon-oldal adatait dolgozzuk fel.');
-                        note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                }
+                if (section === 'consumers' || entry.type) {
+                    const body = create('div'); body.className = 'home-entry-body'; box.append(body);
+                    const grid = create('div'); grid.className = 'grid card-grid'; body.append(grid);
+                    const preview = create('div'); preview.className = 'home-entry-icon'; body.append(preview);
+                    if (section === 'consumers') {
+                        field(grid, 'Név', entry, 'name');
+                        source(grid, entry);
+                        field(grid, 'Átlagos üzemi teljesítmény (kW, opcionális)', entry, 'average_kw', 'number', true);
+                        field(grid, 'Indítás javasolható (alapból kikapcsolva)', entry, 'suggest_start', 'checkbox');
+                    } else {
+                        if (entry.type !== 'value') {
+                            const input = select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' :
+                                entry.type === 'irc' ? 'Loxone helyiségszabályzó (IRC) blokk' :
+                                entry.type === 'shading' ? 'Loxone automatikus vagy központi árnyékolás blokk' : 'Vezérelhető Loxone objektum',
+                                entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting', entry.type === 'irc', entry.type === 'shading'));
+                            input.onchange = () => {
+                                const previousName = catalog.find(item => item.control_uuid === entry.control_uuid)?.name;
+                                entry.control_uuid = input.value;
+                                const name = catalog.find(item => item.control_uuid === input.value)?.name;
+                                if (name && (!entry.name || entry.name === previousName)) entry.name = name;
+                                render();
+                            };
+                        }
+                        if (['value', 'switch'].includes(entry.type)) source(grid, entry, false);
+                        field(grid, 'Név', entry, 'name');
+                        if (['value', 'switch'].includes(entry.type)) sourceTransforms(grid, entry);
+                        if (entry.type === 'lighting') {
+                            const note = create('p', 'A világítási körök automatikusan, a Loxone sorrendjében jelennek meg. Csak a megnyitott Otthon-oldal adatait dolgozzuk fel.');
+                            note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                        }
+                        if (entry.type === 'irc') {
+                            const note = create('p', 'A termosztát a célhőfokot, a mért szobahőmérsékletet és a fűtési vagy hűtési üzemmódot mutatja. A − / + gombok 0,5 °C-os lépésekben állítják a célhőfokot.');
+                            note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                        }
+                        if (entry.type === 'shading') {
+                            const note = create('p', 'A kijelzőn Fel / Stop / Le gombok jelennek meg. Az egyedi automatikus árnyékolás ikonját megérintve külön ablakban állítható a pozíció: 0% teljesen felhúzva, 100% teljesen leengedve. A központi blokkhoz nincs százalékos állítás.');
+                            note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                        }
+                        if (entry.type === 'value') {
+                            field(grid, 'Mértékegység', entry, 'unit');
+                            const decimals = field(grid, 'Tizedesek (0–3)', entry, 'decimals', 'number');
+                            decimals.min = 0; decimals.max = 3; decimals.step = 1;
+                            field(grid, 'Alsó figyelmeztetési határ (opcionális)', entry, 'warning_low', 'number', true);
+                            field(grid, 'Felső figyelmeztetési határ (opcionális)', entry, 'warning_high', 'number', true);
+                            field(grid, 'Figyelmeztetés színe', entry, 'warning_color', 'color');
+                        }
                     }
-                    if (entry.type === 'irc') {
-                        const note = create('p', 'A termosztát a célhőfokot, a mért szobahőmérsékletet és a fűtési vagy hűtési üzemmódot mutatja. A − / + gombok 0,5 °C-os lépésekben állítják a célhőfokot.');
-                        note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                    iconField(grid, entry, preview, section === 'cards' && !!fixedIcon(entry.type));
+                }
+                const footer = section === 'cards' ? create('div') : box;
+                if (section === 'cards') {
+                    footer.className = 'home-entry-actions';
+                    const moves = create('div'); moves.className = 'home-entry-moves'; footer.append(moves);
+                    for (const [key, label, step] of [['up', '↑ Fel', -1], ['down', '↓ Le', 1]]) {
+                        const move = create('button', label); move.type = 'button'; move.className = 'secondary';
+                        move.id = domId(entry, 'move-' + key);
+                        move.setAttribute('aria-label', (entry.name || 'Új kártya') + (step < 0 ? ' feljebb mozgatása' : ' lejjebb mozgatása'));
+                        const index = activeCards().indexOf(entry);
+                        move.homeFixed = index + step < 0 || index + step >= activeCards().length;
+                        move.onclick = () => {
+                            if (busy() || move.homeFixed) return;
+                            const cards = activeCards(), current = cards.indexOf(entry), next = current + step;
+                            if (current < 0 || next < 0 || next >= cards.length) return;
+                            /* Ugyanazt az objektumot mozgatjuk: a nem mentett mezők és az ID is megmarad. */
+                            [cards[current], cards[next]] = [cards[next], cards[current]];
+                            render();
+                            const preferred = get(move.id);
+                            restoreFocus(preferred?.disabled ? domId(entry, 'move-' + (key === 'up' ? 'down' : 'up')) : move.id);
+                        };
+                        controls.push(move); moves.append(move);
                     }
-                    if (entry.type === 'shading') {
-                        const note = create('p', 'A kijelzőn Fel / Stop / Le gombok jelennek meg. Az egyedi automatikus árnyékolás ikonját megérintve külön ablakban állítható a pozíció: 0% teljesen felhúzva, 100% teljesen leengedve. A központi blokkhoz nincs százalékos állítás.');
-                        note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
-                    }
-                    if (entry.type === 'value') {
-                        field(grid, 'Mértékegység', entry, 'unit');
-                        const decimals = field(grid, 'Tizedesek (0–3)', entry, 'decimals', 'number');
-                        decimals.min = 0; decimals.max = 3; decimals.step = 1;
-                        field(grid, 'Alsó figyelmeztetési határ (opcionális)', entry, 'warning_low', 'number', true);
-                        field(grid, 'Felső figyelmeztetési határ (opcionális)', entry, 'warning_high', 'number', true);
-                        field(grid, 'Figyelmeztetés színe', entry, 'warning_color', 'color');
-                    }
+                    box.append(footer);
                 }
                 const remove = create('button', 'Elem törlése'); remove.type = 'button'; remove.className = 'secondary';
+                remove.id = domId(entry, 'remove');
                 remove.onclick = () => {
                     if (busy()) return;
                     if (section === 'consumers') model.consumers = model.consumers.filter(item => item.id !== entry.id);
                     else model.pages[selectedPage].cards = activeCards().filter(item => item.id !== entry.id);
                     render();
                 };
-                controls.push(remove); box.append(remove); target.append(box);
+                controls.push(remove); footer.append(remove); target.append(box);
             }
         }
         buttons();
+        restoreFocus(focusId, selectionStart, selectionEnd);
     }
     function filters() {
         for (const [id, key, title] of [['home-room', 'room', 'Összes helyiség'], ['home-category', 'category', 'Összes funkció']]) {
@@ -345,7 +414,7 @@ const LoxoneHome = (() => {
         while (all.some(item => item.id === 'item-' + serial)) serial++;
         const entry = {id: 'item-' + serial, name: '', icon: icons[0].id, source: {uuid: '', scale: 1, offset: 0}};
         if (section === 'consumers') Object.assign(entry, {average_kw: null, suggest_start: false});
-        else Object.assign(entry, {type: 'value', control_uuid: '', unit: '', decimals: 1,
+        else Object.assign(entry, {type: '', control_uuid: '', unit: '', decimals: 1,
             warning_low: null, warning_high: null, warning_color: '#E66B6B'});
         entries.push(entry); render();
     }
@@ -387,6 +456,7 @@ const LoxoneHome = (() => {
             return 'Adj minden Otthon-oldalnak legfeljebb 80 bájtos címet.';
         for (const section of (scope === 'consumers' ? ['consumers'] : ['cards'])) for (const entry of section === 'consumers' ? model.consumers : model.pages.flatMap(page => page.cards)) {
             const title = entry.name || 'Névtelen elem';
+            if (section === 'cards' && !entry.type) return title + ': először válassz kártyatípust.';
             const fixed = section === 'cards' && !!fixedIcon(entry.type);
             if (fixed) cardIcon(entry);
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
