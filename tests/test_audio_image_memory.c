@@ -1,6 +1,8 @@
 /* A valódi dekóderek PSRAM-foglalásai: minden hibapont és a kemény keret.
  * A képek saját tesztminták, nem továbbterjesztett rádió-/albumborítók. */
 #include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -8,30 +10,62 @@
 #include "esp_heap_caps.h"
 #include "src/libs/tjpgd/tjpgd.h"
 
-typedef struct { void *pointer; size_t bytes; } allocation_t;
+typedef struct
+{
+    void *pointer;
+    void *base;
+    size_t bytes;
+} allocation_t;
 static allocation_t allocations[64];
 static size_t live_bytes, peak_bytes;
 static unsigned allocation_calls, failure_at;
 
-void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
+static void *tracked_calloc(size_t alignment, size_t count, size_t size, unsigned caps,
+                           bool weak_alignment)
 {
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     assert(count && size <= SIZE_MAX / count);
+    assert(alignment && !(alignment & (alignment - 1)));
+    assert(alignment >= _Alignof(void *));
     if (++allocation_calls == failure_at)
         return NULL;
-    void *pointer = calloc(count, size);
-    assert(pointer);
+    /* A P4 alapheapje a max_align_t-nál gyengébben igazít. A hoston legalább
+     * pointer-igazítás kell, de szándékosan eltoljuk a max_align_t határától.
+     * A valódi malloc-alap külön marad, a modell fejléce nem függ az igazítástól. */
+    size_t base_alignment = weak_alignment ? _Alignof(max_align_t) : alignment;
+    size_t offset = weak_alignment ? _Alignof(void *) : 0;
+    size_t padding = base_alignment - 1 + offset;
+    size_t bytes = count * size;
+    assert(bytes <= SIZE_MAX - padding);
+    void *base = calloc(1, bytes + padding);
+    assert(base);
+    uintptr_t address = ((uintptr_t)base + base_alignment - 1) & ~(uintptr_t)(base_alignment - 1);
+    address += offset;
+    void *pointer = (void *)address;
+    assert(address % alignment == 0);
+    if (weak_alignment)
+        assert(address % _Alignof(max_align_t) != 0);
     for (unsigned i = 0; i < sizeof(allocations) / sizeof(allocations[0]); ++i)
         if (!allocations[i].pointer)
         {
-            allocations[i] = (allocation_t){pointer, count * size};
-            live_bytes += count * size;
+            allocations[i] = (allocation_t){pointer, base, bytes};
+            live_bytes += bytes;
             if (live_bytes > peak_bytes)
                 peak_bytes = live_bytes;
             return pointer;
         }
     assert(!"Allocation tracker exhausted");
     return NULL;
+}
+
+void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
+{
+    return tracked_calloc(_Alignof(void *), count, size, caps, true);
+}
+
+void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps)
+{
+    return tracked_calloc(alignment, count, size, caps, false);
 }
 
 static void tracked_free(void *pointer)
@@ -42,8 +76,8 @@ static void tracked_free(void *pointer)
         if (allocations[i].pointer == pointer)
         {
             live_bytes -= allocations[i].bytes;
+            free(allocations[i].base);
             allocations[i] = (allocation_t){0};
-            free(pointer);
             return;
         }
     assert(!"Untracked decoder allocation");
@@ -54,9 +88,38 @@ static void tracked_free(void *pointer)
 #include "../main/app_loxone_audio_image.c"
 #undef free
 
+static void jpeg_alignment_test(void)
+{
+    const size_t alignment = _Alignof(audio_jpeg_allocation_t);
+    assert(_Alignof(void *) < alignment);
+    void *plain = heap_caps_calloc(1, 33, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    assert(plain && (uintptr_t)plain % _Alignof(void *) == 0);
+    assert((uintptr_t)plain % alignment != 0);
+    tracked_free(plain);
+
+    const size_t sizes[] = {1, 2, 3, 7, 16, 31, 33, 63, 257};
+    for (unsigned i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i)
+    {
+        void *pointer = audio_jpeg_alloc(sizes[i]);
+        assert(pointer && (uintptr_t)pointer % alignment == 0);
+        assert((uintptr_t)((audio_jpeg_allocation_t *)pointer - 1) % alignment == 0);
+        memset(pointer, 0x5a, sizes[i]);
+        void *grown = audio_jpeg_realloc(pointer, sizes[i] + 5);
+        assert(grown && (uintptr_t)grown % alignment == 0);
+        assert((uintptr_t)((audio_jpeg_allocation_t *)grown - 1) % alignment == 0);
+        for (size_t j = 0; j < sizes[i]; ++j)
+            assert(((unsigned char *)grown)[j] == 0x5a);
+        audio_jpeg_free(grown);
+    }
+    assert(!live_bytes && !atomic_load(&audio_jpeg_working_bytes));
+    printf("PASS: JPEG headers and payloads aligned to %zu bytes with %zu-byte default heap alignment\n",
+           alignment, _Alignof(void *));
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 4);
+    jpeg_alignment_test();
     for (int input = 1; input < argc; ++input)
     {
         FILE *file = fopen(argv[input], "rb");

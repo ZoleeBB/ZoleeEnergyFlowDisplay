@@ -352,7 +352,13 @@ static void *audio_jpeg_alloc(size_t bytes)
     size_t total = bytes + sizeof(audio_jpeg_allocation_t);
     if (!audio_jpeg_claim(total))
         return NULL;
+#ifdef ESP_PLATFORM
+    /* A P4 alapheapjének 4 bájtos igazítása nem elég a max_align_t fejléchez. */
+    audio_jpeg_allocation_t *allocation = heap_caps_aligned_calloc(
+        _Alignof(audio_jpeg_allocation_t), 1, total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
     audio_jpeg_allocation_t *allocation = audio_image_alloc(total);
+#endif
     if (!allocation)
     {
         audio_jpeg_unclaim(total);

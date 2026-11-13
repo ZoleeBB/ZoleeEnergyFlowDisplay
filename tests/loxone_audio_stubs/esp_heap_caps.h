@@ -5,3 +5,4 @@
 #define MALLOC_CAP_SPIRAM 4
 #define MALLOC_CAP_RTCRAM 8
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps);
+void *heap_caps_aligned_calloc(size_t alignment, size_t count, size_t size, unsigned caps);
