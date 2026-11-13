@@ -4,6 +4,8 @@
 #include "app_loxone_lighting_service.h"
 #include "app_loxone_irc_service.h"
 #include "app_loxone_shading_service.h"
+#include "app_loxone_controls_service.h"
+#include "app_loxone_audio_service.h"
 #include "app_loxone_lighting_cache.inc"
 
 typedef struct
@@ -13,6 +15,7 @@ typedef struct
     lx_light_block_t *blocks[LX_HOME_MAX_CARDS];
     lx_irc_block_t *irc_blocks[LX_HOME_MAX_CARDS];
     lx_shading_block_t *shading_blocks[LX_HOME_MAX_CARDS];
+    lx_controls_block_t *controls_blocks[LX_HOME_MAX_CARDS];
 } light_page_t;
 
 static int s_light_page = -1;
@@ -62,6 +65,12 @@ static void lighting_page_free(light_page_t *page)
                 shared = true;
         if (!shared)
             lx_shading_block_free(page->shading_blocks[i]);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (page->controls_blocks[j] == page->controls_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_controls_block_free(page->controls_blocks[i]);
     }
     free(page);
 }
@@ -90,6 +99,7 @@ void app_loxone_home_visible(int page)
         page = -1;
     if (page != s_light_page)
     {
+        app_loxone_audio_hide();
         s_light_page = page;
         ++s_light_generation;
         s_light_modal = 0;
@@ -169,6 +179,48 @@ bool app_loxone_shading_summary(const char *card_id, unsigned revision,
         lx_shading_summary(s_light_context->shading_blocks[slot], out);
         out->controllable = out->controllable && s_light_initial_ready;
     }
+    xSemaphoreGive(s_lock);
+    return valid;
+}
+
+bool app_loxone_controls_summary(const char *card_id, unsigned revision,
+                                  lx_controls_summary_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    out->animation = -1;
+    if (!s_lock)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    bool valid = slot >= 0 && lighting_live_locked();
+    if (valid)
+    {
+        lx_controls_summary(s_light_context->controls_blocks[slot], esp_timer_get_time(), out);
+        out->controllable = out->controllable && s_light_initial_ready;
+        out->open_allowed = out->open_allowed && s_light_initial_ready;
+        out->close_allowed = out->close_allowed && s_light_initial_ready;
+    }
+    xSemaphoreGive(s_lock);
+    return valid;
+}
+
+bool app_loxone_controls_window(const char *card_id, unsigned revision, unsigned index,
+                                 lx_controls_window_t *out)
+{
+    if (!out)
+        return false;
+    memset(out, 0, sizeof(*out));
+    if (!s_lock)
+        return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    lx_controls_block_t *block = slot >= 0 ? s_light_context->controls_blocks[slot] : NULL;
+    bool valid = block && lighting_live_locked() && block->type == LX_HOME_CARD_WINDOW_MONITOR &&
+                 index < block->window_count;
+    if (valid)
+        *out = block->windows[index];
     xSemaphoreGive(s_lock);
     return valid;
 }
@@ -279,6 +331,12 @@ static bool lighting_home_command_allowed_locked(const char *id)
         lx_shading_summary(s_light_context->shading_blocks[slot], &summary);
         return summary.available && summary.controllable;
     }
+    if (lx_home_card_is_controls(type))
+    {
+        lx_controls_summary_t summary;
+        lx_controls_summary(s_light_context->controls_blocks[slot], esp_timer_get_time(), &summary);
+        return summary.available && summary.controllable;
+    }
     if (type != LX_HOME_CARD_LIGHTING)
         return true;
     lx_light_summary_t summary;
@@ -305,7 +363,7 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
     {
         const lx_home_card_t *card = &s_home->cards[next->first + i];
         if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC &&
-            card->type != LX_HOME_CARD_SHADING)
+            card->type != LX_HOME_CARD_SHADING && !lx_home_card_is_controls(card->type))
             continue;
         bool shared = false;
         for (unsigned j = 0; j < i; ++j)
@@ -315,11 +373,19 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
                 next->blocks[i] = next->blocks[j];
                 next->irc_blocks[i] = next->irc_blocks[j];
                 next->shading_blocks[i] = next->shading_blocks[j];
+                next->controls_blocks[i] = next->controls_blocks[j];
                 shared = true;
                 break;
             }
         if (shared)
             continue;
+        if (lx_home_card_is_controls(card->type))
+        {
+            next->controls_blocks[i] = lx_controls_block_create(
+                lx_controls_catalog_find(s_catalog, card->control_uuid, card->type));
+            lighting_cache_replay_controls(next->controls_blocks[i]);
+            continue;
+        }
         if (card->type == LX_HOME_CARD_IRC)
         {
             next->irc_blocks[i] =
@@ -387,6 +453,20 @@ static void lighting_reconcile(void)
         }
         xSemaphoreGive(s_lock);
         lighting_page_free(next);
+        /* Az Audio saját, korlátos adatai a nagy Loxone-záron kívül épülnek.
+         * A közben elhagyott lapot a második generációellenőrzés visszavonja. */
+        app_loxone_audio_page(s_home, s_catalog, page, revision);
+        for (unsigned i = 0; i < s_light_cache.count; ++i)
+        {
+            const light_cache_entry_t *entry = &s_light_cache.entries[i];
+            if (entry->seen)
+                app_loxone_audio_state(entry->uuid, entry->numeric, entry->number,
+                                        entry->text, entry->length, entry->received_us);
+        }
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        if (generation != s_light_generation || revision != s_home_revision || s_dead)
+            app_loxone_audio_hide();
+        xSemaphoreGive(s_lock);
     }
 
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -429,6 +509,7 @@ static void lighting_event_locked(
     /* A kezdeti üres jLocked sem veszhet el az oldal megnyitása előtt.
      * Rejtett oldalon csak szűrt nyers másolás van, JSON/model/UI-frissítés nincs. */
     lighting_cache_store(uuid, numeric, value, text, length);
+    app_loxone_audio_state(uuid, numeric, value, text, length, now);
     if (!lighting_current_locked())
         return;
     for (unsigned i = 0; i < s_light_context->count; ++i)
@@ -454,6 +535,13 @@ static void lighting_event_locked(
         if (!shared)
             lx_shading_block_event(
                 s_light_context->shading_blocks[i], uuid, numeric, value, text, length, now);
+        shared = false;
+        for (unsigned j = 0; j < i; ++j)
+            if (s_light_context->controls_blocks[j] == s_light_context->controls_blocks[i])
+                shared = true;
+        if (!shared)
+            lx_controls_block_event(
+                s_light_context->controls_blocks[i], uuid, numeric, value, text, length, now);
     }
     if (s_light_modal && s_light_modal == s_light_detail_handle)
         lx_light_block_event(s_light_detail, uuid, numeric, value, text, length, now);
@@ -539,6 +627,36 @@ static void lighting_poll(int64_t now)
         lx_light_block_cancel(s_light_detail);
         s_light_detail_failed = true;
     }
+    xSemaphoreGive(s_lock);
+    cJSON_Delete(answer);
+}
+
+/* A dimmer abszolút értékei az oldalmodellben egyetlen helyre írnak.
+ * Lassú hálózatnál sem gyűlik egy sor korábbi csúszkaállás. */
+static void controls_poll(int64_t now)
+{
+    char command[96] = "";
+    unsigned generation = 0, revision = 0, chosen = LX_HOME_MAX_CARDS;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (lighting_current_locked() && lighting_live_locked() && s_light_initial_ready && !s_command_pending)
+    {
+        for (unsigned i = 0; i < s_light_context->count; ++i)
+            if (lx_controls_take(s_light_context->controls_blocks[i], now, command))
+            {
+                chosen = i;
+                generation = s_light_generation;
+                revision = s_home_revision;
+                break;
+            }
+    }
+    xSemaphoreGive(s_lock);
+    if (chosen == LX_HOME_MAX_CARDS)
+        return;
+    cJSON *answer = reply(command, true);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (lighting_current_locked() && generation == s_light_generation && revision == s_home_revision &&
+        chosen < s_light_context->count && s_light_context->controls_blocks[chosen])
+        s_light_context->controls_blocks[chosen]->failed = answer == NULL;
     xSemaphoreGive(s_lock);
     cJSON_Delete(answer);
 }

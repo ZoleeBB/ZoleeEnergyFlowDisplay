@@ -6,6 +6,23 @@
 #include <string.h>
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
+/* A natív Audioserver saját tesztet kap; a közös kliens regressziójában
+ * nincs Audio-kártya, ezért csak a szolgáltatási határt helyettesítjük. */
+static bool test_home_audio_session;
+static unsigned test_home_audio_hides;
+void app_loxone_audio_session(const char *user, const char *token, bool live)
+{ (void)user; (void)token; test_home_audio_session = live; }
+void app_loxone_audio_hide(void) { ++test_home_audio_hides; }
+void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog, int page, unsigned revision)
+{ (void)config; (void)catalog; (void)page; (void)revision; }
+void app_loxone_audio_state(const char *uuid, bool numeric, double value,
+                            const char *text, size_t length, int64_t now)
+{ (void)uuid; (void)numeric; (void)value; (void)text; (void)length; (void)now; }
+bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action)
+{ (void)id; (void)revision; (void)action; return false; }
+bool app_loxone_audio_value_allowed(const char *id, unsigned revision, lx_audio_action_t action, unsigned value)
+{ (void)id; (void)revision; (void)action; (void)value; return false; }
+
 static bool test_audio_active;
 static bool lighting_test_active;
 static unsigned lighting_initial_count, lighting_command_count;
@@ -14,6 +31,8 @@ static bool irc_test_active, irc_drop_command_reply;
 static unsigned irc_command_count;
 static void irc_test_initial(void);
 static bool shading_test_active, shading_drop_command_reply;
+static bool controls_test_active, controls_drop_reply;
+static unsigned controls_command_count;
 static unsigned shading_command_count;
 static void shading_test_initial(void);
 static unsigned gate_audio_stops;
@@ -71,8 +90,11 @@ static void home_requests(void)
     assert(app_loxone_home_request(empty, error) == ESP_OK && s_home_busy);
     assert(app_loxone_home_request(empty, error) != ESP_OK);
     request_t *request = NULL; assert(xQueueReceive(s_requests, &request, 0));
+    test_home_audio_session = true;
+    unsigned audio_hides = test_home_audio_hides;
     save_home_request(request->home); free(request->home); free(request);
     assert(!s_home_busy && s_home_revision == 1);
+    assert(test_home_audio_session && test_home_audio_hides > audio_hides);
     cJSON *state = app_loxone_home_web_state(); assert(state);
     assert(!cJSON_GetObjectItemCaseSensitive(state, "password"));
     assert(cJSON_GetObjectItemCaseSensitive(state, "revision")->valueint == 1);
@@ -80,12 +102,15 @@ static void home_requests(void)
     home_store_error = true;
     assert(app_loxone_home_request(empty, error) == ESP_OK);
     assert(xQueueReceive(s_requests, &request, 0));
+    audio_hides = test_home_audio_hides;
     save_home_request(request->home); free(request->home); free(request);
     assert(!s_home_busy && s_home_revision == 1 && strstr(s_home_status, "sikertelen"));
+    assert(test_home_audio_session && test_home_audio_hides == audio_hides);
     s_busy = true; assert(app_loxone_home_request(empty, error) != ESP_OK); s_busy = false;
     cJSON *invalid = cJSON_Parse("{\"schema\":2}");
     assert(app_loxone_home_request(invalid, error) != ESP_OK);
     cJSON_Delete(invalid); cJSON_Delete(empty); free(s_home); s_home = NULL;
+    test_home_audio_session = false;
 }
 /* A tényleges kéréskezelő csak a kiválasztott szakaszt mentheti. */
 static void energy_disabled_requests(void)
@@ -246,7 +271,14 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==0)server_response(catalog_reply);
         }
         else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
-            if (shading_test_active)
+            if (controls_test_active)
+            {
+                assert(strstr(cmd, "jdev/sps/io/40000000-0000-0000-000000000000006") == cmd);
+                ++controls_command_count;
+                if (controls_drop_reply)
+                    return len;
+            }
+            else if (shading_test_active)
             {
                 assert(strstr(cmd, "jdev/sps/io/30000000-0000-0000-000000000000000") == cmd);
                 ++shading_command_count;
@@ -537,6 +569,7 @@ static void presence_stream_test(lx_config_t *energy)
 #include "test_lighting_service.inc"
 #include "test_irc_service.inc"
 #include "test_shading_service.inc"
+#include "test_controls_protocol.inc"
 
 int main(int argc,char **argv)
 {
@@ -560,6 +593,7 @@ int main(int argc,char **argv)
     lighting_service_test(&cfg);
     irc_service_test(&cfg);
     shading_service_test(&cfg);
+    controls_protocol_test(&cfg);
     presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";

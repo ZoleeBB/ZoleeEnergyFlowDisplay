@@ -31,6 +31,7 @@ foreach(PNG IN LISTS PNG_FILES)
     list(APPEND PNG_OBJECTS "${OBJECT}")
 endforeach()
 add_executable(ui_preview preview.c "${APP_ROOT}/main/app_events.c" "${APP_ROOT}/main/app_diagnostics.c" "${APP_ROOT}/main/app_chart.c" "${APP_ROOT}/main/app_assets.c"
+    "${APP_ROOT}/main/app_loxone_audio_runtime.c" "${APP_ROOT}/main/app_loxone_audio_media.c" "${APP_ROOT}/main/app_loxone_audio_image.c"
     slave_display_input_test.c "${APP_ROOT}/main/app_slave_display.c" "${APP_ROOT}/main/app_slave_display_input.c"
     "${APP_ROOT}/simulator/home_fixture.c" "${APP_ROOT}/simulator/battery_fixture.c" "${APP_ROOT}/main/app_battery_diagnostics.c" "${APP_ROOT}/main/app_energy_assistant.c" "${APP_ROOT}/main/app_templates.c" "${APP_ROOT}/main/app_template_raw.c" "${APP_ROOT}/main/app_template_zip.c" "${APP_ROOT}/main/app_ringtone_wav.c" ${FONT_SOURCES} ${PNG_OBJECTS})
 target_include_directories(ui_preview PRIVATE "${APP_ROOT}/simulator/compat" "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main" "${CMAKE_BINARY_DIR}")

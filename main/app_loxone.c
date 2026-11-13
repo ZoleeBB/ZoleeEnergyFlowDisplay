@@ -73,7 +73,7 @@ typedef struct {
     char id[LX_HOME_ID_SIZE];
     lx_home_command_t action;
     unsigned revision, session, intercom_revision, visibility_revision;
-    unsigned position_percent;
+    double position_percent;
     int64_t queued_us;
 } home_command_t;
 static home_command_t s_pending_command;
@@ -81,6 +81,7 @@ static bool update_values(int type, const uint8_t *data, size_t size);
 static void home_command_poll(int64_t now);
 static char s_home_status[LX_HOME_ERROR_SIZE] = "";
 static cJSON *s_catalog;
+static bool home_resolve_icons_locked(void);
 static char s_status[192]="A webfelületen add meg a Loxone beállításait.";
 static bool s_busy,s_password;
 static bool s_energy_disabled;
@@ -351,7 +352,9 @@ static bool download_catalog(int *response_code)
             cJSON_Delete(root);free_message(&m);return false;
         }
         free_message(&m);
-        xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;xSemaphoreGive(s_lock);return true;
+        xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;
+        if (home_resolve_icons_locked()) ++s_home_revision;
+        xSemaphoreGive(s_lock);return true;
     }
     if(s_rx_failure==LX_RX_TOO_LARGE)return failed("A fogadott üzenet meghaladja az 513 KiB vételi korlátot.",0);
     if(s_rx_failure==LX_RX_NO_MEMORY)return failed("Nincs elég memória az adatlista fogadásához.",0);
@@ -439,7 +442,9 @@ static bool download_catalog_with_fallback(const lx_config_t *cfg,const char *to
     }
     free(body);
     if(s_dead){cJSON_Delete(catalog);return failed("A WebSocket kapcsolat megszakadt a HTTP letöltés közben.",0);}
-    xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;xSemaphoreGive(s_lock);
+    xSemaphoreTake(s_lock,portMAX_DELAY);cJSON_Delete(s_catalog);s_catalog=catalog;
+        if (home_resolve_icons_locked()) ++s_home_revision;
+        xSemaphoreGive(s_lock);
     return true;
 }
 static void close_connection(void)
@@ -495,6 +500,33 @@ static bool connect_server(const lx_config_t *cfg)
 }
 #include "app_loxone_lighting_service.inc"
 
+/* A kapu képe az aktuális Loxone metaadatból származik. Csak struktúra-
+ * vagy profilváltáskor oldjuk fel, sohasem a 200 ms-os képernyőciklusban. */
+static bool home_resolve_icons_locked(void)
+{
+    if (!s_home)
+        return false;
+    bool changed = false;
+    for (unsigned i = 0; i < s_home->card_count; ++i)
+    {
+        lx_home_card_t *card = &s_home->cards[i];
+        if (card->type != LX_HOME_CARD_GATE)
+            continue;
+        const cJSON *entry = lx_controls_catalog_find(s_catalog, card->control_uuid, card->type);
+        const cJSON *animation = cJSON_GetObjectItemCaseSensitive(entry, "gate_animation");
+        int type = cJSON_IsNumber(animation) && animation->valuedouble >= 0 &&
+            animation->valuedouble <= 5 && animation->valuedouble == floor(animation->valuedouble) ?
+            (int)animation->valuedouble : -1;
+        const char *icon = lx_controls_gate_icon(type);
+        if (strcmp(card->icon, icon))
+        {
+            snprintf(card->icon, sizeof(card->icon), "%s", icon);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
 static void invalidate(bool configured)
 {
     s_presence_session_live = false;
@@ -507,6 +539,7 @@ static void invalidate(bool configured)
     s_signals.presence.valid = s_signals.presence.active = false;
     s_signals.mail.valid = s_signals.mail.active = false;
     s_home_live = false;
+    app_loxone_audio_session(NULL, NULL, false);
     lighting_invalidate_locked();
     s_home_session++;
     memset(&s_home_values, 0, sizeof(s_home_values));
@@ -543,9 +576,13 @@ static void save_home_request(const lx_home_config_t *home)
         bool same_bell = !strcmp(s_home->intercom.bell_uuid, home->intercom.bell_uuid);
         bool intercom_changed = memcmp(&s_home->intercom, &home->intercom, sizeof(home->intercom)) != 0;
         *s_home = *home;
+        (void)home_resolve_icons_locked();
         if (!same_bell || !home->intercom.enabled)
             s_intercom_ringing = false;
         s_home_revision++;
+        /* A kártyák mentése nem bontja a Miniserver-hitelesítést. Az Audio
+         * új lapot épít, de az érvényes JWT-jét a meglévő sessionben megtartja. */
+        app_loxone_audio_hide();
         lighting_invalidate_locked();
         if (intercom_changed)
             s_intercom_generation++;
@@ -606,6 +643,7 @@ static void worker(void *arg)
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_home_live = true;
         xSemaphoreGive(s_lock);
+        app_loxone_audio_session(active->username, token, true);
         app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
         mark_response();int64_t heartbeat=s_last_response,last_sample=0;
         failures=0;
@@ -619,11 +657,13 @@ static void worker(void *arg)
             }
             home_command_poll(now);
             if (!s_dead) lighting_poll(esp_timer_get_time());
+            if (!s_dead) controls_poll(esp_timer_get_time());
             if(now-heartbeat>=LX_KEEPALIVE_US){if(!send_plain("keepalive"))break;heartbeat=now;}
             if(now-s_last_response>=LX_KEEPALIVE_US*3)break;
             if(now>=s_token_refresh_us) {
                 /* A válaszban kapott új JWT lesz a következő kapcsolódás hitelesítője. */
                 if(!renew_token(active,token))break;
+                app_loxone_audio_session(active->username, token, true);
                 status("Kapcsolódva. A token megújítva.");
             }
             if (s_energy_disabled)
@@ -968,8 +1008,34 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out)
 /* Az abszolút pozíció külön, korlátos érték. A kártya szabad szöveget vagy
  * parancsvéget nem adhat át; a katalógus és az élő modell újraellenőrzött. */
 static bool home_command_build_locked(const char *card_id, lx_home_command_t action,
-                                      unsigned position_percent, char command[96])
+                                      double position_percent, char command[96])
 {
+    if (action >= LX_HOME_COMMAND_AUDIO_PLAY && action <= LX_HOME_COMMAND_AUDIO_VOLUME_DOWN)
+    {
+        int slot = lighting_slot_locked(card_id);
+        if (slot < 0 || !isfinite(position_percent) || position_percent < 0 || position_percent > 100 ||
+            position_percent != floor(position_percent))
+            return false;
+        const lx_home_card_t *card = &s_home->cards[s_light_context->first + (unsigned)slot];
+        lx_audio_action_t audio_action = (lx_audio_action_t)(action - LX_HOME_COMMAND_AUDIO_PLAY);
+        return card->type == LX_HOME_CARD_AUDIO &&
+            app_loxone_audio_value_allowed(card_id, s_home_revision, audio_action,
+                                           (unsigned)position_percent) &&
+            lx_audio_command_build(lx_audio_catalog_find(s_catalog, card->control_uuid),
+                                     audio_action, (unsigned)position_percent, command);
+    }
+    if (action >= LX_HOME_COMMAND_CONTROL_ON && action <= LX_HOME_COMMAND_CONTROL_SET)
+    {
+        int slot = lighting_slot_locked(card_id);
+        if (slot < 0)
+            return false;
+        const lx_home_card_t *card = &s_home->cards[s_light_context->first + (unsigned)slot];
+        if (card->type == LX_HOME_CARD_TIMED_SWITCH && action == LX_HOME_COMMAND_CONTROL_ON &&
+            !card->allow_permanent)
+            return false;
+        return lx_controls_command(s_light_context->controls_blocks[slot],
+            (lx_controls_action_t)(action - LX_HOME_COMMAND_CONTROL_ON), position_percent, command);
+    }
     if (action != LX_HOME_COMMAND_SHADING_POSITION)
         return lx_home_command_build(s_home, s_catalog, card_id, action, command);
     int slot = lighting_slot_locked(card_id);
@@ -979,13 +1045,13 @@ static bool home_command_build_locked(const char *card_id, lx_home_command_t act
     lx_shading_summary(s_light_context->shading_blocks[slot], &summary);
     return summary.available && summary.controllable && !summary.central &&
            summary.position_valid && lx_home_shading_position_build(
-               s_home, s_catalog, card_id, position_percent, command);
+               s_home, s_catalog, card_id, (unsigned)position_percent, command);
 }
 
 static esp_err_t home_command_request(const char *card_id, lx_home_command_t action,
                                        bool check_generation, unsigned generation,
                                        bool check_revision, unsigned revision,
-                                       unsigned position_percent)
+                                       double position_percent)
 {
     if (!s_lock || !s_home || !s_home_commands || !card_id || strlen(card_id) >= LX_HOME_ID_SIZE)
         return ESP_ERR_INVALID_STATE;
@@ -1015,6 +1081,12 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
     allowed = allowed && xQueueSend(s_home_commands, &request, 0) == pdTRUE;
     if (allowed)
     {
+        /* A Be/Ki felülírja az ugyanahhoz a dimmerhez várakozó húzást.
+         * Régi csúszkaérték nem kapcsolhatja vissza a kézzel kikapcsolt fényt. */
+        int slot = lighting_slot_locked(card_id);
+        if (slot >= 0 && (action == LX_HOME_COMMAND_CONTROL_ON || action == LX_HOME_COMMAND_CONTROL_OFF) &&
+            s_light_context->controls_blocks[slot])
+            s_light_context->controls_blocks[slot]->dirty = false;
         s_command_pending = true;
         s_command_deadline = 0;
         snprintf(s_command_status, sizeof(s_command_status), "%s", "Kérés küldése...");
@@ -1034,7 +1106,7 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
 esp_err_t app_loxone_home_command(const char *card_id, lx_home_command_t action)
 {
     /* Pozíciót csak a külön, revízióval és értékkel ellátott API fogadhat. */
-    if (action == LX_HOME_COMMAND_SHADING_POSITION)
+    if (action >= LX_HOME_COMMAND_SHADING_POSITION)
         return ESP_ERR_INVALID_ARG;
     return home_command_request(card_id, action, false, 0, false, 0, 0);
 }
@@ -1055,6 +1127,41 @@ esp_err_t app_loxone_shading_position(const char *card_id, unsigned revision,
         return ESP_ERR_INVALID_ARG;
     return home_command_request(card_id, LX_HOME_COMMAND_SHADING_POSITION,
                                  false, 0, true, revision, percent);
+}
+
+esp_err_t app_loxone_audio_transport(const char *id, unsigned revision,
+                                    lx_audio_action_t action, unsigned value)
+{
+    if (action < LX_AUDIO_PLAY || action >= LX_AUDIO_FAVORITE || value > 100)
+        return ESP_ERR_INVALID_ARG;
+    return home_command_request(id, (lx_home_command_t)(LX_HOME_COMMAND_AUDIO_PLAY + action),
+                                 false, 0, true, revision, value);
+}
+
+esp_err_t app_loxone_controls_command(const char *card_id, unsigned revision,
+                                      lx_controls_action_t action)
+{
+    if (action < LX_CONTROLS_ON || action >= LX_CONTROLS_SET)
+        return ESP_ERR_INVALID_ARG;
+    return home_command_request(card_id,
+        (lx_home_command_t)(LX_HOME_COMMAND_CONTROL_ON + action), false, 0, true, revision, 0);
+}
+
+esp_err_t app_loxone_controls_set(const char *card_id, unsigned revision, double value)
+{
+    if (!s_lock || !card_id || !isfinite(value))
+        return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int slot = revision == s_home_revision ? lighting_slot_locked(card_id) : -1;
+    lx_controls_block_t *block = slot >= 0 ? s_light_context->controls_blocks[slot] : NULL;
+    bool dimmer = block && block->type == LX_HOME_CARD_DIMMER;
+    bool queued = dimmer && lighting_live_locked() && s_light_initial_ready &&
+                  lx_controls_queue(block, value, esp_timer_get_time());
+    xSemaphoreGive(s_lock);
+    if (dimmer)
+        return queued ? ESP_OK : ESP_ERR_INVALID_STATE;
+    return home_command_request(card_id, LX_HOME_COMMAND_CONTROL_SET,
+                                 false, 0, true, revision, value);
 }
 
 /* A Slave régi gombnyomása nem használhat közben megváltozott kapunyitó
@@ -1122,6 +1229,15 @@ static void home_command_poll(int64_t now)
             s_command_pending = false;
             s_command_deadline = 0;
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Redőnyparancs elküldve.");
+        }
+        else if (request.action >= LX_HOME_COMMAND_CONTROL_ON &&
+                 request.action <= LX_HOME_COMMAND_AUDIO_VOLUME_DOWN)
+        {
+            /* A kérés nyugtája nem kész mozgás vagy új mért érték. A Stop
+             * már a nyugta után elérhető; nincs bizonytalan kérésismétlés. */
+            s_command_pending = false;
+            s_command_deadline = 0;
+            snprintf(s_command_status, sizeof(s_command_status), "%s", "Vezérlési kérés elküldve.");
         }
         else if (request.action == LX_HOME_COMMAND_PULSE ||
                  (request.action >= LX_HOME_COMMAND_LIGHT_PREV &&

@@ -16,4 +16,4 @@ with tempfile.TemporaryDirectory(prefix='loxone-protocol-') as tmp:
     if include:cmd[1:1]=['-I'+include]
     if lib:cmd[1:1]=['-L'+lib]
     subprocess.run(cmd,cwd=root,check=True)
-    subprocess.run([tmp+'/test',tmp+'/private.pem',tmp+'/public.pem'],check=True,timeout=15)
+    subprocess.run([tmp+'/test',tmp+'/private.pem',tmp+'/public.pem'],cwd=root,check=True,timeout=15)
