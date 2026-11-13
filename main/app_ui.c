@@ -412,8 +412,13 @@ static void fit_text(lv_obj_t *label, const char *text, int width, const lv_font
 }
 
 /* Az aktív képernyő tartalmának törlése és a UI objektumállapot alaphelyzetbe állítása. */
+static bool lighting_ui_is_open(void);
+static void lighting_ui_reset(void);
+
 static void clear(void)
 {
+    lighting_ui_reset();
+    app_loxone_home_visible(-1);
     assistant_reset_widgets();
     mail_reset_widgets();
     lv_obj_clean(s_screen);
@@ -2467,6 +2472,14 @@ static void runtime(void *arg)
         app_intercom_audio_poll();
 #endif
         master_display_update(have, s.night_mode, intercom_active);
+        /* A felugró nézet a türelmi idő alatt sem maradhat vezérelhető.
+         * A kaputelefon elsőbbsége még a rendes Otthon-frissítés előtt él. */
+        if ((!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
+        {
+            lighting_ui_reset();
+            app_loxone_home_visible(-1);
+            bsp_display_unlock();
+        }
 
         /* A kaputelefon a témaerőforrások betöltésétől és az energiaadatoktól
          * függetlenül, a csengetés teljes ideje alatt elsőbbséget kap. */

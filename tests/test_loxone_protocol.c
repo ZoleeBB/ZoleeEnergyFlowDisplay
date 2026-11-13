@@ -7,6 +7,9 @@
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
 static bool test_audio_active;
+static bool lighting_test_active;
+static unsigned lighting_initial_count, lighting_command_count;
+static void lighting_test_initial(void);
 static unsigned gate_audio_stops;
 bool app_intercom_audio_active_for(unsigned revision)
 {
@@ -237,8 +240,16 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
             else if(catalog_mode==0)server_response(catalog_reply);
         }
         else if(strncmp(cmd,"jdev/sps/io/",12)==0) {
-            assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
-            home_command_count++;
+            if (lighting_test_active)
+            {
+                assert(strstr(cmd, "jdev/sps/io/10000000-0000-0000-0000000000000001/") == cmd);
+                ++lighting_command_count;
+            }
+            else
+            {
+                assert(strstr(cmd, "jdev/sps/io/cccccccc-5566-7788-99aabbccddeeff00/") == cmd);
+                home_command_count++;
+            }
             server_response(reject_home_command ? "{\"LL\":{\"Code\":403}}" : "{\"LL\":{\"Code\":200}}");
         }
         else if(strncmp(cmd,"jdev/sys/refreshjwt/",20)==0&&reject_refresh)server_response("{\"LL\":{\"Code\":401}}");
@@ -248,6 +259,12 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
     }
     snprintf(last_command,sizeof(last_command),"%s",text);
     if(strncmp(text,"jdev/sys/getkey2/",17)==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"key\":\"0102030405060708090a0b0c0d0e0f10\",\"salt\":\"1234\",\"hashAlg\":\"SHA256\"}}}");
+    else if(strcmp(text,"jdev/sps/enablebinstatusupdate")==0)
+    {
+        ++lighting_initial_count;
+        if (lighting_test_active) lighting_test_initial();
+        server_response("{\"LL\":{\"Code\":200}}");
+    }
     else if(strcmp(text,"jdev/sys/getkey")==0)server_response("{\"LL\":{\"Code\":200,\"value\":{\"key\":\"0102030405060708090a0b0c0d0e0f10\",\"hashAlg\":\"SHA256\"}}}");
     else server_response("{\"LL\":{\"Code\":401,\"value\":\"denied\"}}");
     return len;
@@ -266,6 +283,10 @@ static void home_control_test(lx_config_t *energy)
     s_home_commands = xQueueCreate(1, sizeof(home_command_t));
     s_home_live = true; s_home_busy = false; s_command_pending = false;
     s_session_config = energy; mark_response();
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    app_loxone_home_visible(0);
+    lighting_poll(esp_timer_get_time());
+    assert(s_light_initial_ready);
     /* A felhasználó a worker 100 ms-os fogadási várakozása alatt nyom gombot. */
     int64_t before_receive = esp_timer_get_time();
     clock_us += 50000;
@@ -327,12 +348,29 @@ static void home_control_test(lx_config_t *energy)
         s_saved.map[LX_FIELD_MAIL] = saved_mail;
         assert(app_loxone_signals(&signals) && !signals.presence.configured && !signals.mail.configured);
     }
-    s_home_live = true; mark_response(); home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
+    s_home_live = true; mark_response();
+    lighting_poll(esp_timer_get_time());
+    home_command_poll(esp_timer_get_time()); assert(home_command_count == sent);
     /* A másik kapcsolatból származó, illetve túl régi kérés nem hajtható végre. */
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) == ESP_OK);
     s_home_session++; home_command_poll(esp_timer_get_time()); assert(home_command_count == sent && !s_command_pending);
     clock_us += 46000000;
     assert(app_loxone_home_command("button", LX_HOME_COMMAND_PULSE) != ESP_OK);
+    /* Rejtett lapnál nem várunk öt másodpercig olyan kapcsolóválaszra,
+     * amelynek állapotát szándékosan már nem követjük. */
+    mark_response();
+    card->type = LX_HOME_CARD_SWITCH;
+    s_home_values.cards[0] = (lx_home_value_t){.value = 0, .valid = true};
+    assert(app_loxone_home_command("button", LX_HOME_COMMAND_ON) == ESP_OK);
+    home_command_poll(esp_timer_get_time());
+    assert(s_command_pending && s_command_deadline);
+    app_loxone_home_visible(-1);
+    home_command_poll(esp_timer_get_time());
+    assert(!s_command_pending && !s_command_deadline);
+    card->type = LX_HOME_CARD_PULSE;
+    app_loxone_home_visible(0);
+    clock_us += 300000;
+    lighting_poll(esp_timer_get_time());
     /* A minimális asszisztens-pillanatkép ugyanazt a valódi WS-értéktárat olvassa. */
     s_home->consumer_count = 1;
     lx_home_consumer_t *consumer = &s_home->consumers[0];
@@ -474,6 +512,8 @@ static void presence_stream_test(lx_config_t *energy)
     s_session_config = NULL;
 }
 
+#include "test_lighting_service.inc"
+
 int main(int argc,char **argv)
 {
     home_requests();
@@ -493,6 +533,7 @@ int main(int argc,char **argv)
     assert(token_command(&cfg,token,"authwithtoken"));assert(strncmp(last_command,"authwithtoken/",14)==0);
     assert(token_command(&cfg,token,"refreshjwt"));assert(strcmp(token,"jwt-refreshed-token")==0);
     home_control_test(&cfg);
+    lighting_service_test(&cfg);
     presence_stream_test(&cfg);
     int catalog_code;assert(download_catalog(&catalog_code));assert(cJSON_IsArray(s_catalog)&&cJSON_GetArraySize(s_catalog)==1);assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(s_catalog,0),"name")->valuestring,"PV")==0);assert(strcmp(last_command,"data/LoxAPP3.json")==0);
     catalog_reply="{\"LL\":{\"Code\":403,\"value\":\"denied\"}}";

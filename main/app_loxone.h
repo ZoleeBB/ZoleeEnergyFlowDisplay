@@ -55,3 +55,5 @@ bool app_loxone_assistant_snapshot(app_assistant_consumers_t *out);
 #include "app_ev_charging.h"
 /* Kisméretű RAM-pillanatkép, csak az autós témához szükséges adatokkal. */
 bool app_loxone_ev_snapshot(app_ev_charging_t *out);
+
+#include "app_loxone_lighting_service.h"

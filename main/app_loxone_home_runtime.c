@@ -4,17 +4,22 @@
 #include <stdio.h>
 #include <string.h>
 
-bool lx_home_values_update(lx_home_values_t *values, const lx_home_config_t *config,
-                           int type, const uint8_t *data, size_t size)
+static bool home_values_update_range(lx_home_values_t *values, const lx_home_config_t *config,
+                                     unsigned first, unsigned count,
+                                     int type, const uint8_t *data, size_t size)
 {
     if (!values || !config || config->consumer_count > LX_HOME_MAX_CONSUMERS ||
-        config->card_count > LX_HOME_MAX_TOTAL_CARDS)
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS || first > config->card_count ||
+        count > config->card_count - first)
         return false;
     if (type != 2)
         return true;
     if (size % 24 || (!data && size))
         return false;
-    lx_home_values_t next = *values;
+    /* A teljes numerikus tábla és minden indexhatár ellenőrzése megelőzi az
+     * első írást; a ciklusban már nincs visszautasító hibaág. A kliens a teljes
+     * hívás alatt ugyanazt a mutexet tartja, mint a pillanatképek olvasói.
+     * Nem kell az összes 96 kártya értéktárát a taskveremre másolni. */
     for (size_t position = 0; position < size; position += 24)
     {
         char uuid[LX_UUID_LEN];
@@ -30,24 +35,38 @@ bool lx_home_values_update(lx_home_values_t *values, const lx_home_config_t *con
             if (strcmp(uuid, source->uuid))
                 continue;
             double value = raw * source->scale;
-            next.consumers[i] = (lx_home_value_t){
+            values->consumers[i] = (lx_home_value_t){
                 .value = isfinite(value) ? value : 0,
                 .valid = isfinite(value) && value >= 0 && value <= 1000};
         }
-        for (unsigned i = 0; i < config->card_count; i++)
+        for (unsigned i = first; i < first + count; i++)
         {
             const lx_home_card_t *card = &config->cards[i];
-            if (card->type == LX_HOME_CARD_PULSE || strcmp(uuid, card->source.uuid))
+            if (card->type == LX_HOME_CARD_PULSE || card->type == LX_HOME_CARD_LIGHTING || strcmp(uuid, card->source.uuid))
                 continue;
             double value = raw * card->source.scale + card->source.offset;
-            next.cards[i] = (lx_home_value_t){
+            values->cards[i] = (lx_home_value_t){
                 .value = isfinite(value) ? value : 0,
                 .valid = isfinite(value) && (card->type != LX_HOME_CARD_SWITCH ||
                                               value == 0 || value == 1)};
         }
     }
-    *values = next;
     return true;
+}
+
+bool lx_home_values_update(lx_home_values_t *values, const lx_home_config_t *config,
+                           int type, const uint8_t *data, size_t size)
+{
+    return home_values_update_range(values, config, 0, config ? config->card_count : 0, type, data, size);
+}
+
+bool lx_home_values_update_visible(lx_home_values_t *values, const lx_home_config_t *config,
+                                   int page, int type, const uint8_t *data, size_t size)
+{
+    unsigned first = 0, count = 0;
+    if (page >= 0 && !lx_home_page_range(config, (unsigned)page, &first, &count))
+        return false;
+    return home_values_update_range(values, config, first, count, type, data, size);
 }
 
 bool lx_home_control_supported(const char *type, bool secured, bool pulse)
@@ -64,7 +83,7 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
                            const char *card_id, lx_home_command_t action, char out[96])
 {
     if (!config || !card_id || !out || !cJSON_IsArray(catalog) ||
-        config->card_count > LX_HOME_MAX_TOTAL_CARDS || action > LX_HOME_COMMAND_OFF ||
+        config->card_count > LX_HOME_MAX_TOTAL_CARDS || action > LX_HOME_COMMAND_LIGHT_OFF ||
         action < LX_HOME_COMMAND_PULSE)
         return false;
     const lx_home_card_t *card = NULL;
@@ -73,6 +92,21 @@ bool lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
             card = &config->cards[i];
     if (!strcmp(card_id, LX_INTERCOM_GATE_ID) && config->intercom.enabled)
         card = &config->intercom.gate;
+    if (card && card->type == LX_HOME_CARD_LIGHTING)
+    {
+        const cJSON *entry = lx_light_catalog_find(catalog, card->control_uuid);
+        const cJSON *blocked = cJSON_GetObjectItemCaseSensitive(entry, "lighting_blocked");
+        if (!entry || !cJSON_IsFalse(blocked) || action < LX_HOME_COMMAND_LIGHT_PREV)
+            return false;
+        const char *target = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "action_uuid"));
+        if (!target) target = card->control_uuid;
+        if (!lx_uuid_valid(target)) return false;
+        const char *command = action == LX_HOME_COMMAND_LIGHT_PREV ? "minus" :
+                              action == LX_HOME_COMMAND_LIGHT_NEXT ? "plus" : "changeTo/0";
+        snprintf(out, 96, "jdev/sps/io/%s/%s", target, command);
+        return true;
+    }
+    if (action > LX_HOME_COMMAND_OFF) return false;
     if (!card || !lx_uuid_valid(card->control_uuid) || card->type == LX_HOME_CARD_VALUE ||
         (card->type == LX_HOME_CARD_PULSE) != (action == LX_HOME_COMMAND_PULSE))
         return false;

@@ -72,7 +72,7 @@ static char s_command_status[LX_HOME_ERROR_SIZE];
 typedef struct {
     char id[LX_HOME_ID_SIZE];
     lx_home_command_t action;
-    unsigned revision, session, intercom_revision;
+    unsigned revision, session, intercom_revision, visibility_revision;
     int64_t queued_us;
 } home_command_t;
 static home_command_t s_pending_command;
@@ -492,6 +492,8 @@ static bool connect_server(const lx_config_t *cfg)
     if(s_dead||!esp_websocket_client_is_connected(s_ws))return failed("A WebSocket nem kapcsolódott 12 másodpercen belül.",0);
     return key_exchange();
 }
+#include "app_loxone_lighting_service.inc"
+
 static void invalidate(bool configured)
 {
     s_presence_session_live = false;
@@ -504,6 +506,7 @@ static void invalidate(bool configured)
     s_signals.presence.valid = s_signals.presence.active = false;
     s_signals.mail.valid = s_signals.mail.active = false;
     s_home_live = false;
+    lighting_invalidate_locked();
     s_home_session++;
     memset(&s_home_values, 0, sizeof(s_home_values));
     if (s_command_pending)
@@ -542,6 +545,7 @@ static void save_home_request(const lx_home_config_t *home)
         if (!same_bell || !home->intercom.enabled)
             s_intercom_ringing = false;
         s_home_revision++;
+        lighting_invalidate_locked();
         if (intercom_changed)
             s_intercom_generation++;
     }
@@ -613,6 +617,7 @@ static void worker(void *arg)
                 free_message(&m);
             }
             home_command_poll(now);
+            if (!s_dead) lighting_poll(esp_timer_get_time());
             if(now-heartbeat>=LX_KEEPALIVE_US){if(!send_plain("keepalive"))break;heartbeat=now;}
             if(now-s_last_response>=LX_KEEPALIVE_US*3)break;
             if(now>=s_token_refresh_us) {
@@ -852,7 +857,12 @@ static bool update_values(int type, const uint8_t *data, size_t size)
         s_signals.mail.valid = true;
         s_signals.mail.active = s_values.value[LX_FIELD_MAIL] > 0;
     }
-    bool ok = !s_home || lx_home_values_update(&s_home_values, s_home, type, data, size);
+    int visible_page = s_light_page;
+    unsigned visible_first, visible_count;
+    if (visible_page >= 0 && !lx_home_page_range(s_home, (unsigned)visible_page, &visible_first, &visible_count))
+        visible_page = -1;
+    bool ok = !s_home || lx_home_values_update_visible(&s_home_values, s_home, visible_page, type, data, size);
+    if (ok) ok = lighting_events_locked(type, data, size);
     if (ok && s_home)
     {
         bool was_ringing = s_intercom_ringing;
@@ -892,10 +902,17 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
     *config = *s_home;
     *values = s_home_values;
     char allowed_command[96];
-    for (unsigned i = 0; i < s_home->card_count; i++)
-        values->command_supported[i] = lx_home_command_build(s_home, s_catalog,
-            s_home->cards[i].id, s_home->cards[i].type == LX_HOME_CARD_PULSE ?
-            LX_HOME_COMMAND_PULSE : LX_HOME_COMMAND_ON, allowed_command);
+    memset(values->command_supported, 0, sizeof(values->command_supported));
+    unsigned first = 0, count = 0;
+    if (s_light_page >= 0)
+        (void)lx_home_page_range(s_home, (unsigned)s_light_page, &first, &count);
+    for (unsigned i = first; i < first + count; ++i)
+    {
+        lx_home_command_t action = s_home->cards[i].type == LX_HOME_CARD_PULSE ? LX_HOME_COMMAND_PULSE :
+            s_home->cards[i].type == LX_HOME_CARD_LIGHTING ? LX_HOME_COMMAND_LIGHT_NEXT : LX_HOME_COMMAND_ON;
+        values->command_supported[i] = lighting_home_command_allowed_locked(s_home->cards[i].id) &&
+            lx_home_command_build(s_home, s_catalog, s_home->cards[i].id, action, allowed_command);
+    }
     *revision = s_home_revision;
     *connected = s_home_live && !s_dead &&
                  esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3;
@@ -953,7 +970,8 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
     xSemaphoreTake(s_lock, portMAX_DELAY);
     char command[96];
     bool door = !strcmp(card_id, LX_INTERCOM_GATE_ID);
-    bool allowed = (!check_generation || s_intercom_generation == generation) &&
+    bool allowed = lighting_home_command_allowed_locked(card_id) &&
+                   (!check_generation || s_intercom_generation == generation) &&
                    (!door || s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                    s_home_live && !s_dead && !s_command_pending && !s_home_busy &&
                    esp_timer_get_time() - s_home_response < LX_KEEPALIVE_US * 3 &&
@@ -966,6 +984,7 @@ static esp_err_t home_command_request(const char *card_id, lx_home_command_t act
     }
     home_command_t request = {.action = action, .revision = s_home_revision, .session = s_home_session, .queued_us = esp_timer_get_time()};
     request.intercom_revision = s_intercom_generation;
+    request.visibility_revision = s_light_generation;
     snprintf(request.id, sizeof(request.id), "%s", card_id);
     allowed = allowed && xQueueSend(s_home_commands, &request, 0) == pdTRUE;
     if (allowed)
@@ -1014,19 +1033,29 @@ static void home_command_poll(int64_t now)
         bool valid = (!door || ((s_intercom_ringing || intercom_held(s_intercom_generation)) &&
                               request.intercom_revision == s_intercom_generation)) &&
                      s_home_live && !s_dead && request.revision == s_home_revision &&
-                     request.session == s_home_session && now >= request.queued_us &&
+                     request.session == s_home_session &&
+                     (door || request.visibility_revision == s_light_generation) &&
+                     lighting_home_command_allowed_locked(request.id) && now >= request.queued_us &&
                      now - request.queued_us <= 2000000LL &&
                      lx_home_command_build(s_home, s_catalog, request.id, request.action, command);
         xSemaphoreGive(s_lock);
         cJSON *answer = valid ? reply(command, true) : NULL;
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (!answer)
+        if (!door && request.visibility_revision != s_light_generation)
+        {
+            /* A nyugta közben elhagyott lap nem tarthat fenn visszajelzésre
+             * várást. A már elküldött kérés nem vonható vissza. */
+            s_command_pending = false;
+            s_command_deadline = 0;
+            s_command_status[0] = 0;
+        }
+        else if (!answer)
         {
             s_command_pending = false;
             snprintf(s_command_status, sizeof(s_command_status), "%s",
                      "A művelet nem igazolható. Ellenőrizd a Loxone állapotát.");
         }
-        else if (request.action == LX_HOME_COMMAND_PULSE)
+        else if (request.action == LX_HOME_COMMAND_PULSE || request.action >= LX_HOME_COMMAND_LIGHT_PREV)
         {
             s_command_pending = false;
             snprintf(s_command_status, sizeof(s_command_status), "%s", "Impulzus elküldve.");
@@ -1044,17 +1073,19 @@ static void home_command_poll(int64_t now)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (s_command_pending && s_command_deadline)
     {
+        bool hidden = s_pending_command.visibility_revision != s_light_generation;
         bool confirmed = false;
         for (unsigned i = 0; i < s_home->card_count; i++)
             if (!strcmp(s_home->cards[i].id, s_pending_command.id) && s_home_values.cards[i].valid &&
                 s_home_values.cards[i].value == (s_pending_command.action == LX_HOME_COMMAND_ON ? 1 : 0))
                 confirmed = true;
-        if (confirmed || now >= s_command_deadline)
+        if (hidden || confirmed || now >= s_command_deadline)
         {
             s_command_pending = false;
             s_command_deadline = 0;
             snprintf(s_command_status, sizeof(s_command_status), "%s", confirmed ?
                      "Loxone-állapot visszaigazolva." : "Nem érkezett megfelelő Loxone-állapot.");
+            if (hidden) s_command_status[0] = 0;
         }
     }
     xSemaphoreGive(s_lock);

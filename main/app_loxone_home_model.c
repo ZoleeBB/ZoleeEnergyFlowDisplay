@@ -135,7 +135,7 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
 {
     if (!common(entry, out->id, out->name, out->icon, "cards", index, error))
         return false;
-    char type[8];
+    char type[16];
     if (!text(entry, "type", type, sizeof(type)))
         return fail(error, "cards", index, "type");
     if (!strcmp(type, "value"))
@@ -144,12 +144,14 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
         out->type = LX_HOME_CARD_PULSE;
     else if (!strcmp(type, "switch"))
         out->type = LX_HOME_CARD_SWITCH;
+    else if (!strcmp(type, "lighting"))
+        out->type = LX_HOME_CARD_LIGHTING;
     else
         return fail(error, "cards", index, "type");
 
     if (out->type != LX_HOME_CARD_VALUE && !uuid(entry, "control_uuid", out->control_uuid))
         return fail(error, "cards", index, "control_uuid");
-    if (out->type != LX_HOME_CARD_PULSE &&
+    if (out->type != LX_HOME_CARD_PULSE && out->type != LX_HOME_CARD_LIGHTING &&
         !mapping(cJSON_GetObjectItemCaseSensitive(entry, "source"), &out->source))
         return fail(error, "cards", index, "source");
     if (out->type == LX_HOME_CARD_SWITCH &&
@@ -405,11 +407,12 @@ static cJSON *card_json(const lx_home_card_t *card)
     if (!entry)
         return NULL;
     const char *type = card->type == LX_HOME_CARD_VALUE ? "value" :
-                       card->type == LX_HOME_CARD_PULSE ? "pulse" : "switch";
+                       card->type == LX_HOME_CARD_PULSE ? "pulse" :
+                       card->type == LX_HOME_CARD_LIGHTING ? "lighting" : "switch";
     if (!cJSON_AddStringToObject(entry, "type", type) ||
         (card->type != LX_HOME_CARD_VALUE &&
          !cJSON_AddStringToObject(entry, "control_uuid", card->control_uuid)) ||
-        (card->type != LX_HOME_CARD_PULSE && !add_source(entry, &card->source)))
+        (card->type != LX_HOME_CARD_PULSE && card->type != LX_HOME_CARD_LIGHTING && !add_source(entry, &card->source)))
         goto failed;
     if (card->type == LX_HOME_CARD_VALUE &&
         (!cJSON_AddStringToObject(entry, "unit", card->unit) ||

@@ -1,6 +1,7 @@
 /* Csak szimulátorhoz: ugyanazt a publikus UI-határt helyettesítjük helyi adatokkal.
  * A valódi parser/parancsküldő tesztje külön, a tényleges C-modulokon fut. */
 #include "home_fixture.h"
+#include "lighting_fixture.h"
 #include <stdio.h>
 #include <string.h>
 bool app_sim_home_enabled, app_sim_home_connected, app_sim_home_pending;
@@ -11,6 +12,7 @@ lx_home_config_t app_sim_home_config;
 lx_home_values_t app_sim_home_values;
 void app_sim_home_reset(void)
 {
+    app_sim_lighting_reset();
     memset(&app_sim_home_config,0,sizeof(app_sim_home_config));
     memset(&app_sim_home_values,0,sizeof(app_sim_home_values));
     app_sim_home_enabled=app_sim_home_connected=true;app_sim_home_pending=false;
@@ -161,3 +163,5 @@ void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 /* A késleltetett médiafelszabadítást a valódi UI várakozási ágával teszteljük. */
 bool app_sim_media_idle = true;
 bool app_intercom_idle(void) { return app_sim_media_idle; }
+
+#include "lighting_fixture.inc"

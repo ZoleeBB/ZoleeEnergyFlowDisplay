@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check the workflow graph, artifact handoff and trust boundaries as contracts."""
 from pathlib import Path
+import struct
 import unittest
 import yaml
 
@@ -49,15 +50,20 @@ class WorkflowContractTests(unittest.TestCase):
                 if step.get('uses') == 'actions/checkout@v4' and not step.get('with', {}).get('repository'):
                     self.assertEqual(step['with']['ref'], '${{ inputs.source_sha }}')
 
-    def test_four_unique_outputs_and_exact_release_handoff(self):
+    def test_four_build_outputs_and_exact_release_handoff(self):
         uploads = [(job, step) for job in self.shared['jobs'].values()
                    for step in job.get('steps', []) if step.get('uses') == 'actions/upload-artifact@v4']
+        # Csak a négy buildkimenet tölthető fel; a dokumentációs előnézetek
+        # verziókezelt képek, nem lejáró diagnosztikai csomagok.
         names = [s['with']['name'] for _, s in uploads]
         self.assertEqual(len(names), 4)
-        self.assertEqual(len(set(names)), 4)
+        self.assertEqual(set(names), {
+            'zolee-firmware-${{ inputs.source_sha }}',
+            'zolee-templates-${{ inputs.source_sha }}',
+            'zolee-simulator-master-windows-${{ inputs.source_sha }}',
+            'zolee-simulator-slave-4b-windows-${{ inputs.source_sha }}',
+        })
         for _, step in uploads:
-            self.assertTrue(step['with']['name'].startswith('zolee-'))
-            self.assertIn('${{ inputs.source_sha }}', step['with']['name'])
             self.assertEqual(step['with']['if-no-files-found'], 'error')
         firmware = next(s for _, s in uploads if s['with']['name'].startswith('zolee-firmware-'))
         self.assertEqual(firmware['with']['overwrite'], 'false')
@@ -69,6 +75,36 @@ class WorkflowContractTests(unittest.TestCase):
             downloads = [s for j in self.flows[name]['jobs'].values()
                          for s in j.get('steps', []) if s.get('uses') == 'actions/download-artifact@v4']
             self.assertEqual([s['with']['name'] for s in downloads], ['zolee-firmware-${{ github.sha }}'])
+
+    def test_lighting_render_and_memory_checks_remain_without_upload(self):
+        steps = self.shared['jobs']['ui-preview']['steps']
+        self.assertFalse(any(s.get('uses') == 'actions/upload-artifact@v4' for s in steps))
+        render = next(s for s in steps if s.get('name') == 'Render actual LVGL screens')
+        lines = {line.strip() for line in render['run'].splitlines()}
+        self.assertIn('ZOLEE_LIGHTING_ONLY=1 ../.preview-build/ui_preview', lines)
+        self.assertIn('ZOLEE_LIGHTING_ONLY=1 ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview', lines)
+        self.assertEqual(render['env']['ASAN_OPTIONS'], 'detect_leaks=1:halt_on_error=1')
+        self.assertTrue(any('-DZOLEE_PREVIEW_ASAN=ON' in s.get('run', '') for s in steps))
+
+    def test_lighting_documentation_uses_complete_static_full_resolution_gallery(self):
+        folder = ROOT / 'docs/images/lighting'
+        names = {
+            'lighting-cards-day', 'lighting-circuits-day', 'lighting-color-day',
+            'lighting-color-night', 'lighting-white-day',
+        }
+        self.assertEqual({p.stem for p in folder.glob('*.png')}, names)
+        guide = (ROOT / 'docs/lighting-controller.md').read_text(encoding='utf-8')
+        readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+        for name in names:
+            with self.subTest(image=name):
+                header = (folder / (name + '.png')).read_bytes()[:33]
+                self.assertEqual(header[:8], bytes.fromhex('89504e470d0a1a0a'))
+                self.assertEqual(header[12:16], b'IHDR')
+                self.assertEqual(struct.unpack('>II', header[16:24]), (1280, 800))
+                self.assertIn('(images/lighting/' + name + '.png)', guide)
+        for name in ('lighting-cards-day', 'lighting-color-day'):
+            self.assertIn('(docs/images/lighting/' + name + '.png)', readme)
+        self.assertTrue((folder / 'README.md').is_file())
 
     def test_validation_gates_the_expensive_firmware_and_publication(self):
         jobs = self.shared['jobs']
@@ -93,7 +129,6 @@ class WorkflowContractTests(unittest.TestCase):
         runtime = steps['Install pinned browser test runtime']
         dependencies = steps['Install Chromium system dependencies']
         browser = steps['Install Chromium headless shell']
-        # Az időkeretek után maradjon idő checkout-ra és a két valódi tesztre is.
         install_budget = sum(int(step['timeout-minutes'])
                              for step in (runtime, dependencies, browser))
         self.assertGreaterEqual(int(job['timeout-minutes']), install_budget + 3)

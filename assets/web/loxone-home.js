@@ -69,13 +69,14 @@ const LoxoneHome = (() => {
         controls.push(input); label.append(input); parent.append(label);
         return input;
     }
-    function stateChoices(control = false, pulse = false) {
+    function stateChoices(control = false, pulse = false, lighting = false) {
         const choices = [['', 'Nincs hozzárendelve']], seen = new Set();
         const room = get('home-room').value, category = get('home-category').value;
         for (const item of catalog) {
             if ((room && JSON.stringify(item.room || '') !== room) ||
                 (category && JSON.stringify(item.category || '') !== category)) continue;
-            if (control && !(item.secured === false && (item.type === 'Switch' ||
+            if (lighting && (item.type !== 'LightControllerV2' || !item.lighting)) continue;
+            if (control && !lighting && !(item.secured === false && (item.type === 'Switch' ||
                 (pulse && ['Pushbutton', 'TimedSwitch'].includes(item.type))))) continue;
             if (control && item.action_uuid === '') continue;
             const uuid = control ? item.control_uuid : item.uuid;
@@ -254,15 +255,20 @@ const LoxoneHome = (() => {
                     field(grid, 'Indítás javasolható (alapból kikapcsolva)', entry, 'suggest_start', 'checkbox');
                 } else {
                     const type = select(grid, 'Kártyatípus', entry, 'type', [
-                        ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló']]);
+                        ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'], ['lighting', 'Világításvezérlő']]);
                     type.onchange = () => {
                         entry.type = type.value;
                         if (entry.type === 'switch') { entry.source.scale = 1; entry.source.offset = 0; }
                         render();
                     };
-                    if (entry.type !== 'pulse') source(grid, entry);
+                    if (!['pulse', 'lighting'].includes(entry.type)) source(grid, entry);
                     if (entry.type !== 'value')
-                        select(grid, 'Vezérelhető Loxone objektum', entry, 'control_uuid', stateChoices(true, entry.type === 'pulse'));
+                        select(grid, entry.type === 'lighting' ? 'Loxone világításvezérlő blokk' : 'Vezérelhető Loxone objektum',
+                            entry, 'control_uuid', stateChoices(true, entry.type === 'pulse', entry.type === 'lighting'));
+                    if (entry.type === 'lighting') {
+                        const note = create('p', 'A világítási körök automatikusan, a Loxone sorrendjében jelennek meg. Csak a megnyitott Otthon-oldal adatait dolgozzuk fel.');
+                        note.setAttribute('style', 'grid-column:1/-1'); grid.append(note);
+                    }
                     if (entry.type === 'value') {
                         field(grid, 'Mértékegység', entry, 'unit');
                         const decimals = field(grid, 'Tizedesek (0–3)', entry, 'decimals', 'number');
@@ -348,7 +354,7 @@ const LoxoneHome = (() => {
             const title = entry.name || 'Névtelen elem';
             if (!entry.name.trim() || new TextEncoder().encode(entry.name).length > 80 || /[\x00-\x1f\x7f]/.test(entry.name)) return title + ': adj meg legfeljebb 80 bájtos nevet.';
             if (!icons.some(icon => icon.id === entry.icon)) return title + ': válassz ikont.';
-            if (entry.type !== 'pulse' && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
+            if (!['pulse', 'lighting'].includes(entry.type) && (!uuidValid(entry.source.uuid) || !Number.isFinite(entry.source.scale) ||
                 !entry.source.scale || Math.abs(entry.source.scale) > 1e6 || !Number.isFinite(entry.source.offset) || Math.abs(entry.source.offset) > 1e6))
                 return title + ': hiányzó állapotpárosítás vagy érvénytelen átalakítás.';
             if (section === 'consumers') {

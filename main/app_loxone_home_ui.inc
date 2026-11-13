@@ -62,6 +62,7 @@ static void home_cards_requested(void)
  * át az input callbackből; az SD-képek cseréjét a runtime végzi. */
 static void home_gesture(lv_dir_t direction)
 {
+    if (lighting_ui_is_open()) return;
     if (loxone_display_is_held()) return;
     int requested = home_request_get();
     unsigned pages = lx_home_page_count(&home_config);
@@ -224,6 +225,13 @@ static bool home_decode_images(unsigned first)
 }
 static bool home_prepare(bool night)
 {
+    /* A megnyitott kezelőt egy NightMode-váltás nem dobja el. A fényerő
+     * továbbra is követi az éjszakai módot; a stílus bezárás után frissül. */
+    if (night != home_night && bsp_display_lock(-1) == ESP_OK)
+    {
+        if (lighting_ui_is_open()) night = home_night;
+        bsp_display_unlock();
+    }
     int requested = home_request_get();
     if (s_cfg.energy_flow_disabled)
     {
@@ -456,6 +464,8 @@ static void home_text(lv_obj_t *label, int width)
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
 }
+#include "app_loxone_lighting_ui.inc"
+
 static void home_build(void)
 {
     clear(); screen_style(s_screen, home_night);
@@ -490,6 +500,7 @@ static void home_build(void)
     if (s_cfg.energy_flow_disabled) lv_obj_add_flag(close, LV_OBJ_FLAG_HIDDEN);
     unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
     memset(home_buttons, 0, sizeof(home_buttons));
+    memset(light_card_buttons, 0, sizeof(light_card_buttons));
     memset(home_switch_knobs, 0, sizeof(home_switch_knobs));
     for (unsigned i = 0; i < count; i++)
     {
@@ -509,6 +520,11 @@ static void home_build(void)
         if (asset >= 0) lv_image_set_src(home_icons[i], &home_images[asset]);
         lv_obj_t *title = lbl(card, name, 10, 108, APP_FONT_20, home_night ? 0xEFF6F5 : 0x071B32);
         home_text(title, 272);
+        if (home_page == 2 && home_config.cards[index].type == LX_HOME_CARD_LIGHTING)
+        {
+            lighting_card_build(card, title, i, index);
+            continue;
+        }
         bool control = home_page == 2 && home_config.cards[index].type != LX_HOME_CARD_VALUE;
         if (control)
         {
@@ -598,6 +614,7 @@ static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
     home_connected = home_next_connected; home_command_wait = home_next_wait;
     snprintf(home_status, sizeof(home_status), "%s", home_next_status);
     if (s_view != VIEW_HOME) home_build();
+    app_loxone_home_visible(home_page == 2 ? (int)home_card_page : -1);
     unsigned count = home_page == 1 ? home_config.consumer_count : home_card_count;
     for (unsigned i = 0; i < count; i++)
     {
@@ -608,6 +625,11 @@ static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
         if (home_page == 1 && value.valid && value.value < .001)
             value.value = 0;
         const lx_home_card_t *card = &home_config.cards[index];
+        if (home_page == 2 && card->type == LX_HOME_CARD_LIGHTING)
+        {
+            lighting_card_update(i, index, home_connected && !loxone_display_is_held());
+            continue;
+        }
         char text[128], number[96];
         if (home_page == 2 && card->type == LX_HOME_CARD_PULSE)
             snprintf(text, sizeof(text), "%s", tr("Indítás", "Start"));
@@ -681,6 +703,7 @@ static bool home_render(const app_energy_sample_t *sample, bool sample_valid)
     label_text_if_changed(home_total, text);
     label_text_if_changed(home_message, !home_connected ? tr("Nincs Loxone-kapcsolat; a vezérlés tiltva.", "No Loxone connection; controls disabled.") :
                           home_status[0] ? home_feedback() : tr("Élő Loxone-adatok", "Live Loxone data"));
+    lighting_ui_update();
     return true;
 }
 static void home_bind_hotspot(lv_obj_t *parent, const cJSON *scene)
