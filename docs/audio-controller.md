@@ -172,6 +172,42 @@ a `coverurl` abszolút URL-je változatlanul kerül a képkérésbe.
 Ez protokollkompatibilitási ellenőrzés, a paneles belépési próba külön
 szükséges.
 
+### Hitelesítési parancs és WebSocket-keretek
+
+A 2026. november 14-i panelpróbában a korábbi `worker-start` helyett már
+`authentication-rejected; phase=3` jelent meg, két WebSocket-feladattal.
+Ez azt mutatja, hogy a natív kapcsolat eljutott a hitelesítési válaszig.
+A napló nem tartalmazza a szerver nyers válaszát, ezért az elutasítás
+pontos szerveroldali oka ebből még nem állapítható meg.
+
+A felhasználó gyári webfelületén a belépési parancs 2112 bájtos volt.
+A korábbi 2048 bájtos WebSocket-puffer egy ekkora parancsot egy TEXT és egy
+CONT keretben küld. A rögzített Espressif 1.8.0 küldőfüggvényével végzett próba
+igazolja, hogy ez szabályos fragmentálás, és a teljes parancs bájtjai
+megmaradnak. Az Audioserver continuation-kezelését a helyi próba nem
+helyettesíti. A kompatibilitási változtatás a teljes belépési parancsot
+egyetlen lezárt TEXT-keretben küldi.
+
+Az új WebSocket-puffer **8192 bájt**. A két upstream heap-puffer együttesen
+16 KiB, a korábbihoz képest 12 KiB növekmény. A Master tényleges
+`CONFIG_SPIRAM_USE_MALLOC=y` és `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0`
+beállítását a CI is ellenőrzi: ezek a malloc-foglalások a PSRAM-ot
+részesítik előnyben. Új task vagy verembővítés nincs; a WebSocket saját
+verme továbbra is 4096 bájt. A belépés méretét közös konstansok határolják:
+legfeljebb 95 bájtos felhasználónév, 1023 bájtos JWT és 4096 bites RSA-kulcs
+mellett a teljes parancs konzervatív felső korlátja **6273 bájt**.
+A fordítás ellenőrzi, hogy ez a lezáró nullával együtt belefér, a futtató
+pedig a korlátot túllépő parancsot küldés előtt elutasítja.
+
+A [gyártói Loxone App 17.3 kliensével](https://updatefiles.loxone.com/linux/Release/1730272553-amd64.deb)
+egyezően a felhasználónév nyers UTF-8 marad; csak az RSA- és AES-Base64
+paraméter kap URI-kódolást. A `/` elválasztót vagy vezérlőkaraktert
+tartalmazó név nem küldhető el. A Miniserver-JWT, a 4-es alkalmazásjogosultság
+és a pontos `authentication successful` sikerfeltétel változatlan.
+A frame-kompatibilitás és a speciális felhasználónév javítása külön
+ellenőrzött eltérés; a panelen jelentett elutasítás megszűnését a következő
+fizikai belépési próbának kell igazolnia.
+
 A szerver kezdeti `audio_event` üzenete már a belépés befejezése előtt is
 megérkezhet. A firmware ezt a legfeljebb 12 látható kártyához tartozó,
 átmeneti PSRAM-pufferben őrzi meg, és csak az aktuális kapcsolat sikeres
@@ -222,7 +258,7 @@ A **webes eseménynaplóban** a kapcsolathiba figyelmeztetésként jelenik meg.
 A formátum példája, nem panelen mért eredmény:
 
 ```text
-Audio-kapcsolat: ok=receive-queue-full; phase=2; text=33; binary=0; JSON=0.
+Audio-kapcsolat: ok=receive-queue-full; phase=2; text=33; binary=0; JSON=0; tx=0; auth=none/0.
 ```
 
 A `phase` a hiba pillanatának protokollfázisa: 0 az aktív kapcsolat nélküli
@@ -232,11 +268,18 @@ válasz várása, 4 a sikeres hitelesítés utáni adatforgalom. A `text` és
 száma; a `JSON` a fel nem dolgozható JSON-üzenetek számlálója, nem az
 összes érvényes válaszé.
 
+A `tx` az utoljára előállított belépési parancs bájthossza. Az `auth`
+kizárólag az `authenticate_result` JSON-típusát és sztring esetén a
+bájthosszát mutatja, például `string/21`; `none/0` esetén még nincs ilyen
+válasz. A válasz szövege, a teljes parancs és a hitelesítő adatok nem
+kerülnek naplóba. Ezek a számlálók segítenek a keretezési és válaszformátum-
+eltérést elkülöníteni, de önmagukban nem nevezik meg az elutasítás okát.
+
 | Példa az `ok` mezőre | Jelentés |
 | --- | --- |
 | `transport`, `disconnect`, `server-close`, `websocket-start` | Szállítási hiba, bontás vagy sikertelen kapcsolatindítás |
 | `handshake-timeout`, `authentication-envelope`, `authentication-send`, `authentication-rejected` | A belépés időtúllépése, előkészítési/küldési hibája vagy elutasítása |
-| `frame-limit`, `receive-queue-full`, `receive-byte-limit` | Az üzenetméret, a 32 elemű sor vagy a közös 200 KiB-os pufferkeret túllépése |
+| `frame-limit`, `send-limit`, `receive-queue-full`, `receive-byte-limit` | A fogadott/küldött üzenetméret, a 32 elemű sor vagy a közös 200 KiB-os pufferkeret túllépése |
 | `receive-memory`, `receive-queue-memory`, `connection-memory`, `initial-metadata-memory` | A fogadópuffer, fogadási sor, kapcsolat vagy kezdeti metaadat foglalási hibája |
 | `runtime-memory`, `page-memory` | A közös Audio-erőforrások vagy az oldalmodell foglalási hibája |
 | `favorites-timeout` | A függő kedvenclista nem érkezett meg időben |
