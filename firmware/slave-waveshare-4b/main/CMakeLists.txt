@@ -28,6 +28,13 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE
     APP_INTERCOM_DISTRIBUTED=1 APP_INTERCOM_SLAVE=1
     APP_OTA_ASSET_PREFIX="ZoleeEnergyFlowDisplay-slave-4b")
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=misleading-indentation -Werror=frame-larger-than=8192)
+set_property(SOURCE "${shared}/app_ota_auto.c" APPEND PROPERTY COMPILE_OPTIONS -fstack-usage)
+add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
+    COMMAND "${PYTHON}" "${shared}/../tools/check_audio_stack.py"
+            --build-dir "${CMAKE_CURRENT_BINARY_DIR}" --ota-only
+    COMMENT "A megosztott OTA futtato tenyleges RISC-V veremkereteinek ellenorzese"
+    VERBATIM
+)
 target_link_options(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=esp_lv_adapter_register_display"
     "-Wl,-u,__wrap_esp_lv_adapter_register_display")

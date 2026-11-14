@@ -168,6 +168,18 @@ add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
     VERBATIM
 )
 
+# Az Audio a már létező main és OTA feladat vermét használja. A boot külön
+# noinline kerete és a két kis hívókeret a tényleges RISC-V buildből mérhető.
+set_property(SOURCE app_main.c app_loxone_audio_runtime.c app_loxone_audio_auth.c
+    app_loxone_audio_media.c app_loxone_audio_image.c app_ota_auto.c
+    APPEND PROPERTY COMPILE_OPTIONS -fstack-usage)
+add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
+    COMMAND "${PYTHON}" "${CMAKE_CURRENT_LIST_DIR}/../tools/check_audio_stack.py"
+            --build-dir "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMENT "Az Audio/main/OTA tenyleges RISC-V veremkereteinek ellenorzese"
+    VERBATIM
+)
+
 
 # BSP 2.0.3 hardcodes use_psram=false. Wrap its display registration, keeping
 # managed components intact and the existing rotation/triple-partial mode.
