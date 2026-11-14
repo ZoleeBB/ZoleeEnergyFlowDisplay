@@ -11,6 +11,7 @@
 #ifndef APP_TEMPLATE_DESKTOP
 #include <stdatomic.h>
 #include <strings.h>
+#include "app_events.h"
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
@@ -21,10 +22,16 @@
 #include "freertos/task.h"
 #include "freertos/idf_additions.h"
 
+#define MEDIA_ATTEMPTS_MAX 3U
+#define MEDIA_RETRY_FIRST_US 2000000LL
+#define MEDIA_RETRY_SECOND_US 5000000LL
+#define MEDIA_ERROR_LOG_INTERVAL_US 10000000LL
+
 typedef struct
 {
     char url[LX_AUDIO_URL_SIZE];
-    unsigned version, size, sequence;
+    unsigned version, size, sequence, attempts;
+    int64_t retry_at;
     bool pending;
     lx_audio_image_t *image;
 } media_slot_t;
@@ -41,6 +48,37 @@ typedef struct
     bool invalid;
 } media_headers_t;
 
+typedef enum
+{
+    MEDIA_OK,
+    MEDIA_CANCELLED,
+    MEDIA_MEMORY,
+    MEDIA_WORKER,
+    MEDIA_CONNECT,
+    MEDIA_HEADERS,
+    MEDIA_READ,
+    MEDIA_INCOMPLETE,
+    MEDIA_DEADLINE,
+    MEDIA_HTTP_STATUS,
+    MEDIA_REDIRECT,
+    MEDIA_SIZE_LIMIT,
+    MEDIA_DECODE,
+    MEDIA_CACHE_LIMIT
+} media_error_t;
+
+typedef struct
+{
+    media_error_t error;
+    int http_status;
+} media_result_t;
+
+typedef struct
+{
+    media_result_t result;
+    unsigned slot, attempts, retry_seconds;
+    bool pending, recovered;
+} media_notice_t;
+
 static SemaphoreHandle_t media_lock;
 static TaskHandle_t media_task;
 static media_slot_t *media_slots;
@@ -49,6 +87,8 @@ static atomic_flag media_initializing = ATOMIC_FLAG_INIT;
 static atomic_bool media_ready;
 static atomic_uint media_requested_generation;
 static atomic_uint media_workers;
+static int64_t media_start_after;
+static int64_t media_next_error_log;
 
 bool app_loxone_audio_media_idle(void)
 {
@@ -89,6 +129,7 @@ static void media_sync_generation_locked(void)
     if (media_generation == requested)
         return;
     media_generation = requested;
+    media_start_after = 0;
     for (unsigned i = 0; i < LX_AUDIO_MEDIA_SLOTS; ++i)
     {
         media_release_locked(media_slots[i].image);
@@ -161,6 +202,84 @@ static bool media_current(const media_job_t *job)
     return current;
 }
 
+static bool media_retryable(const media_result_t *result)
+{
+    switch (result->error)
+    {
+        case MEDIA_MEMORY:
+        case MEDIA_WORKER:
+        case MEDIA_CONNECT:
+        case MEDIA_HEADERS:
+        case MEDIA_READ:
+        case MEDIA_INCOMPLETE:
+        case MEDIA_DEADLINE:
+            return true;
+        case MEDIA_HTTP_STATUS:
+            return result->http_status == 408 || result->http_status == 429 ||
+                   (result->http_status >= 500 && result->http_status < 600);
+        default:
+            return false;
+    }
+}
+
+static void media_retry_locked(media_slot_t *slot, bool retryable, int64_t now)
+{
+    slot->pending = false;
+    slot->retry_at = retryable && slot->attempts < MEDIA_ATTEMPTS_MAX ?
+        now + (slot->attempts == 1 ? MEDIA_RETRY_FIRST_US : MEDIA_RETRY_SECOND_US) : 0;
+}
+
+static void media_notice_locked(unsigned index, const media_result_t *result, media_notice_t *notice,
+                                int64_t now)
+{
+    if (result->error == MEDIA_CANCELLED || now < media_next_error_log)
+        return;
+    media_next_error_log = now + MEDIA_ERROR_LOG_INTERVAL_US;
+    const media_slot_t *slot = &media_slots[index];
+    *notice = (media_notice_t){.result = *result, .slot = index, .attempts = slot->attempts,
+        .retry_seconds = slot->retry_at > now ? (unsigned)((slot->retry_at - now) / 1000000LL) : 0,
+        .pending = true};
+}
+
+static void media_notice_emit(const media_notice_t *notice)
+{
+    if (!notice->pending)
+        return;
+    if (notice->recovered)
+    {
+        app_events_add(APP_EVENT_INFO, "Audio borító helyreállt: hely=%u; próba=%u/%u.",
+            notice->slot + 1, notice->attempts, MEDIA_ATTEMPTS_MAX);
+        return;
+    }
+    static const char *const reasons[] = {
+        "ok", "cancel", "memory", "worker", "connect", "headers", "read", "incomplete",
+        "timeout", "http", "redirect", "size", "decode", "cache"
+    };
+    /* Csak statikus ok és számlálók: URL, szervernév, cím és hitelesítő
+     * adat nem kerül a közös, mindössze húsz bejegyzéses eseménynaplóba. */
+    app_events_add(APP_EVENT_WARNING,
+        "Audio borító: hely=%u; ok=%s; HTTP=%d; próba=%u/%u; újra=%u s.",
+        notice->slot + 1, reasons[notice->result.error], notice->result.http_status,
+        notice->attempts, MEDIA_ATTEMPTS_MAX, notice->retry_seconds);
+}
+
+static void media_start_failed_locked(media_error_t error, media_notice_t *notice)
+{
+    /* Sikertelen task-/munkapuffer-foglalásnál sem próbálkozunk minden
+     * UI-frissítéskor. A következő esedékes kérést az aktív nézet élesíti. */
+    int64_t now = esp_timer_get_time();
+    media_task = NULL;
+    media_start_after = now + MEDIA_RETRY_FIRST_US;
+    media_result_t result = {.error = error};
+    for (unsigned i = 0; i < LX_AUDIO_MEDIA_SLOTS; ++i)
+        if (media_slots[i].pending)
+        {
+            ++media_slots[i].attempts;
+            media_retry_locked(&media_slots[i], true, now);
+            media_notice_locked(i, &result, notice, now);
+        }
+}
+
 static esp_err_t media_http_event(esp_http_client_event_t *event)
 {
     media_headers_t *headers = event->user_data;
@@ -175,8 +294,9 @@ static esp_err_t media_http_event(esp_http_client_event_t *event)
     return ESP_OK;
 }
 
-static uint8_t *media_download(const media_job_t *job, size_t *length)
+static uint8_t *media_download(const media_job_t *job, size_t *length, media_result_t *result)
 {
+    *result = (media_result_t){.error = MEDIA_MEMORY};
     uint8_t *body = media_alloc(LX_AUDIO_MEDIA_BYTES_MAX);
     media_headers_t *headers = media_alloc(sizeof(*headers));
     char *url = media_alloc(LX_AUDIO_URL_SIZE);
@@ -189,9 +309,15 @@ static uint8_t *media_download(const media_job_t *job, size_t *length)
     }
     snprintf(url, LX_AUDIO_URL_SIZE, "%s", job->url);
     bool success = false;
+    result->error = MEDIA_CANCELLED;
     int64_t deadline = esp_timer_get_time() + 8000000LL;
     for (unsigned redirect = 0; redirect < 4 && media_current(job); ++redirect)
     {
+        if (esp_timer_get_time() >= deadline)
+        {
+            result->error = MEDIA_DEADLINE;
+            break;
+        }
         memset(headers, 0, sizeof(*headers));
         esp_http_client_config_t options = {
             .url = url, .timeout_ms = 2000, .disable_auto_redirect = true,
@@ -201,20 +327,30 @@ static uint8_t *media_download(const media_job_t *job, size_t *length)
         };
         esp_http_client_handle_t http = esp_http_client_init(&options);
         if (!http)
+        {
+            result->error = MEDIA_MEMORY;
             break;
+        }
         bool ok = esp_http_client_open(http, 0) == ESP_OK;
+        result->error = ok ? MEDIA_HEADERS : MEDIA_CONNECT;
         int64_t declared = ok ? esp_http_client_fetch_headers(http) : -1;
         int status = ok ? esp_http_client_get_status_code(http) : 0;
-        if (status >= 300 && status < 400 && !headers->invalid &&
+        result->http_status = status;
+        if (ok && declared >= 0 && status >= 300 && status < 400 && !headers->invalid &&
             lx_audio_cover_url(headers->location) &&
             (strncmp(url, "https://", 8) || !strncmp(headers->location, "https://", 8)))
         {
+            result->error = MEDIA_REDIRECT;
             snprintf(url, LX_AUDIO_URL_SIZE, "%s", headers->location);
             esp_http_client_close(http);
             esp_http_client_cleanup(http);
             continue;
         }
-        ok = ok && status == 200 && declared <= LX_AUDIO_MEDIA_BYTES_MAX;
+        if (ok && declared >= 0)
+            result->error = status >= 300 && status < 400 ? MEDIA_REDIRECT :
+                status != 200 ? MEDIA_HTTP_STATUS :
+                declared > LX_AUDIO_MEDIA_BYTES_MAX ? MEDIA_SIZE_LIMIT : MEDIA_INCOMPLETE;
+        ok = ok && declared >= 0 && status == 200 && declared <= LX_AUDIO_MEDIA_BYTES_MAX;
         size_t used = 0;
         while (ok && used < LX_AUDIO_MEDIA_BYTES_MAX && media_current(job) &&
                esp_timer_get_time() < deadline)
@@ -224,6 +360,7 @@ static uint8_t *media_download(const media_job_t *job, size_t *length)
             if (n < 0)
             {
                 ok = false;
+                result->error = MEDIA_READ;
                 break;
             }
             if (!n)
@@ -232,6 +369,14 @@ static uint8_t *media_download(const media_job_t *job, size_t *length)
         }
         success = ok && used > 0 && media_current(job) &&
                   esp_http_client_is_complete_data_received(http);
+        if (success)
+            result->error = MEDIA_OK;
+        else if (!media_current(job))
+            result->error = MEDIA_CANCELLED;
+        else if (ok && used == LX_AUDIO_MEDIA_BYTES_MAX)
+            result->error = MEDIA_SIZE_LIMIT;
+        else if (ok && esp_timer_get_time() >= deadline)
+            result->error = MEDIA_DEADLINE;
         esp_http_client_close(http);
         esp_http_client_cleanup(http);
         if (success)
@@ -273,6 +418,7 @@ static bool media_share_locked(unsigned target)
             slot->image = media_slots[i].image;
             ++slot->image->references;
             slot->pending = false;
+            slot->retry_at = 0;
             return true;
         }
     return false;
@@ -301,6 +447,8 @@ static void media_worker(void *argument)
             job->sequence = slot->sequence;
             snprintf(job->url, sizeof(job->url), "%s", slot->url);
             slot->pending = false;
+            slot->retry_at = 0;
+            ++slot->attempts;
             found = true;
             break;
         }
@@ -312,10 +460,14 @@ static void media_worker(void *argument)
         }
         xSemaphoreGive(media_lock);
         size_t length = 0;
-        uint8_t *compressed = media_download(job, &length);
+        media_result_t result;
+        uint8_t *compressed = media_download(job, &length, &result);
         lx_audio_image_t *image = compressed && media_current(job) ?
             lx_audio_image_decode(compressed, length, job->size) : NULL;
+        if (compressed && !image)
+            result.error = MEDIA_DECODE;
         free(compressed);
+        media_notice_t notice = {0};
         xSemaphoreTake(media_lock, portMAX_DELAY);
         media_sync_generation_locked();
         media_slot_t *slot = &media_slots[job->slot];
@@ -329,16 +481,31 @@ static void media_worker(void *argument)
             image->references = 1;
             media_release_locked(slot->image);
             slot->image = image;
+            if (slot->attempts > 1)
+                notice = (media_notice_t){.slot = job->slot, .attempts = slot->attempts,
+                    .pending = true, .recovered = true};
             image = NULL;
         }
+        else if (current)
+        {
+            if (image)
+                result.error = MEDIA_CACHE_LIMIT;
+            int64_t now = esp_timer_get_time();
+            media_retry_locked(slot, media_retryable(&result), now);
+            media_notice_locked(job->slot, &result, &notice, now);
+        }
         xSemaphoreGive(media_lock);
+        media_notice_emit(&notice);
         lx_audio_image_free(image);
     }
     if (!job)
     {
+        media_notice_t notice = {0};
         xSemaphoreTake(media_lock, portMAX_DELAY);
-        media_task = NULL;
+        media_sync_generation_locked();
+        media_start_failed_locked(MEDIA_MEMORY, &notice);
         xSemaphoreGive(media_lock);
+        media_notice_emit(&notice);
     }
     free(job);
     /* A hálózati/dekódolási pufferek már megszűntek. Számláló kell: az új
@@ -354,6 +521,7 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
     if (index >= LX_AUDIO_MEDIA_SLOTS || (size != 112 && size != 128 && size != 256) ||
         !media_initialize())
         return;
+    media_notice_t notice = {0};
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
     if (generation != media_generation)
@@ -370,13 +538,24 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
         slot->image = NULL;
         slot->version = version;
         slot->size = size;
+        slot->attempts = 0;
+        slot->retry_at = 0;
         ++slot->sequence;
         snprintf(slot->url, sizeof(slot->url), "%s", safe_url);
         slot->pending = safe_url[0] != 0;
         if (slot->pending)
             media_share_locked(index);
     }
-    if (slot->pending && !media_task)
+    int64_t now = esp_timer_get_time();
+    /* A worker nem alszik az újrapróbáig. Kizárólag a még látható kép
+     * időszakos kérése élesítheti az esedékes, legfeljebb harmadik próbát. */
+    if (!slot->image && slot->retry_at && now >= slot->retry_at)
+    {
+        slot->retry_at = 0;
+        slot->pending = true;
+        media_share_locked(index);
+    }
+    if (slot->pending && !media_task && now >= media_start_after)
     {
         atomic_fetch_add(&media_workers, 1);
         BaseType_t created = xTaskCreateWithCaps(media_worker, "lox_audio_media", 8192, NULL,
@@ -386,11 +565,12 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
                 2, &media_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (created != pdPASS)
         {
-            media_task = NULL;
+            media_start_failed_locked(MEDIA_WORKER, &notice);
             atomic_fetch_sub(&media_workers, 1);
         }
     }
     xSemaphoreGive(media_lock);
+    media_notice_emit(&notice);
 }
 
 #else
