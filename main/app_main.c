@@ -27,6 +27,7 @@
 #include "app_events.h"
 #include "app_mqtt.h"
 #include "app_loxone.h"
+#include "app_loxone_audio_service.h"
 #include "app_intercom.h"
 #include "app_ingest.h"
 #include "app_ota.h"
@@ -122,7 +123,7 @@ static void init_nvs(void)
  * ESP-IDF alkalmazás belépési pont.
  * A normál dashboard csak az összes kötelező indulási feltétel után indul el.
  */
-void app_main(void)
+static void __attribute__((noinline)) app_boot(void)
 {
     /* Alap rendszerállapot és RAM eseménynapló. */
     init_nvs();
@@ -312,8 +313,14 @@ void app_main(void)
      * a működő adatfogadó nélkül nem léphetünk tovább.
      */
     if (s_config.data_recept_mode == APP_DATA_HTTP) app_ui_show_boot(APP_BOOT_MQTT, NULL);
-    if (s_config.data_recept_mode == APP_DATA_LOXONE && app_loxone_start() != ESP_OK)
-        fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
+        /* A közös Audio-erőforrások már a Miniserver-worker előtt élnek.
+         * A natív kapcsolat később a meglevő main vermén dolgozik. */
+        if (app_loxone_audio_init() != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "Az Audio előkészítése átmenetileg sikertelen; később újrapróbáljuk.");
+        if (app_loxone_start() != ESP_OK)
+            fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
+    }
     /* Hálózat nélküli slave-hez nem foglalunk HTTP/mDNS háttérfeladatokat. */
     err = (!slave || s_config.wifi.ssid[0]) ? app_web_start(&s_config) : ESP_OK;
     if (err != ESP_OK) {
@@ -361,7 +368,21 @@ void app_main(void)
         app_events_add(APP_EVENT_WARNING, "A sablonképek előkészítő feladata nem indult el.");
     if (slave) app_ble_profile_boot_complete();
 
-    /* Az app_main életben marad, a tényleges munka külön FreeRTOS taskokban fut. */
+}
+
+void app_main(void)
+{
+    /* A boot helyi pufferei a visszatéréssel felszabadulnak. A noinline
+     * határt és az itt megmaradó kis keretet a valódi ESP-build ellenőrzi. */
+    app_boot();
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
+        /* Az eddig tétlen 10 KiB-os main verem váltja ki a külön 8 KiB-os
+         * Audio-taskot. A Miniserver-parancsok továbbra is külön futnak. */
+        vTaskPrioritySet(NULL, 3);
+        app_loxone_audio_run();
+    }
+
+    /* A többi adatforrás és a Master Slave módja nem indít Audio-kapcsolatot. */
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(60000));
     }

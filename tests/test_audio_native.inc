@@ -218,13 +218,13 @@ static void native_worker_retry_test(void)
     test_native_sleep_hook = native_retry_tick;
     test_native_start_error = true;
     test_native_stop_disconnect = true;
-    audio_worker(NULL);
+    run_until_idle();
     test_native_sleep_hook = NULL;
     test_native_stop_disconnect = false;
     /* Az első hiba lezárása után egyszeri 5 s szünet, majd valódi új open.
      * A dead jelző nem tolhatja minden worker-körben tovább a határidőt. */
     assert(test_native_starts == native_retry_start_count + 2);
-    assert(native_retry_ticks < 140 && !audio_page && !audio_task);
+    assert(native_retry_ticks < 140 && !audio_page);
     prepare_page();
 }
 

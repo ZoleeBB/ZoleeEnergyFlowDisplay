@@ -436,6 +436,24 @@ static light_page_t *lighting_page_create(int page, unsigned generation, unsigne
     return next;
 }
 
+static void lighting_audio_rebuild(int page, unsigned generation, unsigned revision)
+{
+    /* Kizárólag a Loxone-worker: a katalógus és a nyers cache tulajdonosa.
+     * Normál oldalépítés és egyszeri, késői Audio-init helyreállás közös útja. */
+    app_loxone_audio_page(s_home, s_catalog, page, revision);
+    for (unsigned i = 0; i < s_light_cache.count; ++i)
+    {
+        const light_cache_entry_t *entry = &s_light_cache.entries[i];
+        if (entry->seen)
+            app_loxone_audio_state(entry->uuid, entry->numeric, entry->number,
+                                    entry->text, entry->length, entry->received_us);
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (generation != s_light_generation || revision != s_home_revision || s_dead)
+        app_loxone_audio_hide();
+    xSemaphoreGive(s_lock);
+}
+
 static void lighting_reconcile(void)
 {
     /* Csak a worker hívja; a nyers cache olvasója és írója ugyanaz a feladat.
@@ -478,18 +496,7 @@ static void lighting_reconcile(void)
         lighting_page_free(next);
         /* Az Audio saját, korlátos adatai a nagy Loxone-záron kívül épülnek.
          * A közben elhagyott lapot a második generációellenőrzés visszavonja. */
-        app_loxone_audio_page(s_home, s_catalog, page, revision);
-        for (unsigned i = 0; i < s_light_cache.count; ++i)
-        {
-            const light_cache_entry_t *entry = &s_light_cache.entries[i];
-            if (entry->seen)
-                app_loxone_audio_state(entry->uuid, entry->numeric, entry->number,
-                                        entry->text, entry->length, entry->received_us);
-        }
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (generation != s_light_generation || revision != s_home_revision || s_dead)
-            app_loxone_audio_hide();
-        xSemaphoreGive(s_lock);
+        lighting_audio_rebuild(page, generation, revision);
     }
 
     xSemaphoreTake(s_lock, portMAX_DELAY);

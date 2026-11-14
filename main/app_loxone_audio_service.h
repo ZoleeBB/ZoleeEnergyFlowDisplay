@@ -25,9 +25,16 @@ typedef struct
     bool available, controllable, native_ready, volume_up_down, volume_pending, volume_failed;
 } lx_audio_summary_t;
 
+/* A Master bootja készíti elő, még a Loxone-worker indítása előtt.
+ * A run kizárólag a már lefoglalt main-vermen fut, és nem tér vissza.
+ * A natív kapcsolat csak látható Audio-oldalhoz él; új task nem készül. */
+esp_err_t app_loxone_audio_init(void);
+void app_loxone_audio_run(void);
+
 /* A Miniserver-worker hívja. A JWT privát másolat, sohasem része pillanatképnek,
- * katalógusnak, URL-nek vagy naplóbejegyzésnek. live=false mindent visszavon. */
-void app_loxone_audio_session(const char *username, const char *jwt, bool live);
+ * katalógusnak, URL-nek vagy naplóbejegyzésnek. live=false mindent visszavon.
+ * false esetén az inicializálás/átadás nem sikerült; a hívó később ismétel. */
+bool app_loxone_audio_session(const char *username, const char *jwt, bool live);
 void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
                            int page, unsigned revision);
 void app_loxone_audio_hide(void);

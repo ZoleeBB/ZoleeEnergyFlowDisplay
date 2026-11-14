@@ -10,16 +10,40 @@
  * nincs Audio-kártya, ezért csak a szolgáltatási határt helyettesítjük. */
 static bool test_home_audio_session;
 static unsigned test_home_audio_hides;
+static bool test_home_audio_session_fail, test_home_audio_page_race;
+static unsigned test_home_audio_session_calls, test_home_audio_pages, test_home_audio_states;
+static double test_home_audio_state_value;
+static int64_t test_home_audio_state_time;
 static bool test_home_audio_queue;
 static unsigned test_home_audio_edit_generation, test_home_audio_max_volume;
-void app_loxone_audio_session(const char *user, const char *token, bool live)
-{ (void)user; (void)token; test_home_audio_session = live; }
+bool app_loxone_audio_session(const char *user, const char *token, bool live)
+{
+    (void)user; (void)token;
+    ++test_home_audio_session_calls;
+    if (live && test_home_audio_session_fail)
+        return false;
+    test_home_audio_session = live;
+    return true;
+}
 void app_loxone_audio_hide(void) { ++test_home_audio_hides; }
 void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog, int page, unsigned revision)
-{ (void)config; (void)catalog; (void)page; (void)revision; }
+{
+    (void)config; (void)catalog; (void)page; (void)revision;
+    ++test_home_audio_pages;
+    if (test_home_audio_page_race)
+    {
+        test_home_audio_page_race = false;
+        app_loxone_home_visible(-1);
+    }
+}
 void app_loxone_audio_state(const char *uuid, bool numeric, double value,
                             const char *text, size_t length, int64_t now)
-{ (void)uuid; (void)numeric; (void)value; (void)text; (void)length; (void)now; }
+{
+    (void)uuid; (void)numeric; (void)text; (void)length;
+    ++test_home_audio_states;
+    test_home_audio_state_value = value;
+    test_home_audio_state_time = now;
+}
 void app_loxone_audio_poll(int64_t now) { (void)now; }
 bool app_loxone_audio_allowed(const char *id, unsigned revision, lx_audio_action_t action)
 { (void)id; (void)revision; (void)action; return false; }
@@ -334,6 +358,42 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t h,const char *t
     else server_response("{\"LL\":{\"Code\":401,\"value\":\"denied\"}}");
     return len;
 }
+static void audio_late_session_test(const lx_config_t *energy)
+{
+    const char *uuid = "40000000-0000-0000-0000000000000011";
+    assert(lighting_cache_add(uuid));
+    qsort(s_light_cache.entries, s_light_cache.count, sizeof(*s_light_cache.entries), lighting_cache_compare);
+    lighting_cache_store(uuid, true, 6, NULL, 0);
+    int64_t received = lighting_cache_find(uuid)->received_us;
+    unsigned seen = 0;
+    for (unsigned i = 0; i < s_light_cache.count; ++i)
+        seen += s_light_cache.entries[i].seen;
+    unsigned pages = test_home_audio_pages, states = test_home_audio_states;
+    light_page_t *context = s_light_context;
+    unsigned built = s_light_built_generation;
+    bool pending = true;
+    test_home_audio_session_fail = true;
+    audio_session_retry(energy, "retry.jwt", &pending);
+    assert(pending && test_home_audio_pages == pages && test_home_audio_states == states);
+    test_home_audio_session_fail = false;
+    audio_session_retry(energy, "retry.jwt", &pending);
+    assert(!pending && test_home_audio_session && test_home_audio_pages == pages + 1);
+    assert(test_home_audio_states == states + seen && test_home_audio_state_value == 6);
+    assert(test_home_audio_state_time == received && s_light_context == context && s_light_built_generation == built);
+    unsigned sessions = test_home_audio_session_calls;
+    audio_session_retry(energy, "retry.jwt", &pending);
+    assert(test_home_audio_session_calls == sessions && test_home_audio_pages == pages + 1);
+    /* A helyreállás alatt elhagyott Audio-oldal nem maradhat érvényes. */
+    unsigned hides = test_home_audio_hides;
+    pending = true;
+    test_home_audio_page_race = true;
+    audio_session_retry(energy, "retry.jwt", &pending);
+    assert(!pending && s_light_page == -1 && test_home_audio_hides >= hides + 2);
+    app_loxone_home_visible(0);
+    lighting_poll(esp_timer_get_time());
+    puts("PASS: late Audio session handoff retries only until recovery, replays cached values/timestamps once, and rejects a page changed during replay");
+}
+
 static void home_control_test(lx_config_t *energy)
 {
     cJSON *original_catalog = s_catalog;
@@ -352,6 +412,7 @@ static void home_control_test(lx_config_t *energy)
     app_loxone_home_visible(0);
     lighting_poll(esp_timer_get_time());
     assert(s_light_initial_ready);
+    audio_late_session_test(energy);
     /* A felhasználó a worker 100 ms-os fogadási várakozása alatt nyom gombot. */
     int64_t before_receive = esp_timer_get_time();
     clock_us += 50000;

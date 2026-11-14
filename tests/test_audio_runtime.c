@@ -1,5 +1,6 @@
 /* A tényleges ESP-oldali Audio futtató: kézi idő, determinisztikus WS/RTOS. */
 #include <assert.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include "../main/app_loxone_audio_runtime.c"
 
@@ -8,13 +9,18 @@ typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned cha
 static int64_t test_now = 1000000;
 static unsigned test_transports, test_transport_attempts, test_native_sends, test_task_creations;
 static unsigned test_volume, test_media_generation;
-static bool test_fail_allocation, test_fail_queue, test_fail_task, test_cancel_before_enqueue;
+static bool test_fail_allocation, test_fail_queue, test_cancel_before_enqueue;
+static bool test_fail_semaphore, test_ota_active, test_exit_when_idle;
+static unsigned test_heap_allocations, test_semaphores_created, test_semaphores_deleted;
+static void (*test_init_hook)(void);
+static jmp_buf test_runner_exit;
 static bool test_transport_busy;
 enum { TEST_NATIVE_NONE, TEST_NATIVE_INIT, TEST_NATIVE_AUTH, TEST_NATIVE_SEND, TEST_NATIVE_STOP };
 static unsigned test_native_wait_point, test_native_wait_checks;
 static void test_miniserver_during_native_wait(unsigned point);
 static char test_native_command[128];
 static void (*test_native_sleep_hook)(void);
+static void (*test_native_stop_hook)(void);
 static void (*test_native_send_hook)(const char *command);
 static void (*test_audio_lock_hook)(void);
 static void (*test_native_event_callback)(void *, esp_event_base_t, int32_t, void *);
@@ -44,6 +50,7 @@ void app_events_add(app_event_level_t level, const char *format, ...)
 
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
 {
+    ++test_heap_allocations;
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (test_receive_allocation)
     {
@@ -60,15 +67,39 @@ void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
     return calloc(count, size);
 }
 
-SemaphoreHandle_t xSemaphoreCreateMutex(void) { return calloc(1, sizeof(struct test_audio_semaphore)); }
+SemaphoreHandle_t xSemaphoreCreateMutex(void)
+{
+    if (test_init_hook)
+    {
+        void (*hook)(void) = test_init_hook;
+        test_init_hook = NULL;
+        hook();
+    }
+    if (test_fail_semaphore)
+    {
+        test_fail_semaphore = false;
+        return NULL;
+    }
+    ++test_semaphores_created;
+    return calloc(1, sizeof(struct test_audio_semaphore));
+}
 SemaphoreHandle_t xSemaphoreCreateBinary(void)
 {
     SemaphoreHandle_t result = xSemaphoreCreateMutex();
-    result->binary = true;
+    if (result)
+        result->binary = true;
     return result;
+}
+void vSemaphoreDelete(SemaphoreHandle_t lock)
+{
+    assert(lock && !lock->held);
+    ++test_semaphores_deleted;
+    free(lock);
 }
 int xSemaphoreTake(SemaphoreHandle_t lock, TickType_t timeout)
 {
+    if (lock->binary && timeout == portMAX_DELAY && test_exit_when_idle)
+        longjmp(test_runner_exit, 1);
     if (lock->binary && timeout && test_native_sleep_hook)
         test_native_sleep_hook();
     if (!lock->binary)
@@ -93,18 +124,17 @@ BaseType_t xTaskCreateWithCaps(TaskFunction_t function, const char *name, uint32
                               void *argument, UBaseType_t priority, TaskHandle_t *handle, unsigned caps)
 {
     (void)function; (void)name; (void)argument; (void)priority;
-    assert(stack >= 8192 && (caps == MALLOC_CAP_RTCRAM || caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
+    (void)stack; (void)caps;
     ++test_task_creations;
-    if (test_fail_task)
-    {
-        *handle = NULL;
-        return 0;
-    }
-    *handle = (void *)1;
-    return pdPASS;
+    /* A panelen a legnagyobb belső blokk 7936 B. Az Audio saját taskjának
+     * minden foglalását tiltjuk; a meglévő main-feladatnak így is futnia kell. */
+    *handle = NULL;
+    return 0;
 }
 void vTaskDeleteWithCaps(TaskHandle_t handle) { (void)handle; }
+void vTaskDelay(TickType_t ticks) { test_now += (int64_t)ticks * 1000; }
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t handle) { (void)handle; return 4096; }
+bool app_ota_operation_active(void) { return test_ota_active; }
 int64_t esp_timer_get_time(void) { return test_now; }
 void esp_fill_random(void *output, size_t length) { memset(output, 42, length); }
 
@@ -171,6 +201,7 @@ void vQueueDeleteWithCaps(QueueHandle_t handle)
 esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_client_config_t *options)
 {
     assert(!strcmp(options->subprotocol, "remotecontrol"));
+    assert(options->task_stack == 4096 && options->task_stack <= 7936);
     test_miniserver_during_native_wait(TEST_NATIVE_INIT);
     return (void *)1;
 }
@@ -197,6 +228,12 @@ esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t handle)
 {
     (void)handle;
     test_miniserver_during_native_wait(TEST_NATIVE_STOP);
+    if (test_native_stop_hook)
+    {
+        void (*hook)(void) = test_native_stop_hook;
+        test_native_stop_hook = NULL;
+        hook();
+    }
     if (test_native_stop_disconnect)
         test_native_event_callback(test_native_event_argument, NULL, WEBSOCKET_EVENT_DISCONNECTED, NULL);
     return ESP_OK;
@@ -251,7 +288,7 @@ static void state(const char *suffix, double value)
     app_loxone_audio_state(uuid, true, value, NULL, 0, test_now);
 }
 
-static void prepare_page(void)
+static void prepare_page_with_session(bool session)
 {
     const char *json = "{\"mediaServer\":{\"server\":{\"type\":2,\"host\":\"192.168.1.40:7091\"}},"
         "\"controls\":{\"40000000-0000-0000-0000000000000001\":{\"type\":\"AudioZoneV2\","
@@ -267,18 +304,34 @@ static void prepare_page(void)
     config->cards[0].type = LX_HOME_CARD_AUDIO;
     strcpy(config->cards[0].id, "audio-one");
     strcpy(config->cards[0].control_uuid, "40000000-0000-0000-0000000000000001");
-    app_loxone_audio_session("user", "test.jwt", true);
+    if (session)
+        app_loxone_audio_session("user", "test.jwt", true);
     app_loxone_audio_page(config, catalog, 0, 7);
     free(config); cJSON_Delete(catalog);
     assert(audio_page && test_media_generation == audio_page->generation);
-    assert(test_fail_task || audio_task);
+    assert(test_task_creations == 0);
     assert(!app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
     state("12", 0); state("14", 60); state("11", 25);
     assert(!app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
     app_loxone_audio_state("40000000-0000-0000-0000000000000013", false, 0, "", 0, test_now);
-    assert(app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY));
+    assert(app_loxone_audio_allowed("audio-one", 7, LX_AUDIO_PLAY) == session);
     assert(!app_loxone_audio_allowed("audio-one", 6, LX_AUDIO_PLAY));
     assert(!app_loxone_audio_allowed("other", 7, LX_AUDIO_PLAY));
+}
+
+static void prepare_page(void) { prepare_page_with_session(true); }
+
+static void run_until_idle(void)
+{
+    assert(!atomic_load(&audio_runner_active));
+    test_exit_when_idle = true;
+    if (setjmp(test_runner_exit) == 0)
+    {
+        app_loxone_audio_run();
+        assert(!"A main Audio futtató nem térhet vissza");
+    }
+    test_exit_when_idle = false;
+    atomic_store(&audio_runner_active, false);
 }
 
 static void volume_test(void)
@@ -629,47 +682,176 @@ static void favorites_lifecycle_test(void)
     connection_delete(connection);
 }
 
-static void worker_allocation_failure_test(void)
+static void init_reentry(void)
 {
-    /* Natív memóriahiány nem indíthat task-hurkot és nem törölheti a
-     * továbbra is élő Miniserver-alapvezérlés oldalmodelljét. */
-    audio_page->live = true;
+    assert(app_loxone_audio_init() == ESP_ERR_INVALID_STATE);
+    assert(!atomic_load(&audio_ready) && !audio_lock && !audio_wake && !audio_credentials);
+    app_loxone_audio_hide(); /* A félkész futtatót publikus olvasó sem érheti el. */
+}
+
+static void init_failure_test(void)
+{
+    test_fail_allocation = true;
+    assert(app_loxone_audio_init() == ESP_ERR_NO_MEM);
+    assert(!atomic_load(&audio_ready) && !audio_lock && !audio_wake && !audio_credentials);
+    assert(!app_loxone_audio_session("user", "test.jwt", true));
+    assert(test_semaphores_created == test_semaphores_deleted);
+    unsigned attempts = test_heap_allocations;
+    assert(app_loxone_audio_init() == ESP_ERR_NO_MEM && test_heap_allocations == attempts);
+    test_now += 1000000;
+    test_fail_semaphore = true;
+    assert(app_loxone_audio_init() == ESP_ERR_NO_MEM);
+    assert(test_semaphores_created == test_semaphores_deleted);
+    test_now += 1000000;
+    test_init_hook = init_reentry;
+    assert(app_loxone_audio_init() == ESP_OK);
+    assert(atomic_load(&audio_ready) && audio_lock && audio_wake && audio_credentials);
+    attempts = test_heap_allocations;
+    assert(app_loxone_audio_init() == ESP_OK && test_heap_allocations == attempts);
+}
+
+static void controller_allocation_failure_test(void)
+{
+    /* A kapcsolat/sor OOM-ja megőrzi a session/page modellt és az MS
+     * hangerőutat. Újrapróba ugyanazon main-vermen, legkorábban 5 s után. */
+    prepare_page();
+    audio_controller_t controller = {0};
     test_fail_allocation = true;
     atomic_store(&audio_last_web_error_ms, 0);
-    unsigned created = test_task_creations;
-    audio_worker(NULL);
+    assert(audio_controller_step(&controller, test_now) == pdMS_TO_TICKS(50));
     assert(strstr(test_web_event, "ok=connection-memory"));
-    assert(!audio_task && audio_page && test_task_creations == created);
+    assert(!controller.connection && audio_page && !test_task_creations);
     assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
+    unsigned allocations = test_heap_allocations;
     unsigned sent = test_transports;
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 12, true) == ESP_OK);
     app_loxone_audio_poll(test_now);
     assert(test_transports == sent + 1 && test_volume == 12);
+    test_now += AUDIO_RESOURCE_RETRY_US - 1;
+    audio_controller_step(&controller, test_now);
+    assert(test_heap_allocations == allocations && !controller.connection);
+    ++test_now;
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && controller.connection->ws);
+    audio_controller_close(&controller);
 
     prepare_page();
     test_fail_queue = true;
     atomic_store(&audio_last_web_error_ms, 0);
-    created = test_task_creations;
-    audio_worker(NULL);
+    audio_controller_step(&controller, test_now);
     assert(strstr(test_web_event, "ok=receive-queue-memory"));
-    assert(!audio_task && audio_page && test_task_creations == created);
+    assert(!controller.connection && audio_page && !test_task_creations);
     assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
     sent = test_transports;
     assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 18, true) == ESP_OK);
     app_loxone_audio_poll(test_now);
     assert(test_transports == sent + 1 && test_volume == 18);
+    test_now += AUDIO_RESOURCE_RETRY_US;
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && controller.connection->ws);
+    audio_controller_close(&controller);
+}
 
-    test_fail_task = true;
-    atomic_store(&audio_last_web_error_ms, 0);
+static void controller_lifecycle_test(void)
+{
+    audio_controller_t controller = {0};
+    app_loxone_audio_session(NULL, NULL, false);
+    prepare_page_with_session(false);
+    unsigned starts = test_native_starts;
+    assert(audio_controller_step(&controller, test_now) == portMAX_DELAY);
+    assert(!controller.connection && audio_page && test_native_starts == starts);
+    app_loxone_audio_session("user", "test.jwt", true);
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && test_native_starts == starts + 1);
+    unsigned generation = controller.connection->generation;
+
+    /* Hide csak a modell érvényességét váltja; WS stop saját main-körben. */
+    app_loxone_audio_hide();
+    assert(!audio_page && controller.connection->ws);
     prepare_page();
-    assert(strstr(test_web_event, "ok=worker-start"));
-    test_fail_task = false;
-    assert(!audio_task && audio_page && test_task_creations == created + 2);
-    assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
-    sent = test_transports;
-    assert(app_loxone_audio_command("audio-one", 7, LX_AUDIO_VOLUME, 22, true) == ESP_OK);
-    app_loxone_audio_poll(test_now);
-    assert(test_transports == sent + 1 && test_volume == 22);
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection->generation != generation && test_native_starts == starts + 2);
+    unsigned credential = controller.connection->credential_generation;
+    app_loxone_audio_session("user", "refreshed.jwt", true);
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection->credential_generation != credential && test_native_starts == starts + 3);
+
+    /* OTA foglalásra bontunk, de az oldal/session és MS vezérlés marad.
+     * A foglalás vége ugyanazt a main-futtatót élesíti újra. */
+    test_ota_active = true;
+    audio_controller_step(&controller, test_now);
+    assert(!controller.connection && audio_page && audio_credentials->live);
+    audio_controller_step(&controller, test_now);
+    assert(test_native_starts == starts + 3);
+    test_ota_active = false;
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && test_native_starts == starts + 4);
+    app_loxone_audio_hide();
+    test_native_stop_hook = prepare_page;
+    assert(audio_controller_step(&controller, test_now) == portMAX_DELAY);
+    assert(!controller.connection && audio_page); /* Stop közben újra megnyílt. */
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && test_native_starts == starts + 5);
+    app_loxone_audio_hide();
+    assert(audio_controller_step(&controller, test_now) == portMAX_DELAY);
+    assert(!controller.connection && !audio_page);
+    assert(!test_task_creations);
+    prepare_page();
+}
+
+static unsigned controller_handshake_stage;
+
+static void controller_handshake_tick(void)
+{
+    audio_connection_t *connection = test_native_event_argument;
+    const char *reply = NULL;
+    switch (controller_handshake_stage++)
+    {
+        case 0:
+            assert(connection->phase == 1);
+            reply = "LWSS V 17.3.11.12 | ~API:1.6~ | Session-Token: test-session";
+            break;
+        case 1:
+            assert(connection->phase == 2);
+            reply = "{\"getkey_result\":[{\"pubkey\":\"fixture public key\"}]}";
+            break;
+        case 2:
+            assert(connection->phase == 3);
+            reply = "{\"command\":\"unit-test-auth\",\"authenticate_result\":\"authentication successful\"}";
+            break;
+        case 3:
+            assert(connection->phase == 4 && audio_page->slots[0].native_ready);
+            reply = "{\"audio_event\":[{\"playerid\":3,\"station\":\"Rádió Teszt\","
+                "\"coverurl\":\"https://cdn.example/radio.png\"}]}";
+            break;
+        case 4:
+            assert(!strcmp(audio_page->slots[0].track.station, "Rádió Teszt"));
+            assert(!strcmp(audio_page->slots[0].track.cover, "https://cdn.example/radio.png"));
+            app_loxone_audio_hide();
+            break;
+        default:
+            assert(!"A futtatónak már üresjáratban kell várnia");
+    }
+    if (reply)
+    {
+        esp_websocket_event_data_t part = {.op_code = 1, .fin = true, .data_ptr = reply,
+            .data_len = (int)strlen(reply), .payload_len = (int)strlen(reply)};
+        test_native_event_callback(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
+    }
+    test_now += 50000;
+}
+
+static void controller_main_handshake_test(void)
+{
+    prepare_page();
+    unsigned starts = test_native_starts;
+    controller_handshake_stage = 0;
+    test_native_sleep_hook = controller_handshake_tick;
+    run_until_idle();
+    test_native_sleep_hook = NULL;
+    assert(controller_handshake_stage == 5 && !audio_page);
+    assert(test_native_starts == starts + 1 && test_task_creations == 0);
+    prepare_page();
 }
 
 #include "test_audio_native.inc"
@@ -677,6 +859,7 @@ static void worker_allocation_failure_test(void)
 
 int main(void)
 {
+    init_failure_test();
     prepare_page();
     volume_test();
     volume_cancellation_test();
@@ -694,14 +877,17 @@ int main(void)
     native_favorites_response_routing_test();
     favorites_test();
     favorites_lifecycle_test();
-    worker_allocation_failure_test();
+    controller_allocation_failure_test();
+    controller_lifecycle_test();
+    controller_main_handshake_test();
     app_loxone_audio_session(NULL, NULL, false);
     assert(!audio_credentials->jwt[0] && !audio_credentials->live);
     assert(!audio_page); /* Task nélküli hibás natív ág sem tarthat rejtett modellt. */
     free(audio_page); audio_page = NULL;
     free(audio_credentials); audio_credentials = NULL;
-    free(audio_lock); free(audio_wake);
+    vSemaphoreDelete(audio_lock); vSemaphoreDelete(audio_wake);
+    assert(test_semaphores_created == test_semaphores_deleted && !test_task_creations);
     assert(test_caps_queues_created == test_caps_queues_deleted);
-    puts("PASS: ESP Audio native-wait independent volume, bounded feedback/coalescing, radio event and lifecycle guards");
+    puts("PASS: ESP Audio main-stack controller without task allocations, init/OOM/session/OTA recovery, native-wait independent volume and bounded protocol lifecycle");
     return 0;
 }

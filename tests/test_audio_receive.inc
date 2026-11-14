@@ -220,9 +220,9 @@ static void native_web_diagnostic_test(void)
     atomic_store(&audio_last_web_error_ms, 0);
     test_native_sleep_hook = native_intentional_stop_tick;
     test_native_stop_disconnect = true;
-    audio_worker(NULL);
+    run_until_idle();
     test_native_sleep_hook = NULL;
     test_native_stop_disconnect = false;
-    assert(test_web_events == before + 6 && !audio_page && !audio_task);
+    assert(test_web_events == before + 6 && !audio_page);
     prepare_page();
 }

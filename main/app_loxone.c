@@ -594,6 +594,27 @@ static void save_home_request(const lx_home_config_t *home)
     xSemaphoreGive(s_lock);
 }
 
+static void lighting_audio_recover(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    unsigned generation = s_light_generation, revision = s_home_revision;
+    int page = s_light_page;
+    bool live = s_home_live && s_home && s_catalog && !s_dead;
+    xSemaphoreGive(s_lock);
+    if (live)
+        lighting_audio_rebuild(page, generation, revision);
+}
+
+static void audio_session_retry(const lx_config_t *active, const char *token, bool *pending)
+{
+    if (!*pending || s_dead || !app_loxone_audio_session(active->username, token, true))
+        return;
+    *pending = false;
+    /* A bootkori Audio OOM nem állítja le a Miniservert. A sikeres késői
+     * átadás egyszer visszajátssza a már felépített oldal kezdőállapotait. */
+    lighting_audio_recover();
+}
+
 static void worker(void *arg)
 {
     (void)arg;
@@ -643,7 +664,7 @@ static void worker(void *arg)
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_home_live = true;
         xSemaphoreGive(s_lock);
-        app_loxone_audio_session(active->username, token, true);
+        bool audio_pending = !app_loxone_audio_session(active->username, token, true);
         app_state_set_loxone(true,true);status("Kapcsolódva. Várakozás a szükséges kezdőértékekre...");
         mark_response();int64_t heartbeat=s_last_response,last_sample=0;
         failures=0;
@@ -657,6 +678,7 @@ static void worker(void *arg)
             }
             /* A hangerő a Miniserver alapvezérlése. A külön Audioserver
              * kapcsolódása vagy hitelesítése nem késleltetheti a húzást. */
+            audio_session_retry(active, token, &audio_pending);
             if (!s_dead) app_loxone_audio_poll(esp_timer_get_time());
             home_command_poll(now);
             if (!s_dead) lighting_poll(esp_timer_get_time());
@@ -666,7 +688,7 @@ static void worker(void *arg)
             if(now>=s_token_refresh_us) {
                 /* A válaszban kapott új JWT lesz a következő kapcsolódás hitelesítője. */
                 if(!renew_token(active,token))break;
-                app_loxone_audio_session(active->username, token, true);
+                audio_pending = !app_loxone_audio_session(active->username, token, true);
                 status("Kapcsolódva. A token megújítva.");
             }
             if (s_energy_disabled)
