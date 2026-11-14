@@ -27,7 +27,8 @@ void app_loxone_audio_media_release(lx_audio_image_t *image);
 void app_loxone_audio_media_clear(unsigned generation);
 void app_loxone_audio_media_close_detail(void);
 /* Nem blokkol. Az érvénytelenített hálózati/dekódolási munka és annak nagy
- * pufferei már megszűntek; nagy kameraallokáció előtt használható kapu. */
+ * pufferei már megszűntek; nagy kameraallokáció előtt használható kapu.
+ * A meglévő OTA-workerben várakozó, még puffer nélküli callback nem foglalt. */
 bool app_loxone_audio_media_idle(void);
 
 /* A tiszta, korlátos dekóder külön tesztelhető. Nem használja a kaputelefon
