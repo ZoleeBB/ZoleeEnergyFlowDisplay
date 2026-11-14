@@ -106,8 +106,17 @@ static void audio_ui_reset(void)
 static void audio_ui_suspend(void)
 {
     audio_ui_reset();
-    /* A hívó ezt a teljes kártyafát törlő clear() előtt hívja. A forrásokat
-     * itt leválasztjuk, mielőtt elengedjük a workerrel megosztott pixeleket. */
+    /* Kapcsolatvesztéskor a kirajzolt kártyafa megmarad. A modal és a
+     * hálózati munka érvénytelen, de a widgetek és a még látható képek
+     * referenciái kellenek a következő offline/újracsatlakozott frissítéshez. */
+    app_loxone_audio_hide();
+}
+
+static void audio_ui_dispose(void)
+{
+    /* Kizárólag a tényleges clear() hívja, a suspend után. A forrásokat
+     * a widgettörlés és a workerrel megosztott pixelek elengedése előtt
+     * leválasztjuk; a következő kártyafa új referenciákat épít. */
     for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
     {
         if (audio_cards[i].cover.object)
@@ -115,7 +124,6 @@ static void audio_ui_suspend(void)
         audio_picture_release(&audio_cards[i].cover);
     }
     memset(audio_cards, 0, sizeof(audio_cards));
-    app_loxone_audio_hide();
 }
 
 /* A beépített Noto betűkészletben nincs U+2026 és U+2212: a saját

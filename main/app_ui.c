@@ -420,6 +420,7 @@ static bool controls_ui_is_open(void);
 static void controls_ui_reset(void);
 static bool audio_ui_is_open(void);
 static void audio_ui_suspend(void);
+static void audio_ui_dispose(void);
 static bool home_modal_is_open(void)
 {
     return lighting_ui_is_open() || shading_ui_is_open() ||
@@ -428,7 +429,8 @@ static bool home_modal_is_open(void)
 
 
 /* Képernyőcsere, kapcsolatvesztés és kaputelefon azonos kapun vonja vissza
- * a kártyakezelők életciklusát. A hívó tartja az LVGL-zárat. */
+ * a modalokat és parancsokat. A megmaradó kártyafa referenciáit ez nem
+ * törölheti: azt csak a clear() dobja el. A hívó tartja az LVGL-zárat. */
 static void home_controls_suspend(void)
 {
     lighting_ui_reset();
@@ -441,6 +443,7 @@ static void home_controls_suspend(void)
 static void clear(void)
 {
     home_controls_suspend();
+    audio_ui_dispose();
     assistant_reset_widgets();
     mail_reset_widgets();
     lv_obj_clean(s_screen);

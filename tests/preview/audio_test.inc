@@ -347,6 +347,117 @@ static void audio_test_user_tracks(const app_energy_sample_t *sample)
     puts("PASS: user radio/Spotify titles, source fallback and exact cover URL/version/generation forwarded to card/detail media slots");
 }
 
+/* Valódi RGB565-borítóval is megmarad a kijelzett kép tulajdonjoga a
+ * kapcsolatvesztés alatt; a HTTP/worker tesztje külön fut. */
+static void audio_test_attach_cover(audio_ui_picture_t *picture)
+{
+    int icon = home_icon_index(LX_AUDIO_ICON_ID);
+    assert(icon >= 0 && picture->object && !picture->owned);
+    const app_template_asset_t *asset = &home_assets.assets[icon];
+    lx_audio_image_t *image = lx_audio_image_decode(asset->bytes, asset->size, picture->size);
+    assert(image && image->pixels);
+    picture->owned = image;
+    picture->descriptor = (lv_image_dsc_t){
+        .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565,
+            .w = image->width, .h = image->height, .stride = image->width * 2},
+        .data_size = image->width * image->height * 2, .data = (const uint8_t *)image->pixels,
+    };
+    lv_image_set_src(picture->object, &picture->descriptor);
+    lv_refr_now(display);
+}
+
+static void audio_test_disposed_cover(lv_event_t *event)
+{
+    /* A tényleges kártyatörlés előtt már nincs a felszabadított képre mutató forrás. */
+    assert(lv_image_get_src(lv_event_get_current_target(event)) == NULL);
+    ++*(unsigned *)lv_event_get_user_data(event);
+}
+
+static void audio_test_disconnect(const app_energy_sample_t *sample)
+{
+    lx_audio_summary_t saved;
+    assert(app_loxone_audio_summary(home_config.cards[0].id, home_revision, &saved));
+    lv_obj_t *play = audio_cards[0].play, *screen = audio_cards[0].screen;
+    lv_obj_t *volume = audio_cards[0].volume, *cover = audio_cards[0].cover.object;
+    audio_test_attach_cover(&audio_cards[0].cover);
+    lx_audio_image_t *owned = audio_cards[0].cover.owned;
+    audio_ui_open(0, false);
+    assert(audio_overlay);
+    unsigned cancelled = app_sim_audio_volume_cancellations;
+    app_sim_home_connected = false;
+
+    /* A firmware runtime a grace-kezelés előtt ezt a kaput hívja. A régi
+     * kód lenullázta a widgeteket, majd a következő home_render az LVGL
+     * NULL assertjében megállt, miközben a webkiszolgáló tovább működött. */
+    home_controls_suspend();
+    assert(s_view == VIEW_HOME && home_ready_to_draw && !audio_overlay);
+    assert(app_sim_audio_volume_cancellations == cancelled + 1);
+    assert(audio_cards[0].play == play && audio_cards[0].screen == screen);
+    assert(audio_cards[0].volume == volume && audio_cards[0].cover.object == cover);
+    assert(audio_cards[0].cover.owned == owned && lv_image_get_src(cover) == &audio_cards[0].cover.descriptor);
+    assert(owned->pixels && owned->width);
+    audio_test_tick(sample);
+    assert(lv_obj_has_state(play, LV_STATE_DISABLED) && lv_obj_has_state(volume, LV_STATE_DISABLED));
+    unsigned commands = app_sim_audio_commands;
+    lv_obj_send_event(play, LV_EVENT_CLICKED, NULL);
+    lv_obj_send_event(screen, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_audio_commands == commands && !audio_overlay);
+
+    unsigned invalidations = 0;
+    lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        home_controls_suspend();
+        audio_test_tick(sample);
+    }
+    assert(invalidations == 0);
+    lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+
+    app_sim_home_connected = true;
+    audio_test_tick(sample);
+    assert(audio_cards[0].play == play && audio_cards[0].screen == screen);
+    assert(!lv_obj_has_state(play, LV_STATE_DISABLED) && !lv_obj_has_state(volume, LV_STATE_DISABLED));
+    lv_obj_send_event(play, LV_EVENT_CLICKED, NULL);
+    assert(app_sim_audio_commands == commands + 1);
+    lv_obj_send_event(screen, LV_EVENT_CLICKED, NULL);
+    assert(audio_overlay && audio_detail && audio_favorites_ids[0] == 1000);
+    lv_obj_send_event(audio_overlay, LV_EVENT_CLICKED, NULL);
+    assert(!audio_overlay && audio_cards[0].play == play && audio_cards[0].cover.object == cover);
+    assert(app_sim_audio_update(home_config.cards[0].id, home_revision, &saved));
+    audio_test_idle(sample);
+    puts("PASS: actual disconnect suspend, retained card/cover ownership, offline input guard, reconnect and zero idle invalidations");
+}
+
+static void audio_test_page_dispose(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    audio_test_configure(4);
+    app_sim_home_config.page_count = 2;
+    app_sim_home_config.pages[0].card_count = 2;
+    app_sim_home_config.pages[1] = (lx_home_page_t){.first_card = 2, .card_count = 2};
+    snprintf(app_sim_home_config.pages[1].id, sizeof(app_sim_home_config.pages[1].id), "%s", "audio-upper");
+    snprintf(app_sim_home_config.pages[1].title, sizeof(app_sim_home_config.pages[1].title), "%s", "Emeleti Audio");
+    home_request_set(2);
+    irc_test_open(false, runtime, sample);
+    assert(home_first_card == 0 && home_card_count == 2);
+    audio_test_attach_cover(&audio_cards[0].cover);
+    unsigned disposed = 0;
+    lv_obj_add_event_cb(audio_cards[0].cover.object, audio_test_disposed_cover, LV_EVENT_DELETE, &disposed);
+    home_request_set(3);
+    irc_test_open(false, runtime, sample);
+    assert(disposed == 1 && home_first_card == 2 && home_card_count == 2);
+    assert(audio_cards[0].play && audio_cards[0].cover.object);
+    assert(!audio_cards[2].play && !audio_cards[3].play);
+    audio_ui_open(2, true);
+    assert(audio_overlay && !strcmp(audio_card_id, "audio-2"));
+    audio_ui_reset();
+    audio_test_idle(&sample);
+    home_request_set(0);
+    assert(home_prepare(false));
+    for (unsigned i = 0; i < LX_HOME_MAX_CARDS; ++i)
+        assert(!audio_cards[i].play && !audio_cards[i].cover.object && !audio_cards[i].cover.owned);
+    puts("PASS: page change disposes cover before widget deletion, rebuilds correct Audio cards and clears all stale references");
+}
+
 static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sample)
 {
     app_sim_home_reset();
@@ -367,6 +478,7 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
     assert(!strcmp(lv_label_get_text(lv_obj_get_child(audio_cards[0].play, 0)), LV_SYMBOL_PAUSE));
     audio_test_idle(&sample);
     save_frame("audio-cards-day");
+    audio_test_disconnect(&sample);
 
     /* A három érintési cél külön műveletet végez. */
     unsigned before = app_sim_audio_commands;
@@ -491,6 +603,7 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
 
     home_request_set(0);
     assert(home_prepare(true));
+    audio_test_page_dispose(runtime, sample);
     audio_test_configure(12);
     home_request_set(2);
     irc_test_open(false, runtime, sample);
@@ -504,10 +617,14 @@ static void test_audio_ui(app_runtime_state_t runtime, app_energy_sample_t sampl
      * borítóworker saját puffereinek elengedése után foglalhat nagy képeket. */
     audio_ui_open(0, false);
     assert(audio_overlay && audio_volume_slider);
+    audio_test_attach_cover(&audio_cards[0].cover);
+    unsigned disposed_for_camera = 0;
+    lv_obj_add_event_cb(audio_cards[0].cover.object, audio_test_disposed_cover, LV_EVENT_DELETE, &disposed_for_camera);
     app_sim_audio_media_busy(true);
     app_sim_intercom = (app_intercom_snapshot_t){.ringing = true, .connected = true, .revision = 901};
     assert(intercom_prepare());
     assert(!audio_overlay && !audio_cards[0].cover.object && home_assets.asset_count == 0);
+    assert(disposed_for_camera == 1);
     assert(intercom_audio_media_wait && !intercom_prepared && !intercom_front && !intercom_spare);
     intercom_render();
     assert(intercom_overlay && strstr(lv_label_get_text(intercom_message), "előkészítése"));
