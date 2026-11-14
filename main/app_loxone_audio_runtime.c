@@ -17,6 +17,7 @@ static bool audio_volume_action(lx_audio_action_t action)
 
 #ifndef APP_TEMPLATE_DESKTOP
 #include <stdatomic.h>
+#include "app_events.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -33,6 +34,9 @@ static bool audio_volume_action(lx_audio_action_t action)
 #define AUDIO_VOLUME_INTERVAL_US 100000LL
 #define AUDIO_VOLUME_CONFIRM_US 2000000LL
 #define AUDIO_WORKER_STACK 8192
+#define AUDIO_RX_QUEUE_LENGTH 32U
+#define AUDIO_RX_ROUNDED_SIZE(size) (((size) + 2047U) & ~(size_t)2047U)
+#define AUDIO_RX_BYTES_MAX (4U * AUDIO_RX_ROUNDED_SIZE(LX_AUDIO_JSON_MAX + 1U))
 
 typedef struct
 {
@@ -69,7 +73,7 @@ typedef struct
 typedef struct
 {
     char *data;
-    size_t length;
+    size_t length, capacity;
 } audio_message_t;
 
 typedef struct
@@ -83,6 +87,7 @@ typedef struct
     size_t used, capacity;
     unsigned rx_opcode;
     atomic_bool dead;
+    atomic_size_t received_bytes;
     unsigned phase;
     int64_t deadline, last_rotate, favorites_deadline;
     int favorites_slot;
@@ -111,6 +116,9 @@ static audio_page_t *audio_page;
 static audio_credentials_t *audio_credentials;
 static TaskHandle_t audio_task;
 static unsigned audio_generation = 1;
+static atomic_uint audio_last_web_error_ms;
+
+static void audio_web_error(const audio_connection_t *connection, const char *resource_reason);
 
 static void *audio_alloc(size_t size)
 {
@@ -127,7 +135,10 @@ static bool audio_initialize(void)
     if (!audio_credentials)
         audio_credentials = audio_alloc(sizeof(*audio_credentials));
     if (!audio_lock || !audio_wake || !audio_credentials)
+    {
         ESP_LOGW("lox_audio", "Audio futtató erőforrásai nem foglalhatók.");
+        audio_web_error(NULL, "runtime-memory");
+    }
     return audio_lock && audio_wake && audio_credentials;
 }
 
@@ -346,6 +357,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
     if (!next)
     {
         ESP_LOGW("lox_audio", "Audio oldalmodell nem foglalható (PSRAM).");
+        audio_web_error(NULL, "page-memory");
         app_loxone_audio_hide();
         return;
     }
@@ -371,6 +383,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
         slot->status = LX_AUDIO_CONNECTING;
         next->live |= slot->configured;
     }
+    bool start_failed = false;
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     next->generation = ++audio_generation;
     audio_page_t *old = audio_page;
@@ -387,6 +400,7 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
                 NULL, 3, &audio_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (created != pdPASS)
         {
+            start_failed = true;
             audio_task = NULL;
             audio_native_unavailable_locked();
             ESP_LOGW("lox_audio", "Audio worker nem indítható (RTC/belső verem).");
@@ -395,6 +409,8 @@ void app_loxone_audio_page(const lx_home_config_t *config, const cJSON *catalog,
     unsigned generation = next->generation;
     xSemaphoreGive(audio_lock);
     free(old);
+    if (start_failed)
+        audio_web_error(NULL, "worker-start");
     app_loxone_audio_media_clear(generation);
     xSemaphoreGive(audio_wake);
 }
@@ -645,6 +661,59 @@ static void audio_diagnostic(const audio_connection_t *connection, const char *s
         atomic_load(&connection->binary_frames), connection->invalid_json, reason ? reason : "nincs");
 }
 
+static void audio_web_error(const audio_connection_t *connection, const char *resource_reason)
+{
+    /* A Loxone/Audio workerek hívják az Audio-modellzáron kívül; WS
+     * callbackből soha. Új kapcsolaton is él a közös 30 s korlát. Az
+     * előjel nélküli eltelt idő hosszú csendnél és átforduláskor is jó. */
+    unsigned now = (unsigned)(esp_timer_get_time() / 1000);
+    unsigned last = atomic_load(&audio_last_web_error_ms);
+    /* A nulla a még nem naplózott állapot. Pontosan t=0 esetén az előző
+     * milliszekundum jelöli az első sort, így a következő hívás is ritkított. */
+    unsigned stamp = now ? now : UINT32_MAX;
+    do
+    {
+        if (last && (unsigned)(now - last) < 30000U)
+            return;
+    } while (!atomic_compare_exchange_weak(&audio_last_web_error_ms, &last, stamp));
+    const char *reason = resource_reason;
+    if (!reason && connection)
+        reason = atomic_load(&connection->failure_reason);
+    /* Csak fordításkor ismert oknevek és számlálók: nincs szerverválasz,
+     * cím, felhasználónév, parancs, JWT vagy munkamenetkulcs. */
+    app_events_add(APP_EVENT_WARNING,
+        "Audio-kapcsolat: ok=%s; phase=%u; text=%u; binary=%u; JSON=%u.",
+        reason ? reason : "connection", connection ? connection->phase : 0,
+        connection ? atomic_load(&connection->text_frames) : 0,
+        connection ? atomic_load(&connection->binary_frames) : 0,
+        connection ? connection->invalid_json : 0);
+}
+
+static bool audio_receive_reserve(audio_connection_t *connection, size_t capacity)
+{
+    size_t owned = atomic_load(&connection->received_bytes);
+    do
+    {
+        if (owned > AUDIO_RX_BYTES_MAX || capacity > AUDIO_RX_BYTES_MAX - owned)
+            return false;
+    } while (!atomic_compare_exchange_weak(&connection->received_bytes, &owned, owned + capacity));
+    return true;
+}
+
+static void audio_buffer_release(audio_connection_t *connection, char *data, size_t capacity)
+{
+    if (!data)
+        return;
+    free(data);
+    atomic_fetch_sub(&connection->received_bytes, capacity);
+}
+
+static void audio_message_release(audio_connection_t *connection, audio_message_t *message)
+{
+    audio_buffer_release(connection, message->data, message->capacity);
+    *message = (audio_message_t){0};
+}
+
 static void audio_receive(void *argument, esp_event_base_t base, int32_t event, void *data)
 {
     (void)base;
@@ -703,16 +772,24 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     size_t need = connection->used + (size_t)part->data_len + 1;
     if (need > connection->capacity)
     {
-        size_t capacity = (need + 2047) & ~(size_t)2047;
+        size_t capacity = AUDIO_RX_ROUNDED_SIZE(need);
+        /* A sor és a worker által már kivett üzenetek is beleszámítanak.
+         * Növeléskor az átmenetileg együtt élő régi és új puffer egyaránt. */
+        if (!audio_receive_reserve(connection, capacity))
+        {
+            audio_fail(connection, "receive-byte-limit");
+            return;
+        }
         char *next = audio_alloc(capacity);
         if (!next)
         {
+            atomic_fetch_sub(&connection->received_bytes, capacity);
             audio_fail(connection, "receive-memory");
             return;
         }
         if (connection->used)
             memcpy(next, connection->rx, connection->used);
-        free(connection->rx);
+        audio_buffer_release(connection, connection->rx, connection->capacity);
         connection->rx = next;
         connection->capacity = capacity;
     }
@@ -722,13 +799,14 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     connection->rx[connection->used] = 0;
     if (part->payload_offset + part->data_len != part->payload_len || !part->fin)
         return;
-    audio_message_t message = {.data = connection->rx, .length = connection->used};
+    audio_message_t message = {.data = connection->rx, .length = connection->used,
+        .capacity = connection->capacity};
     connection->rx = NULL;
     connection->capacity = connection->used = 0;
     connection->rx_opcode = 0;
     if (xQueueSend(connection->messages, &message, 0) != pdTRUE)
     {
-        free(message.data);
+        audio_message_release(connection, &message);
         audio_fail(connection, "receive-queue-full");
     }
     xSemaphoreGive(audio_wake);
@@ -844,9 +922,9 @@ static void audio_connection_close(audio_connection_t *connection)
     {
         audio_message_t message;
         while (xQueueReceive(connection->messages, &message, 0) == pdTRUE)
-            free(message.data);
+            audio_message_release(connection, &message);
     }
-    free(connection->rx);
+    audio_buffer_release(connection, connection->rx, connection->capacity);
     connection->rx = NULL;
     connection->used = connection->capacity = 0;
     connection->rx_opcode = 0;
@@ -1265,7 +1343,8 @@ static void audio_worker(void *argument)
     audio_connection_t *connection = audio_alloc(sizeof(*connection));
     if (connection)
     {
-        connection->messages = xQueueCreate(4, sizeof(audio_message_t));
+        connection->messages = xQueueCreateWithCaps(AUDIO_RX_QUEUE_LENGTH, sizeof(audio_message_t),
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         connection->favorites_slot = -1;
         if (!connection->messages)
             ESP_LOGW("lox_audio", "Audio fogadási sor nem foglalható.");
@@ -1273,6 +1352,8 @@ static void audio_worker(void *argument)
     else
         ESP_LOGW("lox_audio", "Audio kapcsolatpuffer nem foglalható (PSRAM).");
     bool initialized = connection && connection->messages;
+    if (!initialized)
+        audio_web_error(connection, connection ? "receive-queue-memory" : "connection-memory");
     unsigned selected = 0;
     int64_t retry = 0;
     while (connection && connection->messages)
@@ -1319,6 +1400,8 @@ static void audio_worker(void *argument)
                 audio_fail(connection, "handshake-timeout");
             bool failed = connection->dead || (connection->phase > 0 && connection->phase < 4 &&
                 now > connection->deadline);
+            if (failed && !stale && !switch_server)
+                audio_web_error(connection, NULL);
             audio_connection_close(connection);
             retry = failed ? now + 5000000LL : 0;
         }
@@ -1328,7 +1411,7 @@ static void audio_worker(void *argument)
         while (xQueueReceive(connection->messages, &message, 0) == pdTRUE)
         {
             audio_message(connection, &message);
-            free(message.data);
+            audio_message_release(connection, &message);
         }
         audio_native_poll(connection);
         audio_favorites_timeout(connection, now);
@@ -1338,7 +1421,7 @@ static void audio_worker(void *argument)
     {
         audio_connection_close(connection);
         if (connection->messages)
-            vQueueDelete(connection->messages);
+            vQueueDeleteWithCaps(connection->messages);
         free(connection);
     }
     ESP_LOGI("lox_audio", "Audio worker leáll; verem minimum: %u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
@@ -1350,6 +1433,7 @@ static void audio_worker(void *argument)
      * oldal Miniserver-alapvezérlése natív erőforráshiba mellett is megmarad. */
     bool live = audio_page && audio_page->live && audio_credentials->live;
     bool restart = initialized && live;
+    bool restart_failed = false;
     if (restart)
     {
         BaseType_t result = xTaskCreateWithCaps(audio_worker, "lox_audio", AUDIO_WORKER_STACK,
@@ -1359,6 +1443,7 @@ static void audio_worker(void *argument)
                 NULL, 3, &audio_task, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (result != pdPASS)
         {
+            restart_failed = true;
             audio_task = NULL;
             audio_native_unavailable_locked();
             ESP_LOGW("lox_audio", "Audio worker újraindítása sikertelen (RTC/belső verem).");
@@ -1372,6 +1457,8 @@ static void audio_worker(void *argument)
     else if (audio_page)
         audio_native_unavailable_locked();
     xSemaphoreGive(audio_lock);
+    if (restart_failed)
+        audio_web_error(NULL, "worker-restart");
     vTaskDeleteWithCaps(NULL);
 }
 

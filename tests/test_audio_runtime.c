@@ -1,9 +1,10 @@
 /* A tényleges ESP-oldali Audio futtató: kézi idő, determinisztikus WS/RTOS. */
 #include <assert.h>
+#include <stdarg.h>
 #include "../main/app_loxone_audio_runtime.c"
 
 struct test_audio_semaphore { bool binary, held; };
-typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned char *data; } test_queue_t;
+typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned char *data; bool with_caps; } test_queue_t;
 static int64_t test_now = 1000000;
 static unsigned test_transports, test_transport_attempts, test_native_sends, test_task_creations;
 static unsigned test_volume, test_media_generation;
@@ -20,10 +21,37 @@ static void (*test_native_event_callback)(void *, esp_event_base_t, int32_t, voi
 static void *test_native_event_argument;
 static bool test_native_start_error, test_native_stop_disconnect;
 static unsigned test_native_starts;
+static unsigned test_caps_queues_created, test_caps_queues_deleted;
+static audio_connection_t *test_receive_allocation;
+static size_t test_receive_peak;
+static bool test_native_callback_active;
+static unsigned test_web_events;
+static char test_web_event[APP_EVENT_TEXT_MAX];
+
+void app_events_add(app_event_level_t level, const char *format, ...)
+{
+    assert(level == APP_EVENT_WARNING);
+    assert((!audio_lock || !audio_lock->held) && !test_native_callback_active);
+    va_list arguments;
+    va_start(arguments, format);
+    vsnprintf(test_web_event, sizeof(test_web_event), format, arguments);
+    va_end(arguments);
+    assert(!strstr(test_web_event, "test.jwt") && !strstr(test_web_event, "test-session"));
+    assert(!strstr(test_web_event, "unit-test-auth") && !strstr(test_web_event, "192.168."));
+    assert(!strstr(test_web_event, "Tesztzene") && !strstr(test_web_event, "roomfav/play"));
+    ++test_web_events;
+}
 
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
 {
     assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (test_receive_allocation)
+    {
+        size_t owned = atomic_load(&test_receive_allocation->received_bytes);
+        assert(owned <= AUDIO_RX_BYTES_MAX);
+        if (owned > test_receive_peak)
+            test_receive_peak = owned;
+    }
     if (test_fail_allocation)
     {
         test_fail_allocation = false;
@@ -95,7 +123,7 @@ QueueHandle_t xQueueCreate(unsigned count, size_t size)
 }
 int xQueueSend(QueueHandle_t queue, const void *data, TickType_t timeout)
 {
-    (void)timeout;
+    assert(timeout == 0); /* A WS callback nem várhat a workerre. */
     test_queue_t *q = queue;
     if (q->count == q->capacity) return 0;
     memcpy(q->data + q->tail * q->size, data, q->size);
@@ -114,7 +142,30 @@ int xQueueReceive(QueueHandle_t queue, void *data, TickType_t timeout)
 void vQueueDelete(QueueHandle_t queue)
 {
     test_queue_t *q = queue;
+    assert(!q->with_caps);
     free(q->data); free(q);
+}
+
+QueueHandle_t xQueueCreateWithCaps(UBaseType_t count, UBaseType_t size, UBaseType_t caps)
+{
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    assert(count == AUDIO_RX_QUEUE_LENGTH && size == sizeof(audio_message_t));
+    test_queue_t *queue = xQueueCreate(count, size);
+    if (queue)
+    {
+        queue->with_caps = true;
+        ++test_caps_queues_created;
+    }
+    return queue;
+}
+
+void vQueueDeleteWithCaps(QueueHandle_t handle)
+{
+    test_queue_t *queue = handle;
+    assert(queue->with_caps);
+    ++test_caps_queues_deleted;
+    queue->with_caps = false;
+    vQueueDelete(handle);
 }
 
 esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_client_config_t *options)
@@ -277,7 +328,8 @@ static audio_connection_t *connection_new(void)
     strcpy(connection->host, "192.168.1.40");
     connection->phase = 4;
     connection->favorites_slot = -1;
-    connection->messages = xQueueCreate(4, sizeof(audio_message_t));
+    connection->messages = xQueueCreateWithCaps(AUDIO_RX_QUEUE_LENGTH, sizeof(audio_message_t),
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     audio_page->slots[0].native_ready = true;
     return connection;
 }
@@ -319,7 +371,8 @@ static void volume_cancellation_test(void)
 static void connection_delete(audio_connection_t *connection)
 {
     audio_connection_close(connection);
-    vQueueDelete(connection->messages);
+    assert(atomic_load(&connection->received_bytes) == 0);
+    vQueueDeleteWithCaps(connection->messages);
     free(connection);
 }
 
@@ -582,8 +635,10 @@ static void worker_allocation_failure_test(void)
      * továbbra is élő Miniserver-alapvezérlés oldalmodelljét. */
     audio_page->live = true;
     test_fail_allocation = true;
+    atomic_store(&audio_last_web_error_ms, 0);
     unsigned created = test_task_creations;
     audio_worker(NULL);
+    assert(strstr(test_web_event, "ok=connection-memory"));
     assert(!audio_task && audio_page && test_task_creations == created);
     assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
     unsigned sent = test_transports;
@@ -593,8 +648,10 @@ static void worker_allocation_failure_test(void)
 
     prepare_page();
     test_fail_queue = true;
+    atomic_store(&audio_last_web_error_ms, 0);
     created = test_task_creations;
     audio_worker(NULL);
+    assert(strstr(test_web_event, "ok=receive-queue-memory"));
     assert(!audio_task && audio_page && test_task_creations == created);
     assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
     sent = test_transports;
@@ -603,7 +660,9 @@ static void worker_allocation_failure_test(void)
     assert(test_transports == sent + 1 && test_volume == 18);
 
     test_fail_task = true;
+    atomic_store(&audio_last_web_error_ms, 0);
     prepare_page();
+    assert(strstr(test_web_event, "ok=worker-start"));
     test_fail_task = false;
     assert(!audio_task && audio_page && test_task_creations == created + 2);
     assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
@@ -614,6 +673,7 @@ static void worker_allocation_failure_test(void)
 }
 
 #include "test_audio_native.inc"
+#include "test_audio_receive.inc"
 
 int main(void)
 {
@@ -626,6 +686,9 @@ int main(void)
     native_startup_metadata_test();
     native_fragment_test();
     native_status_backpressure_test();
+    native_receive_burst_test();
+    native_receive_limits_test();
+    native_web_diagnostic_test();
     native_worker_retry_test();
     native_favorite_close_race_test();
     native_favorites_response_routing_test();
@@ -638,6 +701,7 @@ int main(void)
     free(audio_page); audio_page = NULL;
     free(audio_credentials); audio_credentials = NULL;
     free(audio_lock); free(audio_wake);
+    assert(test_caps_queues_created == test_caps_queues_deleted);
     puts("PASS: ESP Audio native-wait independent volume, bounded feedback/coalescing, radio event and lifecycle guards");
     return 0;
 }

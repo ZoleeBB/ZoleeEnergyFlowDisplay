@@ -97,7 +97,7 @@ static void native_fragment_test(void)
     assert(xQueueReceive(connection->messages, &message, 0) == pdTRUE);
     assert(!strcmp(message.data, greeting));
     audio_message(connection, &message);
-    free(message.data);
+    audio_message_release(connection, &message);
     assert(connection->phase == 2 && !connection->rx && !connection->rx_opcode);
     assert(atomic_load(&connection->text_frames) == 1);
 
@@ -112,7 +112,7 @@ static void native_fragment_test(void)
     audio_receive(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
     assert(xQueueReceive(connection->messages, &message, 0) == pdTRUE);
     audio_message(connection, &message);
-    free(message.data);
+    audio_message_release(connection, &message);
     assert(connection->phase == 3 && !connection->dead);
 
     /* Bináris üzenet continuation vége sem válhat szöveges auth-válasszá. */
@@ -132,7 +132,7 @@ static void native_fragment_test(void)
     audio_receive(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
     assert(xQueueReceive(connection->messages, &message, 0) == pdTRUE);
     audio_message(connection, &message);
-    free(message.data);
+    audio_message_release(connection, &message);
     assert(connection->phase == 4 && audio_page->slots[0].native_ready);
     connection_delete(connection);
 }
@@ -183,7 +183,7 @@ static void native_status_backpressure_test(void)
         while (xQueueReceive(connection->messages, &message, 0) == pdTRUE)
         {
             audio_message(connection, &message);
-            free(message.data);
+            audio_message_release(connection, &message);
         }
         audio_native_poll(connection);
         assert(!connection->dead);
