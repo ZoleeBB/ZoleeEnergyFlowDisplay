@@ -157,6 +157,10 @@ static uint8_t wave_data[684];
 static unsigned http_reads, http_cleanups;
 static size_t http_position;
 static bool cancel_download;
+static int http_code = 200;
+static int64_t http_length = sizeof(wave_data);
+static bool http_init_failure, http_open_failure, http_read_failure;
+static unsigned change_during_read;
 void app_intercom_audio_snapshot(app_intercom_audio_status_t *out)
 {
     memset(out, 0, sizeof(*out));
@@ -167,24 +171,38 @@ esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *co
     assert(config->timeout_ms == 500 && config->disable_auto_redirect);
     assert(!strcmp(config->url, "http://192.168.1.10/api/intercom/ringtone?name=doorbell.wav"));
     http_position = 0; http_reads = 0;
-    return (void *)1;
+    return http_init_failure ? NULL : (void *)1;
 }
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t client, const char *name, const char *value)
 {
     assert(client == (void *)1 && !strcmp(name, "X-Zolee-Media") && strlen(value) == 64);
     return ESP_OK;
 }
-esp_err_t esp_http_client_open(esp_http_client_handle_t client, int size) { assert(client && !size); return ESP_OK; }
-int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) { assert(client); return sizeof(wave_data); }
-int esp_http_client_get_status_code(esp_http_client_handle_t client) { assert(client); return 200; }
+esp_err_t esp_http_client_open(esp_http_client_handle_t client, int size)
+{
+    assert(client && !size);
+    return http_open_failure ? ESP_FAIL : ESP_OK;
+}
+int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) { assert(client); return http_length; }
+int esp_http_client_get_status_code(esp_http_client_handle_t client) { assert(client); return http_code; }
 int esp_http_client_read(esp_http_client_handle_t client, char *out, int size)
 {
     assert(client && size > 0);
+    if (http_read_failure && http_reads) return -ESP_ERR_HTTP_EAGAIN;
     size_t count = sizeof(wave_data) - http_position;
     if (count > (size_t)size) count = (size_t)size;
     if (count > 100) count = 100;
     memcpy(out, wave_data + http_position, count);
     http_position += count; http_reads++;
+    if (http_reads == 1) {
+        if (change_during_read == 1) s_flags &= (uint8_t)~APP_INTERCOM_RINGING;
+        if (change_during_read == 2) s_remote.revision++;
+        if (change_during_read == 3) s_remote_boot++;
+        if (change_during_read == 4) s_flags |= APP_INTERCOM_SILENCED;
+        if (change_during_read == 5) app_intercom_control_disconnected();
+        if (change_during_read == 6) s_remote_active = true;
+    }
+    if (change_during_read == 7 && http_position == sizeof(wave_data)) s_remote_boot++;
     return (int)count;
 }
 esp_err_t esp_http_client_close(esp_http_client_handle_t client) { assert(client); return ESP_OK; }
@@ -233,6 +251,48 @@ int main(void)
     uint8_t *downloaded = app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error);
     assert(downloaded && downloaded_size == sizeof(wave_data) && !memcmp(downloaded, wave_data, downloaded_size));
     assert(http_cleanups == 2); free(downloaded);
+    const int codes[] = {503, 401, 403, 404, 400, 422, 500};
+    const app_ringtone_load_status_t errors[] = {
+        APP_RINGTONE_LOAD_BUSY, APP_RINGTONE_LOAD_AUTH, APP_RINGTONE_LOAD_AUTH,
+        APP_RINGTONE_LOAD_MISSING, APP_RINGTONE_LOAD_INVALID, APP_RINGTONE_LOAD_INVALID,
+        APP_RINGTONE_LOAD_NETWORK
+    };
+    for (unsigned i = 0; i < sizeof(codes) / sizeof(codes[0]); i++) {
+        http_code = codes[i];
+        unsigned cleanups = http_cleanups;
+        assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+        assert(!downloaded_size && !http_reads && load_status == errors[i] && http_cleanups == cleanups + 1);
+        if (http_code == 503) assert(strstr(load_error, "503") && strstr(load_error, "Master"));
+    }
+    http_code = 200;
+    http_length = -ESP_ERR_HTTP_EAGAIN;
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+    assert(load_status == APP_RINGTONE_LOAD_NETWORK && !http_reads);
+    http_length = sizeof(wave_data);
+    http_open_failure = true;
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+    assert(load_status == APP_RINGTONE_LOAD_NETWORK && !http_reads);
+    http_open_failure = false;
+    http_init_failure = true;
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+    assert(load_status == APP_RINGTONE_LOAD_MEMORY && !http_reads);
+    http_init_failure = false;
+    http_read_failure = true;
+    assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+    assert(load_status == APP_RINGTONE_LOAD_NETWORK && http_reads == 1 && !downloaded_size);
+    http_read_failure = false;
+    for (change_during_read = 1; change_during_read <= 7; change_during_read++) {
+        assert(!app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error));
+        assert(!downloaded_size && http_reads == (change_during_read == 7 ? 7 : 1));
+        app_intercom_control_disconnected();
+        assert(app_intercom_control_receive(status, 20));
+        assert(app_intercom_control_receive_profile(profile, extras));
+    }
+    change_during_read = 0;
+    downloaded = app_intercom_control_ringtone("doorbell.wav", &downloaded_size, &load_status, load_error);
+    assert(downloaded && downloaded_size == sizeof(wave_data) && load_status == APP_RINGTONE_LOAD_OK);
+    free(downloaded);
+    puts("PASS: Slave WAV distinguishes transient HTTP/header/body failure from auth/missing/invalid; bell/boot/revision/silence/disconnect/talk cancels download including its final read");
     assert(app_intercom_control_acquire(7));
     assert(!app_intercom_control_acquire(7));
     assert(app_intercom_control_outgoing(command) && command[1] == APP_INTERCOM_ACQUIRE);

@@ -28,10 +28,13 @@ static unsigned tasks_created, tasks_deleted;
 static bool task_failure;
 static bool fail_microphone, muted, speaker_audio;
 static bool gate_timeout_mode;
+static atomic_llong clock_offset;
 #ifdef APP_INTERCOM_DISTRIBUTED
 static bool ring_mode, ring_repeat, ring_silenced, ring_preempt;
 static unsigned ring_grants, ring_loads, ring_busy_loads;
 static bool ring_load_failure, ring_cancel_load, ring_write_failure;
+static app_ringtone_load_status_t ring_load_status = APP_RINGTONE_LOAD_BUSY;
+static bool ring_cancel_retry, ring_slow_load;
 bool app_intercom_control_acquire(unsigned revision)
 {
     if (revision != 7) return false;
@@ -45,7 +48,8 @@ uint8_t *app_intercom_control_ringtone(const char *name, size_t *size, app_ringt
     assert(!strcmp(name, "test.wav"));
     error[0] = 0;
     ring_loads++;
-    *status = ring_load_failure ? APP_RINGTONE_LOAD_MISSING : APP_RINGTONE_LOAD_BUSY;
+    if (ring_slow_load && ring_loads == 1) atomic_fetch_add(&clock_offset, 3100000);
+    *status = ring_load_failure ? APP_RINGTONE_LOAD_MISSING : ring_load_status;
     if (ring_cancel_load) ring_silenced = true;
     if (ring_load_failure || ring_loads <= ring_busy_loads || ring_cancel_load) return NULL;
     uint8_t *data = calloc(1, 44 + 640);
@@ -64,12 +68,14 @@ uint8_t *app_intercom_control_ringtone(const char *name, size_t *size, app_ringt
 static int device_volume;
 static unsigned aec_creates;
 static unsigned full_snapshots;
-static atomic_llong clock_offset;
 static unsigned test_frame = 128;
 static bool fail_aec, fail_aec_inner;
 
 void vTaskDelay(unsigned delay)
 {
+#ifdef APP_INTERCOM_DISTRIBUTED
+    if (ring_cancel_retry && s_ringtone && ring_loads) ring_silenced = true;
+#endif
     struct timespec time = {.tv_sec=delay / 1000, .tv_nsec=(long)(delay % 1000) * 1000000L};
     nanosleep(&time, NULL);
 }
@@ -551,6 +557,9 @@ int main(void)
         ring_loads = 0;
 #ifndef APP_INTERCOM_SLAVE
         ring_busy_loads = 75;
+#else
+        ring_busy_loads = mode == 0 ? 1 : 2;
+        ring_load_status = mode == 1 ? APP_RINGTONE_LOAD_NETWORK : APP_RINGTONE_LOAD_BUSY;
 #endif
         app_intercom_audio_poll();
         /* Az előző UI-generáció késői bontása nem állíthatja le az új hangot. */
@@ -594,6 +603,49 @@ int main(void)
         }
     }
     ring_load_failure = ring_cancel_load = ring_write_failure = false;
+#ifdef APP_INTERCOM_SLAVE
+    const app_ringtone_load_status_t retry_states[] = {
+        APP_RINGTONE_LOAD_NETWORK, APP_RINGTONE_LOAD_BUSY, APP_RINGTONE_LOAD_AUTH,
+        APP_RINGTONE_LOAD_MISSING, APP_RINGTONE_LOAD_INVALID, APP_RINGTONE_LOAD_MEMORY
+    };
+    for (volatile unsigned i = 0; i < sizeof(retry_states) / sizeof(retry_states[0]); i++) {
+        atomic_store(&ring, false);
+        app_intercom_audio_poll();
+        atomic_store(&ring, true);
+        ring_silenced = false;
+        ring_loads = writes = 0;
+        ring_busy_loads = 100;
+        ring_load_status = retry_states[i];
+        app_intercom_audio_poll();
+        if (!setjmp(worker_exit)) audio_worker(NULL);
+        assert(ring_loads == (i < 2 ? 3 : 1) && !writes && s_status.state == APP_INTERCOM_AUDIO_ERROR);
+    }
+    atomic_store(&ring, false);
+    app_intercom_audio_poll();
+    atomic_store(&ring, true);
+    ring_silenced = false;
+    ring_loads = writes = 0;
+    ring_load_status = APP_RINGTONE_LOAD_NETWORK;
+    ring_slow_load = true;
+    app_intercom_audio_poll();
+    if (!setjmp(worker_exit)) audio_worker(NULL);
+    assert(ring_loads == 1 && !writes && s_status.state == APP_INTERCOM_AUDIO_ERROR);
+    ring_slow_load = false;
+    atomic_store(&clock_offset, 0);
+    atomic_store(&ring, false);
+    app_intercom_audio_poll();
+    atomic_store(&ring, true);
+    ring_silenced = false;
+    ring_loads = writes = 0;
+    ring_load_status = APP_RINGTONE_LOAD_NETWORK;
+    ring_cancel_retry = true;
+    app_intercom_audio_poll();
+    if (!setjmp(worker_exit)) audio_worker(NULL);
+    assert(ring_loads == 1 && !writes && s_status.state == APP_INTERCOM_AUDIO_IDLE);
+    ring_cancel_retry = false;
+    ring_busy_loads = 0;
+    puts("PASS: Slave ringtone recovers from NETWORK/503 before playback; three attempts within start window, no auth/missing/invalid/memory retry, cancellable backoff and no replay");
+#endif
     ring_mode = false;
     puts("PASS: stale UI close cannot cancel new ringtone; unrelated home commands do not suppress it; bounded SD retry, cancellation and visible load/playback errors");
     puts("PASS: actual one-shot and repeating PCM ringtone worker, no microphone/SIP/AEC, global suppression, preemption waits for speaker close, no same-bell replay");

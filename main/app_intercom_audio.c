@@ -972,6 +972,9 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
     uint8_t *data = NULL;
     app_ringtone_load_status_t load_status = APP_RINGTONE_LOAD_INVALID;
     char load_error[160] = "";
+#ifdef APP_INTERCOM_SLAVE
+    int64_t retry_deadline = esp_timer_get_time() + 3000000;
+#endif
     /* Az SD rövid ideig foglalt lehet (pl. állapotmentés miatt). Ettől még
      * az egyszer lejátszandó csengőhang sem veszhet el. Hívás/gombnyomás
      * az ismétlések közti legfeljebb 10 ms várakozást is megszakíthatja. */
@@ -979,7 +982,17 @@ static void ringtone_play(audio_call_t *call, const app_intercom_snapshot_t *sna
         data = app_intercom_control_ringtone(snapshot->config.ringtone, &size, &load_status, load_error);
         if (data) break;
 #ifdef APP_INTERCOM_SLAVE
-        break;
+        /* Egyetlen rövid HTTP-kiesés/503 ne némítsa el az egész csengetést.
+         * Legfeljebb három letöltést indítunk, csak az első három másodpercben;
+         * a sikeresen betöltött hangot ez nem indítja újra. Az engedélyezési,
+         * hiányzó fájl- és formátumhibák véglegesek az adott csengetésre. */
+        if ((load_status != APP_RINGTONE_LOAD_NETWORK && load_status != APP_RINGTONE_LOAD_BUSY) ||
+            attempt >= 2 || esp_timer_get_time() >= retry_deadline)
+            break;
+        for (unsigned pause = 0; pause < 20 && ringtone_wanted(call->epoch, call->revision); pause++)
+            vTaskDelay(pdMS_TO_TICKS(10));
+        if (esp_timer_get_time() >= retry_deadline)
+            break;
 #else
         /* PNG-/állománybetöltés a fél másodperces régi keretet túlléphette.
          * Csak átmeneti foglaltságot ismétlünk; hibás fájlt nem olvasunk 500-szor. */

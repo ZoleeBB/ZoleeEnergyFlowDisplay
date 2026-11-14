@@ -63,15 +63,25 @@ static void ringtone_response_worker(void* argument)
 {
     ringtone_response_t* response = argument;
     size_t size = 0;
-    uint8_t* data = app_ringtones_load(response->name, &size);
+    app_ringtone_load_status_t status = APP_RINGTONE_LOAD_INVALID;
+    uint8_t* data = app_ringtones_load_ex(response->name, &size, &status);
     if (data) {
         httpd_resp_set_type(response->request, "audio/wav");
         httpd_resp_set_hdr(response->request, "Cache-Control", "no-store");
         /* Az SD-zár itt már nincs fogva, a többi HTTP-kérés közben futhat. */
         httpd_resp_send(response->request, (const char*)data, size);
         free(data);
-    } else {
+    } else if (status == APP_RINGTONE_LOAD_BUSY || status == APP_RINGTONE_LOAD_MEMORY) {
+        /* Az átmeneti SD-/memóriafoglaltság nem hiányzó hang. A Slave ezt
+         * korlátosan újrapróbálhatja, új csengetés nélkül is. */
+        httpd_resp_set_status(response->request, "503 Service Unavailable");
+        httpd_resp_sendstr(response->request, "A csengőhang kiszolgálása átmenetileg foglalt.");
+    } else if (status == APP_RINGTONE_LOAD_MISSING) {
         httpd_resp_send_err(response->request, HTTPD_404_NOT_FOUND, "A csengőhang nem tölthető be.");
+    } else if (status == APP_RINGTONE_LOAD_INVALID) {
+        httpd_resp_send_err(response->request, HTTPD_400_BAD_REQUEST, "A csengőhang WAV-formátuma hibás.");
+    } else {
+        httpd_resp_send_err(response->request, HTTPD_500_INTERNAL_SERVER_ERROR, "A csengőhang olvasása sikertelen.");
     }
     httpd_req_async_handler_complete(response->request);
     free(response);
@@ -100,7 +110,8 @@ static esp_err_t ringtone_get(httpd_req_t* req)
     ringtone_response_t* response = calloc(1, sizeof(*response));
     if (!response) {
         atomic_fetch_sub(&s_ringtone_responses, 1);
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Nincs memória a hangmintához.");
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "Nincs memória a hangmintához.");
     }
     snprintf(response->name, sizeof(response->name), "%s", name);
     if (httpd_req_async_handler_begin(req, &response->request) != ESP_OK) {
@@ -110,7 +121,8 @@ static esp_err_t ringtone_get(httpd_req_t* req)
     }
     /* Sima xTaskCreate: kicsi belső RAM-os verem, SD/ROM-hívásokhoz is. */
     if (xTaskCreate(ringtone_response_worker, "ringtone_http", 4096, response, 3, NULL) != pdPASS) {
-        httpd_resp_send_err(response->request, HTTPD_500_INTERNAL_SERVER_ERROR, "A hangminta feladata nem indítható.");
+        httpd_resp_set_status(response->request, "503 Service Unavailable");
+        httpd_resp_sendstr(response->request, "A hangminta feladata nem indítható.");
         httpd_req_async_handler_complete(response->request);
         free(response);
         atomic_fetch_sub(&s_ringtone_responses, 1);

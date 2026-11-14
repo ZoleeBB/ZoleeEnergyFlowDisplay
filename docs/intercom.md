@@ -310,6 +310,12 @@ a beszélgetés 16 KiB PSRAM-vermet használ.
 
 A Master átmeneti SD-foglaltság esetén legfeljebb 5 másodpercig próbál újra;
 hívásindítás, kapunyitás és a csengetés vége ezt megszakítja.
+A 4B Slave átmeneti hálózati vagy Master-foglaltságnál korlátosan újrakéri
+a hangot; a HTTP-válasz megkülönbözteti az átmeneti 503-at a hiányzó
+fájl 404-es hibájától. A próbák és megszakítások pontos keretei a
+[Slave kaputelefon leírásában](slave-intercom.md#csengőhangcsomag) szerepelnek.
+A Master WAV-olvasása az ESP-n POSIX `read()` és 128 bájtra igazított
+PSRAM-puffer; a Windows-szimulátor továbbra is stdio-val olvas.
 A betöltés megkülönbözteti a hiányzó fájlt, memóriahiányt, fájlmegnyitási,
 méretlekérési, adatolvasási és PCM-hibát. A részletes üzenet kérésenként
 külön pufferben él; a párhuzamos webes előnézet nem írhatja felül.
