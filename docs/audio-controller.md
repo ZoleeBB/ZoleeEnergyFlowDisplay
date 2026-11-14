@@ -22,6 +22,16 @@ megállt. A külön felfüggesztési és végleges törlési út regressziója
 RGB565 és XRGB8888 alatt sikeres; **a javított firmware fizikai elfogadása
 továbbra is szükséges**.
 
+A 2026-11-14-i panelnapló már külön indítási hibát azonosított:
+`worker-start; phase=0; text=0; binary=0; JSON=0`. A hozzá tartozó
+memóriaképen 20795 bájt belső RAM volt szabad, de a legnagyobb egybefüggő
+blokk csak **7936 bájt**; az akkori Audio-controller **8192 bájtos** vermét
+ebből nem lehetett lefoglalni. A feladatlistában sem volt Audio-controller.
+Ez a hiba a natív kapcsolat és a hitelesítés előtt keletkezett. Az
+alapvezérlés ettől még a külön Miniserver-útvonalon működhetett.
+A javítás a már fenntartott Master `main` és `ota_check` feladatokat
+használja; a részletes erőforrás- és mérési határok alább szerepelnek.
+
 ## Beállítás
 
 1. Telepítsd az új firmware-t, utána a hozzá tartozó **v4 `loxone-home.zip`**
@@ -228,7 +238,7 @@ száma; a `JSON` a fel nem dolgozható JSON-üzenetek számlálója, nem az
 | `handshake-timeout`, `authentication-envelope`, `authentication-send`, `authentication-rejected` | A belépés időtúllépése, előkészítési/küldési hibája vagy elutasítása |
 | `frame-limit`, `receive-queue-full`, `receive-byte-limit` | Az üzenetméret, a 32 elemű sor vagy a közös 200 KiB-os pufferkeret túllépése |
 | `receive-memory`, `receive-queue-memory`, `connection-memory`, `initial-metadata-memory` | A fogadópuffer, fogadási sor, kapcsolat vagy kezdeti metaadat foglalási hibája |
-| `runtime-memory`, `page-memory`, `worker-start`, `worker-restart` | A modell vagy munkafeladat előkészítési/indítási hibája |
+| `runtime-memory`, `page-memory` | A közös Audio-erőforrások vagy az oldalmodell foglalási hibája |
 | `favorites-timeout` | A függő kedvenclista nem érkezett meg időben |
 
 A figyelmeztetések modulonként közös **30 másodperces ritkítást** kapnak,
@@ -236,6 +246,11 @@ A figyelmeztetések modulonként közös **30 másodperces ritkítást** kapnak,
 Audio-modellzáron és a WebSocket-visszahíváson kívül történik. A szándékos
 oldalváltási vagy bezárási bontás nem hiba. Nyers üzenet, parancs,
 szervernév, token, munkamenetkulcs és zeneszámcím nem kerül a webes sorba.
+
+A korábbi firmware `worker-start` és `worker-restart` kódja a külön
+Audio-feladat indítását jelezte. A javított változat már nem hozza létre
+ezt a feladatot. Az Espressif WebSocket-kliens saját feladata továbbra is
+létezik; annak sikertelen indítása `websocket-start` hibát eredményezhet.
 
 ### Borítóletöltés és webes diagnosztika
 
@@ -248,7 +263,7 @@ Oldalváltás vagy a részletablak bezárása a hozzá tartozó függő próbát
 visszavonja. A harmadik sikertelenség után új tartalom vagy új
 oldal-/ablakéletciklus indíthat új próbakeretet.
 
-Újrapróbálható a munkaszál vagy letöltési puffer foglalási hibája,
+Újrapróbálható a háttérmunka beadási vagy a letöltési puffer foglalási hibája,
 a HTTP/TLS-kapcsolat, fejléc- vagy törzsolvasás hibája, a befejezetlen
 válasz, az időtúllépés, valamint a HTTP 408, 429 és 5xx válasz.
 Méretkorlát, nem támogatott átirányítás, tartós HTTP-hiba vagy sikertelen
@@ -265,8 +280,8 @@ Audio borító: hely=1; ok=http; HTTP=503; próba=1/3; újra=2 s.
 A `hely` az aktuális oldal 1-alapú kártyahelye; a részletkép helye 13.
 Az ok statikus kód: például `connect` a kapcsolat felépítése, `headers`
 vagy `read` az adatfogadás, `http` a HTTP-státusz, `size` a bemeneti
-méretkorlát, `decode` a képfeldolgozás, `memory` vagy `worker` a
-foglalás/indítás hibája. Az `újra=0 s` azt jelzi, hogy nincs ütemezett
+méretkorlát, `decode` a képfeldolgozás, `memory` a pufferfoglalás,
+`worker` a meglévő végrehajtóhoz történő beadás hibája. Az `újra=0 s` azt jelzi, hogy nincs ütemezett
 automatikus próba. A hibasorok az összes borítóra közös **10 másodperces
 ritkítást** kapnak, ezért nem minden sikertelen ismétlésből lesz külön sor.
 Sikeres újrapróbálkozáskor egyszeri `Audio borító helyreállt` bejegyzés
@@ -274,6 +289,48 @@ keletkezik. A megszakított vagy elavult kérés nem hibaesemény.
 URL, szervernév, token és zeneszámcím nem kerül ezekbe a sorokba.
 
 ## Memória és életciklus
+
+### Már fenntartott feladatvermek használata
+
+| Munka | Korábbi külön verem | Javított végrehajtás |
+| --- | --- | --- |
+| Natív Audioserver-kapcsolat és hitelesítés | 8192 B, futás közben létrehozott Audio-controller | A Master már lefoglalt, 10240 B-os `main` feladata |
+| Borító letöltése és dekódolása | 8192 B, futás közben létrehozott médiafeladat | A már lefoglalt, 8192 B-os `ota_check` feladat, egyszerre egy kép |
+| Natív WebSocket fogadása | 4096 B | Változatlan, az Espressif kliens saját feladata |
+
+A boot külön, nem inline-olható `app_boot()` függvénybe került. Ennek
+visszatérése után a boot helyi változói már nem maradnak az Audio-hívási
+lánc alatt. Az `app_main()` kis kerettel hívja a natív futtatót. A
+Miniserver parancsküldése, a hangerő és a kijelző továbbra is külön feladaton
+fut; egy natív hálózati várakozás ezeket nem fogja ugyanarra a szálra.
+A Master HTTP-, MQTT- és Slave-módja nem indít natív Audio-futtatót.
+A 4B saját `app_main()` ciklusa változatlan.
+
+A borítófeldolgozás az OTA-végrehajtó egyetlen összevonható callback-helyét
+használja. Egy hívás legfeljebb egy képet dolgoz fel, majd a maradék munkát
+újra beadja; az OTA-sor elsőbbséget kap. Aktív firmware- vagy csomagművelet
+alatt nem indul borítóletöltés, a megszakított aktuális kép később újra
+folytatható. Az OTA miatti halasztás nem fogyaszt letöltési próbát és nem
+jelent dekódolási hibát. Hosszú frissítésellenőrzés alatt a borítóra várni
+kell, de a natív metaadatok és a Miniserver alapvezérlései külön futnak.
+
+Nem csökkentettük a meglévő taskvermek méretét, és egyik verem sem került
+PSRAM-ba. A két külön 8 KiB-os Audio-verem létrehozási igénye szűnt meg;
+ez **nem 16 KiB panelen megmért szabadmemória-növekedés**, hiszen a hibás
+futtatásban már az első feladat sem tudott elindulni. A 4096 bájtos
+WebSocket-verem, a TCB-k és a hálózati/TLS-pufferek továbbra is igényelnek
+belső memóriát. A `WithCaps` hívásnál a megadott képességek csak a veremre
+vonatkoznak, a TCB belső RAM-ban marad
+([ESP-IDF 5.5.4 FreeRTOS-kiegészítések](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-reference/system/freertos_additions.html)).
+Az új változat tényleges DMA-tartalékát a panelen kell mérni.
+
+Az inicializálás sikertelen részfoglalás után mindent visszaenged és
+legkorábban egy másodperc múlva ismétel. A Miniserver-kapcsolat eközben
+működhet; a később sikeres sessionátadás egyszer újraépíti az Audio-oldalt
+és visszajátssza a cache állapotait, eredeti időbélyeggel. A natív kapcsolat
+vagy fogadósor memóriahibája öt másodperces újrapróbát kap.
+
+### Pufferek és képkorlátok
 
 | Erőforrás | Korlát |
 | --- | --- |
@@ -318,8 +375,8 @@ A `recent_result` és `getservicefolder_result` listák borítóit a firmware
 nem használja automatikusan most játszott képként: ahhoz az aktuális zóna
 `audio_event`/`status_result` adatának `coverurl` mezője tartozik.
 
-A borítók nem kerülnek SD-re. Egy letöltőfeladat dolgozik, a nyitott
-részletes kép elsőbbséget kap. A tömörített bemenet, a dekóder munkaterülete
+A borítók nem kerülnek SD-re. Egyszerre egy borítómunka dolgozik a közös
+OTA-végrehajtón; a nyitott részletes kép elsőbbséget kap. A tömörített bemenet, a dekóder munkaterülete
 és az új RGB565-kép korlátos PSRAM-foglalás. Az 512 KiB a tárolt képek
 kerete; a dekódolás átmeneti munkaterülete és a widgetcsere végéig megtartott
 régi képpontok ezen felül jelentkezhetnek.
@@ -330,7 +387,8 @@ a kész, legfeljebb 128 KiB-os 256×256 RGB565-kép ettől külön puffer.
 A kép referencia szerint él: a widget előbb új forrásra vált, és csak
 utána engedi el a régi képet. Lap- vagy ablakváltáskor a már úton lévő
 letöltés eredménye csak a hozzá tartozó aktuális generációba kerülhet.
-A háttérfeladatok igény szerint indulnak és leállnak. A változatlan
+A kapcsolatok és a képmunkák igény szerint indulnak és leállnak, a már
+fenntartott végrehajtófeladatok tétlenül várakoznak. A változatlan
 feliratot vagy képforrást a periodikus UI-frissítés nem állítja be újra.
 
 Kapcsolatvesztéskor a kezelő **felfüggesztése** bezárja a modalt és
@@ -361,10 +419,10 @@ könyvtárakkal futnak. A tényleges TJpgDec JPEG-próbához a rögzített LVGL
 
 A célzott regresszió kiterjed a hangerőkérések összevonására, a friss
 maximumra, a késői kedvenclista-válaszra, a megszakadásra, a memóriahibás
-worker-indulásra, a generációváltásra, a képtulajdonra és a letöltési
+inicializálás helyreállására, a generációváltásra, a képtulajdonra és a letöltési
 korlátokra. Külön valódi médiaforrás-teszt reprodukálta a régi kódon a
 HTTP 503 utáni elmaradó újrapróbát, majd ellenőrizte a 2/5 másodperces,
-hárompróbás helyreállást, a task-/kapcsolat-/olvasási hibákat, a bezárás
+hárompróbás helyreállást, a beadási/kapcsolati/olvasási hibákat, a bezárás
 utáni tiltást és a webes napló ritkítását. A natív próbák a belépés előtti
 részleges metaadatot, a darabolt WebSocket-üzeneteket, a gyors
 állapotválaszok sorát, a hibát követő tényleges
@@ -392,6 +450,22 @@ assertnél megállt; a javított út RGB565 és XRGB8888 ASan-próbája sikeres.
 A kaputelefon előtti kép-/memóriaátadás és a nulla üresjárati invalidáció
 korábbi próbái is megmaradtak.
 
+A main-alapú runtime-próba az összes új Audio-task létrehozását tiltva
+végigmegy a natív belépésen, rádiómetaadaton és az üresjáratba visszatérésen.
+A médiaregresszió ugyancsak nulla tasklétrehozást/törlést kér számon; a régi
+implementáció ezen elbukott. Az OTA-próba ellenőrzi a firmware-munka
+elsőbbségét, az összevonást, a futás közbeni újrabeadást és az üresjárati
+ébresztés versenyhelyzeteit. Az OTA miatti öt külön megszakítási pont után
+a képkérés új UI-esemény nélkül folytatható.
+
+Mindkét ESP-fordítás a tényleges fordító `-fstack-usage` adatait ellenőrzi
+(`tools/check_audio_stack.py`). A Master az Audio-, kép-, auth-, boot- és
+OTA-forrásokat, a 4B a közös OTA-forrást méri. Az `app_main` kerete legfeljebb
+256 B, az `ota_worker` kerete legfeljebb 512 B, a vizsgált függvényeké
+legfeljebb 1536 B; hiányzó adat vagy korlátlan dinamikus keret hibát okoz.
+Ez a saját függvények keretellenőrzése, nem a teljes könyvtári hívási lánc
+veremcsúcsának bizonyítása. A paneles mélypontmérés ezért külön szükséges.
+
 A Play/Pause korábbi és a hangerő legutóbbi paneles működésének
 visszaigazolása mellett a kiadás elfogadásához még az alábbi valós próba
 szükséges:
@@ -411,7 +485,10 @@ szükséges:
    is rögzíteni kell.
 6. Téma-, nappal/éjjel- és oldalváltás, kaputelefon megnyitása, valamint
    12 Audio-kártya mellett a képkockaidő, szabad belső RAM/PSRAM és
-   feladatverem-mélypont mérése a panelen.
+   feladatverem-mélypont mérése a panelen. Külön rögzítendő a `main`, az
+   `ota_check` és a két WebSocket-feladat maradék verme natív hitelesítés,
+   JPEG/PNG-borító, hibás letöltés és OTA-ellenőrzés után; ugyanitt kell
+   felvenni a DMA szabad és legnagyobb egybefüggő blokkjának értékét.
 
 ## Kapcsolódó szerződések
 

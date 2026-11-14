@@ -7,9 +7,10 @@
  * viszont alapértelmezésben ugyanabból a keretből mennek – miközben az RTC
  * terület (31 KiB) és a TCM (7 KiB) teljesen üresen áll.
  *
- * Az itt létrehozott feladatok verme és vezérlőblokkja az RTC-területre kerül,
- * így a DMA-képes keret felszabadul anélkül, hogy bármelyik verem kisebb
- * lenne. Az RTC memória nincs a gyorsítótár mögött, ezért – a PSRAM-mal
+ * Az itt létrehozott feladatok verme kerül az RTC-területre; a FreeRTOS
+ * vezérlőblokkja továbbra is belső RAM-ot igényel. Így a DMA-képes keret
+ * felszabadul anélkül, hogy bármelyik verem kisebb lenne. Az RTC memória
+ * nincs a gyorsítótár mögött, ezért – a PSRAM-mal
  * ellentétben – flash-írás (NVS) közben is biztonságosan használható.
  * Csak örökké futó feladathoz való: megszűnéshez `vTaskDeleteWithCaps` kellene.
  * Ha az RTC-terület betelt, a szokásos belső RAM-os foglalás a tartalék.
