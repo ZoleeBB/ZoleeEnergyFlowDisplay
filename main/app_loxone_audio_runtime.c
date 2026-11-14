@@ -75,6 +75,7 @@ typedef struct
 {
     char *data;
     size_t length, capacity;
+    int64_t received_at;
 } audio_message_t;
 
 typedef struct
@@ -88,9 +89,11 @@ typedef struct
     size_t used, capacity;
     unsigned rx_opcode;
     atomic_bool dead;
+    atomic_bool transport_connected;
     atomic_size_t received_bytes;
     unsigned phase;
-    int64_t deadline, last_rotate, favorites_deadline;
+    int64_t deadline, started_at, connected_at, last_rotate, favorites_deadline;
+    bool connected_handled;
     int favorites_slot;
     unsigned favorites_start, favorites_request;
     unsigned favorites_player;
@@ -670,7 +673,8 @@ static void audio_web_error(const audio_connection_t *connection, const char *re
     /* A Loxone/Audio workerek hívják az Audio-modellzáron kívül; WS
      * callbackből soha. Új kapcsolaton is él a közös 30 s korlát. Az
      * előjel nélküli eltelt idő hosszú csendnél és átforduláskor is jó. */
-    unsigned now = (unsigned)(esp_timer_get_time() / 1000);
+    int64_t timestamp = esp_timer_get_time();
+    unsigned now = (unsigned)(timestamp / 1000);
     unsigned last = atomic_load(&audio_last_web_error_ms);
     /* A nulla a még nem naplózott állapot. Pontosan t=0 esetén az előző
      * milliszekundum jelöli az első sort, így a következő hívás is ritkított. */
@@ -683,14 +687,18 @@ static void audio_web_error(const audio_connection_t *connection, const char *re
     const char *reason = resource_reason;
     if (!reason && connection)
         reason = atomic_load(&connection->failure_reason);
+    unsigned elapsed = connection && connection->started_at > 0 && timestamp >= connection->started_at ?
+        (unsigned)((timestamp - connection->started_at) / 1000) : 0;
     /* Csak fordításkor ismert oknevek és számlálók: nincs szerverválasz,
      * cím, felhasználónév, parancs, JWT vagy munkamenetkulcs. */
     app_events_add(APP_EVENT_WARNING,
-        "Audio-kapcsolat: ok=%s; phase=%u; text=%u; binary=%u; JSON=%u; tx=%u; auth=%s/%u.",
+        "Audio-kapcsolat: ok=%s; phase=%u; text=%u; binary=%u; JSON=%u; ws=%u; ms=%u; tx=%u; auth=%s/%u.",
         reason ? reason : "connection", connection ? connection->phase : 0,
         connection ? atomic_load(&connection->text_frames) : 0,
         connection ? atomic_load(&connection->binary_frames) : 0,
         connection ? connection->invalid_json : 0,
+        connection ? (unsigned)atomic_load_explicit(&connection->transport_connected, memory_order_acquire) : 0,
+        elapsed,
         connection ? connection->auth_command_bytes : 0,
         connection && connection->auth_result_kind ? connection->auth_result_kind : "none",
         connection ? connection->auth_result_bytes : 0);
@@ -727,6 +735,16 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     audio_connection_t *connection = argument;
     if (event == WEBSOCKET_EVENT_CONNECTED)
     {
+        /* A callback egyszer publikálja az időpontot. A release/acquire
+         * flag után a változatlan 64 bites értéket csak a main olvassa;
+         * nincs 64 bites atomikus művelet vagy zárolás a WS-taskban. */
+        if (!connection->dead &&
+            !atomic_load_explicit(&connection->transport_connected, memory_order_relaxed))
+        {
+            connection->connected_at = esp_timer_get_time();
+            atomic_store_explicit(&connection->transport_connected, true, memory_order_release);
+            xSemaphoreGive(audio_wake);
+        }
         if (connection->diagnostic)
             ESP_LOGI("lox_audio", "Audio natív WebSocket felépült.");
         return;
@@ -807,7 +825,7 @@ static void audio_receive(void *argument, esp_event_base_t base, int32_t event, 
     if (part->payload_offset + part->data_len != part->payload_len || !part->fin)
         return;
     audio_message_t message = {.data = connection->rx, .length = connection->used,
-        .capacity = connection->capacity};
+        .capacity = connection->capacity, .received_at = esp_timer_get_time()};
     connection->rx = NULL;
     connection->capacity = connection->used = 0;
     connection->rx_opcode = 0;
@@ -1015,6 +1033,15 @@ static void audio_connection_open(audio_connection_t *connection, unsigned selec
     connection->port = slot->endpoint.port;
     connection->generation = audio_page->generation;
     connection->credential_generation = audio_credentials->generation;
+    /* A korábbi hiba az új próbálkozás alatt már nem aktuális. Csak az
+     * éppen nyitott szerver kártyáit váltjuk kapcsolódási állapotba. */
+    for (unsigned i = 0; i < audio_page->count; ++i)
+        if (audio_page->slots[i].configured &&
+            audio_connection_matches(connection, &audio_page->slots[i]))
+        {
+            audio_page->slots[i].native_ready = false;
+            audio_page->slots[i].status = LX_AUDIO_CONNECTING;
+        }
     xSemaphoreGive(audio_lock);
     int64_t now = esp_timer_get_time();
     /* Ismétlődő hálózati hibánál legfeljebb 30 másodpercenként egy próbálkozás
@@ -1033,6 +1060,10 @@ static void audio_connection_open(audio_connection_t *connection, unsigned selec
     connection->auth_command_bytes = connection->auth_result_bytes = 0;
     connection->auth_result_kind = NULL;
     connection->first_native_data = false;
+    connection->started_at = now;
+    connection->connected_at = 0;
+    connection->connected_handled = false;
+    atomic_store(&connection->transport_connected, false);
     snprintf(uri, sizeof(uri), "ws://%s:%u/", connection->host, connection->port);
     esp_websocket_client_config_t options = {
         .uri = uri, .subprotocol = "remotecontrol", .disable_auto_reconnect = true,
@@ -1071,6 +1102,7 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
         if (!audio_send(connection, "audio/cfg/getkey/full"))
             connection->dead = true;
         connection->phase = 2;
+        connection->deadline = esp_timer_get_time() + AUDIO_TIMEOUT_US;
         return;
     }
     cJSON *root = lx_home_document_parse(message->data, message->length);
@@ -1113,6 +1145,7 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
                 audio_fail(connection, "authentication-send");
             lx_audio_auth_free(command);
             connection->phase = 3;
+            connection->deadline = esp_timer_get_time() + AUDIO_TIMEOUT_US;
         }
     }
     else if (connection->phase == 3)
@@ -1370,9 +1403,51 @@ static void audio_favorites_timeout(audio_connection_t *connection, int64_t now)
 typedef struct
 {
     audio_connection_t *connection;
-    unsigned selected;
+    unsigned selected, transient_failures;
     int64_t retry;
 } audio_controller_t;
+
+static void audio_controller_retry(audio_controller_t *controller)
+{
+    audio_connection_t *connection = controller->connection;
+    const char *reason = atomic_load(&connection->failure_reason);
+    bool transient = reason && (!strcmp(reason, "transport") || !strcmp(reason, "disconnect") ||
+        !strcmp(reason, "server-close") || !strcmp(reason, "handshake-timeout") ||
+        !strcmp(reason, "send") || !strcmp(reason, "favorites-timeout"));
+    int64_t delay = AUDIO_RESOURCE_RETRY_US;
+    if (transient)
+    {
+        /* Egy átmeneti hálózati hiba után gyorsabb az első két újrapróba.
+         * Ismételt hibánál, illetve memória- vagy belépési elutasításnál
+         * megmarad az 5 s-os kímélő ütem; lejátszást nem ismétlünk. */
+        if (controller->transient_failures < 3)
+            ++controller->transient_failures;
+        if (controller->transient_failures < 3)
+            delay = (int64_t)controller->transient_failures * 1000000LL;
+    }
+    else
+        controller->transient_failures = 3;
+    audio_web_error(connection, NULL);
+    audio_connection_close(connection);
+    controller->retry = esp_timer_get_time() + delay;
+}
+
+static bool audio_handshake_waiting(const audio_connection_t *connection)
+{
+    return connection->phase > 0 && connection->phase < 4;
+}
+
+static void audio_connected_progress(audio_connection_t *connection)
+{
+    if (connection->connected_handled || connection->phase != 1 ||
+        !atomic_load_explicit(&connection->transport_connected, memory_order_acquire))
+        return;
+    connection->connected_handled = true;
+    /* Csak a még határidőn belül felépült transport kap külön greeting-
+     * időkeretet. Kései vagy ismételt CONNECTED nem éleszti újra a próbát. */
+    if (connection->connected_at <= connection->deadline)
+        connection->deadline = connection->connected_at + AUDIO_TIMEOUT_US;
+}
 
 static void audio_controller_close(audio_controller_t *controller)
 {
@@ -1390,6 +1465,7 @@ static void audio_controller_close(audio_controller_t *controller)
             (unsigned)uxTaskGetStackHighWaterMark(NULL));
     }
     controller->selected = 0;
+    controller->transient_failures = 0;
     controller->retry = 0;
 }
 
@@ -1474,29 +1550,50 @@ static TickType_t audio_controller_step(audio_controller_t *controller, int64_t 
         audio_controller_close(controller);
         return portMAX_DELAY;
     }
-    if (stale || switch_server || connection->dead ||
-        (connection->phase > 0 && connection->phase < 4 && now > connection->deadline))
+    if (stale || switch_server)
     {
-        if (!connection->dead && connection->phase > 0 && connection->phase < 4 && now > connection->deadline)
-            audio_fail(connection, "handshake-timeout");
-        bool failed = connection->dead || (connection->phase > 0 && connection->phase < 4 &&
-            now > connection->deadline);
-        if (failed && !stale && !switch_server)
-            audio_web_error(connection, NULL);
         audio_connection_close(connection);
-        controller->retry = failed ? esp_timer_get_time() + AUDIO_RESOURCE_RETRY_US : 0;
+        controller->retry = 0;
+        controller->transient_failures = 0;
     }
+    else if (connection->dead)
+        audio_controller_retry(controller);
     if (!connection->ws && target >= 0 && now >= controller->retry)
         audio_connection_open(connection, (unsigned)target);
+    audio_connected_progress(connection);
+    int64_t timeout_at = esp_timer_get_time();
     audio_message_t message;
     /* A körben legfeljebb a sor kapacitásával dolgozunk; a folyamatos
-     * adatfolyam sem akadályozhatja az oldal/OTA érvénytelenítés észlelését. */
-    for (unsigned processed = 0; processed < AUDIO_RX_QUEUE_LENGTH &&
+     * adatfolyam sem akadályozhatja az oldal/OTA érvénytelenítés észlelését.
+     * A határidő előtt beérkezett választ a későbbi main-kör sem dobhatja
+     * el. A valóban késői válasz időbélyege viszont nem hosszabbítja meg
+     * a próbát, és az érvénytelen/mellékes üzenet sem újít időkeretet. */
+    for (unsigned processed = 0; processed < AUDIO_RX_QUEUE_LENGTH && !connection->dead &&
          xQueueReceive(connection->messages, &message, 0) == pdTRUE; ++processed)
     {
-        audio_message(connection, &message);
+        /* A CONNECTED és az első adat a fenti ellenőrzés után is
+         * befuthatott, ezért a sorból kivett válasz előtt újra átvesszük. */
+        audio_connected_progress(connection);
+        if (audio_handshake_waiting(connection) && message.received_at > connection->deadline)
+            audio_fail(connection, "handshake-timeout");
+        else
+            audio_message(connection, &message);
         audio_message_release(connection, &message);
     }
+    audio_connected_progress(connection);
+    /* A határidőt a sor ellenőrzése előtti pillanathoz viszonyítjuk. Ha
+     * az üresnek látott sorba közben még időben érkezik válasz, azt az
+     * ébresztett következő kör feldolgozhatja; nem dobjuk el új időméréssel. */
+    if (!connection->dead && audio_handshake_waiting(connection) &&
+        timeout_at > connection->deadline)
+        audio_fail(connection, "handshake-timeout");
+    if (connection->dead)
+    {
+        audio_controller_retry(controller);
+        return pdMS_TO_TICKS(50);
+    }
+    if (connection->phase == 4)
+        controller->transient_failures = 0;
     audio_native_poll(connection);
     audio_favorites_timeout(connection, esp_timer_get_time());
     return pdMS_TO_TICKS(50);

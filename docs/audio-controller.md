@@ -205,8 +205,42 @@ paraméter kap URI-kódolást. A `/` elválasztót vagy vezérlőkaraktert
 tartalmazó név nem küldhető el. A Miniserver-JWT, a 4-es alkalmazásjogosultság
 és a pontos `authentication successful` sikerfeltétel változatlan.
 A frame-kompatibilitás és a speciális felhasználónév javítása külön
-ellenőrzött eltérés; a panelen jelentett elutasítás megszűnését a következő
-fizikai belépési próbának kell igazolnia.
+ellenőrzött eltérés. A felhasználó az ezt követő, 2026. november 14-i
+panelpróbán visszaigazolta a kedvencek, képek és vezérlések működését;
+az induláskor azonban hosszabb várakozást és timeoutot tapasztalt.
+Ez a sikeres végpontok közötti működést igazolja, az előző szerveroldali
+elutasítás pontos okát önmagában nem nevezi meg.
+
+### Indulási időkeretek és újrapróbálkozás
+
+A felhasználó új naplója `handshake-timeout; phase=1; text=0; tx=0`
+állapotot mutatott: ebben a próbában a belépési parancs előtt, még szöveges
+AudioServer-üzenet nélkül járt le az időkeret. Az időben külön jelentett
+Slave-csengőhanghiba ebből nem vezethető le.
+
+A korábbi egyetlen 8 másodpercbe a transport felépítése, a köszöntés,
+a nyilvános kulcs és a hitelesítési válasz is beleszámított. A tényleges
+futtató tesztjében a határidő előtt éppen felépült WebSocketet a következő
+main-kör már bontotta, és a sorban időben megérkezett választ is
+eldobhatta. A javítás a transportnak, majd a köszöntésnek, a kulcsnak és
+a hitelesítési válasznak külön-külön legfeljebb **8 másodpercet** ad.
+Csak valódi előrelépés indít új időkeretet; az ismételt CONNECTED,
+a hibás JSON és a mellékes metaadat nem hosszabbítja a várakozást.
+
+A teljes beérkezett üzenet időbélyeget kap. A határidőn belüli választ
+a később futó main is feldolgozza; a valóban elkésett válasz vagy későn
+felépült transport nem éleszti újra a lejárt próbát. Az időtúllépés
+eldöntése a fogadósor ellenőrzését megelőző időpontra vonatkozik, ezért
+az üresnek látott sorba közben időben beérkező válasz sem veszhet el.
+
+Átmeneti hálózati hiba után az újrapróba várakozása **1, 2, majd legfeljebb
+5 másodperc**. Memória-/indítási hiba és elutasított hitelesítés után
+megmarad az 5 másodperces várakozás. Sikeres hitelesítés, oldal- vagy
+sessionváltás alaphelyzetbe állítja a hibasorozatot. Minden tényleges
+új próbánál az érintett kártyák ismét „Audio kapcsolódás...” állapotot
+mutatnak. Lejátszási parancsot az újracsatlakozás nem ismétel meg.
+Nincs új feladat vagy nagyobb verem; az időbélyegek a meglévő kapcsolatban
+és a korlátos PSRAM-fogadósorban élnek.
 
 A szerver kezdeti `audio_event` üzenete már a belépés befejezése előtt is
 megérkezhet. A firmware ezt a legfeljebb 12 látható kártyához tartozó,
@@ -223,7 +257,7 @@ miatti holtpont javítását (`b2b86d73`). Ez a korábbi függőségben azonosí
 hiba; panelnapló nélkül nem állítható, hogy a bejelentett fizikai hibát ez
 váltotta ki. A natív kapcsolat naplója a nyitás, hitelesítés, bontás és a
 hibafázis rövid jelzéseit adja, token és nyers szerverválasz nélkül.
-A hibás kapcsolat lezárása után az újrapróbálkozás öt másodperces várása
+A hibás kapcsolat lezárása után a fenti, korlátos újrapróbavárakozás
 egyszer indul el. A kezdeti zónaállapot-kérések worker-körönként egyesével
 mennek ki, köztük a válaszsor feldolgozásával; több Audio-kártya nem indít
 egyszerre tizenkét állapotkérést.
@@ -258,15 +292,21 @@ A **webes eseménynaplóban** a kapcsolathiba figyelmeztetésként jelenik meg.
 A formátum példája, nem panelen mért eredmény:
 
 ```text
-Audio-kapcsolat: ok=receive-queue-full; phase=2; text=33; binary=0; JSON=0; tx=0; auth=none/0.
+Audio-kapcsolat: ok=receive-queue-full; phase=2; text=33; binary=0; JSON=0; ws=1; ms=250; tx=0; auth=none/0.
 ```
 
 A `phase` a hiba pillanatának protokollfázisa: 0 az aktív kapcsolat nélküli
-állapot, 1 a munkamenetköszöntés, 2 a nyilvános kulcs, 3 a hitelesítési
+állapot, 1 a transport/munkamenetköszöntés, 2 a nyilvános kulcs, 3 a hitelesítési
 válasz várása, 4 a sikeres hitelesítés utáni adatforgalom. A `text` és
 `binary` az adott kapcsolat fogadott szöveges és bináris üzeneteinek
 száma; a `JSON` a fel nem dolgozható JSON-üzenetek számlálója, nem az
 összes érvényes válaszé.
+
+A `ws=1` azt jelzi, hogy az adott próbában már visszaigazolódott a
+WebSocket felépülése; a `ws=0` szerint ez még nem történt meg. Így
+`phase=1; text=0` mellett megkülönböztethető a transport és a köszöntés
+várakozása. Az `ms` a próbálkozás indítása óta eltelt ezredmásodperc.
+A webes napló sorhossza továbbra is legfeljebb 128 bájt.
 
 A `tx` az utoljára előállított belépési parancs bájthossza. Az `auth`
 kizárólag az `authenticate_result` JSON-típusát és sztring esetén a
@@ -518,9 +558,9 @@ vonatkozó figyelmeztetését külön, fájlvégi integrációs kezelés rendezi
 a saját függvények figyelmeztetéseinek megmaradását negatív fordítási
 próbák ellenőrzik. Az upstream fejléc változatlan.
 
-A Play/Pause korábbi és a hangerő legutóbbi paneles működésének
-visszaigazolása mellett a kiadás elfogadásához még az alábbi valós próba
-szükséges:
+A felhasználó a Play/Pause és hangerő mellett 2026. november 14-én a
+kedvencek, borítók és vezérlések működését is visszaigazolta. Az indulási
+várakozás javulása és az alábbi szélső esetek külön paneles próbát igényelnek:
 
 1. A saját `AudioZoneV2` zónán lejátszás, szünet, előző és következő;
    az állapot a Loxone webfelülettel egyezzen.

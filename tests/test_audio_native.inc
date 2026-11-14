@@ -204,7 +204,7 @@ static void native_retry_tick(void)
     ++native_retry_ticks;
     unsigned attempts = test_native_starts - native_retry_start_count;
     if (attempts > 1)
-        assert(test_now - native_retry_began >= 5000000LL);
+        assert(test_now - native_retry_began >= 1000000LL);
     if (attempts > 1 || native_retry_ticks >= 140)
         audio_page->live = false;
 }
@@ -221,7 +221,7 @@ static void native_worker_retry_test(void)
     run_until_idle();
     test_native_sleep_hook = NULL;
     test_native_stop_disconnect = false;
-    /* Az első hiba lezárása után egyszeri 5 s szünet, majd valódi új open.
+    /* Az első átmeneti hiba után 1 s szünet, majd valódi új open.
      * A dead jelző nem tolhatja minden worker-körben tovább a határidőt. */
     assert(test_native_starts == native_retry_start_count + 2);
     assert(native_retry_ticks < 140 && !audio_page);

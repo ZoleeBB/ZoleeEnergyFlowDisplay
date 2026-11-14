@@ -31,6 +31,7 @@ static void *test_native_event_argument;
 static bool test_native_start_error, test_native_stop_disconnect;
 static unsigned test_native_starts;
 static unsigned test_caps_queues_created, test_caps_queues_deleted;
+static void (*test_queue_receive_hook)(bool received);
 static audio_connection_t *test_receive_allocation;
 static size_t test_receive_peak;
 static bool test_native_callback_active;
@@ -168,9 +169,16 @@ int xQueueReceive(QueueHandle_t queue, void *data, TickType_t timeout)
 {
     (void)timeout;
     test_queue_t *q = queue;
-    if (!q->count) return 0;
+    if (!q->count)
+    {
+        if (test_queue_receive_hook)
+            test_queue_receive_hook(false);
+        return 0;
+    }
     memcpy(data, q->data + q->head * q->size, q->size);
     q->head = (q->head + 1) % q->capacity; --q->count;
+    if (test_queue_receive_hook)
+        test_queue_receive_hook(true);
     return 1;
 }
 void vQueueDelete(QueueHandle_t queue)
@@ -469,7 +477,7 @@ static void connection_delete(audio_connection_t *connection)
 
 static void message_reply(audio_connection_t *connection, const char *reply)
 {
-    audio_message_t message = {.data = (char *)reply, .length = strlen(reply)};
+    audio_message_t message = {.data = (char *)reply, .length = strlen(reply), .received_at = test_now};
     audio_message(connection, &message);
 }
 
@@ -895,6 +903,332 @@ static void controller_main_handshake_test(void)
 #include "test_audio_native.inc"
 #include "test_audio_receive.inc"
 
+static const char *startup_replies[] = {
+    "LWSS V 17.3.11.12 | ~API:1.6~ | Session-Token: test-session",
+    "{\"getkey_result\":[{\"pubkey\":\"fixture public key\"}]}",
+    "{\"authenticate_result\":\"authentication successful\"}",
+};
+
+static void startup_connected(audio_controller_t *controller)
+{
+    unsigned logs = test_web_events;
+    test_native_callback_active = true;
+    audio_receive(controller->connection, NULL, WEBSOCKET_EVENT_CONNECTED, NULL);
+    test_native_callback_active = false;
+    assert(test_web_events == logs); /* A callback csak állapotot ad át. */
+}
+
+static void startup_advance(audio_controller_t *controller, unsigned phase)
+{
+    assert(phase >= 1 && phase <= 4);
+    audio_connection_t *connection = controller->connection;
+    while (connection->phase < phase)
+    {
+        assert(connection->phase > 0 && !connection->dead);
+        native_receive_text(connection, startup_replies[connection->phase - 1]);
+        audio_controller_step(controller, test_now);
+    }
+    assert(connection->phase == phase && connection->ws);
+}
+
+static audio_connection_t *startup_interleave_connection;
+static bool startup_interleave_after_pop;
+
+static void startup_enqueue_during_drain(bool received)
+{
+    assert(received == startup_interleave_after_pop);
+    test_queue_receive_hook = NULL;
+    audio_connection_t *connection = startup_interleave_connection;
+    test_now = connection->deadline;
+    native_receive_text(connection, startup_replies[2]);
+    /* Az on-time válasz a kiürítettnek látott vagy épp feldolgozott sorba
+     * érkezik, de a main végső időellenőrzésére már elmúlt a határidő. */
+    test_now += 1000;
+}
+
+static void controller_deadline_interleave_test(void)
+{
+    for (unsigned refill = 0; refill <= 1; ++refill)
+    {
+        prepare_page();
+        audio_controller_t controller = {0};
+        audio_controller_step(&controller, test_now);
+        startup_connected(&controller);
+        audio_controller_step(&controller, test_now);
+        startup_advance(&controller, 3);
+        audio_connection_t *connection = controller.connection;
+        test_now = connection->deadline - 1;
+        if (refill)
+            for (unsigned i = 0; i < AUDIO_RX_QUEUE_LENGTH; ++i)
+                native_receive_text(connection, "{}");
+        startup_interleave_connection = connection;
+        startup_interleave_after_pop = refill != 0;
+        test_queue_receive_hook = startup_enqueue_during_drain;
+        unsigned logs = test_web_events;
+        audio_controller_step(&controller, test_now);
+        assert(!test_queue_receive_hook);
+        assert(connection->ws && !connection->dead && connection->phase == 3);
+        assert(((test_queue_t *)connection->messages)->count == 1);
+        assert(test_web_events == logs && !controller.retry);
+        audio_controller_step(&controller, test_now);
+        assert(connection->phase == 4 && audio_page->slots[0].native_ready);
+        assert(!((test_queue_t *)connection->messages)->count);
+        assert(!atomic_load(&connection->received_bytes));
+        audio_controller_close(&controller);
+    }
+    startup_interleave_connection = NULL;
+    prepare_page();
+    puts("PASS: timely concurrent auth survives empty-queue observation and bounded 32-message drain refill across the deadline");
+}
+
+static void controller_queued_deadline_test(void)
+{
+    prepare_page();
+    audio_controller_t controller = {0};
+    unsigned starts = test_native_starts, logs = test_web_events;
+    audio_controller_step(&controller, test_now);
+    startup_connected(&controller);
+    audio_controller_step(&controller, test_now);
+    audio_connection_t *connection = controller.connection;
+    for (unsigned phase = 1; phase <= 3; ++phase)
+    {
+        int64_t deadline = connection->deadline;
+        /* A greeting és auth még előtte, a key pontosan a határon érkezik.
+         * A main csak később kap CPU-t: az érkezési időnek kell döntenie. */
+        test_now = deadline - (phase == 2 ? 0 : 1);
+        native_receive_text(connection, startup_replies[phase - 1]);
+        assert(((test_queue_t *)connection->messages)->count == 1);
+        test_now = deadline + 50000;
+        audio_controller_step(&controller, test_now);
+        assert(connection->ws && !connection->dead && connection->phase == phase + 1);
+        assert(!((test_queue_t *)connection->messages)->count);
+        assert(!atomic_load(&connection->received_bytes));
+        if (phase < 3)
+            assert(connection->deadline == test_now + AUDIO_TIMEOUT_US);
+    }
+    assert(audio_page->slots[0].native_ready && audio_page->slots[0].status == LX_AUDIO_READY);
+    assert(test_native_starts == starts + 1 && test_web_events == logs);
+    audio_controller_close(&controller);
+
+    /* A ténylegesen késő válasz egyik fázisban sem mentheti meg a lejárt
+     * próbát; a FIFO előbb feldolgozása nem korlátlan türelmi idő. */
+    for (unsigned phase = 1; phase <= 3; ++phase)
+    {
+        prepare_page();
+        audio_controller_step(&controller, test_now);
+        startup_connected(&controller);
+        audio_controller_step(&controller, test_now);
+        startup_advance(&controller, phase);
+        connection = controller.connection;
+        test_now = connection->deadline + 1;
+        native_receive_text(connection, startup_replies[phase - 1]);
+        atomic_store(&audio_last_web_error_ms, 0);
+        audio_controller_step(&controller, test_now);
+        assert(!connection->ws && !connection->phase && !audio_page->slots[0].native_ready);
+        assert(strstr(test_web_event, "ok=handshake-timeout"));
+        assert(controller.retry == test_now + 1000000LL);
+        audio_controller_close(&controller);
+    }
+
+    prepare_page();
+    audio_controller_step(&controller, test_now);
+    startup_connected(&controller);
+    audio_controller_step(&controller, test_now);
+    connection = controller.connection;
+    int64_t deadline = connection->deadline;
+    const char *greeting = startup_replies[0];
+    esp_websocket_event_data_t part = {.op_code = 1, .fin = true, .data_ptr = greeting,
+        .data_len = 7, .payload_len = (int)strlen(greeting)};
+    test_now = deadline - 10000;
+    audio_receive(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
+    assert(!((test_queue_t *)connection->messages)->count);
+    test_now = deadline + 1;
+    part.payload_offset = part.data_len;
+    part.data_ptr += part.data_len;
+    part.data_len = part.payload_len - part.payload_offset;
+    audio_receive(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
+    audio_controller_step(&controller, test_now);
+    assert(!connection->ws && !connection->phase && !audio_page->slots[0].native_ready);
+    audio_controller_close(&controller);
+    prepare_page();
+    puts("PASS: on-time queued greeting/key/auth survive delayed main scheduling; late complete and fragmented replies expire");
+}
+
+static void controller_stage_deadline_test(void)
+{
+    prepare_page();
+    audio_controller_t controller = {0};
+    unsigned starts = test_native_starts;
+    int64_t began = test_now;
+    audio_controller_step(&controller, test_now);
+    audio_connection_t *connection = controller.connection;
+    test_now = began + 6000000LL;
+    startup_connected(&controller);
+    audio_controller_step(&controller, test_now);
+    assert(connection->deadline == test_now + AUDIO_TIMEOUT_US);
+    test_now = began + 6500000LL;
+    startup_advance(&controller, 2);
+    assert(connection->deadline == test_now + AUDIO_TIMEOUT_US);
+    test_now = began + 7500000LL;
+    startup_advance(&controller, 3);
+    assert(connection->deadline == test_now + AUDIO_TIMEOUT_US);
+    /* Régen 8 s-nál bezárult, hiába haladt a kapcsolat. */
+    test_now = began + 8500000LL;
+    startup_advance(&controller, 4);
+    assert(audio_page->slots[0].native_ready && test_native_starts == starts + 1);
+    audio_controller_close(&controller);
+
+    prepare_page();
+    audio_controller_step(&controller, test_now);
+    connection = controller.connection;
+    int64_t connect_deadline = connection->deadline;
+    test_now = connect_deadline - 1;
+    startup_connected(&controller);
+    int64_t connected_at = test_now;
+    test_now = connect_deadline + 50000;
+    audio_controller_step(&controller, test_now);
+    assert(connection->ws && connection->phase == 1 && !connection->dead);
+    assert(connection->deadline == connected_at + AUDIO_TIMEOUT_US);
+    int64_t greeting_deadline = connection->deadline;
+    test_now = greeting_deadline - 1000;
+    startup_connected(&controller); /* Ismételt callback nem új haladás. */
+    native_receive_text(connection, "{}");
+    audio_controller_step(&controller, test_now);
+    assert(connection->deadline == greeting_deadline);
+    test_now = greeting_deadline + 1;
+    audio_controller_step(&controller, test_now);
+    assert(!connection->ws && !connection->phase);
+    audio_controller_close(&controller);
+
+    prepare_page();
+    audio_controller_step(&controller, test_now);
+    connection = controller.connection;
+    test_now = connection->deadline + 1;
+    startup_connected(&controller); /* A már elkésett CONNECTED sem újít. */
+    audio_controller_step(&controller, test_now);
+    assert(!connection->ws && !connection->phase && !audio_page->slots[0].native_ready);
+    audio_controller_close(&controller);
+    prepare_page();
+    puts("PASS: real progress gets a full next-stage budget; repeated CONNECTED/noise and late transport completion cannot prolong startup");
+}
+
+static void startup_fail_and_retry(audio_controller_t *controller, int64_t delay)
+{
+    audio_connection_t *connection = controller->connection;
+    unsigned starts = test_native_starts;
+    audio_receive(connection, NULL, WEBSOCKET_EVENT_ERROR, NULL);
+    audio_controller_step(controller, test_now);
+    assert(!connection->ws && !audio_page->slots[0].native_ready);
+    assert(controller->retry == test_now + delay);
+    assert(audio_page->slots[0].status == LX_AUDIO_UNAVAILABLE);
+    test_now = controller->retry - 1;
+    audio_controller_step(controller, test_now);
+    assert(!connection->ws && test_native_starts == starts);
+    ++test_now;
+    audio_controller_step(controller, test_now);
+    assert(connection->ws && connection->phase == 1 && test_native_starts == starts + 1);
+    assert(!audio_page->slots[0].native_ready && audio_page->slots[0].status == LX_AUDIO_CONNECTING);
+}
+
+static void controller_retry_policy_test(void)
+{
+    prepare_page();
+    /* Másik szerver hibajelzése nem válhat kapcsolódássá az első nyitásakor. */
+    audio_page->count = 2;
+    audio_page->slots[1] = audio_page->slots[0];
+    strcpy(audio_page->slots[1].id, "audio-other-server");
+    strcpy(audio_page->slots[1].endpoint.host, "192.168.1.41");
+    audio_page->slots[1].status = LX_AUDIO_AUTH_FAILED;
+    audio_controller_t controller = {0};
+    audio_controller_step(&controller, test_now);
+    const int64_t delays[] = {1000000LL, 2000000LL, 5000000LL, 5000000LL};
+    for (unsigned i = 0; i < sizeof(delays) / sizeof(delays[0]); ++i)
+    {
+        startup_fail_and_retry(&controller, delays[i]);
+        assert(audio_page->slots[1].status == LX_AUDIO_AUTH_FAILED);
+    }
+    assert(controller.transient_failures <= 3);
+
+    startup_connected(&controller);
+    audio_controller_step(&controller, test_now);
+    startup_advance(&controller, 4);
+    assert(controller.transient_failures == 0);
+    startup_fail_and_retry(&controller, 1000000LL);
+    startup_fail_and_retry(&controller, 2000000LL);
+
+    /* Az auth-elutasítás nem gyors hálózati újrapróba, és nem siker: az
+     * ezt követő hibák is a kímélő 5 s-on maradnak READY/generációváltásig. */
+    startup_connected(&controller);
+    audio_controller_step(&controller, test_now);
+    startup_advance(&controller, 3);
+    native_receive_text(controller.connection, "{\"authenticate_result\":\"authentication rejected\"}");
+    audio_controller_step(&controller, test_now);
+    assert(controller.retry == test_now + AUDIO_RESOURCE_RETRY_US);
+    assert(controller.transient_failures == 3);
+    assert(audio_page->slots[0].status == LX_AUDIO_AUTH_FAILED);
+    test_now = controller.retry;
+    audio_controller_step(&controller, test_now);
+    assert(audio_page->slots[0].status == LX_AUDIO_CONNECTING);
+    startup_fail_and_retry(&controller, 5000000LL);
+
+    /* Másik oldal/session új próbafolyamat. A régi várakozást és
+     * hibasorozatot nem örökölheti; a Miniserver-hitelesítést nem bontjuk. */
+    audio_receive(controller.connection, NULL, WEBSOCKET_EVENT_ERROR, NULL);
+    audio_controller_step(&controller, test_now);
+    assert(!controller.connection->ws && controller.retry == test_now + 5000000LL);
+    prepare_page();
+    audio_controller_step(&controller, test_now);
+    assert(controller.transient_failures == 0 && controller.connection->ws && !controller.retry);
+    startup_fail_and_retry(&controller, 1000000LL);
+    startup_fail_and_retry(&controller, 2000000LL);
+    audio_receive(controller.connection, NULL, WEBSOCKET_EVENT_ERROR, NULL);
+    audio_controller_step(&controller, test_now);
+    assert(!controller.connection->ws && controller.retry == test_now + 5000000LL);
+    assert(app_loxone_audio_session("user", "renewed-test.jwt", true));
+    audio_controller_step(&controller, test_now);
+    assert(controller.transient_failures == 0 && controller.connection->ws && !controller.retry);
+    startup_fail_and_retry(&controller, 1000000LL);
+    audio_controller_close(&controller);
+
+    prepare_page();
+    test_native_init_oom = true;
+    audio_controller_step(&controller, test_now);
+    audio_controller_step(&controller, test_now);
+    assert(controller.connection && !controller.connection->ws);
+    assert(controller.retry == test_now + AUDIO_RESOURCE_RETRY_US);
+    assert(controller.transient_failures == 3 && !test_task_creations);
+    audio_controller_close(&controller);
+    prepare_page();
+    puts("PASS: transient retries back off 1/2/5 s; success/page/session reset, resource/auth failures remain 5 s, and active retry is shown as connecting");
+}
+
+static void controller_startup_diagnostic_test(void)
+{
+    for (unsigned connected = 0; connected <= 1; ++connected)
+    {
+        prepare_page();
+        audio_controller_t controller = {0};
+        audio_controller_step(&controller, test_now);
+        if (connected)
+        {
+            startup_connected(&controller);
+            audio_controller_step(&controller, test_now);
+        }
+        test_now = controller.connection->deadline + 1;
+        atomic_store(&audio_last_web_error_ms, 0);
+        audio_controller_step(&controller, test_now);
+        assert(strstr(test_web_event, "ok=handshake-timeout; phase=1; text=0; binary=0; JSON=0;"));
+        assert(strstr(test_web_event, connected ? "ws=1; ms=8000;" : "ws=0; ms=8000;"));
+        const char *suffix = "tx=0; auth=none/0.";
+        size_t length = strlen(test_web_event), suffix_length = strlen(suffix);
+        assert(length < APP_EVENT_TEXT_MAX && length >= suffix_length);
+        assert(!strcmp(test_web_event + length - suffix_length, suffix));
+        audio_controller_close(&controller);
+    }
+    prepare_page();
+    puts("PASS: phase-1 diagnostics distinguish absent transport from absent greeting; bounded event includes timing and auth suffix without secrets");
+}
+
 static void native_auth_transport_boundary_test(void)
 {
     const unsigned lengths[] = {2112, LX_AUDIO_AUTH_COMMAND_MAX};
@@ -1041,6 +1375,11 @@ int main(void)
     controller_allocation_failure_test();
     controller_lifecycle_test();
     controller_main_handshake_test();
+    controller_deadline_interleave_test();
+    controller_queued_deadline_test();
+    controller_stage_deadline_test();
+    controller_retry_policy_test();
+    controller_startup_diagnostic_test();
     native_auth_transport_boundary_test();
     native_auth_diagnostic_test();
     app_loxone_audio_session(NULL, NULL, false);
