@@ -117,6 +117,7 @@ subprocess.run([os.sys.executable, str(ROOT / 'tests/test_shading.py')], check=T
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_controls.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_audio.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_audio_stack.py')], check=True)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_audio_transport.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_audio.py')], check=True)
 subprocess.run([os.sys.executable, str(ROOT / 'tests/test_intercom_distributed.py')], check=True)

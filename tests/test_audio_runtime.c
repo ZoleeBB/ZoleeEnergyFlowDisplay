@@ -19,6 +19,9 @@ enum { TEST_NATIVE_NONE, TEST_NATIVE_INIT, TEST_NATIVE_AUTH, TEST_NATIVE_SEND, T
 static unsigned test_native_wait_point, test_native_wait_checks;
 static void test_miniserver_during_native_wait(unsigned point);
 static char test_native_command[128];
+static unsigned test_native_buffer_size, test_native_command_length, test_auth_command_length;
+static bool test_native_init_oom, test_auth_oom;
+static int test_native_send_failure;
 static void (*test_native_sleep_hook)(void);
 static void (*test_native_stop_hook)(void);
 static void (*test_native_send_hook)(const char *command);
@@ -45,6 +48,7 @@ void app_events_add(app_event_level_t level, const char *format, ...)
     assert(!strstr(test_web_event, "test.jwt") && !strstr(test_web_event, "test-session"));
     assert(!strstr(test_web_event, "unit-test-auth") && !strstr(test_web_event, "192.168."));
     assert(!strstr(test_web_event, "Tesztzene") && !strstr(test_web_event, "roomfav/play"));
+    assert(!strstr(test_web_event, "PRIVATE-AUTH") && !strstr(test_web_event, "PRIVATE-RESULT"));
     ++test_web_events;
 }
 
@@ -202,7 +206,14 @@ esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_clie
 {
     assert(!strcmp(options->subprotocol, "remotecontrol"));
     assert(options->task_stack == 4096 && options->task_stack <= 7936);
+    assert(options->buffer_size == LX_AUDIO_AUTH_WS_BUFFER_SIZE);
+    test_native_buffer_size = (unsigned)options->buffer_size;
     test_miniserver_during_native_wait(TEST_NATIVE_INIT);
+    if (test_native_init_oom)
+    {
+        test_native_init_oom = false;
+        return NULL;
+    }
     return (void *)1;
 }
 esp_err_t esp_websocket_register_events(esp_websocket_client_handle_t handle, int event,
@@ -244,8 +255,19 @@ int esp_websocket_client_send_text(esp_websocket_client_handle_t handle, const c
     (void)handle; (void)timeout;
     assert(!audio_lock->held);
     test_miniserver_during_native_wait(TEST_NATIVE_SEND);
-    snprintf(test_native_command, sizeof(test_native_command), "%s", command);
+    assert(length >= 0 && (size_t)length == strlen(command));
+    test_native_command_length = (unsigned)length;
+    size_t copied = (size_t)length < sizeof(test_native_command) - 1 ?
+        (size_t)length : sizeof(test_native_command) - 1;
+    memcpy(test_native_command, command, copied);
+    test_native_command[copied] = 0;
     ++test_native_sends;
+    if (test_native_send_failure)
+    {
+        int failure = test_native_send_failure;
+        test_native_send_failure = 0;
+        return failure < 0 ? -1 : length - 1;
+    }
     if (test_native_send_hook)
         test_native_send_hook(command);
     return length;
@@ -256,6 +278,22 @@ char *lx_audio_auth_create(const char *key, const char *user, const char *jwt, c
 {
     (void)key; (void)user; (void)jwt; (void)session; (void)random_bytes; (void)context;
     test_miniserver_during_native_wait(TEST_NATIVE_AUTH);
+    if (test_auth_oom)
+    {
+        test_auth_oom = false;
+        return NULL;
+    }
+    if (test_auth_command_length)
+    {
+        const char *prefix = "secure/authenticate/PRIVATE-AUTH/";
+        assert(test_auth_command_length >= strlen(prefix));
+        char *command = malloc((size_t)test_auth_command_length + 1);
+        assert(command);
+        memset(command, 'A', test_auth_command_length);
+        memcpy(command, prefix, strlen(prefix));
+        command[test_auth_command_length] = 0;
+        return command;
+    }
     return strdup("unit-test-auth");
 }
 void lx_audio_auth_free(char *command) { free(command); }
@@ -857,6 +895,129 @@ static void controller_main_handshake_test(void)
 #include "test_audio_native.inc"
 #include "test_audio_receive.inc"
 
+static void native_auth_transport_boundary_test(void)
+{
+    const unsigned lengths[] = {2112, LX_AUDIO_AUTH_COMMAND_MAX};
+    const char *key = "{\"getkey_result\":[{\"pubkey\":\"fixture public key\"}]}";
+    for (unsigned i = 0; i < sizeof(lengths) / sizeof(lengths[0]); ++i)
+    {
+        prepare_page();
+        audio_connection_t *connection = connection_new();
+        audio_connection_open(connection, 0);
+        assert(test_native_buffer_size > LX_AUDIO_AUTH_COMMAND_MAX);
+        assert(!connection->auth_command_bytes && !connection->auth_result_kind);
+        audio_page->slots[0].native_ready = false;
+        connection->phase = 2;
+        test_auth_command_length = lengths[i];
+        message_reply(connection, key);
+        assert(!connection->dead && connection->phase == 3);
+        assert(test_native_command_length == lengths[i]);
+        assert(connection->auth_command_bytes == lengths[i]);
+        assert(strlen(test_native_command) == sizeof(test_native_command) - 1);
+        message_reply(connection, "{\"authenticate_result\":\"authentication successful\"}");
+        assert(connection->phase == 4 && audio_page->slots[0].native_ready);
+        connection_delete(connection);
+    }
+
+    /* A teljes parancs átadását ellenőrizzük: rövid/negatív send_text,
+     * auth-foglalási hiba és a kemény hosszkorlát nem válhat sikerré. */
+    for (unsigned failure = 0; failure < 4; ++failure)
+    {
+        prepare_page();
+        audio_connection_t *connection = connection_new();
+        audio_connection_open(connection, 0);
+        audio_page->slots[0].native_ready = false;
+        connection->phase = 2;
+        unsigned sent = test_native_sends;
+        test_auth_command_length = failure == 3 ? LX_AUDIO_AUTH_COMMAND_MAX + 1 : 2112;
+        test_native_send_failure = failure == 0 ? 1 : failure == 1 ? -1 : 0;
+        test_auth_oom = failure == 2;
+        message_reply(connection, key);
+        assert(connection->dead && !audio_page->slots[0].native_ready);
+        assert(test_native_sends == sent + (failure < 2 ? 1U : 0U));
+        const char *reason = atomic_load(&connection->failure_reason);
+        assert(reason && !strcmp(reason, failure < 2 ? "send" :
+            failure == 2 ? "authentication-envelope" : "send-limit"));
+        connection_delete(connection);
+    }
+    test_auth_command_length = 0;
+    prepare_page();
+    audio_connection_t *connection = connection_new();
+    unsigned sent = test_native_sends;
+    test_native_init_oom = true;
+    audio_connection_open(connection, 0);
+    assert(connection->dead && !connection->ws && test_native_sends == sent);
+    assert(!strcmp(atomic_load(&connection->failure_reason), "websocket-start"));
+    connection_delete(connection);
+    connection = connection_new();
+    assert(!audio_send(connection, "") && test_native_sends == sent);
+    assert(!strcmp(atomic_load(&connection->failure_reason), "send-limit"));
+    connection_delete(connection);
+    prepare_page();
+    puts("PASS: actual runtime config covers 2112/max auth; short/failed send, OOM and over-limit stay errors");
+}
+
+static void native_auth_diagnostic_test(void)
+{
+    const struct { const char *json, *kind; unsigned bytes; } cases[] = {
+        {"\"PRIVATE-RESULT-token\"", "string", 20},
+        {"{\"PRIVATE-RESULT\":true}", "object", 0},
+        {"[\"PRIVATE-RESULT\"]", "array", 0},
+        {"true", "bool", 0},
+        {"123", "number", 0},
+        {"null", "null", 0},
+    };
+    for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        prepare_page();
+        audio_connection_t *connection = connection_new();
+        connection->phase = 3;
+        connection->auth_command_bytes = LX_AUDIO_AUTH_COMMAND_MAX;
+        audio_page->slots[0].native_ready = false;
+        char reply[192];
+        snprintf(reply, sizeof(reply), "{\"command\":\"PRIVATE-AUTH\",\"authenticate_result\":%s}", cases[i].json);
+        message_reply(connection, reply);
+        assert(connection->dead && connection->phase == 3 && !audio_page->slots[0].native_ready);
+        assert(!strcmp(connection->auth_result_kind, cases[i].kind));
+        assert(connection->auth_result_bytes == cases[i].bytes);
+        atomic_store(&audio_last_web_error_ms, 0);
+        audio_web_error(connection, NULL);
+        char suffix[64];
+        snprintf(suffix, sizeof(suffix), "; tx=%u; auth=%s/%u.",
+            LX_AUDIO_AUTH_COMMAND_MAX, cases[i].kind, cases[i].bytes);
+        size_t length = strlen(test_web_event), suffix_length = strlen(suffix);
+        assert(length < 128 && length >= suffix_length);
+        assert(!strcmp(test_web_event + length - suffix_length, suffix));
+        connection_delete(connection);
+    }
+
+    /* A panel JSON=1 számlálója nem az auth-válasz típusa. Egy korábbi
+     * szintetikus, nem JSON üzenet után is a pontos sikeres string dönt. */
+    prepare_page();
+    audio_connection_t *connection = connection_new();
+    connection->phase = 1;
+    audio_page->slots[0].native_ready = false;
+    const char *greeting = "LWSS V 17.3.11.12 | ~API:1.6~ | Session-Token: test-session";
+    const char *messages[] = {greeting, greeting,
+        "{\"command\":\"audio/cfg/getkey/full\",\"getkey_result\":[{\"pubkey\":\"fixture public key\"}]}",
+        "{\"command\":\"PRIVATE-AUTH\",\"authenticate_result\":\"authentication successful\"}"};
+    for (unsigned i = 0; i < sizeof(messages) / sizeof(messages[0]); ++i)
+    {
+        native_receive_text(connection, messages[i]);
+        audio_message_t message;
+        assert(xQueueReceive(connection->messages, &message, 0) == pdTRUE);
+        audio_message(connection, &message);
+        audio_message_release(connection, &message);
+    }
+    assert(!connection->dead && connection->phase == 4 && audio_page->slots[0].native_ready);
+    assert(atomic_load(&connection->text_frames) == 4 && connection->invalid_json == 1);
+    assert(!strcmp(connection->auth_result_kind, "string"));
+    assert(connection->auth_result_bytes == strlen("authentication successful"));
+    connection_delete(connection);
+    prepare_page();
+    puts("PASS: strict auth success and type/length-only diagnostics; prior invalid JSON is harmless; no secret echo");
+}
+
 int main(void)
 {
     init_failure_test();
@@ -880,6 +1041,8 @@ int main(void)
     controller_allocation_failure_test();
     controller_lifecycle_test();
     controller_main_handshake_test();
+    native_auth_transport_boundary_test();
+    native_auth_diagnostic_test();
     app_loxone_audio_session(NULL, NULL, false);
     assert(!audio_credentials->jwt[0] && !audio_credentials->live);
     assert(!audio_page); /* Task nélküli hibás natív ág sem tarthat rejtett modellt. */

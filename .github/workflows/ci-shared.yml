@@ -240,7 +240,9 @@ jobs:
         run: python3 tools/release/package.py --tag "$RELEASE_TAG" --commit "$BUILD_COMMIT"
 
       - name: Validate actual pinned CPU partial display pipeline
-        run: python3 tests/test_display_partial.py --adapter managed_components/espressif__esp_lvgl_adapter
+        run: |
+          python3 tests/test_display_partial.py --adapter managed_components/espressif__esp_lvgl_adapter
+          python3 tests/test_audio_transport.py --websocket managed_components/espressif__esp_websocket_client/esp_websocket_client.c --sdkconfig sdkconfig
       - name: Build Waveshare 4B Slave with the same release version
         uses: espressif/esp-idf-ci-action@v1
         with:

@@ -15,6 +15,9 @@
 #include "esp_heap_caps.h"
 #endif
 
+_Static_assert(LX_AUDIO_AUTH_COMMAND_MAX + 1 <= LX_AUDIO_AUTH_WS_BUFFER_SIZE,
+               "Az Audio hitelesito teljes parancsa ferjen egyetlen WS-keretbe");
+
 static void *auth_alloc(size_t size)
 {
 #ifdef ESP_PLATFORM
@@ -44,16 +47,25 @@ static void auth_hex(const unsigned char *value, size_t size, char *out)
     out[2 * size] = 0;
 }
 
-static char *auth_escape(const unsigned char *input, size_t length, bool base64)
+static bool auth_username_valid(const char *username)
 {
-    size_t encoded_size = base64 ? ((length + 2) / 3) * 4 : length;
+    if (!username || !username[0] || strlen(username) > LX_AUDIO_AUTH_USERNAME_MAX)
+        return false;
+    /* A név nem URI-komponens: az App nyersen illeszti a parancsba. Az útvonal
+     * elválasztója és az ASCII vezérlőbájtok viszont nem juthatnak a hálózatra. */
+    for (const unsigned char *p = (const unsigned char *)username; *p; ++p)
+        if (*p == '/' || *p < 0x20 || *p == 0x7f)
+            return false;
+    return true;
+}
+
+static char *auth_escape(const unsigned char *input, size_t length)
+{
+    size_t encoded_size = ((length + 2) / 3) * 4;
     unsigned char *encoded = auth_alloc(encoded_size + 1);
     if (!encoded)
         return NULL;
-    bool ok = !base64 || mbedtls_base64_encode(encoded, encoded_size + 1, &encoded_size,
-                                               input, length) == 0;
-    if (!base64)
-        memcpy(encoded, input, length);
+    bool ok = mbedtls_base64_encode(encoded, encoded_size + 1, &encoded_size, input, length) == 0;
     char *escaped = ok ? auth_alloc(encoded_size * 3 + 1) : NULL;
     if (escaped)
     {
@@ -81,9 +93,9 @@ char *lx_audio_auth_create(const char *public_key, const char *username,
                            const char *jwt, const char *session,
                            int (*random_bytes)(void *, unsigned char *, size_t), void *random_context)
 {
-    if (!public_key || !username || !username[0] || strlen(username) > 95 ||
-        !jwt || !jwt[0] || strlen(jwt) > 1023 ||
-        !session || !session[0] || strlen(session) > 256 || !random_bytes)
+    if (!public_key || !auth_username_valid(username) ||
+        !jwt || !jwt[0] || strlen(jwt) > LX_AUDIO_AUTH_JWT_MAX ||
+        !session || !session[0] || strlen(session) > LX_AUDIO_AUTH_SESSION_MAX || !random_bytes)
         return NULL;
     /* Egy sorba lapított PEM-et is fogadunk, de kizárólag nyilvános RSA kulcsot. */
     const char *begin = strstr(public_key, "-----BEGIN PUBLIC KEY-----");
@@ -100,13 +112,16 @@ char *lx_audio_auth_create(const char *public_key, const char *username,
     mbedtls_pk_init(&key);
     bool ok = mbedtls_pk_parse_public_key(&key, (const unsigned char *)pem, strlen(pem) + 1) == 0 &&
               mbedtls_pk_can_do(&key, MBEDTLS_PK_RSA) &&
-              mbedtls_pk_get_bitlen(&key) >= 2048 && mbedtls_pk_get_bitlen(&key) <= 4096;
+              mbedtls_pk_get_bitlen(&key) >= LX_AUDIO_AUTH_RSA_BITS_MIN &&
+              mbedtls_pk_get_bitlen(&key) <= LX_AUDIO_AUTH_RSA_BITS_MAX;
     free(pem);
     unsigned char secret[32] = {0}, iv[16] = {0}, working_iv[16] = {0};
     char key_hex[65] = {0}, iv_hex[33] = {0};
-    char *envelope = NULL, *user_part = NULL, *rsa_part = NULL, *aes_part = NULL, *command = NULL;
+    char *envelope = NULL, *rsa_part = NULL, *aes_part = NULL, *command = NULL;
     unsigned char *rsa = NULL, *padded = NULL, *cipher = NULL;
-    size_t padded_size = ((strlen(jwt) / 16) + 1) * 16, rsa_size = 0;
+    size_t padded_size = (strlen(jwt) / LX_AUDIO_AUTH_AES_BLOCK_SIZE + 1) *
+        LX_AUDIO_AUTH_AES_BLOCK_SIZE;
+    size_t rsa_size = 0;
     if (ok)
         ok = random_bytes(random_context, secret, sizeof(secret)) == 0 &&
              random_bytes(random_context, iv, sizeof(iv)) == 0;
@@ -138,17 +153,18 @@ char *lx_audio_auth_create(const char *public_key, const char *username,
     }
     if (ok)
     {
-        user_part = auth_escape((const unsigned char *)username, strlen(username), false);
-        rsa_part = auth_escape(rsa, rsa_size, true);
-        aes_part = auth_escape(cipher, padded_size, true);
-        ok = user_part && rsa_part && aes_part;
+        rsa_part = auth_escape(rsa, rsa_size);
+        aes_part = auth_escape(cipher, padded_size);
+        ok = rsa_part && aes_part;
     }
     if (ok)
     {
-        size_t length = strlen(user_part) + strlen(rsa_part) + strlen(aes_part) + 24;
-        command = auth_alloc(length);
+        size_t length = strlen(username) + strlen(rsa_part) + strlen(aes_part) +
+            sizeof("secure/authenticate/") + 2;
+        if (length <= LX_AUDIO_AUTH_COMMAND_MAX + 1)
+            command = auth_alloc(length);
         if (command)
-            snprintf(command, length, "secure/authenticate/%s/%s/%s", user_part, rsa_part, aes_part);
+            snprintf(command, length, "secure/authenticate/%s/%s/%s", username, rsa_part, aes_part);
     }
     mbedtls_aes_free(&aes);
     mbedtls_pk_free(&key);
@@ -167,7 +183,6 @@ char *lx_audio_auth_create(const char *public_key, const char *username,
     free(cipher);
     free(rsa);
     lx_audio_auth_free(envelope);
-    lx_audio_auth_free(user_part);
     lx_audio_auth_free(rsa_part);
     lx_audio_auth_free(aes_part);
     return command;

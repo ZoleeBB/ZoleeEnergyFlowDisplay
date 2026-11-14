@@ -66,7 +66,7 @@ typedef struct
 
 typedef struct
 {
-    char username[96], jwt[1024];
+    char username[LX_AUDIO_AUTH_USERNAME_MAX + 1], jwt[LX_AUDIO_AUTH_JWT_MAX + 1];
     unsigned generation;
     bool live;
 } audio_credentials_t;
@@ -101,6 +101,8 @@ typedef struct
     _Atomic(const char *) failure_reason;
     bool diagnostic, first_native_data;
     unsigned invalid_json;
+    unsigned auth_command_bytes, auth_result_bytes;
+    const char *auth_result_kind;
     int64_t next_diagnostic;
 } audio_connection_t;
 
@@ -684,11 +686,14 @@ static void audio_web_error(const audio_connection_t *connection, const char *re
     /* Csak fordításkor ismert oknevek és számlálók: nincs szerverválasz,
      * cím, felhasználónév, parancs, JWT vagy munkamenetkulcs. */
     app_events_add(APP_EVENT_WARNING,
-        "Audio-kapcsolat: ok=%s; phase=%u; text=%u; binary=%u; JSON=%u.",
+        "Audio-kapcsolat: ok=%s; phase=%u; text=%u; binary=%u; JSON=%u; tx=%u; auth=%s/%u.",
         reason ? reason : "connection", connection ? connection->phase : 0,
         connection ? atomic_load(&connection->text_frames) : 0,
         connection ? atomic_load(&connection->binary_frames) : 0,
-        connection ? connection->invalid_json : 0);
+        connection ? connection->invalid_json : 0,
+        connection ? connection->auth_command_bytes : 0,
+        connection && connection->auth_result_kind ? connection->auth_result_kind : "none",
+        connection ? connection->auth_result_bytes : 0);
 }
 
 static bool audio_receive_reserve(audio_connection_t *connection, size_t capacity)
@@ -851,6 +856,12 @@ static bool audio_detail_current_locked(const audio_connection_t *connection,
 static bool audio_send_guarded(audio_connection_t *connection, const char *command,
                                const audio_detail_command_t *detail, bool *cancelled)
 {
+    size_t length = command ? strlen(command) : 0;
+    if (!length || length > LX_AUDIO_AUTH_COMMAND_MAX)
+    {
+        audio_fail(connection, "send-limit");
+        return false;
+    }
     xSemaphoreTake(audio_lock, portMAX_DELAY);
     bool current = audio_connection_current_locked(connection) &&
         (!detail || audio_detail_current_locked(connection, detail));
@@ -861,8 +872,8 @@ static bool audio_send_guarded(audio_connection_t *connection, const char *comma
         return false;
     /* A rövid kapu a hálózati átadás pontja; előtte a modal bezárása még
      * visszavonhatja a kivett kérést. Hálózati várakozás alatt nincs modellzár. */
-    bool sent = esp_websocket_client_send_text(connection->ws, command, strlen(command),
-                                               pdMS_TO_TICKS(1000)) == (int)strlen(command);
+    bool sent = esp_websocket_client_send_text(connection->ws, command, (int)length,
+                                               pdMS_TO_TICKS(1000)) == (int)length;
     if (!sent)
         audio_fail(connection, "send");
     return sent;
@@ -1019,11 +1030,19 @@ static void audio_connection_open(audio_connection_t *connection, unsigned selec
     atomic_store(&connection->binary_frames, 0);
     atomic_store(&connection->failure_reason, NULL);
     connection->invalid_json = 0;
+    connection->auth_command_bytes = connection->auth_result_bytes = 0;
+    connection->auth_result_kind = NULL;
     connection->first_native_data = false;
     snprintf(uri, sizeof(uri), "ws://%s:%u/", connection->host, connection->port);
     esp_websocket_client_config_t options = {
         .uri = uri, .subprotocol = "remotecontrol", .disable_auto_reconnect = true,
-        .buffer_size = 2048, .task_stack = 4096, .network_timeout_ms = 3000,
+        /* A teljes RSA/AES belépés egy TEXT/FIN keretbe férjen. A korábbi
+         * 2048 B a gyári webkliensben megfigyelt 2112 B-os parancsméretnél
+         * már CONT-ot igényel; ezt a tényleges upstream küldővel teszteljük.
+         * Az upstream két heap-puffere a Master PSRAM-preferáló mallocját
+         * használja; a WebSocket-feladat belső verme változatlan. */
+        .buffer_size = LX_AUDIO_AUTH_WS_BUFFER_SIZE,
+        .task_stack = 4096, .network_timeout_ms = 3000,
     };
     connection->dead = false;
     connection->phase = 1;
@@ -1082,6 +1101,7 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
             xSemaphoreGive(audio_lock);
             char *command = copy && current ? lx_audio_auth_create(pem->valuestring, copy->username,
                 copy->jwt, connection->session, audio_random, NULL) : NULL;
+            connection->auth_command_bytes = command ? (unsigned)strlen(command) : 0;
             if (copy)
             {
                 mbedtls_platform_zeroize(copy, sizeof(*copy));
@@ -1100,6 +1120,12 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
         const cJSON *result = cJSON_GetObjectItemCaseSensitive(root, "authenticate_result");
         if (result)
         {
+            /* A válasz tartalma érzékeny adatot is visszhangozhat. Csak a
+             * JSON-típus és a sztring hossza kerül a ritkított naplóba. */
+            connection->auth_result_kind = cJSON_IsString(result) ? "string" :
+                cJSON_IsObject(result) ? "object" : cJSON_IsArray(result) ? "array" :
+                cJSON_IsBool(result) ? "bool" : cJSON_IsNumber(result) ? "number" : "null";
+            connection->auth_result_bytes = cJSON_IsString(result) ? (unsigned)strlen(result->valuestring) : 0;
             bool ok = cJSON_IsString(result) && !strcmp(result->valuestring, "authentication successful");
             connection->phase = ok ? 4 : 3;
             if (!ok)

@@ -129,11 +129,6 @@ with tempfile.TemporaryDirectory(prefix='loxone-audio-') as directory:
                          '-l:libcjson.so.1', '-lm', '-o', media])
     run([media], timeout=20)
 
-    private, public = temp / 'private.pem', temp / 'public.pem'
-    run(['openssl', 'genpkey', '-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048', '-out', str(private)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run(['openssl', 'pkey', '-in', str(private), '-pubout', '-out', str(public)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     crypto = COMMON.copy()
     include = os.environ.get('LOXONE_MBEDTLS_INCLUDE')
     library = os.environ.get('LOXONE_MBEDTLS_LIB')
@@ -143,7 +138,13 @@ with tempfile.TemporaryDirectory(prefix='loxone-audio-') as directory:
         crypto += ['-L' + library]
     auth = str(temp / 'auth')
     run(crypto + ['tests/test_audio_auth.c', 'main/app_loxone_audio_auth.c', '-lmbedcrypto', '-o', auth])
-    run([auth, str(private), str(public)], timeout=20)
+    for bits in (2048, 4096):
+        private, public = temp / ('private-' + str(bits) + '.pem'), temp / ('public-' + str(bits) + '.pem')
+        run(['openssl', 'genpkey', '-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:' + str(bits), '-out', str(private)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run(['openssl', 'pkey', '-in', str(private), '-pubout', '-out', str(public)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run([auth, str(private), str(public)], timeout=20)
 
     decoder = str(temp / 'image')
     run(COMMON + ['-Itests/audio_image_stubs', 'tests/test_audio_image.c', 'main/app_loxone_audio_image.c',

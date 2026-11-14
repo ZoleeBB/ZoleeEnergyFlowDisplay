@@ -59,39 +59,44 @@ static void decode_uri(char *text)
     *to = 0;
 }
 
-int main(int argc, char **argv)
+static size_t auth_roundtrip(mbedtls_pk_context *key, const char *public_key,
+                            const char *username, size_t jwt_length, const char *session)
 {
-    assert(argc == 3);
-    char *private_key = read_file(argv[1]), *public_key = read_file(argv[2]);
-    /* Valódi Audioserver egy sorba lapított PEM-válasza is működjön. */
-    char *destination = public_key;
-    for (char *source = public_key; *source; ++source)
-        if (*source != '\n' && *source != '\r')
-            *destination++ = *source;
-    *destination = 0;
-    const char *jwt = "test.jwt.payload.signature", *session = "test-session-42";
-    char *command = lx_audio_auth_create(public_key, "user@test", jwt, session, test_random, NULL);
-    assert(command && !strstr(command, jwt));
-    const char *prefix = "secure/authenticate/user%40test/";
+    char *jwt = calloc(jwt_length + 1, 1);
+    assert(jwt);
+    for (size_t i = 0; i < jwt_length; ++i)
+        jwt[i] = (char)('A' + i % 26);
+    char *command = lx_audio_auth_create(public_key, username, jwt, session, test_random, NULL);
+    assert(command);
+    size_t command_length = strlen(command);
+    assert(command_length <= LX_AUDIO_AUTH_COMMAND_MAX);
+    assert(command_length < LX_AUDIO_AUTH_WS_BUFFER_SIZE);
+    /* Az AppHub AuthenticateSchema első paramétere nyers név. Csak a másik
+     * két paraméter encodeURIComponent(Base64(...)); a saját dekóderrel
+     * végzett körpróba ezt az átviteli eltérést önmagában nem mutatná ki. */
+    const char *prefix = "secure/authenticate/";
     assert(!strncmp(command, prefix, strlen(prefix)));
-    char *rsa_text = command + strlen(prefix), *aes_text = strchr(rsa_text, '/');
+    const char *user_text = command + strlen(prefix);
+    assert(!strncmp(user_text, username, strlen(username)));
+    assert(user_text[strlen(username)] == '/');
+    const char *rsa_start = user_text + strlen(username) + 1;
+    const char *separator = strchr(rsa_start, '/');
+    assert(separator);
+    char *rsa_text = calloc((size_t)(separator - rsa_start) + 1, 1);
+    char *aes_text = strdup(separator + 1);
+    assert(rsa_text);
     assert(aes_text);
-    *aes_text++ = 0;
+    memcpy(rsa_text, rsa_start, (size_t)(separator - rsa_start));
     decode_uri(rsa_text);
     decode_uri(aes_text);
-    unsigned char rsa[512], cipher[1024], plain[1024];
+    unsigned char rsa[LX_AUDIO_AUTH_RSA_BYTES_MAX];
+    unsigned char cipher[LX_AUDIO_AUTH_AES_PADDED_MAX], plain[LX_AUDIO_AUTH_AES_PADDED_MAX];
     size_t rsa_size, cipher_size, plain_size;
     assert(!mbedtls_base64_decode(rsa, sizeof(rsa), &rsa_size, (const unsigned char *)rsa_text, strlen(rsa_text)));
     assert(!mbedtls_base64_decode(cipher, sizeof(cipher), &cipher_size, (const unsigned char *)aes_text, strlen(aes_text)));
-    mbedtls_pk_context key;
-    mbedtls_pk_init(&key);
-#if MBEDTLS_VERSION_MAJOR >= 3
-    assert(!mbedtls_pk_parse_key(&key, (const unsigned char *)private_key, strlen(private_key) + 1,
-                                NULL, 0, test_random, NULL));
-#else
-    assert(!mbedtls_pk_parse_key(&key, (const unsigned char *)private_key, strlen(private_key) + 1, NULL, 0));
-#endif
-    int decrypt_result = mbedtls_pk_decrypt(&key, rsa, rsa_size, plain, &plain_size,
+    assert(rsa_size == mbedtls_pk_get_len(key));
+    assert(cipher_size == (jwt_length / 16 + 1) * 16);
+    int decrypt_result = mbedtls_pk_decrypt(key, rsa, rsa_size, plain, &plain_size,
                                            sizeof(plain), test_random, NULL);
     if (decrypt_result)
         fprintf(stderr, "Audio RSA decrypt: -0x%04X (mbedTLS %s)\n",
@@ -121,13 +126,93 @@ int main(int argc, char **argv)
     for (size_t i = strlen(jwt); i < cipher_size; ++i)
         assert(plain[i] == cipher_size - strlen(jwt));
     mbedtls_aes_free(&aes);
-    mbedtls_pk_free(&key);
-    free(command);
+    free(rsa_text);
+    free(aes_text);
+    lx_audio_auth_free(command);
+    free(jwt);
+    return command_length;
+}
+
+static void rejected_inputs(const char *public_key)
+{
+    const char *jwt = "test.jwt.payload.signature", *session = "test-session-42";
     assert(!lx_audio_auth_create("bad key", "user", jwt, session, test_random, NULL));
     assert(!lx_audio_auth_create(public_key, "", jwt, session, test_random, NULL));
     assert(!lx_audio_auth_create(public_key, "user", "", session, test_random, NULL));
+    assert(!lx_audio_auth_create(public_key, "user", jwt, "", test_random, NULL));
+    assert(!lx_audio_auth_create(public_key, "user/name", jwt, session, test_random, NULL));
+    assert(!lx_audio_auth_create(public_key, "user\r\n", jwt, session, test_random, NULL));
+    char control_name[] = {'u', 1, 'r', 0};
+    for (unsigned c = 1; c <= 0x7f; ++c)
+    {
+        if (c >= 0x20 && c != 0x7f)
+            continue;
+        control_name[1] = (char)c;
+        assert(!lx_audio_auth_create(public_key, control_name, jwt, session, test_random, NULL));
+    }
+    char *overlong = calloc(LX_AUDIO_AUTH_JWT_MAX + 2, 1);
+    assert(overlong);
+    memset(overlong, 'x', LX_AUDIO_AUTH_USERNAME_MAX + 1);
+    assert(!lx_audio_auth_create(public_key, overlong, jwt, session, test_random, NULL));
+    memset(overlong, 'x', LX_AUDIO_AUTH_SESSION_MAX + 1);
+    assert(!lx_audio_auth_create(public_key, "user", jwt, overlong, test_random, NULL));
+    memset(overlong, 'x', LX_AUDIO_AUTH_JWT_MAX + 1);
+    assert(!lx_audio_auth_create(public_key, "user", overlong, session, test_random, NULL));
+    free(overlong);
+}
+
+int main(int argc, char **argv)
+{
+    assert(argc == 3);
+    char *private_key = read_file(argv[1]), *public_key = read_file(argv[2]);
+    /* Valódi Audioserver egy sorba lapított PEM-válasza is működjön. */
+    char *destination = public_key;
+    for (char *source = public_key; *source; ++source)
+        if (*source != '\n' && *source != '\r')
+            *destination++ = *source;
+    *destination = 0;
+    mbedtls_pk_context key;
+    mbedtls_pk_init(&key);
+#if MBEDTLS_VERSION_MAJOR >= 3
+    assert(!mbedtls_pk_parse_key(&key, (const unsigned char *)private_key, strlen(private_key) + 1,
+                                NULL, 0, test_random, NULL));
+#else
+    assert(!mbedtls_pk_parse_key(&key, (const unsigned char *)private_key, strlen(private_key) + 1, NULL, 0));
+#endif
+    size_t bits = mbedtls_pk_get_bitlen(&key);
+    assert(bits == 2048 || bits == 4096);
+    const size_t jwt_lengths[] = {1, 15, 16, 17, 1023};
+    const char *session = "test-session-42";
+    for (size_t i = 0; i < sizeof(jwt_lengths) / sizeof(jwt_lengths[0]); ++i)
+        auth_roundtrip(&key, public_key, "ZoleeEnergyDisplay", jwt_lengths[i], session);
+    const char *names[] = {"user@test", "Árvíztűrő tükör", "név%20érték"};
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+        auth_roundtrip(&key, public_key, names[i], 17, session);
+
+    /* A leghosszabb név/JWT együtt is egy keretbe fér. A 2048 bites RSA
+     * borítékába legfeljebb 147 bájtos session fér, a 4096 bitesnél a
+     * saját 256 bájtos korlátunk érvényesül. Mindkettőt visszafejtjük. */
+    char maximum_name[LX_AUDIO_AUTH_USERNAME_MAX + 1];
+    memset(maximum_name, '%', sizeof(maximum_name) - 1);
+    maximum_name[sizeof(maximum_name) - 1] = 0;
+    char maximum_session[LX_AUDIO_AUTH_SESSION_MAX + 2];
+    size_t session_length = mbedtls_pk_get_len(&key) - 11 - 98;
+    if (session_length > LX_AUDIO_AUTH_SESSION_MAX)
+        session_length = LX_AUDIO_AUTH_SESSION_MAX;
+    memset(maximum_session, 's', session_length);
+    maximum_session[session_length] = 0;
+    size_t maximum_command = auth_roundtrip(&key, public_key, maximum_name,
+        LX_AUDIO_AUTH_JWT_MAX, maximum_session);
+    if (bits == 4096)
+        assert(maximum_command > 2048);
+    maximum_session[session_length] = 's';
+    maximum_session[session_length + 1] = 0;
+    assert(!lx_audio_auth_create(public_key, "user", "token", maximum_session, test_random, NULL));
+    rejected_inputs(public_key);
+    mbedtls_pk_free(&key);
     free(public_key);
     free(private_key);
-    puts("PASS: Audioserver hitelesítő RSA-visszafejtése és AES/PKCS7 ellenőrzése");
+    printf("PASS: Audio RSA%zu, JWT 1/15/16/17/1023, nyers nevek és elutasítások; max-input parancs %zu B, korlát %u B\n",
+        bits, maximum_command, (unsigned)LX_AUDIO_AUTH_COMMAND_MAX);
     return 0;
 }
