@@ -15,6 +15,12 @@ az új kezdőoldalak összerendezik őket, nem cserélik le a tartalmukat.
 [További Otthon-blokkok](loxone-home-controls.md) · [Audio](audio-controller.md) ·
 [Kaputelefon](intercom.md) · [Hibakeresés](errors.md)
 
+Az Otthon-kártyákhoz a [blokkonkénti leírás- és képmutató](features/README.md#otthon-kártyák-leírásai-és-képei)
+ad közvetlen hivatkozást. Az oldalak felvételét, a füles szerkesztőt és a
+kártyák rendezését az [Otthon-konfiguráció](v3-home-config.md#otthon-oldalak-fülei)
+ismerteti; az új kártyák képeihez a [v4 SD-csomag](v3-home-config.md#v4-otthon-erőforráscsomag-frissítése)
+szükséges.
+
 ## Témakörök
 
 | Témakör | Mit találsz benne? |

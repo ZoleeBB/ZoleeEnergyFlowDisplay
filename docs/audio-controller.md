@@ -1,5 +1,7 @@
 # Audio – modern Loxone Audioserver
 
+[Dokumentáció](README.md) · [Funkciók és képmutató](features/README.md#otthon-kártyák-leírásai-és-képei)
+
 Az **Audio** Otthon-kártya a modern Audioserver `AudioZoneV2` zónáját kezeli.
 A többi kártyával azonos helyet foglal: a lejátszó kijelzőjén borítókép vagy
 helyettesítő ikon, mellette zenecím, Play/Pause és hangerőgomb látható.
@@ -8,29 +10,13 @@ A részletes ablakból a számváltás és a zóna kedvencei is elérhetők.
 Ez a funkció a 10.1-es Master közvetlen Loxone módjához tartozik.
 A régi `AudioZone` / Music Server nem választható ehhez a kártyához.
 Az automatizált modell-, protokoll-, képfeldolgozási és LVGL-próbák helyi
-tesztadatokkal futnak. Az első fizikai próba során a Play/Pause működött,
-de a hangerőnél, natív adatoknál, borítóknál és egyes feliratoknál hibák
-jelentkeztek. A felhasználó a következő javítás után **a hangerő működését
-megerősítette**, de a kedvencek és borítók paneles próbája még nem sikeres.
-A valós rádió- és Spotify-események külön regressziós esetekbe kerültek.
-
-Újabb fizikai visszajelzésben az érintőképernyő megállt, miközben a webes
-felület működött. A kapcsolatvesztéshez tartozó kártyaéletciklus hibáját
-valódi LVGL-ben reprodukáltuk: a megmaradó kártyafa widgethivatkozásai
-törlődtek, a következő frissítés pedig NULL-objektum miatti assertnél
-megállt. A külön felfüggesztési és végleges törlési út regressziója
-RGB565 és XRGB8888 alatt sikeres; **a javított firmware fizikai elfogadása
-továbbra is szükséges**.
-
-A 2026-11-14-i panelnapló már külön indítási hibát azonosított:
-`worker-start; phase=0; text=0; binary=0; JSON=0`. A hozzá tartozó
-memóriaképen 20795 bájt belső RAM volt szabad, de a legnagyobb egybefüggő
-blokk csak **7936 bájt**; az akkori Audio-controller **8192 bájtos** vermét
-ebből nem lehetett lefoglalni. A feladatlistában sem volt Audio-controller.
-Ez a hiba a natív kapcsolat és a hitelesítés előtt keletkezett. Az
-alapvezérlés ettől még a külön Miniserver-útvonalon működhetett.
-A javítás a már fenntartott Master `main` és `ota_check` feladatokat
-használja; a részletes erőforrás- és mérési határok alább szerepelnek.
+tesztadatokkal futnak. A felhasználó 2026. november 14-én saját rendszerén
+visszaigazolta **a hangerő, a kedvencek, a képek és a vezérlések működését**.
+Az indulási javítás után az első kapcsolódásnál még egyszer timeout
+jelentkezett, utána gyorsan helyreállt; a második megnyitás már elsőre
+sikerült. Ezt az indulási viselkedést elfogadhatónak minősítette.
+A hibák értelmezését az [indulási időkeretek](#indulási-időkeretek-és-újrapróbálkozás)
+és a [diagnosztika](#natív-kapcsolat-webes-diagnosztikája) ismerteti.
 
 ## Beállítás
 
@@ -241,6 +227,13 @@ sessionváltás alaphelyzetbe állítja a hibasorozatot. Minden tényleges
 mutatnak. Lejátszási parancsot az újracsatlakozás nem ismétel meg.
 Nincs új feladat vagy nagyobb verem; az időbélyegek a meglévő kapcsolatban
 és a korlátos PSRAM-fogadósorban élnek.
+
+A javított firmware 2026. november 14-i fizikai próbáján az első
+kapcsolódás egy időtúllépés után gyorsan helyreállt, az Audio-oldal második
+megnyitása pedig elsőre sikerült. A felhasználó ezt elfogadta. Ez egy
+konkrét rendszerben megfigyelt viselkedés: új hálózati vagy szerverhiba
+esetén a timeout továbbra is látható, és az újrapróbálkozás állítja helyre
+a kapcsolatot.
 
 A szerver kezdeti `audio_event` üzenete már a belépés befejezése előtt is
 megérkezhet. A firmware ezt a legfeljebb 12 látható kártyához tartozó,
@@ -482,6 +475,36 @@ csak a valódi képernyő-`clear()` része: leválasztja a képforrást,
 elengedi a referenciát, majd törlődhet a kártyafa. Ez akadályozza meg a
 kapcsolatvesztéskor reprodukált NULL-widget assertet.
 
+### Bezáráskor felszabaduló és megmaradó állapot
+
+Az Audio-oldal elhagyása azonnal érvényteleníti az oldalhoz tartozó
+generációt. A következő megnyitás új oldalmodellel és új natív kapcsolattal
+indul; korábbi kérés eredménye nem írhatja felül az új oldalt.
+
+| Erőforrás | Mikor szabadul fel? |
+| --- | --- |
+| Audio-oldalmodell és kedvencek munkapéldánya | Az elrejtéskor azonnal. |
+| A 13 borítóhely URL-je, próbálkozási állapota és a tár képreferenciái | Generációváltáskor, így oldalváltáskor és bezáráskor is. A tábla csak új, érvényes és aktuális képkérésre foglalódik újra; üres URL, elavult kérés vagy törlés nem foglalja vissza. |
+| A kártya vagy a részletablak saját képreferenciája | Miután a widget forrása levált a képről. A továbbra is látható offline kártya a felfüggesztés idején megtarthatja a képét; a valódi oldalbezárás azt is elengedi. |
+| Natív WebSocket, fogadósor, darabolt üzenet összeállítási puffere, belépés előtti metaadatok | Az elrejtés felébreszti a `main` feladatot; a következő vezérlőlépés leállítja és törli a kapcsolatot, majd elengedi a hozzá tartozó puffereket. |
+| Már futó HTTP- vagy dekódolási munka | A megszakítás és az aktuális IO-/dekóderlépés biztonságos befejezése után. Az eredmény ekkor már nem adható az elhagyott oldalhoz. |
+| Közös mutexek, ébresztés és Miniserver-session tükre | Megmaradó szolgáltatásállapot. Az újranyitás nem jár új hitelesítésiadat-átadással; a session tükre ehhez szükséges. A Miniserver-session érvénytelenítése a teljes JWT-t nullázza. |
+
+A zárás előtti review egy feleslegesen megmaradó foglalást is javított:
+a borítóhelyek táblája az első használat után korábban végig megmaradt.
+Ez a gazdagépes `sizeof` szerint **10 608 bájt**; a javított életciklus
+bezáráskor ezt is visszaadja. A szükséges sessiontükör ugyanezen a
+gazdagépen 1128 bájt. Ezek szerkezetméretek, nem a fizikai ESP32-P4
+teljes heapköltségének mérései.
+
+A valódi média- és runtime-modul ASan/UBSan-próbái 64–64 nyitás/bezárás
+ciklus után rendre nulla oldalpuffert, illetve kizárólag a session
+allokációs alapszintjét kérik számon. A teszt aktív HTTP-olvasás és
+dekódolás közben is elrejti az oldalt, valamint minden hitelesítési
+fázisban, foglalási hibánál és generációváltásnál ellenőrzi a lezárást.
+Ez nem jelenti azt, hogy az egész készülék RAM-ja nullára csökken vagy
+az aktív hálózati hívás a bezárás pillanatában félbeszakítható.
+
 Kaputelefonos csengéskor a lejátszóablak bezárul, a régi kérések érvényüket
 vesztik, és a képhivatkozások leválnak. A kamera nagy képpuffereinek foglalása
 és a videó indítása megvárja, amíg a borítófeldolgozó a saját ideiglenes
@@ -559,8 +582,11 @@ a saját függvények figyelmeztetéseinek megmaradását negatív fordítási
 próbák ellenőrzik. Az upstream fejléc változatlan.
 
 A felhasználó a Play/Pause és hangerő mellett 2026. november 14-én a
-kedvencek, borítók és vezérlések működését is visszaigazolta. Az indulási
-várakozás javulása és az alábbi szélső esetek külön paneles próbát igényelnek:
+kedvencek, borítók és vezérlések működését is visszaigazolta, majd az
+indulási javítás gyors helyreállását és a sikeres második megnyitást is
+elfogadta. Az alábbi lista a további kiadások regressziós próbáihoz
+használható; a szélső esetek és a futásidejű memória-mélypontok nem
+következnek automatikusan ebből az általános működési visszajelzésből:
 
 1. A saját `AudioZoneV2` zónán lejátszás, szünet, előző és következő;
    az állapot a Loxone webfelülettel egyezzen.
@@ -581,6 +607,31 @@ várakozás javulása és az alábbi szélső esetek külön paneles próbát ig
    `ota_check` és a két WebSocket-feladat maradék verme natív hitelesítés,
    JPEG/PNG-borító, hibás letöltés és OTA-ellenőrzés után; ugyanitt kell
    felvenni a DMA szabad és legnagyobb egybefüggő blokkjának értékét.
+
+### A fejlesztés során javított korábbi hibák
+
+Az első fizikai próba során a Play/Pause működött, de a hangerőnél,
+natív adatoknál, borítóknál és egyes feliratoknál hibák jelentkeztek.
+A valós rádió- és Spotify-események külön regressziós esetekbe kerültek.
+Ezek történeti megfigyelések; a jelenlegi fizikai visszajelzés fent szerepel.
+
+Egy későbbi kapcsolatvesztéskor az érintőképernyő megállt, miközben a
+webes felület működött. A kártyaéletciklus hibáját valódi LVGL-ben
+reprodukáltuk: a megmaradó kártyafa widgethivatkozásai törlődtek, a
+következő frissítés pedig NULL-objektum miatti assertnél megállt.
+A külön felfüggesztési és végleges törlési út regressziója RGB565 és
+XRGB8888 alatt sikeres.
+
+A 2026-11-14-i panelnapló külön indítási hibát is azonosított:
+`worker-start; phase=0; text=0; binary=0; JSON=0`. A hozzá tartozó
+memóriaképen 20795 bájt belső RAM volt szabad, de a legnagyobb egybefüggő
+blokk csak **7936 bájt**; az akkori Audio-controller **8192 bájtos** vermét
+ebből nem lehetett lefoglalni. A feladatlistában sem volt Audio-controller.
+Ez a hiba a natív kapcsolat és a hitelesítés előtt keletkezett; az
+alapvezérlés ettől még a külön Miniserver-útvonalon működhetett.
+A jelenlegi végrehajtás a már fenntartott Master `main` és `ota_check`
+feladatokat használja; a részletes erőforrás- és mérési határokat a
+[memóriafejezet](#memória-és-életciklus) tartalmazza.
 
 ## Kapcsolódó szerződések
 

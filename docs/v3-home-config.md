@@ -6,12 +6,19 @@ Az `app_loxone_home_model.c` platformfüggetlen konfigurációs modell elkészü
 A tartós SD-mentés és a meglévő `/loxone` oldal külön fogyasztói/Otthon-szerkesztője
 is elkészült. Az élő értékek, a korlátos parancsküldés és a két Master kijelzőoldal is be van
 kötve, külön SD-erőforráscsomaggal. A Slave-jelenlét, az energiaasszisztens és
-a jóváhagyott 05/06 témák is implementálva vannak. A v3 fizikai eszközpróbája
-és végső kiadási ellenőrzése még hátravan. A teljes feladat és a folytatás:
-[fejlesztési terv](v3-development-plan.md), [telepítés és átadás](v3-handover.md).
+a jóváhagyott 05/06 témák is implementálva vannak. A v3 eredeti bevezetési
+feladatait és ellenőrzési szempontjait a történeti
+[fejlesztési terv](v3-development-plan.md), valamint a
+[telepítési és átadási jegyzet](v3-handover.md) őrzi.
+Az aktuális világítás-, IRC-, árnyékolás-, további vezérlő- és Audio-kártyák
+[használati leírásai és képei](features/README.md#otthon-kártyák-leírásai-és-képei)
+a funkciók dokumentációjából érhetők el.
 
 A modell külön objektum; nem növeli meg a több helyen másolt, jelszót is tartalmazó
-`lx_config_t` hitelesítési konfigurációt. A modellben nincs token vagy jelszó.
+`lx_config_t` hitelesítési konfigurációt. A nyilvános JSON-ban és a kijelzőnek
+átadott pillanatképben nincs token vagy jelszó. A kaputelefon kamera-jelszava
+csak a belső futásidejű profilban nyílt szöveg; az SD-re titkosítva kerül
+([tárolási szerződés](intercom.md#hálózat-és-hitelesítés)).
 A készüléken csak Master és közvetlen Loxone módban érhető el.
 
 ## Energiaáramlás nélküli használat
@@ -30,7 +37,7 @@ fogyasztói írás elutasított. A kamera-jelszó megőrzése szerveroldali.
 
 ## Tárolás és webes szerkesztés
 
-- Külön `/sdcard/loxone-home.json`, legfeljebb 128 KiB, schema 2; jelszó és token nélkül.
+- Külön `/sdcard/loxone-home.json`, legfeljebb 128 KiB, schema 2; nyílt jelszó és token nélkül.
 - Ideiglenes `.tmp`, sikeres flush/fsync után FAT-kompatibilis `.bak` csere.
   Induláskor az első érvényes fő-/backup-profil töltődik be. Hibás fájl nem
   módosítja a memóriabeli kimenetet. A túl mély JSON még a parser előtt elutasított.
@@ -196,6 +203,12 @@ A csak olvasható Ajtó–ablak összesítőhöz parancscím sem szükséges.
 | Kapu / garázsajtó | `gate` | `Gate` | A Loxone kaputípusából automatikus |
 | Motoros ablak | `window` | `Window` | Kötött `motor-window` |
 | Audio | `audio` | `AudioZoneV2` | Kötött `audio-player`, SD-lejátszóképpel |
+
+A hét általános új kártya kezelése és valódi LVGL-képei a
+[Loxone-kártyák útmutatójában](loxone-home-controls.md), a nyolcadik típusé
+a külön [Audio-útmutatóban](audio-controller.md) szerepelnek. A
+[közös képmutató](features/README.md#otthon-kártyák-leírásai-és-képei)
+minden blokkhoz közvetlen képhivatkozást ad.
 
 Ezek a kártyák az `id`, `name`, `type`, `icon`, `control_uuid` mezőket mentik.
 Az időzített kapcsoló további `allow_permanent` logikai mezője alapból `true`.
@@ -379,8 +392,11 @@ az aktuális firmware telepítését az [USB útmutató](usb-install.md) ismerte
 ## Többoldalas memória- és képszerződés
 
 A natív gazdagépes mérésben a profil 33 776 bájt; a parser és az SD-s validálás
-heapen dolgozik, a két UI-pillanatkép PSRAM-ban él. A legfeljebb 96 kártya és 12 fogyasztó értéktára
-1824 bájt. A rejtett lapok utolsó állapotait a konfigurált UUID-kre szűrt,
+heapen dolgozik. A két konfigurációs UI-pillanatkép (`home_config`,
+`home_next_config`) és két értékpillanatkép (`home_values`,
+`home_next_values`) statikus `TEMPLATE_RAM` terület: a firmware-ben PSRAM BSS,
+nem bezáráskor visszaadható heapfoglalás. A legfeljebb 96 kártya és 12 fogyasztó
+egy értékpillanatképe a gazdagépen 1824 bájt. A rejtett lapok utolsó állapotait a konfigurált UUID-kre szűrt,
 közös nyers állapottár őrzi; világítási, IRC-, redőny- és további vezérlőmodell csak a látható
 oldalhoz él. Lapváltáskor a modell ebből a tárból épül fel, új
 állapotfeliratkozás nélkül. [Állapottár és korlátai](lighting-controller.md#memória-és-láthatóság).
@@ -409,6 +425,9 @@ A Home-képek a kész oldal előtt, külön birtokolt pufferbe dekódolódnak:
 RGB565 háttér és ARGB ikon/logó, előre kész szürke fogyasztói ikonokkal.
 A Home-rajzolás már nem használ PNG-dekódolást; hiba esetén a teljes betöltés
 visszavonódik, legfeljebb 15 újrapróbálás után visszatér a témára.
+Az SD-zár foglaltsága várakozást jelent, nem fogyasztja a valódi hibák
+újrapróbakeretét. A lapozáshoz átmenetileg megtartott háttér és logó is
+felszabadul, ha a betöltés végül meghiúsul vagy az Otthon nézet bezárul.
 Régi v1 erőforráscsomag betölthető marad közös háttérrel; a külön fogyasztói
 háttér a v2-től érhető el. A v3-tól a webes sablonkezelő 400×250-es
 nappali/éjszakai előnézetet is kap. Ezek nem kerülnek az aktív LVGL-képek közé.
@@ -417,6 +436,30 @@ csomagnál megmutatja a kiválasztott ikon képét, nélküle felül pirosan fig
 Az IRC és a redőny kötött ikonelőnézetét is a telepített SD-csomagból szolgálja
 ki a hitelesített végpont; hiányzó képnél 404-et ad. A v4-re váltás és a régi
 csomagok megjelenési tartalékai a [frissítési szakaszban](#v4-otthon-erőforráscsomag-frissítése) szerepelnek.
+
+### Mi marad meg az Otthon nézet bezárása után?
+
+A bezárás a látható oldalhoz tartozó dinamikus erőforrásokat elengedi.
+A teljes alkalmazás szabad memóriája ettől nem tér vissza a Loxone
+bekapcsolása előtti értékre: az adatkapcsolat és a többi funkció tovább működik.
+
+| Erőforrás | Lapváltás vagy bezárás eredménye |
+| --- | --- |
+| Világítás-, IRC-, redőny- és a hét további vezérlő oldalmodellje; WindowMonitor-részletlista | Az előző oldal modellje azonnal leválik és felszabadul, függő parancsnyugta mellett is. Az új oldal saját modellje ezután épül fel. |
+| Világítás részletes kezelője | A részletablak bezárása a részletmodellt engedi el; az oldal bezárása az oldalmodellt is. |
+| Home-képek, PNG-források, dekódolt és szürke ikonpufferek | A bezárás vagy a végleges betöltési hiba mindet elengedi. Sikeres Otthon-lapozásnál a közös háttér és logó a következő oldalt is kiszolgálja. |
+| Audio-oldal, kedvencek, borítóképek és natív kapcsolat | A modell és a kedvencek azonnal felszabadulnak; a kapcsolat és az aktív letöltés a biztonságos leállási pontján adja vissza a puffereit. [Részletes életciklus](audio-controller.md#bezáráskor-felszabaduló-és-megmaradó-állapot). |
+| Még el nem küldött vezérlés | A Dimmer helyi összevont célja az oldalmodellel együtt megszűnik. A közös egyelemű Home/kaputelefon parancssor régi lapparancsa érvénytelenné válik, a worker küldés nélkül eldobja. Egy már elküldött parancs nyugtázása még befejeződhet. |
+| Közös profil, értékek és nyers Miniserver-állapottár | Megmaradnak a fogyasztókhoz, energiaasszisztenshez, kaputelefonhoz és az oldal következő megnyitásához. A nyers tár legfeljebb 512 UUID-t és összesen 64 KiB szöveget tart, egy állapot legfeljebb 32 KiB lehet. A táblabejegyzések memóriája a szövegkereten felül értendő. |
+| Statikus UI-pillanatképek, közös parancssor és szinkronizáció | Állandó szolgáltatásállapot; nem egy elrejtett oldal dinamikusan megtartott tartalma. A pillanatképek lefoglalt PSRAM BSS-területe bezárással nem szabadítható fel. |
+
+A 2026. november 14-i ellenőrzésben a tényleges vezérlőszolgáltatás 96
+nyitás/bezárás ciklusa pontosan a közös allokációs alapszintre tért vissza,
+nyugtára várás közbeni bezárással is. A valódi LVGL-próba külön ellenőrzi
+a nappali/éjszakai lapozás utáni hibakilépést és az SD-zárra várakozás
+közbeni bezárást, RGB565 és 32 bites képmódban. Ezek gazdagépes
+életciklus-próbák; a panel belső RAM-/DMA-mélypontját és a tényleges
+váltási időt továbbra is a készülék diagnosztikája mutatja meg.
 
 ## Kompakt szerkesztő és autótöltés
 

@@ -1,5 +1,7 @@
 # További Loxone-kártyák az Otthon nézeten
 
+[Dokumentáció](README.md) · [Funkciók és képmutató](features/README.md#otthon-kártyák-leírásai-és-képei)
+
 Az Otthon nézet az önálló dimmert, a központi világítást, az analóg
 értékállítót, a részletes időzített kapcsolót, az ajtó–ablak összesítőt,
 a kaput és a motoros ablakot külön kártyatípusként kezeli. A korábbi
@@ -7,10 +9,23 @@ a kaput és a motoros ablakot külön kártyatípusként kezeli. A korábbi
 és [redőnyvezérlő](shading-controller.md) továbbra is használható ugyanazon
 az oldalon.
 
+A nyolcadik új típus, a modern `AudioZoneV2` lejátszó külön
+[Audio-útmutatót és képgalériát](audio-controller.md) kapott.
+
+## Elérhetőség
+
+A hét kártya a **10.1-es Master közvetlen Loxone adatfogadási módjában**
+használható. A 4B Slave, valamint a Master HTTP-, MQTT- és Slave-módja
+nem indítja el ezeket a vezérlőket. A webes szerkesztőben a saját
+Miniserverből beolvasott, megfelelő típusú szülőblokkot kell kiválasztani;
+az állapot-UUID önmagában nem helyettesíti a vezérlőblokkot.
+
 ## Beállítás és ikoncsomag
 
-Telepítsd a webes felületen az aktuális `loxone-home.zip`
-Otthon-erőforráscsomagot. Az ikonok SD-kártyáról töltődnek be, a firmware
+Előbb az új firmware-t, utána a webes felületen a hozzá tartozó
+**v4 `loxone-home.zip`** Otthon-erőforráscsomagot telepítsd.
+A [frissítési és visszaállítási sorrend](v3-home-config.md#v4-otthon-erőforráscsomag-frissítése)
+a régi csomagok kezelését is leírja. Az ikonok SD-kártyáról töltődnek be, a firmware
 nem tartalmaz új beágyazott kártyaképeket. Az IRC és a redőny kötött képe
 is ebbe a csomagba került.
 
@@ -44,6 +59,8 @@ részletes kezelők pedig látható **Részletek** gombbal is elérhetők.
 
 ### Dimmer és analóg értékállító
 
+#### Dimmer
+
 A dimmer a Loxone által közölt minimumot, maximumot és lépésközt követi.
 A csúszka melletti **−/+** gombok a következő érvényes lépést választják,
 és ugyanúgy közvetlenül küldik az értéket. A tartomány végén a megfelelő
@@ -52,6 +69,10 @@ A húzás közben érkező célok összevonódnak: a következő küldéshez min
 legfrissebb cél marad meg. A **Ki** törli a még várakozó fényerőkérést,
 így egy korábbi húzás nem kapcsolhatja vissza később a lámpát.
 
+![Dimmer tényleges és kívánt fényereje](images/controls/controls-dimmer-day.png)
+
+#### Slider
+
 A Slider a blokk beállított tartományát, lépésközét és formátumát használja.
 A **−/+** gombokkal tört lépésköz mellett is pontosan állítható a cél.
 A csúszka elengedése és a léptetőgombok megnyomása önmagában nem küld
@@ -59,10 +80,14 @@ parancsot; ehhez a **Beállítás** gombot kell megnyomni.
 Mindkét kezelő külön mutatja a tényleges értéket és
 a kiválasztott célt. A tényleges érték csak Loxone-visszajelzésre változik.
 
-![Dimmer tényleges és kívánt fényereje](images/controls/controls-dimmer-day.png)
+![Slider tényleges értéke és a Beállítás gombra váró célértéke](images/controls/controls-slider-day.png)
+
+### Központi világítás
 
 A központi világításnak nincs kitalált összesített „bekapcsolva” állapota.
 A **Be** az `on`, a **Ki** a központi blokk `reset` parancsát küldi.
+A fenti nappali oldalképen az **Összes világítás** kártya ezt a kezelőt
+mutatja. A központi blokkhoz nincs külön részletes ablak vagy fényerőcsúszka.
 
 ### Részletes időzített kapcsoló
 
@@ -136,6 +161,22 @@ indít mozgatást. A célpozíció is követi az iránytiltásokat; részleges t
 és ismeretlen aktuális pozíció mellett nem indul bizonytalan irányú mozgás.
 
 ![Motoros ablak célpozíciója és külön Stop gombja](images/controls/controls-window-day.png)
+
+## Memória és láthatóság
+
+A hét vezérlő részletes modellje csak a látható Otthon-oldalhoz él.
+Lapváltás vagy bezárás azonnal felszabadítja a korábbi modell és az
+ajtó–ablak lista dinamikus foglalásait, akkor is, ha egy korábbi parancs
+nyugtájára még várunk. A Dimmer még összevont, el nem küldött célértéke
+is megszűnik. A már elküldött parancs nyugtázása befejeződhet, de a régi
+oldalról sorban maradt kérés nem küldhető el utólag.
+
+A közös Miniserver-állapottár megmarad: ebből épül fel a következő
+megnyitáskor az aktuális oldal, új teljes állapotfeliratkozás nélkül.
+Ez korlátos közös szolgáltatásadat. Az oldal képeinek, az Audio-nak és a
+statikus UI-pillanatképeknek a pontos élettartamát az
+[Otthon memóriaszerződése](v3-home-config.md#mi-marad-meg-az-otthon-nézet-bezárása-után)
+írja le.
 
 ## Visszajelzés és ellenőrzött működés
 

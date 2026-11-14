@@ -1,18 +1,35 @@
 # Az új Otthon-kártyák dokumentációs képei
 
-A hat PNG a [Loxone-kártyák útmutatójának](../../loxone-home-controls.md)
+A hét PNG a [Loxone-kártyák útmutatójának](../../loxone-home-controls.md)
 előnézete. A firmware valódi LVGL-kódját futtató
 `tests/preview/controls_test.inc` renderelte őket szimulált Loxone-állapotokkal.
 Nem készülékfotók és nem külön megrajzolt látványtervek.
 
 ## Eredet és formátum
 
-A képek a `feature/loxone-home-controls` fejlesztés 2026-11-13-i helyi,
-ASan/UBSan-műszerezett preview futásából származnak. A próba
+A hat eredeti kép a `feature/loxone-home-controls` fejlesztés
+2026-11-13-i helyi preview futásából származik. A 2026-11-14-i ellenőrzés
+újrafordította az aktuális UI-t ASan-műszerezéssel: mind a hat korábbi PNG
+képpontonként egyezett a friss PPM-kimenettel, ezért ezek a fájlok
+változatlanok maradtak. A Slider részletes ablakának hetedik képe ekkor
+került a dokumentációba, ugyanebből a tényleges LVGL-renderből. A próba
 `ZOLEE_CONTROLS_ONLY=1 ZOLEE_PREVIEW_RGB565=1` módban futott, az aktuális
 v4 `loxone-home.zip` SD-erőforráscsomaggal. Az alap kártyaoldal mindkét
-témáját, a dimmer, az időzítő, az összesítő és a motoros ablak részletes
-kezelőjét mutatják.
+témáját, a dimmer, a Slider, az időzítő, az összesítő és a motoros ablak
+részletes kezelőjét mutatják.
+
+| Blokk | Dokumentációs kép |
+| --- | --- |
+| Mind a hét általános új kártya | [Nappali oldal](controls-cards-day.png), [éjszakai oldal](controls-cards-night.png) |
+| Dimmer | [Közvetlen fényerőállítás](controls-dimmer-day.png) |
+| Slider | [Beállításra váró célérték](controls-slider-day.png) |
+| TimedSwitch | [Időzítő és Tartós be](controls-timer-day.png) |
+| WindowMonitor | [Összesített állapotok és részletlista](controls-monitor-day.png) |
+| Window | [Célpozíció és Stop](controls-window-day.png) |
+| CentralLightController, Gate | A fenti közös oldalképeken; ezekhez nincs külön felugró kezelő. |
+
+A nyolcadik új blokk, az AudioZoneV2 képei a
+[külön Audio-képtárban](../audio/README.md) vannak.
 
 A natív **1280×800** méret megmaradt. A PPM → PNG átalakítás
 veszteségmentes; a visszaolvasott PNG RGB-képpontjait a forráséhoz
@@ -35,7 +52,8 @@ from PIL import Image
 
 names = (
     "controls-cards-day", "controls-cards-night", "controls-dimmer-day",
-    "controls-timer-day", "controls-monitor-day", "controls-window-day",
+    "controls-slider-day", "controls-timer-day", "controls-monitor-day",
+    "controls-window-day",
 )
 source = Path(".preview-images")
 output = Path("docs/images/controls")
