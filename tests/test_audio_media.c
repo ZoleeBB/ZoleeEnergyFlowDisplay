@@ -1,8 +1,52 @@
 /* A tényleges ESP borító-job életciklusa: determinisztikus executor/RTOS/HTTP. */
 #include <assert.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "freertos/idf_additions.h"
+static void test_release(void *pointer);
+#define free test_release
 #include "../main/app_loxone_audio_media.c"
+#undef free
+
+/* A tényleges modul PSRAM-foglalásai és a neki átadott dekódolt képek.
+ * A tartós RTOS-mutex külön szolgáltatáserőforrás; nem oldalpuffer. */
+static struct { void *pointer; size_t bytes; } test_allocations[128];
+static size_t test_live_bytes, test_peak_bytes;
+
+static void *test_allocate(size_t count, size_t size)
+{
+    void *pointer = calloc(count, size);
+    assert(pointer);
+    for (unsigned i = 0; i < 128; ++i)
+        if (!test_allocations[i].pointer)
+        {
+            test_allocations[i].pointer = pointer;
+            test_allocations[i].bytes = count * size;
+            test_live_bytes += count * size;
+            if (test_live_bytes > test_peak_bytes)
+                test_peak_bytes = test_live_bytes;
+            return pointer;
+        }
+    assert(!"Túl sok élő tesztfoglalás.");
+    return NULL;
+}
+
+static void test_release(void *pointer)
+{
+    if (!pointer)
+        return;
+    for (unsigned i = 0; i < 128; ++i)
+        if (test_allocations[i].pointer == pointer)
+        {
+            assert(test_live_bytes >= test_allocations[i].bytes);
+            test_live_bytes -= test_allocations[i].bytes;
+            test_allocations[i].pointer = NULL;
+            test_allocations[i].bytes = 0;
+            free(pointer);
+            return;
+        }
+    assert(!"Nem nyilvántartott vagy kétszer felszabadított oldalpuffer.");
+}
 
 struct test_audio_semaphore { bool held; };
 struct test_audio_http { esp_http_client_config_t configuration; unsigned position; };
@@ -19,8 +63,10 @@ static bool test_callback_active, test_ota_active;
 static unsigned test_callbacks, test_task_starts, test_task_deletes;
 static unsigned test_http_live;
 static unsigned test_job_allocations;
+static unsigned test_slot_allocations;
 static unsigned test_ota_during;
 static void (*test_read_hook)(void);
+static void (*test_decode_hook)(void);
 static void (*test_before_callback)(void);
 static size_t test_allocation_failure;
 static bool test_http_init_failure, test_read_failure, test_decode_failure, test_close_detail;
@@ -55,12 +101,14 @@ void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
         assert(test_callback_active && !app_loxone_audio_media_idle());
     if (count * size == sizeof(media_job_t))
         ++test_job_allocations;
+    if (count * size == LX_AUDIO_MEDIA_SLOTS * sizeof(media_slot_t))
+        ++test_slot_allocations;
     if (test_allocation_failure == count * size)
     {
         test_allocation_failure = 0;
         return NULL;
     }
-    return calloc(count, size);
+    return test_allocate(count, size);
 }
 SemaphoreHandle_t xSemaphoreCreateMutex(void) { return calloc(1, sizeof(struct test_audio_semaphore)); }
 SemaphoreHandle_t xSemaphoreCreateBinary(void) { return xSemaphoreCreateMutex(); }
@@ -224,11 +272,17 @@ lx_audio_image_t *lx_audio_image_decode(const uint8_t *data, size_t length, unsi
         test_ota_active = true;
     if (test_decode_failure)
         return NULL;
-    lx_audio_image_t *image = calloc(1, sizeof(*image));
+    lx_audio_image_t *image = test_allocate(1, sizeof(*image));
     assert(image);
     image->width = image->height = size;
-    image->pixels = calloc(size * size, 2);
+    image->pixels = test_allocate(size * size, 2);
     assert(image->pixels);
+    if (test_decode_hook)
+    {
+        void (*hook)(void) = test_decode_hook;
+        test_decode_hook = NULL;
+        hook();
+    }
     return image;
 }
 void lx_audio_image_free(lx_audio_image_t *image)
@@ -236,8 +290,8 @@ void lx_audio_image_free(lx_audio_image_t *image)
     if (image)
     {
         ++test_freed;
-        free(image->pixels);
-        free(image);
+        test_release(image->pixels);
+        test_release(image);
     }
 }
 
@@ -256,7 +310,7 @@ static void initialize_and_generation_test(void)
     /* A régi implementáció a kész init-zár ütközésénél eldobta a clear-t. */
     atomic_flag_test_and_set(&media_initializing);
     app_loxone_audio_media_clear(12);
-    assert(media_generation == 12 && !media_slots[0].pending);
+    assert(media_generation == 12 && !media_slots);
     app_loxone_audio_media_request(0, 12, "https://covers.example/test.png", 2, 112);
     assert(media_slots[0].pending && media_slots[0].version == 2);
     atomic_flag_clear(&media_initializing);
@@ -298,7 +352,7 @@ static void network_cancellation_test(void)
     test_cancel_generation = 15;
     unsigned decodes = test_decodes;
     assert(test_background_run());
-    assert(media_generation == 15 && test_decodes == decodes && !media_slots[0].image);
+    assert(media_generation == 15 && test_decodes == decodes && !media_slots);
     assert(!test_background_callback && app_loxone_audio_media_idle());
 
     test_declared = LX_AUDIO_MEDIA_BYTES_MAX + 1;
@@ -401,7 +455,7 @@ static void cancelled_retry_test(void)
     test_now += 10000000;
     unsigned connections = test_connections;
     app_loxone_audio_media_request(0, 18, url, 1, 112);
-    assert(!test_background_callback && test_connections == connections && !media_slots[0].pending);
+    assert(!test_background_callback && test_connections == connections && !media_slots);
 
     app_loxone_audio_media_request(detail, 19, url, 1, 256);
     assert(test_background_run());
@@ -703,6 +757,97 @@ static void ota_deferral_test(void)
     assert(media_slots[0].image && !test_background_callback);
 }
 
+static void hide_during_decode(void)
+{
+    assert(test_callback_active && !app_loxone_audio_media_idle());
+    app_loxone_audio_media_clear(media_generation + 1);
+}
+
+static void hidden_memory_test(void)
+{
+    app_loxone_audio_media_clear(100);
+    assert(!media_slots && test_live_bytes == 0);
+    unsigned connections = test_connections, allocations = test_job_allocations;
+    /* Bezárt/lapozott nézet régi képkérése nem foglalhat újra tárolót. */
+    app_loxone_audio_media_request(0, 99, "https://covers.example/stale.png", 1, 112);
+    app_loxone_audio_media_acquire(0, 99);
+    app_loxone_audio_media_close_detail();
+    app_loxone_audio_media_clear(99);
+    assert(!media_slots && test_live_bytes == 0 && test_connections == connections);
+
+    for (unsigned cycle = 0; cycle < 64; ++cycle)
+    {
+        unsigned generation = 101 + cycle * 2;
+        app_loxone_audio_media_clear(generation);
+        app_loxone_audio_media_request(0, generation, "https://covers.example/cycle.png", cycle + 1, 112);
+        assert(media_slots && test_background_callback);
+        if (cycle % 4 == 0)
+        {
+            /* Beadott, de még el nem kezdett munka a zárás után üresen fut ki. */
+            app_loxone_audio_media_clear(generation + 1);
+            assert(!media_slots && test_live_bytes == 0);
+            connections = test_connections;
+            allocations = test_job_allocations;
+            assert(test_background_run());
+            assert(test_connections == connections && test_job_allocations == allocations);
+        }
+        else if (cycle % 4 == 1)
+        {
+            assert(test_background_run());
+            lx_audio_image_t *held = app_loxone_audio_media_acquire(0, generation);
+            assert(held);
+            app_loxone_audio_media_request(1, generation, "https://covers.example/cycle.png", cycle + 1, 112);
+            assert(held->references == 3);
+            app_loxone_audio_media_clear(generation + 1);
+            assert(!media_slots && held->references == 1);
+            assert(test_live_bytes == sizeof(*held) + 112U * 112U * 2U);
+            app_loxone_audio_media_release(held);
+        }
+        else
+        {
+            if (cycle % 4 == 2)
+                test_cancel_generation = generation + 1;
+            else
+                test_decode_hook = hide_during_decode;
+            assert(test_background_run());
+        }
+        assert(!media_slots && test_live_bytes == 0 && test_http_live == 0);
+        assert(!test_background_callback && app_loxone_audio_media_idle());
+    }
+    printf("PASS: 64 cover close/open cycles return all page/image/worker allocations to zero; slot table %zu B, measured host peak %zu B\n",
+        sizeof(media_slot_t) * LX_AUDIO_MEDIA_SLOTS, test_peak_bytes);
+}
+
+static void lazy_slot_allocation_test(void)
+{
+    app_loxone_audio_media_clear(300);
+    unsigned attempts = test_slot_allocations;
+    app_loxone_audio_media_request(0, 299, "https://covers.example/old.png", 1, 112);
+    app_loxone_audio_media_request(0, 300, "", 1, 112);
+    app_loxone_audio_media_request(0, 300, "file:///invalid", 1, 112);
+    app_loxone_audio_media_clear(300);
+    assert(test_slot_allocations == attempts && test_live_bytes == 0 && !media_slots);
+
+    test_allocation_failure = LX_AUDIO_MEDIA_SLOTS * sizeof(media_slot_t);
+    app_loxone_audio_media_request(0, 300, "https://covers.example/recover.png", 1, 112);
+    assert(test_slot_allocations == attempts + 1 && !media_slots && test_live_bytes == 0);
+    assert(!test_background_callback && app_loxone_audio_media_idle());
+    for (unsigned i = 0; i < 9; ++i)
+    {
+        test_now += 200000;
+        app_loxone_audio_media_request(0, 300, "https://covers.example/recover.png", 1, 112);
+        assert(test_slot_allocations == attempts + 1 && !media_slots);
+    }
+    test_now += 200000;
+    app_loxone_audio_media_request(0, 300, "https://covers.example/recover.png", 1, 112);
+    assert(test_slot_allocations == attempts + 2 && media_slots && test_background_callback);
+    assert(test_background_run());
+    assert(media_slots[0].image);
+    app_loxone_audio_media_clear(301);
+    assert(!media_slots && test_live_bytes == 0 && !test_background_callback);
+    puts("PASS: hidden/stale/empty cover requests allocate no slot table; table OOM is throttled and recovers");
+}
+
 int main(void)
 {
     initialize_and_generation_test();
@@ -720,7 +865,9 @@ int main(void)
     app_loxone_audio_media_clear(57);
     assert(test_task_starts == 0 && test_task_deletes == 0 && test_http_live == 0);
     assert(!test_background_callback && app_loxone_audio_media_idle());
-    free(media_slots);
+    hidden_memory_test();
+    lazy_slot_allocation_test();
+    assert(!media_slots && test_live_bytes == 0);
     free(media_lock);
     puts("PASS: ESP cover one-image executor, no task allocation/deletion, OTA deferral, generation handoff, ownership, bounded retry and HTTP limits");
     return 0;

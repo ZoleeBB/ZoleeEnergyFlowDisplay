@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='loxone-protocol-') as tmp:
          '-Wno-misleading-indentation','-Wno-unused-function','-ffunction-sections','-fdata-sections',
          '-fsanitize=undefined','-fno-sanitize-recover=all','-Itests/loxone_stubs','-Itests/stubs','-Imain',
          'tests/test_loxone_protocol.c','main/app_loxone_model.c','main/app_loxone_home_model.c','main/app_loxone_home_runtime.c','main/app_slave_presence.c','main/app_slave_display.c','-lmbedcrypto','-l:libcjson.so.1','-lm',
-         '-Wl,--gc-sections','-o',tmp+'/test']
+         '-Wl,--gc-sections,--wrap=lx_home_command_build','-o',tmp+'/test']
     include=os.environ.get('LOXONE_MBEDTLS_INCLUDE');lib=os.environ.get('LOXONE_MBEDTLS_LIB')
     if include:cmd[1:1]=['-I'+include]
     if lib:cmd[1:1]=['-L'+lib]

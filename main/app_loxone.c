@@ -580,8 +580,9 @@ static void save_home_request(const lx_home_config_t *home)
         if (!same_bell || !home->intercom.enabled)
             s_intercom_ringing = false;
         s_home_revision++;
-        /* A kártyák mentése nem bontja a Miniserver-hitelesítést. Az Audio
-         * új lapot épít, de az érvényes JWT-jét a meglévő sessionben megtartja. */
+        /* A worker a mentési kérés előtt lezárja az aktív kapcsolatot és
+         * törli az Audio-sessiont; a Miniserver-token az újracsatlakozáshoz
+         * megmarad. Itt az új profilhoz az Audio-nézetet is érvénytelenítjük. */
         app_loxone_audio_hide();
         lighting_invalidate_locked();
         if (intercom_changed)
@@ -966,6 +967,8 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     *config = *s_home;
+    /* A tartós GUI-pillanatképnek nincs szüksége a kamera hitelesítőjére. */
+    mbedtls_platform_zeroize(config->intercom.video_password, sizeof(config->intercom.video_password));
     *values = s_home_values;
     char allowed_command[96];
     memset(values->command_supported, 0, sizeof(values->command_supported));
@@ -974,6 +977,11 @@ bool app_loxone_home_snapshot(lx_home_config_t *config, lx_home_values_t *values
         (void)lx_home_page_range(s_home, (unsigned)s_light_page, &first, &count);
     for (unsigned i = first; i < first + count; ++i)
     {
+        /* A típusos vezérlők saját summary-val döntenek az engedélyezésről.
+         * Itt a régi On/Off parancs keresése csak újra bejárná a katalógust. */
+        if (lx_home_card_is_controls(s_home->cards[i].type) ||
+            s_home->cards[i].type == LX_HOME_CARD_AUDIO)
+            continue;
         lx_home_command_t action = s_home->cards[i].type == LX_HOME_CARD_PULSE ? LX_HOME_COMMAND_PULSE :
             s_home->cards[i].type == LX_HOME_CARD_LIGHTING ? LX_HOME_COMMAND_LIGHT_NEXT :
             s_home->cards[i].type == LX_HOME_CARD_IRC ? LX_HOME_COMMAND_IRC_INCREASE :

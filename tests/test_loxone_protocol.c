@@ -6,6 +6,46 @@
 #include <string.h>
 #include "mbedtls/version.h"
 #include "../main/app_loxone.c"
+
+/* A UI-pillanatkép csak a régi kártyák által használt parancsot ellenőrizze;
+ * a típusos modellek saját summary-ja mellett ez fölösleges katalógusbejárás. */
+static unsigned home_generic_build_calls;
+bool __real_lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
+                                  const char *card_id, lx_home_command_t action, char out[96]);
+bool __wrap_lx_home_command_build(const lx_home_config_t *config, const cJSON *catalog,
+                                  const char *card_id, lx_home_command_t action, char out[96])
+{
+    ++home_generic_build_calls;
+    return __real_lx_home_command_build(config, catalog, card_id, action, out);
+}
+
+static void home_snapshot_generic_checks(unsigned expected_calls, bool supported)
+{
+    lx_home_config_t *config = calloc(1, sizeof(*config));
+    lx_home_values_t *values = calloc(1, sizeof(*values));
+    unsigned revision = 0, first = 0, count = 0;
+    bool connected = false, pending = false;
+    char message[LX_HOME_ERROR_SIZE];
+    assert(config && values);
+    static const char camera_password[LX_PASSWORD_MAX] = "snapshot-camera-secret";
+    char original_password[LX_PASSWORD_MAX];
+    memcpy(original_password, s_home->intercom.video_password, sizeof(original_password));
+    memcpy(s_home->intercom.video_password, camera_password, sizeof(camera_password));
+    unsigned before = home_generic_build_calls;
+    assert(app_loxone_home_snapshot(config, values, &revision, &connected, &pending, message));
+    /* A teljes UI-mező nulla, miközben a videófeladat belső hitelesítője ép. */
+    for (unsigned i = 0; i < sizeof(config->intercom.video_password); ++i)
+        assert(config->intercom.video_password[i] == 0);
+    assert(!memcmp(s_home->intercom.video_password, camera_password, sizeof(camera_password)));
+    memcpy(s_home->intercom.video_password, original_password, sizeof(original_password));
+    assert(home_generic_build_calls - before == expected_calls);
+    assert(lx_home_page_range(config, (unsigned)s_light_page, &first, &count));
+    for (unsigned i = first; i < first + count; ++i)
+        assert(values->command_supported[i] == supported);
+    free(values);
+    free(config);
+}
+
 /* A natív Audioserver saját tesztet kap; a közös kliens regressziójában
  * nincs Audio-kártya, ezért csak a szolgáltatási határt helyettesítjük. */
 static bool test_home_audio_session;
@@ -413,6 +453,7 @@ static void home_control_test(lx_config_t *energy)
     lighting_poll(esp_timer_get_time());
     assert(s_light_initial_ready);
     audio_late_session_test(energy);
+    home_snapshot_generic_checks(1, true);
     /* A felhasználó a worker 100 ms-os fogadási várakozása alatt nyom gombot. */
     int64_t before_receive = esp_timer_get_time();
     clock_us += 50000;

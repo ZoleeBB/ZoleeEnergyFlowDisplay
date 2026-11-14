@@ -417,8 +417,17 @@ static bool home_prepare(bool night)
     {
         /* Foglalt SD vagy sikertelen dekódolás esetén marad a betöltőkép.
          * Háttér nélküli oldal és ismétlődő widget-újraépítés nem jelenhet meg. */
+        if (app_templates_load_blocked())
+            return true;
         if (++home_load_attempts < 15)
             return true;
+        /* Lapozás közben a háttér és a logó még megmaradhatott. A kért
+         * oldal feladása előtt ezeket is elengedjük, különben a 0-s home_page
+         * miatt a következő kör már nem lépne be a felszabadítási ágba. */
+        if (bsp_display_lock(-1) != ESP_OK)
+            return false;
+        home_release();
+        bsp_display_unlock();
         app_events_add(APP_EVENT_WARNING, "A Loxone-oldal grafikai erőforrásai nem tölthetők be.");
         home_request_set(0);
         home_page = 0;

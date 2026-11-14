@@ -106,9 +106,7 @@ static bool media_initialize(void)
         return false;
     if (!media_lock)
         media_lock = xSemaphoreCreateMutex();
-    if (!media_slots)
-        media_slots = media_alloc(sizeof(*media_slots) * LX_AUDIO_MEDIA_SLOTS);
-    bool ok = media_lock && media_slots;
+    bool ok = media_lock != NULL;
     if (ok)
         atomic_store(&media_ready, true);
     atomic_flag_clear(&media_initializing);
@@ -128,11 +126,14 @@ static void media_sync_generation_locked(void)
         return;
     media_generation = requested;
     media_start_after = 0;
-    for (unsigned i = 0; i < LX_AUDIO_MEDIA_SLOTS; ++i)
-    {
-        media_release_locked(media_slots[i].image);
-        memset(&media_slots[i], 0, sizeof(media_slots[i]));
-    }
+    if (media_slots)
+        for (unsigned i = 0; i < LX_AUDIO_MEDIA_SLOTS; ++i)
+            media_release_locked(media_slots[i].image);
+    /* Az URL-ek és a slotok is csak a látható oldal munkatárai. A mutex
+     * megmarad a még kifutó worker és a UI-nál levő képreferenciák miatt,
+     * de clear/bezárás önmagában nem foglal új táblát. */
+    free(media_slots);
+    media_slots = NULL;
 }
 
 void app_loxone_audio_media_release(lx_audio_image_t *image)
@@ -150,7 +151,7 @@ lx_audio_image_t *app_loxone_audio_media_acquire(unsigned slot, unsigned generat
         return NULL;
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
-    lx_audio_image_t *image = generation == media_generation ? media_slots[slot].image : NULL;
+    lx_audio_image_t *image = media_slots && generation == media_generation ? media_slots[slot].image : NULL;
     if (image)
         ++image->references;
     xSemaphoreGive(media_lock);
@@ -181,6 +182,11 @@ void app_loxone_audio_media_close_detail(void)
         return;
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
+    if (!media_slots)
+    {
+        xSemaphoreGive(media_lock);
+        return;
+    }
     media_slot_t *slot = &media_slots[LX_AUDIO_MEDIA_SLOTS - 1];
     media_release_locked(slot->image);
     unsigned sequence = slot->sequence + 1;
@@ -193,7 +199,7 @@ static bool media_current(const media_job_t *job)
 {
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
-    bool current = job->generation == media_generation &&
+    bool current = media_slots && job->generation == media_generation &&
         job->sequence == media_slots[job->slot].sequence &&
         !strcmp(job->url, media_slots[job->slot].url);
     xSemaphoreGive(media_lock);
@@ -441,7 +447,7 @@ static void media_post_pending(void)
     media_sync_generation_locked();
     unsigned generation = media_generation;
     bool pending = false;
-    if (esp_timer_get_time() >= media_start_after)
+    if (media_slots && esp_timer_get_time() >= media_start_after)
         for (unsigned i = 0; i < LX_AUDIO_MEDIA_SLOTS; ++i)
             pending |= media_slots[i].pending;
     xSemaphoreGive(media_lock);
@@ -452,7 +458,7 @@ static void media_post_pending(void)
     media_notice_t notice = {0};
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
-    if (generation == media_generation && esp_timer_get_time() >= media_start_after)
+    if (media_slots && generation == media_generation && esp_timer_get_time() >= media_start_after)
         media_start_failed_locked(MEDIA_WORKER, &notice);
     xSemaphoreGive(media_lock);
     media_notice_emit(&notice);
@@ -466,6 +472,11 @@ static void media_worker_step(void *argument)
     media_notice_t notice = {0};
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
+    if (!media_slots)
+    {
+        xSemaphoreGive(media_lock);
+        return;
+    }
     unsigned selected = LX_AUDIO_MEDIA_SLOTS;
     /* Egy callback legfeljebb egy képet kezel; a többi előtt ismét az OTA
      * kérésé a prioritás. A részletes kép továbbra is elsőbbséget kap. */
@@ -527,8 +538,8 @@ static void media_worker_step(void *argument)
     free(compressed);
     xSemaphoreTake(media_lock, portMAX_DELAY);
     media_sync_generation_locked();
-    slot = &media_slots[job->slot];
-    bool current = media_generation == job->generation && slot->sequence == job->sequence &&
+    slot = media_slots ? &media_slots[job->slot] : NULL;
+    bool current = slot && media_generation == job->generation && slot->sequence == job->sequence &&
                    !strcmp(slot->url, job->url);
     size_t bytes = image ? (size_t)image->width * image->height * 2 : 0;
     if (current && (result.error == MEDIA_CANCELLED || app_ota_operation_active()))
@@ -581,8 +592,26 @@ void app_loxone_audio_media_request(unsigned index, unsigned generation, const c
         xSemaphoreGive(media_lock);
         return;
     }
-    media_slot_t *slot = &media_slots[index];
     const char *safe_url = lx_audio_cover_url(url) ? url : "";
+    if (!media_slots)
+    {
+        int64_t now = esp_timer_get_time();
+        if (!safe_url[0] || now < media_start_after)
+        {
+            xSemaphoreGive(media_lock);
+            return;
+        }
+        media_slots = media_alloc(sizeof(*media_slots) * LX_AUDIO_MEDIA_SLOTS);
+        if (!media_slots)
+        {
+            /* Átmeneti PSRAM-hiánynál se foglaljunk minden UI-körben.
+             * Az új oldal új keretet kap; rejtett oldal nem próbál újra. */
+            media_start_after = now + MEDIA_RETRY_FIRST_US;
+            xSemaphoreGive(media_lock);
+            return;
+        }
+    }
+    media_slot_t *slot = &media_slots[index];
     bool changed = slot->version != version || slot->size != size || strcmp(slot->url, safe_url);
     if (changed)
     {

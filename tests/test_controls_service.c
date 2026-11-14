@@ -20,6 +20,45 @@ static cJSON *s_catalog;
 static unsigned sends;
 static char sent[96];
 static int audio_page = -1;
+static void (*reply_wait_hook)(void);
+static bool reply_failure;
+
+/* A modellek és a nyers cache tényleges calloc/free tulajdonjogát mérjük.
+ * A cJSON megosztott könyvtár saját foglalásai nem részei ennek a számlálónak. */
+static struct { void *pointer; size_t bytes; } allocations[256];
+static size_t live_bytes, hidden_bytes, page_bytes;
+static unsigned closing_handle;
+void *__real_calloc(size_t count, size_t size);
+void __real_free(void *pointer);
+void *__wrap_calloc(size_t count, size_t size)
+{
+    void *pointer = __real_calloc(count, size);
+    if (!pointer)
+        return NULL;
+    for (unsigned i = 0; i < sizeof(allocations) / sizeof(allocations[0]); ++i)
+        if (!allocations[i].pointer)
+        {
+            allocations[i].pointer = pointer;
+            allocations[i].bytes = count * size;
+            live_bytes += count * size;
+            return pointer;
+        }
+    assert(!"A teszt foglaláskövetője betelt");
+    return pointer;
+}
+void __wrap_free(void *pointer)
+{
+    for (unsigned i = 0; pointer && i < sizeof(allocations) / sizeof(allocations[0]); ++i)
+        if (allocations[i].pointer == pointer)
+        {
+            assert(live_bytes >= allocations[i].bytes);
+            live_bytes -= allocations[i].bytes;
+            allocations[i].pointer = NULL;
+            allocations[i].bytes = 0;
+            break;
+        }
+    __real_free(pointer);
+}
 
 int64_t esp_timer_get_time(void) { return now_us; }
 static void xSemaphoreTake(int lock, int wait) { (void)lock; (void)wait; }
@@ -29,7 +68,13 @@ static cJSON *reply(const char *command, bool encrypted)
     assert(encrypted);
     snprintf(sent, sizeof(sent), "%s", command);
     ++sends;
-    return cJSON_CreateObject();
+    if (reply_wait_hook)
+    {
+        void (*hook)(void) = reply_wait_hook;
+        reply_wait_hook = NULL;
+        hook();
+    }
+    return reply_failure ? NULL : cJSON_CreateObject();
 }
 void app_loxone_audio_hide(void) { audio_page = -1; }
 void app_loxone_audio_page(const lx_home_config_t *home, const cJSON *catalog, int page, unsigned revision)
@@ -44,6 +89,38 @@ void app_loxone_audio_state(const char *uuid, bool numeric, double value,
 }
 #include "../main/app_loxone_lighting_service.inc"
 
+static void hide_during_reply(void)
+{
+    light_cache_entry_t *cache = s_light_cache.entries;
+    app_loxone_home_visible(-1);
+    /* A worker még az előző kérés nyugtáját várja. Új reconcile előtt is
+     * felszabadul a teljes oldal, a szükséges nyers állapot viszont megmarad. */
+    assert(!s_light_context && !s_light_detail && !s_light_detail_handle);
+    assert(s_light_cache.entries == cache && live_bytes == hidden_bytes);
+}
+
+static void close_detail_during_reply(void)
+{
+    app_loxone_light_close(closing_handle);
+    assert(s_light_context && !s_light_detail && !s_light_detail_handle);
+    assert(live_bytes == page_bytes);
+}
+
+static cJSON *load_catalog(const char *path)
+{
+    FILE *file = fopen(path, "rb");
+    assert(file && !fseek(file, 0, SEEK_END));
+    long length = ftell(file);
+    assert(length > 0 && !fseek(file, 0, SEEK_SET));
+    char *data = calloc((size_t)length + 1, 1);
+    assert(data && fread(data, 1, (size_t)length, file) == (size_t)length);
+    fclose(file);
+    cJSON *catalog = lx_catalog_parse(data, (size_t)length);
+    free(data);
+    assert(catalog);
+    return catalog;
+}
+
 static void event_number(lx_controls_block_t *block, unsigned state, double value)
 {
     lighting_event_locked(block->states[state], true, value, NULL, 0, now_us);
@@ -51,16 +128,8 @@ static void event_number(lx_controls_block_t *block, unsigned state, double valu
 
 int main(int argc, char **argv)
 {
-    assert(argc == 2);
-    FILE *file = fopen(argv[1], "rb");
-    assert(file && !fseek(file, 0, SEEK_END));
-    long length = ftell(file);
-    assert(length > 0 && !fseek(file, 0, SEEK_SET));
-    char *data = calloc((size_t)length + 1, 1);
-    assert(data && fread(data, 1, (size_t)length, file) == (size_t)length);
-    fclose(file);
-    s_catalog = lx_catalog_parse(data, (size_t)length);
-    free(data);
+    assert(argc == 3);
+    s_catalog = load_catalog(argv[1]);
     s_home = calloc(1, sizeof(*s_home));
     assert(s_home && s_catalog);
     s_home->page_count = 2;
@@ -115,6 +184,22 @@ int main(int argc, char **argv)
     app_loxone_home_visible(-1);
     lighting_poll(now_us);
     assert(!s_light_context && audio_page == -1);
+    hidden_bytes = live_bytes;
+    for (unsigned cycle = 0; cycle < 32; ++cycle)
+    {
+        app_loxone_home_visible(0);
+        lighting_poll(now_us);
+        dimmer = s_light_context->controls_blocks[0];
+        assert(dimmer == s_light_context->controls_blocks[1]);
+        assert(lx_controls_queue(dimmer, 50, now_us));
+        reply_wait_hook = hide_during_reply;
+        reply_failure = (cycle & 1U) != 0;
+        controls_poll(now_us);
+        assert(!reply_wait_hook && !s_light_context && live_bytes == hidden_bytes);
+        lighting_poll(now_us);
+        assert(live_bytes == hidden_bytes);
+    }
+    reply_failure = false;
     assert(lighting_events_locked(2, NULL, 0));
     lighting_invalidate_locked();
     assert(!s_light_cache.entries && !s_light_cache.count);
@@ -141,9 +226,62 @@ int main(int argc, char **argv)
     assert(order[0] == 0 && order[1] == 2 && order[2] == 1 && order[3] == 3);
     app_loxone_home_visible(-1);
     lighting_poll(now_us);
+    hidden_bytes = live_bytes;
+    for (unsigned cycle = 0; cycle < 32; ++cycle)
+    {
+        app_loxone_home_visible(0);
+        lighting_poll(now_us);
+        assert(s_light_context->controls_blocks[0]->windows);
+        app_loxone_home_visible(-1);
+        assert(!s_light_context && live_bytes == hidden_bytes);
+        lighting_poll(now_us);
+        assert(live_bytes == hidden_bytes);
+    }
+    lighting_invalidate_locked();
+    cJSON_Delete(s_catalog);
+    s_catalog = load_catalog(argv[2]);
+    memset(s_home, 0, sizeof(*s_home));
+    s_home->page_count = s_home->card_count = s_home->pages[0].card_count = 1;
+    s_home->cards[0].type = LX_HOME_CARD_LIGHTING;
+    strcpy(s_home->cards[0].id, "light-detail");
+    strcpy(s_home->cards[0].control_uuid, "10000000-0000-0000-0000000000000001");
+    ++s_home_revision;
+    lighting_poll(now_us);
+    lighting_event_locked("10000000-0000-0000-0000000000000065", true, 40, NULL, 0, now_us);
+    hidden_bytes = live_bytes;
+    app_loxone_home_visible(0);
+    lighting_poll(now_us);
+    page_bytes = live_bytes;
+    for (unsigned cycle = 0; cycle < 32; ++cycle)
+    {
+        closing_handle = app_loxone_light_open("light-detail", s_home_revision);
+        assert(closing_handle);
+        lighting_poll(now_us);
+        assert(s_light_detail && s_light_detail->circuits);
+        unsigned circuit = 0;
+        while (circuit < s_light_detail->circuit_count &&
+               strcmp(s_light_detail->circuits[circuit].state, "10000000-0000-0000-0000000000000065"))
+            ++circuit;
+        lx_light_value_t value = {.valid = true, .brightness = 50};
+        assert(app_loxone_light_set(closing_handle, circuit, &value) == ESP_OK);
+        reply_wait_hook = close_detail_during_reply;
+        reply_failure = (cycle & 1U) != 0;
+        lighting_poll(now_us);
+        assert(!reply_wait_hook && !s_light_detail && live_bytes == page_bytes);
+        lighting_poll(now_us);
+        assert(live_bytes == page_bytes);
+    }
+    closing_handle = app_loxone_light_open("light-detail", s_home_revision);
+    lighting_poll(now_us);
+    assert(closing_handle && s_light_detail);
+    hide_during_reply();
+    lighting_poll(now_us);
+    assert(live_bytes == hidden_bytes);
     lighting_invalidate_locked();
     free(s_home);
     cJSON_Delete(s_catalog);
+    assert(!live_bytes);
     puts("PASS: actual shared service/cache, duplicated visible model, hidden timer timestamp, versioned visual monitor order, page/revision cancellation and cache cleanup");
+    puts("PASS: Home/page/detail close frees owned models during an outstanding reply; 96 cycles return to the exact allocation baseline without losing the required raw cache");
     return 0;
 }

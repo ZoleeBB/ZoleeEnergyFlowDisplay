@@ -45,6 +45,7 @@ static void controls_protocol_test(lx_config_t *energy)
     controls_protocol_number(dimmer, LX_CONTROL_MAX, 100);
     controls_protocol_number(dimmer, LX_CONTROL_STEP, 1);
     controls_protocol_number(dimmer, LX_CONTROL_VALUE, 25);
+    home_snapshot_generic_checks(0, false);
     assert(app_loxone_controls_set("control-0", s_home_revision, 65) == ESP_OK);
     assert(dimmer->dirty);
     assert(app_loxone_controls_command("control-0", s_home_revision, LX_CONTROLS_OFF) == ESP_OK);
@@ -137,6 +138,7 @@ static void audio_queue_protocol_test(lx_config_t *energy)
     mark_response();
     app_loxone_home_visible(0);
     lighting_poll(esp_timer_get_time());
+    home_snapshot_generic_checks(0, false);
     unsigned sent = controls_command_count;
     assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 40, 8) != ESP_OK);
     assert(app_loxone_audio_transport("audio-queue", s_home_revision, LX_AUDIO_VOLUME, 40, 9) == ESP_OK);
@@ -172,4 +174,5 @@ static void audio_queue_protocol_test(lx_config_t *energy)
     s_home = NULL;
     s_session_config = NULL;
     puts("PASS: Audio volume edit generation preserved in actual encrypted queue; close and maxVolume rechecked before send; play unaffected");
+    puts("PASS: UI snapshots skip generic catalog command scans for typed Controls/Audio; legacy Pulse support remains checked");
 }

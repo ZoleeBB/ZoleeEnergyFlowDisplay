@@ -2,7 +2,49 @@
 #include <assert.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdlib.h>
+static void test_runtime_free(void *pointer);
+#define free test_runtime_free
 #include "../main/app_loxone_audio_runtime.c"
+#undef free
+
+/* A valódi runtime foglalásai a megszakított protokollfázisok végén is
+ * térjenek vissza a kis, tartós session-tükör szintjére. */
+static struct { void *pointer; size_t bytes; } test_runtime_allocations[256];
+static size_t test_runtime_live_bytes, test_runtime_peak_bytes;
+
+static void *test_runtime_allocate(size_t count, size_t size)
+{
+    void *pointer = calloc(count, size);
+    assert(pointer);
+    for (unsigned i = 0; i < 256; ++i)
+        if (!test_runtime_allocations[i].pointer)
+        {
+            test_runtime_allocations[i].pointer = pointer;
+            test_runtime_allocations[i].bytes = count * size;
+            test_runtime_live_bytes += count * size;
+            if (test_runtime_live_bytes > test_runtime_peak_bytes)
+                test_runtime_peak_bytes = test_runtime_live_bytes;
+            return pointer;
+        }
+    assert(!"Túl sok élő runtime tesztfoglalás.");
+    return NULL;
+}
+
+static void test_runtime_free(void *pointer)
+{
+    for (unsigned i = 0; pointer && i < 256; ++i)
+        if (test_runtime_allocations[i].pointer == pointer)
+        {
+            assert(test_runtime_live_bytes >= test_runtime_allocations[i].bytes);
+            test_runtime_live_bytes -= test_runtime_allocations[i].bytes;
+            test_runtime_allocations[i].pointer = NULL;
+            test_runtime_allocations[i].bytes = 0;
+            break;
+        }
+    /* A korábbi tesztek közvetlen, nem runtime által foglalt fixture-jei. */
+    free(pointer);
+}
 
 struct test_audio_semaphore { bool binary, held; };
 typedef struct { unsigned capacity, count, head, tail; size_t size; unsigned char *data; bool with_caps; } test_queue_t;
@@ -30,6 +72,7 @@ static void (*test_native_event_callback)(void *, esp_event_base_t, int32_t, voi
 static void *test_native_event_argument;
 static bool test_native_start_error, test_native_stop_disconnect;
 static unsigned test_native_starts;
+static unsigned test_native_stops, test_native_destroys;
 static unsigned test_caps_queues_created, test_caps_queues_deleted;
 static void (*test_queue_receive_hook)(bool received);
 static audio_connection_t *test_receive_allocation;
@@ -69,7 +112,7 @@ void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
         test_fail_allocation = false;
         return NULL;
     }
-    return calloc(count, size);
+    return test_runtime_allocate(count, size);
 }
 
 SemaphoreHandle_t xSemaphoreCreateMutex(void)
@@ -150,9 +193,9 @@ QueueHandle_t xQueueCreate(unsigned count, size_t size)
         test_fail_queue = false;
         return NULL;
     }
-    test_queue_t *q = calloc(1, sizeof(*q));
+    test_queue_t *q = test_runtime_allocate(1, sizeof(*q));
     assert(q);
-    q->capacity = count; q->size = size; q->data = calloc(count, size);
+    q->capacity = count; q->size = size; q->data = test_runtime_allocate(count, size);
     assert(q->data);
     return q;
 }
@@ -185,7 +228,7 @@ void vQueueDelete(QueueHandle_t queue)
 {
     test_queue_t *q = queue;
     assert(!q->with_caps);
-    free(q->data); free(q);
+    test_runtime_free(q->data); test_runtime_free(q);
 }
 
 QueueHandle_t xQueueCreateWithCaps(UBaseType_t count, UBaseType_t size, UBaseType_t caps)
@@ -246,6 +289,7 @@ esp_err_t esp_websocket_client_start(esp_websocket_client_handle_t handle)
 esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t handle)
 {
     (void)handle;
+    ++test_native_stops;
     test_miniserver_during_native_wait(TEST_NATIVE_STOP);
     if (test_native_stop_hook)
     {
@@ -257,7 +301,12 @@ esp_err_t esp_websocket_client_stop(esp_websocket_client_handle_t handle)
         test_native_event_callback(test_native_event_argument, NULL, WEBSOCKET_EVENT_DISCONNECTED, NULL);
     return ESP_OK;
 }
-esp_err_t esp_websocket_client_destroy(esp_websocket_client_handle_t handle) { (void)handle; return ESP_OK; }
+esp_err_t esp_websocket_client_destroy(esp_websocket_client_handle_t handle)
+{
+    (void)handle;
+    ++test_native_destroys;
+    return ESP_OK;
+}
 int esp_websocket_client_send_text(esp_websocket_client_handle_t handle, const char *command, int length, TickType_t timeout)
 {
     (void)handle; (void)timeout;
@@ -1352,6 +1401,49 @@ static void native_auth_diagnostic_test(void)
     puts("PASS: strict auth success and type/length-only diagnostics; prior invalid JSON is harmless; no secret echo");
 }
 
+static void controller_hidden_memory_test(void)
+{
+    app_loxone_audio_hide();
+    const size_t retained = sizeof(*audio_credentials);
+    assert(test_runtime_live_bytes == retained);
+    for (unsigned cycle = 0; cycle < 64; ++cycle)
+    {
+        prepare_page();
+        audio_controller_t controller = {0};
+        audio_controller_step(&controller, test_now);
+        audio_connection_t *connection = controller.connection;
+        assert(connection && connection->ws);
+        startup_advance(&controller, 1 + cycle % 4);
+        message_reply(connection, "{\"audio_event\":[{\"playerid\":3,\"title\":\"Nyitáskori meta\"}]}");
+        if (cycle % 4 != 3)
+            assert(connection->staged_tracks);
+        for (unsigned i = 0; i < 24; ++i)
+            native_receive_text(connection, "{}");
+        const char *tail = "{\"tail\":0}";
+        esp_websocket_event_data_t part = {.op_code = 1, .fin = true, .data_ptr = tail,
+            .data_len = 3, .payload_len = (int)strlen(tail)};
+        audio_receive(connection, NULL, WEBSOCKET_EVENT_DATA, &part);
+        assert(connection->rx && ((test_queue_t *)connection->messages)->count == 24);
+        unsigned stops = test_native_stops, destroys = test_native_destroys;
+        unsigned sends = test_native_sends;
+        app_loxone_audio_hide();
+        assert(!audio_page && connection->ws && test_runtime_live_bytes > retained);
+        test_native_stop_disconnect = true;
+        assert(audio_controller_step(&controller, test_now) == portMAX_DELAY);
+        test_native_stop_disconnect = false;
+        assert(!controller.connection && !audio_page && test_runtime_live_bytes == retained);
+        assert(test_native_stops == stops + 1 && test_native_destroys == destroys + 1);
+        assert(test_native_sends == sends && test_caps_queues_created == test_caps_queues_deleted);
+        unsigned allocations = test_heap_allocations, starts = test_native_starts;
+        for (unsigned idle = 0; idle < 3; ++idle)
+            assert(audio_controller_step(&controller, test_now) == portMAX_DELAY);
+        assert(test_heap_allocations == allocations && test_native_starts == starts);
+    }
+    assert(audio_credentials->live && !strcmp(audio_credentials->jwt, "test.jwt"));
+    printf("PASS: 64 Audio close/open cycles at greeting/key/auth/ready release page, staged metadata, RX and queue; only %zu B session mirror remains, host peak %zu B\n",
+        retained, test_runtime_peak_bytes);
+}
+
 int main(void)
 {
     init_failure_test();
@@ -1382,11 +1474,15 @@ int main(void)
     controller_startup_diagnostic_test();
     native_auth_transport_boundary_test();
     native_auth_diagnostic_test();
+    controller_hidden_memory_test();
     app_loxone_audio_session(NULL, NULL, false);
     assert(!audio_credentials->jwt[0] && !audio_credentials->live);
+    for (unsigned i = 0; i < sizeof(audio_credentials->jwt); ++i)
+        assert(audio_credentials->jwt[i] == 0);
     assert(!audio_page); /* Task nélküli hibás natív ág sem tarthat rejtett modellt. */
     free(audio_page); audio_page = NULL;
-    free(audio_credentials); audio_credentials = NULL;
+    test_runtime_free(audio_credentials); audio_credentials = NULL;
+    assert(test_runtime_live_bytes == 0);
     vSemaphoreDelete(audio_lock); vSemaphoreDelete(audio_wake);
     assert(test_semaphores_created == test_semaphores_deleted && !test_task_creations);
     assert(test_caps_queues_created == test_caps_queues_deleted);

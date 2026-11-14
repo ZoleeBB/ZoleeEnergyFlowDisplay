@@ -52,7 +52,8 @@ endif()
 target_link_libraries(ui_preview PRIVATE lvgl m z -l:libcjson.so.1)
 target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for"
     "-Wl,--wrap=app_templates_home_load_icons"
-    "-Wl,--wrap=app_templates_home_load_page")
+    "-Wl,--wrap=app_templates_home_load_page"
+    "-Wl,--wrap=app_templates_load_blocked")
 
 if(UNIX)
     add_executable(slave_intercom_preview slave_intercom_preview.c

@@ -93,6 +93,8 @@ void app_loxone_home_visible(int page)
 {
     if (!s_lock || !s_home)
         return;
+    light_page_t *old = NULL;
+    lx_light_block_t *old_detail = NULL;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     unsigned first, count;
     if (page < 0 || !lx_home_page_range(s_home, (unsigned)page, &first, &count))
@@ -102,15 +104,24 @@ void app_loxone_home_visible(int page)
         app_loxone_audio_hide();
         s_light_page = page;
         ++s_light_generation;
-        s_light_modal = 0;
+        s_light_modal = s_light_detail_handle = 0;
         s_light_initial_ready = false;
-        lx_light_block_cancel(s_light_detail);
+        s_light_detail_failed = false;
+        /* A worker akár egy korábbi parancs nyugtájára is várhat. A már
+         * elhagyott nézet modelljét nem tartjuk meg addig: minden olvasó
+         * ugyanezt a mutexet használja, a hálózat csak a kész parancsszöveget. */
+        old = s_light_context;
+        old_detail = s_light_detail;
+        s_light_context = NULL;
+        s_light_detail = NULL;
         /* A nézet újraépítésekor a worker a kapcsolat legutolsó nyers
          * állapotaiból tölt. A rejtett oldalak modellje továbbra sem frissül. */
         memset(s_home_values.cards, 0, sizeof(s_home_values.cards));
         memset(s_home_values.command_supported, 0, sizeof(s_home_values.command_supported));
     }
     xSemaphoreGive(s_lock);
+    lighting_page_free(old);
+    lx_light_block_free(old_detail);
 }
 
 static int lighting_slot_locked(const char *card_id)
@@ -272,13 +283,19 @@ void app_loxone_light_close(unsigned handle)
 {
     if (!s_lock || !handle)
         return;
+    lx_light_block_t *old = NULL;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     if (handle == s_light_modal)
     {
-        s_light_modal = 0;
-        lx_light_block_cancel(s_light_detail);
+        s_light_modal = s_light_detail_handle = 0;
+        s_light_detail_failed = false;
+        old = s_light_detail;
+        s_light_detail = NULL;
     }
     xSemaphoreGive(s_lock);
+    /* A részletes körlista a popup tulajdona. Bezárása a már elküldött
+     * kérés válaszidejétől függetlenül visszaadja ezt a PSRAM-területet. */
+    lx_light_block_free(old);
 }
 
 bool app_loxone_light_info(unsigned handle, app_loxone_light_info_t *out)

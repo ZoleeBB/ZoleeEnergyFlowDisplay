@@ -18,9 +18,11 @@ with tempfile.TemporaryDirectory(prefix='loxone-controls-') as directory:
     service = str(Path(directory) / 'service')
     subprocess.run(common + ['-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                              'tests/test_controls_service.c', 'main/app_loxone_model.c',
-                             'main/app_loxone_home_runtime.c', '-l:libcjson.so.1', '-lm', '-o', service],
+                             'main/app_loxone_home_runtime.c', '-l:libcjson.so.1', '-lm',
+                             '-Wl,--wrap=calloc,--wrap=free', '-o', service],
                    cwd=ROOT, check=True)
-    subprocess.run([service, str(ROOT / 'tests/fixtures/loxone-controls.json')], check=True, timeout=20)
+    subprocess.run([service, str(ROOT / 'tests/fixtures/loxone-controls.json'),
+                    str(ROOT / 'tests/fixtures/loxone-lighting.json')], check=True, timeout=20)
     for optimization in ('-O0', '-O2'):
         target = Path(directory) / optimization[1:]
         target.mkdir()
