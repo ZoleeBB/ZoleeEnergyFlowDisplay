@@ -40,7 +40,7 @@ static void test_catalog(void)
     assert(!lx_audio_command_build(entry, LX_AUDIO_FAVORITE, 1, command));
     assert(!lx_audio_command_build(entry, (lx_audio_action_t)999, 0, command));
     assert(lx_audio_native_command(3, LX_AUDIO_FAVORITE, 9001, command));
-    assert(!strcmp(command, "audio/3/roomfav/play/9001"));
+    assert(!strcmp(command, "audio/3/roomfav/play/9001/noshuffle"));
     assert(!lx_audio_native_command(0, LX_AUDIO_FAVORITE, 3, command));
     assert(!lx_audio_native_command(3, LX_AUDIO_FAVORITE, 0, command));
     assert(!lx_audio_native_command(3, LX_AUDIO_VOLUME, 30, command));
@@ -223,6 +223,81 @@ static void test_inputs(void)
     assert(!lx_audio_cover_url("//host/image"));
 }
 
+static void test_observed_favorites(void)
+{
+    /* Két külön, felhasználótól kapott zónalista. Az id és slot eltér;
+     * a gyártói App 50-es lekérése nem a firmware 32-es kérésének nyugtája. */
+    const char *first = "{\"getroomfavs_result\":[{\"id\":1,\"items\":["
+        "{\"album\":\"\",\"artist\":\"\",\"audiopath\":\"tunein:station:s54011\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s54011\",\"id\":8,"
+        "\"name\":\"Mega Dance Radio (Dance & Electronic)\",\"plus\":true,\"slot\":1,"
+        "\"title\":\"Mega%20Dance%20Radio%20(Dance%20%26%20Electronic)\",\"type\":\"tunein\"},"
+        "{\"id\":2,\"name\":\"Rádió 1 Budapest\",\"slot\":3,\"title\":\"R%C3%A1di%C3%B3%201%20Budapest\","
+        "\"audiopath\":\"tunein:station:s15879\",\"coverurl\":\"https://tunein.loxonecloud.com/s15879\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":4,\"name\":\"Retro Radio 99.5 (Standards)\",\"slot\":4},"
+        "{\"id\":6,\"name\":\"Petőfi Rádió 94.8 (Top 40 & Pop Music)\",\"slot\":6},"
+        "{\"id\":10,\"name\":\"Best FM Budapest 89.5 (Adult Hits)\",\"slot\":7},"
+        "{\"id\":7,\"name\":\"95.8 Sláger FM 103.9 (Adult Hits)\",\"slot\":8},"
+        "{\"id\":20,\"name\":\"103.9 Best FM | (World Music)\",\"slot\":9}],"
+        "\"start\":0,\"totalitems\":7,\"type\":4}],\"command\":\"audio/cfg/getroomfavs/1/0/50\"}";
+    const char *fifth = "{\"getroomfavs_result\":[{\"id\":5,\"items\":["
+        "{\"id\":5,\"slot\":1,\"name\":\"Mega Dance Radio (Dance & Electronic)\","
+        "\"title\":\"Mega%20Dance%20Radio%20(Dance%20%26%20Electronic)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s54011\",\"audiopath\":\"tunein:station:s54011\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":6,\"slot\":2,\"name\":\"Rádió 1 Budapest 90.4 (Top 40 & Pop Music)\","
+        "\"title\":\"R%C3%A1di%C3%B3%201%20Budapest%2090.4%20(Top%2040%20%26%20Pop%20Music)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s158358\",\"audiopath\":\"tunein:station:s158358\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":3,\"slot\":3,\"name\":\"95.8 Sláger FM 103.9 (Adult Hits)\","
+        "\"title\":\"95.8%20Sl%C3%A1ger%20FM%20103.9%20(Adult%20Hits)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s25966\",\"audiopath\":\"tunein:station:s25966\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":4,\"slot\":4,\"name\":\"Best FM Budapest 89.5 (Adult Hits)\","
+        "\"title\":\"Best%20FM%20Budapest%2089.5%20(Adult%20Hits)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s158467\",\"audiopath\":\"tunein:station:s158467\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":7,\"slot\":5,\"name\":\"Retro Radio 99.5 (Standards)\","
+        "\"title\":\"Retro%20Radio%2099.5%20(Standards)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s15877\",\"audiopath\":\"tunein:station:s15877\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"},"
+        "{\"id\":8,\"slot\":6,\"name\":\"Petőfi Rádió 94.8 (Top 40 & Pop Music)\","
+        "\"title\":\"Pet%C5%91fi%20R%C3%A1di%C3%B3%2094.8%20(Top%2040%20%26%20Pop%20Music)\","
+        "\"coverurl\":\"https://tunein.loxonecloud.com/s6672\",\"audiopath\":\"tunein:station:s6672\","
+        "\"album\":\"\",\"artist\":\"\",\"plus\":true,\"type\":\"tunein\"}],"
+        "\"start\":0,\"totalitems\":6,\"type\":4}],\"command\":\"audio/cfg/getroomfavs/5/0/50\"}";
+    lx_audio_favorites_t *page = calloc(1, sizeof(*page));
+    assert(page);
+    cJSON *message = cJSON_Parse(first);
+    assert(message && lx_audio_favorites_parse(page, 1, 0, message));
+    const unsigned ids[] = {8, 2, 4, 6, 10, 7, 20};
+    const int slots[] = {1, 3, 4, 6, 7, 8, 9};
+    assert(page->count == 7 && page->total == 7);
+    for (unsigned i = 0; i < page->count; ++i)
+        assert(page->items[i].id == ids[i] && page->items[i].slot == slots[i]);
+    assert(!strcmp(page->items[1].name, "Rádió 1 Budapest"));
+    assert(lx_audio_favorites_match(1, 0, message) == LX_AUDIO_FAVORITES_UNRELATED);
+    cJSON_Delete(message);
+
+    message = cJSON_Parse(fifth);
+    assert(message && lx_audio_favorites_parse(page, 5, 0, message));
+    const unsigned fifth_ids[] = {5, 6, 3, 4, 7, 8};
+    assert(page->count == 6 && page->total == 6);
+    for (unsigned i = 0; i < page->count; ++i)
+        assert(page->items[i].id == fifth_ids[i] && page->items[i].slot == (int)i + 1);
+    assert(!strcmp(page->items[1].name, "Rádió 1 Budapest 90.4 (Top 40 & Pop Music)"));
+    char command[96];
+    assert(lx_audio_native_command(page->player, LX_AUDIO_FAVORITE, page->items[1].id, command));
+    assert(!strcmp(command, "audio/5/roomfav/play/6/noshuffle"));
+    assert(lx_audio_favorites_match(5, 0, message) == LX_AUDIO_FAVORITES_UNRELATED);
+    cJSON_ReplaceItemInObjectCaseSensitive(message, "command", cJSON_CreateString("audio/cfg/getroomfavs/5/0/32"));
+    assert(lx_audio_favorites_match(5, 0, message) == LX_AUDIO_FAVORITES_MATCH);
+    assert(lx_audio_favorites_match(1, 0, message) == LX_AUDIO_FAVORITES_UNRELATED);
+    cJSON_Delete(message);
+    free(page);
+}
+
 int main(void)
 {
     test_catalog();
@@ -231,6 +306,7 @@ int main(void)
     test_native_display_text();
     test_observed_native_events();
     test_favorites();
+    test_observed_favorites();
     test_inputs();
     puts("PASS: Audio-katalógus, parancsok, részleges események és lapozott kedvencek");
     return 0;

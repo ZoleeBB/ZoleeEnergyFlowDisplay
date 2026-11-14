@@ -257,3 +257,80 @@ static void native_favorite_close_race_test(void)
     connection_delete(connection);
     prepare_page();
 }
+
+static void native_favorites_response_routing_test(void)
+{
+    prepare_page();
+    audio_connection_t *connection = connection_new();
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 0) == ESP_OK);
+    audio_native_poll(connection);
+    int64_t deadline = connection->favorites_deadline;
+    unsigned request = connection->favorites_request;
+    /* Másik zóna saját válasza nem fogyaszthatja el a mi kérésünket. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":2,\"start\":0,\"totalitems\":1,"
+        "\"items\":[{\"id\":8,\"name\":\"Másik zóna\"}]}],\"command\":\"audio/cfg/getroomfavs/2/0/32\"}");
+    assert(connection->favorites_slot == 0 && !audio_page->favorites.failed);
+    assert(connection->favorites_deadline == deadline && connection->favorites_request == request);
+    /* Azonos zóna régi lapja, eltérő parancs és egyéb listák sem nyugták. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":32,\"totalitems\":33,"
+        "\"items\":[{\"id\":9,\"name\":\"Régi lap\"}]}],\"command\":\"audio/cfg/getroomfavs/3/32/32\"}");
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":0,\"totalitems\":0,"
+        "\"items\":[]}],\"command\":\"audio/cfg/getroomfavs/3/0/16\"}");
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":0,\"totalitems\":0,"
+        "\"items\":[]}],\"command\":17}");
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":4,\"start\":0,\"totalitems\":0,\"items\":[]}]}");
+    message_reply(connection, "{\"recent_result\":{\"items\":[],\"ts\":1794608911},\"command\":\"audio/3/recent\"}");
+    message_reply(connection, "{\"getservicefolder_result\":[{\"id\":\"0\",\"start\":0,\"totalitems\":0,\"items\":[]}],"
+        "\"command\":\"audio/cfg/getservicefolder/loxoneradio/noUser/root/0/50\"}");
+    assert(connection->favorites_slot == 0 && !audio_page->favorites.failed);
+    assert(connection->favorites_deadline == deadline && connection->favorites_request == request);
+    /* Több csoportból az egyértelmű saját: numerikus string is szabályos. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":2,\"start\":0,\"totalitems\":0,\"items\":[]},"
+        "{\"id\":\"3\",\"items\":[{\"id\":\"1357\",\"name\":\"Saját kedvenc\"}],\"start\":0,\"totalitems\":33}],"
+        "\"command\":\"audio/cfg/getroomfavs/3/0/32\"}");
+    assert(connection->favorites_slot < 0 && audio_page->favorites.ready && !audio_page->favorites.failed);
+    assert(audio_page->favorites.count == 1 && audio_page->favorites.items[0].id == 1357);
+    assert(audio_page->favorites.generation == request);
+
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 32) == ESP_OK);
+    audio_native_poll(connection);
+    deadline = connection->favorites_deadline;
+    /* Command nélkül kizárólag az id+start pár rendelhet választ a kéréshez. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":0,\"totalitems\":1,"
+        "\"items\":[{\"id\":7,\"name\":\"Régi első lap\"}]}]}");
+    assert(connection->favorites_slot == 0 && connection->favorites_deadline == deadline);
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":32,\"totalitems\":33,"
+        "\"items\":[{\"id\":2468,\"name\":\"Utolsó lap\"}]}]}");
+    assert(connection->favorites_slot < 0 && audio_page->favorites.ready && !audio_page->favorites.failed);
+    assert(audio_page->favorites.start == 32 && audio_page->favorites.items[0].id == 2468);
+
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 0) == ESP_OK);
+    audio_native_poll(connection);
+    /* Biztosan saját, de hibás válasz: a hiányzó lapozási adat nem található ki. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"items\":[]}],"
+        "\"command\":\"audio/cfg/getroomfavs/3/0/32\"}");
+    assert(connection->favorites_slot < 0 && audio_page->favorites.failed && !audio_page->favorites.ready);
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 0) == ESP_OK);
+    audio_native_poll(connection);
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":0,\"totalitems\":0,\"items\":[]},"
+        "{\"id\":3,\"start\":0,\"totalitems\":0,\"items\":[]}]}");
+    assert(connection->favorites_slot < 0 && audio_page->favorites.failed && !audio_page->favorites.ready);
+
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 0) == ESP_OK);
+    audio_native_poll(connection);
+    app_loxone_audio_detail_close();
+    assert(app_loxone_audio_favorites_request("audio-one", 7, 32) == ESP_OK);
+    unsigned current = audio_page->favorites_requested;
+    /* A régi ablak saját válaszát elfogyasztjuk, de nem írjuk az új ablakba. */
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":0,\"totalitems\":0,\"items\":[]}],"
+        "\"command\":\"audio/cfg/getroomfavs/3/0/32\"}");
+    assert(connection->favorites_slot < 0 && !audio_page->favorites.ready && !audio_page->favorites.failed);
+    assert(audio_page->favorites_dirty && audio_page->favorites_requested == current);
+    audio_native_poll(connection);
+    assert(!strcmp(test_native_command, "audio/cfg/getroomfavs/3/32/32"));
+    message_reply(connection, "{\"getroomfavs_result\":[{\"id\":3,\"start\":32,\"totalitems\":33,"
+        "\"items\":[{\"id\":2468,\"name\":\"Aktuális ablak\"}]}],\"command\":\"audio/cfg/getroomfavs/3/32/32\"}");
+    assert(audio_page->favorites.ready && audio_page->favorites.generation == current);
+    connection_delete(connection);
+    prepare_page();
+}

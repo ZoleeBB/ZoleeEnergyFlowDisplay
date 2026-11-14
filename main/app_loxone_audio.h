@@ -69,6 +69,13 @@ typedef struct
     bool ready, failed;
 } lx_audio_favorites_t;
 
+typedef enum
+{
+    LX_AUDIO_FAVORITES_UNRELATED,
+    LX_AUDIO_FAVORITES_MATCH,
+    LX_AUDIO_FAVORITES_INVALID
+} lx_audio_favorites_match_t;
+
 /* A metaadat kizárólag a struktúrafájl nyilvános kapcsolási adatait tartalmazza.
  * JWT, munkamenetkulcs és kedvenc-lista nem kerül az SD-katalógusba. */
 bool lx_audio_catalog_attach(cJSON *entry, const cJSON *control, bool secured,
@@ -84,6 +91,10 @@ bool lx_audio_track_update(lx_audio_track_t *track, unsigned player,
                            const cJSON *message);
 bool lx_audio_favorites_parse(lx_audio_favorites_t *out, unsigned player,
                               unsigned requested_start, const cJSON *message);
+/* Az idegen zóna/lap válasza nem zárhatja le a folyamatban lévő kérést.
+ * A MATCH az egyértelmű hozzárendelést jelzi; a tartalmat a parser ellenőrzi. */
+lx_audio_favorites_match_t lx_audio_favorites_match(unsigned player,
+    unsigned requested_start, const cJSON *message);
 bool lx_audio_session_token(const char *greeting, char out[LX_AUDIO_SESSION_SIZE]);
 bool lx_audio_cover_url(const char *url);
 bool lx_audio_native_command(unsigned player, lx_audio_action_t action,

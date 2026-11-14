@@ -503,7 +503,7 @@ static void favorites_test(void)
     assert(app_loxone_audio_favorite("audio-one", 7, 1357, generation + 1) != ESP_OK);
     assert(app_loxone_audio_favorite("audio-one", 7, 1357, generation) == ESP_OK);
     audio_native_poll(connection);
-    assert(!strcmp(test_native_command, "audio/3/roomfav/play/1357"));
+    assert(!strcmp(test_native_command, "audio/3/roomfav/play/1357/noshuffle"));
     connection_delete(connection);
 }
 
@@ -628,6 +628,7 @@ int main(void)
     native_status_backpressure_test();
     native_worker_retry_test();
     native_favorite_close_race_test();
+    native_favorites_response_routing_test();
     favorites_test();
     favorites_lifecycle_test();
     worker_allocation_failure_test();

@@ -1056,22 +1056,28 @@ static void audio_message(audio_connection_t *connection, const audio_message_t 
                 }
             if (cJSON_GetObjectItemCaseSensitive(root, "getroomfavs_result") && connection->favorites_slot >= 0)
             {
-                if (audio_page->detail == connection->favorites_slot &&
-                    audio_page->favorites_requested == connection->favorites_request)
+                lx_audio_favorites_match_t match = lx_audio_favorites_match(connection->favorites_player,
+                    connection->favorites_start, root);
+                if (match != LX_AUDIO_FAVORITES_UNRELATED)
                 {
-                    bool parsed = lx_audio_favorites_parse(&audio_page->favorites, connection->favorites_player,
-                        connection->favorites_start, root);
-                    if (parsed)
-                        audio_page->favorites.generation = connection->favorites_request;
-                    else
-                        audio_page->favorites.failed = true;
-                    if (connection->diagnostic)
-                        ESP_LOGI("lox_audio", "Audio kedvenclista válasz: player=%u, start=%u, parsed=%u",
-                            connection->favorites_player, connection->favorites_start, (unsigned)parsed);
+                    if (audio_page->detail == connection->favorites_slot &&
+                        audio_page->favorites_requested == connection->favorites_request)
+                    {
+                        bool parsed = match == LX_AUDIO_FAVORITES_MATCH &&
+                            lx_audio_favorites_parse(&audio_page->favorites, connection->favorites_player,
+                                connection->favorites_start, root);
+                        if (parsed)
+                            audio_page->favorites.generation = connection->favorites_request;
+                        else
+                            audio_page->favorites.failed = true;
+                        if (connection->diagnostic)
+                            ESP_LOGI("lox_audio", "Audio kedvenclista válasz: player=%u, start=%u, parsed=%u",
+                                connection->favorites_player, connection->favorites_start, (unsigned)parsed);
+                    }
+                    /* Csak a saját kérés válaszát fogyasztjuk el. A régi ablak
+                     * saját válasza sem írhatja át az időközben nyitott listát. */
+                    connection->favorites_slot = -1;
                 }
-                /* Egyetlen in-flight listakérés él. A régi ablak válaszát
-                 * elfogyasztjuk, de nem írhatja át az időközben nyitottat. */
-                connection->favorites_slot = -1;
             }
         }
         xSemaphoreGive(audio_lock);

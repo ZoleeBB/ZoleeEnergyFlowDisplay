@@ -234,7 +234,7 @@ bool lx_audio_native_command(unsigned player, lx_audio_action_t action,
 {
     if (!player || !out || action != LX_AUDIO_FAVORITE || !value)
         return false;
-    return snprintf(out, 96, "audio/%u/roomfav/play/%u", player, value) < 96;
+    return snprintf(out, 96, "audio/%u/roomfav/play/%u/noshuffle", player, value) < 96;
 }
 
 bool lx_audio_cover_url(const char *url)
@@ -431,15 +431,67 @@ bool lx_audio_track_update(lx_audio_track_t *track, unsigned player, const cJSON
     return changed || artwork_changed;
 }
 
+static const cJSON *audio_favorites_group(unsigned player, unsigned requested_start,
+                                         const cJSON *message, bool *ambiguous)
+{
+    const cJSON *groups = cJSON_GetObjectItemCaseSensitive(message, "getroomfavs_result");
+    const cJSON *selected = NULL;
+    *ambiguous = false;
+    if (!cJSON_IsArray(groups))
+        return NULL;
+    /* A natív dokumentum legfeljebb 48 KiB. Egy bejárás, új puffer nélkül;
+     * csak az egyértelmű saját id+start csoport juthat a tartalomparserhez. */
+    const cJSON *group;
+    cJSON_ArrayForEach(group, groups)
+    {
+        unsigned id = 0, start = 0;
+        if (!audio_uint(cJSON_GetObjectItemCaseSensitive(group, "id"), &id) || id != player ||
+            !audio_uint(cJSON_GetObjectItemCaseSensitive(group, "start"), &start) || start != requested_start)
+            continue;
+        if (selected)
+        {
+            *ambiguous = true;
+            return NULL;
+        }
+        selected = group;
+    }
+    return selected;
+}
+
+lx_audio_favorites_match_t lx_audio_favorites_match(unsigned player,
+    unsigned requested_start, const cJSON *message)
+{
+    if (!player || !message)
+        return LX_AUDIO_FAVORITES_UNRELATED;
+    const cJSON *command = cJSON_GetObjectItemCaseSensitive(message, "command");
+    if (command)
+    {
+        char expected[64];
+        snprintf(expected, sizeof(expected), "audio/cfg/getroomfavs/%u/%u/%u",
+            player, requested_start, LX_AUDIO_FAVORITE_PAGE);
+        if (!cJSON_IsString(command) || !command->valuestring || strcmp(command->valuestring, expected))
+            return LX_AUDIO_FAVORITES_UNRELATED;
+    }
+    bool ambiguous = false;
+    const cJSON *group = audio_favorites_group(player, requested_start, message, &ambiguous);
+    if (ambiguous)
+        return LX_AUDIO_FAVORITES_INVALID;
+    if (group)
+        return LX_AUDIO_FAVORITES_MATCH;
+    /* Pontos command mellett a hibás/hiányzó csoport saját hibaválasz.
+     * Command nélkül hiányzó id/start alapján nem találunk ki hozzárendelést. */
+    return command ? LX_AUDIO_FAVORITES_INVALID : LX_AUDIO_FAVORITES_UNRELATED;
+}
+
 bool lx_audio_favorites_parse(lx_audio_favorites_t *out, unsigned player,
                               unsigned requested_start, const cJSON *message)
 {
     if (!out || !player)
         return false;
-    const cJSON *groups = cJSON_GetObjectItemCaseSensitive(message, "getroomfavs_result");
-    if (!cJSON_IsArray(groups) || cJSON_GetArraySize(groups) != 1)
+    bool ambiguous = false;
+    const cJSON *group = audio_favorites_group(player, requested_start, message, &ambiguous);
+    if (!group || ambiguous)
         return false;
-    const cJSON *group = cJSON_GetArrayItem(groups, 0);
     unsigned id = 0, start = 0, total = 0;
     const cJSON *rows = cJSON_GetObjectItemCaseSensitive(group, "items");
     if (!audio_uint(cJSON_GetObjectItemCaseSensitive(group, "id"), &id) || id != player ||
