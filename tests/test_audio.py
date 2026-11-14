@@ -19,6 +19,51 @@ def run(command, **kwargs):
     return subprocess.run(command, cwd=ROOT, check=True, **kwargs)
 
 
+def jpeg_private_build_guard(temp, lvgl):
+    """A valódi ESP képkód optimalizált keretei és a szűk EOF-kivétel határa."""
+    source = (ROOT / 'main/app_loxone_audio_image.c').read_text(encoding='utf-8')
+    memory = (ROOT / 'tests/test_audio_image_memory.c').read_text(encoding='utf-8')
+    memory = memory.replace('"../main/app_loxone_audio_image.c"',
+                            '"' + str(ROOT / 'main/app_loxone_audio_image.c') + '"')
+    flags = [CC, '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+             '-Werror=frame-larger-than=1536', '-fstack-usage', '-DESP_PLATFORM',
+             '-DLV_KCONFIG_IGNORE', '-DLV_CONF_SKIP', '-DLV_USE_TJPGD=1',
+             '-Itests/loxone_audio_stubs', '-Itests/stubs', '-Imain', '-I' + lvgl]
+    probes = [
+        ('before', source, '#define STB_IMAGE_STATIC', False),
+        ('after', source, 'static size_t audio_jpeg_read(', False),
+        ('harness', memory, 'static void jpeg_alignment_test(', True),
+    ]
+    for optimization in ('O2', 'Os'):
+        obj = temp / ('image-private-' + optimization + '.o')
+        run(flags + ['-' + optimization, '-c', 'main/app_loxone_audio_image.c', '-o', str(obj)])
+        records = [line.split('\t') for line in obj.with_suffix('.su').read_text().splitlines()]
+        assert records and any('lx_audio_image_decode' in record[0] for record in records)
+        assert all(int(record[1]) <= 1536 and record[2] in ('static', 'dynamic,bounded')
+                   for record in records), (optimization, records)
+        assert not any('stbi__vertical_flip' in record[0] for record in records)
+        symbols = run([os.environ.get('NM', 'nm'), '--defined-only', str(obj)],
+                      capture_output=True, text=True).stdout
+        assert 'stbi__vertical_flip' not in symbols, optimization
+        exported = run([os.environ.get('NM', 'nm'), '-g', '--defined-only', str(obj)],
+                       capture_output=True, text=True).stdout
+        assert not any('stbi_' in line.split()[-1] for line in exported.splitlines()), exported
+        for name, original, marker, harness in probes:
+            assert original.count(marker) == 1, marker
+            function = 'audio_own_unused_' + name
+            modified = original.replace(marker, 'static void ' + function + '(void) {}\n' + marker)
+            path = temp / ('image-warning-' + name + '.c')
+            path.write_text(modified, encoding='utf-8')
+            probe_flags = [flag for flag in flags if not (harness and flag == '-DESP_PLATFORM')]
+            result = subprocess.run(probe_flags + ['-' + optimization, '-c', str(path),
+                                    '-o', str(path.with_suffix('.o'))],
+                                    cwd=ROOT, capture_output=True, text=True)
+            assert result.returncode != 0 and function in result.stderr and \
+                '-Werror=unused-function' in result.stderr, (name, optimization, result.stderr)
+        print('PASS: private JPEG', optimization, 'max frame', max(int(r[1]) for r in records),
+              'bytes; no flip/exported STB API; own warnings before/after vendor and C include retained')
+
+
 def png_chunk(kind, data):
     return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data))
 
@@ -167,6 +212,7 @@ with tempfile.TemporaryDirectory(prefix='loxone-audio-') as directory:
 
     lvgl = os.environ.get('LVGL_SOURCE_DIR')
     if lvgl:
+        jpeg_private_build_guard(temp, lvgl)
         jpeg_decoder = str(temp / 'jpeg')
         run(COMMON + ['-DLV_CONF_SKIP', '-DLV_USE_TJPGD=1', '-I' + lvgl,
                       'tests/test_audio_image.c', 'main/app_loxone_audio_image.c',

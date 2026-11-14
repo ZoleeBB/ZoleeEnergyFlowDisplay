@@ -85,7 +85,13 @@ static void tracked_free(void *pointer)
 
 #define ESP_PLATFORM
 #define free tracked_free
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#endif
 #include "../main/app_loxone_audio_image.c"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #undef free
 
 static void jpeg_alignment_test(void)
@@ -168,3 +174,10 @@ int main(int argc, char **argv)
     puts("PASS: all JPEG allocation failures release PSRAM; 4 MiB fallback cap and realloc accounting");
     return 0;
 }
+
+/* A bevont dekóder JPEG-only static prototípusainak hiányzó definícióját
+ * GCC csak a teljes fordítási egység végén jelzi. A fenti saját tesztkód
+ * az include utáni pop miatt változatlanul szigorú figyelmeztetésekkel él. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif

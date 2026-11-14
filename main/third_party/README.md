@@ -22,5 +22,13 @@ Minden dekóderfoglalás PSRAM-ba kerül. A tartalékút méretkorlátja mellett
 a komponens-, együttható-, sor- és RGB-pufferek együtt 4 MiB alatt maradnak;
 normál JPEG esetén a korábbi 16 KiB-os TJpgDec-munkatér elegendő. A PNG
 512×512-es korlátja, a 256 KiB-os tömörített bemenet és az 512 KiB-os
-borítócache változatlan. A képfeldolgozást továbbra is egyetlen, igény szerint
-induló médiafeladat végzi, a kaputelefon hardveres JPEG-erőforrásától függetlenül.
+borítócache változatlan. A képfeldolgozást a már fenntartott OTA-futtató
+egyképes callbackje végzi, külön média-task nélkül és a firmware-műveletek
+elsőbbségével. A kaputelefon hardveres JPEG-erőforrását nem használja.
+
+A wrapper `STB_IMAGE_STATIC` konfigurációt használ: a JPEG API privát,
+és a fordító elhagyhatja a nem használt, nagy helyi puffert tartalmazó
+függőleges tükrözést. A saját modul figyelmeztetései megmaradnak; a GCC
+JPEG-only módban deklarált, de nem definiált static upstream API-jainak
+késleltetett diagnosztikája fájlvégi kezelést kap. A valódi `.su` kapu a
+megmaradó vendorfüggvényeket is ellenőrzi, általános kihagyás nélkül.

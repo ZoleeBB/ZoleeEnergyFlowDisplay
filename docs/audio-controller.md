@@ -466,6 +466,15 @@ legfeljebb 1536 B; hiányzó adat vagy korlátlan dinamikus keret hibát okoz.
 Ez a saját függvények keretellenőrzése, nem a teljes könyvtári hívási lánc
 veremcsúcsának bizonyítása. A paneles mélypontmérés ezért külön szükséges.
 
+A JPEG-tartalékdekóder `STB_IMAGE_STATIC` konfigurációval privát a
+képmodulban. A nem használt külső beállító API elhagyásával a fordító a
+2048 bájtos helyi puffert tartalmazó függőleges tükrözési ágat is kiveheti.
+A `.su` kapu a megmaradó külső dekóderfüggvényeket is méri; a külső fejléc
+nem kerül kivétellistára. A GCC késleltetett, hiányzó static API-definíciókra
+vonatkozó figyelmeztetését külön, fájlvégi integrációs kezelés rendezi;
+a saját függvények figyelmeztetéseinek megmaradását negatív fordítási
+próbák ellenőrzik. Az upstream fejléc változatlan.
+
 A Play/Pause korábbi és a hangerő legutóbbi paneles működésének
 visszaigazolása mellett a kiadás elfogadásához még az alábbi valós próba
 szükséges:

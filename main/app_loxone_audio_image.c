@@ -400,8 +400,11 @@ static inline void *audio_jpeg_realloc(void *pointer, size_t bytes)
  * nem támogatja. Az upstream fejléc változatlan marad. Csak a JPEG-kód
  * fordul, minden foglalás PSRAM, a forrás legfeljebb 512x512 pixel.
  * A legnagyobb (4 komponenses progresszív) átmeneti munkatér is 4 MiB
- * alatt marad; nincs új feladat, állandó puffer vagy hardver-JPEG használat. */
+ * alatt marad; nincs új feladat, állandó puffer vagy hardver-JPEG használat.
+ * A privát API-ból a fordító elhagyhatja a nem használt flip-beállítót és
+ * a kikapcsolt tükrözési ágat annak 2048 bájtos helyi pufferével együtt. */
 #define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_STATIC
 #define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
 #define STBI_NO_HDR
@@ -531,3 +534,13 @@ lx_audio_image_t *lx_audio_image_decode(const uint8_t *data, size_t length, unsi
 #endif
     return NULL;
 }
+
+#if defined(__GNUC__) && LV_USE_TJPGD
+/* JPEG-only módban az upstream néhány tiltott API-t továbbra is deklarál,
+ * definíció nélkül. A GCC ezt csak a fordítási egység végén jelzi, ezért az
+ * include körüli push/pop nem kezeli. A saját függvénydefiníciók korábbi
+ * forráshely szerinti figyelmeztetéseit ez nem tiltja; regresszió ellenőrzi.
+ * E sor után ne legyen alkalmazáskód. A .c-t beemelő teszt külön visszaállítja
+ * a saját diagnosztikáját, majd a saját fájlvégén kezeli a késői prototípusokat. */
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
