@@ -1,4 +1,4 @@
-/* A tényleges beágyazott oldal redőnyszerkesztése asztali és mobil Chromiumban. */
+/* A tényleges beágyazott oldal redőny- és típusos blokk-szerkesztése Chromiumban. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -41,10 +41,30 @@ const catalog = [
     {uuid:sensor, control_uuid:switchId, name:'Kapcsoló', room:'Nappali', category:'Világítás', state:'active',
         type:'Switch', secured:false},
 ];
-const imagesById = new Map([
-    ['blinds-shading', fs.readFileSync('main/assets/png/shading_blinds.png')],
-    ['thermostat-irc', fs.readFileSync('main/assets/png/irc_thermostat.png')],
-]);
+const advancedTypes = [
+    ['dimmer', 'Dimmer', 'dimmer'],
+    ['central-lighting', 'CentralLightController', 'central-lighting'],
+    ['slider', 'Slider', 'slider'],
+    ['timed-switch', 'TimedSwitch', 'timed-switch'],
+    ['window-monitor', 'WindowMonitor', 'window-monitor'],
+    ['gate', 'Gate', 'gate-double'],
+    ['window', 'Window', 'motor-window'],
+    ['audio', 'AudioZoneV2', 'audio-player'],
+];
+const advancedId = index => '60000000-0000-0000-' + String(index + 1).padStart(16, '0');
+catalog.push(...advancedTypes.map(([controls_type, type], index) => ({
+    uuid:advancedId(index + 100), control_uuid:advancedId(index),
+    action_uuid:controls_type === 'window-monitor' ? '' : advancedId(index + 50),
+    name:'Blokk ' + controls_type, room:'Nappali', category:'Új blokkok', type,
+    controls_type, controls:'{}', controls_blocked:false,
+    gate_animation:controls_type === 'gate' ? 3 : undefined,
+})));
+const iconPaths = new Map(JSON.parse(fs.readFileSync('assets/loxone-home/catalog.json')).icons.map(icon => [icon.id, 'assets/loxone-home/' + icon.file]));
+async function homePreview(page, width, name) {
+    if (!process.env.ZOLEE_HOME_WEB_PREVIEWS) return;
+    fs.mkdirSync(process.env.ZOLEE_HOME_WEB_PREVIEWS, {recursive:true});
+    await page.locator('#cards-section').screenshot({path:path.join(process.env.ZOLEE_HOME_WEB_PREVIEWS, `${name}-${width}.png`)});
+}
 (async () => {
     const browser = await chromium.launch({headless:true,
         ...(process.env.CHROMIUM_EXECUTABLE ? {executablePath:process.env.CHROMIUM_EXECUTABLE} : {})});
@@ -52,7 +72,8 @@ const imagesById = new Map([
         for (const width of [390, 1280]) {
             const context = await browser.newContext({viewport:{width, height:900}});
             const posts = [], errors = [], images = [];
-            let home = {schema:2, revision:1, busy:false, consumers:[], resources_installed:false, intercom:{}, pages:[
+            let holdSave = false;
+            let home = {schema:2, revision:1, busy:false, consumers:[], resources_installed:true, resources_version:4, intercom:{}, pages:[
                 {id:'floor', title:'Földszint', cards:[{id:'shutter', name:'Nappali redőny', type:'shading', icon:'lamp',
                     control_uuid:blind, source:{uuid:'invalid', scale:0, offset:null}, unit:'bad', decimals:99,
                     warning_low:'bad', warning_high:{}, warning_color:'bad'}]},
@@ -69,7 +90,8 @@ const imagesById = new Map([
                         const value = route.request().postDataJSON();
                         assert.equal(route.request().headers()['x-zolee-loxone'], '1');
                         posts.push(value);
-                        home = {...home, ...structuredClone(value), revision:home.revision + 1, status:'Elmentve.'};
+                        home = {...home, ...structuredClone(value), busy:holdSave,
+                            revision:home.revision + (holdSave ? 0 : 1), status:holdSave ? 'Mentés folyamatban.' : 'Elmentve.'};
                         body = {accepted:true};
                     } else body = home;
                 } else if (url.pathname === '/api/loxone/slaves') {
@@ -79,8 +101,8 @@ const imagesById = new Map([
                 } else if (url.pathname === '/api/templates/home-icon') {
                     const id = url.searchParams.get('id');
                     images.push(id);
-                    assert(imagesById.has(id), id);
-                    return route.fulfill({contentType:'image/png', body:imagesById.get(id)});
+                    assert(iconPaths.has(id), id);
+                    return route.fulfill({contentType:'image/png', body:fs.readFileSync(iconPaths.get(id))});
                 } else return route.fulfill({status:404, body:'{}'});
                 return route.fulfill({contentType:'application/json', body:JSON.stringify(body)});
             });
@@ -94,7 +116,14 @@ const imagesById = new Map([
                 const preview = document.querySelector('#home-cards-shutter-icon-preview');
                 return preview?.complete && preview.naturalWidth === 96 && preview.naturalHeight === 96;
             });
-            assert.equal(await page.locator('#home-resource-warning').isVisible(), true);
+            assert.equal(await page.locator('#home-resource-warning').isVisible(), false);
+            assert.equal(await page.locator('#home-page-select').count(), 0);
+            assert.equal(await page.getByRole('tab').count(), 2);
+            assert.equal(await page.locator('#home-page-tab-floor').getAttribute('aria-selected'), 'true');
+            assert.equal(await page.getByRole('tabpanel').getAttribute('aria-labelledby'), 'home-page-tab-floor');
+            assert.equal(await page.locator('#home-page-strip').evaluate(node=>node.lastElementChild.id), 'home-add-page');
+            assert.equal(await page.locator('#home-page-panel #home-page-title').count(), 1);
+            assert.equal(await page.locator('#home-page-panel #home-cards').count(), 1);
             assert.equal(await page.locator(prefix + 'icon-preview').isVisible(), true);
             assert.equal(await page.locator(prefix + 'icon-preview').getAttribute('alt'), 'Redőnyvezérlő előnézete');
             assert.equal(await page.locator(prefix + 'type').inputValue(), 'shading');
@@ -102,6 +131,29 @@ const imagesById = new Map([
                 ['', central, blind, blocked]);
             for (const field of ['icon', 'uuid', 'scale', 'offset', 'unit', 'decimals', 'warning_low', 'warning_high', 'warning_color'])
                 assert.equal(await page.locator(prefix + field).count(), 0, field);
+            const typeBounds = await page.locator(prefix + 'type').boundingBox();
+            const sourceBounds = await page.locator(prefix + 'control_uuid').boundingBox();
+            const nameBounds = await page.locator(prefix + 'name').boundingBox();
+            assert(typeBounds.y + typeBounds.height <= sourceBounds.y);
+            assert(sourceBounds.y + sourceBounds.height <= nameBounds.y);
+            assert.equal(await page.locator(prefix + 'move-up').isDisabled(), true);
+            assert.equal(await page.locator(prefix + 'move-down').isDisabled(), true);
+            const moveBounds = await page.locator(prefix + 'move-up').boundingBox();
+            const downBounds = await page.locator(prefix + 'move-down').boundingBox();
+            const removeBounds = await page.locator(prefix + 'remove').boundingBox();
+            assert(moveBounds.x < removeBounds.x);
+            assert(Math.abs(moveBounds.y - removeBounds.y) < 2);
+            assert(Math.abs(downBounds.y - removeBounds.y) < 2);
+            for (const [name, button] of [['up', moveBounds], ['down', downBounds], ['remove', removeBounds]])
+                assert(button.width >= 44 && button.height >= 44, name + ': at least 44×44 px touch target');
+            assert(moveBounds.x + moveBounds.width < downBounds.x, 'Movement buttons must not overlap');
+            assert(downBounds.x + downBounds.width < removeBounds.x, 'Delete stays to the right of movement');
+            const footerBounds = await page.locator('#home-cards .home-entry-actions').boundingBox();
+            assert(Math.abs(moveBounds.x - footerBounds.x) < 2, 'Movement stays at the left edge');
+            assert(Math.abs(removeBounds.x + removeBounds.width - footerBounds.x - footerBounds.width) < 2,
+                'Delete stays at the right edge');
+            assert.equal(await page.locator(prefix + 'move-up').getAttribute('aria-label'), 'Nappali redőny feljebb mozgatása');
+            assert.equal(await page.locator(prefix + 'move-down').getAttribute('aria-label'), 'Nappali redőny lejjebb mozgatása');
             const bounds = await page.locator('#home-cards fieldset').boundingBox();
             assert(bounds.width > 0 && bounds.x >= 0 && bounds.x + bounds.width <= width);
             const text = await page.locator('#home-cards').textContent();
@@ -113,6 +165,7 @@ const imagesById = new Map([
                 fs.mkdirSync(process.env.ZOLEE_SHADING_WEB_PREVIEWS, {recursive:true});
                 await page.locator('#home-cards fieldset').screenshot({path:path.join(process.env.ZOLEE_SHADING_WEB_PREVIEWS, `shading-editor-${width}.png`)});
             }
+            await homePreview(page, width, 'home-editor');
             await page.locator('#home-save').click();
             await page.waitForFunction(() => document.querySelector('#home-status').textContent.includes('Elmentve'));
             assert.equal(posts.length, 1);
@@ -155,17 +208,248 @@ const imagesById = new Map([
             assert.equal(posts.length, 2);
             assert.equal(posts[1].pages[0].cards[0].control_uuid, central);
             assert.equal(posts[1].pages[0].cards[0].icon, 'blinds-shading');
-            await page.locator('#home-page-select').selectOption('upper');
+            await page.locator('#home-page-tab-upper').click();
             assert.equal(await page.locator('#home-cards-central-icon').count(), 0);
-            assert.equal(await page.locator('#home-cards-central-icon-preview').getAttribute('src'), '/api/templates/home-icon?id=blinds-shading');
+            assert.equal(await page.locator('#home-cards-central-icon-preview').getAttribute('src'), '/api/templates/home-icon?id=blinds-shading&v=4');
             await page.locator('#home-cards-central-type').selectOption('value');
             assert.equal(await page.locator('#home-cards-central-icon').inputValue(), 'blinds');
             assert(images.includes('blinds-shading'));
+            /* Mozgatáskor az egész kártya marad meg, újratöltés után is. */
+            await page.locator('#home-cards-central-type').selectOption('shading');
+            await page.locator('#home-cards-central-control_uuid').selectOption(central);
+            await page.locator('#home-cards-central-name').fill('Még nem mentett cím');
+            await page.locator('#home-cards-central-move-down').click();
+            assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes=>boxes.map(box=>box.id)),
+                ['home-cards-imported-editor', 'home-cards-central-editor']);
+            assert.equal(await page.locator('#home-cards-central-name').inputValue(), 'Még nem mentett cím');
+            assert.equal(await page.locator('#home-cards-central-move-down').isDisabled(), true);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-cards-central-move-up');
+            await page.locator('#home-save').click();
+            await page.waitForFunction(()=>document.querySelector('#home-status').textContent.includes('Elmentve'));
+            assert.deepEqual(posts.at(-1).pages[1].cards.map(card=>card.id), ['imported', 'central']);
+            assert.equal(posts.at(-1).pages[1].cards[1].name, 'Még nem mentett cím');
+            await page.reload();
+            await page.locator('#home-page-tab-upper').click();
+            assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes=>boxes.map(box=>box.id)),
+                ['home-cards-imported-editor', 'home-cards-central-editor']);
+            assert.equal(await page.locator('#home-cards-central-name').inputValue(), 'Még nem mentett cím');
+            /* Új kártya csak típusválasztás után nyitja meg a függő mezőket. */
+            await page.locator('#home-add-card').click();
+            const fresh = '#home-cards-item-1-';
+            assert.equal(await page.locator(fresh + 'type').inputValue(), '');
+            assert.equal(await page.locator(fresh + 'name').count(), 0);
+            assert.equal(await page.locator(fresh + 'control_uuid').count(), 0);
+            assert.equal(await page.locator(fresh + 'icon-preview').count(), 0);
+            const beforeEmpty = posts.length;
+            await page.locator('#home-save').click();
+            assert.equal(posts.length, beforeEmpty);
+            assert.match(await page.locator('#home-status').textContent(), /kártyatípust/);
+            await page.locator(fresh + 'type').selectOption('shading');
+            assert.equal(await page.locator(fresh + 'control_uuid').count(), 1);
+            await page.locator(fresh + 'remove').click();
+            /* Mind a nyolc típus ugyanazon kiadott HTML/JS mentési útját járja be.
+             * A korábbi két oldal közben rejtett, de adataiknak meg kell maradniuk. */
+            const previousPages = structuredClone(home.pages);
+            home = {...home, revision:home.revision + 1, pages:[{
+                id:'advanced', title:'Új funkcióblokkok', cards:advancedTypes.map(([type, , icon], index) => ({
+                    id:'block-' + type, name:'Kártya ' + type, type, icon, control_uuid:advancedId(index),
+                })),
+            }, ...previousPages]};
+            await page.reload();
+            await page.locator('#home-cards-block-dimmer-type').waitFor();
+            for (const [index, [type, , icon]] of advancedTypes.entries()) {
+                const card = '#home-cards-block-' + type + '-';
+                assert.equal(await page.locator(card + 'type').inputValue(), type);
+                assert.deepEqual(await page.locator(card + 'control_uuid option').evaluateAll(options => options.map(item => item.value)),
+                    ['', advancedId(index)]);
+                assert.equal(await page.locator(card + 'control_uuid').inputValue(), advancedId(index));
+                for (const field of ['uuid', 'scale', 'offset', 'unit', 'decimals'])
+                    assert.equal(await page.locator(card + field).count(), 0, type + ': ' + field);
+                if (['dimmer', 'slider', 'timed-switch'].includes(type))
+                    assert.equal(await page.locator(card + 'icon').inputValue(), icon);
+                else assert.equal(await page.locator(card + 'icon').count(), 0);
+                assert.equal(await page.locator(card + 'icon-preview').getAttribute('src'),
+                    '/api/templates/home-icon?id=' + icon + '&v=4');
+                const first = await page.locator(card + 'type').boundingBox();
+                const second = await page.locator(card + 'control_uuid').boundingBox();
+                const third = await page.locator(card + 'name').boundingBox();
+                assert(first.y + first.height <= second.y, type);
+                assert(second.y + second.height <= third.y, type);
+            }
+            const dimmer = '#home-cards-block-dimmer-';
+            await page.locator(dimmer + 'name').fill('Saját olvasólámpa');
+            await page.locator(dimmer + 'icon').selectOption('washing-machine');
+            await page.locator(dimmer + 'type').selectOption('audio');
+            assert.equal(await page.locator(dimmer + 'control_uuid').inputValue(), '');
+            assert.equal(await page.locator(dimmer + 'icon').count(), 0);
+            await page.locator(dimmer + 'control_uuid').selectOption(advancedId(7));
+            assert.equal(await page.locator(dimmer + 'name').inputValue(), 'Saját olvasólámpa');
+            await page.locator(dimmer + 'type').selectOption('dimmer');
+            assert.equal(await page.locator(dimmer + 'control_uuid').inputValue(), '');
+            assert.equal(await page.locator(dimmer + 'icon').inputValue(), 'washing-machine');
+            await page.locator(dimmer + 'control_uuid').selectOption(advancedId(0));
+            const permanent = '#home-cards-block-timed-switch-allow_permanent';
+            assert.equal(await page.locator(permanent).isChecked(), true);
+            await page.locator(permanent).uncheck();
+            await page.locator('#home-cards-block-gate-move-up').click();
+            const expectedOrder = ['dimmer', 'central-lighting', 'slider', 'timed-switch',
+                'gate', 'window-monitor', 'window', 'audio'];
+            assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes => boxes.map(box => box.id)),
+                expectedOrder.map(type => 'home-cards-block-' + type + '-editor'));
+            assert.equal(await page.locator(dimmer + 'name').inputValue(), 'Saját olvasólámpa');
+            assert.equal(await page.locator(permanent).isChecked(), false);
+            await page.locator('#home-save').click();
+            await page.waitForFunction(() => document.querySelector('#home-status').textContent.includes('Elmentve'));
+            const saved = posts.at(-1);
+            assert.deepEqual(saved.pages.slice(1), previousPages);
+            assert.deepEqual(saved.pages[0].cards.map(card => card.type), expectedOrder);
+            for (const card of saved.pages[0].cards) {
+                const index = advancedTypes.findIndex(([type]) => type === card.type);
+                assert.equal(card.control_uuid, advancedId(index));
+                assert.deepEqual(Object.keys(card).sort(),
+                    ['control_uuid', 'icon', 'id', 'name', 'type', ...(card.type === 'timed-switch' ? ['allow_permanent'] : [])].sort());
+            }
+            assert.equal(saved.pages[0].cards[0].icon, 'washing-machine');
+            assert.equal(saved.pages[0].cards.find(card => card.type === 'timed-switch').allow_permanent, false);
+            await page.reload();
+            await page.locator(dimmer + 'type').waitFor();
+            assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes => boxes.map(box => box.id)),
+                expectedOrder.map(type => 'home-cards-block-' + type + '-editor'));
+            assert.equal(await page.locator(dimmer + 'name').inputValue(), 'Saját olvasólámpa');
+            assert.equal(await page.locator(dimmer + 'icon').inputValue(), 'washing-machine');
+            assert.equal(await page.locator(permanent).isChecked(), false);
+            assert.equal(await page.locator('#home-cards-block-gate-icon-preview').getAttribute('src'),
+                '/api/templates/home-icon?id=gate-double&v=4');
+            for (const [index, [type]] of advancedTypes.entries())
+                assert.equal(await page.locator('#home-cards-block-' + type + '-control_uuid').inputValue(), advancedId(index));
+            await page.locator('#home-page-tab-upper').click();
+            assert.deepEqual(await page.locator('#home-cards>fieldset').evaluateAll(boxes => boxes.map(box => box.id)),
+                ['home-cards-imported-editor', 'home-cards-central-editor']);
+            assert.equal(await page.locator('#home-cards-central-name').inputValue(), 'Még nem mentett cím');
+
+            /* A kiadott tabos oldalkezelő határhelyzetei valódi DOM-mal. */
+            home = {...home, revision:home.revision + 1, pages:[
+                {id:'tabs-floor', title:'Földszint', cards:[{id:'tabs-card', name:'Olvasólámpa', type:'dimmer',
+                    icon:'dimmer', control_uuid:advancedId(0)}]},
+                {id:'tabs-upper', title:'Emelet – hálószobák és hosszú közlekedő', cards:[]},
+            ]};
+            await page.reload();
+            const firstTab = '#home-page-tab-tabs-floor', secondTab = '#home-page-tab-tabs-upper';
+            const activeTab = '#home-page-tabs [aria-selected="true"]';
+            const title = page.locator('#home-page-title');
+            await title.fill('Földszint ');
+            await title.evaluate(node=>{
+                window.homeTitleProbe=node;
+                window.homeCardProbe=document.querySelector('#home-cards-tabs-card-editor');
+            });
+            await page.keyboard.type('– nappali, étkező és konyha');
+            const longName = 'Földszint – nappali, étkező és konyha';
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator(firstTab + ' .home-page-tab-name').textContent(), longName);
+            assert.equal(await page.evaluate(()=>document.activeElement===window.homeTitleProbe &&
+                document.querySelector('#home-page-title')===window.homeTitleProbe &&
+                document.querySelector('#home-cards-tabs-card-editor')===window.homeCardProbe), true);
+            assert.equal(await title.evaluate(node=>node.selectionStart), longName.length);
+            await title.fill('Kert <b>nyári fények</b>');
+            assert.equal(await page.locator(firstTab + ' b').count(), 0);
+            assert.equal(await page.locator(firstTab + ' .home-page-tab-name').textContent(), 'Kert <b>nyári fények</b>');
+            await title.fill(longName);
+            await page.locator('#home-cards-tabs-card-name').fill('Még nem mentett olvasólámpa');
+            await page.locator(secondTab).click();
+            assert.equal(await page.locator('#home-cards>fieldset').count(), 0);
+            await page.locator(secondTab).press('Home');
+            assert.equal(await page.evaluate(()=>document.activeElement.id), firstTab.slice(1));
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+            await page.locator(firstTab).press('ArrowLeft');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), secondTab.slice(1));
+            await page.locator(secondTab).press('ArrowRight');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await page.locator('#home-page-tabs [tabindex="0"]').count(), 1);
+            await page.locator('#home-page-down').click();
+            assert.deepEqual(await page.getByRole('tab').evaluateAll(nodes=>nodes.map(node=>node.id)),
+                [secondTab.slice(1), firstTab.slice(1)]);
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-up');
+            await page.locator('#home-page-up').click();
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-down');
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+
+            holdSave = true;
+            const heldPost = page.waitForResponse(response=>new URL(response.url()).pathname==='/api/loxone/home' &&
+                response.request().method()==='POST');
+            await page.locator('#home-save').click();
+            assert.equal((await (await heldPost).json()).accepted, true);
+            assert.equal(await page.getByRole('tab').evaluateAll(nodes=>nodes.every(node=>node.disabled)), true);
+            for (const id of ['home-add-page', 'home-page-title', 'home-remove-page', 'home-page-down'])
+                assert.equal(await page.locator('#' + id).isDisabled(), true);
+            await page.locator(secondTab).dispatchEvent('click');
+            await page.locator(firstTab).dispatchEvent('keydown', {key:'End'});
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            holdSave = false;
+            home = {...home, busy:false, revision:home.revision + 1, status:'Elmentve.'};
+            await page.waitForFunction(()=>!document.querySelector('#home-save').disabled);
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+
+            for (let count = 3; count <= 8; ++count) {
+                await page.locator('#home-add-page').click();
+                assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-title');
+                const name = `${count}. oldal – hosszú helyiségnév és további részletek`;
+                assert(Buffer.byteLength(name, 'utf8') <= 80);
+                await title.fill(name);
+                assert.equal(await page.getByRole('tab').count(), count);
+                assert.equal(await page.locator(activeTab + ' .home-page-tab-name').textContent(), name);
+                assert.equal(await page.locator('#home-page-strip').evaluate(node=>node.lastElementChild.id), 'home-add-page');
+            }
+            assert.equal(await page.locator('#home-add-page').isVisible(), false);
+            const geometry = await page.locator('#home-page-strip').evaluate(node=>({
+                inner:node.clientWidth, content:node.scrollWidth, document:document.documentElement.scrollWidth,
+                viewport:innerWidth,
+            }));
+            assert(geometry.content > geometry.inner, 'Long page names scroll inside the tab strip');
+            assert(geometry.document <= geometry.viewport + 1, 'The page must not overflow horizontally');
+            await page.locator(activeTab).focus();
+            await page.locator(activeTab).press('Home');
+            assert.equal(await page.locator(activeTab).getAttribute('id'), firstTab.slice(1));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator('#home-cards-tabs-card-name').inputValue(), 'Még nem mentett olvasólámpa');
+            await page.locator(firstTab).press('End');
+            assert.equal(await page.locator(activeTab).evaluate(node=>{
+                const tab=node.getBoundingClientRect(), strip=document.querySelector('#home-page-strip').getBoundingClientRect();
+                return tab.left>=strip.left-1 && tab.right<=strip.right+1;
+            }), true);
+            assert(await page.locator('#home-page-strip').evaluate(node=>node.scrollLeft) > 0);
+            await page.locator(activeTab).press('Tab');
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-page-title');
+            await page.locator('#home-save').click();
+            await page.waitForFunction(()=>document.querySelector('#home-status').textContent.includes('Elmentve'));
+            const tabSaved = structuredClone(posts.at(-1).pages);
+            assert.equal(tabSaved.length, 8);
+            assert.equal(tabSaved[0].cards[0].name, 'Még nem mentett olvasólámpa');
+            await page.reload();
+            await page.locator(firstTab).waitFor();
+            assert.deepEqual(await page.getByRole('tab').evaluateAll(nodes=>nodes.map(node=>node.id)),
+                tabSaved.map(item=>'home-page-tab-' + item.id));
+            assert.equal(await title.inputValue(), longName);
+            assert.equal(await page.locator('#home-add-page').isVisible(), false);
+            await homePreview(page, width, 'home-editor-eight-tabs');
+            await page.locator('#home-remove-page').click();
+            assert.equal(await page.getByRole('tab').count(), 7);
+            assert.equal(await page.locator('#home-add-page').isVisible(), true);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), secondTab.slice(1));
+            while (await page.getByRole('tab').count()) await page.locator('#home-remove-page').click();
+            assert.equal(await page.getByRole('tabpanel').count(), 0);
+            assert.equal(await page.locator('#home-pages-empty').isVisible(), true);
+            assert.equal(await page.evaluate(()=>document.activeElement.id), 'home-add-page');
+            await page.locator('#home-add-page').click();
+            assert.equal(await page.getByRole('tab').count(), 1);
+            assert.equal(await page.locator('#home-page-up').isDisabled(), true);
+            assert.equal(await page.locator('#home-page-down').isDisabled(), true);
             assert.deepEqual(errors, []);
             await context.close();
         }
     } finally {
         await browser.close();
     }
-    console.log('PASS: actual C-embedded shading editor, desktop/mobile, supported-block filter, fixed PNG without SD, imported/hidden-page save and IRC/generic type changes');
+    console.log('PASS: actual C-embedded editor, desktop/mobile, typed blocks and SD icons, type-first DOM, tab rename/keyboard/focus/scroll, 0/1/8 pages, held save, unsaved card and page ordering, minimal save and reload');
 })().catch(error => {console.error(error); process.exitCode = 1;});

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A méretezett, átlátszó termosztátgrafika natív 96×96-os firmware-változata.
+"""A méretezett, átlátszó termosztátgrafika natív 96×96-os SD-változata.
 
 Csak arányos kicsinyítés és középre helyezés történik. A kijelző üres marad:
 a célhőmérsékletet és az üzemmódjelzést az LVGL élő adatból rajzolja rá.
@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def prepare():
     source = ROOT / 'assets/source/irc-thermostat.png'
-    target = ROOT / 'main/assets/png/irc_thermostat.png'
+    target = ROOT / 'assets/loxone-home/icons/thermostat-irc.png'
     with Image.open(source) as original:
         image = original.convert('RGBA')
         image.thumbnail((96, 96), Image.Resampling.LANCZOS)

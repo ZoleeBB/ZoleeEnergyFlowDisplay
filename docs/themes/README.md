@@ -23,3 +23,5 @@ A témához tartozó további leírások:
 - [Külső témák kompatibilitási ellenőrzése](../external-template-review.md)
 - [Loxone Otthon – közös ikonkészlet, hátterek és SD-erőforráscsomag](../../assets/loxone-home/README.md)
 - [Világítási előnézetek – képek eredete és veszteségmentes frissítése](../images/lighting/README.md)
+- [Új Loxone-kártyák előnézetei – blokkonkénti képek és reprodukálható LVGL-render](../images/controls/README.md)
+- [Audio-előnézetek – lejátszókártya, hangerő és kedvencek](../images/audio/README.md)

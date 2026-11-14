@@ -19,6 +19,7 @@ with tempfile.TemporaryDirectory(prefix='intercom-ringtones-') as directory:
 #define MALLOC_CAP_SPIRAM 4
 #define MALLOC_CAP_8BIT 2
 void *heap_caps_malloc(size_t size, unsigned caps);
+void *heap_caps_aligned_alloc(size_t alignment, size_t size, unsigned caps);
 ''')
     stub = folder / 'stub.c'
     stub.write_text('''
@@ -28,6 +29,8 @@ void *heap_caps_malloc(size_t size, unsigned caps);
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
+#include <unistd.h>
 #include "app_storage.h"
 #include "app_ringtone_wav.h"
 uint32_t test_frames(uint32_t bytes, uint32_t rate) { return app_ringtone_frames(bytes, rate); }
@@ -35,6 +38,10 @@ uint32_t test_source(uint32_t frame, uint32_t rate) { return app_ringtone_source
 static bool busy, bounded_reads, fail_reads, fail_memory, fail_seek, locked;
 static bool fail_create, fail_close;
 static FILE *close_target;
+static unsigned direct_reads, aligned_allocations, partial_limit, interrupted_reads;
+unsigned read_calls(void) { return direct_reads; }
+unsigned aligned_calls(void) { return aligned_allocations; }
+void short_reads(unsigned bytes, unsigned interruptions) { partial_limit = bytes; interrupted_reads = interruptions; }
 void file_faults(bool create, bool close) { fail_create = create; fail_close = close; }
 FILE *__real_fopen(const char *, const char *);
 FILE *__wrap_fopen(const char *path, const char *mode) {
@@ -62,12 +69,29 @@ void *heap_caps_malloc(size_t size, unsigned caps) {
     assert(caps == (4 | 2));
     return fail_memory ? NULL : malloc(size);
 }
+void *heap_caps_aligned_alloc(size_t alignment, size_t size, unsigned caps) {
+    assert(alignment == 128 && !(size % alignment) && caps == (4 | 2));
+    aligned_allocations++;
+    if (fail_memory) return NULL;
+    void *data = NULL;
+    return posix_memalign(&data, alignment, size) ? NULL : data;
+}
 void limit_reads(bool value) { bounded_reads = value; }
 void fail_read(bool value) { fail_reads = value; }
 size_t __real_fread(void *, size_t, size_t, FILE *);
 size_t __wrap_fread(void *data, size_t size, size_t count, FILE *file) {
     if (fail_reads || (bounded_reads && size * count > 2048)) return 0;
     return __real_fread(data, size, count, file);
+}
+ssize_t __real_read(int, void *, size_t);
+ssize_t __wrap_read(int fd, void *data, size_t size) {
+    direct_reads++;
+    assert(size <= 2048);
+    if (bounded_reads) assert(!((uintptr_t)data % 128));
+    if (fail_reads) { errno = EIO; return -1; }
+    if (interrupted_reads) { interrupted_reads--; errno = EINTR; return -1; }
+    if (partial_limit && size > partial_limit) size = partial_limit;
+    return __real_read(fd, data, size);
 }
 void storage_busy(bool value) { busy = value; }
 esp_err_t app_storage_lock(void) { assert(!locked); locked = true; return ESP_OK; }
@@ -80,7 +104,7 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
         '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-fsanitize=undefined', '-fno-sanitize-recover=all',
         '-DESP_PLATFORM', '-I' + directory, '-Itests/stubs', '-Imain', '-DAPP_SD_MOUNT_POINT="' + directory + '"',
         'main/app_ringtone_wav.c', 'main/app_ringtone_zip.c', 'main/app_ringtones.c', str(stub),
-        '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-Wl,--wrap=fopen', '-Wl,--wrap=fclose', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
+        '-Wl,--wrap=read', '-Wl,--wrap=fread', '-Wl,--wrap=fseek', '-Wl,--wrap=fopen', '-Wl,--wrap=fclose', '-lz', '-l:libcjson.so.1', '-o', str(libpath)], cwd=ROOT, check=True)
     # A külön kibontó és a visszaállított témakibontó Release buildben is forduljon.
     for source in ('main/app_template_zip.c', 'main/app_ringtone_zip.c'):
         subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O3', '-Wall', '-Wextra', '-Werror',
@@ -295,9 +319,19 @@ bool app_templates_safe_asset(const char *name) { (void)name; return false; }
     assert C.string_at(pointer, size.value) == data
     libc.free(pointer)
     lib.fail_position(0)
-    # Pufferelt stdio: korlátozott olvasások egyedi DMA-kezelés nélkül.
+    # A közvetlen SD-út az egyetlen WAV-puffert igazítja, belső puffer nélkül.
+    before_reads, before_aligned = lib.read_calls(), lib.aligned_calls()
     lib.limit_reads(1)
     pointer, result = load_status(name.encode())
     assert pointer and result == 0 and C.string_at(pointer, size.value) == data
+    assert pointer % 128 == 0 and lib.aligned_calls() == before_aligned + 1
+    assert lib.read_calls() - before_reads == (len(data) + 2047) // 2048
     libc.free(pointer)
-    print('PASS: strict WAV, delete before install, per-file CRC/PCM/SD error recovery, complete failure report, 32 sound limit, safe buffered list/load')
+    lib.limit_reads(0)
+    lib.short_reads(513, 2)
+    before_reads = lib.read_calls()
+    pointer, result = load_status(name.encode())
+    assert pointer and result == 0 and C.string_at(pointer, size.value) == data
+    assert lib.read_calls() - before_reads == 2 + (len(data) + 512) // 513
+    libc.free(pointer)
+    print('PASS: strict WAV, delete before install, per-file CRC/PCM/SD error recovery, complete failure report, 32 sound limit, 128-byte PSRAM aligned POSIX load, partial reads and EINTR')

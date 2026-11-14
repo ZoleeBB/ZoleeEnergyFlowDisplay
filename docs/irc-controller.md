@@ -13,18 +13,24 @@ vagy új Bluetooth-adatfolyamot.
 1. A kijelző `/loxone` weboldalán kérd le a Loxone adatlistáját.
 2. Az Otthon-kártyák között válaszd ki a szerkesztendő oldalt, adj hozzá egy
    kártyát, majd válaszd az **IRC termosztát** típust.
-3. Add meg a kártya nevét, és a **Loxone helyiségszabályzó (IRC) blokk**
-   mezőben válaszd ki a helyiség szabályzóját. Egy blokk egyszer szerepel a
+3. A **Loxone helyiségszabályzó (IRC) blokk** mezőben válaszd ki a helyiség
+   szabályzóját, majd szükség esetén írd át a megjelenítési nevet. Egy blokk egyszer szerepel a
    listában; külön célhőfok- vagy szobahőmérséklet-állapotot nem kell párosítani.
 4. Mentsd az Otthon-oldalakat. A kijelző a Miniserver visszajelzéseiből tölti
    ki a kártyát.
 
 Az ikon rögzített: IRC típusnál nincs ikonválasztó, skálázás, egyéni
-mértékegység, tizedesjegy- vagy figyelmeztetésbeállítás. A termosztátgrafika a
-firmware része, a webes előnézete telepített SD-ikoncsomag nélkül is elérhető.
-Az új ikonhoz nem kell frissíteni a 64 ikonos `loxone-home.zip` csomagot.
-**Az Otthon-oldal megnyitásához továbbra is szükséges a működő SD és a közös
-erőforráscsomag**, amely a hátteret és a logót adja.
+mértékegység, tizedesjegy- vagy figyelmeztetésbeállítás. A termosztátgrafika
+a **v4 `loxone-home.zip` SD-erőforráscsomag része**, és a webes előnézet is
+innen érkezik. A jóváhagyott 96×96-os kép geometriája és a mentett
+`thermostat-irc` azonosító megmarad; új beépített kép nem terheli a firmware-t.
+
+Először az új firmware-t, utána a v4 Otthon-csomagot telepítsd. Régi, érvényes
+v1–v3 csomagnál a termosztát szöveges hőfokkijelzést és a − / + gombokat
+használja; nem helyettesíti a képet más geometriájú általános termosztáttal.
+A webes szerkesztő csomagfrissítést jelez. Az Otthon-oldal megnyitásához
+működő SD és közös erőforráscsomag szükséges, a hátteret és logót is ez adja.
+[Telepítési és visszaállítási sorrend](../assets/loxone-home/README.md#telepítés-és-visszaállítás).
 
 ## A kártya megjelenése
 
@@ -87,7 +93,7 @@ Ilyenkor a Miniserver tényleges célhőfokát ellenőrizd.
 | `Szoba: nincs adat` látható | Nincs érvényes mért szobahőmérséklet. Ez önmagában nem tiltja a léptetést, ha a célhőfok és a többi vezérlési feltétel érvényes. |
 | Van célhőfok, de a gombok tiltottak | Ellenőrizd a Loxone zárolását, a csak olvasható vagy védett hozzáférést, az élő kapcsolatot és a folyamatban lévő kérést. |
 | Nincs narancssárga vagy kék jel | Az üzemmód még nem ismert, vagy a visszajelzett mód nem határoz meg fűtési/hűtési irányt. A kijelző nem következtet a két hőfok különbségéből. |
-| A webes ikon látszik, az Otthon-oldal mégsem nyitható | Ellenőrizd az SD-t és a közös Otthon-erőforráscsomagot. A beépített ikon előnézete önállóan is elérhető. |
+| Az ikon hiányzik vagy az Otthon-oldal nem nyitható | Ellenőrizd az SD-t és a telepített Otthon-csomagot. Az új képhez v4 csomag szükséges; a webes előnézet is az SD-t használja. |
 
 Ha a blokk `jLocked` állapotot szolgáltat, annak megérkezéséig a vezérlés
 tiltott. A beérkezett üres szöveg ismert, feloldott állapot; a még nem kapott
@@ -181,7 +187,7 @@ python3 tests/test_documentation.py
 ```
 
 A böngészőpróbához Playwright és Chromium szükséges. A teszt a firmware-be
-ágyazott valódi weboldalt és az új PNG-t használja 390 és 1280 képpontos
+ágyazott valódi weboldalt és az SD-katalógus PNG-jét használja 390 és 1280 képpontos
 nézetben; a helyi HTTP-válaszokat tesztadatok adják. A C-modellteszt a natív
 parancsokat, egységeket, zárolásokat és a kötött ikont ellenőrzi. A közös
 protokollteszt a rejtett kezdőállapotot, lapváltást, újracsatlakozást, a

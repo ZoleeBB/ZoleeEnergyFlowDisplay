@@ -19,8 +19,8 @@ Bluetooth-vezérlést.
 1. A kijelző `/loxone` weboldalán kérd le a Loxone adatlistáját.
 2. Az Otthon-kártyák között válaszd ki a szerkesztendő oldalt, adj hozzá egy
    kártyát, majd válaszd a **Redőnyvezérlő** típust.
-3. Add meg a kártya nevét, és a **Loxone automatikus vagy központi árnyékolás
-   blokk** mezőben válaszd ki a megfelelő szülőblokkot. Egy blokk csak egyszer
+3. A **Loxone automatikus vagy központi árnyékolás blokk** mezőben válaszd
+   ki a megfelelő szülőblokkot, majd szükség esetén írd át a megjelenítési nevet. Egy blokk csak egyszer
    szerepel a listában; külön pozíció- vagy mozgásállapotot nem kell párosítani.
 4. Mentsd az Otthon-oldalakat. A kártya a Miniserver visszajelzéseit mutatja.
 
@@ -30,12 +30,17 @@ szerkesztőben, így egy szűrőváltás nem törli a beállítást.
 
 A redőnyikon **rögzített**: ennél a típusnál nincs ikonválasztó, skálázás,
 egyéni mértékegység, tizedesjegy- vagy figyelmeztetésbeállítás. A natív
-96×96-os kép a firmware része, webes előnézete telepített SD-ikoncsomag
-nélkül is elérhető. Az új kártyához nem kell frissíteni a 64 ikonos
-`loxone-home.zip` csomagot. **Az Otthon-oldal megnyitásához továbbra is
-működő SD és a közös erőforráscsomag szükséges**, amely a hátteret és a
-logót adja. A weboldal a kártyák konfigurációját szerkeszti; a kézi
-redőnyműveletek a kijelzőn érhetők el.
+96×96-os kép a **v4 `loxone-home.zip` SD-erőforráscsomag része**; a webes
+előnézet is onnan érkezik. A korábban jóváhagyott kép és a mentett
+`blinds-shading` azonosító megmarad, a kép nem kerül a firmware-be.
+
+Először az új firmware-t, utána a v4 Otthon-csomagot telepítsd. Korábbi,
+érvényes v1–v3 csomagnál a kijelző a bájtazonos régi `blinds` képet használhatja;
+a webes szerkesztő az új előnézethez csomagfrissítést jelez. A csomagban
+szereplő, de hiányzó/sérült fájl továbbra is hiba. Az Otthon-oldalhoz működő
+SD és közös csomag szükséges, a háttér és a logó is onnan érkezik.
+[Telepítési és visszaállítási sorrend](../assets/loxone-home/README.md#telepítés-és-visszaállítás).
+A weboldal a konfigurációt szerkeszti; a kézi redőnyműveletek a kijelzőn érhetők el.
 
 ## A kártya kezelése
 
@@ -127,7 +132,7 @@ A gyártói működés részletei: [Automatic Blinds](https://www.loxone.com/ene
 | A gombok tiltottak | Ellenőrizd az élő kapcsolatot, a blokk zárolását, a csak olvasható vagy védett hozzáférést, az offline eszközállapotot és a folyamatban lévő parancsot. |
 | Nem nyílik százalékos ablak | A központi kártyához nincs ilyen művelet. Egyedi kártyán ellenőrizd az állapotadatokat és a vezérlési feltételeket. |
 | Biztonsági állapot látható | A `safetyActive` visszajelzés tájékoztatás. A ténylegesen engedett mozgást a Loxone blokkja és a külön zárolási állapotok határozzák meg. |
-| A webes ikon látszik, az Otthon-oldal nem nyitható | Ellenőrizd az SD-t és a közös Otthon-erőforráscsomagot. A beépített ikon előnézete ettől függetlenül elérhető. |
+| Az ikon hiányzik vagy az Otthon-oldal nem nyitható | Ellenőrizd az SD-t és az Otthon-erőforráscsomagot. Az új webes előnézethez v4 csomag kell; a régi `blinds` kép csak a kijelző kompatibilitási tartaléka. |
 
 A `locked` és `jLocked` állapot, a `read-only` korlátozás, a védett
 hozzáférés és az offline eszközállapot megakadályozhatja a vezérlést.
@@ -240,12 +245,13 @@ python3 tests/test_documentation.py
 ```
 
 A böngészőpróbához Playwright és Chromium szükséges. A teszt a tényleges,
-C-headerbe ágyazott weboldalt és a beépített PNG-t használja 390 és 1280
+C-headerbe ágyazott weboldalt és az SD-katalógus PNG-jét használja 390 és 1280
 képpontos nézetben. A HTTP-válaszokat szintetikus tesztadatok adják.
-Ellenőrzi a támogatott blokkok szűrését, a fix ikont SD-csomag nélkül,
+Ellenőrzi a támogatott blokkok szűrését, a v4 SD-csomag fix ikonját,
 a hibás és rejtett oldali importált mezők normalizálását, a mentés mezőit,
 valamint az IRC és az általános kártyatípusok közötti váltásokat. A HTTP
-teszt a beépített ikonhoz is megköveteli a webes hitelesítést.
+teszt a rögzített SD-ikonokhoz is megköveteli a webes hitelesítést;
+csomag nélkül 404 választ, telepítés után a tényleges PNG-bájtokat várja.
 
 A modellteszt az automatikus/központi blokkok felismerését, a natív
 parancsokat, a pozíciót és a vezérlési tiltásokat ellenőrzi, ASan/UBSan

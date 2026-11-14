@@ -744,7 +744,7 @@ static void lighting_ui_update(void)
 
 static void light_ui_open(unsigned index)
 {
-    if (light_overlay || shading_ui_is_open() || index >= home_config.card_count || s_pair_pad ||
+    if (home_modal_is_open() || index >= home_config.card_count || s_pair_pad ||
         loxone_display_is_held() || home_request_get() != 2 + (int)home_card_page ||
         !home_connected)
         return;
@@ -799,7 +799,7 @@ static void light_card_command_event(lv_event_t *event)
 {
     unsigned encoded = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     unsigned index = encoded / 4, operation = encoded % 4;
-    if (light_overlay || shading_ui_is_open() || s_pair_pad || loxone_display_is_held() || !home_connected ||
+    if (home_modal_is_open() || s_pair_pad || loxone_display_is_held() || !home_connected ||
         home_command_wait || home_request_get() != 2 + (int)home_card_page ||
         index >= home_config.card_count || operation > 2)
         return;

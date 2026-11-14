@@ -3,6 +3,8 @@
 #include "app_loxone_lighting.h"
 #include "app_loxone_irc.h"
 #include "app_loxone_shading.h"
+#include "app_loxone_controls.h"
+#include "app_loxone_audio.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -324,7 +326,7 @@ static bool catalog_entry(cJSON *out, const cJSON *control, const cJSON *state,
 }
 static bool catalog_controls(
     cJSON *out, const cJSON *controls, const cJSON *rooms, const cJSON *cats, int depth,
-    bool parent_secured, lx_irc_unit_t temp_unit)
+    bool parent_secured, lx_irc_unit_t temp_unit, const cJSON *structure)
 {
     if (depth > 8)
         return false;
@@ -351,10 +353,12 @@ static bool catalog_controls(
         if ((unsigned)cJSON_GetArraySize(out) > before &&
             (!lx_light_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured) ||
              !lx_irc_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, temp_unit) ||
-             !lx_shading_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured)))
+             !lx_shading_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured) ||
+             !lx_controls_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, rooms, structure) ||
+             !lx_audio_catalog_attach(cJSON_GetArrayItem(out, (int)before), control, secured, structure)))
             return false;
         const cJSON *sub = cJSON_GetObjectItemCaseSensitive(control, "subControls");
-        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured, temp_unit))
+        if (sub && !catalog_controls(out, sub, rooms, cats, depth + 1, secured, temp_unit, structure))
             return false;
     }
     return true;
@@ -375,7 +379,7 @@ cJSON *lx_catalog_parse(const char *json, size_t length)
                           controls,
                           cJSON_GetObjectItemCaseSensitive(root, "rooms"),
                           cJSON_GetObjectItemCaseSensitive(root, "cats"),
-                          0, false, temp_unit))
+                          0, false, temp_unit, root))
     {
         cJSON_Delete(root);
         cJSON_Delete(out);
@@ -401,3 +405,7 @@ int64_t lx_token_refresh_delay_us(int64_t valid_until, int64_t now_epoch)
 #include "app_loxone_lighting_model.inc"
 #include "app_loxone_irc_model.inc"
 #include "app_loxone_shading_model.inc"
+
+#include "app_loxone_controls_model.inc"
+
+#include "app_loxone_audio_model.inc"

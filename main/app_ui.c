@@ -416,19 +416,34 @@ static bool lighting_ui_is_open(void);
 static void lighting_ui_reset(void);
 static bool shading_ui_is_open(void);
 static void shading_ui_reset(void);
+static bool controls_ui_is_open(void);
+static void controls_ui_reset(void);
+static bool audio_ui_is_open(void);
+static void audio_ui_suspend(void);
+static void audio_ui_dispose(void);
+static bool home_modal_is_open(void)
+{
+    return lighting_ui_is_open() || shading_ui_is_open() ||
+           controls_ui_is_open() || audio_ui_is_open();
+}
+
 
 /* Képernyőcsere, kapcsolatvesztés és kaputelefon azonos kapun vonja vissza
- * a kártyakezelők életciklusát. A hívó tartja az LVGL-zárat. */
+ * a modalokat és parancsokat. A megmaradó kártyafa referenciáit ez nem
+ * törölheti: azt csak a clear() dobja el. A hívó tartja az LVGL-zárat. */
 static void home_controls_suspend(void)
 {
     lighting_ui_reset();
     shading_ui_reset();
+    controls_ui_reset();
+    audio_ui_suspend();
     app_loxone_home_visible(-1);
 }
 
 static void clear(void)
 {
     home_controls_suspend();
+    audio_ui_dispose();
     assistant_reset_widgets();
     mail_reset_widgets();
     lv_obj_clean(s_screen);

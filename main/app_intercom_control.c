@@ -506,6 +506,19 @@ void app_intercom_control_brightness(unsigned* day, unsigned* night)
     portEXIT_CRITICAL(&s_control_lock);
 }
 
+static bool ringtone_download_current(uint32_t boot, unsigned revision)
+{
+    portENTER_CRITICAL(&s_control_lock);
+    bool current = fresh() && s_profile_ready && s_remote_boot == boot &&
+        s_remote.revision == revision && !s_want && !s_local_silenced && !s_remote_active &&
+        (s_flags & (APP_INTERCOM_RINGING | APP_INTERCOM_CONNECTED | APP_INTERCOM_SILENCED)) ==
+            (APP_INTERCOM_RINGING | APP_INTERCOM_CONNECTED);
+    portEXIT_CRITICAL(&s_control_lock);
+    app_intercom_audio_status_t audio;
+    app_intercom_audio_snapshot(&audio);
+    return current && audio.state != APP_INTERCOM_AUDIO_STOPPING;
+}
+
 uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringtone_load_status_t* status, char error[160])
 {
     *size = 0;
@@ -518,17 +531,24 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
     char ip[16], key[65];
     portENTER_CRITICAL(&s_control_lock);
     bool ready = fresh() && s_profile_ready;
+    uint32_t boot = s_remote_boot;
+    unsigned revision = s_remote.revision;
     memcpy(ip, s_master_ip, sizeof(ip));
     memcpy(key, s_key, sizeof(key));
     portEXIT_CRITICAL(&s_control_lock);
-    if (!ready || !ip[0] || !key[0])
+    if (!ready || !ip[0] || !key[0] || !ringtone_download_current(boot, revision)) {
+        memset(key, 0, sizeof(key));
         return NULL;
+    }
     char url[192];
     snprintf(url, sizeof(url), "http://%s/api/intercom/ringtone?name=%s", ip, name);
     esp_http_client_config_t config = { .url = url, .timeout_ms = 500, .disable_auto_redirect = true };
     esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (!client)
+    if (!client) {
+        memset(key, 0, sizeof(key));
+        *status = APP_RINGTONE_LOAD_MEMORY;
         return NULL;
+    }
     esp_http_client_set_header(client, "X-Zolee-Media", key);
     uint8_t* data = NULL;
     if (esp_http_client_open(client, 0) == ESP_OK) {
@@ -536,9 +556,13 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
         int code = esp_http_client_get_status_code(client);
         if (code == 401 || code == 403) *status = APP_RINGTONE_LOAD_AUTH;
         if (code == 404) *status = APP_RINGTONE_LOAD_MISSING;
-        if (code == 200 && (n < 44 || n > APP_RINGTONE_MAX))
+        if (code == 503) {
+            *status = APP_RINGTONE_LOAD_BUSY;
+            snprintf(error, 160, "%s", "A Master csengőhang-kiszolgálása átmenetileg foglalt (HTTP 503).");
+        }
+        if (code == 400 || code == 422 || (code == 200 && n >= 0 && (n < 44 || n > APP_RINGTONE_MAX)))
             *status = APP_RINGTONE_LOAD_INVALID;
-        if (n >= 44 && n <= APP_RINGTONE_MAX && code == 200) {
+        if (n >= 44 && n <= APP_RINGTONE_MAX && code == 200 && ringtone_download_current(boot, revision)) {
 #ifdef ESP_PLATFORM
             data = heap_caps_malloc((size_t)n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 #else
@@ -548,9 +572,10 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
             size_t position = 0;
             int64_t deadline = esp_timer_get_time() + 10000000;
             while (data && position < (size_t)n && esp_timer_get_time() < deadline) {
-                app_intercom_audio_status_t audio;
-                app_intercom_audio_snapshot(&audio);
-                if (audio.state == APP_INTERCOM_AUDIO_STOPPING) break;
+                /* BLE-bontás, új Master-boot/csengetés, kapunyitás vagy
+                 * beszélgetés a következő legfeljebb 500 ms-os olvasás előtt
+                 * megszakítja a régi letöltést. Nem csak UI STOPPING-re várunk. */
+                if (!ringtone_download_current(boot, revision)) break;
                 size_t remaining = (size_t)n - position;
                 int count = esp_http_client_read(client, (char*)data + position, remaining > 2048 ? 2048 : (int)remaining);
                 if (count <= 0)
@@ -558,8 +583,10 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
                 position += count;
             }
             size_t offset, bytes;
-            if (data && (position != (size_t)n || !app_ringtone_wav(data, position, &offset, &bytes))) {
-                *status = position == (size_t)n ? APP_RINGTONE_LOAD_INVALID : APP_RINGTONE_LOAD_NETWORK;
+            bool current = data && ringtone_download_current(boot, revision);
+            if (data && (position != (size_t)n || !current ||
+                         !app_ringtone_wav(data, position, &offset, &bytes))) {
+                *status = position == (size_t)n && current ? APP_RINGTONE_LOAD_INVALID : APP_RINGTONE_LOAD_NETWORK;
                 free(data);
                 data = NULL;
             }
@@ -572,7 +599,7 @@ uint8_t* app_intercom_control_ringtone(const char* name, size_t* size, app_ringt
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
     memset(key, 0, sizeof(key));
-    if (!data) snprintf(error, 160, "%s", app_ringtone_load_message(*status));
+    if (!data && !error[0]) snprintf(error, 160, "%s", app_ringtone_load_message(*status));
     return data;
 }
 #endif

@@ -528,3 +528,30 @@ verme a teljesen kihasználatlan RTC-területre kerül (`app_task_mem.h`,
 gyorsítótár mögött, ezért flash-írás (NVS) közben is használható – ez a PSRAM
 verem esetében nem lenne igaz. Megszűnő feladathoz nem való, mert
 `vTaskDeleteWithCaps` kellene hozzá.
+
+### Audio indítási memóriahiba – meglévő vermek újrahasználata (2026-11-14)
+
+A panel `worker-start; phase=0; text=0; binary=0; JSON=0` naplója mellett
+a belső memória szabad mérete **20795 B**, a legnagyobb szabad blokk viszont
+csak **7936 B** volt. A DMA-képes részben **10995 B** maradt szabad. A külön
+Audio-controller 8192 B-os veremkérése már az egybefüggő blokk méretén
+elbukott; az összes szabad bájt összege erre nem elegendő bizonyíték.
+
+Az Audio-controller ezért a már fenntartott **10240 B-os Master `main`**
+vermén fut a boot befejezése után. A `noinline app_boot()` visszatér,
+így helyi pufferei nem növelik a natív hitelesítés hívási láncát.
+A borítómunka a szintén már fenntartott **8192 B-os `ota_check`** feladathoz
+került: egy callback egy képet kezel, a firmware-műveletek elsőbbségével.
+A Miniserver hangerőparancsai és az UI saját feladaton maradnak.
+
+Ezzel két további 8192 B-os verem létrehozásának igénye megszűnik; meglévő
+vermet nem csökkentünk. A natív WebSocket saját 4096 B-os verme, a mindig
+belső RAM-ból foglalt TCB és a TLS/lwIP átmeneti pufferei továbbra is
+szükségesek. A változás fizikai szabadmemória-nyeresége még nem mért adat:
+a hibás firmware-ben már az első Audio-feladat sem tudott elindulni.
+
+A Master és a 4B build a tényleges `.su` fordítói adatokból vizsgálja az
+érintett saját függvények veremkeretét. A boot/main szétválasztás és az
+OTA-worker kis kerete külön kaput kap; a könyvtári hívási lánc legmélyebb
+pontját a paneles `/api/diagnostics/tasks` méréssel is ellenőrizni kell.
+[Az Audio feladatkiosztása, tesztjei és fizikai elfogadása](audio-controller.md#memória-és-életciklus).

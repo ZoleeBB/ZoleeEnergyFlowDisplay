@@ -135,18 +135,23 @@ static bool warnings(const cJSON *entry, lx_home_card_t *out)
 
 static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *error)
 {
-    char type[16];
+    char type[32];
     if (!text(entry, "type", type, sizeof(type)))
         return fail(error, "cards", index, "type");
     /* Importált vagy régi profil sem cserélheti le a kötött vezérlők képét.
      * Ezeknél a hiányzó/hibás ikonmező sem felhasználói hiba. */
-    if (!strcmp(type, "irc") || !strcmp(type, "shading"))
+    if (!strcmp(type, "irc") || !strcmp(type, "shading") ||
+        !strcmp(type, "central-lighting") || !strcmp(type, "window-monitor") ||
+        !strcmp(type, "gate") || !strcmp(type, "window") || !strcmp(type, "audio"))
     {
         if (!identifier(entry, "id", out->id))
             return fail(error, "cards", index, "id");
         if (!text(entry, "name", out->name, sizeof(out->name)))
             return fail(error, "cards", index, "name");
-        strcpy(out->icon, !strcmp(type, "irc") ? LX_IRC_ICON_ID : LX_SHADING_ICON_ID);
+        strcpy(out->icon, !strcmp(type, "irc") ? LX_IRC_ICON_ID :
+               !strcmp(type, "shading") ? LX_SHADING_ICON_ID :
+               !strcmp(type, "window") ? "motor-window" :
+               !strcmp(type, "audio") ? "audio-player" : type);
     }
     else if (!common(entry, out->id, out->name, out->icon, "cards", index, error))
         return false;
@@ -162,18 +167,40 @@ static bool card(const cJSON *entry, lx_home_card_t *out, unsigned index, char *
         out->type = LX_HOME_CARD_IRC;
     else if (!strcmp(type, "shading"))
         out->type = LX_HOME_CARD_SHADING;
+    else if (!strcmp(type, "dimmer"))
+        out->type = LX_HOME_CARD_DIMMER;
+    else if (!strcmp(type, "central-lighting"))
+        out->type = LX_HOME_CARD_CENTRAL_LIGHTING;
+    else if (!strcmp(type, "slider"))
+        out->type = LX_HOME_CARD_SLIDER;
+    else if (!strcmp(type, "timed-switch"))
+        out->type = LX_HOME_CARD_TIMED_SWITCH;
+    else if (!strcmp(type, "window-monitor"))
+        out->type = LX_HOME_CARD_WINDOW_MONITOR;
+    else if (!strcmp(type, "gate"))
+        out->type = LX_HOME_CARD_GATE;
+    else if (!strcmp(type, "window"))
+        out->type = LX_HOME_CARD_WINDOW;
+    else if (!strcmp(type, "audio"))
+        out->type = LX_HOME_CARD_AUDIO;
     else
         return fail(error, "cards", index, "type");
 
     if (out->type != LX_HOME_CARD_VALUE && !uuid(entry, "control_uuid", out->control_uuid))
         return fail(error, "cards", index, "control_uuid");
-    if (out->type != LX_HOME_CARD_PULSE && out->type != LX_HOME_CARD_LIGHTING &&
-        out->type != LX_HOME_CARD_IRC && out->type != LX_HOME_CARD_SHADING &&
+    if ((out->type == LX_HOME_CARD_VALUE || out->type == LX_HOME_CARD_SWITCH) &&
         !mapping(cJSON_GetObjectItemCaseSensitive(entry, "source"), &out->source))
         return fail(error, "cards", index, "source");
     if (out->type == LX_HOME_CARD_SWITCH &&
         (out->source.scale != 1 || out->source.offset != 0))
         return fail(error, "cards", index, "source");
+    if (out->type == LX_HOME_CARD_TIMED_SWITCH)
+    {
+        const cJSON *allow = cJSON_GetObjectItemCaseSensitive(entry, "allow_permanent");
+        if (allow && !cJSON_IsBool(allow))
+            return fail(error, "cards", index, "allow_permanent");
+        out->allow_permanent = !allow || cJSON_IsTrue(allow);
+    }
     if (out->type != LX_HOME_CARD_VALUE)
         return true;
 
@@ -422,20 +449,35 @@ static cJSON *card_json(const lx_home_card_t *card)
 {
     cJSON *entry = common_json(card->id, card->name,
                                card->type == LX_HOME_CARD_IRC ? LX_IRC_ICON_ID :
-                               card->type == LX_HOME_CARD_SHADING ? LX_SHADING_ICON_ID : card->icon);
+                               card->type == LX_HOME_CARD_SHADING ? LX_SHADING_ICON_ID :
+                               card->type == LX_HOME_CARD_CENTRAL_LIGHTING ? "central-lighting" :
+                               card->type == LX_HOME_CARD_WINDOW_MONITOR ? "window-monitor" :
+                               card->type == LX_HOME_CARD_GATE ? "gate" :
+                               card->type == LX_HOME_CARD_WINDOW ? "motor-window" :
+                               card->type == LX_HOME_CARD_AUDIO ? "audio-player" : card->icon);
     if (!entry)
         return NULL;
     const char *type = card->type == LX_HOME_CARD_VALUE ? "value" :
                        card->type == LX_HOME_CARD_PULSE ? "pulse" :
                        card->type == LX_HOME_CARD_IRC ? "irc" :
                        card->type == LX_HOME_CARD_SHADING ? "shading" :
-                       card->type == LX_HOME_CARD_LIGHTING ? "lighting" : "switch";
+                       card->type == LX_HOME_CARD_LIGHTING ? "lighting" :
+                       card->type == LX_HOME_CARD_DIMMER ? "dimmer" :
+                       card->type == LX_HOME_CARD_CENTRAL_LIGHTING ? "central-lighting" :
+                       card->type == LX_HOME_CARD_SLIDER ? "slider" :
+                       card->type == LX_HOME_CARD_TIMED_SWITCH ? "timed-switch" :
+                       card->type == LX_HOME_CARD_WINDOW_MONITOR ? "window-monitor" :
+                       card->type == LX_HOME_CARD_GATE ? "gate" :
+                       card->type == LX_HOME_CARD_WINDOW ? "window" :
+                       card->type == LX_HOME_CARD_AUDIO ? "audio" : "switch";
     if (!cJSON_AddStringToObject(entry, "type", type) ||
         (card->type != LX_HOME_CARD_VALUE &&
          !cJSON_AddStringToObject(entry, "control_uuid", card->control_uuid)) ||
-        (card->type != LX_HOME_CARD_PULSE && card->type != LX_HOME_CARD_LIGHTING &&
-         card->type != LX_HOME_CARD_IRC && card->type != LX_HOME_CARD_SHADING &&
+        ((card->type == LX_HOME_CARD_VALUE || card->type == LX_HOME_CARD_SWITCH) &&
          !add_source(entry, &card->source)))
+        goto failed;
+    if (card->type == LX_HOME_CARD_TIMED_SWITCH &&
+        !cJSON_AddBoolToObject(entry, "allow_permanent", card->allow_permanent))
         goto failed;
     if (card->type == LX_HOME_CARD_VALUE &&
         (!cJSON_AddStringToObject(entry, "unit", card->unit) ||

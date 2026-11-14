@@ -32,8 +32,22 @@ typedef enum
     LX_HOME_CARD_SWITCH,
     LX_HOME_CARD_LIGHTING,
     LX_HOME_CARD_IRC,
-    LX_HOME_CARD_SHADING
+    LX_HOME_CARD_SHADING,
+    LX_HOME_CARD_DIMMER,
+    LX_HOME_CARD_CENTRAL_LIGHTING,
+    LX_HOME_CARD_SLIDER,
+    LX_HOME_CARD_TIMED_SWITCH,
+    LX_HOME_CARD_WINDOW_MONITOR,
+    LX_HOME_CARD_GATE,
+    LX_HOME_CARD_WINDOW,
+    LX_HOME_CARD_AUDIO
 } lx_home_card_type_t;
+
+/* A hét közös, típusos vezérlő külön élő modellből kap visszajelzést. */
+static inline bool lx_home_card_is_controls(lx_home_card_type_t type)
+{
+    return type >= LX_HOME_CARD_DIMMER && type <= LX_HOME_CARD_WINDOW;
+}
 
 typedef struct
 {
@@ -41,6 +55,7 @@ typedef struct
     char name[LX_HOME_NAME_SIZE];
     char icon[LX_HOME_ID_SIZE];
     lx_home_card_type_t type;
+    bool allow_permanent;
     lx_mapping_t source;
     /* Stabil vezérlőazonosító: a katalógus oldja fel a uuidAction parancscímet.
      * A source.uuid ettől független visszajelző állapot. */

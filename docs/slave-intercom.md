@@ -32,6 +32,29 @@ A legördülőben a telepített hangok választhatók; alapból „Nincs csengő
 
 A Slave a kiválasztott WAV-ot a Mastertől tölti le egy BLE-n kapott, véletlen, Master-bootonként cserélődő médiakulccsal; a lejátszás RAM-ból történik. Foglalt SD-kártya, letöltési/SD-hiba vagy hiányzó hang nem akadályozza a kamerát és a beszélgetést.
 
+Átmeneti hálózati hiba vagy foglalt Master (`HTTP 503`) esetén a 4B Slave
+az adott csengetésen belül legfeljebb három letöltést indít, 200 ms-os
+szünetekkel. Új próba csak az első próbálkozástól számított három
+másodpercen belül indulhat; a már megkezdett letöltés korábbi időkorlátjai
+megmaradnak. A sikeresen betöltött hang továbbra is egyszer szólal meg,
+ha az ismétlés ki van kapcsolva. Hitelesítési hiba, hiányzó fájl, érvénytelen
+WAV vagy helyi memóriahiány nem indít újabb letöltést.
+
+A Master az átmeneti SD-/memória-/kiszolgálófeladat-foglaltságot 503-mal
+jelzi; a valóban hiányzó fájl 404, a hibás WAV 400. A 4B minden legfeljebb
+500 ms-os olvasás előtt és a teljes fájl beérkezése után is ellenőrzi a
+csengetés, a Master-boot és a profil érvényességét. Csengetés vége,
+kapunyitás, némítás, beszélgetés vagy kapcsolatvesztés után a régi letöltés
+nem indíthat hangot.
+
+A Master az érintett WAV-adatot POSIX `read()` hívásokkal, 128 bájtra
+igazított PSRAM-pufferbe olvassa, a Windows-szimulátor stdio útjának
+megtartásával. Nincs új DMA-puffer vagy feladat; az igazítás legfeljebb
+127 bájttal kerekíti fel a már szükséges WAV-puffert. A részleges olvasást,
+`EINTR` hibát és hibás/megszakadt fájlt külön tesztek ellenőrzik. A fizikai
+SD-sebesség és az egyszer jelentett letöltési hiba pontos oka paneles
+mérés nélkül nem állapítható meg.
+
 A repó készlete jelenleg 18 WAV: a marlocarlo-féle „Doorbell” / `tubular-chime.wav` CC0 hang és a felhasználó által hozzáadott 17 hang. A forrás, eredeti licenc, SHA-256 és átalakítás a `ringtone.json` fájlban szerepel. A kiadási ZIP és az USB SD-kezdőkészlete a manifest minden hangját tartalmazza, az eredeti metaadatokkal. A csomagoló a formátumot, darabszámot, méretet és biztonságos fájlneveket ellenőrzi; nem követeli meg, hogy minden forrás CC0 legyen. Kiadáskor nincs hálózati hangletöltés.
 
 A release két közös melléklete: `ZoleeEnergyFlowDisplay-<verzió>-templates.zip` (a témák és a Loxone Otthon külön telepíthető ZIP-jei) és `ZoleeEnergyFlowDisplay-<verzió>-ringtones.zip` (közvetlenül feltölthető csengőhangcsomag). Mindkettő SHA-256 ellenőrzőösszeget kap. A Master USB-csomag SD-kezdőkészlete is tartalmazza a hangokat.

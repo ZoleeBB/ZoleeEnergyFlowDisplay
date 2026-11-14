@@ -8,6 +8,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#ifndef _WIN32
+#include <fcntl.h>
+#endif
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #endif
@@ -85,8 +88,14 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     }
     char path[256];
     snprintf(path, sizeof(path), "%s/%s", directory, name);
+#ifdef _WIN32
     FILE* file = fopen(path, "rb");
-    if (!file) {
+    bool opened = file != NULL;
+#else
+    int fd = open(path, O_RDONLY);
+    bool opened = fd >= 0;
+#endif
+    if (!opened) {
         *status = errno == ENOENT ? APP_RINGTONE_LOAD_MISSING : APP_RINGTONE_LOAD_IO;
         if (error) snprintf(error, 160, "WAV megnyitás: %.64s (errno=%d).", name, errno);
         return NULL;
@@ -98,7 +107,12 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
     errno = 0;
     /* Az SD-zár alatt a fájl nem cserélődhet. Méretet stat-tal kérünk,
      * az adatot az elejétől sorban olvassuk, nincs SEEK_END/rewind. */
-    if (stat(path, &info))
+#ifdef _WIN32
+    int stat_result = stat(path, &info);
+#else
+    int stat_result = fstat(fd, &info);
+#endif
+    if (stat_result)
         goto done;
     *status = APP_RINGTONE_LOAD_INVALID;
     stage = "fájlméret-ellenőrzés";
@@ -109,15 +123,19 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
      * DMA-memóriából vehető el. A puffer free()-vel felszabadítható. */
     stage = "PSRAM-puffer foglalása";
 #ifdef ESP_PLATFORM
-    data = heap_caps_malloc((size_t)length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /* A sablonolvasóval egyező 128 B-os PSRAM-igazítás. Csak a kész WAV
+     * pufferét kerekítjük fel; nincs új belső DMA- vagy tartós puffer. */
+    data = heap_caps_aligned_alloc(128, (length + 127U) & ~(size_t)127U,
+                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 #else
     data = malloc((size_t)length);
 #endif
     *status = APP_RINGTONE_LOAD_MEMORY;
     if (!data)
         goto done;
-    /* A főági fájlkezeléshez hasonló, pufferelt stdio. A driver kezeli az
-     * SD adatút memóriaigazítását; nincs saját DMA-puffer vagy setvbuf. */
+    /* Az ESP newlib 128 B-os fread-puffere szektoronkénti SD-parancsokat
+     * okozna. A POSIX read közvetlenül adja át a korlátos blokkokat a FATFS-
+     * nek; a Windows-szimulátor megtartja a hordozható stdio-utat. */
     *status = APP_RINGTONE_LOAD_IO;
     stage = "adatolvasás";
     errno = 0;
@@ -125,9 +143,18 @@ static uint8_t* load(const char* directory, const char* name, size_t* size,
         size_t chunk = length - position;
         if (chunk > 2048)
             chunk = 2048;
-        if (fread(data + position, 1, chunk, file) != chunk)
+#ifdef _WIN32
+        size_t count = fread(data + position, 1, chunk, file);
+        if (!count)
             goto done;
-        position += chunk;
+#else
+        ssize_t count = read(fd, data + position, chunk);
+        if (count < 0 && errno == EINTR)
+            continue;
+        if (count <= 0)
+            goto done;
+#endif
+        position += (size_t)count;
     }
     size_t offset, bytes;
     *status = APP_RINGTONE_LOAD_INVALID;
@@ -140,7 +167,11 @@ done:
     if (*status != APP_RINGTONE_LOAD_OK && error)
         snprintf(error, 160, "WAV %s (errno=%d, bájt=%u): %.64s",
             stage, errno, (unsigned)position, name);
+#ifdef _WIN32
     fclose(file);
+#else
+    close(fd);
+#endif
     if (*status != APP_RINGTONE_LOAD_OK) {
         free(data);
         data = NULL;

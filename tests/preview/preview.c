@@ -50,57 +50,114 @@ static bool sd_ok=true;
 static unsigned home_load_blocked;
 static unsigned home_resource_reads;
 static int home_corrupt_asset = -1;
-bool __real_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
-                                       bool consumers, app_template_view_t *out);
-bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
-                                       bool consumers, app_template_view_t *out)
+static unsigned home_icon_reads;
+static unsigned home_icon_blocked;
+static bool home_storage_wait;
+static bool home_icon_corrupt;
+static bool home_missing_card_icons;
+
+bool __real_app_templates_load_blocked(void);
+bool __wrap_app_templates_load_blocked(void)
 {
-    home_resource_reads++;
-    if (require_loading_flush)
+    return home_storage_wait || __real_app_templates_load_blocked();
+}
+
+static bool home_test_before_load(bool icons_only)
+{
+    if (icons_only)
     {
+        home_icon_reads++;
         assert(s_view == VIEW_THEME_LOADING);
-        assert(frame_flushes > loading_flush_baseline);
+        if (home_icon_blocked)
+        {
+            home_icon_blocked--;
+            return false;
+        }
     }
-    if (home_load_blocked)
+    else
     {
-        home_load_blocked--;
-        return false;
+        home_resource_reads++;
+        if (require_loading_flush)
+        {
+            assert(s_view == VIEW_THEME_LOADING);
+            assert(frame_flushes > loading_flush_baseline);
+        }
+        if (home_load_blocked)
+        {
+            home_load_blocked--;
+            return false;
+        }
     }
-    bool ok = __real_app_templates_home_load_for(icons, count, night, consumers, out);
-    if (ok && home_corrupt_asset >= 0)
+    return true;
+}
+
+static void home_test_after_load(bool icons_only, app_template_view_t *out)
+{
+    if (icons_only)
+        assert(out->asset_count >= 2 && !out->assets[0].bytes && !out->assets[1].bytes);
+    /* Egy régi, érvényes csomagból hiányzó opcionális kártyaképek snapshotja.
+     * A valódi manifest/alias visszaesést a Home-erőforrásmodul teszteli. */
+    if (home_missing_card_icons)
+        while (out->asset_count > 2)
+        {
+            app_template_asset_t *asset = &out->assets[--out->asset_count];
+            free(asset->bytes);
+            memset(asset, 0, sizeof(*asset));
+        }
+    if (!icons_only && home_corrupt_asset >= 0)
     {
         assert((unsigned)home_corrupt_asset < out->asset_count);
         app_template_asset_t *asset = &out->assets[home_corrupt_asset];
         asset->bytes[asset->size / 2] ^= 0x40;
         home_corrupt_asset = -1;
     }
-    return ok;
-}
-/* Kártyalapozás: csak az ikonok olvasása, a háttér és a logó megmarad. */
-static unsigned home_icon_reads;
-static unsigned home_icon_blocked;
-static bool home_icon_corrupt;
-bool __real_app_templates_home_load_icons(const char *const *icons, unsigned count,
-                                          app_template_view_t *out);
-bool __wrap_app_templates_home_load_icons(const char *const *icons, unsigned count,
-                                          app_template_view_t *out)
-{
-    home_icon_reads++;
-    assert(s_view == VIEW_THEME_LOADING);
-    if (home_icon_blocked)
-    {
-        home_icon_blocked--;
-        return false;
-    }
-    bool ok = __real_app_templates_home_load_icons(icons, count, out);
-    if (ok)
-        assert(out->asset_count >= 2 && !out->assets[0].bytes && !out->assets[1].bytes);
-    if (ok && home_icon_corrupt && out->asset_count > 2)
+    if (icons_only && home_icon_corrupt && out->asset_count > 2)
     {
         app_template_asset_t *asset = &out->assets[2];
         asset->bytes[asset->size / 2] ^= 0x40;
         home_icon_corrupt = false;
     }
+}
+
+bool __real_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
+                                       bool consumers, app_template_view_t *out);
+bool __wrap_app_templates_home_load_for(const char *const *icons, unsigned count, bool night,
+                                       bool consumers, app_template_view_t *out)
+{
+    if (!home_test_before_load(false))
+        return false;
+    bool ok = __real_app_templates_home_load_for(icons, count, night, consumers, out);
+    if (ok)
+        home_test_after_load(false, out);
+    return ok;
+}
+/* Kártyalapozás: csak az ikonok olvasása, a háttér és a logó megmarad. */
+bool __real_app_templates_home_load_icons(const char *const *icons, unsigned count,
+                                          app_template_view_t *out);
+bool __wrap_app_templates_home_load_icons(const char *const *icons, unsigned count,
+                                          app_template_view_t *out)
+{
+    if (!home_test_before_load(true))
+        return false;
+    bool ok = __real_app_templates_home_load_icons(icons, count, out);
+    if (ok)
+        home_test_after_load(true, out);
+    return ok;
+}
+
+bool __real_app_templates_home_load_page(const char *const *icons, unsigned count,
+                                         bool night, bool consumers, bool icons_only,
+                                         bool audio_skin, app_template_view_t *out);
+bool __wrap_app_templates_home_load_page(const char *const *icons, unsigned count,
+                                         bool night, bool consumers, bool icons_only,
+                                         bool audio_skin, app_template_view_t *out)
+{
+    if (!home_test_before_load(icons_only))
+        return false;
+    bool ok = __real_app_templates_home_load_page(icons, count, night, consumers,
+                                                 icons_only, audio_skin, out);
+    if (ok)
+        home_test_after_load(icons_only, out);
     return ok;
 }
 static bool runtime_wifi_connected=true;
@@ -2400,6 +2457,81 @@ static void test_home_lifecycle(app_runtime_state_t runtime, app_energy_sample_t
     puts("PASS: 100 actual LVGL lifecycle cycles, 400 rendered consumer/Home pages, HU/EN day/night, builtin/05/06 return, stable widgets/animations, released image buffers and no commands");
 }
 
+static void test_home_failed_paging_cleanup(app_runtime_state_t runtime, app_energy_sample_t sample)
+{
+    app_sim_home_reset();
+    ticks = 31000000;
+    assert(app_templates_select("builtin") == ESP_OK);
+    template_prepare();
+    render_runtime(runtime, sample, true, ticks);
+
+    /* Az első oldal képei már élnek. A második lap tartós olvasási hibája
+     * a megtartott hátteret/logót is el kell engedje a témához visszatérve. */
+    for (unsigned cycle = 0; cycle < 8; ++cycle)
+    {
+        bool night = cycle % 2;
+        sample.night_mode = night;
+        home_request_set(2);
+        assert(home_prepare(night));
+        render_runtime(runtime, sample, true, ticks);
+        assert(s_view == VIEW_HOME && home_ready_to_draw);
+        lv_draw_buf_t *background = home_buffers[0], *logo = home_buffers[1];
+        assert(background && logo && home_assets.asset_count >= 2);
+        home_request_set(3);
+        home_icon_blocked = 15;
+        for (unsigned retry = 0; retry < 14; ++retry)
+        {
+            assert(home_prepare(night));
+            render_runtime(runtime, sample, true, ticks);
+            assert(home_is_open() && s_view == VIEW_THEME_LOADING && home_keep_background);
+            assert(home_buffers[0] == background && home_buffers[1] == logo);
+        }
+        assert(home_prepare(night));
+        assert(!home_is_open() && !home_page && !home_keep_background);
+        assert(home_assets.asset_count == 0 && home_icon_blocked == 0);
+        for (unsigned i = 0; i < HOME_IMAGE_COUNT; ++i)
+            assert(!home_buffers[i] && !home_gray_buffers[i] && !home_images[i].data);
+        assert(template_loading_frame());
+        template_prepare();
+        render_runtime(runtime, sample, true, ticks);
+        assert(s_view == VIEW_DASHBOARD);
+    }
+
+    /* A foglalt SD nem hibás ikon: a tizenöt cikluson túli várakozás sem
+     * dobhatja el a kért oldalt. A felhasználói bezárás közben is felszabadít. */
+    home_request_set(2);
+    assert(home_prepare(false));
+    render_runtime(runtime, sample, true, ticks);
+    lv_draw_buf_t *background = home_buffers[0];
+    home_request_set(3);
+    home_icon_blocked = 32;
+    home_storage_wait = true;
+    for (unsigned retry = 0; retry < 32; ++retry)
+    {
+        assert(home_prepare(false));
+        render_runtime(runtime, sample, true, ticks);
+        assert(home_is_open() && home_page == 2 && home_keep_background);
+        assert(home_buffers[0] == background && home_load_attempts == 0);
+    }
+    home_storage_wait = false;
+    assert(home_prepare(false));
+    render_runtime(runtime, sample, true, ticks);
+    assert(s_view == VIEW_HOME && home_card_page == 1 && home_buffers[0] == background);
+    home_request_set(2);
+    home_icon_blocked = 1;
+    home_storage_wait = true;
+    assert(home_prepare(false));
+    home_close(NULL);
+    assert(home_prepare(false));
+    assert(!home_is_open() && !home_assets.asset_count && !home_keep_background);
+    for (unsigned i = 0; i < HOME_IMAGE_COUNT; ++i)
+        assert(!home_buffers[i] && !home_gray_buffers[i]);
+    home_storage_wait = false;
+    template_prepare();
+    render_runtime(runtime, sample, true, ticks);
+    puts("PASS: failed Home paging releases retained background/logo in 8 day/night cycles; SD-busy waits beyond 15 cycles, recovers and can close cleanly");
+}
+
 static void test_intercom_frame_mailbox(void)
 {
     int old_mode = s_cfg.data_recept_mode;
@@ -2520,6 +2652,8 @@ static void test_energy_disabled_home(app_runtime_state_t rt)
 #include "lighting_test.inc"
 #include "irc_test.inc"
 #include "shading_test.inc"
+#include "controls_test.inc"
+#include "audio_test.inc"
 
 int main(void)
 {
@@ -2607,7 +2741,7 @@ int main(void)
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .relative_humidity_valid=true,.relative_humidity_pct=61,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
-    if (getenv("ZOLEE_SHADING_ONLY") || getenv("ZOLEE_IRC_ONLY") || getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
+    if (getenv("ZOLEE_AUDIO_ONLY") || getenv("ZOLEE_CONTROLS_ONLY") || getenv("ZOLEE_SHADING_ONLY") || getenv("ZOLEE_IRC_ONLY") || getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_HOME_CLEANUP_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
         char error[160];
@@ -2622,7 +2756,11 @@ int main(void)
         lv_indev_set_display(input, display);
         lv_indev_set_read_cb(input, touch_read);
         navigation_bind_inputs();
-        if (getenv("ZOLEE_SHADING_ONLY"))
+        if (getenv("ZOLEE_AUDIO_ONLY"))
+            test_audio_ui(runtime, sample);
+        else if (getenv("ZOLEE_CONTROLS_ONLY"))
+            test_controls_ui(runtime, sample);
+        else if (getenv("ZOLEE_SHADING_ONLY"))
             test_shading_ui(runtime, sample);
         else if (getenv("ZOLEE_IRC_ONLY"))
             test_irc_ui(runtime, sample);
@@ -2630,6 +2768,8 @@ int main(void)
             test_lighting_ui(runtime, sample);
         else if (getenv("ZOLEE_ENERGY_DISABLED_ONLY"))
             test_energy_disabled_home(runtime);
+        else if (getenv("ZOLEE_HOME_CLEANUP_ONLY"))
+            test_home_failed_paging_cleanup(runtime, sample);
         else if (getenv("ZOLEE_CONSUMER_NOISE_ONLY"))
         {
             app_sim_home_reset();
@@ -3426,6 +3566,7 @@ int main(void)
     puts("PASS: corrupt background/icon never displays an incomplete Home page; decoded buffers roll back and retry succeeds");
     test_home_return_navigation(rt, sample);
     test_home_lifecycle(rt, sample);
+    test_home_failed_paging_cleanup(rt, sample);
     test_energy_disabled_home(rt);
     app_sim_home_enabled=false;
     lv_indev_delete(home_input);

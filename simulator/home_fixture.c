@@ -4,6 +4,8 @@
 #include "lighting_fixture.h"
 #include "irc_fixture.h"
 #include "shading_fixture.h"
+#include "controls_fixture.h"
+#include "audio_fixture.h"
 #include <stdio.h>
 #include <string.h>
 bool app_sim_home_enabled, app_sim_home_connected, app_sim_home_pending;
@@ -18,6 +20,8 @@ void app_sim_home_reset(void)
     app_sim_lighting_reset();
     app_sim_irc_reset();
     app_sim_shading_reset();
+    app_sim_controls_reset();
+    app_sim_audio_reset();
     memset(&app_sim_home_config,0,sizeof(app_sim_home_config));
     memset(&app_sim_home_values,0,sizeof(app_sim_home_values));
     app_sim_home_enabled=app_sim_home_connected=true;app_sim_home_pending=false;
@@ -175,3 +179,5 @@ bool app_intercom_idle(void) { return app_sim_media_idle; }
 #include "lighting_fixture.inc"
 #include "irc_fixture.inc"
 #include "shading_fixture.inc"
+
+#include "controls_fixture.inc"

@@ -1,0 +1,647 @@
+# Audio – modern Loxone Audioserver
+
+[Dokumentáció](README.md) · [Funkciók és képmutató](features/README.md#otthon-kártyák-leírásai-és-képei)
+
+Az **Audio** Otthon-kártya a modern Audioserver `AudioZoneV2` zónáját kezeli.
+A többi kártyával azonos helyet foglal: a lejátszó kijelzőjén borítókép vagy
+helyettesítő ikon, mellette zenecím, Play/Pause és hangerőgomb látható.
+A részletes ablakból a számváltás és a zóna kedvencei is elérhetők.
+
+Ez a funkció a 10.1-es Master közvetlen Loxone módjához tartozik.
+A régi `AudioZone` / Music Server nem választható ehhez a kártyához.
+Az automatizált modell-, protokoll-, képfeldolgozási és LVGL-próbák helyi
+tesztadatokkal futnak. A felhasználó 2026. november 14-én saját rendszerén
+visszaigazolta **a hangerő, a kedvencek, a képek és a vezérlések működését**.
+Az indulási javítás után az első kapcsolódásnál még egyszer timeout
+jelentkezett, utána gyorsan helyreállt; a második megnyitás már elsőre
+sikerült. Ezt az indulási viselkedést elfogadhatónak minősítette.
+A hibák értelmezését az [indulási időkeretek](#indulási-időkeretek-és-újrapróbálkozás)
+és a [diagnosztika](#natív-kapcsolat-webes-diagnosztikája) ismerteti.
+
+## Beállítás
+
+1. Telepítsd az új firmware-t, utána a hozzá tartozó **v4 `loxone-home.zip`**
+   csomagot a Sablonok oldalon. A [frissítési és visszaállítási sorrend](v3-home-config.md#v4-otthon-erőforráscsomag-frissítése)
+   a régi csomagok használatát is ismerteti.
+2. A Loxone beállításainál adj hozzá Otthon-kártyát. Először a
+   **Kártyatípus: Audio**, utána a megfelelő Audio-zóna, végül a kártyanév
+   választható. A fel/le gombok az aktuális oldalon mozgatják a kártyát.
+3. Mentsd az Otthon-oldalakat. A kijelző a már beállított Miniserver-kapcsolat
+   felhasználóját és munkamenetét használja; külön Audio-jelszó nem szükséges.
+
+A szerver és a zóna azonosítója a Miniserver struktúrájából származik:
+`mediaServer`, `details.server` és `details.playerid`. A támogatott szerver
+`type: 2`. A firmware a szerver helyi `localIP`, ennek hiányában `host`
+címét használja, alapértelmezésben a 7091-es porttal. A Masternek ezt a helyi
+Audioserver-címet is el kell érnie.
+
+A kártya ikonja kötött: **`audio-player`**. A nappali/éjszakai lejátszókép
+292×200-as SD-erőforrás; mind a kép, mind az ikon az Otthon-csomagból érkezik.
+Régi, érvényes csomagnál a kártya szöveges feliratai és kezelőgombjai maradnak
+használhatók. A firmware új beágyazott lejátszóképet nem tartalmaz.
+
+## Kezelés a kijelzőn
+
+| Érintési terület | Működés |
+| --- | --- |
+| **Play/Pause gomb** | Lejátszás közben szüneteltet, szünet vagy leállított állapot esetén elindít. Ismeretlen állapotnál tiltott. |
+| **Hangszóró gomb** | Kis hangerőablakot nyit. A csúszka húzás közben küldi a kívánt értéket. |
+| **Borítókép / a lejátszó kijelzője** | A részletes vezérlőt nyitja meg: cím, előadó, forrás, előző, Play/Pause, következő, hangerő és kedvencek. |
+| **X vagy az ablakon kívüli sötét terület** | Bezárja a kezelőt és visszavonja a hozzá tartozó függő részletkéréseket. |
+
+A Play/Pause gombhoz nincs külön Stop művelet. A kijelzett lejátszási állapot
+a Loxone-visszajelzésből származik; az elküldött kérés önmagában nem írja át.
+A részletes ablak és a kis hangerőablak közül egyszerre egy lehet nyitva.
+Üres zenecímnél az állomás neve jelenik meg, ha a szerver megadta; rádiónál
+ez szabályos adat. Ha cím és állomás sincs, a felület a zeneszámadat hiányát
+jelzi, nem állítja, hogy nincs lejátszott zeneszám. A forrássor állomásnevet
+vagy albumot mutat, a címként használt állomásnevet nem ismétli meg.
+
+![Audio-kártyák nappal, helyi tesztadatokkal és a borítót helyettesítő SD-ikonnal](images/audio/audio-cards-day.png)
+
+*Valódi LVGL-render helyi fixture adatokkal. A képen az SD-ből betöltött
+helyettesítő ikon látható, nem élő Audioserver-borító.*
+
+### Hangerő
+
+A csúszka a zóna aktuális maximumáig állítható. Húzás közben a kérések
+összevonódnak: normál esetben legfeljebb 100 ms-onként megy tovább a legújabb
+célérték, az elengedés pedig az utolsó cél továbbítását kéri. A Miniserver
+parancssorának foglaltsága késleltetheti a küldést. A függő kívánt értéket
+**Célhangerő** felirat jelzi, és a csúszka elengedéskor is ennél marad.
+Egy későn érkező korábbi köztes hangerő nem írja felül az újabb célt.
+A tényleges **Hangerő** csak a visszajelzésből származik: a kért célérték
+beérkezése zárja le a várást. Ha ez két másodpercen belül nem történik meg,
+a kezelő sikertelen hangerőállítást jelez és ismét a legutóbbi tényleges
+értéket mutatja. Az új szerkesztés törli ezt a korábbi hibát.
+
+Az ablak bezárása törli a még el nem küldött hangerőkérést. Ez az abszolút
+csúszkaértékre és a külső −/+ műveletekre is érvényes, a Miniserver sorában
+várakozó kérésre is. A már visszaigazolt hangerőt a bezárás nem állítja vissza;
+a Play/Pause és számváltó műveleteket ez a szerkesztési törlés nem érinti.
+
+Ha a zóna külső fel/le impulzusos hangerővezérlést jelez, a százalékos
+csúszka helyett **− / +** gombok jelennek meg. Hiányzó maximumértéknél az
+abszolút hangerőállítás tiltott; a maximum csökkenését a tényleges küldés
+előtti ellenőrzés is figyelembe veszi.
+
+![Az Audio kis hangerőablaka nappal, helyi fixture állapottal](images/audio/audio-volume-day.png)
+
+*Helyi tesztadatból renderelt hangerőablak; a százalék nem élő zónamérés.*
+
+### Kedvencek
+
+A részletes kezelő egyszerre hat sort mutat. Az **Előző / Következő**
+gombokkal a teljes, Audioserver által visszaadott lista bejárható; nincs
+nyolc elemre korlátozott helyi kedvenclista.
+
+A firmware legfeljebb 32 elemet kér és tárol egy hálózati válaszban.
+Rövidebb, érvényes szerveroldal esetén a ténylegesen kapott elemszámmal
+lép tovább. Visszalépéskor az előző elemek helyét keresi; rövid válaszoknál
+ehhez legfeljebb hat egymást követő, aszinkron olvasás kellhet. A kezelő
+ezalatt sem blokkolja a kijelzőt. Egyszerre egy listaolvasás van folyamatban.
+Az ablak vagy a zóna váltásakor a korábbi válasz nem írhatja át az új listát.
+
+Ha a válasz tartalmaz `command` mezőt, annak pontosan egyeznie kell a
+függő `audio/cfg/getroomfavs/{player}/{start}/32` kéréssel. Eltérő zóna,
+kezdőpozíció vagy kért elemszám válasza nem zárhatja le ezt a kérést;
+a Loxone App `/50` lekérésének visszhangja sem a firmware `/32` kérésének
+válasza. `command` nélkül csak az egyértelműen egyező csoport-`id` és
+`start` alapján rendelhető hozzá a lista. A csoport `id` mezője a zóna
+azonosítója, az `items[].id` pedig az adott kedvencé. A saját kérés hibás
+válasza listahiba, az idegen válasz figyelmen kívül marad.
+
+A kiválasztás a szerver által adott pozitív **`item.id`** azonosítót küldi.
+A lista sorszáma és a `slot` mező nem helyettesíti ezt. A korábbi listából
+származó, időközben elavult kiválasztás nem indíthat másik kedvencet.
+Megszakadt listaolvasás újracsatlakozáskor megismételhető; a kedvenc
+lejátszási parancsát bizonytalan küldés után nem ismételjük meg.
+
+A felhasználótól kapott 1-es és 5-ös zónalista külön teszteset. Az 5-ös
+zóna második eleménél például `id=6`, de `slot=2`, ezért a parancs
+`audio/5/roomfav/play/6/noshuffle`. Az 1-es zóna listája nem helyettesítheti
+az 5-ösét; a `/noshuffle` véletlen sorrend nélküli indítást kér.
+
+![Az Audio részletes kezelője éjjel, helyi fixture címekkel és kedvencekkel](images/audio/audio-detail-night.png)
+
+*A címek és kedvencek helyi tesztadatok. A borító helyén az SD-ikon látható;
+ez a kép a kezelő elrendezését szemlélteti.*
+
+## Kapcsolat, jogosultság és hibák
+
+Az alapvezérlések a meglévő, ellenőrzött Miniserver-parancssort használják.
+A borító URL-je, a zeneszámadat és a kedvenclista a helyi Audioserver külön
+WebSocket-kapcsolatán érkezik, `remotecontrol` alprotokollal. A Miniserver
+állapotfrissítése szolgáltatja a zóna elérhetőségét, zárolását, lejátszási
+állapotát és hangerőkorlátját.
+
+| Művelet | Küldési út |
+| --- | --- |
+| Lejátszás / szünet | Miniserver: `play` / `Pause` |
+| Előző / következő szám | Miniserver: `prev` / `next` |
+| Abszolút hangerő / külső impulzus | Miniserver: `volume/{value}` / `volUp` / `volDown` |
+| Kedvencek olvasása | Audioserver: `audio/cfg/getroomfavs/{player}/{start}/32` |
+| Kiválasztott kedvenc | Audioserver: `audio/{player}/roomfav/play/{item.id}/noshuffle` |
+
+A natív Audioserver-belépés a Miniserver JWT-jét a protokoll szerinti
+RSA-kulcsborítékkal és AES-256-CBC titkosítással adja át. A token nem része
+az Otthon-profilnak, a webes állapotnak vagy a naplónak. A borítóképet
+külön HTTP-kliens tölti le: **nem kap Miniserver-jelszót, JWT-t vagy
+hitelesítési fejlécet**, külső borítószolgáltatónál sem.
+
+A natív protokoll ellenőrzési alapja a hivatalos Loxone App 17.3
+(272553) kliensének működése: az LWSS munkamenetköszöntés, a teljes
+nyilvános kulcs lekérése és a titkosított belépés után a kliens külön
+feliratkozási parancs nélkül dolgozza fel az `audio_event` eseményeket.
+A címek és kedvencnevek URI-kódolását a szövegfeldolgozás oldja fel;
+a `coverurl` abszolút URL-je változatlanul kerül a képkérésbe.
+Ez protokollkompatibilitási ellenőrzés, a paneles belépési próba külön
+szükséges.
+
+### Hitelesítési parancs és WebSocket-keretek
+
+A 2026. november 14-i panelpróbában a korábbi `worker-start` helyett már
+`authentication-rejected; phase=3` jelent meg, két WebSocket-feladattal.
+Ez azt mutatja, hogy a natív kapcsolat eljutott a hitelesítési válaszig.
+A napló nem tartalmazza a szerver nyers válaszát, ezért az elutasítás
+pontos szerveroldali oka ebből még nem állapítható meg.
+
+A felhasználó gyári webfelületén a belépési parancs 2112 bájtos volt.
+A korábbi 2048 bájtos WebSocket-puffer egy ekkora parancsot egy TEXT és egy
+CONT keretben küld. A rögzített Espressif 1.8.0 küldőfüggvényével végzett próba
+igazolja, hogy ez szabályos fragmentálás, és a teljes parancs bájtjai
+megmaradnak. Az Audioserver continuation-kezelését a helyi próba nem
+helyettesíti. A kompatibilitási változtatás a teljes belépési parancsot
+egyetlen lezárt TEXT-keretben küldi.
+
+Az új WebSocket-puffer **8192 bájt**. A két upstream heap-puffer együttesen
+16 KiB, a korábbihoz képest 12 KiB növekmény. A Master tényleges
+`CONFIG_SPIRAM_USE_MALLOC=y` és `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0`
+beállítását a CI is ellenőrzi: ezek a malloc-foglalások a PSRAM-ot
+részesítik előnyben. Új task vagy verembővítés nincs; a WebSocket saját
+verme továbbra is 4096 bájt. A belépés méretét közös konstansok határolják:
+legfeljebb 95 bájtos felhasználónév, 1023 bájtos JWT és 4096 bites RSA-kulcs
+mellett a teljes parancs konzervatív felső korlátja **6273 bájt**.
+A fordítás ellenőrzi, hogy ez a lezáró nullával együtt belefér, a futtató
+pedig a korlátot túllépő parancsot küldés előtt elutasítja.
+
+A [gyártói Loxone App 17.3 kliensével](https://updatefiles.loxone.com/linux/Release/1730272553-amd64.deb)
+egyezően a felhasználónév nyers UTF-8 marad; csak az RSA- és AES-Base64
+paraméter kap URI-kódolást. A `/` elválasztót vagy vezérlőkaraktert
+tartalmazó név nem küldhető el. A Miniserver-JWT, a 4-es alkalmazásjogosultság
+és a pontos `authentication successful` sikerfeltétel változatlan.
+A frame-kompatibilitás és a speciális felhasználónév javítása külön
+ellenőrzött eltérés. A felhasználó az ezt követő, 2026. november 14-i
+panelpróbán visszaigazolta a kedvencek, képek és vezérlések működését;
+az induláskor azonban hosszabb várakozást és timeoutot tapasztalt.
+Ez a sikeres végpontok közötti működést igazolja, az előző szerveroldali
+elutasítás pontos okát önmagában nem nevezi meg.
+
+### Indulási időkeretek és újrapróbálkozás
+
+A felhasználó új naplója `handshake-timeout; phase=1; text=0; tx=0`
+állapotot mutatott: ebben a próbában a belépési parancs előtt, még szöveges
+AudioServer-üzenet nélkül járt le az időkeret. Az időben külön jelentett
+Slave-csengőhanghiba ebből nem vezethető le.
+
+A korábbi egyetlen 8 másodpercbe a transport felépítése, a köszöntés,
+a nyilvános kulcs és a hitelesítési válasz is beleszámított. A tényleges
+futtató tesztjében a határidő előtt éppen felépült WebSocketet a következő
+main-kör már bontotta, és a sorban időben megérkezett választ is
+eldobhatta. A javítás a transportnak, majd a köszöntésnek, a kulcsnak és
+a hitelesítési válasznak külön-külön legfeljebb **8 másodpercet** ad.
+Csak valódi előrelépés indít új időkeretet; az ismételt CONNECTED,
+a hibás JSON és a mellékes metaadat nem hosszabbítja a várakozást.
+
+A teljes beérkezett üzenet időbélyeget kap. A határidőn belüli választ
+a később futó main is feldolgozza; a valóban elkésett válasz vagy későn
+felépült transport nem éleszti újra a lejárt próbát. Az időtúllépés
+eldöntése a fogadósor ellenőrzését megelőző időpontra vonatkozik, ezért
+az üresnek látott sorba közben időben beérkező válasz sem veszhet el.
+
+Átmeneti hálózati hiba után az újrapróba várakozása **1, 2, majd legfeljebb
+5 másodperc**. Memória-/indítási hiba és elutasított hitelesítés után
+megmarad az 5 másodperces várakozás. Sikeres hitelesítés, oldal- vagy
+sessionváltás alaphelyzetbe állítja a hibasorozatot. Minden tényleges
+új próbánál az érintett kártyák ismét „Audio kapcsolódás...” állapotot
+mutatnak. Lejátszási parancsot az újracsatlakozás nem ismétel meg.
+Nincs új feladat vagy nagyobb verem; az időbélyegek a meglévő kapcsolatban
+és a korlátos PSRAM-fogadósorban élnek.
+
+A javított firmware 2026. november 14-i fizikai próbáján az első
+kapcsolódás egy időtúllépés után gyorsan helyreállt, az Audio-oldal második
+megnyitása pedig elsőre sikerült. A felhasználó ezt elfogadta. Ez egy
+konkrét rendszerben megfigyelt viselkedés: új hálózati vagy szerverhiba
+esetén a timeout továbbra is látható, és az újrapróbálkozás állítja helyre
+a kapcsolatot.
+
+A szerver kezdeti `audio_event` üzenete már a belépés befejezése előtt is
+megérkezhet. A firmware ezt a legfeljebb 12 látható kártyához tartozó,
+átmeneti PSRAM-pufferben őrzi meg, és csak az aktuális kapcsolat sikeres
+hitelesítése után teszi láthatóvá. A részleges cím-, előadó-, album-,
+állomás- és borítófrissítések összeadódnak; a Miniserver közben beérkezett
+frissebb hangerő- és lejátszási állapotát a kezdeti pillanatkép nem írja vissza.
+Bontás, elutasított belépés vagy elavult oldalgeneráció után a puffer törlődik.
+
+Az Espressif WebSocket-komponense rögzített **1.8.0** verziót használ.
+Az [upstream kiadási jegyzet](https://components.espressif.com/components/espressif/esp_websocket_client/versions/1.8.0/changelog?language=en)
+ebben közli a taskindítás és a `stop()` / `destroy()` közötti versenyhelyzet
+miatti holtpont javítását (`b2b86d73`). Ez a korábbi függőségben azonosított
+hiba; panelnapló nélkül nem állítható, hogy a bejelentett fizikai hibát ez
+váltotta ki. A natív kapcsolat naplója a nyitás, hitelesítés, bontás és a
+hibafázis rövid jelzéseit adja, token és nyers szerverválasz nélkül.
+A hibás kapcsolat lezárása után a fenti, korlátos újrapróbavárakozás
+egyszer indul el. A kezdeti zónaállapot-kérések worker-körönként egyesével
+mennek ki, köztük a válaszsor feldolgozásával; több Audio-kártya nem indít
+egyszerre tizenkét állapotkérést.
+
+A natív fogadási sor legfeljebb **32 üzenetet** tárol, PSRAM-ból foglalva.
+A WebSocket-visszahívás nem vár a workerre vagy a sor felszabadulására:
+a betelt sor vagy bájtkeret ellenőrzött kapcsolathibát jelez. Egy szöveges
+üzenet legfeljebb 48 KiB. A fogadó összeállítási pufferének, a várakozó és
+az éppen feldolgozott üzeneteknek az egyidejű foglalt kapacitása közösen
+legfeljebb **204800 bájt, azaz 200 KiB**. Puffernövelés alatt a régi és az
+új foglalás is beleszámít. Ez nem 32×48 KiB előrefoglalás, és nem az összes
+natív Audio-memória kerete: a cJSON feldolgozási fája, a kezdeti metaadatok
+modellje és a PSRAM-sor adminisztrációja külön erőforrás.
+
+Védett vagy zárolt zónánál, ismeretlen zárolási állapotnál, illetve offline
+szerver/kliens mellett a vezérlés tiltott. Oldalváltás, kapcsolatvesztés és
+profilrevízió-váltás visszavonja a korábbi kezelő érvényességét. A Miniserver
+alapvezérlései a közös sorban a küldés előtt ismét ellenőrződnek.
+
+Ha az alapvezérlés működik, de a borító és kedvencek nem érhetők el,
+ellenőrizd a Master és az Audioserver közti helyi kapcsolatot. A részletes
+ablak külön jelzi a betöltést, a hiányzó listát és a belépési hibát.
+A natív kapcsolat hibáját a korábban kapott lejátszási állapot vagy egy
+függő hangerőkérés sem fedi el. Kapcsolat nélkül a kedvencek nem állítják,
+hogy a lista betöltése már folyamatban van, és a natív listavezérlés tiltott.
+Hiányzó vagy nem támogatott borítónál az SD-ikon marad; ez nem akadályozza
+a lejátszó gombjainak használatát.
+
+### Natív kapcsolat webes diagnosztikája
+
+A **webes eseménynaplóban** a kapcsolathiba figyelmeztetésként jelenik meg.
+A formátum példája, nem panelen mért eredmény:
+
+```text
+Audio-kapcsolat: ok=receive-queue-full; phase=2; text=33; binary=0; JSON=0; ws=1; ms=250; tx=0; auth=none/0.
+```
+
+A `phase` a hiba pillanatának protokollfázisa: 0 az aktív kapcsolat nélküli
+állapot, 1 a transport/munkamenetköszöntés, 2 a nyilvános kulcs, 3 a hitelesítési
+válasz várása, 4 a sikeres hitelesítés utáni adatforgalom. A `text` és
+`binary` az adott kapcsolat fogadott szöveges és bináris üzeneteinek
+száma; a `JSON` a fel nem dolgozható JSON-üzenetek számlálója, nem az
+összes érvényes válaszé.
+
+A `ws=1` azt jelzi, hogy az adott próbában már visszaigazolódott a
+WebSocket felépülése; a `ws=0` szerint ez még nem történt meg. Így
+`phase=1; text=0` mellett megkülönböztethető a transport és a köszöntés
+várakozása. Az `ms` a próbálkozás indítása óta eltelt ezredmásodperc.
+A webes napló sorhossza továbbra is legfeljebb 128 bájt.
+
+A `tx` az utoljára előállított belépési parancs bájthossza. Az `auth`
+kizárólag az `authenticate_result` JSON-típusát és sztring esetén a
+bájthosszát mutatja, például `string/21`; `none/0` esetén még nincs ilyen
+válasz. A válasz szövege, a teljes parancs és a hitelesítő adatok nem
+kerülnek naplóba. Ezek a számlálók segítenek a keretezési és válaszformátum-
+eltérést elkülöníteni, de önmagukban nem nevezik meg az elutasítás okát.
+
+| Példa az `ok` mezőre | Jelentés |
+| --- | --- |
+| `transport`, `disconnect`, `server-close`, `websocket-start` | Szállítási hiba, bontás vagy sikertelen kapcsolatindítás |
+| `handshake-timeout`, `authentication-envelope`, `authentication-send`, `authentication-rejected` | A belépés időtúllépése, előkészítési/küldési hibája vagy elutasítása |
+| `frame-limit`, `send-limit`, `receive-queue-full`, `receive-byte-limit` | A fogadott/küldött üzenetméret, a 32 elemű sor vagy a közös 200 KiB-os pufferkeret túllépése |
+| `receive-memory`, `receive-queue-memory`, `connection-memory`, `initial-metadata-memory` | A fogadópuffer, fogadási sor, kapcsolat vagy kezdeti metaadat foglalási hibája |
+| `runtime-memory`, `page-memory` | A közös Audio-erőforrások vagy az oldalmodell foglalási hibája |
+| `favorites-timeout` | A függő kedvenclista nem érkezett meg időben |
+
+A figyelmeztetések modulonként közös **30 másodperces ritkítást** kapnak,
+új kapcsolódási próbánál is. A naplózás a Loxone/Audio workerből, az
+Audio-modellzáron és a WebSocket-visszahíváson kívül történik. A szándékos
+oldalváltási vagy bezárási bontás nem hiba. Nyers üzenet, parancs,
+szervernév, token, munkamenetkulcs és zeneszámcím nem kerül a webes sorba.
+
+A korábbi firmware `worker-start` és `worker-restart` kódja a külön
+Audio-feladat indítását jelezte. A javított változat már nem hozza létre
+ezt a feladatot. Az Espressif WebSocket-kliens saját feladata továbbra is
+létezik; annak sikertelen indítása `websocket-start` hibát eredményezhet.
+
+### Borítóletöltés és webes diagnosztika
+
+Ugyanaz a borító-URL, verzió és kért képméret az aktív oldalon legfeljebb
+**három letöltési próbát** kap. Átmeneti hiba után az első újrapróba
+**2 másodperc**, a második **5 másodperc** múlva válik esedékessé.
+A látható kártya következő frissítése indítja el; a worker közben nem
+várakozik, és a 200 ms-os UI-frissítések nem indítanak új hálózati kérést.
+Oldalváltás vagy a részletablak bezárása a hozzá tartozó függő próbát is
+visszavonja. A harmadik sikertelenség után új tartalom vagy új
+oldal-/ablakéletciklus indíthat új próbakeretet.
+
+Újrapróbálható a háttérmunka beadási vagy a letöltési puffer foglalási hibája,
+a HTTP/TLS-kapcsolat, fejléc- vagy törzsolvasás hibája, a befejezetlen
+válasz, az időtúllépés, valamint a HTTP 408, 429 és 5xx válasz.
+Méretkorlát, nem támogatott átirányítás, tartós HTTP-hiba vagy sikertelen
+dekódolás nem indít automatikus újraletöltést. A dekóder jelenlegi hibajele
+nem különbözteti meg a nem támogatott képet a dekódolási memóriahiánytól;
+mindkettő `decode` okkal jelenik meg.
+
+A **webes eseménynaplóban** a borítóhiba rövid formája:
+
+```text
+Audio borító: hely=1; ok=http; HTTP=503; próba=1/3; újra=2 s.
+```
+
+A `hely` az aktuális oldal 1-alapú kártyahelye; a részletkép helye 13.
+Az ok statikus kód: például `connect` a kapcsolat felépítése, `headers`
+vagy `read` az adatfogadás, `http` a HTTP-státusz, `size` a bemeneti
+méretkorlát, `decode` a képfeldolgozás, `memory` a pufferfoglalás,
+`worker` a meglévő végrehajtóhoz történő beadás hibája. Az `újra=0 s` azt jelzi, hogy nincs ütemezett
+automatikus próba. A hibasorok az összes borítóra közös **10 másodperces
+ritkítást** kapnak, ezért nem minden sikertelen ismétlésből lesz külön sor.
+Sikeres újrapróbálkozáskor egyszeri `Audio borító helyreállt` bejegyzés
+keletkezik. A megszakított vagy elavult kérés nem hibaesemény.
+URL, szervernév, token és zeneszámcím nem kerül ezekbe a sorokba.
+
+## Memória és életciklus
+
+### Már fenntartott feladatvermek használata
+
+| Munka | Korábbi külön verem | Javított végrehajtás |
+| --- | --- | --- |
+| Natív Audioserver-kapcsolat és hitelesítés | 8192 B, futás közben létrehozott Audio-controller | A Master már lefoglalt, 10240 B-os `main` feladata |
+| Borító letöltése és dekódolása | 8192 B, futás közben létrehozott médiafeladat | A már lefoglalt, 8192 B-os `ota_check` feladat, egyszerre egy kép |
+| Natív WebSocket fogadása | 4096 B | Változatlan, az Espressif kliens saját feladata |
+
+A boot külön, nem inline-olható `app_boot()` függvénybe került. Ennek
+visszatérése után a boot helyi változói már nem maradnak az Audio-hívási
+lánc alatt. Az `app_main()` kis kerettel hívja a natív futtatót. A
+Miniserver parancsküldése, a hangerő és a kijelző továbbra is külön feladaton
+fut; egy natív hálózati várakozás ezeket nem fogja ugyanarra a szálra.
+A Master HTTP-, MQTT- és Slave-módja nem indít natív Audio-futtatót.
+A 4B saját `app_main()` ciklusa változatlan.
+
+A borítófeldolgozás az OTA-végrehajtó egyetlen összevonható callback-helyét
+használja. Egy hívás legfeljebb egy képet dolgoz fel, majd a maradék munkát
+újra beadja; az OTA-sor elsőbbséget kap. Aktív firmware- vagy csomagművelet
+alatt nem indul borítóletöltés, a megszakított aktuális kép később újra
+folytatható. Az OTA miatti halasztás nem fogyaszt letöltési próbát és nem
+jelent dekódolási hibát. Hosszú frissítésellenőrzés alatt a borítóra várni
+kell, de a natív metaadatok és a Miniserver alapvezérlései külön futnak.
+
+Nem csökkentettük a meglévő taskvermek méretét, és egyik verem sem került
+PSRAM-ba. A két külön 8 KiB-os Audio-verem létrehozási igénye szűnt meg;
+ez **nem 16 KiB panelen megmért szabadmemória-növekedés**, hiszen a hibás
+futtatásban már az első feladat sem tudott elindulni. A 4096 bájtos
+WebSocket-verem, a TCB-k és a hálózati/TLS-pufferek továbbra is igényelnek
+belső memóriát. A `WithCaps` hívásnál a megadott képességek csak a veremre
+vonatkoznak, a TCB belső RAM-ban marad
+([ESP-IDF 5.5.4 FreeRTOS-kiegészítések](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32p4/api-reference/system/freertos_additions.html)).
+Az új változat tényleges DMA-tartalékát a panelen kell mérni.
+
+Az inicializálás sikertelen részfoglalás után mindent visszaenged és
+legkorábban egy másodperc múlva ismétel. A Miniserver-kapcsolat eközben
+működhet; a később sikeres sessionátadás egyszer újraépíti az Audio-oldalt
+és visszajátssza a cache állapotait, eredeti időbélyeggel. A natív kapcsolat
+vagy fogadósor memóriahibája öt másodperces újrapróbát kap.
+
+### Pufferek és képkorlátok
+
+| Erőforrás | Korlát |
+| --- | --- |
+| Borítókép-helyek | Legfeljebb 12 látható kártya és 1 részletes ablak |
+| Tömörített borító | Legfeljebb 256 KiB / kép |
+| PNG és tartalék JPEG-dekóder forrásképe | Legfeljebb 512×512 pixel |
+| TJpgDec által támogatott JPEG forrásképe | Legfeljebb 1024×1024 pixel |
+| Kártya / részlet dekódolt képe | Legfeljebb 112×112 / 256×256, képarányt tartó RGB565 |
+| Tárolt dekódolt borítók | Legfeljebb 512 KiB, azonos kép megosztható |
+| Natív WS-szövegüzenet | Legfeljebb 48 KiB / üzenet |
+| Natív fogadási sor | Legfeljebb 32 üzenet, PSRAM-ban |
+| Natív üzenetpufferek összes egyidejű kapacitása | Legfeljebb 204800 bájt (200 KiB), az összeállítási és a növelés közbeni régi+új pufferrel együtt |
+| Kedvencek munkapéldánya | Legfeljebb 32 elem |
+| Tartalék JPEG-dekóder összes saját foglalása | Legfeljebb 4 MiB, átmeneti PSRAM-munkatér |
+
+A PNG-dekóder nem váltottsoros 1/2/4/8 bites palettás és szürke, valamint
+8 bites RGB/RGBA és szürke+alfa képeket kezel. A JPEG elsőként a meglévő
+LVGL TJpgDec saját, PSRAM-ban dolgozó példányát használja. Ha az adott JPEG
+mintavételét vagy formátumát ez nem támogatja, a legfeljebb 512×512-es kép
+egy korlátos, kizárólag JPEG-et kezelő szoftveres tartalékdekóderhez kerül.
+Ez a kis rádiólogók eltérő színmintavételét és a kis progresszív JPEG-eket
+is kezeli. Nagyobb, például 640×640-es Spotify-borítónál a TJpgDec által
+támogatott JPEG-formátum szükséges. Egyik út sem veszi igénybe a kaputelefon
+hardveres JPEG-erőforrását.
+
+A 2026-11-14-i közvetlen HTTP-próbában az alábbi nyilvános példák mind
+200-as választ adtak, átirányítás nélkül. A tényleges dekóderrel végzett
+gazdagépes próba 112 és 256 pixeles célméretre is lefutott:
+
+| Nyilvános példa | Kapott kép | Dekódereredmény |
+| --- | --- | --- |
+| [TuneIn Mega Dance](http://cdn-radiotime-logos.tunein.com/s54011q.png) | PNG RGBA, 145×145, 9270 bájt | Mindkét célméret sikeres |
+| [TuneIn s15879](http://cdn-profiles.tunein.com/s15879/images/logoq.png?t=1) | PNG RGB, 145×145, 6392 bájt | Mindkét célméret sikeres |
+| [Loxone TuneIn s25966](https://tunein.loxonecloud.com/s25966) | JPEG RGB, 145×145, 4996 bájt | Mindkét célméret sikeres |
+| [Loxone Radio Focus](https://radio.loxonecloud.com/coverart/449c2aa2.jpg) | JPEG RGB, 1280×1280, 265517 bájt | Nem támogatott: mindkét forráskorlátot túllépi |
+
+A Focus kép 3373 bájttal meghaladja a 256 KiB-os bemeneti keretet,
+és a 1280 pixeles mérete is nagyobb a TJpgDec út 1024 pixeles korlátjánál.
+A keretek emiatt nem változtak. A kis képek sikeres gazdagépes dekódolása
+nem bizonyítja a panel natív kapcsolatának vagy HTTP/TLS-útjának működését.
+A `recent_result` és `getservicefolder_result` listák borítóit a firmware
+nem használja automatikusan most játszott képként: ahhoz az aktuális zóna
+`audio_event`/`status_result` adatának `coverurl` mezője tartozik.
+
+A borítók nem kerülnek SD-re. Egyszerre egy borítómunka dolgozik a közös
+OTA-végrehajtón; a nyitott részletes kép elsőbbséget kap. A tömörített bemenet, a dekóder munkaterülete
+és az új RGB565-kép korlátos PSRAM-foglalás. Az 512 KiB a tárolt képek
+kerete; a dekódolás átmeneti munkaterülete és a widgetcsere végéig megtartott
+régi képpontok ezen felül jelentkezhetnek.
+A 4 MiB-os korlát a tartalék JPEG-dekóder összes saját, egyidejű
+STB-foglalására vonatkozik. A legfeljebb 256 KiB-os tömörített bemenet és
+a kész, legfeljebb 128 KiB-os 256×256 RGB565-kép ettől külön puffer.
+
+A kép referencia szerint él: a widget előbb új forrásra vált, és csak
+utána engedi el a régi képet. Lap- vagy ablakváltáskor a már úton lévő
+letöltés eredménye csak a hozzá tartozó aktuális generációba kerülhet.
+A kapcsolatok és a képmunkák igény szerint indulnak és leállnak, a már
+fenntartott végrehajtófeladatok tétlenül várakoznak. A változatlan
+feliratot vagy képforrást a periodikus UI-frissítés nem állítja be újra.
+
+Kapcsolatvesztéskor a kezelő **felfüggesztése** bezárja a modalt és
+érvényteleníti a háttérmunkát, de megőrzi a még kirajzolt kártyák widgetjeit
+és képreferenciáit. A következő offline vagy újracsatlakozott frissítés
+ezeket az érvényes objektumokat használja. A külön **végleges törlés**
+csak a valódi képernyő-`clear()` része: leválasztja a képforrást,
+elengedi a referenciát, majd törlődhet a kártyafa. Ez akadályozza meg a
+kapcsolatvesztéskor reprodukált NULL-widget assertet.
+
+### Bezáráskor felszabaduló és megmaradó állapot
+
+Az Audio-oldal elhagyása azonnal érvényteleníti az oldalhoz tartozó
+generációt. A következő megnyitás új oldalmodellel és új natív kapcsolattal
+indul; korábbi kérés eredménye nem írhatja felül az új oldalt.
+
+| Erőforrás | Mikor szabadul fel? |
+| --- | --- |
+| Audio-oldalmodell és kedvencek munkapéldánya | Az elrejtéskor azonnal. |
+| A 13 borítóhely URL-je, próbálkozási állapota és a tár képreferenciái | Generációváltáskor, így oldalváltáskor és bezáráskor is. A tábla csak új, érvényes és aktuális képkérésre foglalódik újra; üres URL, elavult kérés vagy törlés nem foglalja vissza. |
+| A kártya vagy a részletablak saját képreferenciája | Miután a widget forrása levált a képről. A továbbra is látható offline kártya a felfüggesztés idején megtarthatja a képét; a valódi oldalbezárás azt is elengedi. |
+| Natív WebSocket, fogadósor, darabolt üzenet összeállítási puffere, belépés előtti metaadatok | Az elrejtés felébreszti a `main` feladatot; a következő vezérlőlépés leállítja és törli a kapcsolatot, majd elengedi a hozzá tartozó puffereket. |
+| Már futó HTTP- vagy dekódolási munka | A megszakítás és az aktuális IO-/dekóderlépés biztonságos befejezése után. Az eredmény ekkor már nem adható az elhagyott oldalhoz. |
+| Közös mutexek, ébresztés és Miniserver-session tükre | Megmaradó szolgáltatásállapot. Az újranyitás nem jár új hitelesítésiadat-átadással; a session tükre ehhez szükséges. A Miniserver-session érvénytelenítése a teljes JWT-t nullázza. |
+
+A zárás előtti review egy feleslegesen megmaradó foglalást is javított:
+a borítóhelyek táblája az első használat után korábban végig megmaradt.
+Ez a gazdagépes `sizeof` szerint **10 608 bájt**; a javított életciklus
+bezáráskor ezt is visszaadja. A szükséges sessiontükör ugyanezen a
+gazdagépen 1128 bájt. Ezek szerkezetméretek, nem a fizikai ESP32-P4
+teljes heapköltségének mérései.
+
+A valódi média- és runtime-modul ASan/UBSan-próbái 64–64 nyitás/bezárás
+ciklus után rendre nulla oldalpuffert, illetve kizárólag a session
+allokációs alapszintjét kérik számon. A teszt aktív HTTP-olvasás és
+dekódolás közben is elrejti az oldalt, valamint minden hitelesítési
+fázisban, foglalási hibánál és generációváltásnál ellenőrzi a lezárást.
+Ez nem jelenti azt, hogy az egész készülék RAM-ja nullára csökken vagy
+az aktív hálózati hívás a bezárás pillanatában félbeszakítható.
+
+Kaputelefonos csengéskor a lejátszóablak bezárul, a régi kérések érvényüket
+vesztik, és a képhivatkozások leválnak. A kamera nagy képpuffereinek foglalása
+és a videó indítása megvárja, amíg a borítófeldolgozó a saját ideiglenes
+puffereit elengedi. Ez külön UI-körökben ellenőrzött állapot: közben a
+kaputelefon előkészítési képernyője látható, nincs kijelzőzár alatt végzett
+hálózati várakozás. A csengetés után az eredeti Otthon-oldal újra felépül.
+
+## Ellenőrzés és fizikai elfogadás
+
+```sh
+python3 tests/test_audio.py
+```
+
+A teszt a tényleges ESP runtime és médiaforrásokat is fordítja, helyi
+WS/HTTP/RTOS helyettesítőkkel. A modell-, RSA/AES- és PNG-tesztek valódi
+könyvtárakkal futnak. A tényleges TJpgDec JPEG-próbához a rögzített LVGL
+9.5.0 forráskönyvtárát add meg `LVGL_SOURCE_DIR` környezeti változóban.
+
+A célzott regresszió kiterjed a hangerőkérések összevonására, a friss
+maximumra, a késői kedvenclista-válaszra, a megszakadásra, a memóriahibás
+inicializálás helyreállására, a generációváltásra, a képtulajdonra és a letöltési
+korlátokra. Külön valódi médiaforrás-teszt reprodukálta a régi kódon a
+HTTP 503 utáni elmaradó újrapróbát, majd ellenőrizte a 2/5 másodperces,
+hárompróbás helyreállást, a beadási/kapcsolati/olvasási hibákat, a bezárás
+utáni tiltást és a webes napló ritkítását. A natív próbák a belépés előtti
+részleges metaadatot, a darabolt WebSocket-üzeneteket, a gyors
+állapotválaszok sorát, a hibát követő tényleges
+újracsatlakozást és az ablakbezárás utolsó küldési kapuját is ellenőrzik.
+A fogadási sor próbái külön elérik a 32 elemű és a 204800 bájtos korlátot;
+az éppen feldolgozott üzenet és a puffernövelés régi+új foglalása is
+beleszámít. Memóriahiba és lezárás után a foglalt bájtok számlálója visszaáll;
+a webes napló ritkítását és a titkos adatok kizárását is ellenőrzik.
+A fenti képek valódi LVGL-renderek helyi fixture adatokkal;
+nem igazolnak Audioserver- vagy fizikai paneles működést.
+[A dokumentációs képek eredete](images/audio/README.md).
+
+Az Audio LVGL-regresszió a tényleges gyártási fontokon minden látható
+magyar és angol felirat karakterét ellenőrzi, valamint a kapcsolódás,
+függő hangerő, offline, belépési hiba és helyreállás állapotait. A valós
+rádió- és Spotify-metaadatokból külön vizsgálja a cím/forrás megjelenítését
+és a borító URL-jének, verziójának, generációjának átadását a kártya és a
+részletes kép felé. Ez az átadási próba önmagában nem állít hálózati
+letöltési sikert; a képfeldolgozási tesztek külön futnak.
+
+A kapcsolatvesztési LVGL-regresszió a megmaradó kártyán offline frissítést,
+tiltott érintést és visszacsatlakozást végez, majd oldalváltásnál ellenőrzi,
+hogy a képforrás a widget tényleges törlése előtt leválik. A régi kód
+assertnél megállt; a javított út RGB565 és XRGB8888 ASan-próbája sikeres.
+A kaputelefon előtti kép-/memóriaátadás és a nulla üresjárati invalidáció
+korábbi próbái is megmaradtak.
+
+A main-alapú runtime-próba az összes új Audio-task létrehozását tiltva
+végigmegy a natív belépésen, rádiómetaadaton és az üresjáratba visszatérésen.
+A médiaregresszió ugyancsak nulla tasklétrehozást/törlést kér számon; a régi
+implementáció ezen elbukott. Az OTA-próba ellenőrzi a firmware-munka
+elsőbbségét, az összevonást, a futás közbeni újrabeadást és az üresjárati
+ébresztés versenyhelyzeteit. Az OTA miatti öt külön megszakítási pont után
+a képkérés új UI-esemény nélkül folytatható.
+
+Mindkét ESP-fordítás a tényleges fordító `-fstack-usage` adatait ellenőrzi
+(`tools/check_audio_stack.py`). A Master az Audio-, kép-, auth-, boot- és
+OTA-forrásokat, a 4B a közös OTA-forrást méri. Az `app_main` kerete legfeljebb
+256 B, az `ota_worker` kerete legfeljebb 512 B, a vizsgált függvényeké
+legfeljebb 1536 B; hiányzó adat vagy korlátlan dinamikus keret hibát okoz.
+Ez a saját függvények keretellenőrzése, nem a teljes könyvtári hívási lánc
+veremcsúcsának bizonyítása. A paneles mélypontmérés ezért külön szükséges.
+
+A JPEG-tartalékdekóder `STB_IMAGE_STATIC` konfigurációval privát a
+képmodulban. A nem használt külső beállító API elhagyásával a fordító a
+2048 bájtos helyi puffert tartalmazó függőleges tükrözési ágat is kiveheti.
+A `.su` kapu a megmaradó külső dekóderfüggvényeket is méri; a külső fejléc
+nem kerül kivétellistára. A GCC késleltetett, hiányzó static API-definíciókra
+vonatkozó figyelmeztetését külön, fájlvégi integrációs kezelés rendezi;
+a saját függvények figyelmeztetéseinek megmaradását negatív fordítási
+próbák ellenőrzik. Az upstream fejléc változatlan.
+
+A felhasználó a Play/Pause és hangerő mellett 2026. november 14-én a
+kedvencek, borítók és vezérlések működését is visszaigazolta, majd az
+indulási javítás gyors helyreállását és a sikeres második megnyitást is
+elfogadta. Az alábbi lista a további kiadások regressziós próbáihoz
+használható; a szélső esetek és a futásidejű memória-mélypontok nem
+következnek automatikusan ebből az általános működési visszajelzésből:
+
+1. A saját `AudioZoneV2` zónán lejátszás, szünet, előző és következő;
+   az állapot a Loxone webfelülettel egyezzen.
+2. Hangerőhúzás, elengedés és változó maximum; külső impulzusos zónán
+   a −/+ mód ellenőrzése. Az általános hangerőműködés már visszaigazolt,
+   ezek a szélső esetek külön ellenőrzendők.
+3. PNG- és JPEG-borító, zeneszámváltás, azonos URL mögött változó kép,
+   valamint hiányzó borító esetén a helyettesítő ikon.
+4. Több hálózati oldalt igénylő kedvenclista és a tényleges kiválasztott
+   kedvenc lejátszása; gyors zóna-/ablakváltás közben se keveredjenek a listák.
+5. Zárolás, Audioserver- és Miniserver-kapcsolatszakadás, visszacsatlakozás;
+   régi lejátszási kérés ne ismétlődjön meg, az érintőfelület maradjon
+   használható. Hiba esetén a webes eseménynapló natív és borítóbejegyzéseit
+   is rögzíteni kell.
+6. Téma-, nappal/éjjel- és oldalváltás, kaputelefon megnyitása, valamint
+   12 Audio-kártya mellett a képkockaidő, szabad belső RAM/PSRAM és
+   feladatverem-mélypont mérése a panelen. Külön rögzítendő a `main`, az
+   `ota_check` és a két WebSocket-feladat maradék verme natív hitelesítés,
+   JPEG/PNG-borító, hibás letöltés és OTA-ellenőrzés után; ugyanitt kell
+   felvenni a DMA szabad és legnagyobb egybefüggő blokkjának értékét.
+
+### A fejlesztés során javított korábbi hibák
+
+Az első fizikai próba során a Play/Pause működött, de a hangerőnél,
+natív adatoknál, borítóknál és egyes feliratoknál hibák jelentkeztek.
+A valós rádió- és Spotify-események külön regressziós esetekbe kerültek.
+Ezek történeti megfigyelések; a jelenlegi fizikai visszajelzés fent szerepel.
+
+Egy későbbi kapcsolatvesztéskor az érintőképernyő megállt, miközben a
+webes felület működött. A kártyaéletciklus hibáját valódi LVGL-ben
+reprodukáltuk: a megmaradó kártyafa widgethivatkozásai törlődtek, a
+következő frissítés pedig NULL-objektum miatti assertnél megállt.
+A külön felfüggesztési és végleges törlési út regressziója RGB565 és
+XRGB8888 alatt sikeres.
+
+A 2026-11-14-i panelnapló külön indítási hibát is azonosított:
+`worker-start; phase=0; text=0; binary=0; JSON=0`. A hozzá tartozó
+memóriaképen 20795 bájt belső RAM volt szabad, de a legnagyobb egybefüggő
+blokk csak **7936 bájt**; az akkori Audio-controller **8192 bájtos** vermét
+ebből nem lehetett lefoglalni. A feladatlistában sem volt Audio-controller.
+Ez a hiba a natív kapcsolat és a hitelesítés előtt keletkezett; az
+alapvezérlés ettől még a külön Miniserver-útvonalon működhetett.
+A jelenlegi végrehajtás a már fenntartott Master `main` és `ota_check`
+feladatokat használja; a részletes erőforrás- és mérési határokat a
+[memóriafejezet](#memória-és-életciklus) tartalmazza.
+
+## Kapcsolódó szerződések
+
+- [Loxone Structure File V17.0](https://www.loxone.com/enen/wp-content/uploads/sites/3/2026/04/1700_Structure-File.pdf):
+  `mediaServer`, `AudioZoneV2`, állapotok és alapvezérlések.
+- [Hivatalos Loxone App letöltések](https://www.loxone.com/int/downloads/) és az
+  [ellenőrzött 17.3 (272553) Linux-kliens](https://updatefiles.loxone.com/linux/Release/1730272553-amd64.deb):
+  az Audioserver natív kapcsolatának és eseményfeldolgozásának elsődleges
+  implementációs referenciája.
+- [PyLoxone Audio v0.1.7 natív kliens](https://github.com/davehocking/PyLoxone-Audio/blob/v0.1.7/pyloxone_audio/native.py):
+  kiegészítő referencia a külön Audioserver-hitelesítéshez és a natív kedvencazonosítókhoz.
+- [Otthon-konfiguráció](v3-home-config.md), [közös SD-csomag](../assets/loxone-home/README.md)
+  és [a további hét Loxone-kártya](loxone-home-controls.md).

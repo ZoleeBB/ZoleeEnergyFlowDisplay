@@ -41,13 +41,15 @@ esp_err_t app_ringtones_install_prepared(const char *path, cJSON **report, char 
     return ringtone_all_failed ? ESP_ERR_INVALID_ARG : ESP_OK;
 }
 static bool ringtone_query, ringtone_file = true, task_fail, async_fail;
+static app_ringtone_load_status_t ringtone_load_status = APP_RINGTONE_LOAD_OK;
 static unsigned media_loads, media_sends, async_complete, deleted_tasks, queued;
 static void (*media_worker[4])(void *);
 static void *media_arguments[4];
-uint8_t *app_ringtones_load(const char *name, size_t *size) {
+uint8_t *app_ringtones_load_ex(const char *name, size_t *size, app_ringtone_load_status_t *status) {
     assert(!strcmp(name, "tubular-chime.wav"));
     media_loads++;
-    if (!ringtone_file) return NULL;
+    *status = ringtone_file ? ringtone_load_status : APP_RINGTONE_LOAD_MISSING;
+    if (*status != APP_RINGTONE_LOAD_OK) return NULL;
     *size = 64;
     return calloc(1, *size);
 }
@@ -347,12 +349,32 @@ int main(void)
     queued = 0;
     assert(atomic_load(&s_ringtone_responses) == 0);
     task_fail = true; ringtone_get(&request); task_fail = false;
-    assert(!queued && atomic_load(&s_ringtone_responses) == 0);
+    assert(!queued && status_code == 503 && atomic_load(&s_ringtone_responses) == 0);
     async_fail = true; ringtone_get(&request); async_fail = false;
     assert(!queued && atomic_load(&s_ringtone_responses) == 0);
     ringtone_file = false; ringtone_get(&request);
     media_worker[0](media_arguments[0]); queued = 0;
     assert(status_code == 404 && atomic_load(&s_ringtone_responses) == 0);
+    ringtone_file = true;
+    const app_ringtone_load_status_t faults[] = {
+        APP_RINGTONE_LOAD_BUSY, APP_RINGTONE_LOAD_MEMORY, APP_RINGTONE_LOAD_IO, APP_RINGTONE_LOAD_INVALID
+    };
+    const int expected_codes[] = {503, 503, 500, 400};
+    for (unsigned i = 0; i < sizeof(faults) / sizeof(faults[0]); i++) {
+        ringtone_load_status = faults[i];
+        status_code = 200;
+        unsigned sends_before = media_sends;
+        assert(ringtone_get(&request) == ESP_OK && queued == 1);
+        media_worker[0](media_arguments[0]); queued = 0;
+        assert(status_code == expected_codes[i] && media_sends == sends_before &&
+               atomic_load(&s_ringtone_responses) == 0);
+    }
+    ringtone_load_status = APP_RINGTONE_LOAD_OK;
+    status_code = 200;
+    assert(ringtone_get(&request) == ESP_OK && queued == 1);
+    media_worker[0](media_arguments[0]); queued = 0;
+    assert(status_code == 200 && atomic_load(&s_ringtone_responses) == 0);
+    puts("PASS: ringtone HTTP distinguishes temporary SD/memory 503, actual missing 404, invalid WAV 400 and IO 500; next request recovers");
     puts("PASS: actual async ringtone HTTP, no SD/send on server task, concurrent requests, bounded workers and balanced failure cleanup");
     puts("PASS: actual home HTTP handlers, MQTT/HTTP/Slave exclusion, authorization, header, partial receive, bounds, strict JSON, validation details and async 202");
 }

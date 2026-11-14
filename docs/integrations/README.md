@@ -16,6 +16,7 @@ szerződések a felhasználói beállításhoz és a fejlesztéshez is elérhet�
 - [JSON és MQTT](../mqtt.md)
 - [HTTP adatfogadás](../http-input.md)
 - [Közvetlen Loxone kapcsolat](../loxone-direct.md)
+- [Modern Audioserver – natív kapcsolat, jogosultságok és diagnosztika](../audio-controller.md#kapcsolat-jogosultság-és-hibák)
 - [Loxone mintaprogramok](../loxone.md)
 - [BLE master/Slave, PIN-es párosítás és SD nélküli működés](../ble-data-seed.md)
 - [Slave-jelenlétprofil, éjszakai sötétítés és BLE-protokoll](../slave-presence-protocol.md)

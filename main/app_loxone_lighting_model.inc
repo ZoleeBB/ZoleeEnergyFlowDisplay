@@ -226,9 +226,9 @@ const cJSON *lx_light_catalog_find(const cJSON *catalog, const char *control_uui
     return NULL;
 }
 
-static cJSON *light_json(const char *text, size_t size)
+static cJSON *light_json_limit(const char *text, size_t size, size_t limit)
 {
-    if (!text || !size || size > LX_LIGHT_TEXT_MAX || memchr(text, 0, size))
+    if (!text || !size || size > limit || memchr(text, 0, size))
         return NULL;
     unsigned depth = 0;
     bool quoted = false, escape = false;
@@ -264,6 +264,11 @@ static cJSON *light_json(const char *text, size_t size)
         return NULL;
     /* A parser a megadott hosszon belül dolgozik, terminált másolat nélkül. */
     return cJSON_ParseWithLength(text, size);
+}
+
+static cJSON *light_json(const char *text, size_t size)
+{
+    return light_json_limit(text, size, LX_LIGHT_TEXT_MAX);
 }
 
 lx_light_block_t *lx_light_block_create(const cJSON *entry)

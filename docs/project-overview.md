@@ -27,6 +27,22 @@ körsort tart memóriában. [Beállítás, működés és készülékes visszael
 A képek a tényleges LVGL-felület szintetikus adatokkal készült, statikus
 előnézetei, nem készülékfotók. [Mind az öt előnézet, éjszakai és fehérfény-kezeléssel](lighting-controller.md#statikus-előnézetek).
 
+Az Otthon-felület azóta [IRC termosztáttal](irc-controller.md),
+[automatikus és központi árnyékolással](shading-controller.md), valamint
+[hét további kártyatípussal](loxone-home-controls.md) bővült: önálló dimmer,
+központi világítás, Slider, időzített kapcsoló, ajtó–ablak összesítő,
+kapu/garázsajtó és motoros ablak. A modern
+[AudioZoneV2 lejátszó](audio-controller.md) borítót, hangerőállítást és
+lapozható kedvenceket ad. Az összes típus leírása és valódi felületi képe
+a [kártyánkénti képmutatóban](features/README.md#otthon-kártyák-leírásai-és-képei)
+érhető el. Ezek a vezérlők a 10.1-es Master közvetlen Loxone módjához
+tartoznak; a képeket a közös v4 SD-csomag szolgáltatja.
+
+Az Otthon-szerkesztőben az oldalak külön fülön választhatók, a kártyák
+fel/le gombokkal rendezhetők. Fülváltás és rendezés megtartja a mentetlen
+mezőket; az Otthon mentés gombja az összes oldalt menti.
+[Szerkesztés és frissítési sorrend](v3-home-config.md#otthon-oldalak-fülei).
+
 
 Loxone módban opcionális [relatív páratartalom](relative-humidity.md) párosítható,
 szorzóval és eltolással, egész százalékként. A szélsebességes témákon és a Slave-eken

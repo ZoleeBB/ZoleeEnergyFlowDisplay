@@ -42,8 +42,7 @@ static bool home_values_update_range(lx_home_values_t *values, const lx_home_con
         for (unsigned i = first; i < first + count; i++)
         {
             const lx_home_card_t *card = &config->cards[i];
-            if (card->type == LX_HOME_CARD_PULSE || card->type == LX_HOME_CARD_LIGHTING ||
-                card->type == LX_HOME_CARD_IRC || card->type == LX_HOME_CARD_SHADING ||
+            if ((card->type != LX_HOME_CARD_VALUE && card->type != LX_HOME_CARD_SWITCH) ||
                 strcmp(uuid, card->source.uuid))
                 continue;
             double value = raw * card->source.scale + card->source.offset;

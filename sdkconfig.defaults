@@ -94,6 +94,7 @@ CONFIG_LV_CACHE_DEF_SIZE=10485760
 
 # Az önállóan újraalkotott, átlátszó PNG assetek dekódere.
 CONFIG_LV_USE_LODEPNG=y
+CONFIG_LV_USE_TJPGD=y
 CONFIG_LV_USE_SNAPSHOT=y
 
 

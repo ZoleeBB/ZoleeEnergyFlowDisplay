@@ -10,13 +10,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def home_resource_files():
     source = ROOT / 'assets/loxone-home'
-    catalog = json.loads((source / 'catalog.json').read_text())
+    catalog = json.loads((source / 'catalog.json').read_text(encoding='utf-8'))
     icons = catalog['icons']
-    if len(icons) != 64 or len({icon['id'] for icon in icons}) != 64:
-        raise ValueError('A home csomaghoz pontosan 64 egyedi ikon szükséges')
+    if not 1 <= len(icons) <= 96 or len({icon['id'] for icon in icons}) != len(icons):
+        raise ValueError('A home csomaghoz 1–96 egyedi ikon szükséges')
     document = {
         'schema': 1, 'id': 'loxone-home', 'kind': 'loxone-home-resources',
-        'name': 'Loxone Otthon – közös erőforrások', 'version': 3,
+        'name': 'Loxone Otthon – közös erőforrások', 'version': 4,
         'consumer_backgrounds': {'light': 'consumers-light.png', 'dark': 'consumers-dark.png'},
         'icons': [{'id': icon['id'], 'file': 'icon-' + icon['id'] + '.png'} for icon in icons],
     }
@@ -24,6 +24,22 @@ def home_resource_files():
     files.update({f'consumers-{mode}.png': source / 'backgrounds' / f'consumers-{mode}.png' for mode in ('light', 'dark')})
     files.update({f'preview-{mode}.png': source / 'previews' / f'cards-{mode}.png' for mode in ('light', 'dark')})
     files['loxone-logo.png'] = ROOT / 'assets/loxone-logo.png'
+    document['audio_skins'] = {'light': 'audio-player-day.png', 'dark': 'audio-player-night.png'}
+    skins = catalog.get('audio_skins', [])
+    if len(skins) != 2 or {skin['mode'] for skin in skins} != {'day', 'night'}:
+        raise ValueError('Mindkét Audio-lejátszóburkolat szükséges')
+    for skin in skins:
+        mode = skin['mode']
+        if skin['file'] != f'skins/audio-player-{mode}.png':
+            raise ValueError('Nem biztonságos Audio-burkolatútvonal')
+        path = source / skin['file']
+        data = path.read_bytes()
+        if (hashlib.sha256(data).hexdigest() != skin['sha256'] or
+                skin['width'] != 292 or skin['height'] != 200 or
+                data[:16] != b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR' or
+                data[16:24] != (292).to_bytes(4, 'big') + (200).to_bytes(4, 'big')):
+            raise ValueError('Eltérő Audio-lejátszóburkolat: ' + mode)
+        files[f'audio-player-{mode}.png'] = path
     for mode in ('light', 'dark'):
         document[mode] = {
             'background': '#0C1415' if mode == 'dark' else '#E7EDE5',
@@ -49,7 +65,8 @@ def package_home_resources(output):
             info = zipfile.ZipInfo(name, (2026, 10, 20, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, data[name])
-    print('loxone-home: 64 icons, 4 backgrounds, local logo,', archive_path.stat().st_size, 'bytes')
+    print('loxone-home:', len([name for name in data if name.startswith('icon-')]),
+          'icons, 2 audio skins, 4 backgrounds, local logo,', archive_path.stat().st_size, 'bytes')
     return archive_path
 
 

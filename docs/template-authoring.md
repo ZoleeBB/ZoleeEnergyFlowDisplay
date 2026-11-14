@@ -217,8 +217,13 @@ saját fotóháttérnél mindig az explicit téglalapot add meg.
 A `loxone-home` azonosító és `kind=loxone-home-resources` a közös erőforrások számára
 fenntartott. Ez külön, nem lapozható csomag, a `tools/prepare_home_resources.py`
 készíti. A normál témák 32 PNG / 34 ZIP-bejegyzés korlátja változatlan. A fenntartott
-csomag csak a saját, kötött 64 ikonos formátumával használhat nagyobb fájlszámot;
-sem tetszőleges extra erőforrás, sem pluginrendszer nem engedélyezett.
+csomag v4 formátuma 1–96 deklarált ikont enged, a kiadott csomagban 79 van;
+a régi v1–v3 változat továbbra is pontosan 64 ikonnal érvényes. A két opcionális
+Audio-lejátszókép együtt adható meg, kötött névvel és 292×200-as mérettel.
+Csak e közös csomagra vonatkozik a 6 MiB PNG-adat / 20 MiB dekódolt képadat /
+8 MiB ZIP / 128 ZIP-bejegyzés keret. Minden fájlt a séma engedélyez;
+tetszőleges extra erőforrás vagy plugin nem adható hozzá.
+[Manifeszt és pontos fájlnevek](../assets/loxone-home/README.md).
 
 ## Hely az energiaasszisztensnek (v3, Master/Loxone)
 

@@ -43,42 +43,66 @@ arányosan kicsinyíti és átlátszó vászonra, középre helyezi:
 python3 tools/prepare_irc_icon.py
 ```
 
-A kimenet a `main/assets/png/irc_thermostat.png`,
+A kimenet az `assets/loxone-home/icons/thermostat-irc.png`,
 **96×96 RGBA PNG, 8048 bájt**. A kép kijelzője üres marad; a célhőmérsékletet
 és a kis fűtési/hűtési üzemmódjelet a firmware LVGL-kódja rajzolja rá.
 A méretezett forrás és a generátor a kész ikont reprodukálhatóan őrzi;
 a kész PNG-t nem kell kézzel módosítani. Ezek a fejlesztői fájlok a repóban
 találhatók, az offline USB-telepítőnek nem részei.
 
-Az ikon a firmware-be épül, azonosítója `thermostat-irc`. Nem része a 64
-választható SD-ikonnak, és nem bővíti a `loxone-home.zip` csomagot.
-A webes előnézet útvonala `/api/templates/home-icon?id=thermostat-irc`;
-a kiszolgáláshoz nem kell telepített Otthon-csomag. Az aktív oldal összes
-IRC-kártyája közös, 36 864 bájtos ARGB8888-képpontpuffert használ.
+Az ikon a közös **v4 SD-csomagba** kerül, stabil azonosítója `thermostat-irc`.
+A firmware nem tartalmaz beágyazott példányt. A webes előnézet útvonala
+`/api/templates/home-icon?id=thermostat-irc`; a kiszolgáláshoz telepített
+Otthon-csomag kell. Régi csomagnál a termosztát tiszta szöveges kijelzéssel és
+működő −/+ gombokkal jelenik meg, eltérő geometriájú pótkép nélkül.
+Az aktív oldal IRC-kártyái egy közös, 36 864 bájtos ARGB8888-képpontpuffert használnak.
 Ez a kép tartós képpontadata; a dekóder átmeneti foglalásait és a UI-objektumokat
 nem tartalmazza. [Használat és memóriakezelés](irc-controller.md).
 
 ## Redőnyikon
 
-A rögzített redőnygrafika az ellenőrzött közös ikonkészlet meglévő
-`assets/loxone-home/icons/blinds.png` fájlja: **96×96 RGBA PNG, 11 648 bájt**.
-A natív méretű, átlátszó kép változatlan másolata kerül a firmware-be;
+A rögzített redőnygrafika az
+`assets/loxone-home/icons/blinds-shading.png` fájl: **96×96 RGBA PNG, 11 648 bájt**.
+A natív méretű, átlátszó kép kerül a közös SD-csomagba;
 nincs új nagy felbontású forráskép vagy további átméretezési lépés:
 
 ```sh
 python3 tools/prepare_shading_icon.py
 ```
 
-A kimenet a `main/assets/png/shading_blinds.png`. A generátor a képet
-méret- és formátumellenőrzés után másolja, így az alfa és az eredeti PNG
+A generátor a korábbi általános `assets/loxone-home/icons/blinds.png` képet
+méret- és formátumellenőrzés után másolja a kötött `blinds-shading.png` névre,
+így az alfa és az eredeti PNG
 bájtjai megmaradnak. Ezek a fejlesztői fájlok a repóban találhatók;
 az offline USB-telepítő dokumentációja kódútvonalként hivatkozik rájuk.
 
-A beépített azonosító **`blinds-shading`**. A webes előnézet útvonala
-`/api/templates/home-icon?id=blinds-shading`, amely webes hitelesítés után,
-telepített SD-csomag nélkül is elérhető. A 64 általános ikon katalógusa
-és a `loxone-home.zip` csomag változatlan; az ottani `blinds` továbbra is
-választható általános ikon. Az aktív oldal összes redőnykártyája egyetlen,
+A kötött azonosító **`blinds-shading`**. A webes előnézet útvonala
+`/api/templates/home-icon?id=blinds-shading`, amely webes hitelesítés után a
+telepített SD-csomagból olvas. A v4-csomag 79 ikont tartalmaz; az eredeti
+`blinds` továbbra is választható általános ikon. Régi csomag betöltésekor az
+azonos képtartalmú `blinds` használható a redőnykártyához. Az aktív oldal összes
+redőnykártyája egyetlen,
 **36 864 bájtos ARGB8888-képpontpuffert** használ. Ez a tartós képpontadat
 mérete, a dekóder és a UI további foglalásai nélkül.
 [Használat és memóriakezelés](shading-controller.md).
+
+
+## Új Loxone-kártyák és Audio-burkolatok
+
+A 13 új funkcióikon a meglévő háztartási készlettel egyező, átlátszó 96×96-os
+RGBA PNG. A kapuk mind a hat Loxone-típusához önálló kép tartozik. A megjelenítési
+nevek csoportprefixet kapnak, a korábbi ikonazonosítók és mentett párosítások
+megmaradnak. A generálási promptot, forrás- és runtime SHA-256 értéket az
+`assets/loxone-home/catalog.json` rögzíti; importálás és ellenőrzés:
+
+```sh
+python3 tools/import_home_icons.py --complete
+python3 tools/prepare_home_resources.py
+```
+
+Az Audio-kártya két 292×200-as RGB PNG-burkolata az
+`assets/loxone-home/skins` alatt található. A runtime csak az aktív nappali vagy
+éjszakai változatot tölti be, egyetlen közös RGB565-pufferrel. A lemezborító,
+a zónanév és a vezérlőjelek élő UI-elemek, nem részei a burkolat képének.
+Az internetes lemezborítók a korlátozott PSRAM-médiatárban élnek; nem kerülnek
+bele a firmware-be és nem íródnak minden számváltáskor az SD-re.

@@ -11,6 +11,7 @@ typedef struct
     char *text;
     size_t length;
     double number;
+    int64_t received_us;
     bool seen, numeric;
 } light_cache_entry_t;
 
@@ -80,7 +81,8 @@ static void lighting_cache_prepare(void)
     {
         const lx_home_card_t *card = &s_home->cards[i];
         if (card->type != LX_HOME_CARD_LIGHTING && card->type != LX_HOME_CARD_IRC &&
-            card->type != LX_HOME_CARD_SHADING)
+            card->type != LX_HOME_CARD_SHADING && !lx_home_card_is_controls(card->type) &&
+            card->type != LX_HOME_CARD_AUDIO)
         {
             if (card->type != LX_HOME_CARD_PULSE)
                 ok = lighting_cache_add(card->source.uuid);
@@ -93,7 +95,11 @@ static void lighting_cache_prepare(void)
                 duplicate = true;
         if (duplicate)
             continue;
-        const cJSON *entry = card->type == LX_HOME_CARD_IRC ?
+        const cJSON *entry = card->type == LX_HOME_CARD_AUDIO ?
+            lx_audio_catalog_find(s_catalog, card->control_uuid) :
+            lx_home_card_is_controls(card->type) ?
+            lx_controls_catalog_find(s_catalog, card->control_uuid, card->type) :
+            card->type == LX_HOME_CARD_IRC ?
             lx_irc_catalog_find(s_catalog, card->control_uuid) :
             card->type == LX_HOME_CARD_SHADING ?
             lx_shading_catalog_find(s_catalog, card->control_uuid) :
@@ -102,16 +108,29 @@ static void lighting_cache_prepare(void)
             continue;
         const char *encoded = lighting_cache_string(entry,
             card->type == LX_HOME_CARD_IRC ? "irc" :
-            card->type == LX_HOME_CARD_SHADING ? "shading" : "lighting");
+            card->type == LX_HOME_CARD_SHADING ? "shading" :
+            lx_home_card_is_controls(card->type) ? "controls" :
+            card->type == LX_HOME_CARD_AUDIO ? "audio" : "lighting");
         /* Saját, normalizált katalógusmetaadat; egyszerre csak egy blokk
          * átmeneti JSON-ja él. Nincs a veremben körlista vagy teljes profil. */
-        size_t limit = card->type == LX_HOME_CARD_IRC ? LX_IRC_META_MAX :
+        size_t limit = card->type == LX_HOME_CARD_AUDIO ? LX_AUDIO_META_MAX :
+                       lx_home_card_is_controls(card->type) ? LX_CONTROLS_META_MAX :
+                       card->type == LX_HOME_CARD_IRC ? LX_IRC_META_MAX :
                        card->type == LX_HOME_CARD_SHADING ? LX_SHADING_META_MAX : LX_LIGHT_TEXT_MAX;
         cJSON *meta = strlen(encoded) <= limit ? cJSON_Parse(encoded) : NULL;
         if (!meta)
         {
             ok = false;
             break;
+        }
+        if (lx_home_card_is_controls(card->type) || card->type == LX_HOME_CARD_AUDIO)
+        {
+            const cJSON *state;
+            cJSON_ArrayForEach(state, cJSON_GetObjectItemCaseSensitive(meta, "states"))
+                if (ok && cJSON_IsString(state))
+                    ok = lighting_cache_add(state->valuestring);
+            cJSON_Delete(meta);
+            continue;
         }
         if (card->type == LX_HOME_CARD_IRC)
         {
@@ -213,6 +232,7 @@ static void lighting_cache_store(const char *uuid, bool numeric, double value,
         s_light_cache.text_bytes += length + 1;
     }
     entry->number = value;
+    entry->received_us = esp_timer_get_time();
     entry->seen = true;
 }
 
@@ -275,6 +295,21 @@ static void lighting_cache_replay_shading(lx_shading_block_t *block)
         if (entry && entry->seen)
             lx_shading_block_event(block, entry->uuid, entry->numeric, entry->number,
                                     entry->text, entry->length, now);
+    }
+}
+
+/* Az időzített kapcsoló a tényleges beérkezés idejéből számol. Lapváltás
+ * nem indíthatja újra a korábban megkapott visszaszámlálást. */
+static void lighting_cache_replay_controls(lx_controls_block_t *block)
+{
+    if (!block)
+        return;
+    for (unsigned i = 0; i < LX_CONTROLS_STATE_COUNT; ++i)
+    {
+        light_cache_entry_t *entry = lighting_cache_find(block->states[i]);
+        if (entry && entry->seen)
+            lx_controls_block_event(block, entry->uuid, entry->numeric, entry->number,
+                                      entry->text, entry->length, entry->received_us);
     }
 }
 
