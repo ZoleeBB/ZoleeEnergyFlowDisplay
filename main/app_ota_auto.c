@@ -20,6 +20,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mbedtls/sha256.h"
 #include "nvs.h"
@@ -43,12 +44,19 @@ typedef enum
 } ota_request_t;
 
 static QueueHandle_t s_requests;
+static SemaphoreHandle_t s_worker_wake;
+static atomic_bool s_worker_ready;
+/* A külön ébresztő nem foglal helyet a kételemű OTA-sorban. Csak ez a két
+ * mutató védett; a callback és minden hálózati munka a záron kívül fut. */
+static portMUX_TYPE s_background_lock = portMUX_INITIALIZER_UNLOCKED;
+static void (*s_background_run)(void *);
+static void *s_background_argument;
 /* A Slave egy perccel később indul újra, így a Master már fogadni tudja a
  * BLE-kapcsolatát, amikor felébred. */
 static bool s_slave_role;
 
 /* A kijelző runtime feladata olvassa; az atomic_flag nem kérdezhető le. */
-static volatile bool s_operation_active;
+static atomic_bool s_operation_active;
 
 bool app_ota_try_begin_operation(void)
 {
@@ -62,11 +70,31 @@ void app_ota_end_operation(void)
 {
     s_operation_active = false;
     atomic_flag_clear(&s_operation);
+    if (atomic_load(&s_worker_ready))
+        xSemaphoreGive(s_worker_wake);
 }
 
 bool app_ota_operation_active(void)
 {
     return s_operation_active;
+}
+
+bool app_ota_background_post(void (*run)(void *), void *argument)
+{
+    if (!run || !atomic_load(&s_worker_ready))
+        return false;
+    portENTER_CRITICAL(&s_background_lock);
+    bool accepted = !s_background_run ||
+        (s_background_run == run && s_background_argument == argument);
+    if (accepted)
+    {
+        s_background_run = run;
+        s_background_argument = argument;
+    }
+    portEXIT_CRITICAL(&s_background_lock);
+    if (accepted)
+        xSemaphoreGive(s_worker_wake);
+    return accepted;
 }
 
 /* Egy ellenőrzés diagnosztikája: a rövid összegzésben is megmarad a hibafázis.
@@ -687,11 +715,12 @@ static void after_restart_work(void)
     checked_release("napváltási újraindítás");
 }
 
-/* Egy kérés feldolgozása; a blokkoló olvasás miatt üresjárat nincs. */
+/* Az OTA mindig megelőzi az opcionális háttérmunkát. A várakozást a közös
+ * bináris ébresztő végzi, az OTA-sor kapacitása és tartalma változatlan. */
 static bool ota_worker_step(void)
 {
     ota_request_t request = 0;
-    if (xQueueReceive(s_requests, &request, portMAX_DELAY) != pdTRUE)
+    if (xQueueReceive(s_requests, &request, 0) != pdTRUE)
         return false;
     if (request == OTA_REQUEST_DAY_CHANGE)
     {
@@ -709,16 +738,46 @@ static bool ota_worker_step(void)
     return true;
 }
 
+static bool background_worker_step(void)
+{
+    void (*run)(void *) = NULL;
+    void *argument = NULL;
+    portENTER_CRITICAL(&s_background_lock);
+    if (!app_ota_operation_active() && !uxQueueMessagesWaiting(s_requests))
+    {
+        run = s_background_run;
+        argument = s_background_argument;
+        s_background_run = NULL;
+        s_background_argument = NULL;
+    }
+    portEXIT_CRITICAL(&s_background_lock);
+    if (!run)
+        return false;
+    /* A slot már szabad: futás közbeni új beadás nem veszhet el. A később
+     * induló OTA a callback saját érvényességi ellenőrzésénél szakítja meg. */
+    run(argument);
+    return true;
+}
+
+static void ota_worker_cycle(void)
+{
+    if (!ota_worker_step() && !background_worker_step())
+        xSemaphoreTake(s_worker_wake, portMAX_DELAY);
+}
+
 static void ota_worker(void *arg)
 {
     (void)arg;
     for (;;)
-        (void)ota_worker_step();
+        ota_worker_cycle();
 }
 
 static bool request_post(ota_request_t request)
 {
-    return s_requests && xQueueSend(s_requests, &request, 0) == pdTRUE;
+    if (!atomic_load(&s_worker_ready) || xQueueSend(s_requests, &request, 0) != pdTRUE)
+        return false;
+    xSemaphoreGive(s_worker_wake);
+    return true;
 }
 
 /* Kézi kérésnél a HTTP-task nem végez hálózati vagy flash-műveletet.
@@ -726,7 +785,7 @@ static bool request_post(ota_request_t request)
  * éjféli ellenőrzés és kézi feltöltés sem indulhat egymásra. */
 esp_err_t app_ota_request_auto_update(void)
 {
-    if (!app_wifi_is_connected() || !s_requests || !app_ota_try_begin_operation())
+    if (!app_wifi_is_connected() || !atomic_load(&s_worker_ready) || !app_ota_try_begin_operation())
         return ESP_ERR_INVALID_STATE;
     if (!request_post(OTA_REQUEST_MANUAL))
     {
@@ -761,13 +820,23 @@ esp_err_t app_ota_start_auto_update(const app_config_t *cfg)
         s_requests = xQueueCreate(2, sizeof(ota_request_t));
         if (!s_requests)
             return ESP_ERR_NO_MEM;
+        s_worker_wake = xSemaphoreCreateBinary();
+        if (!s_worker_wake)
+        {
+            vQueueDelete(s_requests);
+            s_requests = NULL;
+            return ESP_ERR_NO_MEM;
+        }
         if (app_task_create_lp(ota_worker, "ota_check", 8192, NULL, 3, NULL) != pdPASS)
         {
             vQueueDelete(s_requests);
             s_requests = NULL;
+            vSemaphoreDelete(s_worker_wake);
+            s_worker_wake = NULL;
             ota_memory("ellenőrzőfeladat");
             return ESP_ERR_NO_MEM;
         }
+        atomic_store(&s_worker_ready, true);
         /* A napváltási újraindítás után az ellenőrzés magától elindul. */
         if (restart_flag_take())
             (void)request_post(OTA_REQUEST_AFTER_RESTART);

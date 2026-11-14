@@ -23,3 +23,11 @@ bool app_ota_operation_active(void);
 /* Ugyanazon GitHub-ellenőrzés azonnali, aszinkron indítása; az éjszakai
  * kapcsolót nem módosítja, kikapcsolt automatikánál is tesztelhető. */
 esp_err_t app_ota_request_auto_update(void);
+
+/* Egy opcionális, korlátos háttérmunka a meglévő OTA-vermen. Az azonos
+ * várakozó run/argument pár összevonódik; a callback futása közbeni új
+ * beadás megmarad. OTA kérés és aktív művelet mindig elsőbbséget kap.
+ * False: a worker még nem indult, vagy másik callback vár a slotban.
+ * A callback minden zár nélkül fut; az argumentum élettartamáért a hívó
+ * felel. A callback az időközben indult OTA-t maga is ellenőrizze. */
+bool app_ota_background_post(void (*run)(void *), void *argument);

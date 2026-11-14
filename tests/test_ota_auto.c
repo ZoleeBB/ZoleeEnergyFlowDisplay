@@ -17,29 +17,38 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "esp_ota_ops.h"
 
 struct queue_stub
 {
     unsigned count, capacity, item;
+    bool alive;
     unsigned char data[4][sizeof(int)];
 };
-static struct queue_stub queues[6];
-static unsigned queue_count;
+static struct queue_stub queues[12];
+static unsigned queue_count, queue_deletes;
 static bool fail_queue;
 QueueHandle_t xQueueCreate(unsigned count, unsigned item_size)
 {
-    if (fail_queue || queue_count >= 6 || count > 4 || item_size > sizeof(int))
+    if (fail_queue || queue_count >= 12 || count > 4 || item_size > sizeof(int))
         return NULL;
+    assert(count == 2); /* A háttérslot nem vesz el OTA-sorhelyet. */
     struct queue_stub *queue = &queues[queue_count++];
-    *queue = (struct queue_stub){.capacity = count, .item = item_size};
+    *queue = (struct queue_stub){.capacity = count, .item = item_size, .alive = true};
     return queue;
 }
-void vQueueDelete(QueueHandle_t queue) { (void)queue; }
+void vQueueDelete(QueueHandle_t queue)
+{
+    assert(queue && queue->alive);
+    queue->alive = false;
+    ++queue_deletes;
+}
 int xQueueSend(QueueHandle_t queue, const void *item, TickType_t ticks)
 {
-    (void)ticks;
+    assert(ticks == 0 && queue && queue->alive);
     if (!queue || queue->count == queue->capacity)
         return 0;
     memcpy(queue->data[queue->count++], item, queue->item);
@@ -47,13 +56,72 @@ int xQueueSend(QueueHandle_t queue, const void *item, TickType_t ticks)
 }
 int xQueueReceive(QueueHandle_t queue, void *item, TickType_t ticks)
 {
-    (void)ticks;
+    assert(ticks == 0 && queue && queue->alive);
     if (!queue || !queue->count)
         return 0;
     memcpy(item, queue->data[0], queue->item);
     memmove(queue->data[0], queue->data[1], (queue->count - 1) * sizeof(queue->data[0]));
     queue->count--;
     return pdTRUE;
+}
+unsigned uxQueueMessagesWaiting(QueueHandle_t queue)
+{
+    assert(queue && queue->alive);
+    return queue->count;
+}
+
+struct ota_semaphore_stub { bool given; };
+static bool fail_semaphore;
+static unsigned semaphore_creates, semaphore_deletes, semaphore_waits, semaphore_gives;
+static unsigned critical_depth, task_creations;
+static void (*before_wait_hook)(void);
+SemaphoreHandle_t xSemaphoreCreateBinary(void)
+{
+    if (fail_semaphore)
+        return NULL;
+    SemaphoreHandle_t semaphore = calloc(1, sizeof(*semaphore));
+    assert(semaphore);
+    ++semaphore_creates;
+    return semaphore;
+}
+void vSemaphoreDelete(SemaphoreHandle_t semaphore)
+{
+    assert(semaphore);
+    free(semaphore);
+    ++semaphore_deletes;
+}
+int xSemaphoreGive(SemaphoreHandle_t semaphore)
+{
+    assert(semaphore && !critical_depth);
+    ++semaphore_gives;
+    semaphore->given = true;
+    return pdTRUE;
+}
+int xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t timeout)
+{
+    assert(semaphore && !critical_depth && timeout == portMAX_DELAY);
+    ++semaphore_waits;
+    if (before_wait_hook)
+    {
+        void (*hook)(void) = before_wait_hook;
+        before_wait_hook = NULL;
+        hook();
+    }
+    bool given = semaphore->given;
+    semaphore->given = false;
+    return given ? pdTRUE : 0;
+}
+void test_ota_enter_critical(portMUX_TYPE *lock)
+{
+    assert(!lock->held && !critical_depth);
+    lock->held = true;
+    ++critical_depth;
+}
+void test_ota_exit_critical(portMUX_TYPE *lock)
+{
+    assert(lock->held && critical_depth == 1);
+    lock->held = false;
+    --critical_depth;
 }
 static uint8_t nvs_value;
 static bool nvs_present;
@@ -356,11 +424,8 @@ void vTaskDelay(TickType_t t)
 }
 int xTaskCreate(void (*f)(void *), const char *n, unsigned s, void *a, unsigned p, void *h)
 {
-    (void)f;
-    (void)n;
-    (void)s;
-    (void)a;
-    (void)p;
+    assert(!strcmp(n, "ota_check") && s == 8192 && p == 3 && !a && !h);
+    ++task_creations;
     if (fail_task)
         return 0;
     scheduled_task = f;
@@ -432,6 +497,156 @@ static void reset(void)
              "\"state\":\"uploaded\",\"browser_download_url\":\"" APP_OTA_RELEASE_BASE
              "v3.0.0/SHA256SUMS.txt\"}]}");
 }
+
+static unsigned background_calls, background_last;
+static unsigned background_one = 1, background_two = 2;
+static bool background_repost, background_start_ota;
+
+static void background_job(void *argument)
+{
+    assert(!critical_depth && !app_ota_operation_active());
+    assert(!uxQueueMessagesWaiting(s_requests));
+    ++background_calls;
+    background_last = *(unsigned *)argument;
+    if (background_repost)
+    {
+        background_repost = false;
+        assert(app_ota_background_post(background_job, argument));
+    }
+    if (background_start_ota)
+    {
+        background_start_ota = false;
+        assert(app_ota_request_auto_update() == ESP_OK);
+    }
+}
+
+static void other_background_job(void *argument)
+{
+    background_job(argument);
+}
+
+static void post_background_at_wait(void)
+{
+    assert(app_ota_background_post(background_job, &background_one));
+}
+
+static void post_ota_at_wait(void)
+{
+    assert(app_ota_request_auto_update() == ESP_OK);
+}
+
+static void executor_reset_for_boot(void)
+{
+    atomic_store(&s_worker_ready, false);
+    assert(!s_background_run && !critical_depth);
+    if (s_requests)
+    {
+        assert(!s_requests->count);
+        vQueueDelete(s_requests);
+        s_requests = NULL;
+    }
+    if (s_worker_wake)
+    {
+        vSemaphoreDelete(s_worker_wake);
+        s_worker_wake = NULL;
+    }
+    s_auto_enabled = false;
+}
+
+static void background_executor_test(void)
+{
+    reset();
+    unsigned created = task_creations;
+    assert(!app_ota_background_post(NULL, NULL));
+    assert(app_ota_background_post(background_job, &background_one));
+    assert(app_ota_background_post(background_job, &background_one));
+    assert(!app_ota_background_post(background_job, &background_two));
+    assert(!app_ota_background_post(other_background_job, &background_one));
+    assert(!uxQueueMessagesWaiting(s_requests));
+    unsigned before = background_calls;
+    ota_worker_cycle();
+    assert(background_calls == before + 1 && background_last == 1 && !s_background_run);
+
+    /* A callback kivevése után beadott munka a következő körben megmarad. */
+    background_repost = true;
+    assert(app_ota_background_post(background_job, &background_two));
+    ota_worker_cycle();
+    assert(background_calls == before + 2 && s_background_run);
+    ota_worker_cycle();
+    assert(background_calls == before + 3 && background_last == 2 && !s_background_run);
+
+    /* A már várakozó borító előtt az OTA-sor fogy el. */
+    assert(app_ota_background_post(background_job, &background_one));
+    assert(app_ota_request_auto_update() == ESP_OK);
+    ota_worker_cycle();
+    assert(requests && restarts == 1 && background_calls == before + 3);
+    ota_worker_cycle();
+    assert(background_calls == before + 4 && !app_ota_operation_active());
+
+    /* A napváltás még nem foglalja az operation kaput, a sora önmagában is
+     * elsőbbséget ad neki. A próba-image ellenőrzési ablakát megtartjuk. */
+    reset();
+    running_state = ESP_OTA_IMG_PENDING_VERIFY;
+    assert(app_ota_background_post(background_job, &background_one));
+    day_changed();
+    assert(!app_ota_operation_active() && s_requests->count == 1);
+    assert(!background_worker_step());
+    ota_worker_cycle();
+    assert(background_calls == before + 4 && !requests && !restarts);
+    ota_worker_cycle();
+    assert(background_calls == before + 5);
+    running_state = ESP_OTA_IMG_VALID;
+
+    /* Futó callback közbeni OTA és repost: a következő callbacket is megelőzi. */
+    reset();
+    background_repost = background_start_ota = true;
+    assert(app_ota_background_post(background_job, &background_one));
+    ota_worker_cycle();
+    assert(background_calls == before + 6 && app_ota_operation_active() && !requests);
+    ota_worker_cycle();
+    assert(requests && restarts == 1 && background_calls == before + 6);
+    ota_worker_cycle();
+    assert(background_calls == before + 7);
+
+    /* Külső HTTP OTA alatt a slot megmarad; az operation-end önállóan ébreszt. */
+    assert(app_ota_try_begin_operation());
+    assert(app_ota_background_post(background_job, &background_one));
+    unsigned waits = semaphore_waits;
+    ota_worker_cycle();
+    assert(background_calls == before + 7 && semaphore_waits == waits + 1 && !s_worker_wake->given);
+    app_ota_end_operation();
+    assert(s_worker_wake->given);
+    ota_worker_cycle();
+    assert(background_calls == before + 8);
+
+    /* Mindhárom esemény közvetlenül az üres ellenőrzés és a várakozás közé
+     * érkezik. A bináris ébresztő miatt egyik sem igényel pollingot. */
+    s_worker_wake->given = false;
+    before_wait_hook = post_background_at_wait;
+    ota_worker_cycle();
+    assert(!before_wait_hook && s_background_run && !s_worker_wake->given);
+    ota_worker_cycle();
+    assert(background_calls == before + 9);
+
+    reset();
+    s_worker_wake->given = false;
+    before_wait_hook = post_ota_at_wait;
+    ota_worker_cycle();
+    assert(!before_wait_hook && s_requests->count == 1 && !requests);
+    ota_worker_cycle();
+    assert(requests && restarts == 1);
+
+    assert(app_ota_try_begin_operation());
+    assert(app_ota_background_post(background_job, &background_one));
+    s_worker_wake->given = false;
+    before_wait_hook = app_ota_end_operation;
+    ota_worker_cycle();
+    assert(!before_wait_hook && !app_ota_operation_active() && s_background_run);
+    ota_worker_cycle();
+    assert(background_calls == before + 10);
+    assert(task_creations == created && !task_deletes && !critical_depth);
+}
+
 int main(void)
 {
     assert(sizeof(esp_app_desc_t) == 256);
@@ -540,14 +755,26 @@ int main(void)
     app_config_t cfg = {0};
     cfg.statistics.max_integration_gap_seconds = 1;
     assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
+    assert(!app_ota_background_post(background_job, &background_one));
     fail_queue = true;
     assert(app_ota_start_auto_update(&cfg) == ESP_ERR_NO_MEM);
+    assert(!s_requests && !s_worker_wake && !atomic_load(&s_worker_ready));
+    assert(queue_count == queue_deletes && semaphore_creates == semaphore_deletes);
     fail_queue = false;
+    fail_semaphore = true;
+    assert(app_ota_start_auto_update(&cfg) == ESP_ERR_NO_MEM);
+    assert(!s_requests && !s_worker_wake && !atomic_load(&s_worker_ready));
+    assert(queue_count == queue_deletes && semaphore_creates == semaphore_deletes);
+    fail_semaphore = false;
     fail_task = true;
     assert(app_ota_start_auto_update(&cfg) == ESP_ERR_NO_MEM);
+    assert(!s_requests && !s_worker_wake && !atomic_load(&s_worker_ready));
+    assert(queue_count == queue_deletes && semaphore_creates == semaphore_deletes);
+    assert(!app_ota_background_post(background_job, &background_one));
     fail_task = false;
     assert(app_ota_start_auto_update(NULL) == ESP_ERR_INVALID_ARG);
     assert(app_ota_start_auto_update(&cfg) == ESP_OK && scheduled_task);
+    assert(atomic_load(&s_worker_ready) && s_requests->capacity == 2);
     wifi = false;
     assert(app_ota_request_auto_update() == ESP_ERR_INVALID_STATE);
     wifi = true;
@@ -585,16 +812,14 @@ int main(void)
 
     /* Az új indulás a jelzőből magától elvégzi az ellenőrzést. */
     reset();
-    s_requests = NULL;
-    s_auto_enabled = false;
+    executor_reset_for_boot();
     assert(app_ota_start_auto_update(&cfg) == ESP_OK && !nvs_present);
     /* Itt már a teljes frissítés lefut: letöltés, aktiválás, újraindítás. */
     assert(ota_worker_step() && requests && restarts == 1);
     assert(strstr(logs, "Automatikus frissítés kész"));
     /* Jelző nélkül nincs induláskori ellenőrzés. */
     reset();
-    s_requests = NULL;
-    s_auto_enabled = false;
+    executor_reset_for_boot();
     assert(app_ota_start_auto_update(&cfg) == ESP_OK);
     assert(!ota_worker_step() && !requests);
     /* A hálózati hiba szakaszának és részleteinek megkülönböztetése. */
@@ -643,8 +868,11 @@ int main(void)
     fail_boot = true;
     check_release();
     assert(strstr(logs, "esp_ota_set_boot_partition") && !restarts);
+    background_executor_test();
+    executor_reset_for_boot();
+    assert(queue_count == queue_deletes && semaphore_creates == semaphore_deletes);
     puts("PASS: actual auto OTA short reads, SHA256, version, SD/flash errors, rollback "
          "suppression, HTTPS redirect, per-stage logs, TLS/socket codes, timeouts, bounded "
-         "connection retry and exclusive operation");
+         "connection retry, exclusive operation and shared background executor priority/coalescing/wakeup");
     return 0;
 }
