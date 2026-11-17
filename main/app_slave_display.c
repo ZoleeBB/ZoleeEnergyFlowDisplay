@@ -28,30 +28,42 @@ static void wake_for(app_slave_display_t *state, int64_t now, int64_t duration)
 
 static void wake(app_slave_display_t *state, int64_t now)
 {
-    state->awake_until_us = 0;
+    /* Egy rövid jelenléti időkorlát nem írhatja felül a később lejáró,
+     * legalább 15 másodperces érintési ébresztést. */
+    state->awake_until_us = state->touch_until_us;
     wake_for(state, now, (int64_t)state->profile.presence_timeout_seconds * 1000000);
 }
 
 /* Érintés: a profil időkorlátja, de legalább a minimális olvasási idő. */
 static void wake_touch(app_slave_display_t *state, int64_t now)
 {
-    wake(state, now);
-    wake_for(state, now, APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US);
+    int64_t duration = (int64_t)state->profile.presence_timeout_seconds * 1000000;
+    if (duration < APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US)
+        duration = APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US;
+    state->touch_until_us = now > INT64_MAX - duration ? INT64_MAX : now + duration;
+    /* Új érintés már az új profil idejét használja. A régi érintési határidőt
+     * nem tartjuk meg, csak a még jogos jelenlétvesztési visszaszámlálást. */
+    if (state->presence_countdown)
+        wake(state, state->presence_seen_us);
+    else
+        state->awake_until_us = state->touch_until_us;
 }
 
 static bool presence_holds(const app_slave_display_t *state, int64_t now)
 {
     return state->presence_active &&
-           now - state->presence_seen_us < APP_SLAVE_DISPLAY_PRESENCE_HOLD_US;
+           (state->profile.delay_initial_absence ||
+            now - state->presence_seen_us < APP_SLAVE_DISPLAY_PRESENCE_HOLD_US);
 }
 
 static unsigned brightness(const app_slave_display_t *state, int64_t now)
 {
-    if (!state->night)
-        return state->profile.day_brightness;
-    if (!state->profile.blank_at_night || state->keep_visible || presence_holds(state, now) ||
+    bool blank = state->night ? state->profile.blank_at_night : state->profile.blank_at_day;
+    unsigned level = state->night ? state->profile.night_brightness : state->profile.day_brightness;
+    if (!blank || state->keep_visible || presence_holds(state, now) ||
+        (state->profile.delay_initial_absence && !state->presence_known) ||
         state->pointer_down || now < state->awake_until_us)
-        return state->profile.night_brightness;
+        return level;
     return 0;
 }
 
@@ -59,9 +71,14 @@ static unsigned brightness(const app_slave_display_t *state, int64_t now)
  * sötétítés, hanem a megszokott visszaszámlálás. */
 static void expire_presence(app_slave_display_t *state, int64_t now)
 {
-    if (!state->presence_active || presence_holds(state, now))
+    /* Közvetlen Master-forrásnál csak érvényes 0 jelent jelenlétvesztést.
+     * A kapcsolat alatti hiányt a hívó láthatósági felülbírálása kezeli; a
+     * visszatérő 0 így a korábbi 1 után teljes késleltetést kaphat. */
+    if (state->profile.delay_initial_absence || !state->presence_active || presence_holds(state, now))
         return;
     state->presence_active = false;
+    state->presence_countdown = true;
+    state->presence_seen_us = now;
     wake(state, now);
 }
 
@@ -82,11 +99,16 @@ bool app_slave_display_profile(app_slave_display_t *state,
     if (!state || !valid_profile(profile))
         return false;
     int64_t now = monotonic(state, now_us);
+    bool timeout_changed = state->profile.presence_timeout_seconds != profile->presence_timeout_seconds;
     state->profile = *profile;
-    /* Érvényes aktivitás új beállításnál az új időkorlátot követi. Profilfrissítés
-     * önmagában viszont nem ébreszthet fel egy sötét kijelzőt. */
-    if (state->presence_active || state->pointer_down)
+    /* A futó időzítő az eredeti távollétkezdethez képest veszi át az új időt.
+     * Azonos profil ismétlése és egyéb mező módosítása nem indít új ablakot. */
+    if (state->pointer_down)
+        wake_touch(state, now);
+    else if (state->presence_active)
         wake(state, now);
+    else if (timeout_changed && state->presence_countdown)
+        wake(state, state->presence_seen_us);
     return true;
 }
 
@@ -95,13 +117,9 @@ void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now
     if (!state)
         return;
     monotonic(state, now_us);
-    if (state->night != night)
-    {
-        state->night = night;
-        /* Nappali mozgás lejárt időzítője ne világítson bele az éjszakába.
-         * Ténylegesen még aktív jelenlét vagy nyomott ujj továbbra is ébren tart. */
-        state->awake_until_us = 0;
-    }
+    /* A napszak csak az engedélyezést és a fényerőt váltja. Egy friss érintés
+     * vagy jelenlétvesztés hátralévő idejét nem törölheti és nem indíthatja újra. */
+    state->night = night;
 }
 
 void app_slave_display_blank_at_night(app_slave_display_t *state, bool blank, int64_t now_us)
@@ -110,6 +128,27 @@ void app_slave_display_blank_at_night(app_slave_display_t *state, bool blank, in
         return;
     monotonic(state, now_us);
     state->profile.blank_at_night = blank;
+}
+
+void app_slave_display_blanking(app_slave_display_t *state, bool day, bool night, int64_t now_us)
+{
+    if (!state)
+        return;
+    monotonic(state, now_us);
+    state->profile.blank_at_day = day;
+    state->profile.blank_at_night = night;
+}
+
+void app_slave_display_reset_presence(app_slave_display_t *state, int64_t now_us)
+{
+    if (!state)
+        return;
+    monotonic(state, now_us);
+    state->presence_known = false;
+    state->presence_active = false;
+    state->presence_countdown = false;
+    state->presence_seen_us = 0;
+    state->awake_until_us = state->touch_until_us;
 }
 
 void app_slave_display_presence(app_slave_display_t *state, bool valid, bool active, int64_t now_us)
@@ -121,15 +160,22 @@ void app_slave_display_presence(app_slave_display_t *state, bool valid, bool act
      * a lejárt lease nem jelenti azt, hogy a jelenlét megszűnt. */
     if (!valid)
         return;
+    bool initial = !state->presence_known;
+    state->presence_known = true;
     bool was_active = state->presence_active;
     state->presence_active = active;
-    state->presence_seen_us = now;
+    if (active || was_active || initial)
+        state->presence_seen_us = now;
     if (active)
-        wake(state, now);
-    else if (was_active)
     {
+        state->presence_countdown = false;
+        wake(state, now);
+    }
+    else if (was_active || (initial && state->profile.delay_initial_absence))
+    {
+        state->presence_countdown = !state->profile.blank_on_presence_loss;
         if (state->profile.blank_on_presence_loss)
-            state->awake_until_us = 0;
+            state->awake_until_us = state->touch_until_us;
         else
             wake(state, now);
     }

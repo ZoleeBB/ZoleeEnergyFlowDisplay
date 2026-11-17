@@ -28,6 +28,7 @@ typedef struct
     unsigned day_brightness;     /* A Mastertől kapott nappali fényerő (%). */
     unsigned night_brightness;   /* A Mastertől kapott éjszakai fényerő (%). */
     bool blank_at_night;         /* A Master pillanatnyi sötétítési kérése. */
+    bool blank_at_day;
     bool presence_source;        /* Van kiválasztott jelenlétforrás. */
     bool presence_fresh;         /* Friss, érvényes jelenlétminta. */
     bool presence_active;

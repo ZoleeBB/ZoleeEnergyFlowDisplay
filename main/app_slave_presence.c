@@ -202,6 +202,7 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     if (same_source && strcmp(peer->profile.name, profile->name) == 0 &&
         peer->profile.timeout_seconds == profile->timeout_seconds &&
         peer->profile.blank_at_night == profile->blank_at_night &&
+        peer->profile.blank_at_day == profile->blank_at_day &&
         peer->profile.rotation_degrees == profile->rotation_degrees &&
         peer->profile.day_brightness == profile->day_brightness &&
         peer->profile.night_brightness == profile->night_brightness)
@@ -213,6 +214,7 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
     memcpy(clean.presence_uuid, profile->presence_uuid, strlen(profile->presence_uuid));
     clean.timeout_seconds = profile->timeout_seconds;
     clean.blank_at_night = profile->blank_at_night;
+    clean.blank_at_day = profile->blank_at_day;
     clean.rotation_degrees = profile->rotation_degrees;
     clean.day_brightness = profile->day_brightness;
     clean.night_brightness = profile->night_brightness;
@@ -223,6 +225,7 @@ bool app_slave_presence_update(app_slave_presence_table_t *table, unsigned index
         peer->counter = 0;
         peer->valid = false;
         peer->active = false;
+        peer->inactive_since_us = 0;
     }
     if (changed)
         *changed = true;
@@ -312,8 +315,8 @@ bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
      * jelenlétforrásnál három feltétel kell: élő forrás, megszűnt jelenlét és
      * letelt időkorlát. Így a néma vagy még fel sem épült forrás mellett a
      * kijelző világos marad, folyamatos jelenlétnél pedig soha nem sötétül. */
-    bool blank = peer->profile.blank_at_night;
-    if (blank && peer->profile.presence_uuid[0])
+    bool blank = true;
+    if (peer->profile.presence_uuid[0])
     {
         int64_t timeout = (int64_t)peer->profile.timeout_seconds * 1000000;
         blank = valid && !active && peer->inactive_since_us > 0 &&
@@ -324,10 +327,11 @@ bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
     out[0] = 'Z';
     out[1] = 'P';
     out[2] = 1;
-    out[3] = (uint8_t)((blank ? 1 : 0) |
+    out[3] = (uint8_t)((blank && peer->profile.blank_at_night ? 1 : 0) |
                        (valid ? 2 : 0) | (active ? 4 : 0) |
                        ((peer->profile.rotation_degrees / 90u) << 3) |
-                       (ota_check ? 32 : 0));
+                       (ota_check ? 32 : 0) |
+                       (blank && peer->profile.blank_at_day ? 64 : 0));
     write_u32(out + 4, peer->revision);
     write_u32(out + 8, peer->profile.timeout_seconds);
     write_u32(out + 12, peer->counter);
@@ -368,7 +372,7 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
 {
     if (!receiver || !data || !authenticated || now_us < 0 ||
         size != APP_SLAVE_PRESENCE_PACKET_SIZE || data[0] != 'Z' ||
-        data[1] != 'P' || data[2] != 1 || (data[3] & ~63u) ||
+        data[1] != 'P' || data[2] != 1 || (data[3] & ~127u) ||
         ((data[3] & 4) && !(data[3] & 2)))
         return false;
     uint32_t revision = read_u32(data + 4);
@@ -414,6 +418,7 @@ bool app_slave_presence_receive(app_slave_presence_receiver_t *receiver,
     receiver->ota_check_pending |= ota_check && !receiver->ota_check_level;
     receiver->ota_check_level = ota_check;
     receiver->blank_at_night = blank;
+    receiver->blank_at_day = (data[3] & 64) != 0;
     receiver->rotation_degrees = rotation;
     receiver->valid = valid;
     receiver->ever_valid |= valid;
@@ -448,14 +453,16 @@ void app_slave_presence_apply(app_slave_presence_receiver_t *receiver,
      * visszaszámlálást. A Slave csak végrehajtja, és a helyi érintés ébreszti.
      * Kiesett kapcsolatnál az utolsó döntés marad érvényben. */
     profile.blank_at_night = receiver->have_profile && receiver->blank_at_night;
+    profile.blank_at_day = receiver->have_profile && receiver->blank_at_day;
     if (receiver->have_profile)
         profile.presence_timeout_seconds = receiver->timeout_seconds;
     /* Az időkorlát változása új ébrenléti keretet ad; a sötétítés ki-be
      * kapcsolása viszont önmagában nem ébreszt és nem hosszabbít. */
     if (profile.presence_timeout_seconds != display->profile.presence_timeout_seconds)
         (void)app_slave_display_profile(display, &profile, now);
-    else if (profile.blank_at_night != display->profile.blank_at_night)
-        app_slave_display_blank_at_night(display, profile.blank_at_night, now);
+    else if (profile.blank_at_night != display->profile.blank_at_night ||
+             profile.blank_at_day != display->profile.blank_at_day)
+        app_slave_display_blanking(display, profile.blank_at_day, profile.blank_at_night, now);
     bool valid = fresh && receiver->valid;
     bool pulse_fresh = now >= receiver->pulse_received_us &&
                        now - receiver->pulse_received_us < APP_SLAVE_PRESENCE_LEASE_US;

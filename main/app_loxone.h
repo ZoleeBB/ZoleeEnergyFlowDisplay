@@ -2,7 +2,8 @@
 #include "app_config.h"
 #include "cJSON.h"
 /* Minden hálózati és SD művelet a háttérfeladatban fut. */
-esp_err_t app_loxone_start(void);
+/* A régi display.touch_wake_seconds egyszeri alapérték az új jelenlétprofilhoz. */
+esp_err_t app_loxone_start(uint32_t presence_default_seconds);
 cJSON *app_loxone_web_state(void);
 /* Mentés, illetve mentés nélküli kapcsolatteszt/listázás; aszinkron feladat. */
 esp_err_t app_loxone_request(const cJSON *request, bool save);
@@ -45,6 +46,8 @@ typedef struct
 typedef struct
 {
     app_loxone_signal_t presence, mail;
+    lx_presence_config_t presence_config;
+    unsigned presence_revision;
 } app_loxone_signals_t;
 bool app_loxone_signals(app_loxone_signals_t *out);
 

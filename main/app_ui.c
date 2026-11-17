@@ -115,9 +115,9 @@ static app_slave_display_t s_slave_display;
 /* Loxone kijelzővezérlő jelek (jelenlét, postaláda) pillanatképe; a runtime
  * a grafikus zár előtt frissíti, a rajzolás csak ezt olvassa. */
 static app_loxone_signals_t s_loxone_signals;
-/* A Master jelenlétvezérlése ugyanazt a közös állapotgépet és inputkaput
- * használja, mint a Slave éjszakai sötétítése. */
+/* A Master és a Slave ugyanazt a napszakos állapotgépet és inputkaput használja. */
 static bool s_master_display_ready, s_presence_control;
+static unsigned s_master_presence_revision;
 static app_slave_display_input_t s_slave_input;
 static bool s_slave_display_ready;
 static int64_t s_last_chart_update_us;
@@ -1972,7 +1972,7 @@ void app_ui_set_config(const app_config_t *cfg)
             .night_brightness = cfg->display.night_brightness,
             .blank_at_night = true,
             .presence_timeout_seconds = cfg->display.touch_wake_seconds,
-            .blank_on_presence_loss = true,
+            .delay_initial_absence = true,
         };
         int64_t now = esp_timer_get_time();
         s_master_display_ready = s_master_display_ready
@@ -2383,8 +2383,8 @@ static void slave_display_update(const app_runtime_state_t *state,
 #include "app_intercom_ui.inc"
 
 /* Master jelenlétvezérlés (csak Loxone módban, párosított Jelenlét adattal).
- * Éjjel a 0 / false jelenlét teljesen elsötétít, az 1 / true azonnal az
- * éjszakai fényerőre világosít, érintés az ébrenléti időre ébreszt. Hibaoldal,
+ * A választott napszakban a 0 / false jel elindítja a késleltetést, az 1 / true
+ * a napszak fényerejére ébreszt. Érintés ugyanennyi, legalább 15 s időt ad. Hibaoldal,
  * kapcsolatvesztés vagy ismeretlen jelenlét mellett a kijelző látható marad.
  * Kizárólag a kijelző zárja alatt: az inputkapu ugyanezt az állapotot írja. */
 static void master_presence_update(const app_runtime_state_t *state,
@@ -2398,6 +2398,27 @@ static void master_presence_update(const app_runtime_state_t *state,
             app_slave_display_keep_visible(&s_slave_display, true, now);
         s_presence_control = false;
         return;
+    }
+    const lx_presence_config_t *presence = &s_loxone_signals.presence_config;
+    if (presence->timeout_seconds)
+    {
+        app_slave_display_profile_t profile = s_slave_display.profile;
+        if (profile.blank_at_day != presence->blank_at_day ||
+            profile.blank_at_night != presence->blank_at_night ||
+            profile.presence_timeout_seconds != presence->timeout_seconds)
+        {
+            profile.blank_at_day = presence->blank_at_day;
+            profile.blank_at_night = presence->blank_at_night;
+            profile.presence_timeout_seconds = presence->timeout_seconds;
+            (void)app_slave_display_profile(&s_slave_display, &profile, now);
+        }
+    }
+    if (s_master_presence_revision != s_loxone_signals.presence_revision)
+    {
+        /* Másik UUID/Miniserver nem örökölheti a régi forrás távollétét.
+         * A felhasználó még érvényes érintéses ébrenléte viszont megmarad. */
+        app_slave_display_reset_presence(&s_slave_display, now);
+        s_master_presence_revision = s_loxone_signals.presence_revision;
     }
     if (!s_slave_input.input)
     {

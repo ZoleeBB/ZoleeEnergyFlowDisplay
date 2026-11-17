@@ -88,9 +88,11 @@ napló első sorai között megjelenik a diagnosztikán.
 ## Fényerő SD-kártya nélkül
 
 A 4B-nek nincs SD-kártyája és saját beállítóoldala, ezért a **nappali és
-éjszakai fényerőt a Mastertől kapja**: a védett profil (1004 karakterisztika) a
-Wi-Fi és az automatikus frissítés mellett a Master `display.day_brightness` és
-`display.night_brightness` értékét is átviszi. A blob hossza és verziója
+éjszakai fényerőt a Mastertől kapja**: a Loxone oldalon a saját Slave-kártyáján
+mindkettő külön megadható; az üresen hagyott mező a Master
+`display.day_brightness`, illetve `display.night_brightness` értékét örökli.
+A védett profil (1004 karakterisztika) a Wi-Fi és az automatikus frissítés
+mellett ezt a két feloldott fényerőt is átviszi. A blob hossza és verziója
 szándékosan változatlan (102 bájt, 1-es verzió), a két érték a jelszó mögötti
 kihasználatlan bájtokban utazik: így egy régebbi firmware-ű Slave is beolvassa
 a profilt, csak a fényerőt hagyja figyelmen kívül. 62 bájtnál hosszabb Wi-Fi
@@ -100,7 +102,7 @@ belül érvényesül a Slave-en is; a profil többi mezőjének változása tov�
 mentés utáni újraindítást kér.
 
 A 0 nem érvényes fényerő (a tartományon kívüli masterérték a 80/20
-alapértékre esik vissza) – az éjszakai teljes sötétítést a jelenlétszabály
+alapértékre esik vissza) – a jelenlét szerinti teljes sötétítést a jelenlétszabály
 intézi, nem a fényerő.
 
 Régebbi, a fényerőt még nem küldő Masterrel a Slave a korábban mentett
@@ -119,7 +121,7 @@ tartományára képezi le:
 
 | Kért | Panel |
 | --- | --- |
-| 0% | 0% (teljes sötét – az éjszakai sötétítéshez ez kell) |
+| 0% | 0% (teljes sötét – a jelenlét szerinti sötétítéshez ez kell) |
 | 1% | 48% |
 | 20% | 57% |
 | 30% | 63% |
@@ -134,20 +136,28 @@ A PWM a BSP 5 kHz-es alapértékén marad: a 48%-os küszöböt ezen mértük, �
 meghajtót használ, ott a teljes 1–100% működik, ezért ez a leképezés csak a
 4B firmware-ében van.
 
-## Éjszakai sötétítés és jelenlét
+## Nappali és éjszakai sötétítés, jelenlét
 
 **A sötétítésről a Master dönt**, mert csak nála van a Loxone jelenlétállapota;
-a Slave a 20 bájtos jelenlétcsomag 0. bitjét hajtja végre. A három eset:
+a Slave a 20 bájtos jelenlétcsomag nappali és éjszakai sötétítési kéréséből
+a saját aktuális napszakához tartozót hajtja végre. A Master Loxone oldalán
+minden Slave kártyáján külön nappali és éjszakai pipa, valamint egy közös
+**Sötétítési késleltetés (másodperc)** állítható. A három eset:
 
-- **„Sötétítés éjszaka, ha nincs jelenlét" kikapcsolva** → a kijelző egész éjjel
-  az éjszakai fényerőn marad, a jelenlétjel nem számít.
-- **Bekapcsolva, beállított jelenlétforrással** → folyamatos 1 mellett soha nem
+- **Az adott napszak pipája kikapcsolva** → a kijelző az adott napszak
+  fényerején marad, a jelenlét hiánya nem sötétíti el.
+- **Az adott napszak pipája bekapcsolva, beállított jelenlétforrással** → folyamatos 1 mellett soha nem
   sötétül el; a visszaszámlálás csak a jelenlét megszűnésekor (érvényes 0 érték)
   indul, és a profil időkorlátja után sötétít. Ha a Master nem kap érvényes
   jelenlétértéket (nincs Loxone-kapcsolat, vagy a kiválasztott állapot nem küld
   értéket), **nem kér sötétítést**: a kijelző világos marad.
-- **Bekapcsolva, jelenlétjel nélkül** („Csak érintéses ébresztés") → éjszakai
-  módban azonnal elsötétül, és csak érintésre ébred.
+- **Az adott napszak pipája bekapcsolva, jelenlétjel nélkül** („Csak érintéses
+  ébresztés") → elsötétül, és csak érintésre ébred.
+
+Mindkét pipa bekapcsolható egyszerre. Új profilnál mindkettő kikapcsolt;
+korábbi profilnál az éjszakai beállítás és az időérték megmarad, a nappali
+sötétítés külön engedélyezhető. Ehhez a Master és a Slave firmware-ét is
+frissíteni kell.
 
 A Loxone csak változáskor küld értéket, ezért a jelenlét órákig ugyanaz az 1
 vagy 0 lehet; a Master a megkapott állapotot tartja, a frissességet a
@@ -160,8 +170,10 @@ jelenléttartása 15 másodperc – csak egy-két kimaradt olvasást hidal át, 
 dönt a sötétítésről.
 
 Az érintés mindig ébreszt: az első, sötétből indított érintést a felület
-elnyeli (nem kattint), de a fényerőt visszakapcsolja, legalább 15 másodpercre –
-akkor is, ha a profil időkorlátja ennél rövidebb. Nulla fényerőről
+elnyeli (nem kattint és nem lapoz), de a fényerőt visszakapcsolja.
+Minden érintés a jelenlét megszűnéséhez is használt időt indítja újra,
+legalább 15 másodpercre, akkor is, ha a profil időkorlátja ennél rövidebb.
+A napszakváltás megtartja a még le nem járt időzítőt. Nulla fényerőről
 visszatéréskor a BSP háttérvilágítását külön is felkapcsoljuk.
 
 Nyitott diagnosztika alatt nincs sötétítés: a hibakeresést nem szakíthatja meg
@@ -184,7 +196,7 @@ képernyős **diagnosztika** nyílik, „Bezárás" gombbal. Amit kiír:
   állapota (a BLE a C6 társprocesszoron át fut),
 - Wi-Fi állapot, IP-cím, időszinkron,
 - napszak és a ténylegesen beállított fényerő,
-- éjszakai sötétítés és időkorlát, a jelenlét állapota (aktív/nincs, friss-e a
+- nappali/éjszakai sötétítési kérés és időkorlát, a jelenlét állapota (aktív/nincs, friss-e a
   minta és hány másodperce), a sötétítés visszaszámlálása,
 - indulás óta érzékelt érintések száma,
 - a **rendszernapló** utolsó bejegyzései (csak memóriában, görgethető): itt
@@ -247,9 +259,9 @@ A Slave másodpercenként olvassa a 20 bájtos opcionális profilt. Rövid impul
 számlálóval, tartós aktív jel szinttel jut át; késői/replay/lejárt válasz nem ébreszt.
 SMP titkosítás/MITM/bond/16 bájtos kulcs kötelező.
 
-Az új profilban a sötétítés **alapból kikapcsolt**. A Master Loxone webes
-beállítójában a már párosított kijelző neve, jelenlétforrása, timeoutja és az
-éjszakai sötétítés kapcsolója szerkeszthető. A felület külön jelzi az átvett,
+Az új profilban a nappali és éjszakai sötétítés **alapból kikapcsolt**. A Master
+Loxone webes beállítójában a már párosított kijelző neve, jelenlétforrása,
+sötétítési késleltetése és a két napszak kapcsolója szerkeszthető. A felület külön jelzi az átvett,
 függő, hibás és tartósan mentett konfigurációt; a helyi szerkesztés frissítéskor
 megmarad. Régi Masterrel továbbra is a saját folyamatos nappali/éjszakai fényerő érvényes. A fogadott profil disconnect
 alatt memóriában marad; saját fényerőinek korábbi NVS-beállítása nem változik.

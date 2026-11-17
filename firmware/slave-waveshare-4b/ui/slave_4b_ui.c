@@ -417,8 +417,9 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
                  status->presence_fresh ? "friss" : "nincs friss minta",
                  (unsigned)status->presence_age_seconds);
     char blanking[96];
-    if (!status->night || !status->blank_at_night)
-        snprintf(blanking, sizeof(blanking), "Sötétítés: nincs (nappal vagy kikapcsolva)");
+    bool blank_requested = status->night ? status->blank_at_night : status->blank_at_day;
+    if (!blank_requested)
+        snprintf(blanking, sizeof(blanking), "Sötétítés: a Master most nem kéri");
     else if (status->brightness == 0)
         snprintf(blanking, sizeof(blanking), "Sötétítés: a kijelző sötét, érintésre ébred");
     else if (status->blank_in_seconds < 0)
@@ -451,7 +452,7 @@ void slave_4b_ui_status(const slave_4b_status_t *status)
              status->night ? "éjszaka" : "nappal", status->brightness,
              status->panel_brightness,
              status->day_brightness, status->night_brightness,
-             status->blank_at_night ? "igen" : "nem", (unsigned)status->timeout_seconds,
+             blank_requested ? "igen" : "nem", (unsigned)status->timeout_seconds,
              presence, blanking, (unsigned)status->touch_count);
     text_if_changed(diagnostics_info, text);
     text_if_changed(diagnostics_log, status->log && status->log[0] ? status->log :

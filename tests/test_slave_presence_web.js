@@ -44,7 +44,7 @@ vm.runInContext(fs.readFileSync('assets/web/loxone-slaves.js','utf8')+'\nglobalT
 const get=(key,peer=id)=>nodes.get('slave-'+peer+'-'+key);
 const edit=(key,value,peer=id)=>{
     const node=get(key,peer); assert(node,key);
-    if(key==='blank_at_night')node.checked=value; else node.value=value;
+    if(key==='blank_at_day'||key==='blank_at_night')node.checked=value; else node.value=value;
     node.oninput(); return node;
 };
 const save=(peer=id)=>get('save',peer).onclick();
@@ -56,6 +56,7 @@ const status=(peer=id)=>get('status',peer).textContent;
     state.profiles=structuredClone(initial); await refresh();
     assert.equal(nodes.get('slave-profiles').children.length,3);
     assert(get('save').disabled);
+    assert.equal(get('blank_at_day').checked,false);
     assert.equal(get('day_brightness').value, '');
     assert.equal(get('night_brightness').placeholder, 'Master értéke');
     const name=edit('name','<script>csak szöveg</script>');
@@ -94,7 +95,7 @@ const status=(peer=id)=>get('status',peer).textContent;
     edit('name','név\u0085');await save();assert.equal(posts.length,2);
     edit('name','név\ud800');await save();assert.equal(posts.length,2);
     edit('name','Nappali');edit('presence_uuid','hibás');await save();assert.equal(posts.length,2);
-    edit('presence_uuid','');edit('blank_at_night',true);
+    edit('presence_uuid','');edit('blank_at_day',true);edit('blank_at_night',true);
     edit('day_brightness','0');await save();assert.equal(posts.length,2);assert(status().includes('fényerő'));
     edit('day_brightness','101');await save();assert.equal(posts.length,2);
     edit('day_brightness','22.5');await save();assert.equal(posts.length,2);
@@ -110,15 +111,16 @@ const status=(peer=id)=>get('status',peer).textContent;
     state.save_error=123;await refresh();assert(status().includes('sikertelen'));assert(!get('save').disabled && !get('name').disabled);
     edit('timeout_seconds',46);
     state.save_error=0;persist=true;await save();assert.equal(posts.length,4);assert(status().includes('tartósan elmentve'));
-    assert.equal(posts.at(-1).profile.presence_uuid,'');assert.equal(posts.at(-1).profile.blank_at_night,true);
+    assert.equal(posts.at(-1).profile.presence_uuid,'');assert.equal(posts.at(-1).profile.blank_at_night,true);assert.equal(posts.at(-1).profile.blank_at_day,true);
     assert.equal(posts.at(-1).profile.rotation_degrees,180);
     assert.equal(posts.at(-1).profile.day_brightness,60);
     assert.equal(posts.at(-1).profile.night_brightness,9);
     assert.equal(get('rotation_degrees').value,'180');
     /* NVS háttér-újrapróbálás kattintás nélkül is visszajelezhető. */
+    edit('blank_at_day',false);
     edit('day_brightness',''); /* A nappali fényerő visszaállhat Master öröklésre. */
     edit('timeout_seconds',50);persist=false;await save();
-    assert.equal(posts.at(-1).profile.day_brightness,null);
+    assert.equal(posts.at(-1).profile.day_brightness,null);assert.equal(posts.at(-1).profile.blank_at_day,false);
     assert.equal(posts.at(-1).profile.night_brightness,9);state.save_error=5;await refresh();
     state.save_error=0;state.saved_revision=state.revision;await refresh();assert(status().includes('tartósan elmentve'));
     edit('name','Megőrzött név');offline=true;await refresh();assert.equal(get('name').value,'Megőrzött név');assert(get('save').disabled);

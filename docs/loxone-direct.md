@@ -136,11 +136,11 @@ Forrás: [Communicating with the Miniserver v17](https://www.loxone.com/enen/kb/
 
 ## Jelenlét és postaláda a Master kijelzőn
 
-Az **Adatpárosítás** két új, opcionális sora:
+Az **Adatpárosítás** két opcionális kijelzővezérlő sora:
 
 | Mező | Érték | Hatás |
 | --- | --- | --- |
-| **Jelenlét a Master előtt** (`Presence`) | 0 / 1 (a pozitív érték aktív) | Éjszaka (NightMode = 1) a 0 / false teljesen elsötétíti a Master kijelzőt. Érintésre vagy amikor a jel 1 / true lesz, a beállított éjszakai fényerőre világosodik. Érintés után a *Kijelző → Ébrenlét érintés után* ideig (`display.touch_wake_seconds`, alapból 60 s) marad világos. Nappal a fényerő nem változik. |
+| **Jelenlét a Master előtt** (`Presence`) | 0 / 1 (a pozitív érték aktív) | A Loxone oldalon külön beállítható, hogy nappal, éjszaka vagy mindkét napszakban sötétítsen. Aktív jelenlétnél világít; a jelenlét megszűnése után a beállított késleltetéssel teljesen elsötétül. Érintés vagy új jelenlét az adott napszak fényerejére ébreszt. |
 | **Posta érkezett** (`MailArrived`) | 0 / 1 | 1 / true értéknél postaláda-ikon jelenik meg minden téma fejlécében. |
 
 - Mindkettő opcionális. Párosítás nélkül a kijelző pontosan úgy működik, mint
@@ -159,19 +159,77 @@ A két jelnél nincs szorzó és eltolás: a 0/1 (illetve false/true) értéket 
 kijelző közvetlenül használja. Ha a Loxone-oldali logika fordított, a
 Miniserveren invertáld az állapotot.
 
-## Slave-kijelzők jelenlétbeállítása (v3 fejlesztési ág)
+### Mester jelenlét szerinti sötétítése
+
+Az Adatpárosítás után külön szakaszban állítható a Master három paramétere:
+
+| Beállítás | Jelentés |
+| --- | --- |
+| **Sötétítés nappal, ha nincs jelenlét** | A `NightMode = 0` állapotban is engedélyezi a jelenlét szerinti teljes sötétítést. |
+| **Sötétítés éjszaka, ha nincs jelenlét** | A `NightMode = 1` állapotban engedélyezi a jelenlét szerinti teljes sötétítést. |
+| **Sötétítési késleltetés (másodperc)** | 1–86400 közötti egész érték. A jelenlét megszűnése és az utolsó érintés után is ezt az időt használja. |
+
+A pipák egymástól függetlenek: mindkettő bekapcsolható vagy kikapcsolható.
+Amelyik napszak nincs bejelölve, abban a kijelző a beállított nappali vagy
+éjszakai fényerőn marad. A napszakot a Loxone `NightMode` állapota adja;
+a sötétítés nem módosítja a fényerő százalékos beállításait.
+
+Folyamatos aktív jelenlét mellett nincs elsötétülés. Az ismételten érkező 0
+érték nem indítja újra a visszaszámlálást; az új jelenlét megszakítja azt.
+Minden érintés újraindítja az ébrenléti időt, és érintés után legalább
+**15 másodpercig** világít a kijelző akkor is, ha a beállított késleltetés ennél
+rövidebb. Például 30 másodperces beállításnál jelenlétvesztés után 30
+másodperccel sötétül el; használat közben az utolsó érintés után indul ez a
+30 másodperc. A napszakváltás nem dobja el a még le nem járt ébrenléti időt.
+
+A beállítás a Master `loxone.json` fájljának `presence` objektumába kerül.
+A régi fájlok továbbra is betölthetők: alapból a nappali pipa kikapcsolt, az
+éjszakai bekapcsolt, az időérték pedig a korábbi
+`config.json` → `display.touch_wake_seconds` értékéből indul (ennek alapértéke
+60 másodperc). A következő mentéstől a Loxone oldalon megadott idő az irányadó;
+az általános Beállítások oldalon nincs második, ettől független ébresztési idő.
+
+A `GET /api/loxone` visszaadja a `presence` objektumot. A külön mentőgomb a
+`POST /api/loxone/save` végponton csak ezt a szakaszt módosítja:
+
+```json
+{
+  "section": "presence",
+  "presence": {
+    "blank_at_day": true,
+    "blank_at_night": true,
+    "timeout_seconds": 30
+  }
+}
+```
+
+A kéréshez a szokásos webes hitelesítés és az `X-Zolee-Loxone: 1` fejléc kell.
+A `202 Accepted` a kérés átvételét jelzi; a felület a mentett állapot
+visszaolvasása után igazolja a sikert. A Miniserver és az adatpárosítás külön
+mentése megőrzi ezt a profilt.
+
+## Slave-kijelzők jelenlétbeállítása
 
 A Masteren kapcsold be az **Adat seed – master kijelző (BLE)** funkciót, majd a
 Master diagnosztikáján megnyitott párosítási ablakban párosítsd a Slave-et a PIN-nel.
 A Loxone beállító oldal **Slave-kijelzők** szakasza a már ismert, legfeljebb három
-eszközt mutatja. Minden eszköznél saját név, Loxone jelenlétállapot, ébrenléti idő
-(1–86400 másodperc) és éjszakai sötétítés adható meg. A helyiség/funkció szűrő
+eszközt mutatja. Minden eszköznél saját név, Loxone jelenlétállapot, sötétítési
+késleltetés (1–86400 másodperc), valamint külön nappali és éjszakai sötétítési
+pipa adható meg. A helyiség/funkció szűrő
 segít kiválasztani az állapotot. Üres forrásnál csak érintés ébreszt.
 
-A sötétítés alapból ki van kapcsolva. Nappal a Slave saját nappali fényereje,
-éjjel ébren a saját éjszakai fényereje érvényes. A Master ezeket nem írja felül.
-Az első ébresztő érintés nem nyom meg közben kártyagombot. Az új funkcióhoz a
-Master és a Slave megfelelő v3 firmware-e egyaránt szükséges.
+Új Slave-profilnál mindkét sötétítési pipa kikapcsolt. Meglévő profilnál a
+korábbi éjszakai pipa és időérték megmarad, a nappali pipa kikapcsolt állapottal
+egészül ki. Bekapcsolt napszakban a folyamatos jelenlét ébren tart, és a jel
+megszűnése indítja a visszaszámlálást. Az érintés ugyanazt az időt indítja újra,
+legalább 15 másodperces ébrenléttel. Az első teljes ébresztő érintés nem nyom
+meg közben kártyagombot és nem lapoz.
+
+Nappal ébren a Slave saját nappali fényereje, éjjel ébren a saját éjszakai
+fényereje érvényes. A kártyán megadott fényerő felülírja az öröklést; az
+üresen hagyott nappali vagy éjszakai mező a Master megfelelő fényerejét veszi
+át. A két fényerő és a jelenlétprofil eszközönként külön állítható.
+A nappali sötétítéshez **a Master és a Slave firmware-ét is frissíteni kell**.
 
 Mentés után várd meg a **Beállítások tartósan elmentve** visszajelzést. Az átvett
 kérés és a folyamatban lévő mentés még nem bizonyít tartós tárolást. Hiba vagy

@@ -14,7 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* A korábbi v1-es 410 bájtos blob kompatibilis marad a v2 dekóderrel. */
+/* A v3 a nappali kapcsolót a szabad 3. bitben tárolja, továbbra is 416 bájton.
+ * A v1 (410 bájt) és v2 profilok nappali sötétítés nélkül betölthetők. */
 #define PRESENCE_STORE_LEGACY_ENTRY_SIZE 134
 #define PRESENCE_STORE_LEGACY_SIZE (8 + APP_SLAVE_PRESENCE_MAX_PEERS * PRESENCE_STORE_LEGACY_ENTRY_SIZE)
 #define PRESENCE_STORE_ENTRY_SIZE 136
@@ -61,7 +62,7 @@ static uint32_t store_crc(const uint8_t *data, size_t size)
 static bool store_encode_version(const app_slave_presence_table_t *table,
                                  uint8_t *out, uint8_t version)
 {
-    if (!table || !out || (version != 1 && version != 2))
+    if (!table || !out || version < 1 || version > 3)
         return false;
     size_t stride = version == 1 ? PRESENCE_STORE_LEGACY_ENTRY_SIZE : PRESENCE_STORE_ENTRY_SIZE;
     size_t size = 8 + APP_SLAVE_PRESENCE_MAX_PEERS * stride;
@@ -76,7 +77,8 @@ static bool store_encode_version(const app_slave_presence_table_t *table,
         if (!peer->used)
             continue;
         if (!peer->revision || !app_slave_identity_valid(&peer->identity) ||
-            !app_slave_presence_profile_valid(&peer->profile))
+            !app_slave_presence_profile_valid(&peer->profile) ||
+            (version < 3 && peer->profile.blank_at_day))
             return false;
         for (unsigned j = 0; j < i; ++j)
             if (table->peers[j].used &&
@@ -92,9 +94,10 @@ static bool store_encode_version(const app_slave_presence_table_t *table,
         store_write_u32(entry + 125, peer->profile.timeout_seconds);
         /* A v1-es bájtok eltolása nem változhat: migrációkor is olvashatók. */
         entry[129] = (uint8_t)((peer->profile.blank_at_night ? 1 : 0) |
-                               ((peer->profile.rotation_degrees / 90u) << 1));
+                               ((peer->profile.rotation_degrees / 90u) << 1) |
+                               (version >= 3 && peer->profile.blank_at_day ? 8 : 0));
         store_write_u32(entry + 130, peer->revision);
-        if (version == 2)
+        if (version >= 2)
         {
             entry[134] = peer->profile.day_brightness;
             entry[135] = peer->profile.night_brightness;
@@ -107,14 +110,14 @@ static bool store_encode_version(const app_slave_presence_table_t *table,
 static bool store_encode(const app_slave_presence_table_t *table,
                          uint8_t out[PRESENCE_STORE_SIZE])
 {
-    return store_encode_version(table, out, 2);
+    return store_encode_version(table, out, 3);
 }
 
 static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_table_t *out)
 {
     if (!data || !out ||
         !((size == PRESENCE_STORE_LEGACY_SIZE && data[2] == 1) ||
-          (size == PRESENCE_STORE_SIZE && data[2] == 2)) ||
+          (size == PRESENCE_STORE_SIZE && (data[2] == 2 || data[2] == 3))) ||
         data[0] != 'Z' || data[1] != 'S' || data[3] != APP_SLAVE_PRESENCE_MAX_PEERS ||
         store_u32(data + size - 4) != store_crc(data, size - 4))
         return false;
@@ -125,7 +128,7 @@ static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_ta
         const uint8_t *entry = data + 4 + i * stride;
         if (!entry[0])
             continue;
-        if (entry[0] != 1 || entry[129] > 7)
+        if (entry[0] != 1 || entry[129] > (data[2] >= 3 ? 15 : 7))
             return false;
         app_slave_presence_peer_t *peer = &table.peers[i];
         peer->used = true;
@@ -135,9 +138,10 @@ static bool store_decode(const uint8_t *data, size_t size, app_slave_presence_ta
         memcpy(peer->profile.presence_uuid, entry + 89, APP_SLAVE_PRESENCE_UUID_SIZE);
         peer->profile.timeout_seconds = store_u32(entry + 125);
         peer->profile.blank_at_night = (entry[129] & 1) != 0;
+        peer->profile.blank_at_day = (entry[129] & 8) != 0;
         peer->profile.rotation_degrees = (uint16_t)(((entry[129] >> 1) & 3u) * 90u);
         peer->revision = store_u32(entry + 130);
-        if (data[2] == 2)
+        if (data[2] >= 2)
         {
             peer->profile.day_brightness = entry[134];
             peer->profile.night_brightness = entry[135];
@@ -358,7 +362,7 @@ static void source_report(int index, bool live, int64_t now)
             warned[index] = true;
             app_events_add(APP_EVENT_WARNING,
                            "A(z) %.40s jelenlétforrása nem küldött értéket a Loxone-ból, "
-                           "ezért a Slave kijelzője éjjel is világos marad.",
+                           "ezért a Slave kijelzője világos marad.",
                            peer->profile.name);
         }
         return;
@@ -487,6 +491,7 @@ bool app_slave_presence_service_state(app_slave_presence_state_t *out)
         .fresh = receiver->baseline && age < APP_SLAVE_PRESENCE_LEASE_US,
         .active = receiver->active,
         .blank_at_night = receiver->blank_at_night,
+        .blank_at_day = receiver->blank_at_day,
         .age_seconds = (uint32_t)(age / 1000000),
         .timeout_seconds = receiver->timeout_seconds,
     };

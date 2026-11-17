@@ -11,9 +11,15 @@ typedef struct
     uint8_t night_brightness;
     bool blank_at_night;
     uint32_t presence_timeout_seconds;
-    /* Master jelenlétvezérlés: a jelenlét 1 -> 0 éle azonnal sötétít, nem ad
-     * újabb időkorlátot. Az érintéses ébresztés időkorlátja változatlan. */
+    /* A korábbi azonnali jelenlétvesztési szabály opcionális megtartása.
+     * Az érintés saját ébrenléti idejét ez sem rövidítheti le. */
     bool blank_on_presence_loss;
+    bool blank_at_day;
+    /* Közvetlen Master-forrásnál az első érvényes 0 is teljes késleltetést kap,
+     * és csak érvényes minta változtatja a jelenlétszintet. Kapcsolatvesztéskor
+     * a hívó keep_visible felülbírálása tartja a fényt. Slave-nél a Master már
+     * időzítette a kérést, ott ez maradjon false. */
+    bool delay_initial_absence;
 } app_slave_display_profile_t;
 
 /* A Slave másodpercenként olvassa a jelenlétcsomagot, a sötétítés időzítését
@@ -31,12 +37,17 @@ typedef struct
     app_slave_display_profile_t profile;
     bool night;
     bool presence_active;
-    /* Az utolsó érvényes jelenlétminta monoton ideje. */
+    bool presence_known;
+    bool presence_countdown;
+    /* Aktívan az utolsó minta, inaktívan a visszaszámlálás kezdete. Ismételt
+     * 0 nem írja át, ezért profilváltáskor is az eredeti időpontból számolunk. */
     int64_t presence_seen_us;
     bool pointer_down;
     bool swallow_pointer;
     bool keep_visible;
     int64_t awake_until_us;
+    /* A forráscsere és az azonnali jelenlétvesztés is megőrzi az érintési időt. */
+    int64_t touch_until_us;
     int64_t last_now_us;
 } app_slave_display_t;
 
@@ -47,6 +58,10 @@ bool app_slave_display_profile(app_slave_display_t *state,
 void app_slave_display_night(app_slave_display_t *state, bool night, int64_t now_us);
 /* Csak az éjszakai sötétítés engedélyezése; időkorlátot és ébresztést nem ad. */
 void app_slave_display_blank_at_night(app_slave_display_t *state, bool blank, int64_t now_us);
+/* Napszakonkénti sötétítési szabály, az időzítők módosítása nélkül. */
+void app_slave_display_blanking(app_slave_display_t *state, bool day, bool night, int64_t now_us);
+/* Új forrás választásakor az előző állapot/időzítés törlése; érintés megmarad. */
+void app_slave_display_reset_presence(app_slave_display_t *state, int64_t now_us);
 /* Érvénytelen jelenlét (pl. kapcsolatvesztés) nem hosszabbítja meg az ébrenlétet,
  * de nem is számít jelenlétvesztésnek: az utolsó ismert állapot marad érvényben,
  * amíg friss, érvényes minta mást nem mond (vagy el nem évül a tartás). */

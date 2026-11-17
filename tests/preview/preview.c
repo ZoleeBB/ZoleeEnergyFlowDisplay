@@ -2655,6 +2655,146 @@ static void test_energy_disabled_home(app_runtime_state_t rt)
 #include "controls_test.inc"
 #include "audio_test.inc"
 
+static void master_presence_test_step(app_runtime_state_t *runtime,
+                                      app_energy_sample_t *sample, int64_t now)
+{
+    runtime->last_valid_packet_monotonic_us = now;
+    sample->received_monotonic_us = now;
+    (void)app_loxone_signals(&s_loxone_signals);
+    master_presence_update(runtime, sample, true, now);
+}
+
+static void test_master_presence(app_config_t *config, app_energy_sample_t sample)
+{
+    /* A tényleges UI/input/PWM útvonal: első 0, nappali és éjszakai sötétítés,
+     * érintéses időzítés, forráscsere és kapcsolatvesztés. */
+    config->data_recept_mode = APP_DATA_LOXONE;
+    config->energy_flow_disabled = false;
+    config->display.day_brightness = 74;
+    config->display.night_brightness = 21;
+    config->display.touch_wake_seconds = 30;
+    app_ui_set_config(config);
+    assert(s_master_display_ready && !s_slave_display.profile.blank_on_presence_loss &&
+           s_slave_display.profile.delay_initial_absence &&
+           s_slave_display.profile.presence_timeout_seconds == 30);
+    lv_indev_t *input = lv_indev_create();
+    lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(input, display);
+    lv_indev_set_read_cb(input, touch_read);
+    app_runtime_state_t runtime = {
+        .data_recept_mode = APP_DATA_LOXONE, .loxone_connected = true,
+        .loxone_configured = true, .wifi_connected = true, .has_valid_sample = true,
+    };
+    runtime_view_t original_view = s_view;
+    s_view = VIEW_DASHBOARD;
+    sample.night_mode = true;
+    int64_t now = ticks;
+    memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+    master_presence_test_step(&runtime, &sample, now);
+    assert(!s_presence_control && !s_slave_input.input);
+    app_sim_signals.presence = (app_loxone_signal_t){.configured = true, .valid = true};
+    app_sim_signals.presence_config = (lx_presence_config_t){
+        .blank_at_night = true, .timeout_seconds = 30,
+    };
+    app_sim_signals.presence_revision = 1;
+    int64_t first_absence = ++now;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_presence_control && s_slave_input.input == input && s_brightness == 73);
+    for (int i = 0; i < 60; ++i)
+        master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 21 && last_pwm_brightness == 21);
+    master_presence_test_step(&runtime, &sample, first_absence + 29999999);
+    assert(s_brightness == 21); /* Ismételt 0 nem tolja ki a határidőt. */
+    now = first_absence + 30000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 0 && last_pwm_brightness == 0);
+
+    /* Az első teljes érintés csak ébreszt, és az elengedéstől számít az idő. */
+    assert(app_slave_display_pointer(&s_slave_display, true, ++now));
+    assert(app_slave_display_pointer(&s_slave_display, false, ++now));
+    int64_t last_touch = now;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 21);
+    sample.night_mode = false;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_target == 74);
+    sample.night_mode = true;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 21); /* Napszakváltás nem törli az érintést. */
+    master_presence_test_step(&runtime, &sample, last_touch + 29999999);
+    assert(s_brightness == 21);
+    now = last_touch + 30000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 0);
+
+    /* Külön nappali engedélyezés és a kikapcsolt éjszakai pipa. */
+    app_sim_signals.presence_config.blank_at_day = true;
+    app_sim_signals.presence_config.blank_at_night = false;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 21);
+    sample.night_mode = false;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 0);
+    app_sim_signals.presence.active = true;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 74);
+    app_sim_signals.presence.active = false;
+    int64_t day_absence = ++now;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 74);
+    master_presence_test_step(&runtime, &sample, day_absence + 29999999);
+    assert(s_brightness == 74);
+    now = day_absence + 30000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 0);
+
+    /* A forráscsere első 0-ja saját teljes késleltetést kap. */
+    ++app_sim_signals.presence_revision;
+    int64_t changed_source = ++now;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 74);
+    now = changed_source + 30000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 0);
+
+    /* Hosszú kapcsolatvesztés nem valódi jelenlétvesztés. */
+    app_sim_signals.presence.active = true;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 74);
+    app_sim_signals.presence.valid = false;
+    runtime.loxone_connected = false;
+    now += 60000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 74);
+    runtime.loxone_connected = true;
+    app_sim_signals.presence.valid = true;
+    app_sim_signals.presence.active = false;
+    int64_t restored_absence = ++now;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 74);
+    now = restored_absence + 30000000;
+    master_presence_test_step(&runtime, &sample, now);
+    assert(s_brightness == 0);
+    s_view = VIEW_WIFI_ERROR;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 74);
+    s_view = VIEW_DASHBOARD;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 0);
+    app_sim_signals.presence_config.blank_at_day = false;
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(s_brightness == 74); /* Mindkét pipa kikapcsolva. */
+    memset(&app_sim_signals, 0, sizeof(app_sim_signals));
+    master_presence_test_step(&runtime, &sample, ++now);
+    assert(!s_presence_control);
+    s_view = original_view;
+    lv_indev_delete(input);
+    assert(!s_slave_input.input);
+    memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
+    ticks = now;
+    puts("PASS: actual Master presence UI/PWM: first-0 and loss delay, day/night flags, touch, mode switch, source reset, reconnect and visible error screens");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -3573,82 +3713,7 @@ int main(void)
     clear();template_release_cache();app_templates_view_free(&template_view);
     puts("PASS: actual LVGL consumer/cards light/dark pages, 7-item centering, real grayscale, separate command/feedback, pending/offline controls, resource cleanup and exact theme return");
     app_test_slave_display_input(display);
-    {
-        /* Master jelenlétvezérlés a tényleges runtime-úton: párosítás nélkül
-         * változatlan, éjjel 0 -> teljes sötét, 1 -> éjszakai fényerő, az első
-         * érintés csak ébreszt, hibaoldal és kapcsolatvesztés látható marad. */
-        config.data_recept_mode = APP_DATA_LOXONE;
-        config.energy_flow_disabled = false;
-        config.display.day_brightness = 74;
-        config.display.night_brightness = 21;
-        config.display.touch_wake_seconds = 30;
-        app_ui_set_config(&config);
-        assert(s_master_display_ready && s_slave_display.profile.blank_on_presence_loss &&
-               s_slave_display.profile.presence_timeout_seconds == 30);
-        lv_indev_t *master_input = lv_indev_create();
-        lv_indev_set_type(master_input, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_display(master_input, display);
-        lv_indev_set_read_cb(master_input, touch_read);
-        app_runtime_state_t master_rt = {
-            .data_recept_mode = APP_DATA_LOXONE, .loxone_connected = true, .loxone_configured = true,
-            .wifi_connected = true, .has_valid_sample = true, .last_valid_packet_monotonic_us = ticks,
-        };
-        runtime_view_t saved_view = s_view;
-        s_view = VIEW_DASHBOARD;
-        sample.night_mode = true;
-        sample.received_monotonic_us = ticks;
-        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
-        (void)app_loxone_signals(&s_loxone_signals);
-        master_presence_update(&master_rt, &sample, true, ticks);
-        assert(!s_presence_control && !s_slave_input.input); /* Nincs párosítás: régi működés. */
-        app_sim_signals.presence = (app_loxone_signal_t){.configured = true, .valid = true, .active = true};
-        (void)app_loxone_signals(&s_loxone_signals);
-        master_presence_update(&master_rt, &sample, true, ticks);
-        assert(s_presence_control && s_slave_input.input == master_input);
-        /* A nappali -> éjszakai átmenet fokozatos (1%/kör), ahogy eddig is. */
-        assert(s_brightness == 73);
-        for (int i = 0; i < 60; ++i)
-            master_presence_update(&master_rt, &sample, true, ticks + i);
-        assert(s_brightness == 21 && last_pwm_brightness == 21);
-        app_sim_signals.presence.active = false;
-        (void)app_loxone_signals(&s_loxone_signals);
-        master_presence_update(&master_rt, &sample, true, ticks + 1000);
-        assert(s_brightness == 0 && last_pwm_brightness == 0);
-        /* Az első érintés csak ébreszt, és az ébrenléti idő után újra sötét. */
-        assert(app_slave_display_pointer(&s_slave_display, true, ticks + 2000));
-        assert(app_slave_display_pointer(&s_slave_display, false, ticks + 3000));
-        master_presence_update(&master_rt, &sample, true, ticks + 4000);
-        assert(s_brightness == 21 && last_pwm_brightness == 21);
-        master_presence_update(&master_rt, &sample, true, ticks + 31000000);
-        assert(s_brightness == 0);
-        /* Ismeretlen jelenlét vagy hibaoldal mellett nincs sötét kijelző. */
-        app_sim_signals.presence.valid = false;
-        (void)app_loxone_signals(&s_loxone_signals);
-        master_presence_update(&master_rt, &sample, true, ticks + 31100000);
-        assert(s_brightness == 21);
-        app_sim_signals.presence.valid = true;
-        (void)app_loxone_signals(&s_loxone_signals);
-        s_view = VIEW_WIFI_ERROR;
-        master_presence_update(&master_rt, &sample, true, ticks + 31200000);
-        assert(s_brightness == 21);
-        s_view = VIEW_DASHBOARD;
-        master_presence_update(&master_rt, &sample, true, ticks + 31300000);
-        assert(s_brightness == 0);
-        /* Nappal a jelenlét nem sötétít; a fényerő fokozatosan éri el a nappali értéket. */
-        sample.night_mode = false;
-        master_presence_update(&master_rt, &sample, true, ticks + 31400000);
-        assert(s_brightness == 74);
-        /* A párosítás törlése visszaadja az eredeti vezérlést. */
-        memset(&app_sim_signals, 0, sizeof(app_sim_signals));
-        (void)app_loxone_signals(&s_loxone_signals);
-        master_presence_update(&master_rt, &sample, true, ticks + 31500000);
-        assert(!s_presence_control);
-        s_view = saved_view;
-        lv_indev_delete(master_input);
-        assert(!s_slave_input.input);
-        memset(&s_loxone_signals, 0, sizeof(s_loxone_signals));
-        puts("PASS: actual Master Loxone presence: unpaired unchanged, night 0 blanks, 1 and touch wake to night PWM, wake-only touch, error/unknown visible, day unaffected");
-    }
+    test_master_presence(&config, sample);
     /* A tényleges Master-hardver Slave runtime-ja, külön napszak- és PWM-ellenőrzéssel. */
     config.data_recept_mode = APP_DATA_SLAVE;
     config.display.day_brightness = 83;

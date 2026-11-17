@@ -112,7 +112,7 @@ A tünet szoftveres sötétítéstől így különböztethető meg: kösd a Slav
 **USB TO UART** Type-C portjára (nem az OTG-re), és nyiss egy 115200-as
 terminált ([hardver](hardware.md)). A BSP minden változást kiír:
 
-- `Setting LCD backlight: 0%` → a firmware sötétít (jelenlét/éjszakai szabály,
+- `Setting LCD backlight: 0%` → a firmware sötétít (jelenlét/napszak szerinti szabály,
   lásd [jelenlétprotokoll](slave-presence-protocol.md));
 - `Setting LCD backlight: 30%` és utána semmi, mégis sötét a kép → a panel alsó
   korlátja alatt vagyunk, a fenti skálázás kell;

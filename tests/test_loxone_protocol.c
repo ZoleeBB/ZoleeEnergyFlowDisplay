@@ -187,6 +187,74 @@ static void home_requests(void)
     cJSON_Delete(invalid); cJSON_Delete(empty); free(s_home); s_home = NULL;
     test_home_audio_session = false;
 }
+static void presence_settings_requests(void)
+{
+    static lx_config_t previous;
+    previous = s_saved;
+    app_loxone_signals_t previous_signals = s_signals;
+    unsigned previous_revision = s_presence_revision, previous_intercom = s_intercom_generation;
+    lx_config_defaults(&s_saved);
+    strcpy(s_saved.host, "192.168.1.10");
+    strcpy(s_saved.username, "integration");
+    strcpy(s_saved.password, "IntegrationSecret");
+    const char *uuid = "11223344-5566-7788-99aabbccddeeff00";
+    for (int i = 0; i < 8; ++i) strcpy(s_saved.map[i].uuid, uuid);
+    strcpy(s_saved.map[LX_FIELD_PRESENCE].uuid, uuid);
+    s_saved.presence = (lx_presence_config_t){.timeout_seconds = 30, .blank_at_night = true};
+    s_energy_disabled = false;
+    s_busy = s_home_busy = false;
+    cJSON *body = cJSON_Parse("{\"section\":\"presence\",\"presence\":{\"blank_at_day\":true,\"blank_at_night\":false,\"timeout_seconds\":86400},\"host\":\"unsaved-host\",\"password\":\"UnsavedSecret\",\"mappings\":{}}");
+    assert(body && app_loxone_request(body, true) == ESP_OK);
+    request_t *request = NULL;
+    /* A retry ág nem jelezhet kész állapotot, amíg az elfogadott mentés sorban áll. */
+    request_busy_release();
+    assert(s_busy);
+    assert(xQueueReceive(s_requests, &request, 0));
+    assert(!strcmp(request->config.host, s_saved.host));
+    assert(!strcmp(request->config.password, s_saved.password));
+    assert(!memcmp(request->config.map, s_saved.map, sizeof(s_saved.map)));
+    assert(request->config.presence.blank_at_day && !request->config.presence.blank_at_night &&
+           request->config.presence.timeout_seconds == 86400);
+    /* A 202-es befogadás még nem tartós mentés, a GET a korábbi értéket mutatja. */
+    cJSON *state = app_loxone_web_state();
+    const cJSON *presence = cJSON_GetObjectItemCaseSensitive(state, "presence");
+    assert(cJSON_GetObjectItemCaseSensitive(presence, "timeout_seconds")->valueint == 30);
+    cJSON_Delete(state);
+    unsigned revision = s_presence_revision;
+    saved_config_apply(&request->config);
+    assert(s_presence_revision == revision); /* Csak a szabály változott, a forrás nem. */
+    app_loxone_signals_t signals;
+    assert(app_loxone_signals(&signals));
+    assert(signals.presence_config.timeout_seconds == 86400 &&
+           signals.presence_config.blank_at_day && !signals.presence_config.blank_at_night);
+    free(request); s_busy = false; cJSON_Delete(body);
+    /* Régi teljes mentés és egy másik szakasz mentése sem törölheti a profilt. */
+    body = lx_config_json(&s_saved);
+    cJSON_DeleteItemFromObjectCaseSensitive(body, "presence");
+    cJSON_AddNullToObject(body, "password");
+    assert(app_loxone_request(body, true) == ESP_OK);
+    assert(xQueueReceive(s_requests, &request, 0));
+    assert(request->config.presence.timeout_seconds == 86400 && request->config.presence.blank_at_day);
+    free(request); s_busy = false; cJSON_Delete(body);
+    body = cJSON_Parse("{\"section\":\"presence\",\"presence\":{\"blank_at_day\":true,\"blank_at_night\":false,\"timeout_seconds\":0}}");
+    assert(app_loxone_request(body, true) != ESP_OK && !s_busy);
+    assert(s_saved.presence.timeout_seconds == 86400);
+    cJSON_Delete(body);
+    body = cJSON_Parse("{\"section\":\"presence\",\"presence\":{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":30}}");
+    assert(app_loxone_request(body, false) != ESP_OK);
+    cJSON_Delete(body);
+    lx_config_t next = s_saved;
+    strcpy(next.map[LX_FIELD_PRESENCE].uuid, "aabbccdd-5566-7788-99aabbccddeeff00");
+    s_signals.presence.valid = s_signals.presence.active = true;
+    saved_config_apply(&next);
+    assert(s_presence_revision != revision && !s_signals.presence.valid && !s_signals.presence.active);
+    revision = s_presence_revision;
+    saved_config_apply(&next);
+    assert(s_presence_revision == revision);
+    s_saved = previous; s_signals = previous_signals;
+    s_presence_revision = previous_revision; s_intercom_generation = previous_intercom;
+    puts("PASS: actual Master presence scoped save, persisted-state echo, legacy-client preservation, source revision and malformed request rejection");
+}
 /* A tényleges kéréskezelő csak a kiválasztott szakaszt mentheti. */
 static void energy_disabled_requests(void)
 {
@@ -688,6 +756,7 @@ int main(int argc,char **argv)
 {
     home_requests();
     energy_disabled_requests();
+    presence_settings_requests();
 
     assert(argc==3);char *private=load(argv[1]);s_public_key=load(argv[2]);
     mbedtls_pk_init(&server_key);

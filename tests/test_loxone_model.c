@@ -8,8 +8,49 @@
 int64_t esp_timer_get_time(void){return 123456;}
 static unsigned char uuid[16]={0x44,0x33,0x22,0x11,0x66,0x55,0x88,0x77,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x00};
 static void numeric(unsigned char *p,double v){memcpy(p,uuid,16);memcpy(p+16,&v,8);}
+static void presence_configuration(void)
+{
+    cJSON *root = cJSON_Parse("{\"host\":\"192.168.1.10\",\"port\":80,\"tls\":false,\"username\":\"display\"}");
+    lx_config_t cfg;
+    assert(root && lx_config_parse(root, &cfg, false));
+    /* A régi fájl időértéke az induláskor kapott display-beállításból származik. */
+    assert(!cfg.presence.blank_at_day && cfg.presence.blank_at_night &&
+           cfg.presence.timeout_seconds == 0);
+    const char *invalid[] = {
+        "null", "[]", "{}",
+        "{\"blank_at_day\":1,\"blank_at_night\":true,\"timeout_seconds\":30}",
+        "{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":0}",
+        "{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":86401}",
+        "{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":15.5}",
+        "{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":\"30\"}",
+        "{\"blank_at_day\":true,\"blank_at_day\":false,\"blank_at_night\":true,\"timeout_seconds\":30}",
+        "{\"blank_at_day\":true,\"blank_at_night\":true,\"timeout_seconds\":30,\"extra\":true}"
+    };
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        assert(cJSON_AddItemToObject(root, "presence", cJSON_Parse(invalid[i])));
+        assert(!lx_config_parse(root, &cfg, false));
+        cJSON_DeleteItemFromObjectCaseSensitive(root, "presence");
+    }
+    for (unsigned flags = 0; flags < 4; ++flags)
+    {
+        assert(lx_config_parse(root, &cfg, false));
+        cfg.presence = (lx_presence_config_t){.blank_at_day = (flags & 1) != 0,
+            .blank_at_night = (flags & 2) != 0, .timeout_seconds = flags == 3 ? 86400 : 1};
+        cJSON *saved = lx_config_json(&cfg);
+        lx_config_t restored;
+        assert(saved && lx_config_parse(saved, &restored, false));
+        assert(restored.presence.blank_at_day == cfg.presence.blank_at_day);
+        assert(restored.presence.blank_at_night == cfg.presence.blank_at_night);
+        assert(restored.presence.timeout_seconds == cfg.presence.timeout_seconds);
+        cJSON_Delete(saved);
+    }
+    cJSON_Delete(root);
+    puts("PASS: Master presence legacy defaults, four day/night combinations, 1-86400 s roundtrip and strict malformed-profile rejection");
+}
 int main(void)
 {
+    presence_configuration();
     assert(lx_token_refresh_delay_us(0,1700000000)==3600000000LL);
     assert(lx_token_refresh_delay_us(1700000000-1230768000+600,1700000000)==300000000LL);
     assert(lx_token_refresh_delay_us(1700000000-1230768000-1,1700000000)==1000000LL);

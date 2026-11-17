@@ -24,6 +24,7 @@ typedef struct
     char presence_uuid[APP_SLAVE_PRESENCE_UUID_SIZE];
     uint32_t timeout_seconds;
     bool blank_at_night;
+    bool blank_at_day;
     /* A Slave kijelzőjének tájolása: 0, 90, 180 vagy 270 fok. A Slave a saját
      * indulásakor alkalmazza (az érintéssel együtt), futás közben nem váltható. */
     uint16_t rotation_degrees;
@@ -81,7 +82,9 @@ void app_slave_presence_invalidate(app_slave_presence_table_t *table);
  * jelszó és fényerő nincs.
  * A sequence kapcsolatonként, minden új mintánál lép; a live az egyetlen
  * hitelesített Loxone adatkapcsolat frissessége, nem a UUID utolsó változásáé.
- * A 0. bit nem beállítás, hanem kérés: „most sötétülhet". A Master dönt, mert
+ * A 0. és 6. bit rendre az éjszakai és nappali pillanatnyi sötétítési kérés.
+ * A nappali kérés fogadásához mindkét firmware frissítése szükséges.
+ * A Master dönt, mert
  * nála van a Loxone-állapot; beállított jelenlétforrásnál csak élő forrásnál,
  * megszűnt jelenlét után, a profil időkorlátjának letelte után kéri. */
 bool app_slave_presence_encode(const app_slave_presence_peer_t *peer,
@@ -94,6 +97,7 @@ typedef struct
     bool baseline;
     bool have_profile;
     bool blank_at_night;
+    bool blank_at_day;
     uint16_t rotation_degrees;
     bool valid;
     bool active;

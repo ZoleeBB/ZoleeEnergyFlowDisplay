@@ -103,6 +103,9 @@ static char *s_public_key;
 static lx_values_t s_values;
 /* A UI-task csak ezt a zár alatti, kis másolatot olvassa, s_values-t nem. */
 static app_loxone_signals_t s_signals;
+/* Csak a jelenlétforrás cseréje törli a UI előző jelenlétállapotát. Egy
+ * változatlan párosítás újracsatlakozása nem indíthat új visszaszámlálást. */
+static unsigned s_presence_revision = 1;
 static const lx_config_t *s_session_config;
 static int64_t s_last_response,s_token_refresh_us;
 
@@ -564,6 +567,30 @@ static bool configured(const lx_config_t *cfg)
     }
     return true;
 }
+static void request_busy_release(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    /* A kapcsolati ciklust egy már befogadott mentés is megszakítja. A
+     * sorban váró kérés SD-tranzakciója előtt a web nem láthat kész állapotot. */
+    if (!uxQueueMessagesWaiting(s_requests))
+        s_busy = false;
+    xSemaphoreGive(s_lock);
+}
+static void saved_config_apply(const lx_config_t *next)
+{
+    /* Kizárólag a sikeres tartós mentés után, a Loxone mutexével védve. */
+    if (strcmp(s_saved.map[LX_FIELD_PRESENCE].uuid, next->map[LX_FIELD_PRESENCE].uuid) ||
+        strcmp(s_saved.host, next->host) || s_saved.port != next->port ||
+        s_saved.tls != next->tls || strcmp(s_saved.username, next->username))
+    {
+        if (!++s_presence_revision)
+            s_presence_revision = 1;
+        s_signals.presence.valid = s_signals.presence.active = false;
+    }
+    s_saved = *next;
+    s_password = next->password[0] != 0;
+    s_intercom_generation++;
+}
 /* A memóriabeli profil csak a sikeresen lezárt SD-tranzakció után változik. */
 static void save_home_request(const lx_home_config_t *home)
 {
@@ -637,7 +664,7 @@ static void worker(void *arg)
             *active=request->config;testing=!request->save;
             if(request->save) {
                 if(app_loxone_store_save(active)==ESP_OK) {app_backup_flash_request();
-                    xSemaphoreTake(s_lock,portMAX_DELAY);s_saved=*active;s_password=true;s_intercom_generation++;xSemaphoreGive(s_lock);
+                    xSemaphoreTake(s_lock,portMAX_DELAY);saved_config_apply(active);xSemaphoreGive(s_lock);
                     status("Beállítások elmentve. Kapcsolódás...");
                 }else {status("Az SD-mentés sikertelen. A korábbi beállítások maradtak érvényben.");*active=s_saved;}
             }
@@ -646,7 +673,7 @@ static void worker(void *arg)
         }else if(!testing)*active=s_saved;
         bool ready=configured(active);invalidate(ready);
         if((!ready&&!testing)||!app_wifi_is_connected()) {
-            xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+            request_busy_release();
             vTaskDelay(pdMS_TO_TICKS(500));continue;
         }
         s_session_config=active;
@@ -655,13 +682,13 @@ static void worker(void *arg)
         if(token[0]&&!token_command(active,token,"authwithtoken"))token[0]=0;
         if(!token[0]&&!acquire_token(active,token,sizeof(token))) {report_failure("A Loxone bejelentkezés sikertelen. Ellenőrizd a felhasználót, jelszót és jogosultságokat.");goto retry;}
         if(!download_catalog_with_fallback(active,token)) {report_failure("Az adatlista nem tölthető be, vagy meghaladja az eszköz korlátját.");goto retry;}
-        if(testing) {xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
+        if(testing) {request_busy_release();status("Sikeres kapcsolat. Az adatlista betöltve; végezd el a párosítást és mentsd el.");testing=false;(void)token_command(active,token,"killtoken");token[0]=0;close_connection();continue;}
         /* A hitelesítés és a katalógus már sikeres; a kezdő delta az ACK előtt is jöhet. */
         s_presence_session_live = true;
         app_slave_presence_service_online(true);
         cJSON *ack=reply("jdev/sps/enablebinstatusupdate",false);
         if(!ack){status("Az állapotfrissítés nem engedélyezhető.");goto retry;}cJSON_Delete(ack);
-        xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+        request_busy_release();
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_home_live = true;
         xSemaphoreGive(s_lock);
@@ -717,7 +744,7 @@ static void worker(void *arg)
         }
         status("Megszakadt a Loxone adatkapcsolat. Újracsatlakozás...");
 retry:
-        xSemaphoreTake(s_lock,portMAX_DELAY);s_busy=false;xSemaphoreGive(s_lock);
+        request_busy_release();
         invalidate(configured(&s_saved));close_connection();
         if(testing){testing=false;token[0]=0;}
         if(uxQueueMessagesWaiting(s_requests))continue;
@@ -727,7 +754,7 @@ retry:
         for(unsigned i=0;i<delay*10&&!uxQueueMessagesWaiting(s_requests);i++)vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
-esp_err_t app_loxone_start(void)
+esp_err_t app_loxone_start(uint32_t presence_default_seconds)
 {
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
@@ -745,6 +772,11 @@ esp_err_t app_loxone_start(void)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
     lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
+    /* Régi SD-konfigurációnál az érintéshez már megadott idő marad meg.
+     * Az első Loxone-mentés az önálló jelenlétprofilba is átviszi. */
+    if (!s_saved.presence.timeout_seconds)
+        s_saved.presence.timeout_seconds = presence_default_seconds >= 1 &&
+            presence_default_seconds <= 86400 ? presence_default_seconds : 60;
     s_saved.energy_flow_disabled = s_energy_disabled;
     /* A GUI/touch a CPU1-en fut; a hálózati állapotfeldolgozás CPU0-n marad.
      * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
@@ -774,8 +806,10 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
     const char *scope = cJSON_IsString(section) ? section->valuestring : "";
     xSemaphoreTake(s_lock,portMAX_DELAY);
     cJSON *merged = lx_config_json(&s_saved);
-    bool scoped = !strcmp(scope, "connection") || !strcmp(scope, "mappings");
-    bool ok = merged && (!section || scoped) && (!s_energy_disabled || scoped);
+    bool presence_scope = !strcmp(scope, "presence");
+    bool scoped = !strcmp(scope, "connection") || !strcmp(scope, "mappings") || presence_scope;
+    bool ok = merged && (!section || scoped) && (!s_energy_disabled || scoped) &&
+              (!presence_scope || save);
     if (ok && scoped)
     {
         if (!strcmp(scope, "connection"))
@@ -787,6 +821,14 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
                 ok = value && cJSON_ReplaceItemInObjectCaseSensitive(merged, keys[i], value);
                 if (!ok) cJSON_Delete(value);
             }
+        }
+        else if (presence_scope)
+        {
+            cJSON *value = cJSON_Duplicate(cJSON_GetObjectItemCaseSensitive(body, "presence"), true);
+            ok = value && (cJSON_HasObjectItem(merged, "presence")
+                ? cJSON_ReplaceItemInObjectCaseSensitive(merged, "presence", value)
+                : cJSON_AddItemToObject(merged, "presence", value));
+            if (!ok) cJSON_Delete(value);
         }
         else
         {
@@ -804,13 +846,16 @@ esp_err_t app_loxone_request(const cJSON *body,bool save)
             }
         }
     }
-    bool require = save && !s_energy_disabled && strcmp(scope, "connection");
+    bool require = save && !s_energy_disabled && strcmp(scope, "connection") && !presence_scope;
     ok = ok && lx_config_parse(scoped ? merged : body, &r->config, require);
     cJSON_Delete(merged);
+    /* Régebbi, teljes mentést küldő weboldal se törölhesse az új beállítást. */
+    if (ok && !r->config.presence.timeout_seconds)
+        r->config.presence = s_saved.presence;
     r->config.energy_flow_disabled = s_energy_disabled;
     if (ok && save && !strcmp(scope, "mappings") && !r->config.map[6].uuid[0]) ok = false;
     const cJSON *password=cJSON_GetObjectItemCaseSensitive(body,"password");
-    if (!strcmp(scope, "mappings"))
+    if (!strcmp(scope, "mappings") || presence_scope)
         snprintf(r->config.password, sizeof(r->config.password), "%s", s_saved.password);
     else if (cJSON_IsString(password) && password->valuestring[0] && strlen(password->valuestring) < LX_PASSWORD_MAX)
         snprintf(r->config.password, sizeof(r->config.password), "%s", password->valuestring);
@@ -1374,6 +1419,8 @@ bool app_loxone_signals(app_loxone_signals_t *out)
         return false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     *out = s_signals;
+    out->presence_config = s_saved.presence;
+    out->presence_revision = s_presence_revision;
     out->presence.configured = s_saved.map[LX_FIELD_PRESENCE].uuid[0] != 0;
     out->mail.configured = s_saved.map[LX_FIELD_MAIL].uuid[0] != 0;
     if (!out->presence.configured)

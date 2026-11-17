@@ -2,8 +2,9 @@
 
 Állapot: a modell, a Master NVS-háttérmentése, a célzott védett BLE-olvasás,
 a közös Loxone WebSocket, a két panel adaptere és a Master/Loxone webes
-eszközlista/szerkesztő be van kötve. Az újonnan párosított profilban a
-sötétítés alapból ki van kapcsolva. Fizikai paneles/radiós próba még szükséges.
+eszközlista/szerkesztő be van kötve. Az újonnan párosított profilban a nappali
+és éjszakai sötétítés alapból ki van kapcsolva. Fizikai paneles/radiós próba
+még szükséges.
 
 ## Identitás és jogosultság
 
@@ -18,7 +19,10 @@ nem használható profiltulajdonosként.
 Három slot van, automatikus kiszorítás nélkül. A stabil logikai kulcs
 `ble-<type>-<12 kisbetűs hex>`, a cím a szokásos megjelenítési bájtsorrendben.
 Az ismert peer újracsatlakozása nem nevezi át a már szerkesztett profilt.
-A név legfeljebb 80 UTF-8 bájt, a timeout 1–86400 másodperc.
+A név legfeljebb 80 UTF-8 bájt, a timeout 1–86400 másodperc. A profil külön
+`blank_at_day` és `blank_at_night` kapcsolót tárol. A közös timeout a jelenlét
+megszűnése és az utolsó érintés után is érvényes; az érintés legalább 15
+másodpercre ébreszt.
 Az üres jelenlét-UUID megengedi a csak érintésre ébresztő profilt.
 A Loxone UUID pontosan 35 karakter, kisbetűs `8-4-4-16` alak.
 
@@ -52,39 +56,51 @@ A több bájtos számok unsigned little-endian értékek.
 | --- | --- | --- |
 | 0 | 2 | ASCII `ZP` |
 | 2 | 1 | Verzió: 1 |
-| 3 | 1 | Bit 0: **sötétítési kérés most**; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése |
+| 3 | 1 | Bit 0: **éjszakai sötétítési kérés most**; bit 1: érvényes jelenlét; bit 2: aktív szint; bit 3-4: kijelző tájolása negyedfordulatban (0–3); bit 5: frissítésellenőrzés kérése; bit 6: **nappali sötétítési kérés most** |
 | 4 | 4 | Nem nulla profilrevízió |
 | 8 | 4 | Timeout másodpercben, 1–86400 |
 | 12 | 4 | Jelenlét felfutóéleinek modulo-2^32 számlálója |
 | 16 | 4 | Kapcsolaton belüli modulo-2^32 csomagsorszám |
 
-A 6–7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
+A 7. bit tiltott, aktív bit csak érvényes bittel együtt lehet.
 A 0 fokos tájolás bitjei nullák, így a korábbi, a 3–7. bitet még tiltó Slave is
 elfogadja az alapértelmezett csomagot; elforgatott kijelzőhöz a Slave firmware-ét
 is frissíteni kell.
+Régi Master csomagjában a 6. bit nulla, ezért új Slave-en a nappali sötétítés
+kikapcsolt marad. A nappali kérés új bitjét a korábbi Slave elutasítja, és a
+legutóbbi elfogadott döntését tartja: a nappali sötétítés bekapcsolása előtt
+**mindkét firmware-t frissíteni kell**. A csomaghossz és a wire verzió változatlan.
 Egy revízión belül timeout és tájolás nem változhat (ezek profiladatok); a 0.
-bit, az érvényes/aktív bit és a frissítéskérés bitje viszont a revízión belül is
-változik, mert ezek pillanatnyi állapotok.
+és 6. bit, az érvényes/aktív bit és a frissítéskérés bitje viszont a revízión
+belül is változik, mert ezek pillanatnyi állapotok.
 
 **A sötétítésről a Master dönt** (v3.3.4-től), mert csak ő látja a Loxone
-jelenlétállapotát. A 0. bit nem a profil „éjszakai sötétítés" beállítása, hanem
-pillanatnyi kérés, és három feltétel együtt kell hozzá:
+jelenlétállapotát. A 0. és 6. bit nem egyszerűen a profil kapcsolója, hanem
+az adott napszakra érvényes pillanatnyi kérés. Mindkettőhöz három feltétel
+együtt kell:
 
-1. a profilban be van kapcsolva az éjszakai sötétítés;
+1. a profilban be van kapcsolva az adott napszak sötétítése;
 2. ha van kiválasztott jelenlétforrás: a Loxone-kapcsolat friss (`live`) **és**
    a forrás érvényes értéket adott;
 3. a jelenlét érvényesen megszűnt (0 értéket kaptunk), és a 1→0 él óta letelt a
-   profil időkorlátja.
+   profil időkorlátja. Ha az első érvényes minta eleve 0, az első ilyen minta
+   indítja a késleltetést.
+
+A két kérés ugyanarra a jelenlétállapotra és késleltetésre épül; a Slave az
+utolsó ismert nappali/éjszakai módja alapján választ közülük.
 
 A Loxone **csak változáskor** küld értéket, ezért a jelenlét órákig ugyanaz az
 1 vagy 0 lehet: a Master a megkapott állapotot tartja, és a `live` frissességét a
 15 másodperces keepalive adja, nem az állapot-UUID változása. A jelenlétvesztés
 ideje a WS-kapcsolat újraépülését is túléli, különben az újra megkapott,
 változatlan 0 újraindítaná a visszaszámlálást, és a kijelző kigyulladna egy
-időkorlátra az éjszaka közepén.
+időkorlátra a nap bármely szakában. Másik jelenlét-UUID választásakor viszont
+a régi forrás inaktivitási időpontja törlődik, így az új forrás első 0 értéke
+saját késleltetést indít.
 
-Jelenlétforrás nélküli profilnál (csak érintéses ébresztés) a bit az éjszakai
-beállítást követi. Néma, még fel sem épült vagy érvénytelen forrásnál a bit 0:
+Jelenlétforrás nélküli profilnál (csak érintéses ébresztés) a két bit a megfelelő
+napszak kapcsolóját követi. Néma, még fel sem épült vagy érvénytelen forrásnál
+mindkét sötétítési bit 0:
 a kijelző inkább maradjon világos, mint hogy folyamatos jelenlét alatt aludjon
 el. Ez a 3.3.3-ig meglévő hiba gyökere: a Slave próbálta helyben kitalálni, mit
 jelent a „nincs érvényes minta”, és a legrosszabb irányba tippelt.
@@ -137,7 +153,7 @@ Teljes vevőállapot/snapshot adható át, de egy puszta „utolsó wire-csomag�
 nem hosszabbítja meg az esemény 15 másodperces érvényességét. Invalid csomag vagy
 új bázis eldobja a régi függő impulzust. A fogadási idő monoton idő, nem falióra.
 
-A kijelzőadapter kizárólag a sötétítés/timeout mezőket veszi át; a tájolást a
+A kijelzőadapter a nappali/éjszakai sötétítési kérést és a timeoutot veszi át; a tájolást a
 Slave célprogramja olvassa ki (`app_slave_presence_service_rotation`), mert futó
 MIPI DSI mellett nincs átforgatás: a 4B a saját `slave_4b`/`rotation` NVS-kulcsába
 menti, és rövid késleltetés után újraindul, hogy a kép és az érintés is a kért
@@ -146,13 +162,24 @@ nappali/éjszakai fényereje, az utolsó ismert napszaka, a boot/PIN láthatós�
 az első teljes ébresztő érintést elnyelő kapu a meglévő közös állapotgépben marad.
 Tartós aktív jel tart; érvényes lefutó él egyszer új timeoutot ad.
 Profilváltás/invalid/disconnect nem ad új timeoutot és nem szimulál lefutó élt.
+Az új kapcsolat első inaktív mintája a Slave-en nem indít második helyi
+visszaszámlálást: a Master már a saját időzített sötétítési döntését küldi.
+A Master helyi kijelzője ugyanezen közös állapotgép külön beállításával az
+első érvényes 0 mintától is egyszer kivárja a késleltetést.
 Érvénytelen minta (lejárt lease, kimaradt olvasás, kapcsolatvesztés) nem
 jelenlétvesztés: az utolsó ismert állapot marad érvényben. A jelenléttartás
 15 másodperc (egy-két kimaradt olvasás áthidalása) – nem ez védi a kijelzőt a
-sötétedéstől, hanem a Master 0. bitje, ami csak tényleges jelenlétvesztés után
-engedi el. Kapcsolatvesztéskor a Master utolsó döntése marad érvényben, a helyi
+sötétedéstől, hanem a Master napszakhoz tartozó sötétítési bitje, ami csak
+tényleges jelenlétvesztés után engedi el. Kapcsolatvesztéskor a Master utolsó
+döntése marad érvényben, a helyi
 érintés viszont mindig ébreszt: legalább 15 másodpercre, akkor is, ha a profil
 időkorlátja ennél rövidebb.
+
+Minden érintés az eszköz profiljában megadott közös időt indítja újra. A
+jelenlét lefutó éle nem rövidítheti meg az érintésből még hátralevő ébrenlétet.
+A nappal/éjszaka váltás az új napszak kapcsolóját és fényerejét alkalmazza,
+de nem nullázza a még le nem járt időzítőt. Ismételten érkező 0 jelenlétérték
+és azonos profilfrissítés nem hosszabbítja meg az ébrenlétet.
 
 Az érintés a nyers inputkapuból érkezik, ezért a vaksötét kijelzőn is hat (az
 első teljes érintést a kapu elnyeli, csak ébreszt). Nyitott diagnosztika alatt a
@@ -167,12 +194,14 @@ Disconnectkor a profil a memóriában megmarad; csak a tényleges legacy átáll
 
 ## Master NVS és háttérmentés
 
-A `ble_presence` névtér `peers` blobja a v2 formátumban **416 bájt**.
-A 4 bájtos fejléc ASCII `ZS`, verzió=2, slotok=3. Három **136 bájtos**
-slot követi, majd 4 bájt little-endian CRC32 (IEEE). A korábbi, 410 bájtos
-v1 változat is betölthető: ott három 134 bájtos slot van, és a fényerő
-két opcionális mezője alapértelmezés szerint öröklésre áll. Az első módosításkor
-a háttérmentés az új v2 formátumot írja.
+A `ble_presence` névtér `peers` blobja a v3 formátumban **416 bájt**.
+A 4 bájtos fejléc ASCII `ZS`, verzió=3, slotok=3. Három **136 bájtos**
+slot követi, majd 4 bájt little-endian CRC32 (IEEE). A v3 a v2 méretét
+megtartja; a nappali kapcsoló a slot jelzőbájtjának korábban szabad bitjét
+használja. A dekóder a v2, valamint a korábbi, 410 bájtos v1 változatot is
+betölti: a nappali sötétítés mindkettőnél kikapcsolt. V1-ben három 134 bájtos
+slot van, és a fényerő két opcionális mezője alapértelmezés szerint öröklésre
+áll. Az első módosításkor a háttérmentés az új v3 formátumot írja.
 
 | Sloton belüli offset | Hossz | Tartalom |
 | --- | --- | --- |
@@ -182,13 +211,15 @@ a háttérmentés az új v2 formátumot írja.
 | 8 | 81 | Név, NUL és nulla kitöltés |
 | 89 | 36 | Loxone állapot-UUID, NUL és nulla kitöltés |
 | 125 | 4 | Timeout másodpercben, little-endian |
-| 129 | 1 | Bit 0: éjszakai sötétítés; bit 1-2: tájolás negyedfordulatban |
+| 129 | 1 | Bit 0: éjszakai sötétítés; bit 1-2: tájolás negyedfordulatban; bit 3: nappali sötétítés (csak v3) |
 | 130 | 4 | Nem nulla profilrevízió, little-endian |
-| 134 | 1 | Opcionális nappali fényerő: 0 = Master, 1–100 = százalék (csak v2) |
-| 135 | 1 | Opcionális éjszakai fényerő: 0 = Master, 1–100 = százalék (csak v2) |
+| 134 | 1 | Opcionális nappali fényerő: 0 = Master, 1–100 = százalék (v2/v3) |
+| 135 | 1 | Opcionális éjszakai fényerő: 0 = Master, 1–100 = százalék (v2/v3) |
 
-A tájolás a sötétítés bájtjának szabad bitjeire került, ezért a blob mérete és a
-korábbi verzióval mentett profilok változatlanul betöltődnek (0 fokkal).
+A korábbi tájolás-, éjszakai sötétítés-, időkorlát- és fényerőértékek
+megmaradnak. V1/v2 fájlban a 3. bit továbbra is fenntartott és nullának kell
+lennie; a verzióellenőrzés megakadályozza, hogy sérült régi adat új nappali
+beállításnak látsszon.
 Üres slot minden bájtja nulla. A dekóder CRC, mezővalidálás és identitás-egyediség
 után újrakódolással ellenőrzi a kanonikus kitöltést. A C-struktúra paddingje nem
 kerül tárolásra. Impulzus, aktív szint és sorszám nem része a blobnak; a beállított
@@ -219,15 +250,16 @@ A `GET /api/loxone/slaves` és `POST /api/loxone/slaves` csak Loxone módban
 regisztrált, a meglévő webes hitelesítéssel. A GET `Cache-Control: no-store` mellett
 `schema:1`, `enabled`, `ready`, `revision`, `saved_revision`, `save_error` és
 `profiles` mezőket ad. Minden profil az `id`, `name`, `presence_uuid`,
-`timeout_seconds`, `blank_at_night`, `rotation_degrees` (0/90/180/270) mezőket
-tartalmazza. Futási jelenlétminta,
-számláló, fényerő és hitelesítő adat nem kerül ebbe a válaszba. Kikapcsolt seed
+`timeout_seconds`, `blank_at_day`, `blank_at_night`, `rotation_degrees`
+(0/90/180/270), `day_brightness` és `night_brightness` mezőket tartalmazza.
+A fényerő mezői `null` értékkel öröklést, 1–100 értékkel felülírást jelentenek.
+Futási jelenlétminta, számláló és hitelesítő adat nem kerül ebbe a válaszba. Kikapcsolt seed
 mellett az eszközlista üres, a POST nem érhető el (503).
 
 A POST kötelező fejléce `X-Zolee-Loxone: 1`, törzse legfeljebb 2048 bájt:
 
 ```json
-{"schema":1,"revision":123,"id":"ble-0-060504030201","profile":{"name":"Nappali","presence_uuid":"11223344-5566-7788-99aabbccddeeff00","timeout_seconds":30,"blank_at_night":false,"rotation_degrees":0}}
+{"schema":1,"revision":123,"id":"ble-0-060504030201","profile":{"name":"Nappali","presence_uuid":"11223344-5566-7788-99aabbccddeeff00","timeout_seconds":30,"blank_at_day":true,"blank_at_night":false,"rotation_degrees":0,"day_brightness":null,"night_brightness":null}}
 ```
 
 A pontos mezőkészlet, szigorú típusok, UTF-8 név, kanonikus UUID, egész timeout és
@@ -237,6 +269,10 @@ kereshető; a kliens nem adhat új identitáscímet. A nem nulla teljes `uint32_
 revíziót lebegőpontos JSON-számból tartományellenőrzés után vesszük át. Az elavult
 revíziót az adapter és az állapotzár alatti szolgáltatás is elutasítja (409).
 A HTTP-task nem végez NimBLE- vagy NVS-műveletet.
+
+Régebbi szerkesztő kéréséből hiányozhat a `blank_at_day`: ilyenkor a meglévő
+profil nappali kapcsolója megmarad, nem áll vissza észrevétlenül. Ha a mező
+szerepel, csak valódi JSON-logikai érték fogadható el.
 
 A sikeres POST `202 {"accepted":true}`: ez még nem tartós mentés. A web csak akkor
 jelez mentett beállítást, ha visszaolvasva a kívánt profil található, nincs

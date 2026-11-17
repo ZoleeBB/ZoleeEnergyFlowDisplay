@@ -14,7 +14,7 @@ A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config
 | `mqtt` | MQTT módban broker, port, topic, hitelesítés, timeout és újracsatlakozás |
 | `http` | HTTP módban adatkimaradási timeout |
 | `time` | NTP szerver, időzóna, nyári időszámítás és szinkronizálás |
-| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90; `touch_wake_seconds` 5–3600 (alapból 60): Loxone-jelenlétvezérlésnél ennyi ideig marad ébren érintés után |
+| `display` | Nappali/éjszakai fényerő 1–100%; tájolás: `rotation_degrees` 270 vagy 90. A régi `touch_wake_seconds` 5–3600 (alapból 60) a Loxone-jelenlétprofil első betöltésének alapértéke; a nappali/éjszakai sötétítést és közös késleltetést már a Loxone oldalon állítsd be. |
 | `statistics` | Mentési időköz és maximális integrálási adatrés |
 | `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen), `battery_min_soc_pct` 0–90 (az akku hátralévő idejének alsó határa; 0 = alapértelmezés: normál üzemben 15%, áramszünetre készülve és szigetüzemben 5%) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
@@ -29,7 +29,7 @@ Az OTA hitelesítésnél mindkét mező legyen kitöltve vagy mindkettő üres. 
 
 ## Beállítások a webes felületen
 
-Az `/settings` oldalon minden beállítás módosítható, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, MQTT/HTTP/Loxone, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek.
+Az `/settings` oldalon a rendszerbeállítások módosíthatók, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, MQTT/HTTP/Loxone, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek. A Master és az egyes Slave-ek jelenlét szerinti nappali/éjszakai sötétítése a külön [Loxone oldalon](loxone-direct.md#mester-jelenlét-szerinti-sötétítése) található.
 
 SD nélküli Slave esetén ugyanez a felület belső NVS-be ment, legfeljebb 3072 bájtos
 JSON-ként. Ilyenkor az adatfogadási mód rögzítetten `slave`, a master kapcsoló tiltott;
@@ -64,6 +64,13 @@ FreeRTOS mellett sem rövidül a 6 óra körülbelül 125 másodpercre.
 ## Közvetlen Loxone mód
 
 `DataReceptMode: "loxone"` esetén a külön [Loxone beállító](loxone-direct.md) kezeli a Miniserver adatait és a párosításokat. Ezek az SD `loxone.json` fájljába kerülnek; nem kell Loxone szekciót létrehozni az alapkonfigurációban. [Példakonfiguráció](../examples/config.loxone.sample.json).
+
+A Master saját jelenlétprofilja ugyanitt, a `presence` objektumban tárolja a
+`blank_at_day`, `blank_at_night` kapcsolókat és az 1–86400 másodperces
+`timeout_seconds` késleltetést. Ez a jelenlét megszűnése és az utolsó érintés
+után is érvényes; az érintés legalább 15 másodpercre ébreszt. A Slave-ek
+önálló profiljai a Master belső tárában maradnak, és a védett BLE-kapcsolaton
+jutnak el az adott kijelzőhöz.
 
 A helyiség-/funkciószűrés, mértékegységek és a négy nappályamező részletei:
 [Loxone adatkapcsolat](loxone-direct.md).

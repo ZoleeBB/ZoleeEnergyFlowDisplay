@@ -363,6 +363,7 @@ static void status_refresh(int64_t now, unsigned brightness)
         .day_brightness = display_state.profile.day_brightness,
         .night_brightness = display_state.profile.night_brightness,
         .blank_at_night = display_state.profile.blank_at_night,
+        .blank_at_day = display_state.profile.blank_at_day,
         .presence_source = known && presence.source,
         .presence_fresh = known && presence.fresh,
         .presence_active = display_state.presence_active,
