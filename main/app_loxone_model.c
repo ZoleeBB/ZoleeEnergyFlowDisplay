@@ -46,6 +46,7 @@ void lx_config_defaults(lx_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     cfg->port = 80;
+    cfg->presence.blank_at_night = true;
     for (int i = 0; i < LX_FIELD_COUNT; i++)
         cfg->map[i].scale = 1;
 }
@@ -89,6 +90,36 @@ bool lx_config_parse(const cJSON *root, lx_config_t *cfg, bool require_mappings)
     cfg->tls = cJSON_IsTrue(tls);
     if (cfg->tls && !strstr(cfg->ca_pem, "-----BEGIN CERTIFICATE-----"))
         return false;
+    const cJSON *presence = cJSON_GetObjectItemCaseSensitive(root, "presence");
+    if (presence)
+    {
+        if (!cJSON_IsObject(presence))
+            return false;
+        /* A kis profil teljes és egyértelmű: elgépelés vagy ismételt kulcs
+         * ne kapcsolhassa ki észrevétlenül valamelyik napszak sötétítését. */
+        unsigned fields = 0;
+        const cJSON *item;
+        cJSON_ArrayForEach(item, presence)
+        {
+            unsigned bit = item->string && !strcmp(item->string, "blank_at_day") ? 1U :
+                           item->string && !strcmp(item->string, "blank_at_night") ? 2U :
+                           item->string && !strcmp(item->string, "timeout_seconds") ? 4U : 0U;
+            if (!bit || (fields & bit))
+                return false;
+            fields |= bit;
+        }
+        const cJSON *day = cJSON_GetObjectItemCaseSensitive(presence, "blank_at_day");
+        const cJSON *night = cJSON_GetObjectItemCaseSensitive(presence, "blank_at_night");
+        const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(presence, "timeout_seconds");
+        if (fields != 7 || !cJSON_IsBool(day) || !cJSON_IsBool(night) ||
+            !cJSON_IsNumber(timeout) || !isfinite(timeout->valuedouble) ||
+            timeout->valuedouble != floor(timeout->valuedouble) ||
+            timeout->valuedouble < 1 || timeout->valuedouble > 86400)
+            return false;
+        cfg->presence.blank_at_day = cJSON_IsTrue(day);
+        cfg->presence.blank_at_night = cJSON_IsTrue(night);
+        cfg->presence.timeout_seconds = (uint32_t)timeout->valuedouble;
+    }
     const cJSON *maps = cJSON_GetObjectItemCaseSensitive(root, "mappings");
     if (maps && !cJSON_IsObject(maps))
         return false;
@@ -164,6 +195,18 @@ cJSON *lx_config_json(const lx_config_t *cfg)
             !cJSON_AddItemToObject(maps, lx_fields[i].name, m))
         {
             cJSON_Delete(m);
+            cJSON_Delete(root);
+            return NULL;
+        }
+    }
+    if (cfg->presence.timeout_seconds)
+    {
+        cJSON *presence = cJSON_AddObjectToObject(root, "presence");
+        if (!presence ||
+            !cJSON_AddBoolToObject(presence, "blank_at_day", cfg->presence.blank_at_day) ||
+            !cJSON_AddBoolToObject(presence, "blank_at_night", cfg->presence.blank_at_night) ||
+            !cJSON_AddNumberToObject(presence, "timeout_seconds", cfg->presence.timeout_seconds))
+        {
             cJSON_Delete(root);
             return NULL;
         }

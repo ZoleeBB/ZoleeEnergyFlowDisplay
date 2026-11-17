@@ -40,6 +40,13 @@ typedef struct
 } lx_mapping_t;
 typedef struct
 {
+    /* A 0 csak régi, még nem migrált konfigurációban jelent alapértéket. */
+    uint32_t timeout_seconds;
+    bool blank_at_day;
+    bool blank_at_night;
+} lx_presence_config_t;
+typedef struct
+{
     bool energy_flow_disabled; /* Csak futási szabály, az SD-párosításokat nem módosítja. */
     char host[128];
     uint16_t port;
@@ -48,6 +55,7 @@ typedef struct
     char username[96];
     char password[LX_PASSWORD_MAX];
     lx_mapping_t map[LX_FIELD_COUNT];
+    lx_presence_config_t presence;
 } lx_config_t;
 typedef struct
 {

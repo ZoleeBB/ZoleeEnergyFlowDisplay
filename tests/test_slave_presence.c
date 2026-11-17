@@ -145,15 +145,18 @@ static void table_tests(void)
     profile = table.peers[0].profile;
     memcpy(profile.presence_uuid, UUID_B, 36);
     table.peers[0].revision = UINT32_MAX;
+    table.peers[0].inactive_since_us = SECONDS(1);
     assert(app_slave_presence_update(&table, 0, &profile, &changed) && changed);
     assert(table.peers[0].revision == 1 && !table.peers[0].counter && !table.peers[0].valid);
+    assert(!table.peers[0].inactive_since_us);
     table.peers[0].counter = UINT32_MAX;
     assert(app_slave_presence_source(&table, UUID_B, true, 1, 0));
     assert(table.peers[0].counter == 0);
     assert(app_slave_presence_remove(&table, 1));
     assert(!app_slave_presence_remove(&table, 1));
     assert(app_slave_presence_register(&table, &identities[3], "Új") == 1);
-    assert(table.peers[1].revision == 1 && !table.peers[1].profile.blank_at_night);
+    assert(table.peers[1].revision == 1 && !table.peers[1].profile.blank_at_night &&
+           !table.peers[1].profile.blank_at_day);
 }
 
 static app_slave_presence_peer_t peer_fixture(void)
@@ -224,7 +227,7 @@ static void wire_tests(void)
         if (i == 2)
             wire[2] = 2;
         if (i == 3)
-            wire[3] |= 64; /* 3-4. bit: tájolás, 5.: OTA-kérés, a 6-7. tiltott. */
+            wire[3] |= 128; /* 6.: nappali kérés, kizárólag a 7. bit tiltott. */
         if (i == 4)
             wire[3] = 4;
         if (i == 5)
@@ -282,6 +285,21 @@ static void wire_tests(void)
     assert(!(wire[3] & 1) && app_slave_presence_receive(&toggling, wire, sizeof(wire), true, SECONDS(51)));
     assert(!toggling.blank_at_night && toggling.active);
     peer.active = false;
+
+    /* Nappal/éjjel külön kérés, közös jelenlétvesztési késleltetés. A 6. bit
+     * nem profiladat: a 0. bithez hasonlóan revízióváltás nélkül változhat. */
+    peer.profile.blank_at_day = true;
+    assert(app_slave_presence_encode(&peer, 12, true, false, SECONDS(52), wire));
+    assert((wire[3] & 65) == 65);
+    assert(app_slave_presence_receive(&toggling, wire, sizeof(wire), true, SECONDS(52)));
+    assert(toggling.blank_at_day && toggling.blank_at_night);
+    peer.active = true;
+    assert(app_slave_presence_encode(&peer, 13, true, false, SECONDS(53), wire));
+    assert(!(wire[3] & 65));
+    assert(app_slave_presence_receive(&toggling, wire, sizeof(wire), true, SECONDS(53)));
+    assert(!toggling.blank_at_day && !toggling.blank_at_night);
+    peer.active = false;
+    peer.profile.blank_at_day = false;
 
     /* A tájolás a jelzőbájt 3-4. bitjén utazik, és a 0 fok bitjei nullák, így a
      * korábbi Slave is elfogadja az alapértelmezett csomagot. */
@@ -350,7 +368,9 @@ static void runtime_tests(void)
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
     app_slave_presence_peer_t *peer = &table.peers[0];
     app_slave_presence_receiver_t receiver = {0};
-    app_slave_display_profile_t own = {83, 17, false, 30, false};
+    app_slave_display_profile_t own = {.day_brightness = 83, .night_brightness = 17,
+        .blank_at_night = false, .presence_timeout_seconds = 30,
+        .blank_on_presence_loss = false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
@@ -449,7 +469,9 @@ static void replay_and_lease_tests(void)
 {
     app_slave_presence_peer_t peer = peer_fixture();
     app_slave_presence_receiver_t receiver = {0};
-    app_slave_display_profile_t own = {80, 10, false, 1, false};
+    app_slave_display_profile_t own = {.day_brightness = 80, .night_brightness = 10,
+        .blank_at_night = false, .presence_timeout_seconds = 1,
+        .blank_on_presence_loss = false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
@@ -551,7 +573,9 @@ static void actual_delta_to_display_test(void)
     profile.timeout_seconds = 5;
     memcpy(profile.presence_uuid, UUID_A, 36);
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
-    app_slave_display_profile_t own = {92, 13, false, 30, false};
+    app_slave_display_profile_t own = {.day_brightness = 92, .night_brightness = 13,
+        .blank_at_night = false, .presence_timeout_seconds = 30,
+        .blank_on_presence_loss = false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);
@@ -615,6 +639,82 @@ static void actual_delta_to_display_test(void)
     assert(app_slave_display_brightness(&display, SECONDS(34)) == 13);
 }
 
+static void day_night_runtime_tests(void)
+{
+    for (unsigned mask = 0; mask < 4; ++mask)
+    {
+        app_slave_presence_table_t table = {0};
+        app_slave_identity_t identity = {0, {1, 2, 3, 4, 5, 6}};
+        assert(app_slave_presence_register(&table, &identity, "Nappali") == 0);
+        app_slave_presence_profile_t profile = table.peers[0].profile;
+        memcpy(profile.presence_uuid, UUID_A, sizeof(profile.presence_uuid));
+        profile.timeout_seconds = 5;
+        profile.blank_at_day = (mask & 1) != 0;
+        profile.blank_at_night = (mask & 2) != 0;
+        assert(app_slave_presence_update(&table, 0, &profile, NULL));
+        app_slave_presence_receiver_t receiver = {0};
+        app_slave_display_profile_t own = {
+            .day_brightness = 80, .night_brightness = 10, .presence_timeout_seconds = 30,
+        };
+        app_slave_display_t display;
+        assert(app_slave_display_init(&display, &own, 0));
+        /* Az első tényleges 0 a Masteren indít időzítőt. */
+        assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(1)));
+        heartbeat_until(&receiver, &table.peers[0], &display, 1, 5);
+        assert(app_slave_display_brightness(&display, SECONDS(5)) == 80);
+        heartbeat_until(&receiver, &table.peers[0], &display, 6, 6);
+        assert(app_slave_display_brightness(&display, SECONDS(6)) == ((mask & 1) ? 0 : 80));
+        app_slave_display_night(&display, true, SECONDS(7));
+        assert(app_slave_display_brightness(&display, SECONDS(7)) == ((mask & 2) ? 0 : 10));
+        app_slave_display_pointer(&display, true, SECONDS(8));
+        app_slave_display_pointer(&display, false, SECONDS(9));
+        assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(10)));
+        heartbeat_until(&receiver, &table.peers[0], &display, 10, 10);
+        assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(11)));
+        heartbeat_until(&receiver, &table.peers[0], &display, 11, 23);
+        assert(app_slave_display_brightness(&display, SECONDS(23)) == 10);
+        heartbeat_until(&receiver, &table.peers[0], &display, 24, 24);
+        assert(app_slave_display_brightness(&display, SECONDS(24)) == ((mask & 2) ? 0 : 10));
+        /* Új BLE-kapcsolat nem ad újabb helyi időkeretet az érvényes 0-nak. */
+        app_slave_presence_disconnected(&receiver);
+        heartbeat_until(&receiver, &table.peers[0], &display, 25, 25);
+        assert(app_slave_display_brightness(&display, SECONDS(25)) == ((mask & 2) ? 0 : 10));
+        app_slave_display_night(&display, false, SECONDS(26));
+        assert(app_slave_display_brightness(&display, SECONDS(26)) == ((mask & 1) ? 0 : 80));
+        assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(27)));
+        for (int64_t second = 27; second <= 90; ++second)
+        {
+            heartbeat_until(&receiver, &table.peers[0], &display, second, second);
+            assert(app_slave_display_brightness(&display, SECONDS(second)) == 80);
+        }
+    }
+
+    /* Futó Slave-visszaszámlálásnál a 30 -> 5 mp mentés nem hagyhatja meg
+     * a helyi régi határidőt, amikor a Master már sötétítést kér. */
+    app_slave_presence_table_t table = {0};
+    app_slave_identity_t identity = {0, {1, 2, 3, 4, 5, 6}};
+    assert(app_slave_presence_register(&table, &identity, "Nappali") == 0);
+    app_slave_presence_profile_t profile = table.peers[0].profile;
+    memcpy(profile.presence_uuid, UUID_A, sizeof(profile.presence_uuid));
+    profile.blank_at_day = true;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    app_slave_presence_receiver_t receiver = {0};
+    app_slave_display_profile_t own = {
+        .day_brightness = 80, .night_brightness = 10, .presence_timeout_seconds = 30,
+    };
+    app_slave_display_t display;
+    assert(app_slave_display_init(&display, &own, 0));
+    assert(app_slave_presence_source(&table, UUID_A, true, 1, SECONDS(1)));
+    heartbeat_until(&receiver, &table.peers[0], &display, 1, 1);
+    assert(app_slave_presence_source(&table, UUID_A, true, 0, SECONDS(2)));
+    heartbeat_until(&receiver, &table.peers[0], &display, 2, 10);
+    assert(display.awake_until_us == SECONDS(32));
+    profile.timeout_seconds = 5;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    heartbeat_until(&receiver, &table.peers[0], &display, 11, 11);
+    assert(receiver.blank_at_day && app_slave_display_brightness(&display, SECONDS(11)) == 0);
+}
+
 int main(void)
 {
     identity_tests();
@@ -624,6 +724,7 @@ int main(void)
     runtime_tests();
     replay_and_lease_tests();
     actual_delta_to_display_test();
+    day_night_runtime_tests();
     printf("PASS: three bonded identities, strict profiles, 20-byte wire, pulse capture, "
            "replay/wrap/reconnect/lease, local brightness; table=%zu receiver=%zu bytes\n",
            sizeof(app_slave_presence_table_t), sizeof(app_slave_presence_receiver_t));

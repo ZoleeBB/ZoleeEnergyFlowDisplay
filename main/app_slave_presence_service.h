@@ -40,6 +40,7 @@ typedef struct
     bool fresh;             /* A legutóbbi minta a 15 másodperces lease-en belül. */
     bool active;
     bool blank_at_night;
+    bool blank_at_day;
     uint32_t age_seconds;   /* A legutóbbi minta kora. */
     uint32_t timeout_seconds;
 } app_slave_presence_state_t;

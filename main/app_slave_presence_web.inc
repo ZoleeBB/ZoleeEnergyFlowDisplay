@@ -43,6 +43,7 @@ static cJSON *slave_presence_json(void)
             !cJSON_AddStringToObject(item, "presence_uuid", peer->profile.presence_uuid) ||
             !cJSON_AddNumberToObject(item, "timeout_seconds", peer->profile.timeout_seconds) ||
             !cJSON_AddBoolToObject(item, "blank_at_night", peer->profile.blank_at_night) ||
+            !cJSON_AddBoolToObject(item, "blank_at_day", peer->profile.blank_at_day) ||
             !cJSON_AddNumberToObject(item, "rotation_degrees", peer->profile.rotation_degrees) ||
             !(peer->profile.day_brightness
                   ? cJSON_AddNumberToObject(item, "day_brightness", peer->profile.day_brightness)
@@ -145,7 +146,8 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     free(body);
     const char *const root_fields[] = {"schema", "revision", "id", "profile"};
     const char *const profile_fields[] = {"name", "presence_uuid", "timeout_seconds",
-                                          "blank_at_night", "rotation_degrees", "day_brightness", "night_brightness"};
+                                          "blank_at_night", "rotation_degrees", "day_brightness", "night_brightness",
+                                          "blank_at_day"};
     const cJSON *schema = cJSON_GetObjectItemCaseSensitive(root, "schema");
     const cJSON *revision = cJSON_GetObjectItemCaseSensitive(root, "revision");
     const cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
@@ -154,16 +156,19 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     const cJSON *uuid = cJSON_GetObjectItemCaseSensitive(data, "presence_uuid");
     const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(data, "timeout_seconds");
     const cJSON *blank = cJSON_GetObjectItemCaseSensitive(data, "blank_at_night");
+    const cJSON *blank_day = cJSON_GetObjectItemCaseSensitive(data, "blank_at_day");
     const cJSON *rotation = cJSON_GetObjectItemCaseSensitive(data, "rotation_degrees");
     const cJSON *day = cJSON_GetObjectItemCaseSensitive(data, "day_brightness");
     const cJSON *night = cJSON_GetObjectItemCaseSensitive(data, "night_brightness");
     app_slave_presence_profile_t profile = {0};
-    bool valid = slave_fields(root, root_fields, 4) && slave_fields(data, profile_fields, 7) &&
+    bool valid = slave_fields(root, root_fields, 4) &&
+                 slave_fields(data, profile_fields, blank_day ? 8 : 7) &&
                  slave_integer(schema, 1, 1) && slave_integer(revision, 1, UINT32_MAX) &&
                  cJSON_IsString(id) && strlen(id->valuestring) == APP_SLAVE_PRESENCE_ID_SIZE - 1 &&
                  cJSON_IsString(name) && strlen(name->valuestring) < sizeof(profile.name) &&
                  cJSON_IsString(uuid) && strlen(uuid->valuestring) < sizeof(profile.presence_uuid) &&
                  slave_integer(timeout, 1, 86400) && cJSON_IsBool(blank) &&
+                 (!blank_day || cJSON_IsBool(blank_day)) &&
                  slave_integer(rotation, 0, 270) &&
                  (uint32_t)rotation->valuedouble % 90 == 0 &&
                   (cJSON_IsNull(day) || slave_integer(day, 1, 100)) &&
@@ -174,6 +179,7 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
         memcpy(profile.presence_uuid, uuid->valuestring, strlen(uuid->valuestring));
         profile.timeout_seconds = (uint32_t)timeout->valuedouble;
         profile.blank_at_night = cJSON_IsTrue(blank);
+        profile.blank_at_day = cJSON_IsTrue(blank_day);
         profile.rotation_degrees = (uint16_t)rotation->valuedouble;
         profile.day_brightness = cJSON_IsNull(day) ? 0 : (uint8_t)day->valuedouble;
         profile.night_brightness = cJSON_IsNull(night) ? 0 : (uint8_t)night->valuedouble;
@@ -188,6 +194,10 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
             !strcmp(key, id->valuestring))
             index = (int)i;
     }
+    /* A régi kliens hétmezős profilja nem törölheti az új nappali beállítást.
+     * A snapshot és az update közötti változást továbbra is a revízió védi. */
+    if (valid && index >= 0 && !blank_day)
+        profile.blank_at_day = snapshot.table.peers[index].profile.blank_at_day;
     uint32_t expected = valid ? (uint32_t)revision->valuedouble : 0;
     cJSON_Delete(root);
     if (!valid || index < 0)

@@ -318,7 +318,7 @@ static void __attribute__((noinline)) app_boot(void)
          * A natív kapcsolat később a meglevő main vermén dolgozik. */
         if (app_loxone_audio_init() != ESP_OK)
             app_events_add(APP_EVENT_WARNING, "Az Audio előkészítése átmenetileg sikertelen; később újrapróbáljuk.");
-        if (app_loxone_start() != ESP_OK)
+        if (app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK)
             fatal_forever("Loxone inicializálási hiba", "A Loxone kliens nem indítható.");
     }
     /* Hálózat nélküli slave-hez nem foglalunk HTTP/mDNS háttérfeladatokat. */

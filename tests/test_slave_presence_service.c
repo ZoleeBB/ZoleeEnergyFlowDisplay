@@ -234,10 +234,17 @@ static void codec_tests(void)
     profile.night_brightness = 9;
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
     assert(store_encode(&table, wire));
-    assert(wire[2] == 2 && wire[4 + 134] == 65 && wire[4 + 135] == 9);
+    assert(wire[2] == 3 && wire[4 + 134] == 65 && wire[4 + 135] == 9);
     assert(store_decode(wire, sizeof(wire), &decoded));
     assert(decoded.peers[0].profile.day_brightness == 65);
     assert(decoded.peers[0].profile.night_brightness == 9);
+    profile.blank_at_day = true;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    assert(store_encode(&table, wire) && (wire[4 + 129] & 8));
+    assert(store_decode(wire, sizeof(wire), &decoded));
+    assert(decoded.peers[0].profile.blank_at_day && decoded.peers[0].profile.blank_at_night);
+    assert(!store_encode_version(&table, wire, 2));
+    assert(store_encode(&table, wire));
     app_slave_presence_table_t saved = decoded;
     for (unsigned i = 0; i < sizeof(wire); ++i)
     {
@@ -247,6 +254,16 @@ static void codec_tests(void)
         wire[i] ^= 1;
     }
     assert(!store_decode(wire, sizeof(wire) - 1, &decoded));
+    /* A régi v2 profilban a fényerő megmarad, a nappali sötétítés kikapcsolt. */
+    profile.blank_at_day = false;
+    assert(app_slave_presence_update(&table, 0, &profile, NULL));
+    assert(store_encode_version(&table, wire, 2));
+    assert(store_decode(wire, sizeof(wire), &decoded));
+    assert(!decoded.peers[0].profile.blank_at_day && decoded.peers[0].profile.blank_at_night);
+    assert(decoded.peers[0].profile.day_brightness == 65 && decoded.peers[0].profile.night_brightness == 9);
+    wire[4 + 129] |= 8;
+    store_write_u32(wire + sizeof(wire) - 4, store_crc(wire, sizeof(wire) - 4));
+    assert(!store_decode(wire, sizeof(wire), &decoded));
     /* A régi (v1, 410 B) profilt új firmware nem dobhatja el: a fényerő öröklődik. */
     profile.day_brightness = profile.night_brightness = 0;
     assert(app_slave_presence_update(&table, 0, &profile, NULL));
@@ -256,6 +273,7 @@ static void codec_tests(void)
     assert(store_decode(legacy, sizeof(legacy), &decoded));
     assert(decoded.peers[0].profile.day_brightness == 0);
     assert(decoded.peers[0].profile.night_brightness == 0);
+    assert(!decoded.peers[0].profile.blank_at_day);
     assert(!store_decode(legacy, sizeof(legacy) - 1, &decoded));
     assert(store_encode(&table, wire));
     wire[4 + 134] = 101;
@@ -303,6 +321,7 @@ int main(void)
     assert(writes == before);
     app_slave_presence_profile_t profile = snapshot.table.peers[0].profile;
     profile.blank_at_night = true;
+    profile.blank_at_day = true;
     profile.timeout_seconds = 5;
     memcpy(profile.presence_uuid, "01234567-89ab-cdef-0123456789abcdef", 36);
     uint32_t source_revision = app_slave_presence_service_source_revision();
@@ -326,7 +345,7 @@ int main(void)
     assert(receiver.counter == 1);
     /* Az 5 másodperces időkorlát letelte után igen. */
     now_us = 10000000;
-    assert(app_slave_presence_service_packet(&first, 2, packet) && packet[3] == 3);
+    assert(app_slave_presence_service_packet(&first, 2, packet) && packet[3] == 67);
     /* Néma Loxone-kapcsolat: nincs élő forrás, ezért nincs sötétítés sem. */
     now_us = 45000000;
     assert(app_slave_presence_service_packet(&first, 3, packet) && packet[3] == 0);
@@ -348,6 +367,7 @@ int main(void)
     assert(app_slave_presence_service_init(true) == ESP_OK);
     assert(app_slave_presence_service_snapshot(&snapshot));
     assert(snapshot.table.peers[0].profile.timeout_seconds == 5);
+    assert(snapshot.table.peers[0].profile.blank_at_day);
     assert(!snapshot.table.peers[0].counter && !snapshot.table.peers[0].valid);
     assert(app_slave_presence_service_init(false) == ESP_ERR_INVALID_STATE);
 
@@ -366,7 +386,9 @@ int main(void)
         .used = true, .identity = {0, {1, 2, 3, 4, 5, 6}}, .revision = 1,
         .profile = {.name = "Slave", .timeout_seconds = 5, .blank_at_night = true},
     };
-    app_slave_display_profile_t own = {83, 17, false, 30, false};
+    app_slave_display_profile_t own = {.day_brightness = 83, .night_brightness = 17,
+        .blank_at_night = false, .presence_timeout_seconds = 30,
+        .blank_on_presence_loss = false};
     app_slave_display_t display;
     assert(app_slave_display_init(&display, &own, 0));
     app_slave_display_night(&display, true, 0);

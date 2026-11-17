@@ -91,7 +91,7 @@ typedef struct
     uint8_t day_brightness;
     uint8_t night_brightness;
     uint16_t rotation_degrees; /* Csak 270 (jobb) vagy 90 (bal) */
-    /* Master jelenlétvezérlésnél ennyi ideig marad ébren egy érintés után. */
+    /* Régi konfigurációk alapértéke; az új közös idő a Loxone jelenlétprofilban él. */
     uint16_t touch_wake_seconds;
 } app_display_config_t;
 

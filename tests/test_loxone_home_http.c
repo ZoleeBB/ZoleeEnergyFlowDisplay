@@ -190,6 +190,7 @@ static void slave_tests(void)
     cJSON *first_profile = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(json,"profiles"), 0);
     assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(first_profile,"day_brightness")));
     assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(first_profile,"night_brightness")));
+    assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(first_profile,"blank_at_day")));
     assert(!strstr(response,"\"video_password\"") && !strstr(response,"\"password\"") && !strstr(response,"counter") && !strstr(response,"address"));
     cJSON_Delete(json);
     authorized = false;
@@ -261,6 +262,40 @@ static void slave_tests(void)
     assert(strstr(response, "\"day_brightness\":70") && strstr(response, "\"night_brightness\":null"));
     assert(!strcmp(slave_state.table.peers[1].profile.name,"Slave"));
     assert(slave_state.saved_revision == 123); /* A HTTP nem ígér NVS-commitot. */
+    /* Az új nappali kapcsoló szigorúan logikai érték, a régi hétmezős kliens
+     * pedig nem törölheti a korábban bekapcsolt nappali sötétítést. */
+    json = cJSON_Parse(body);
+    cJSON *new_profile = cJSON_GetObjectItemCaseSensitive(json, "profile");
+    cJSON_ReplaceItemInObjectCaseSensitive(json, "revision", cJSON_CreateNumber(21));
+    slave_state.revision = 21;
+    cJSON_AddBoolToObject(new_profile, "blank_at_day", true);
+    char *request_body = cJSON_PrintUnformatted(json);
+    slave_post(request_body);
+    assert(status_code == 202 && slave_state.table.peers[0].profile.blank_at_day);
+    free(request_body);
+    slave_get();
+    assert(status_code == 200 && strstr(response, "\"blank_at_day\":true"));
+    cJSON_ReplaceItemInObjectCaseSensitive(json, "revision", cJSON_CreateNumber(slave_state.revision));
+    cJSON_ReplaceItemInObjectCaseSensitive(new_profile, "blank_at_day", cJSON_CreateNumber(1));
+    request_body = cJSON_PrintUnformatted(json);
+    slave_post(request_body); assert(status_code == 400 && slave_state.table.peers[0].profile.blank_at_day);
+    free(request_body);
+    cJSON_ReplaceItemInObjectCaseSensitive(new_profile, "blank_at_day", cJSON_CreateBool(false));
+    cJSON_AddBoolToObject(new_profile, "blank_at_day", true);
+    request_body = cJSON_PrintUnformatted(json);
+    slave_post(request_body); assert(status_code == 400 && slave_state.table.peers[0].profile.blank_at_day);
+    free(request_body);
+    cJSON_DeleteItemFromObjectCaseSensitive(new_profile, "blank_at_day");
+    cJSON_DeleteItemFromObjectCaseSensitive(new_profile, "blank_at_day");
+    request_body = cJSON_PrintUnformatted(json);
+    slave_post(request_body); assert(status_code == 202 && slave_state.table.peers[0].profile.blank_at_day);
+    free(request_body);
+    cJSON_ReplaceItemInObjectCaseSensitive(json, "revision", cJSON_CreateNumber(slave_state.revision));
+    cJSON_AddBoolToObject(new_profile, "blank_at_day", false);
+    request_body = cJSON_PrintUnformatted(json);
+    slave_post(request_body); assert(status_code == 202 && !slave_state.table.peers[0].profile.blank_at_day);
+    free(request_body);
+    cJSON_Delete(json);
     /* Minden cJSON-allokáció hibája tiszta 500-as válasz legyen. */
     cJSON_Hooks hooks = {.malloc_fn=fail_malloc, .free_fn=free};
     cJSON_InitHooks(&hooks);

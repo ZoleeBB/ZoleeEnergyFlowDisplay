@@ -27,11 +27,24 @@ static void write_file(cJSON *o){char *body=cJSON_PrintUnformatted(o);assert(bod
 int main(void)
 {
     lx_config_t cfg,out;lx_config_defaults(&cfg);strcpy(cfg.host,"192.168.2.10");strcpy(cfg.username,"kijelzo");strcpy(cfg.password,"Secret-Test-Password");
+    cfg.presence = (lx_presence_config_t){.blank_at_day = true, .blank_at_night = false,
+                                         .timeout_seconds = 86400};
     strcpy(cfg.map[0].uuid,"11223344-5566-7788-99aabbccddeeff00");
     for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++){strcpy(cfg.map[i].uuid,"11223344-5566-7788-99aabbccddeeff00");cfg.map[i].scale=0.5;cfg.map[i].offset=i;}
     assert(app_loxone_store_save(&cfg)==ESP_OK);assert(have_key);
     cJSON *first=read_file();char *serialized=cJSON_PrintUnformatted(first);assert(!strstr(serialized,cfg.password));free(serialized);
     assert(app_loxone_store_load(&out)==ESP_OK&&strcmp(out.password,cfg.password)==0);
+    assert(out.presence.blank_at_day && !out.presence.blank_at_night &&
+           out.presence.timeout_seconds == 86400);
+    /* Korábbi mentésben még nincs jelenlétprofil: az új mezők nem tehetik
+     * olvashatatlanná a párosításokat és a titkosított jelszót. */
+    cJSON *legacy = cJSON_Duplicate(first, true);
+    cJSON_DeleteItemFromObjectCaseSensitive(legacy, "presence");
+    write_file(legacy);
+    assert(app_loxone_store_load(&out) == ESP_OK && !strcmp(out.password, cfg.password));
+    assert(!out.presence.blank_at_day && out.presence.blank_at_night && !out.presence.timeout_seconds);
+    cJSON_Delete(legacy);
+    write_file(first);
     for(int i=LX_SUN_FIRST;i<LX_FIELD_COUNT;i++){assert(strcmp(out.map[i].uuid,cfg.map[i].uuid)==0);assert(out.map[i].scale==0.5&&out.map[i].offset==i);}
     assert(app_loxone_store_save(&cfg)==ESP_OK);cJSON *second=read_file();
     assert(strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(first,"secret"),"nonce")->valuestring,
@@ -46,8 +59,13 @@ int main(void)
     assert(app_loxone_store_load(&out)==ESP_OK&&!out.password[0]);cJSON_Delete(first);cJSON_Delete(second);
     assert(app_loxone_store_save(&cfg)==ESP_OK);
     lx_config_t next=cfg;strcpy(next.password,"replacement-secret");
+    next.presence.blank_at_day = false;
+    next.presence.blank_at_night = true;
+    next.presence.timeout_seconds = 5;
     renames=0;rename_fail=2;assert(app_loxone_store_save(&next)!=ESP_OK);rename_fail=0;
     assert(app_loxone_store_load(&out)==ESP_OK&&strcmp(out.password,cfg.password)==0);
+    assert(out.presence.blank_at_day && !out.presence.blank_at_night &&
+           out.presence.timeout_seconds == 86400);
     fsync_fail=1;assert(app_loxone_store_save(&next)!=ESP_OK);fsync_fail=0;
     assert(app_loxone_store_load(&out)==ESP_OK&&strcmp(out.password,cfg.password)==0);
     assert(rename(APP_SD_MOUNT_POINT "/loxone.json",APP_SD_MOUNT_POINT "/loxone.json.bak")==0);

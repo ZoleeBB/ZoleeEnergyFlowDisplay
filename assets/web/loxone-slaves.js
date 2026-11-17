@@ -4,14 +4,16 @@ const LoxoneSlaves = (() => {
     'use strict';
     const get = id => document.getElementById(id);
     const rows = new Map();
-    const keys = ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_night',
+    const keys = ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_day', 'blank_at_night',
         'rotation_degrees', 'day_brightness', 'night_brightness'];
     const rotations = [['0', 'Álló (0°)'], ['90', 'Elforgatva 90°-kal'],
         ['180', 'Fejjel lefelé (180°)'], ['270', 'Elforgatva 270°-kal']];
     const brightnessKeys = ['day_brightness', 'night_brightness'];
     const profile = value => Object.fromEntries(keys.map(key => [key,
+        key === 'blank_at_day' ? (value[key] ?? false) :
         brightnessKeys.includes(key) && value[key] == null ? null : value[key]]));
-    const same = (a, b) => keys.every(key => a[key] === b[key]);
+    const same = (a, b) => keys.every(key => key === 'blank_at_day' ?
+        (a[key] ?? false) === (b[key] ?? false) : a[key] === b[key]);
     let catalog = [], catalogKey = '', state = null, fetching = null;
     let online = false, writing = null, otherBusy = false;
 
@@ -77,7 +79,7 @@ const LoxoneSlaves = (() => {
         row.pending = null;
         for (const key of keys) {
             const input = row.inputs[key];
-            if (key === 'blank_at_night') input.checked = value[key];
+            if (key === 'blank_at_day' || key === 'blank_at_night') input.checked = !!row.draft[key];
             else input.value = value[key] == null ? '' : String(value[key]);
         }
         row.legend.textContent = value.name;
@@ -93,7 +95,8 @@ const LoxoneSlaves = (() => {
         grid.className = 'grid';
         for (const [key, title, type] of [['name', 'Eszköz neve', 'text'],
             ['presence_uuid', 'Loxone jelenlétállapot', 'select'],
-            ['timeout_seconds', 'Ébrenlét az utolsó jel / érintés után (másodperc)', 'number'],
+            ['timeout_seconds', 'Sötétítési késleltetés (másodperc)', 'number'],
+            ['blank_at_day', 'Sötétítés nappal, ha nincs jelenlét', 'checkbox'],
             ['blank_at_night', 'Sötétítés éjszaka, ha nincs jelenlét', 'checkbox'],
             ['rotation_degrees', 'Kijelző elforgatása (a Slave újraindul)', 'rotation'],
             ['day_brightness', 'Nappali fényerő (%)', 'brightness'],
@@ -216,7 +219,7 @@ const LoxoneSlaves = (() => {
                 (code >= 127 && code <= 159) || (code >= 0xd800 && code <= 0xdfff); }))
             return 'Adj meg olvasható, legfeljebb 80 bájtos nevet (az ékezetes betűk több helyet foglalnak).';
         if (!Number.isInteger(value.timeout_seconds) || value.timeout_seconds < 1 || value.timeout_seconds > 86400)
-            return 'Az ébrenlét 1 és 86400 közötti egész másodperc legyen.';
+            return 'A sötétítési késleltetés 1 és 86400 közötti egész másodperc legyen.';
         if (value.presence_uuid && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/.test(value.presence_uuid))
             return 'Válassz érvényes Loxone jelenlétállapotot.';
         if (![0, 90, 180, 270].includes(value.rotation_degrees))

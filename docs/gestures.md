@@ -32,14 +32,22 @@ Néhány nézet nem lapozható:
 
 ### Sötét kijelző felébresztése
 
-- **Slave éjszakai sötétítéssel:** az első érintés csak felébreszti a kijelzőt,
-  nem kattint és nem lapoz. A következő érintés már a szokásos módon működik.
+- **Slave jelenlét szerinti sötétítéssel:** a Master Loxone oldalán külön
+  engedélyezhető nappalra és éjszakára. Az első érintés csak felébreszti a
+  kijelzőt a napszak fényerejére, nem kattint és nem lapoz. A következő
+  érintés már a szokásos módon működik.
 - **Master jelenlétvezérléssel** (Loxone mód, ha a *Jelenlét* adat párosítva van):
-  éjszaka, amikor a jelenlét 0 / false, a kijelző teljesen elsötétül. Érintésre a beállított
-  éjszakai fényerőre világosodik. Az ébresztő érintés itt sem kattint. A kijelző a
-  *Kijelző → Ébrenlét érintés után* ideig marad világos, utána újra elsötétül.
-  Ha a jelenlét 1 / true értékre vált, a kijelző azonnal az éjszakai fényerőre világosodik.
-  Ha nincs párosított jelenlét-adat, minden a korábbiak szerint működik.
+  a *Mester jelenlét szerinti sötétítése* szakasz nappali/éjszakai pipái adják
+  meg, mikor sötétíthet. A jelenlét megszűnése után a beállított késleltetéssel
+  sötétül el; új jelenlét azonnal a napszak fényerejére ébreszti.
+  Az ébresztő érintés itt sem kattint. Ha nincs párosított jelenlétadat, nincs
+  jelenlét szerinti sötétítés.
+
+Mindkét eszközön ugyanaz a másodpercérték szabályozza a jelenlét megszűnése és
+az utolsó érintés utáni várakozást. Minden új érintés újraindítja ezt az időt;
+érintés után legalább 15 másodpercig világít a kijelző. A nappal/éjszaka
+váltás a még le nem járt időzítőt megtartja. Részletek:
+[jelenlétbeállítások](loxone-direct.md#mester-jelenlét-szerinti-sötétítése).
 
 ### Kaputelefon
 

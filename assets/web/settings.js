@@ -14,7 +14,7 @@ const definitions=[
 ['mqtt.broker','Broker cím'],['mqtt.port','Port','integer'],['mqtt.topic','Topic'],['mqtt.username','Felhasználónév'],
 ['mqtt.password','MQTT jelszó','secret'],['mqtt.data_timeout_seconds','Adat időtúllépés (másodperc)','integer'],['mqtt.reconnect_seconds','Újracsatlakozás (másodperc)','integer']]],
 ['HTTP adatfogadás', [['http.data_timeout_seconds','Adat időtúllépés (másodperc)','integer']]],
-['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation'],['display.touch_wake_seconds','Ébrenlét érintés után (mp, Loxone jelenlétvezérlésnél)','integer']]],
+['Kijelző', [['display.day_brightness','Nappali fényerő (%)','integer'],['display.night_brightness','Éjszakai fényerő (%)','integer'],['display.rotation_degrees','Kijelző tájolása','rotation']]],
 ['Statisztika', [['statistics.save_interval_minutes','Mentési időköz (perc, maximum 15)','integer'],['statistics.max_integration_gap_seconds','Maximális mintaköz (másodperc)','integer']]],
 ['Energia és költség',[
 ['energy.battery_capacity_kwh','Akkumulátor maximális kapacitása (kWh, 0 = ismeretlen)','number'],['energy.battery_min_soc_pct','Akku alsó SOC-határa a hátralévő időhöz (%, 0 = alapértelmezés: 15%, szigetüzemben 5%)','number'],['energy.electricity_purchase_price','Vételi ár','number'],['energy.feed_in_price','Visszatáplálási ár','number'],
@@ -47,6 +47,10 @@ for(const [title,fields] of definitions){
   grid.append(label);
  }
  section.append(h,grid);holder.append(section);
+ if(fields[0][0]==='display.day_brightness'){
+  const hint=document.createElement('p'),link=document.createElement('a');hint.id='presence-settings-hint';hint.className='hint';
+  link.href='/loxone#master-presence';link.textContent='Jelenlét szerinti sötétítés és ébresztési idő';hint.append(link);section.append(hint);
+ }
  if(fields[0][0]==='ota.auto_update'){
   const hint=document.createElement('p');hint.className='hint';
   hint.textContent='Napváltáskor ellenőrzi a ZoleeBB/ZoleeEnergyFlowDisplay legújabb stabil GitHub-release-ét. Újabb verzió esetén mentés után automatikusan frissít és újraindul. Internetelérés és Wi-Fi szükséges, Slave módban is. A sablonokat nem írja felül. Alapból kikapcsolva.';
@@ -73,6 +77,7 @@ function updateVisibility(){
  sections.get('http.data_timeout_seconds').hidden=mode!=='http';
  sections.get('time.ntp_server').hidden=slave;
  byPath('slave-wifi-hint').hidden=!slave;
+ byPath('presence-settings-hint').hidden=mode!=='loxone';
  const seed=byPath('DataSeedEnabled');seed.disabled=slave;if(slave)seed.checked=false;
  byPath('DataSeedPin').parentElement.hidden=!seed.checked;
  byPath('ble-pairing-open').hidden=!seed.checked;
