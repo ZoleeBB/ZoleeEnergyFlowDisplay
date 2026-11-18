@@ -26,9 +26,9 @@ static int fixture_rename(const char *from, const char *to);
 #undef rename
 
 static app_data_mode_t mode;
-static bool setup;
+static bool setup, retry_loxone;
 static int wifi_starts, wifi_waits, ntp_attempts, web_starts, mqtt_starts;
-static int audio_starts, loxone_starts, intercom_preparations, inverter_ticks, ingest_starts;
+static int audio_starts, audio_runs, loxone_starts, intercom_preparations, inverter_ticks, ingest_starts;
 static bool runtime_started, ble_started, ble_profile_applied, setup_waiting_for_time, setup_web;
 static app_boot_stage_t last_stage;
 static int64_t elapsed_ms, runtime_start_ms;
@@ -140,7 +140,8 @@ esp_err_t app_web_start(const app_config_t *cfg)
 {
     assert(cfg->data_recept_mode == mode && runtime().time_synced);
     /* Hibás első szerverindítás: a kezelőfelület mérés nélkül is újrapróbálja. */
-    return ++web_starts == 1 ? ESP_FAIL : ESP_OK;
+    ++web_starts;
+    return !retry_loxone && web_starts == 1 ? ESP_FAIL : ESP_OK;
 }
 
 esp_err_t app_mqtt_start(const app_config_t *cfg)
@@ -161,10 +162,18 @@ esp_err_t app_loxone_start(uint32_t wake_time)
     (void)wake_time;
     assert(mode == APP_DATA_LOXONE && !setup);
     ++loxone_starts;
-    return ESP_OK;
+    if (loxone_starts == 2) assert(elapsed_ms - runtime_start_ms >= 10000);
+    return retry_loxone && loxone_starts == 1 ? ESP_FAIL : ESP_OK;
 }
 
 esp_err_t app_loxone_audio_init(void) { ++audio_starts; return ESP_OK; }
+void app_loxone_audio_run(void)
+{
+    /* A natív hangszolgáltatás a visszatérésig lefoglalja az app_main vermét:
+     * a Miniserver kliens sikeres elindítása előtt nem kaphat vezérlést. */
+    assert(mode == APP_DATA_LOXONE && loxone_starts == (retry_loxone ? 2 : 1));
+    ++audio_runs;
+}
 esp_err_t app_intercom_prepare_video(void) { ++intercom_preparations; return ESP_OK; }
 void app_inverter_tick(void) { assert(mode == APP_DATA_INVERTER); ++inverter_ticks; }
 esp_err_t app_ble_seed_start(const app_config_t *cfg)
@@ -197,6 +206,10 @@ int main(int argc, char **argv)
     if (!strcmp(argv[1], "mqtt")) mode = APP_DATA_MQTT;
     else if (!strcmp(argv[1], "http")) mode = APP_DATA_HTTP;
     else if (!strcmp(argv[1], "loxone")) mode = APP_DATA_LOXONE;
+    else if (!strcmp(argv[1], "loxone-retry")) {
+        mode = APP_DATA_LOXONE;
+        retry_loxone = true;
+    }
     else if (!strcmp(argv[1], "inverter")) mode = APP_DATA_INVERTER;
     else if (!strcmp(argv[1], "slave")) mode = APP_DATA_SLAVE;
     else { assert(!strcmp(argv[1], "setup")); setup = true; mode = APP_DATA_MQTT; }
@@ -207,11 +220,17 @@ int main(int argc, char **argv)
     assert(setup_web == setup);
     assert(runtime_started == !setup && ble_started == !setup);
     assert(ble_profile_applied == (mode == APP_DATA_SLAVE));
-    assert(web_starts == (mode == APP_DATA_SLAVE ? 0 : 2));
+    if (mode == APP_DATA_SLAVE) assert(web_starts == 0);
+    else assert(web_starts == (retry_loxone ? 1 : 2));
     assert(mqtt_starts == (mode == APP_DATA_MQTT && !setup ? 2 : 0));
     assert((inverter_ticks > 0) == (mode == APP_DATA_INVERTER));
-    assert(loxone_starts == (mode == APP_DATA_LOXONE) && audio_starts == loxone_starts);
-    assert(intercom_preparations == loxone_starts && ingest_starts == !setup);
+    if (mode == APP_DATA_LOXONE) {
+        assert(loxone_starts == (retry_loxone ? 2 : 1));
+        assert(audio_starts == 1 && audio_runs > 0 && intercom_preparations == 1);
+    } else {
+        assert(loxone_starts == 0 && audio_starts == 0 && audio_runs == 0 && intercom_preparations == 0);
+    }
+    assert(ingest_starts == !setup);
     printf("10.1 startup: %s OK\n", argv[1]);
     return 0;
 }
@@ -259,7 +278,6 @@ void app_ui_set_config(const app_config_t *cfg) { assert(cfg->data_recept_mode =
 void app_events_init(void) {}
 void app_ota_report_boot_state(void) {}
 void app_ble_profile_boot_complete(void) {}
-void app_loxone_audio_run(void) {}
 void app_boot_config_use_trusted_backup(void) {}
 void app_storage_set_cardless(void) {}
 #define OK_SERVICE(name) esp_err_t name(void) { return ESP_OK; }

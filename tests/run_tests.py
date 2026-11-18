@@ -314,7 +314,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-master-boot-') as directory:
         '-Itests/loxone_stubs', '-Itests/discovery_stubs', '-Imain',
         'tests/test_master_startup.c', 'main/app_state.c', '-pthread', '-o', binary,
     ], cwd=ROOT, check=True)
-    for scenario in ('mqtt', 'http', 'loxone', 'inverter', 'slave', 'setup'):
+    for scenario in ('mqtt', 'http', 'loxone', 'loxone-retry', 'inverter', 'slave', 'setup'):
         subprocess.run([binary, scenario], check=True, timeout=10)
 
 # Generated full/partial five-minute energy histories, built as real C code.

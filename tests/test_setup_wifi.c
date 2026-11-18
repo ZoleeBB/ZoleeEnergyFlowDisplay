@@ -82,7 +82,12 @@ esp_err_t esp_wifi_scan_get_ap_record(wifi_ap_record_t *ap)
 }
 esp_err_t esp_wifi_clear_ap_list(void) { clears++; return ESP_OK; }
 EventGroupHandle_t xEventGroupCreate(void) { return &bits; }
-EventBits_t xEventGroupSetBits(EventGroupHandle_t g, EventBits_t value) { return *g |= value; }
+EventBits_t xEventGroupSetBits(EventGroupHandle_t g, EventBits_t value)
+{
+    /* Az IP-re váró boot-feladat a másik magon azonnal elindulhat. */
+    assert(online);
+    return *g |= value;
+}
 EventBits_t xEventGroupClearBits(EventGroupHandle_t g, EventBits_t value) { return *g &= ~value; }
 EventBits_t xEventGroupGetBits(EventGroupHandle_t g) { return *g; }
 EventBits_t xEventGroupWaitBits(EventGroupHandle_t g, EventBits_t mask, int clear, int all, unsigned timeout)
