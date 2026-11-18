@@ -25,6 +25,7 @@ static const app_inverter_profile_t profiles[] = {
     {"deye_v5", INV_MODBUS, 5}, {"deye_modbus", INV_MODBUS, 5},
     {"deye_rtu", INV_MODBUS, 5}, {"deye_lse3", INV_MODBUS, 5},
     {"solplanet_modbus", INV_MODBUS, 5},
+    {"sofar_modbus", INV_MODBUS, 5}, {"sofar_v5", INV_MODBUS, 5},
     {"fronius_http", INV_HTTP, 5}, {"solax_http", INV_HTTP, 5},
     {"solplanet_http", INV_HTTP, 5}, {"solplanet_https", INV_HTTP, 5},
     {"fronius_cloud", INV_HTTP, 300}, {"huawei_cloud", INV_HTTP, 3600},
@@ -270,7 +271,7 @@ static bool credentials_ready(const app_inverter_config_t *c)
 {
     if (!strcmp(c->profile,"victron_mqtt"))
         return strlen(c->device)==12 && strspn(c->device,"0123456789abcdefABCDEF")==12;
-    if (!strcmp(c->profile,"deye_v5")) return c->device[0];
+    if (!strcmp(c->profile,"deye_v5") || !strcmp(c->profile,"sofar_v5")) return c->device[0];
     if (!strcmp(c->profile,"solplanet_http") || !strcmp(c->profile,"solplanet_https")) return c->device[0];
     if (!strcmp(c->profile,"huawei_cloud")) return c->device[0] && c->user[0] && c->secret[0];
     if (!strcmp(c->profile,"fronius_cloud")) return c->device[0] && c->key[0] && c->secret[0];
