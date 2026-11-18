@@ -2801,6 +2801,93 @@ static void test_master_presence(app_config_t *config, app_energy_sample_t sampl
     puts("PASS: actual Master presence UI/PWM: first-0 and loss delay, day/night flags, touch, mode switch, source reset, reconnect and visible error screens");
 }
 
+static void test_inverter_connection_views(app_config_t *cfg, const app_energy_sample_t *sample)
+{
+    cfg->data_recept_mode = APP_DATA_INVERTER;
+    strcpy(cfg->project.language, "hu");
+    app_ui_set_config(cfg);
+    app_runtime_state_t rt = {.data_recept_mode = APP_DATA_INVERTER, .wifi_connected = true,
+                              .time_synced = true, .inverter_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS};
+    const int64_t measured = 100000000;
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_INVERTER_SETUP);
+    assert(strstr(lv_label_get_text(lv_obj_get_child(s_screen, 3)), "/inverter"));
+
+    rt.inverter_ready = true;
+    rt.inverter_read_failed = true;
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_INVERTER_WAIT);
+    assert(strstr(lv_label_get_text(s_error_title), "első"));
+    rt.has_valid_sample = true;
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = measured;
+    render_runtime(rt, *sample, true, measured);
+    assert(s_view == VIEW_DASHBOARD);
+
+    rt.inverter_read_failed = true;
+    render_runtime(rt, *sample, true, measured + 9999999);
+    assert(s_view == VIEW_DASHBOARD);
+    render_runtime(rt, *sample, true, measured + 10000000);
+    assert(s_view == VIEW_INVERTER_LOST);
+    assert(!strcmp(lv_label_get_text(s_error_title), "Megszakadt az inverterkapcsolat"));
+    assert(strstr(lv_label_get_text(s_error_detail), "háttérben keresi"));
+    save_frame("inverter-connection-lost-hu");
+    lv_obj_t *heading = s_error_title;
+    render_runtime(rt, *sample, true, measured + 15000000);
+    assert(s_error_title == heading);
+    rt.wifi_connected = false;
+    render_runtime(rt, *sample, true, measured + 16000000);
+    assert(s_view == VIEW_WIFI_ERROR);
+    rt.wifi_connected = true;
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = measured + 20000000;
+    render_runtime(rt, *sample, true, rt.last_valid_packet_monotonic_us);
+    assert(s_view == VIEW_DASHBOARD);
+
+    rt.inverter_timeout_seconds = app_cloud_sample_timeout(3600);
+    rt.inverter_read_failed = true;
+    int64_t deadline = rt.last_valid_packet_monotonic_us +
+                       (int64_t)rt.inverter_timeout_seconds * 1000000;
+    render_runtime(rt, *sample, true, deadline - 1);
+    assert(s_view == VIEW_DASHBOARD);
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "felhőből"));
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = deadline;
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_DASHBOARD);
+    deadline += (int64_t)rt.inverter_timeout_seconds * 1000000;
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_INVERTER_STALE);
+
+    cfg->data_recept_mode = APP_DATA_SLAVE;
+    strcpy(cfg->project.language, "en");
+    app_ui_set_config(cfg);
+    rt = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .slave_connected = true,
+        .time_synced = true, .slave_source_stale = true, .slave_inverter_searching = true,
+        .slave_packet_monotonic_us = measured, .slave_source_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS};
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_SLAVE_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "Master"));
+    assert(lv_obj_get_child_count(s_screen) == 3); /* The Slave does not host the inverter settings. */
+    rt.slave_source_timeout_seconds = app_cloud_sample_timeout(300);
+    render_runtime(rt, *sample, false, measured + 5000000);
+    assert(s_view == VIEW_SLAVE_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "cloud"));
+    render_runtime(rt, *sample, false, measured + 15000000);
+    assert(s_view == VIEW_DATA_TIMEOUT);
+    rt.slave_connected = false;
+    render_runtime(rt, *sample, false, measured + 15000001);
+    assert(!strcmp(lv_label_get_text(s_error_title), "Searching for master"));
+    rt.slave_connected = true;
+    rt.slave_packet_monotonic_us = measured + 20000000;
+    rt.slave_source_stale = false;
+    rt.slave_inverter_searching = false;
+    rt.has_valid_sample = true;
+    rt.last_valid_packet_monotonic_us = rt.slave_packet_monotonic_us;
+    render_runtime(rt, *sample, true, rt.slave_packet_monotonic_us);
+    assert(s_view == VIEW_DASHBOARD);
+    puts("PASS: inverter setup, first reading, local grace, cloud stale/outage, Slave outage vs BLE loss, automatic recovery");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -2997,6 +3084,7 @@ int main(void)
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     build_dashboard(true);s_last_night=true;update(&sample,&fixture);save_frame("en-night");
     error_screen(VIEW_WIFI_ERROR,"No Wi-Fi connection","Waiting for connection to recover...",false);save_frame("en-wifi-error");
+    test_inverter_connection_views(&config, &sample);
     snprintf(config.project.language,sizeof(config.project.language),"hu");
     sample.night_mode=false;
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;

@@ -12,6 +12,7 @@
 #include "app_setup_ui.h"
 #endif
 #include "app_ble_seed.h"
+#include "app_wifi.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "app_ble_profile.h"
 #include "app_inverter.h"
@@ -117,7 +118,7 @@ static lv_obj_t *s_chart1, *s_chart2;
 static lv_obj_t *s_chart1_y_top, *s_chart1_y_mid, *s_chart1_y_bottom;
 static lv_obj_t *s_chart2_y_top, *s_chart2_y_mid, *s_chart2_y_bottom;
 
-static lv_obj_t *s_error_pulse;
+static lv_obj_t *s_error_pulse, *s_error_title, *s_error_detail;
 static int s_brightness = 50, s_target = 50;
 static app_slave_display_t s_slave_display;
 /* Loxone kijelzővezérlő jelek (jelenlét, postaláda) pillanatképe; a runtime
@@ -195,6 +196,10 @@ typedef enum
     VIEW_LOXONE_ERROR,
     VIEW_WAIT_DATA,
     VIEW_INVERTER_SETUP,
+    VIEW_INVERTER_WAIT,
+    VIEW_INVERTER_STALE,
+    VIEW_INVERTER_LOST,
+    VIEW_SLAVE_INVERTER_LOST,
     VIEW_DATA_TIMEOUT,
     VIEW_FATAL
 } runtime_view_t;
@@ -460,7 +465,7 @@ static void clear(void)
     memset(s_pair_digits, 0, sizeof(s_pair_digits));
     s_dash = NULL;
     s_dash_created = false;
-    s_error_pulse = NULL;
+    s_error_pulse = s_error_title = s_error_detail = NULL;
     s_view = VIEW_NONE;
 }
 
@@ -1908,16 +1913,17 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
 
         asset_image_box(s_error_pulse, 14, 14, 104, 92, error_asset, false);
 
-        lv_obj_t *title_label = lbl(s_screen, title, 0, 326, APP_FONT_28, fatal ? RED : TEXT_DARK);
-        lv_obj_set_width(title_label, W);
-        lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
+        s_error_title = lbl(s_screen, title, 0, 326, APP_FONT_28, fatal ? RED : TEXT_DARK);
+        lv_obj_set_width(s_error_title, W);
+        lv_obj_set_style_text_align(s_error_title, LV_TEXT_ALIGN_CENTER, 0);
 
-        lv_obj_t *detail_label =
-            lbl(s_screen, detail ? detail : "", 0, 386, APP_FONT_18, MUTED_DARK);
-        lv_obj_set_width(detail_label, W);
-        lv_obj_set_style_text_align(detail_label, LV_TEXT_ALIGN_CENTER, 0);
-
+        s_error_detail = lbl(s_screen, detail ? detail : "", 0, 386, APP_FONT_18, MUTED_DARK);
+        lv_obj_set_width(s_error_detail, W);
+        lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
         s_view = view;
+    } else {
+        label_text_if_changed(s_error_title, title);
+        label_text_if_changed(s_error_detail, detail ? detail : "");
     }
 }
 
@@ -2240,7 +2246,7 @@ static void busy_screen(void)
                             "The display returns on its own when it finishes."),
                          0, H / 2 + 10, APP_FONT_20, 0x9DB0BE);
     lv_obj_set_width(hint, W);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
     s_view = VIEW_BUSY;
     s_busy_refreshes = 0;
 }
@@ -2262,6 +2268,89 @@ static void energy_disabled_screen(void)
     lv_obj_align(credit, LV_ALIGN_BOTTOM_RIGHT, -20, -16);
     s_view = VIEW_ENERGY_DISABLED;
 }
+static runtime_view_t inverter_status_view(const app_runtime_state_t *rt, bool have, int64_t now)
+{
+    if (rt->data_recept_mode == APP_DATA_SLAVE && app_state_slave_inverter_search(rt, now))
+        return VIEW_SLAVE_INVERTER_LOST;
+    if (rt->data_recept_mode != APP_DATA_INVERTER || !rt->wifi_connected)
+        return VIEW_NONE;
+    if (!rt->inverter_ready) return VIEW_INVERTER_SETUP;
+    if (!have || !rt->has_valid_sample) return VIEW_INVERTER_WAIT;
+    if (app_state_inverter_searching(rt, now)) return VIEW_INVERTER_LOST;
+    if (app_state_data_timed_out(rt, now, app_config_data_timeout(&s_cfg))) return VIEW_INVERTER_STALE;
+    return VIEW_NONE;
+}
+
+/* A webfelület címe a kijelzőé. A Slave-en a Master végzi az újracsatlakozást. */
+static void inverter_status_screen(runtime_view_t view, const app_runtime_state_t *rt)
+{
+    bool slave = view == VIEW_SLAVE_INVERTER_LOST;
+    bool cloud = (slave ? rt->slave_source_timeout_seconds : rt->inverter_timeout_seconds) >
+                 APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
+    const char *title;
+    const char *detail;
+    switch (view) {
+        case VIEW_INVERTER_SETUP:
+            title = tr("Inverter beállítása szükséges", "Inverter setup required");
+            detail = tr("Nyisd meg az Inverter beállítások fület a webes felületen.",
+                        "Open Inverter settings in the web interface.");
+            break;
+        case VIEW_INVERTER_WAIT:
+            title = tr("Várakozás az első invertermérésre", "Waiting for the first inverter reading");
+            detail = tr("A beállításokat és a lekérdezés állapotát a webes felületen láthatod.",
+                        "Check the settings and request status in the web interface.");
+            break;
+        case VIEW_INVERTER_STALE:
+            title = tr("Nincs friss invertermérés", "No fresh inverter reading");
+            detail = tr("A kijelző a következő friss mérésre vár.", "Waiting for a new reading.");
+            break;
+        case VIEW_SLAVE_INVERTER_LOST:
+            title = tr("Megszakadt az inverterkapcsolat", "Inverter connection lost");
+            detail = cloud ? tr("A Master újra megpróbálja lekérni a felhőből a mérést.",
+                                "The Master is retrying the cloud service.")
+                           : tr("A Master a háttérben keresi az invertert.",
+                                "The Master is looking for the inverter in the background.");
+            break;
+        default:
+            title = tr("Megszakadt az inverterkapcsolat", "Inverter connection lost");
+            detail = cloud ? tr("A kijelző a beállított időközönként újra lekéri a felhőből a mérést.",
+                                "The display retries the cloud service at the provider's polling interval.")
+                           : tr("A kijelző a háttérben keresi az invertert, és automatikusan újracsatlakozik.",
+                                "The display is looking for the inverter in the background and will reconnect automatically.");
+            break;
+    }
+    if (s_view != view) {
+        clear();
+        screen_style(s_screen, true);
+        bool lost = view == VIEW_INVERTER_LOST || slave;
+        asset_image_box(s_screen, (W - 130) / 2, 180, 130, 104,
+                        lost || view == VIEW_INVERTER_STALE ? &app_img_timeout : &app_img_waiting_data, true);
+        s_error_title = lbl(s_screen, title, 40, 350, APP_FONT_28, TEXT_DARK);
+        s_error_detail = lbl(s_screen, detail, 40, 412, APP_FONT_18, 0xB9C6BE);
+        lv_obj_set_width(s_error_title, W - 80);
+        lv_obj_set_width(s_error_detail, W - 80);
+        lv_obj_set_style_text_align(s_error_title, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
+        if (!slave) {
+            const char *host = APP_DEVICE_HOSTNAME ".local";
+#ifndef APP_TEMPLATE_DESKTOP
+            char ip[16];
+            if (app_wifi_get_ip(ip, sizeof(ip)) == ESP_OK && strcmp(ip, "0.0.0.0") != 0)
+                host = ip;
+#endif
+            char url[80];
+            snprintf(url, sizeof(url), "http://%s/inverter", host);
+            lv_obj_t *link = lbl(s_screen, url, 40, 468, APP_FONT_18, 0x80C64A);
+            lv_obj_set_width(link, W - 80);
+            lv_obj_set_style_text_align(link, LV_TEXT_ALIGN_CENTER, 0);
+        }
+        s_view = view;
+    } else {
+        label_text_if_changed(s_error_title, title);
+        label_text_if_changed(s_error_detail, detail);
+    }
+}
+
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
     /* A szimulátor ezt közvetlenül hívja, a firmware runtime ciklusa pedig
@@ -2307,6 +2396,12 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
                                               : VIEW_LOXONE_WAIT);
         return;
     }
+    runtime_view_t inverter_view = inverter_status_view(&rt, have, now);
+    if (inverter_view != VIEW_NONE) {
+        if (s_diagnostics_requested) diagnostics_render(rt);
+        else inverter_status_screen(inverter_view, &rt);
+        return;
+    }
     template_apply();
     if (s_view == VIEW_THEME_LOADING && template_waiting_for_load)
         return;
@@ -2344,16 +2439,6 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
             tr("Nincs MQTT kapcsolat", "No MQTT connection"),
             tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
             false);
-    }
-    else if (s_cfg.data_recept_mode == APP_DATA_INVERTER && (!rt.inverter_ready || !have || timed_out))
-    {
-        error_screen(!rt.inverter_ready ? VIEW_INVERTER_SETUP : timed_out ? VIEW_DATA_TIMEOUT : VIEW_WAIT_DATA,
-            !rt.inverter_ready ? tr("Inverter beállítása szükséges", "Inverter setup required")
-                : timed_out ? tr("Nincs friss invertermérés", "No recent inverter reading")
-                            : tr("Inverter lekérdezése", "Reading inverter"),
-            !rt.inverter_ready ? tr("Nyisd meg a webes felületen az Inverter beállítások fület.",
-                                    "Open Inverter settings on the local web interface.")
-                               : tr("Az első friss mérésre várunk.", "Waiting for a fresh reading."), false);
     }
     else if (!have && !timed_out)
     {
@@ -2659,7 +2744,9 @@ static void runtime(void *arg)
             continue;
         }
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
-        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() && !template_loading_frame())
+        bool prepare_theme = !s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() &&
+                             inverter_status_view(&rt, have, now) == VIEW_NONE;
+        if (prepare_theme && !template_loading_frame())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
@@ -2669,7 +2756,7 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open()) template_prepare();
+        if (prepare_theme) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {
             slave_display_update(&rt, &s, have || rt.energy_flow_disabled, now);
