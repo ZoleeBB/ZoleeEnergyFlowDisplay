@@ -41,7 +41,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         });
         await page.goto('http://display.test/inverter');
         await page.locator('#slave-programs legend').waitFor();
-        assert.equal(await page.locator('#profile option').count(), 20);
+        assert.equal(await page.locator('#profile option').count(), 21);
         assert.equal(await page.locator('#latitude').inputValue(), '0');
         assert.equal(await page.locator('#secret').inputValue(), '');
         assert.equal(await page.locator('#secret').evaluate(e => e.required), false);
@@ -69,9 +69,10 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await page.waitForFunction(() => document.getElementById('result').textContent.includes('Mentve.'));
         assert.deepEqual(posted.slaveSchedules, {});
         for (const [profile, port, unit] of [['goodwe_modbus', 502, 247], ['solaredge_modbus', 1502, 1],
-            ['solplanet_modbus', 502, 3], ['deye_rtu', 8899, 1], ['victron_mqtt', 1883, null]]) {
+            ['solplanet_modbus', 502, 3], ['deye_rtu', 8899, 1], ['deye_lse3', 8899, 1], ['victron_mqtt', 1883, null]]) {
             await page.locator('#profile').selectOption(profile);
             assert.equal(await page.locator('#port').inputValue(), String(port));
+            if (profile === 'deye_lse3') assert.equal(await page.locator('#device').count(), 0);
             if (unit == null) assert.equal(await page.locator('#unit').count(), 0);
             else assert.equal(await page.locator('#unit').inputValue(), String(unit));
         }
