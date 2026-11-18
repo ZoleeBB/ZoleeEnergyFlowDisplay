@@ -1,6 +1,8 @@
 # Konfiguráció
 
-A [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config.http.sample.json), illetve a [közvetlen Loxone-mintát](../examples/config.loxone.sample.json) másold a FAT32 microSD gyökerébe `config.json` néven. A személyes konfiguráció nincs verziókezelve. Újraindításkor töltődik be.
+Az első üzembe helyezéshez a Wi-Fi megadható az érintőképernyőn. Sikeres időszinkron után nyisd meg a kijelzett `http://` címet, válassz üzemmódot, és mentsd a beállításokat. A dedikált 4B itt a Slave szerepet kínálja fel. [Első Wi-Fi-beállítás](first-run-wifi.md)
+
+Előre beállított kártyához a [MQTT-mintát](../config.sample.json) vagy a [HTTP-mintát](../examples/config.http.sample.json), illetve a [közvetlen Loxone-mintát](../examples/config.loxone.sample.json) másold a FAT32 microSD gyökerébe `config.json` néven. A személyes konfiguráció nincs verziókezelve. Újraindításkor töltődik be.
 
 | Rész | Beállítás |
 | --- | --- |
@@ -29,20 +31,19 @@ Az OTA hitelesítésnél mindkét mező legyen kitöltve vagy mindkettő üres. 
 
 ## Beállítások a webes felületen
 
-Az `/settings` oldalon a rendszerbeállítások módosíthatók, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, MQTT/HTTP/Loxone, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek. A Master és az egyes Slave-ek jelenlét szerinti nappali/éjszakai sötétítése a külön [Loxone oldalon](loxone-direct.md#mester-jelenlét-szerinti-sötétítése) található.
+Az `/settings` oldalon a rendszerbeállítások módosíthatók, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, adatfogadási módot érintő, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek. A Master és az egyes Slave-ek jelenlét szerinti nappali/éjszakai sötétítése a külön [Loxone oldalon](loxone-direct.md#mester-jelenlét-szerinti-sötétítése) található.
 
-SD nélküli Slave esetén ugyanez a felület belső NVS-be ment, legfeljebb 3072 bájtos
-JSON-ként. Ilyenkor az adatfogadási mód rögzítetten `slave`, a master kapcsoló tiltott;
-az API is visszautasítja az eltérő szerepet. A `cardless_slave` visszaadott állapotjelző,
-nem felhasználói konfigurációs kapcsoló.
+Kártya nélkül az általános beállítások legfeljebb 3072 bájtos JSON-ként
+a belső NVS-tárba menthetők. A működő, SD nélküli Slave beállítófelületén
+a szerep rögzített. A `cardless_slave` az állapotjelentés része.
 
 ## Slave mód beállítása
 
-SD-vel a minimális konfiguráció `{"DataReceptMode":"slave"}`. MQTT-, HTTP-, Loxone-
-és NTP-beállítás nem kell. Új, korábban fő kijelzőként nem azonosított eszköz SD
-nélkül automatikusan Slave lesz. A masteren engedélyezd az adat seedet, nyisd meg
-a kétperces párosítási ablakot, majd a master diagnosztikáján látható hatjegyű PIN-t
-írd be a Slave érintős billentyűzetén.
+SD-vel a minimális Slave konfiguráció `{"DataReceptMode":"slave"}`. Korábban
+be nem állított, kártya nélküli eszközön az első webes beállításban válaszd
+a **Slave** szerepet. Mentés és újraindítás után engedélyezd a Masteren az
+adatmegosztást, nyisd meg a párosítási ablakot, majd a Master diagnosztikáján
+látható PIN-t írd be a Slave érintőbillentyűzetén.
 
 A Wi-Fi SSID/jelszó és az `ota.auto_update` kapcsoló a mastertől öröklődik;
 az óra és a helyi UTC-eltolás is onnan érkezik. A Slave a Wi-Fi-n saját DHCP-címet
@@ -75,11 +76,24 @@ jutnak el az adott kijelzőhöz.
 A helyiség-/funkciószűrés, mértékegységek és a négy nappályamező részletei:
 [Loxone adatkapcsolat](loxone-direct.md).
 
+## Közvetlen inverter mód
+
+Válaszd a **Közvetlen inverter** üzemmódot (`DataReceptMode: "inverter"`).
+Újraindítás és időszinkron után az **Inverter beállítások** fület nyisd meg.
+Itt találod a gyártóhoz és az adatkapcsolathoz tartozó mezőket, az akkumulátor
+kapcsolóját, a helyszín koordinátáit, valamint a Master és a párosított
+Slave kijelzők időprogramját. Az aktív profil mentése után megindul a mérések
+és az időjárás lekérése. [Beállítások, támogatott modellek és adatfrissítés](direct-inverter.md)
+
 ## Mentés és visszaállítás
 
-A beállítások a webfelület **Mentés** oldalán egy fájlba menthetők és
-visszatölthetők; a kijelző a saját flash-tárában is őriz egy példányt, amelyből
-új SD-kártyánál automatikusan visszaállít. Részletek: [Mentés és visszaállítás](backup.md).
+SD-s kijelzőn a **Mentés** oldal a támogatott konfigurációs fájlokat tölti le
+egyetlen JSON-ként. A belső tartalékból új SD-kártyára is visszaállíthatók.
+Az általános konfiguráció az `inverter` mód kiválasztását tartalmazza.
+A külön NVS-ben tárolt inverterprofil, annak hitelesítési adatai, a koordináták
+és a heti programok kimaradnak az SD-alapú mentésből. Másik Master üzembe
+helyezésekor ezeket az **Inverter beállítások** fülön add meg.
+[Mentés és visszaállítás](backup.md)
 
 A Loxone Adatpárosításban a külső hőmérséklet után opcionális, szorzóval/eltolással
 beállítható [relatív páratartalom](relative-humidity.md) is megadható.

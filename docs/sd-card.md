@@ -1,6 +1,6 @@
 # microSD
 
-FAT32 fájlrendszer szükséges; exFAT nem támogatott. A gyökérben legyen `config.json`, a kiválasztott [konfigurációs minta](configuration.md) alapján.
+Az opcionális microSD-kártyát FAT32-re formázd. Ha előre beállított kijelzőt szeretnél, a kártya gyökerébe másold a kiválasztott mintát `config.json` néven. A 10,1 hüvelykes kijelző induláskor először az érvényes SD-konfigurációt használja. [Konfigurációs minták és mezők](configuration.md)
 
 A tíz választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
 
@@ -17,7 +17,7 @@ terhel tovább, és a statisztika írása marad az elsőbbség.
 
 A statisztikát a firmware maga hozza létre és 35 helyi naptári napig őrzi. Egy nap 288 ötperces időablakot tartalmaz. A `.tmp` és `.bak` fájlok helyreállítási állományok: működés közben ne töröld őket. Induláskor a legújabb érvényes revízió kerül betöltésre. [Adatformátum és számítás](statistics.md).
 
-MQTT, HTTP és közvetlen Loxone módban induláskor az SD és a konfiguráció szükséges. Futás közben SD-hibánál a mérés és a RAM-beli statisztika tovább működik; a hiba a diagnosztikában látható. Újracsatlakoztatáskor a firmware ismét próbál menteni. Kártyacsere és kézi fájlmódosítás előtt kapcsold ki a készüléket.
+Ha az SD hiányzik vagy a konfiguráció nem használható, a kijelző a belső beállítását vagy használható korábbi mentését tölti be. Első üzembe helyezéskor megadhatod a Wi-Fi-t az érintőképernyőn. Időszinkron után a kijelzett helyi címen választasz üzemmódot. A kártya nélküli 10,1 hüvelykes Master általános webes beállításai a belső NVS-tárba kerülnek. A fájlos sablonokhoz, csengőhangokhoz, a Loxone konfigurációs fájljaihoz és a tartós helyi statisztikai archívumhoz használj SD-t. A már üzemelő SD-s kijelző kártyahibáját a diagnosztika jelzi. Kártyacsere és kézi fájlmódosítás előtt kapcsold ki a készüléket. [Első indítás kártya nélkül](first-run-wifi.md)
 
 ## Slave SD-kártyával és anélkül
 
@@ -34,15 +34,18 @@ Az SD-s Slave nem másolja át a master korábbi történetét: saját előzmén
 adatgyűjtésétől épül. A két kijelző összesítője ezért eltérhet, például eltérő
 indulási idő vagy kapcsolatkimaradás miatt.
 
-Új, korábban fő kijelzőként nem azonosított eszköz SD nélkül automatikusan Slave
-módban indul. Ismert fő kijelző SD-hibája nem vált szerepet. Korábbi fő kijelző
-átállításához először SD-vel válassz Slave módot, indítsd el az új firmware-rel,
-majd kikapcsolás után vedd ki a kártyát. Régi firmware-ről frissítve is szükséges
-az első SD-s indulás a tartós szerepjelölő rögzítéséhez.
+Új, korábban be nem állított 10,1 hüvelykes kijelzőn böngészőben választható
+a Slave szerep. A dedikált 4B első beállításakor ugyanígy csatlakozz a Wi-Fi-re
+és erősítsd meg a **Slave** üzemmódot a kijelzett címen. A már üzemelő,
+tartós szerepjelölővel rendelkező 3.x-es Slave és a korábban párosított,
+felismerhető 4B megtartja a szerepét. A 10,1 hüvelykes panelen a visszahelyezett
+SD konfigurációját a következő újraindításkor veszi át a firmware.
+[BLE-párosítás és vegyes firmware-verziók](ble-data-seed.md)
 
-SD nélküli indulás után nincs háttérbeli kártyacsatolás; a behelyezett SD-t és
-annak konfigurációját a következő újraindítás használja. Részletek és párosítás:
-[BLE adatmegosztás](ble-data-seed.md#sd-nélküli-slave--csak-rendszer-téma).
+A közvetlen inverter kapcsolati profilja, a koordináták és a heti sötétítési
+programok a Master külön NVS-bejegyzésében vannak. Kártyacserekor ugyanazon a
+kijelzőn megmaradnak. Kijelzőcserénél az új Masteren add meg őket az
+**Inverter beállítások** fülön. [Közvetlen inverter](direct-inverter.md)
 
 A közvetlen Loxone mód `loxone.json` konfigurációt is tárol. A jelszó eszközhöz kötött; másik kijelzőn újra megadandó. A diagnosztika az SD foglalt/teljes méretét és két tizedesre kerekített, százalékos telítettségi sávját mutatja (a kijelzőn és a webes diagnosztikán is). A kapacitás legfeljebb percenként frissül; induláskor rövid ideig még nem áll rendelkezésre.
 

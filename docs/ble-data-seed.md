@@ -19,13 +19,14 @@ Mentés után a szokásos szabályozott újraindítás alkalmazza a változást.
 - A **1004** karakterisztika külön, PIN-nel hitelesített és titkosított Wi-Fi/OTA profilt ad.
   LE Secure Connections, MITM, bonding és 16 bájtos kulcs szükséges hozzá;
   Just Works, legacy pairing és rövid kulcs nem fogadható el.
+- A **100a** védett karakterisztika v4-es kijelzőpáron a Wi-Fi/OTA profil mellett az üzemmódot és az adott Slave-re érvényes heti időprogramot is átadja.
 - A host legfeljebb három kapcsolatot kezel; a tényleges határt a C6 vezérlő firmware-e is korlátozhatja.
 - Kapcsolódás után szabad kapacitás esetén folytatódik a hirdetés; bontás után újraindul.
 
 A slave szolgáltatás-UUID alapján keressen, ne kizárólag név alapján.
 Több master azonos nevet hirdethet: a kiválasztott master BLE címét érdemes megjegyezni.
 A jelenlegi P4 firmware is használható slave-ként az alábbi adatfogadási móddal.
-A kisebb S3 kijelzők külön firmware-e későbbi fejlesztés.
+A Waveshare 4B a hozzá kiadott dedikált Slave firmware-t használja.
 
 ## Slave adatfogadási mód
 
@@ -42,14 +43,16 @@ SD-vel a Slave saját magának integrálja és menti a fogadott élő mintákat,
 
 ## SD nélküli Slave – csak Rendszer téma
 
-Új, korábbi fő kijelzőként nem azonosított eszköz SD nélkül automatikusan Slave
-módban indul. Bekapcsolás után keresd meg a master diagnosztikáján a PIN-t,
-nyisd meg a kétperces párosítási ablakot, majd írd be a slave érintős PIN-padén.
-Nem kell külön firmware vagy partícióváltás. Ez a jelenlegi P4 hardverre készül;
-más méretű/hardverű kijelzőhöz továbbra is külön port szükséges.
+Ha nincs érvényes SD-konfiguráció vagy visszatölthető belső beállítás, válassz
+Wi-Fi-hálózatot az érintőképernyőn. Az időszinkron után nyisd meg a kijelzett
+`http://` címet, válaszd a **Slave** módot és ments. A 10,1 hüvelykes kijelzőn
+több szerep választható. A dedikált 4B beállítóoldalán a Slave szerepet kell
+megerősíteni. Újraindítás után nyisd meg a Master kétperces párosítási ablakát,
+és a Slave érintőképernyőjén írd be a Master diagnosztikáján látható PIN-t.
+[Első Wi-Fi-beállítás](first-run-wifi.md)
 
 - Csak a firmware-be épített **Rendszer / System** nézet érhető el. Nincs
-  SD-s képfájl, ZIP, témaletöltés, vízszintes témaváltás vagy helyi történeti archívum.
+  SD-s képfájl, ZIP, témaletöltés, vízszintes témaváltás vagy helyi történeti archívum. A 4B a saját beépített, 720 × 720 képpontos felületét jeleníti meg.
   A diagnosztika és a PIN-pad továbbra is használható.
 - A webes beállítások belső NVS-be mentődnek, verziófüggetlen JSON-ként,
   legfeljebb 3072 bájtban. Slave módból SD nélkül nem lehet más adatfogadásra
@@ -59,14 +62,11 @@ más méretű/hardverű kijelzőhöz továbbra is külön port szükséges.
 - Az SD állapota **nem** lesz mesterségesen sikeres: a diagnosztika külön
   jelzi az SD nélküli működést és a master-statisztika frissességét.
 
-Biztonsági korlát: a firmware SD-s induláskor tartósan megjegyzi, hogy az eszköz
-fő kijelző vagy Slave volt. Ismert fő kijelző SD-hibája **nem** vált automatikusan
-Slave-re. Régebbi firmware-ről frissítve először a meglévő SD-vel induljon el az
-eszköz, hogy szerepét eltárolja; régi tájolási/master-PIN nyom esetén a jelölő
-nélküli eszközt is konzervatívan fő kijelzőnek tekintjük. Korábban főként használt
-eszköznél az SD-s konfigurációban válassz Slave-et, indítsd el egyszer SD-vel,
-majd kikapcsolás után vedd ki a kártyát. Érvénytelen belső konfigurációnál nincs
-csendes alaphelyzetbe állítás. A behelyezett SD-t a következő újraindítás veszi át.
+Érvényes SD-konfigurációval a 10,1 hüvelykes kijelző a kártyán megadott
+szereppel indul. Kártyahiba után a használható belső konfigurációt vagy korábbi
+mentést tölti vissza. A már üzembe helyezett 3.x-es, kártya nélküli Slave
+szerepjelölője és a dedikált 4B érvényes, korábban párosított profilja
+megőrzi a Slave szerepet. A kártya visszahelyezése után indítsd újra a kijelzőt.
 
 ### A diagramok és napi összesítők szinkronja
 
@@ -86,6 +86,8 @@ Mindhárom kapcsolat külön, legfeljebb 45 másodpercig érvényes változatlan
 pillanatképet kap; új transzfer kapcsolatonként legfeljebb három másodpercenként.
 A master nem végez SD I/O-t a GATT callbackben.
 
+A 100a profilt használó v4-es Slave `ZST2` pillanatképet kap, az ötperces sávok részleges mérési hiányaival együtt. A korábbi `ZST1` olvasók számára az ilyen sáv megszakítja a diagramot.
+
 A slave 30 másodpercenként frissít; 30 másodperces átviteli határidő és hiba
 után 5 másodperces újrapróbálkozás védi az erőforrásokat. A teljes kép
 transzferazonosító-, lapsorrend-, hossz-, CRC32-, számérték-, helyi dátum- és
@@ -101,14 +103,15 @@ után a mastertől töltődik vissza. Régi, 1005 nélküli master mellett az é
 működhet, de statisztika nem lesz; a mastert is frissíteni kell.
 
 Az éjféli automatikus OTA SD nélkül is működik, ha van örökölt internetkapcsolat.
-A rollback-validációhoz SD helyett teljes, friss master-statisztika kell a többi
-Slave indulási feltétel mellett. Ez nem lazítja a fő kijelző SD-ellenőrzését.
+A frissen telepített firmware elfogadásához sikeres időszinkron és használható
+üzemi vagy első beállítási felület szükséges. A statisztikai pillanatkép ettől
+függetlenül érkezik meg. [OTA és visszaállítás](ota.md)
 
 ## Közös kapcsolódás és időszinkron
 
 A slave az első megtalált, megfelelő UUID-t hirdető masterhez kapcsolódik.
-Először titkosított párosítást végez, majd hosszú GATT-olvasással átveszi a 1004
-Wi-Fi/OTA profilt. Csak sikeres, tartós NVS-mentés után dolgoz fel órát/adatot.
+Először titkosított párosítást végez, majd hosszú GATT-olvasással átveszi a v4-es **100a** profilt,
+régebbi Masterről pedig a **1004** Wi-Fi/OTA profilt. Csak sikeres, tartós NVS-mentés után dolgoz fel órát/adatot.
 Felderíti az energia-, időjárás- és órakarakterisztikát, feliratkozik mindháromra,
 és azonnali kiolvasást is kér. A **1003 és 1004** karakterisztika nélküli régi master
 nem kompatibilis ezzel a PIN-es Slave móddal; előbb a mastert is frissíteni kell.
@@ -182,10 +185,40 @@ NVS-profil nem kerül a repóba vagy automatikusan az SD-re.
 | 3 | Master automatikus frissítése: 0/1 |
 | 4–5 | SSID és jelszó bájthossza (1–32, illetve 0–64) |
 | 6–37 | SSID, nullával kitöltve |
-| 38–101 | Wi-Fi-jelszó, nullával kitöltve |
+| 38–101 | Wi-Fi-jelszó. Legfeljebb 62 bájtos jelszónál a 100–101. bájt a nappali és az éjszakai fényerőt adja meg. |
 
 Nincs szükség nagy MTU-ra: a kliens sorrend- és méretellenőrzött hosszú ATT-olvasást
 végez. Titkosítatlan olvasáskor a GATT jogosultság és a callback is elutasítja a kérést.
+
+### 100a védett kijelzőprofil és verziók
+
+A v4-es Slave a csatlakozáskor és utána 30 másodpercenként olvassa ezt a
+135 bájtos profilt, ugyanazzal a titkosítással és párosítással, mint a
+1004-et. Az első 102 bájt a korábbi profil. A következő 33 bájt a feloldott
+BLE-azonosító alapján az adott Slave-nek szól. A napok sorrendje hétfőtől vasárnapig tart.
+
+| A kiegészítés bájtjai | Jelentés |
+| --- | --- |
+| 0 | Formátumverzió, jelenleg 1 |
+| 1 | 0 egyéb mód, 1 közvetlen inverter, 2 kaputelefont támogató Master |
+| 2–3 | Érintés utáni ébrenlét másodpercben, inverter módban 1–3600 |
+| 4 | Az engedélyezett napok bitjei, hétfő a 0. bit |
+| 5–32 | Naponként a kezdő- és végperc, két little-endian `u16` számmal |
+
+A Master a saját programját küldi, ha az adott Slave-nek nincs külön
+időprogramja. A Slave az átvett hétnapos programot helyben futtatja. Átmeneti
+BLE-kimaradás alatt a memóriában lévő programmal, az utolsó ismert napkelte és
+napnyugta percével, valamint a legutóbb átvett UTC-eltolással dolgozik.
+Újracsatlakozáskor az óra és a napadat frissül. A naponta változó napidők és
+az időzónaváltás pontos követéséhez élő kapcsolat szükséges. Inverter Masterhez
+kapcsolódó 4B-n a kaputelefon kép- és hangszolgáltatása nem indul el.
+[A sötétítés és az éjszakai mód beállításai](direct-inverter.md)
+
+| Master és Slave | Mi látszik a kijelzőn? |
+| --- | --- |
+| v4 és v4 | Heti időprogram, napnyugtához kötött éjszakai mód, elérhető mérési mezők és megjelölt statisztikai adathiányok. |
+| v4 Master és korábbi, 1004-et használó Slave | Megkapja az órát és a régi formátumba beleférő mintákat. Új formátumot igénylő mérésnél a Master „nincs adat” jelzést küld. A heti inverteres programhoz frissíteni kell a Slave-et. |
+| 1004-et támogató korábbi Master és v4 Slave | A Slave a korábbi párosítást és az elérhető v1/v2 mintákat használja. Az inverteres időprogramot és napadatokat v4 Master küldi. |
 
 ### Hardveres párosítási elfogadási próba
 
@@ -201,7 +234,7 @@ végez. Titkosítatlan olvasáskor a GATT jogosultság és a callback is elutas�
 
 ## Adatfolyam és frissesség
 
-MQTT, HTTP és Loxone módban ugyanazt a validált állapotot osztjuk meg. A host
+MQTT, HTTP, Loxone és közvetlen inverter módban ugyanazt a validált állapotot osztjuk meg. A host
 egy másodpercenként ellenőrzi az állapotot; új minta vagy frissességváltás esetén
 értesít, egyébként legfeljebb öt másodpercenként heartbeatet küld.
 Feliratkozáskor azonnal elküldi az aktuális csomagot. A READ legfeljebb egy
@@ -210,17 +243,17 @@ másodperces cache-ből dolgozik, hálózati lekérést vagy SD-műveletet nem i
 Mindhárom csomag pontosan 20 bájt: a kötelező, 23 bájtos ATT MTU is elegendő,
 nincs szükség MTU-egyeztetésre vagy darabolásra. Minden több-bájtos mező
 **little-endian**. Az előjeles számok kettes komplemens ábrázolásúak.
-Az óra és a páratartalom nélküli mintapár **v1**. Érvényes relatív
-páratartalommal az energia- és időjáráscsomag együtt **v2**; a hosszuk változatlan.
-Az új Slave mindkét verziót fogadja, kevert mintapárt és ismeretlen verziót elutasít.
-Az új adat párosítása előtt a Master és a Slave-ek firmware-e is frissítendő.
+Az óra verziója 1. A korábbi mezőkészlet páratartalom nélkül v1-es,
+érvényes páratartalommal v2-es mintapárban utazik. A v3 az opcionális
+energiamérésekhez és a kibővített inverterértékekhez tartozik. A Slave csak
+egyező verziójú és sorszámú energia–időjárás párt fogad el.
 [Részletes működés és frissítési sorrend](relative-humidity.md).
 
 ### Energia csomag
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1, 2 vagy 3; óra mindig 1 |
 | 1 | u8 | Flag: bit0 van minta, bit1 lejárt/nincs adat, bit2 éjszakai mód, bit3 energiaáramlás letiltva |
 | 2 | u8 | Status: 1 normál, 2 felkészülés, 3 szigetüzem, 4 hiba, 5 hálózat újra elérhető |
 | 3 | u8 | v1: Master fényerő (1–100%); v2: érvényes relatív páratartalom (0–100%) |
@@ -235,9 +268,18 @@ Az új adat párosítása előtt a Master és a Slave-ek firmware-e is frissíte
 
 Minta nélkül a mérési mezők nullák, de **nem valódi nulla mérésként** értelmezendők.
 Lejárt mintánál a legutolsó értékek megmaradnak, a bit1 jelzi az érvénytelenséget.
-A lejárat MQTT/HTTP módban a konfigurált timeout, Loxone módban 45 másodperc.
+A lejárat MQTT/HTTP módban a konfigurált időkorlát, Loxone módban 45 másodperc. Közvetlen inverter módban az aktív helyi vagy felhős adatforrás határozza meg az óra 10–11. bájtjában küldött időkorlátot.
 A slave saját, monotón órával felügyelje a BLE-adatérkezést is: például 15 s
 heartbeat-kimaradásnál mutasson kapcsolathibát akkor is, ha a kapcsolat még él.
+
+A v3 1. bájtjának 4. bitje a telepített akkumulátor hiányát jelzi. Az 5–6. bit
+a négy teljesítménymező közös egységét adja meg, sorrendben 1, 10, 100 vagy
+1000 W. Hiányzó hálózati, akkumulátor- vagy házteljesítmény és hiányzó
+akkuhőmérséklet esetén az érintett előjeles mező értéke −32768. A hiányzó
+töltöttség 65535, a hiányzó páratartalom 255. Valódi 0 °C adatként átvihető.
+A hiányzó sarkvidéki napkelte vagy napnyugta az időjáráscsomag megfelelő
+mezőjében 65535. A felhőből ismételten átadott azonos forrásidőbélyegű mérés
+csak egyszer kerül a statisztikába.
 
 A v2-ben a 3. bájt 0 értéke valódi 0% páratartalom. A hiányzó/érvénytelen
 páratartalom v1 mintapárt jelent; a korábbi páratartalom nem öröklődik.
@@ -258,7 +300,7 @@ Mindkét firmware frissítendő; régi Slave az új flaget elutasítja.
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1, 2 vagy 3; óra mindig 1 |
 | 1 | u8 | Az alább felsorolt érvényességi/állapotbitek |
 | 2 | i16 | Hőmérséklet, °C × 100 |
 | 4 | u16 | Szél, km/h × 100 |
@@ -284,20 +326,23 @@ Nincs szükség teljes sorszámfolytonosságra: a cache értesítés nélkül is
 
 | Offset | Típus | Tartalom |
 |---|---|---|
-| 0 | u8 | Protokollverzió: energia/időjárás 1 vagy 2; óra mindig 1 |
+| 0 | u8 | Protokollverzió: energia/időjárás 1, 2 vagy 3; óra mindig 1 |
 | 1 | u8 | Bit0: a master órája szinkronizált; egyéb bitek 0 |
 | 2 | u32 | Jelenlegi UTC Unix-idő, másodperc |
 | 6 | u16 | Másodpercen belüli ezredmásodperc, 0–999 |
 | 8 | i16 | Aktuális helyi UTC-eltolás, perc; Budapest télen +60, nyáron +120 |
 | 10 | u16 | Master energiaforrás timeoutja, másodperc, 5–3600 |
-| 12–17 | 6 bájt | Fenntartott, 0 |
+| 12–13 | u16 | Bit0 érvényes napadat, bit1 éjszaka, a felső 14 bit a mérési periódus másodpercben (0 helyi mérés) |
+| 14–15 | u16 | Helyi napkelte percben, érvényes napadatnál |
+| 16–17 | u16 | Helyi napnyugta percben, érvényes napadatnál; egyenlő napidőknél az éjszakajelző dönt |
 | 18 | u16 | Az energia/időjárás pillanatkép sorszáma |
 
 Érvénytelen, nem szinkronizált vagy 2020–2100 közötti tartományon kívüli óra
 nem állíthatja át a slave idejét. A slave az azonos sorszámú három csomagot
 illeszti össze; adat/idő heartbeat 15 s-os kiesésekor bont és újrakeres.
-A 1001/1002 csomag formátuma változatlan, így a korábbi kétkarakterisztikás
-olvasók továbbra is használhatják a master energia- és időjárásadatait.
+Az órát önállóan is feldolgozza, ezért az időszinkron és a nappali/éjszakai
+váltás inverteradat-kimaradás alatt is működik. A 100a profilt még át nem vett
+olvasók a 1001/1002 csatornán a korábbi formátumot kapják.
 
 ## P4/C6 és ellenőrzés
 
