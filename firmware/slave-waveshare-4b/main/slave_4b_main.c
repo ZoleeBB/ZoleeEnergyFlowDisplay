@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "slave_4b_ui.h"
+#include "slave_4b_setup.h"
 #include "slave_4b_intercom.h"
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
@@ -560,14 +561,19 @@ void app_main(void)
     display.lv_adapter_cfg.task_stack_size = 32768;
     display.lv_adapter_cfg.stack_in_psram = true;
     ESP_ERROR_CHECK(bsp_display_start_with_config(&display) ? ESP_OK : ESP_FAIL);
+    bsp_display_backlight_on();
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    char explanation[256] = {0};
+    esp_err_t restored = app_boot_config_restore(&config, true, explanation, sizeof(explanation));
+    if (restored == ESP_ERR_NOT_FOUND || (restored == ESP_OK && app_boot_config_setup_pending())) {
+        ESP_ERROR_CHECK(slave_4b_setup_run(&config));
+        return;
+    }
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     slave_4b_ui_create(lv_screen_active());
     bsp_display_unlock();
-    bsp_display_backlight_on();
-
-    char explanation[256] = {0};
-    if (app_boot_config_fallback(&config, explanation, sizeof(explanation)) != ESP_OK)
-        fatal(explanation[0] ? explanation : "Belső konfigurációs hiba");
+    if (restored != ESP_OK) fatal(explanation[0] ? explanation : "Belső konfigurációs hiba");
     /* A hardver szerepe fordításkor rögzített, a tárolt profil nem írhatja felül. */
     config.data_recept_mode = APP_DATA_SLAVE;
     config.data_seed_enabled = false;
@@ -586,8 +592,6 @@ void app_main(void)
     app_slave_display_keep_visible(&display_state, true, esp_timer_get_time());
     app_state_set_data_mode(APP_DATA_SLAVE);
     app_state_set_config_ok(true);
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(app_time_init(&config));
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))

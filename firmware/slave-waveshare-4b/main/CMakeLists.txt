@@ -6,9 +6,9 @@ set(shared_sources
     app_ble_seed.c app_ble_protocol.c app_ble_profile.c app_ble_profile_model.c
     app_ble_stats_protocol.c app_config.c app_boot_config.c app_events.c
     app_ingest.c app_payload.c app_state.c app_stats.c app_battery_diagnostics.c app_time.c app_wifi.c
-    app_ota.c app_ota_auto.c app_ota_release.c app_display.c app_slave_display.c
+    app_setup_ui.c app_setup_wifi.c app_ota.c app_ota_auto.c app_ota_release.c app_display.c app_slave_display.c
     app_slave_display_input.c app_slave_presence.c app_slave_presence_service.c)
-set(sources slave_4b_main.c slave_4b_storage.c "${board}/ui/slave_4b_ui.c"
+set(sources slave_4b_main.c slave_4b_setup.c slave_4b_storage.c "${board}/ui/slave_4b_ui.c"
     "${board}/ui/slave_4b_intercom.c" "${CMAKE_CURRENT_BINARY_DIR}/slave_4b_assets.c")
 foreach(source IN LISTS shared_sources)
     list(APPEND sources "${shared}/${source}")
@@ -18,7 +18,7 @@ foreach(size 20 24 28 34)
 endforeach()
 idf_component_register(SRCS ${sources}
     INCLUDE_DIRS "${shared}" "${board}/ui"
-    REQUIRES app_update bt esp_driver_jpeg esp_event esp_http_client esp_netif esp_timer esp_wifi
+    REQUIRES app_update bt esp_driver_jpeg esp_event esp_http_client esp_http_server esp_netif esp_timer esp_wifi
              fatfs sdmmc json mbedtls nvs_flash)
 execute_process(COMMAND "${PYTHON}" "${board}/tools/assets.py"
     "${CMAKE_CURRENT_BINARY_DIR}/slave_4b_assets.c" COMMAND_ERROR_IS_FATAL ANY)
