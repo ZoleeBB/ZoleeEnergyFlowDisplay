@@ -24,6 +24,8 @@ A kijelző helyi órája szerint **a napkelte percétől a napnyugta percéig a 
 
 A házfotót a világos vagy sötét témát kiválasztó éjszakai mód (`NightMode`) vezérli. Ha például a Loxone már 18:00-kor éjszakai módot küld, de a napnyugta 19:47, 18:00 és 19:47 között a sötét házfotó felett még a Nap mozog. A fényudvar az égitesttel együtt vált.
 
+![A kijelző szimulátorában 18:00-ra beállított napnyugta előtt egy másodperccel a Nap, 18:00-kor már a Hold látszik. A házfotó mindkét képen világos.](images/solar-journey-sunset.jpg)
+
 | Adatfogadási mód | A pályához használt adatok |
 | --- | --- |
 | MQTT vagy HTTP | Az opcionális `SunPosition` értékben a küldő adja át az azimutot, a napmagasságot és a helyi napkelte, napnyugta percét. [Loxone Pico C T1 bemenet](loxone.md#opcionális-nappálya-t1-szöveges-bemenet) · [Üzenetformátum](mqtt.md#opcionális-nappályaadatok) |
