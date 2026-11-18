@@ -1259,7 +1259,7 @@ bool app_stats_get_night_reference(app_assistant_night_t *out)
     if (!out)
         return false;
     memset(out, 0, sizeof(*out));
-    if (!s_mutex || s_cfg.data_recept_mode != APP_DATA_LOXONE)
+    if (!app_stats_is_ready() || s_cfg.data_recept_mode != APP_DATA_LOXONE)
         return false;
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);

@@ -103,12 +103,6 @@ A szokásos ellenőrzési idő 5 perc. A már Slave módban induló, Masterre v�
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
 
-A Slave-nek lassabb az indulása (BLE-párosítás, időszinkron, master-statisztika),
-ezért az ablak szándékosan bőven az indulási idő felett van. Ha a Slave frissítése
-közben a **Master is újraindul** (például ő is frissül), a hiányzó masterkapcsolat
-nem futtathatja ki az időt: amíg nincs BLE-kapcsolat, az ellenőrzés legfeljebb
-20 percig türelmesen vár, és csak utána áll vissza.
-
 A visszaállás nyomot hagy: az alkalmazás az időtúllépéskor NVS-be írja, **melyik
 feltétel hiányzott**, és a következő induláskor a rendszernaplóba kerül a nem
 véglegesült verzió és ez az ok is. A Slave-en ez a két sor a kijelző
@@ -155,4 +149,4 @@ Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az esz
 
 A gyári Napi mérleg, Nyugodt otthon, Energiakör és Energiafőkönyv témák szín-/háttérjavításait az OTA után a kijelző a régebbi SD-sablonokon is alkalmazza. A teljesen új sablonfájlok telepítéséhez továbbra is a webes sablonkezelő vagy az SD-re másolás használható.
 
-Loxone módban az új firmware OTA-érvényesítéséhez a működő webfelület elegendő; a kezdeti párosítás közbeni adathiány nem okoz visszaállítást. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.
+A v2-es Loxone mód OTA-ellenőrzése a működő webfelületet vizsgálta. A v4 ellenőrzése a fent leírt időszinkront és kirajzolást használja. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.

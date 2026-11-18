@@ -1039,8 +1039,10 @@ static void build_dashboard(bool night)
 
     /* Ház alul. */
     s_home_node = energy_circle(flow, 245, 390, 92, &app_img_home_scene, NULL, night, ORANGE);
-    lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE) {
+        lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
+    }
 
     s_home_name =
         lbl(flow, tr("Ház", "Home"), 170, 439, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);

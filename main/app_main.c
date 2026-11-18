@@ -307,6 +307,14 @@ static void __attribute__((noinline)) app_boot(void)
         for (;;) vTaskDelay(pdMS_TO_TICKS(60000));
     }
 
+    /* A helyi Otthon-modell a legelső párhuzamos UI- vagy webes olvasás
+     * előtt épül fel. A Miniserver elérését már a külön worker intézi. */
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
+        if (app_loxone_audio_init() != ESP_OK)
+            app_events_add(APP_EVENT_WARNING, "Az Audio előkészítése átmenetileg sikertelen.");
+        if (app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK)
+            app_events_add(APP_EVENT_ERROR, "A Loxone kliens előkészítése sikertelen.");
+    }
     if (app_ui_start_runtime() != ESP_OK)
         fatal_forever("Kijelzőhiba", "A kijelző feladata nem indítható.");
 
@@ -327,12 +335,6 @@ static void __attribute__((noinline)) app_boot(void)
     s_retry_web = (!slave || s_config.wifi.ssid[0]) && app_web_start(&s_config) != ESP_OK;
     if (s_retry_web)
         app_events_add(APP_EVENT_ERROR, "A webfelület nem indult el.");
-    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
-        if (app_loxone_audio_init() != ESP_OK)
-            app_events_add(APP_EVENT_WARNING, "Az Audio előkészítése átmenetileg sikertelen.");
-        if (app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK)
-            app_events_add(APP_EVENT_ERROR, "A Loxone kliens előkészítése sikertelen.");
-    }
     s_retry_mqtt = s_config.data_recept_mode == APP_DATA_MQTT && s_config.mqtt.broker[0] &&
         app_mqtt_start(&s_config) != ESP_OK;
     if (s_retry_mqtt)

@@ -1020,7 +1020,7 @@ static void template_build(bool night){
     for(unsigned i=0;i<n;i++)shape(s_dash,640-(int)n*10+(int)i*20,781,7,7,i==template_view.catalogue_index?tone(GREEN,night):(night?0x53626A:0xC8CFD4),LV_RADIUS_CIRCLE);
     s_sd_warn=lbl(s_dash,tr("SD-kártya hiba","SD card error"),20,776,APP_FONT_12,ORANGE);
     lv_obj_add_flag(s_sd_warn,LV_OBJ_FLAG_HIDDEN);
-    home_bind_hotspot(s_dash, scene);
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE) home_bind_hotspot(s_dash, scene);
     s_dash_created=true;s_view=VIEW_DASHBOARD;
     /*
      * A sok nagy PNG-vel és négy animált energiaúttal rajzolt gyári
