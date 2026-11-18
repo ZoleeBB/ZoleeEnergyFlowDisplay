@@ -2054,7 +2054,7 @@ void app_ui_set_config(const app_config_t *cfg)
 /* Indulási folyamat aktuális lépésének megjelenítése vektoros állapotikonokkal. */
 void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
 {
-    if (bsp_display_lock(-1) != ESP_OK)
+    if ((unsigned)stage > APP_BOOT_NTP || bsp_display_lock(-1) != ESP_OK)
     {
         return;
     }

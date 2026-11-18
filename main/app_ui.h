@@ -10,9 +10,7 @@ typedef enum
     APP_BOOT_SD = 0,
     APP_BOOT_CONFIG,
     APP_BOOT_WIFI,
-    APP_BOOT_NTP,
-    APP_BOOT_MQTT,
-    APP_BOOT_WAIT_DATA
+    APP_BOOT_NTP
 } app_boot_stage_t;
 
 /* Kijelző, LVGL és háttérvilágítás inicializálása. */

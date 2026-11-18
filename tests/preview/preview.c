@@ -2995,7 +2995,10 @@ int main(void)
     sample.night_mode=false;
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
     app_ui_set_config(&config);
-    app_ui_show_boot(APP_BOOT_MQTT,NULL);save_frame("http-boot-hu");
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    app_ui_show_boot((app_boot_stage_t)(APP_BOOT_NTP + 1), NULL);
+    assert(s_boot_stage == APP_BOOT_NTP);
+    save_frame("http-boot-hu");
     app_runtime_state_t rt={.data_recept_mode=APP_DATA_HTTP,.wifi_connected=true,.http_ready=true,.http_ready_monotonic_us=1000000};
     render_runtime(rt,sample,false,30000000);assert(s_view==VIEW_WAIT_DATA);save_frame("http-wait-hu");
     render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-hu");
