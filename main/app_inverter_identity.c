@@ -79,6 +79,72 @@ void app_inverter_identity_load(app_inverter_identity_t *s, const app_inverter_c
     s->storage_error = err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND;
 }
 
+void app_inverter_identity_outage(app_inverter_identity_t *s)
+{
+    if (s->bound) s->search.requested = true;
+}
+
+bool app_inverter_identity_searching(const app_inverter_identity_t *s)
+{
+    return s->search.running && s->search.old_checks == 2 && s->search.cursor > 0;
+}
+
+/* Előbb a korábbi IP-t kérdezzük újra. A táblában megmaradt régi MAC nem
+ * bizonyít új elérhetőséget: a figyelő sorszáma csak valódi keretnél nő.
+ * A saját alhálózat /22-ig vizsgálható végig, nagyobbnál a korábbi cím /24-e. */
+bool app_inverter_identity_search_tick(app_inverter_identity_t *s, int64_t now)
+{
+    if (!s->bound || !s->search.requested || now < s->search.next) return false;
+    app_inverter_link_t link;
+    if (!app_inverter_link(s->pin.last,s->pin.mac,false,&link) || !same_scope(&s->pin,&link) ||
+        !on_link(s->pin.last,&link)) {
+        s->search.running = false;
+        s->search.next = now + 5000000;
+        return false;
+    }
+    if (!s->search.running) {
+        s->search.sequence = link.sequence;
+        s->search.cursor = 0;
+        s->search.old_checks = 0;
+        s->search.running = true;
+    } else if (link.sequence != s->search.sequence && on_link(link.announced,&link)) {
+        /* Egy friss keret után a rendes mérési út újra igazolja a konkrét címet. */
+        s->search.running = s->search.requested = false;
+        s->search.passes = 0;
+        s->search.next = now + 15000000;
+        return true;
+    }
+    if (s->search.old_checks < 2) {
+        ++s->search.old_checks;
+        (void)app_inverter_link_who_has(&s->pin,s->pin.last);
+        s->search.next = now + 1000000;
+        return false;
+    }
+    uint32_t size = ~ntohl(s->pin.mask);
+    if (size > 1023) size = 255;
+    if (!size || (size & (size + 1))) {
+        s->search.running = s->search.requested = false;
+        return false;
+    }
+    uint32_t previous = ntohl(s->pin.last);
+    while (s->search.cursor < size) {
+        /* A korábbi cím két szomszédja az első; utána kifelé haladunk. */
+        unsigned i = ++s->search.cursor;
+        uint32_t offset = (i & 1) ? (i + 1U) / 2U : 0U - i / 2U;
+        uint32_t candidate = htonl((previous & ~size) | ((previous + offset) & size));
+        if (!on_link(candidate,&link)) continue;
+        (void)app_inverter_link_who_has(&s->pin,candidate);
+        s->search.next = now + 500000;
+        return false;
+    }
+    /* A körök közti 1, 2, majd 4 perces szünetben passzívan tovább figyelünk.
+     * Későn visszatérő eszköznél sincs folyamatos hálózati terhelés. */
+    s->search.running = false;
+    s->search.next = now + (INT64_C(60000000) << s->search.passes);
+    if (s->search.passes < 2) ++s->search.passes;
+    return false;
+}
+
 const char *app_inverter_identity_prepare(app_inverter_identity_t *s, char out[16])
 {
     out[0] = 0;
@@ -102,6 +168,12 @@ const char *app_inverter_identity_prepare(app_inverter_identity_t *s, char out[1
         uint32_t candidate = link.announced;
         if (!candidate || (candidate == target && memcmp(s->pin.mac,link.exact_mac,6)))
             candidate = link.match;
+        /* A keresés alatt az eredménytelen régi TCP-kapcsolat nem blokkolja
+         * a következő címpróbát. Közben a passzívan felbukkant új jelölt
+         * rögtön egy saját, ellenőrzött protokollolvasást kaphat. */
+        if (s->search.running && link.sequence == s->search.sequence &&
+            (!on_link(candidate,&link) || candidate == target || candidate == s->chosen))
+            return "A párosított inverter helyi IP-címének keresése";
         if (candidate && candidate != target && on_link(candidate,&link)) {
             target = candidate;
             if (!app_inverter_link(target,s->pin.mac,true,&link) || !same_scope(&s->pin,&link))
@@ -157,6 +229,7 @@ const char *app_inverter_identity_commit(app_inverter_identity_t *s)
         s->pin = next;
         s->bound = true;
     }
+    memset(&s->search,0,sizeof(s->search));
     inet_ntop(AF_INET,&s->chosen,s->active,sizeof(s->active));
     return NULL;
 }

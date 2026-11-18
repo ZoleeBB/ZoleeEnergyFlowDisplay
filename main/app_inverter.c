@@ -195,6 +195,8 @@ void app_inverter_tick(void)
     app_state_get_runtime(&state);
     if (!state.time_synced) return;
     int64_t now = esp_timer_get_time();
+    if (state.wifi_connected && app_inverter_identity_search_tick(&worker->identity,now))
+        worker->due = now;
     if (state.wifi_connected && now >= worker->due) measure(worker,now);
     if (state.wifi_connected) app_inverter_weather_start();
     if (now >= worker->overlay_due) {

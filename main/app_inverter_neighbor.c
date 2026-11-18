@@ -4,6 +4,9 @@
 #include "app_wifi.h"
 #include "esp_netif.h"
 #include "lwip/etharp.h"
+#include "lwip/prot/etharp.h"
+#include "lwip/prot/iana.h"
+#include "netif/ethernet.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/sys.h"
@@ -14,7 +17,7 @@
 static struct {
     struct netif *netif;
     uint8_t mac[6];
-    uint32_t address, seen_ms;
+    uint32_t address, seen_ms, sequence;
 } watch;
 
 void __real_etharp_input(struct pbuf *p, struct netif *netif);
@@ -33,6 +36,7 @@ void __wrap_etharp_input(struct pbuf *p, struct netif *netif)
             if (sender) {
                 watch.address = sender;
                 watch.seen_ms = sys_now();
+                ++watch.sequence;
             }
         }
     }
@@ -69,6 +73,7 @@ static void lookup(void *arg)
             memcpy(watch.mac,r->mac,6);
             watch.address = 0;
         }
+        out->sequence = watch.sequence;
         if ((uint32_t)(sys_now() - watch.seen_ms) < 90000) out->announced = watch.address;
     }
     bool found = false, have_gateway = false;
@@ -116,3 +121,53 @@ bool app_inverter_link(uint32_t address, const uint8_t mac[6], bool probe, app_i
 }
 
 void app_inverter_link_idle(void) { (void)tcpip_callback_wait(lookup,NULL); }
+
+/* A változó cél-IP minden próbánál ugyanahhoz a párosított Ethernet MAC-hez
+ * megy. A küldés sem ARP-bejegyzést, sem kapcsolatot nem hoz létre. */
+typedef struct {
+    const app_inverter_pin_t *pin;
+    uint32_t target;
+    bool sent;
+} unicast_probe_t;
+
+static void ask_paired_interface(void *arg)
+{
+    unicast_probe_t *q = arg;
+    struct netif *n = watch.netif;
+    const app_inverter_pin_t *pin = q->pin;
+    if (!n || !netif_is_up(n) || !netif_is_link_up(n) || !(n->flags & NETIF_FLAG_ETHARP) ||
+        n->hwaddr_len != ETH_HWADDR_LEN || memcmp(watch.mac,pin->mac,6) ||
+        strcmp(pin->ssid,app_wifi_configured_ssid())) return;
+    uint32_t own = ip4_addr_get_u32(netif_ip4_addr(n));
+    uint32_t mask = ip4_addr_get_u32(netif_ip4_netmask(n));
+    uint32_t gateway = ip4_addr_get_u32(netif_ip4_gw(n));
+    uint32_t host = q->target & ~mask;
+    if (!own || !mask || (own & mask) != pin->network || mask != pin->mask || gateway != pin->gateway ||
+        (q->target & mask) != pin->network || !host || host == ~mask ||
+        q->target == own || q->target == gateway) return;
+    struct pbuf *packet = pbuf_alloc(PBUF_LINK,SIZEOF_ETHARP_HDR,PBUF_RAM);
+    if (!packet) return;
+    if (packet->len >= SIZEOF_ETHARP_HDR) {
+        struct eth_addr source, destination;
+        memcpy(source.addr,n->hwaddr,6);
+        memcpy(destination.addr,pin->mac,6);
+        struct etharp_hdr *hdr = packet->payload;
+        memset(hdr,0,sizeof(*hdr));
+        hdr->hwtype = PP_HTONS(LWIP_IANA_HWTYPE_ETHERNET);
+        hdr->proto = PP_HTONS(ETHTYPE_IP);
+        hdr->hwlen = ETH_HWADDR_LEN;
+        hdr->protolen = sizeof(ip4_addr_t);
+        hdr->opcode = PP_HTONS(ARP_REQUEST);
+        memcpy(&hdr->shwaddr,&source,sizeof(source));
+        memcpy(&hdr->sipaddr,&own,sizeof(own));
+        memcpy(&hdr->dipaddr,&q->target,sizeof(q->target));
+        q->sent = ethernet_output(n,packet,&source,&destination,ETHTYPE_ARP) == ERR_OK;
+    }
+    pbuf_free(packet);
+}
+
+bool app_inverter_link_who_has(const app_inverter_pin_t *pin, uint32_t target)
+{
+    unicast_probe_t request = {.pin=pin,.target=target};
+    return tcpip_callback_wait(ask_paired_interface,&request) == ERR_OK && request.sent;
+}

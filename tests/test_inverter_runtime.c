@@ -44,6 +44,11 @@ bool app_inverter_link(uint32_t ip,const uint8_t mac[6],bool probe,app_inverter_
     return false;
 }
 void app_inverter_link_idle(void) {}
+bool app_inverter_link_who_has(const app_inverter_pin_t *pin,uint32_t target)
+{
+    (void)pin; (void)target;
+    assert(!"a DNS/felhőprofil nem küld ARP-kérést"); return false;
+}
 esp_err_t nvs_erase_key(nvs_handle_t h,const char *key)
 {
     assert(h==1 && !strcmp(key,"lan_pin"));

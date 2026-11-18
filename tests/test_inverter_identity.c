@@ -14,7 +14,19 @@ static const uint8_t router[6] = {0x02,3,4,5,6,7};
 static uint32_t old_ip, new_ip, announced, found;
 static const uint8_t *old_mac, *new_mac;
 static const char *ssid = "otthon";
-static unsigned writes;
+static unsigned writes, probes, sequence, probe_seen[256];
+static uint32_t responds, last_probed;
+bool app_inverter_link_who_has(const app_inverter_pin_t *pin,uint32_t target)
+{
+    assert(!memcmp(pin->mac,inverter,6));
+    ++probes; last_probed = target;
+    ++probe_seen[ntohl(target) & 255];
+    if (target == responds) {
+        announced = found = target;
+        ++sequence;
+    }
+    return true;
+}
 
 void app_inverter_link_idle(void) {}
 bool app_inverter_link(uint32_t address,const uint8_t mac[6],bool probe,app_inverter_link_t *link)
@@ -28,7 +40,7 @@ bool app_inverter_link(uint32_t address,const uint8_t mac[6],bool probe,app_inve
     if (exact) memcpy(link->exact_mac,exact,6);
     if (mac && !memcmp(mac,inverter,6)) {
         link->announced = announced;
-        link->match = found;
+        link->match = found; link->sequence=sequence;
     }
     return true;
 }
@@ -83,6 +95,40 @@ int main(void)
     ssid="vendeg"; assert(app_inverter_identity_prepare(&s,actual)); ssid="otthon";
     new_mac=other; old_mac=inverter; found=old_ip;
     assert(!app_inverter_identity_prepare(&s,actual) && !strcmp(actual,"192.168.1.20"));
+    /* Az új címet egyetlen kész ARP-sor vagy bejelentés sem árulja el.
+     * Közben egy másik eszköz elfoglalja a régi címet. */
+    announced=found=0;
+    responds=old_ip;
+    old_mac=inverter; new_mac=other;
+    app_inverter_identity_outage(&s);
+    int64_t t=1000000;
+    bool discovered=false;
+    for (unsigned i=0;i<600 && !discovered;++i,t+=250000)
+        discovered=app_inverter_identity_search_tick(&s,t);
+    assert(discovered && probes>2 && last_probed==old_ip);
+    assert(probe_seen[42]==2 && !probe_seen[5] && !probe_seen[1] && !probe_seen[0] && !probe_seen[255]);
+    assert(!app_inverter_identity_prepare(&s,actual) && !strcmp(actual,"192.168.1.20"));
+    assert(!app_inverter_identity_verify(&s) && !app_inverter_identity_commit(&s));
+    assert(!s.search.requested && !app_inverter_identity_searching(&s));
+    /* Ha a régi MAC azonnal válaszol a korábbi IP-re, például csak az
+     * alkalmazásszintű API romlott el, egyetlen más címet sem kérdezünk. */
+    unsigned before=probes;
+    responds=old_ip; app_inverter_identity_outage(&s);
+    assert(!app_inverter_identity_search_tick(&s,t));
+    assert(app_inverter_identity_search_tick(&s,t+1000000));
+    assert(probes==before+1 && last_probed==old_ip);
+    responds=announced=found=0;
+    app_inverter_identity_outage(&s);
+    before=probes; t+=16000000;
+    for (unsigned i=0;i<560;++i,t+=250000) (void)app_inverter_identity_search_tick(&s,t);
+    assert(probes==before+2+251); /* 254 gépcímből a korábbi, a gateway és a panel kimarad */
+    before=probes;
+    for (unsigned i=0;i<100;++i,t+=250000) (void)app_inverter_identity_search_tick(&s,t);
+    assert(probes==before); /* A teljes kör után a szünetben nincs újabb terhelés. */
+    ssid="masik";
+    (void)app_inverter_identity_search_tick(&s,t+120000000);
+    assert(probes==before);
+    ssid="otthon";
     assert(!app_inverter_identity_forget(1));
     app_inverter_identity_load(&s,&cfg,true);
     old_mac=router;
