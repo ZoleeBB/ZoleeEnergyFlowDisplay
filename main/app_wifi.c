@@ -4,6 +4,7 @@
 #include "app_wifi.h"
 #include "app_task_mem.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -28,6 +29,7 @@ static EventGroupHandle_t s_events;
 static esp_netif_t *s_sta_netif;
 static app_wifi_config_t s_cfg;
 static bool s_started;
+static atomic_bool s_setup;
 static TaskHandle_t s_reconnect_task;
 
 /* Statikus DNS szerver beállítása a STA netifre. */
@@ -109,7 +111,7 @@ event_handler(void *handler_arg, esp_event_base_t base, int32_t event_id, void *
     /* A Wi-Fi driver indulásakor azonnal kezdeményezzük a csatlakozást. */
     if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
-        esp_wifi_connect();
+        if (!atomic_load(&s_setup)) esp_wifi_connect();
         return;
     }
 
@@ -145,7 +147,7 @@ event_handler(void *handler_arg, esp_event_base_t base, int32_t event_id, void *
             app_events_add(APP_EVENT_WARNING, "Wi-Fi kapcsolat megszakadt.");
         }
 
-        if (s_reconnect_task)
+        if (!atomic_load(&s_setup) && s_reconnect_task)
         {
             xTaskNotifyGive(s_reconnect_task);
         }
@@ -164,6 +166,20 @@ event_handler(void *handler_arg, esp_event_base_t base, int32_t event_id, void *
         app_state_set_wifi_connected(true);
         app_events_add(APP_EVENT_INFO, "Wi-Fi kapcsolat létrejött.");
     }
+}
+
+/* A kiválasztott jelszó csak ebben a kis keretben és az aktív Wi-Fi profilban él. */
+static esp_err_t apply_credentials(const char *ssid, const char *password)
+{
+    wifi_config_t cfg = {0};
+    size_t ssid_len = strlen(ssid), password_len = strlen(password);
+    if (!ssid_len || ssid_len > sizeof(cfg.sta.ssid) || password_len > sizeof(cfg.sta.password))
+        return ESP_ERR_INVALID_ARG;
+    memcpy(cfg.sta.ssid, ssid, ssid_len);
+    memcpy(cfg.sta.password, password, password_len);
+    cfg.sta.threshold.authmode = *password ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    cfg.sta.pmf_cfg.capable = true;
+    return esp_wifi_set_config(WIFI_IF_STA, &cfg);
 }
 
 /* Wi-Fi STA alrendszer egyszeri inicializálása. */
@@ -209,22 +225,10 @@ esp_err_t app_wifi_start(const app_config_t *cfg)
         TAG,
         "ip handler register failed");
 
-    /* A fix méretű ESP-IDF struktúrába már validált hosszúságú adatok kerülnek. */
-    wifi_config_t wifi_cfg = {0};
-    size_t ssid_len = strlen(s_cfg.ssid);
-    size_t password_len = strlen(s_cfg.password);
-
-    memcpy(wifi_cfg.sta.ssid, s_cfg.ssid, ssid_len);
-    memcpy(wifi_cfg.sta.password, s_cfg.password, password_len);
-
-    wifi_cfg.sta.threshold.authmode = s_cfg.password[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
-
-    wifi_cfg.sta.pmf_cfg.capable = true;
-    wifi_cfg.sta.pmf_cfg.required = false;
-
     ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), TAG, "set mode failed");
-
-    ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg), TAG, "set config failed");
+    ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), TAG, "set Wi-Fi storage failed");
+    if (!atomic_load(&s_setup))
+        ESP_RETURN_ON_ERROR(apply_credentials(s_cfg.ssid, s_cfg.password), TAG, "set config failed");
 
     /*
      * Folyamatos kijelző és hálózati válaszkészség miatt kikapcsoljuk
@@ -239,6 +243,33 @@ esp_err_t app_wifi_start(const app_config_t *cfg)
 
     s_started = true;
     return esp_wifi_start();
+}
+
+esp_err_t app_wifi_start_setup(const app_config_t *cfg)
+{
+    if (s_started) return ESP_ERR_INVALID_STATE;
+    atomic_store(&s_setup, true);
+    return app_wifi_start(cfg);
+}
+
+esp_err_t app_wifi_join_setup(const char *ssid, const char *password)
+{
+    if (!atomic_load(&s_setup) || !s_started) return ESP_ERR_INVALID_STATE;
+    esp_wifi_disconnect();
+    xEventGroupClearBits(s_events, WIFI_CONNECTED_BIT);
+    esp_err_t err = apply_credentials(ssid, password);
+    if (err == ESP_OK) {
+        snprintf(s_cfg.ssid, sizeof(s_cfg.ssid), "%s", ssid);
+        snprintf(s_cfg.password, sizeof(s_cfg.password), "%s", password);
+        err = esp_wifi_connect();
+    }
+    return err;
+}
+
+void app_wifi_finish_setup(void)
+{
+    atomic_store(&s_setup, false);
+    if (!app_wifi_is_connected() && s_reconnect_task) xTaskNotifyGive(s_reconnect_task);
 }
 
 /* Várakozás a GOT_IP esemény által beállított kapcsolati bitre. */

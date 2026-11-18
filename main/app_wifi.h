@@ -14,6 +14,11 @@
 /* Wi-Fi STA mód indítása a betöltött konfigurációval. */
 esp_err_t app_wifi_start(const app_config_t *cfg);
 
+/* Első beállítás: a STA egyszer indul, a választást a boot-feladat alkalmazza. */
+esp_err_t app_wifi_start_setup(const app_config_t *cfg);
+esp_err_t app_wifi_join_setup(const char *ssid, const char *password);
+void app_wifi_finish_setup(void);
+
 /* Kapcsolódásra várás a megadott timeoutig. */
 bool app_wifi_wait_connected(TickType_t timeout_ticks);
 
