@@ -261,7 +261,10 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
             assert.equal(await search.isVisible(), initial.discoverable.includes(profileId), profileId);
         }
         assert.deepEqual(discoveryRequests, []);
-        await profile.selectOption('sofar_v5');
+        const oldLogger = '3910000000';
+        stored = {...stored, profile: 'sofar_v5', host: '192.0.2.19', port: 8899, device: oldLogger, unit: 1, registerOverrides: {}};
+        await page.reload(); await search.waitFor();
+        assert.equal(await profile.inputValue(), 'sofar_v5');
         assert((await setup.textContent()).includes('SOLARMAN V5'));
         assert.equal(await page.locator('#port').inputValue(), '8899');
         assert.equal(await page.locator('#unit').inputValue(), '1');
@@ -276,8 +279,9 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await pick.count(), 2);
         assert.equal(await page.locator('#discovery-results img').count(), 0);
         assert((await page.locator('#discovery-results').textContent()).includes('Eszköz észlelve'));
-        assert.equal(await page.locator('#host').inputValue(), '');
-        assert.equal(await page.locator('#device').inputValue(), '');
+        assert((await page.locator('#discovery-results').textContent()).includes('Adatgyűjtő száma: ' + active.device));
+        assert.equal(await page.locator('#host').inputValue(), '192.0.2.19');
+        assert.equal(await page.locator('#device').inputValue(), oldLogger);
         assert.deepEqual(discoveryRequests.at(-1), {profile: 'sofar_v5', port: 8898, unit: 1});
         const selectedJob = job;
         const selectCancel = page.waitForResponse(r => r.url().endsWith('/discovery/cancel'));
@@ -317,6 +321,10 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await profile.selectOption('solax_modbus');
         await page.locator('#device').selectOption('X3-G4-PRO');
         assert((await setup.textContent()).includes('vezetékes LAN'));
+        discoveryStatus = {state: 'done'};
+        await search.click();
+        await page.waitForFunction(() => document.querySelector('#discovery-status').textContent.includes('Nincs találat'));
+        assert.deepEqual(discoveryRequests.at(-1), {profile: 'solax_modbus', port: 502, unit: 1, device: 'X3-G4-PRO'});
         assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_') || id === 'sofar_v5'));
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);

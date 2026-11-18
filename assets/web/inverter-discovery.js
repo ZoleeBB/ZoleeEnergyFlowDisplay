@@ -69,6 +69,8 @@ const inverterDiscovery = (() => {
             entry.signature = signature;
             const address = [item.host + ':' + item.port];
             if (item.serial) address.push('Sorozatszám: ' + item.serial);
+            if (item.device && profiles[search.profile]?.device === loggerSerial)
+                address.push('Adatgyűjtő száma: ' + item.device);
             if (get('unit') && Number.isInteger(item.unit)) address.push('Modbus-cím: ' + item.unit);
             entry.details.textContent = item.model || 'Helyi eszköz';
             entry.details.append(el('small', address.join(' · ')), el('small', item.verified ?
@@ -116,8 +118,9 @@ const inverterDiscovery = (() => {
         const profile = get('profile').value, port = get('port'), unit = get('unit');
         if (!port.reportValidity() || (unit && !unit.reportValidity())) return;
         const params = {profile, port: port.valueAsNumber, unit: unit ? unit.valueAsNumber : 0};
-        const device = get('device')?.value.trim();
-        if (device) params.device = device;
+        // A mentett sorozatszám a korábbi eszközé is lehet. Kereséshez csak
+        // a SolaX protokollváltozatát adjuk át, így a csereeszközök is látszanak.
+        if (profile === 'solax_modbus' && get('device').value) params.device = get('device').value;
         reset('A keresés indul…'); controls(true);
         const search = {profile, rows: new Map(), retries: 0, timer: null};
         current = search;
