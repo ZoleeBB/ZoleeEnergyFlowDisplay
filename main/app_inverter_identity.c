@@ -2,6 +2,7 @@
  * jegyzi meg az adatgyűjtő MAC-címét. DHCP-költözéskor ugyanezt a szomszédot
  * ellenőrzi a protokollhívás előtt és után. */
 #include "app_inverter_identity.h"
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
