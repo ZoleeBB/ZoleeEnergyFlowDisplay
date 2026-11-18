@@ -121,7 +121,7 @@ typedef struct {
     char pem[3072];
 } stored_v1_t;
 
-static void register_settings_tests(void)
+static void register_settings_tests(const char *persisted)
 {
     runtime.data_recept_mode = APP_DATA_INVERTER;
     stored_v1_t previous = {.version=1, .driver={.profile="huawei_modbus", .host="site.local",
@@ -145,6 +145,9 @@ static void register_settings_tests(void)
     assert(app_inverter_settings_save(form) == ESP_OK);
     assert(app_inverter_settings_snapshot(&snapshot, &revision, &source));
     assert(snapshot.driver.registers.mask == 1 && snapshot.driver.registers.address[0] == 0);
+    FILE *image = fopen(persisted, "wb");
+    assert(image && fwrite(nvs_data, 1, nvs_size, image) == nvs_size);
+    assert(!fclose(image));
     cJSON *get = app_inverter_settings_get();
     cJSON *values = cJSON_GetObjectItem(get, "registerOverrides");
     assert(cJSON_GetArraySize(values) == 1 && cJSON_GetObjectItem(values, "pv")->valueint == 0);
@@ -173,7 +176,23 @@ static void register_settings_tests(void)
 
 int main(int argc, char **argv)
 {
-    if (argc == 2 && !strcmp(argv[1], "registers")) { register_settings_tests(); return 0; }
+    if (argc == 3 && !strcmp(argv[1], "registers")) {
+        register_settings_tests(argv[2]);
+        return 0;
+    }
+    if (argc == 3 && !strcmp(argv[1], "restart")) {
+        FILE *image = fopen(argv[2], "rb");
+        assert(image);
+        nvs_size = fread(nvs_data, 1, sizeof(nvs_data), image);
+        assert(nvs_size && !ferror(image) && !fclose(image));
+        runtime.data_recept_mode = APP_DATA_INVERTER;
+        cJSON *view = app_inverter_settings_get();
+        cJSON *values = cJSON_GetObjectItem(view, "registerOverrides");
+        assert(cJSON_GetArraySize(values) == 1 && cJSON_IsNumber(cJSON_GetObjectItem(values, "pv")) &&
+               cJSON_GetObjectItem(values, "pv")->valueint == 0 && !commits);
+        cJSON_Delete(view);
+        return 0;
+    }
     app_inverter_schedule_t schedule;
     runtime.data_recept_mode=APP_DATA_LOXONE;
     assert(!app_inverter_settings_local_name("unit.local", 10));
