@@ -116,7 +116,8 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual((unpack / 'sd-card/ringtones' / name).read_bytes(), media.read(name))
         # Documentation and example links must resolve in the offline installer.
         import re
-        for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md')]:
+        for guide in [unpack/'README.md', unpack/'TELEPITES.md', *(unpack/'docs').glob('*.md'),
+                      *(unpack/'docs/inverters').glob('*.md')]:
             for target in re.findall(r'!?\[[^\]]*\]\(([^)]+)\)', guide.read_text(encoding='utf-8')):
                 if '://' not in target and not target.startswith('#'):
                     self.assertTrue((guide.parent/target.split('#',1)[0]).exists(), (guide.name,target))
