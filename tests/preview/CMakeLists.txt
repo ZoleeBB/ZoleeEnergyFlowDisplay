@@ -67,3 +67,11 @@ if(UNIX)
         target_link_options(slave_intercom_preview PRIVATE -fsanitize=address,undefined)
     endif()
 endif()
+
+if(UNIX)
+    add_executable(setup_ui_test setup_ui_test.c "${APP_ROOT}/main/app_setup_ui.c"
+        "${APP_ROOT}/main/fonts/app_font_20.c" "${APP_ROOT}/main/fonts/app_font_28.c")
+    target_include_directories(setup_ui_test PRIVATE "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main")
+    target_compile_options(setup_ui_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    target_link_libraries(setup_ui_test PRIVATE lvgl m)
+endif()
