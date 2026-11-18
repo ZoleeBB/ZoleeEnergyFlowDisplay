@@ -17,6 +17,7 @@
 static app_runtime_state_t runtime;
 static app_energy_sample_t last;
 static app_energy_sample_t measurement = {.power_pv_kw = 2.5, .status = 1};
+static double weather_temp, weather_wind;
 static int allocations, commits, weather, reads, samples, breaks;
 static bool fail_save, configured;
 static time_t clock_now = 1782010800;
@@ -74,8 +75,8 @@ cJSON *app_inverter_json_request(const char *url,const char *method,const char *
                                  const char *const h[][2],size_t n,char *token,size_t cap,const char *pem) {
     assert(strstr(url,"https://api.open-meteo.com/") && !strcmp(method,"GET") && !n && !h && !b && !token && !cap && !pem);
     weather++;
-    char json[240]; snprintf(json,sizeof(json),"{\"current\":{\"time\":%ld,\"temperature_2m\":0,"
-      "\"wind_speed_10m\":0,\"relative_humidity_2m\":50,\"precipitation\":0,\"direct_normal_irradiance\":200}}",(long)clock_now);
+    char json[240]; snprintf(json,sizeof(json),"{\"current\":{\"time\":%ld,\"temperature_2m\":%.1f,"
+      "\"wind_speed_10m\":%.1f,\"relative_humidity_2m\":50,\"precipitation\":0,\"direct_normal_irradiance\":200}}",(long)clock_now,weather_temp,weather_wind);
     return cJSON_Parse(json);
 }
 static void tick(int seconds) {
@@ -136,6 +137,16 @@ int main(void)
     measurement.power_pv_kw=APP_DIRECT_POWER_MAX_KW+.01;
     tick(5);
     assert(samples==before);
+    measurement.power_pv_kw=20;
+    static const double temperatures[]={-35,50,-35.1,50.1};
+    static const double winds[]={0,150,150.1,-.1};
+    for (unsigned i=0; i<4; ++i) {
+        weather_temp=temperatures[i]; weather_wind=winds[i];
+        tick(900); tick(5);
+        assert(last.power_pv_kw==20 && last.relative_humidity_valid);
+        assert(last.temperature_valid==(i<2) && last.wind_speed_valid==(i<2));
+        if (i<2) assert(last.temperature_c==weather_temp && last.wind_speed_kmh==weather_wind);
+    }
     cJSON_Delete(s);
     puts("PASS inverter mode isolation, NVS atomic save, weather and cloud timing, stale sample dedup");
 }

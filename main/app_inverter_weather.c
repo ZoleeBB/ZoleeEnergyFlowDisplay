@@ -50,9 +50,9 @@ static void weather_fetch(void *unused)
             w.measured = (int64_t)stamp;
             w.lat = lat;
             w.lon = lon;
-            w.valid_temp = field(data,"temperature_2m",-100,70,&w.temp);
+            w.valid_temp = field(data,"temperature_2m",-35,50,&w.temp);
             w.valid_humidity = field(data,"relative_humidity_2m",0,100,&w.humidity);
-            w.valid_wind = field(data,"wind_speed_10m",0,500,&w.wind);
+            w.valid_wind = field(data,"wind_speed_10m",0,150,&w.wind);
             w.valid_rain = field(data,"precipitation",0,300,&w.rain);
             w.valid_sun = field(data,"direct_normal_irradiance",0,1600,&w.sunshine);
         }

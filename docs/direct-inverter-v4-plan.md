@@ -113,3 +113,7 @@ témában a műszerívek és a végpontfeliratok is követik a 15 kW fölötti m
 ## Első indítási varázsló
 
 Menet közben hozzáadott követelmény mindkét panelhez és az összes üzemmódhoz. Érvényes SD- vagy megőrzött belső konfiguráció hiányában a panel először kereshető, lapozható Wi-Fi-listát mutat. A kiválasztott védett hálózat jelszava ékezetes és speciális karaktereket támogató érintőbillentyűzeten adható meg. A tényleges IPv4-cím megszerzése engedi tovább a folyamatot. A hálózatválasztó és a jelszóbeviteli erőforrások felszabadulnak. A gyári időszerver sikeres szinkronja után a fekete felületen megjelenő nagy HTTP-cím közvetlenül a helyi webes beállítóoldalt nyitja meg. A mentett profil a következő indítástól kihagyja a varázslót. [Képes kezelési útmutató](first-run-wifi.md)
+A külső hőmérséklet megjelenítési tartománya −35…+50 °C, a szélé 0…150 km/h,
+a páratartalomé 0…100%. A határértékek is megjelennek. A határon túli értéket
+csak az érintett időjárási mezőből hagyja ki a kijelző, így a többi mérés és a
+Slave energiaadatainak frissítése folytatódik.
