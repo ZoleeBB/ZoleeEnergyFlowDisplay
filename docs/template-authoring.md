@@ -316,3 +316,9 @@ méréshez köthető. Például az akkuhőmérő feliratához és ikonjához has
 A `grid`, `home`, `battery` és `soc` függőséghez mért hálózati teljesítmény,
 fogyasztás, akkuteljesítmény, illetve töltöttség szükséges. Az `installed`
 telepített akkumulátort, a `split` kiszámolható energiamérleget igényel.
+
+A `gauge` és a hozzá tartozó `label` azonos `power_scale` attribútumot kaphat.
+A megengedett források a `pv`, `home`, `grid` és `battery`. A címkén és a
+műszeren ugyanazt a `max` alapskálát add meg (alapérték 15 kW). Ha a teljesítmény
+abszolút értéke ezt meghaladja, a skála a szükséges kétszeresére, négyszeresére
+vagy további kétszeresére bővül. A többi műszer a szerző által megadott fix skálát használja.

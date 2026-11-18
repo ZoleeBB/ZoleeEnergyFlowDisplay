@@ -267,7 +267,8 @@ static uint8_t template_needs(const char *key)
 
 static uint8_t template_node_needs(const cJSON *element)
 {
-    uint8_t needs = template_needs(ts(element,"source")) | template_needs(ts(element,"requires"));
+    uint8_t needs = template_needs(ts(element,"source")) | template_needs(ts(element,"requires")) |
+                    template_needs(ts(element,"power_scale"));
     /* A korábban telepített SD-s témákban még nincs requires attribútum. */
     const char *text = ts(element,"text");
     if (!strcmp(ts(element,"file"),"battery_temp.png") || !strcmp(text,"Akku hőfok") ||
@@ -1044,6 +1045,14 @@ static void template_build(bool night){
             snprintf(template_switch.id,sizeof(template_switch.id),"%s",template_view.id);
     }
 }
+/* A gyári műszerek alapskálája 15 kW. Nagyobb mérésnél az ív és számozása
+ * ugyanazt a következő teljes tartományt használja (30, 60, 120, ... kW). */
+static int template_power_scale(int base_kw, double value)
+{
+    while (base_kw < APP_DIRECT_POWER_MAX_KW && fabs(value) > base_kw) base_kw *= 2;
+    return base_kw;
+}
+
 static void template_gauge_value(void *object,int32_t value){
     lv_arc_set_value(object,value);
     for(unsigned i=0;i<template_node_count;i++)if(template_nodes[i].obj==object){
@@ -1248,6 +1257,14 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             uint32_t flow_color=tc(e,value<0?"negative_color":"positive_color",tc(e,"color",BLUE));
             template_flow_tone(node,flow_color,fabs(value)>=.001);
         }
+        const char *scale_source = ts(e, "power_scale");
+        if (*scale_source && !strcmp(type, "label")) {
+            int scale = template_power_scale(tn(e, "max", 15), template_value(scale_source, s, stats));
+            char label[48];
+            snprintf(label, sizeof(label), "0                    %d kW", scale);
+            label_text_if_changed(node->obj, label);
+            if (node->detail) label_text_if_changed(node->detail, label);
+        }
         if(!strcmp(type,"value")){char text[128];template_text(text,source,s,stats);
             if(!strcmp(source,"battery_temp")&&!strcmp(template_view.id,"09-solar-journey")){char number[64];fmt_dec(number,sizeof(number),s->battery_temperature_c,0);snprintf(text,sizeof(text),"%s °C",number);}
             label_text_if_changed(node->obj,text);if(node->detail)label_text_if_changed(node->detail,text);
@@ -1261,7 +1278,15 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
             if(!strcmp(source,"soc"))bg_color_if_changed(node->obj,c(tone(template_soc_color(e,value),s->night_mode)),LV_PART_INDICATOR);
         }
         else if(!strcmp(type,"gauge")){
-            int target=(int)fmin(tn(e,"max",15)*10,fabs(value)*10);
+            int scale = tn(e,"max",15);
+            if (*scale_source) {
+                scale = template_power_scale(scale, value);
+                if (lv_arc_get_max_value(node->obj) != scale * 10) {
+                    lv_arc_set_range(node->obj, 0, scale * 10);
+                    if (node->detail) lv_arc_set_range(node->detail, 0, scale * 10);
+                }
+            }
+            int target=(int)fmin(scale*10,fabs(value)*10);
             if(!node->gauge_initialized){template_gauge_value(node->obj,target);node->gauge_initialized=true;node->gauge_target=target;}
             else if(target!=node->gauge_target){
                 lv_anim_delete(node->obj,template_gauge_value);node->gauge_target=target;

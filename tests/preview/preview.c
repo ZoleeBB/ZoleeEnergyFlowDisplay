@@ -3229,6 +3229,22 @@ int main(void)
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
                 test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_comparison_colors(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                if (!strcmp(list[i].id, "03-instruments")) {
+                    app_energy_sample_t wide = sample;
+                    wide.power_pv_kw = 52.25;
+                    template_update(&wide, &fixture);
+                    unsigned checked = 0;
+                    for (unsigned j = 0; j < template_node_count; j++) {
+                        template_node_t *n = &template_nodes[j];
+                        if (strcmp(ts(n->spec, "power_scale"), "pv")) continue;
+                        if (!strcmp(ts(n->spec, "type"), "gauge"))
+                            assert(lv_arc_get_max_value(n->obj) == 600 && n->gauge_target == 522);
+                        else
+                            assert(strstr(lv_label_get_text(n->obj), "60 kW"));
+                        checked++;
+                    }
+                    assert(checked == 2);
+                }
                 app_energy_sample_t missing = sample;
                 missing.battery_temperature_valid = false;
                 template_update(&missing, &fixture);

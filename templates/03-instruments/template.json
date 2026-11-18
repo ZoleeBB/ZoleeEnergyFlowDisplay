@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 13,
+  "version": 14,
   "light": {
     "home_hotspot": {"x": 440, "y": 205, "w": 100, "h": 90},
     "background": "#E8E9FA",
@@ -96,6 +96,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "pv",
         "type": "gauge",
         "x": 59,
         "y": 190,
@@ -147,6 +148,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "pv",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -165,6 +167,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "home",
         "type": "gauge",
         "x": 367,
         "y": 190,
@@ -219,6 +222,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "home",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -237,6 +241,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "grid",
         "type": "gauge",
         "x": 675,
         "y": 190,
@@ -292,6 +297,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "grid",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -324,6 +330,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "battery",
         "type": "gauge",
         "x": 983,
         "y": 190,
@@ -379,6 +386,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "battery",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -701,6 +709,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "pv",
         "type": "gauge",
         "x": 59,
         "y": 190,
@@ -752,6 +761,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "pv",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -770,6 +780,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "home",
         "type": "gauge",
         "x": 367,
         "y": 190,
@@ -824,6 +835,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "home",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -842,6 +854,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "grid",
         "type": "gauge",
         "x": 675,
         "y": 190,
@@ -897,6 +910,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "grid",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -929,6 +943,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "battery",
         "type": "gauge",
         "x": 983,
         "y": 190,
@@ -984,6 +999,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "battery",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,

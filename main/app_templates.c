@@ -649,6 +649,14 @@ static bool validate_scene(const cJSON *scene)
             if (!key || (!one_of(key, sources) && strcmp(key, "installed") && strcmp(key, "split")))
                 return false;
         }
+        const cJSON *scale_key = cJSON_GetObjectItemCaseSensitive(e, "power_scale");
+        if (scale_key) {
+            static const char *const channels[] = {"pv", "home", "grid", "battery", NULL};
+            const char *key = cJSON_GetStringValue(scale_key);
+            if (!one_of(key, channels) ||
+                (strcmp(type, "label") && (strcmp(type, "gauge") || !source || strcmp(source, key))))
+                return false;
+        }
         if (source && !one_of(source, sources))
             return false;
         /* A két eseményfeliratnak és az óraskálának is el kell férnie. */

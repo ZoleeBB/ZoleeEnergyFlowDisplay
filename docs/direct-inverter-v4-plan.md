@@ -99,3 +99,13 @@ A meglévő kiadási folyamat automatikus kiadást az igazolt main merge-hez kö
 2. Az időszinkron utáni indulás minden adatfogadási módra érvényes. Elfogadva.
 3. Az időprogram alatt az első érintés ébreszt, az aktuális napi/éjjeli fényerőre. További érintés újraindítja a beállítható időt. Lejáratkor csak akkor sötétül vissza, ha még aktív a heti időablak. Elfogadva.
 4. A Master heti időprogramját minden Slave alapértelmezésben örökli. A Slave kártyáján önálló időprogram választható; az öröklés bármikor visszakapcsolható. Elfogadva.
+
+## Mérési tartomány és megjelenítés
+
+A Közvetlen inverter profilok csatornánként legfeljebb 327,67 kW-ot fogadnak.
+A termelés és a házfogyasztás alsó határa 0 kW. A hálózat és az akku teljesítménye
+előjeles. Hibás vagy ezen kívüli termelésből nem készül új minta. A többi
+érvénytelen csatorna elrejthető a termelés frissítése mellett. Az akkumulátor
+hőfoka −20…+80 °C között jelenik meg. A statisztika a mért teljesítményből integrál.
+A napi, heti és havi grafikonok az adatsorhoz méreteznek. A frissített Műszerfal
+témában a műszerívek és a végpontfeliratok is követik a 15 kW fölötti méréseket.
