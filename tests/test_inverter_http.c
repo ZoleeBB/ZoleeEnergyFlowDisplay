@@ -93,6 +93,14 @@ int main(void)
     assert(!s.battery_temperature_valid);
     done();
 
+    queue("GetPowerFlowRealtimeData.fcgi",
+          "{\"Head\":{\"Status\":{\"Code\":0}},\"Body\":{\"Data\":{\"Site\":{"
+          "\"P_PV\":0,\"P_Akku\":1200,\"P_Load\":-1200,\"P_Grid\":null,\"BackupMode\":true}}}}");
+    assert(app_inverter_http_read(&cfg, &s, &t) && s.status == 3 && s.grid_unavailable);
+    near(s.power_bat_kw, 1.2);
+    near(s.power_full_kw, 1.2);
+    done();
+
     strcpy(cfg.profile, "solplanet_http");
     strcpy(cfg.device, "ASW8000T");
     cfg.battery = false;

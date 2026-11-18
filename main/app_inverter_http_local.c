@@ -16,6 +16,7 @@ static bool fronius(const app_inverter_config_t *cfg, app_energy_sample_t *sampl
     bool ok = inv_http_scale(MEMBER(head, "Status"), "Code", 1, &status) && status == 0 &&
               inv_http_scale(site, "P_PV", 0.001, &sample->power_pv_kw);
     if (ok) {
+        if (cJSON_IsTrue(MEMBER(site, "BackupMode"))) sample->status = 3;
         sample->grid_unavailable = !inv_http_scale(site, "P_Grid", 0.001, &sample->power_grid_kw);
         sample->home_unavailable = !inv_http_scale(site, "P_Load", -0.001, &sample->power_full_kw);
         if (cfg->battery) {
