@@ -72,7 +72,11 @@ static bool nesting_allowed(const char *data, size_t length)
         if (!ch) return false;
         if (string) {
             if (escape) escape = false;
-            else if (ch == '\\') escape = true;
+            else if (ch == '\\') {
+                /* A cJSON NUL-végű kulcsot és szöveget ad vissza. */
+                if (length - i >= 6 && !memcmp(data + i + 1, "u0000", 5)) return false;
+                escape = true;
+            }
             else if (ch == '"') string = false;
         } else if (ch == '"') string = true;
         else if (ch == '{' || ch == '[') {
@@ -91,7 +95,7 @@ cJSON *app_inverter_json_request(const char *url, const char *method, const char
 {
     response_t r = {.token=response_token, .token_size=token_capacity};
     if (response_token && token_capacity) response_token[0] = 0;
-    if (!url || !method || (strcmp(method, "GET") && strcmp(method, "POST"))) return NULL;
+    if (!url || !method || (header_count && !headers) || (strcmp(method, "GET") && strcmp(method, "POST"))) return NULL;
     esp_http_client_config_t cfg = {
         .url=url, .event_handler=collect, .user_data=&r, .timeout_ms=4000,
         .disable_auto_redirect=true, .buffer_size=1536, .buffer_size_tx=1536
