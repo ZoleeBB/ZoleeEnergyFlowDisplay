@@ -11,7 +11,135 @@ typedef struct {
     inv_mb_t *bus;
     const app_inverter_config_t *cfg;
     app_energy_sample_t *sample;
+    const app_inverter_register_t *fields;
+    size_t field_count;
+    uint32_t valid_words;
 } reader_t;
+
+static bool same_space(const char *left, const char *right)
+{
+    return left == right || (left && right && !strcmp(left, right));
+}
+
+static unsigned address_of(const reader_t *r, size_t index)
+{
+    return r->cfg->registers.mask & (UINT32_C(1) << index)
+        ? r->cfg->registers.address[index] : r->fields[index].address;
+}
+
+static unsigned anchor(const reader_t *r, unsigned factory)
+{
+    for (size_t i = 0; i < r->field_count; ++i)
+        if (r->fields[i].type == INV_REG_BASE && r->fields[i].address == factory)
+            return address_of(r, i);
+    return factory;
+}
+
+static uint32_t word_bits(unsigned offset, unsigned words)
+{
+    return (UINT32_MAX >> (32 - words)) << offset;
+}
+
+static void missing_value(const app_inverter_register_t *field, uint16_t *value)
+{
+    /* Az érvénytelen szavak a gyári dekóder saját „nincs mérés” ágába kerülnek. */
+    for (unsigned i = 0; i < field->words; ++i) value[i] = UINT16_MAX;
+    switch (field->type) {
+    case INV_REG_S16:
+        value[0] = 0x8000;
+        break;
+    case INV_REG_F32_BE:
+    case INV_REG_S32_BE:
+        value[0] = field->type == INV_REG_F32_BE ? 0x7fc0 : 0x8000;
+        value[1] = 0;
+        break;
+    case INV_REG_F32_LE:
+    case INV_REG_S32_LE:
+        value[0] = 0;
+        value[1] = field->type == INV_REG_F32_LE ? 0x7fc0 : 0x8000;
+        break;
+    default:
+        break;
+    }
+}
+
+/* A bázist és a modellhosszt 32 biten ellenőrizzük, hogy egy kézzel megadott
+ * eltolás ne csordulhasson át egy másik modellbe vagy a nullás PDU-címre. */
+static bool in_bounds(uint32_t base, unsigned limit, unsigned address, unsigned words)
+{
+    uint32_t end = (uint32_t)address + words;
+    return end <= limit && base + end <= 65536U;
+}
+
+static bool mapped_block(reader_t *r, const char *space, uint32_t base, unsigned limit,
+                         uint8_t fn, unsigned start, unsigned count, uint16_t *out)
+{
+    r->valid_words = 0;
+    if (!count || count > 32) return false;
+    bool custom = false;
+    uint8_t indices[32];
+    unsigned members = 0;
+    if (r->cfg->registers.mask) {
+        for (size_t i = 0; i < r->field_count; ++i) {
+            const app_inverter_register_t *f = r->fields + i;
+            if (f->function != fn || f->address < start || f->address + f->words > start + count ||
+                !same_space(space, f->base)) continue;
+            indices[members++] = (uint8_t)i;
+            if (address_of(r, i) != f->address) custom = true;
+        }
+    }
+    if (!custom) {
+        if (!in_bounds(base, limit, start, count) ||
+            !inv_mb_read(r->bus, fn, (uint16_t)(base + start), count, out)) return false;
+        r->valid_words = word_bits(0, count);
+        return true;
+    }
+    /* Csak a módosított csoport bomlik elemi olvasásokra. A szomszédos mezők
+     * ismét egy csomagba kerülnek, a 32 bites érték saját szópárja oszthatatlan. */
+    for (unsigned i = 0; i < members; ++i) {
+        const app_inverter_register_t *f = r->fields + indices[i];
+        missing_value(f, out + f->address - start);
+    }
+    for (unsigned i = 0; i < members;) {
+        unsigned first = i++;
+        const app_inverter_register_t *f = r->fields + indices[first];
+        unsigned offset = f->address - start;
+        unsigned mapped = address_of(r, indices[first]);
+        unsigned n = f->words;
+        if (!in_bounds(base, limit, mapped, n)) continue;
+        while (i < members) {
+            const app_inverter_register_t *next = r->fields + indices[i];
+            if (next->address != f->address + n || address_of(r, indices[i]) != mapped + n ||
+                !in_bounds(base, limit, mapped, n + next->words)) break;
+            n += next->words;
+            ++i;
+        }
+        if (inv_mb_read(r->bus, fn, (uint16_t)(base + mapped), n, out + offset)) {
+            r->valid_words |= word_bits(offset, n);
+        } else if (i - first > 1 && r->bus->fd >= 0) {
+            /* Egy opcionális, nem létező regiszter miatt az egész kérés kivételt adhat. */
+            for (unsigned j = first; j < i; ++j) {
+                const app_inverter_register_t *one = r->fields + indices[j];
+                offset = one->address - start;
+                mapped = address_of(r, indices[j]);
+                if (inv_mb_read(r->bus, fn, (uint16_t)(base + mapped), one->words, out + offset))
+                    r->valid_words |= word_bits(offset, one->words);
+            }
+        }
+    }
+    return r->valid_words != 0;
+}
+
+static bool read_regs(reader_t *r, uint8_t fn, unsigned addr, unsigned count, uint16_t *w)
+{
+    return mapped_block(r, NULL, 0, 65536, fn, addr, count, w);
+}
+
+static bool model_regs(reader_t *r, const char *model, uint32_t base, unsigned len,
+                       unsigned offset, unsigned count, uint16_t *w)
+{
+    return mapped_block(r, model, base, len, 3, offset, count, w);
+}
 
 static double u16(uint16_t word)
 {
@@ -85,26 +213,26 @@ static double huawei_i32(const uint16_t *p)
 static double huawei(reader_t *r)
 {
     uint16_t w[26];
-    if (!inv_mb_read(r->bus, 3, 32064, 26, w)) return NAN;
+    if (!read_regs(r, 3, 32064, 26, w)) return NAN;
     double pv = huawei_i32(w);
     double ac = huawei_i32(w + 16);
     if (w[25] == 0x0203) r->sample->status = 3;
     if (w[25] == 0x0300) r->sample->status = 4;
-    if (inv_mb_read(r->bus, 3, 37100, 15, w) && w[0] == 1) {
+    if (read_regs(r, 3, 37100, 15, w) && w[0] == 1) {
         grid(r, -huawei_i32(w + 13));
         house_from_ac(r, ac);
     }
     if (r->cfg->battery) {
         /* A rendszer összegzett adata az elsődleges; a régebbi firmware egy egységet közöl. */
         bool online = false;
-        if (inv_mb_read(r->bus, 3, 37760, 7, w)) {
+        if (read_regs(r, 3, 37760, 7, w)) {
             online = w[2] == 1 || w[2] == 2 || w[2] == 4;
             if (online) battery(r, -huawei_i32(w + 5), u16(w[0]) / 10, NAN);
-        } else if (inv_mb_read(r->bus, 3, 37000, 5, w)) {
+        } else if (read_regs(r, 3, 37000, 5, w)) {
             online = w[0] == 1 || w[0] == 2 || w[0] == 4;
             if (online) battery(r, -huawei_i32(w + 1), u16(w[4]) / 10, NAN);
         }
-        if (online && inv_mb_read(r->bus, 3, 37022, 1, w))
+        if (online && read_regs(r, 3, 37022, 1, w))
             battery(r, NAN, NAN, s16(w[0]) / 10);
     }
     return pv;
@@ -114,24 +242,24 @@ static double goodwe(reader_t *r)
 {
     uint16_t w[14];
     unsigned channels = 4;
-    if (!inv_mb_read(r->bus, 3, 35105, 14, w)) {
+    if (!read_regs(r, 3, 35105, 14, w)) {
         /* Az egyfázisú EH és egyes ET verziók csak két MPPT-t címeznek. */
         channels = 2;
-        if (!inv_mb_read(r->bus, 3, 35105, 6, w)) return NAN;
+        if (!read_regs(r, 3, 35105, 6, w)) return NAN;
     }
     double pv = NAN;
     for (unsigned i = 0; i < channels * 4; i += 4) {
         double input = u32(w + i, false);
         if (isfinite(input)) pv = (isnan(pv) ? 0 : pv) + input;
     }
-    if (inv_mb_read(r->bus, 3, 36004, 1, w) && w[0] == 1 &&
-        inv_mb_read(r->bus, 3, 35138, 3, w)) {
+    if (read_regs(r, 3, 36004, 1, w) && w[0] == 1 &&
+        read_regs(r, 3, 35138, 3, w)) {
         grid(r, -s16(w[2]));
         house_from_ac(r, s16(w[0]));
     }
-    if (r->cfg->battery && inv_mb_read(r->bus, 3, 35182, 3, w) && w[2] && w[2] != 0xffff) {
+    if (r->cfg->battery && read_regs(r, 3, 35182, 3, w) && w[2] && w[2] != 0xffff) {
         battery(r, s32(w, false), NAN, NAN);
-        if (inv_mb_read(r->bus, 3, 37003, 5, w))
+        if (read_regs(r, 3, 37003, 5, w))
             battery(r, NAN, u16(w[4]), s16(w[0]) / 10);
     }
     return pv;
@@ -140,16 +268,16 @@ static double goodwe(reader_t *r)
 static double sungrow(reader_t *r)
 {
     uint16_t w[12];
-    if (!inv_mb_read(r->bus, 4, 5016, 2, w)) return NAN;
+    if (!read_regs(r, 4, 5016, 2, w)) return NAN;
     double pv = u32(w, true);
-    if (!inv_mb_read(r->bus, 4, 12999, 12, w)) return pv;
+    if (!read_regs(r, 4, 12999, 12, w)) return pv;
     if (w[0] == 0x1000 || w[0] == 0x0041) r->sample->status = 3;
     if (w[0] == 0x0100 || w[0] == 0x5500) r->sample->status = 4;
     uint16_t flow = w[1];
     double load = s32(w + 8, true);
     double exported = s32(w + 10, true);
     bool invalid_meter = false;
-    if (inv_mb_read(r->bus, 4, 13049, 2, w)) {
+    if (read_regs(r, 4, 13049, 2, w)) {
         uint32_t alarms = pair(w, true);
         invalid_meter = alarms != UINT32_MAX && (alarms & ((1U << 30) | (1U << 14)));
     }
@@ -157,7 +285,7 @@ static double sungrow(reader_t *r)
         house(r, load);
         grid(r, -exported);
     }
-    if (r->cfg->battery && inv_mb_read(r->bus, 4, 13019, 6, w) && w[0] && w[0] != 0xffff) {
+    if (r->cfg->battery && read_regs(r, 4, 13019, 6, w) && w[0] && w[0] != 0xffff) {
         double magnitude = u16(w[2]);
         unsigned direction = flow & 6;
         double power = magnitude == 0 ? 0 : NAN;
@@ -171,20 +299,20 @@ static double sungrow(reader_t *r)
 static void solax_pro_battery(reader_t *r, unsigned version)
 {
     uint16_t w[8];
-    if (!inv_mb_read(r->bus, 4, 0x16, 7, w) || w[1] != 0) return;
+    if (!read_regs(r, 4, 0x16, 7, w) || w[1] != 0) return;
     double temp = s16(w[2]);
     double soc = u16(w[6]);
     double power = -s16(w[0]);
     if (version >= 100) {
         /* A 100-as verziótól a közös töltöttség és teljesítmény külön blokkban van. */
-        if (inv_mb_read(r->bus, 4, 0x38, 5, w))
+        if (read_regs(r, 4, 0x38, 5, w))
             battery(r, -s32(w, true), u16(w[4]), temp);
         else
             battery(r, NAN, NAN, temp);
         return;
     }
     /* Második csatlakoztatott tároló esetén csak a közös SOC-t jelenítjük meg. */
-    if (inv_mb_read(r->bus, 4, 0x127, 8, w) && w[0] && w[0] != 0xffff) {
+    if (read_regs(r, 4, 0x127, 8, w) && s16(w[0]) > 0) {
         power -= s16(w[2]);
         soc = u16(w[7]);
     }
@@ -194,34 +322,34 @@ static void solax_pro_battery(reader_t *r, unsigned version)
 static double solax(reader_t *r)
 {
     uint16_t w[13];
-    if (!inv_mb_read(r->bus, 4, 9, 3, w)) return NAN;
+    if (!read_regs(r, 4, 9, 3, w)) return NAN;
     if (w[0] == 3 || w[0] == 4) r->sample->status = 4;
     if (w[0] == 7) r->sample->status = 3;
     double pv = u16(w[1]) + u16(w[2]);
     bool pro = !strcasecmp(r->cfg->device, "X3-G4-PRO");
     unsigned version = 0;
     if (pro) {
-        if (!inv_mb_read(r->bus, 3, 0x82, 1, w) || !w[0] || w[0] >= 1000) return NAN;
+        if (!read_regs(r, 3, 0x82, 1, w) || !w[0] || w[0] >= 1000) return NAN;
         version = w[0];
-        if (!inv_mb_read(r->bus, 4, 0x1b, 1, w) || (w[0] != 2 && w[0] != 3)) return NAN;
+        if (!read_regs(r, 4, 0x1b, 1, w) || (w[0] != 2 && w[0] != 3)) return NAN;
         if (w[0] == 3) {
             uint16_t tracker = version >= 100 ? 0x124 : 0x2c;
-            if (!inv_mb_read(r->bus, 4, tracker, 1, w)) return NAN;
+            if (!read_regs(r, 4, tracker, 1, w)) return NAN;
             pv += u16(w[0]);
         }
     }
     /* A fizikai CT-hez nem tartozik soros mérő-kommunikáció. */
-    bool metered = inv_mb_read(r->bus, 4, 0xb8, 1, w) && w[0] == 1;
-    if (!metered) metered = inv_mb_read(r->bus, 3, 0x115, 1, w) && w[0] == 1;
-    if (metered && inv_mb_read(r->bus, 4, 0x46, 2, w)) grid(r, -s32(w, true));
+    bool metered = read_regs(r, 4, 0xb8, 1, w) && w[0] == 1;
+    if (!metered) metered = read_regs(r, 3, 0x115, 1, w) && w[0] == 1;
+    if (metered && read_regs(r, 4, 0x46, 2, w)) grid(r, -s32(w, true));
     if (!strcasecmp(r->cfg->device, "x1") || !strcasecmp(r->cfg->device, "X1-G4")) {
-        if (inv_mb_read(r->bus, 4, 2, 1, w)) house_from_ac(r, s16(w[0]));
-    } else if (inv_mb_read(r->bus, 4, 0x6c, 9, w)) {
+        if (read_regs(r, 4, 2, 1, w)) house_from_ac(r, s16(w[0]));
+    } else if (read_regs(r, 4, 0x6c, 9, w)) {
         house_from_ac(r, s16(w[0]) + s16(w[4]) + s16(w[8]));
     }
     if (r->cfg->battery) {
         if (pro) solax_pro_battery(r, version);
-        else if (inv_mb_read(r->bus, 4, 0x16, 7, w) && w[1] == 1)
+        else if (read_regs(r, 4, 0x16, 7, w) && w[1] == 1)
             battery(r, -s16(w[0]), u16(w[6]), s16(w[2]));
     }
     return pv;
@@ -232,9 +360,10 @@ static double gx_phases(reader_t *r, uint16_t addr, unsigned count, bool signed_
 {
     uint16_t w[9];
     double total = NAN;
-    bool group = inv_mb_read(r->bus, 3, addr, count, w);
+    bool group = read_regs(r, 3, addr, count, w);
     for (unsigned i = 0; i < count; ++i) {
-        if (!group && !inv_mb_read(r->bus, 3, addr + i, 1, w + i)) continue;
+        if (group && !(r->valid_words & (UINT32_C(1) << i))) continue;
+        if (!group && !read_regs(r, 3, addr + i, 1, w + i)) continue;
         double value = signed_power ? (int16_t)w[i] : w[i];
         total = (isnan(total) ? 0 : total) + value;
     }
@@ -245,11 +374,11 @@ static double victron(reader_t *r)
 {
     uint16_t w[4];
     double ac = gx_phases(r, 808, 9, false);
-    double dc = inv_mb_read(r->bus, 3, 850, 1, w) ? u16(w[0]) : NAN;
+    double dc = read_regs(r, 3, 850, 1, w) ? u16(w[0]) : NAN;
     grid(r, gx_phases(r, 820, 3, true));
     house(r, gx_phases(r, 817, 3, false));
-    if (r->cfg->battery && inv_mb_read(r->bus, 3, 840, 4, w) && w[0] && w[0] != 0xffff)
-        battery(r, -(double)(int16_t)w[2], u16(w[3]), NAN);
+    if (r->cfg->battery && read_regs(r, 3, 840, 4, w) && w[0] && w[0] != 0xffff)
+        battery(r, r->valid_words & (1U << 2) ? -(double)(int16_t)w[2] : NAN, u16(w[3]), NAN);
     if (isnan(ac)) return dc;
     return isnan(dc) ? ac : ac + dc;
 }
@@ -257,12 +386,12 @@ static double victron(reader_t *r)
 static double deye(reader_t *r)
 {
     uint16_t w[5];
-    if (!inv_mb_read(r->bus, 3, 672, 2, w)) return NAN;
+    if (!read_regs(r, 3, 672, 2, w)) return NAN;
     double pv = u16(w[0]) + u16(w[1]);
-    if (inv_mb_read(r->bus, 3, 619, 1, w)) grid(r, s16(w[0]));
-    if (inv_mb_read(r->bus, 3, 653, 1, w)) house(r, s16(w[0]));
-    if (inv_mb_read(r->bus, 3, 500, 1, w) && w[0] == 4) r->sample->status = 4;
-    if (r->cfg->battery && inv_mb_read(r->bus, 3, 586, 5, w) && w[1] && w[1] != 0xffff)
+    if (read_regs(r, 3, 619, 1, w)) grid(r, s16(w[0]));
+    if (read_regs(r, 3, 653, 1, w)) house(r, s16(w[0]));
+    if (read_regs(r, 3, 500, 1, w) && w[0] == 4) r->sample->status = 4;
+    if (r->cfg->battery && read_regs(r, 3, 586, 5, w) && w[1] && w[1] != 0xffff)
         battery(r, s16(w[4]), u16(w[2]), (u16(w[0]) - 1000) / 10);
     return pv;
 }
@@ -272,14 +401,14 @@ static double solplanet(reader_t *r)
     uint16_t w[4];
     double pv = NAN;
     /* Az ASW8000-T két MPPT-jén a régi firmware csak feszültséget és áramot közöl. */
-    if (inv_mb_read(r->bus, 4, 1318, 4, w))
+    if (read_regs(r, 4, 1318, 4, w))
         pv = (u16(w[0]) * u16(w[1]) + u16(w[2]) * u16(w[3])) / 1000;
-    if (!isfinite(pv) && inv_mb_read(r->bus, 4, 1600, 2, w)) pv = u32(w, false);
-    if (inv_mb_read(r->bus, 4, 1308, 1, w) && w[0] == 2) r->sample->status = 4;
-    if (inv_mb_read(r->bus, 3, 1107, 1, w) && w[0] == 10 &&
-        inv_mb_read(r->bus, 3, 6433, 2, w)) {
+    if (!isfinite(pv) && read_regs(r, 4, 1600, 2, w)) pv = u32(w, false);
+    if (read_regs(r, 4, 1308, 1, w) && w[0] == 2) r->sample->status = 4;
+    if (read_regs(r, 3, 1107, 1, w) && w[0] == 10 &&
+        read_regs(r, 3, 6433, 2, w)) {
         grid(r, s32(w, false));
-        if (inv_mb_read(r->bus, 4, 1370, 2, w)) house_from_ac(r, s32(w, false));
+        if (read_regs(r, 4, 1370, 2, w)) house_from_ac(r, s32(w, false));
     }
     return pv;
 }
@@ -306,11 +435,12 @@ static void se_battery(reader_t *r)
     double total_power = 0, total_energy = 0, weighted_soc = 0, highest_temperature = NAN;
     for (unsigned i = 0; i < sizeof(bases) / sizeof(bases[0]); ++i) {
         /* A nem beépített tároló címét a firmware kivétellel vagy nulla kapacitással jelzi. */
-        if (!inv_mb_read(r->bus, 3, bases[i] + 0x42, 2, w)) continue;
+        unsigned base = anchor(r, bases[i]);
+        if (!model_regs(r, "StorEdge", base, 256, 0x42, 2, w)) continue;
         double capacity = float32_value(w, true);
         if (!(capacity > 0)) continue;
         total_energy += capacity;
-        if (!inv_mb_read(r->bus, 3, bases[i] + 0x6c, 28, w)) {
+        if (!model_regs(r, "StorEdge", base, 256, 0x6c, 28, w)) {
             total_power = weighted_soc = NAN;
             continue;
         }
@@ -335,10 +465,10 @@ static void se_battery(reader_t *r)
 
 typedef enum { SE_OTHER, SE_GRID, SE_HOME, SE_PRODUCTION } se_meter_t;
 
-static se_meter_t se_meter_role(inv_mb_t *bus, uint16_t base)
+static se_meter_t se_meter_role(reader_t *r, uint16_t base, uint16_t len)
 {
     uint16_t words[8];
-    if (!inv_mb_read(bus, 3, base + 32, 8, words)) return SE_OTHER;
+    if (!model_regs(r, "SunSpec 1", base, len, 32, 8, words)) return SE_OTHER;
     char name[17] = {0};
     unsigned length = 0;
     for (unsigned i = 0; i < 16; ++i) {
@@ -357,9 +487,9 @@ static double se_meter(reader_t *r, uint16_t id, uint16_t base, uint16_t len, se
     uint16_t w[5];
     double power = NAN;
     if (role == SE_OTHER) return NAN;
-    if (id >= 201 && id <= 204 && len >= 21 && inv_mb_read(r->bus, 3, base + 16, 5, w))
+    if (id >= 201 && id <= 204 && model_regs(r, "SunSpec 201–204", base, len, 16, 5, w))
         power = sunspec_scale(s16(w[0]), w[4]);
-    if (id >= 211 && id <= 214 && len >= 28 && inv_mb_read(r->bus, 3, base + 26, 2, w))
+    if (id >= 211 && id <= 214 && model_regs(r, "SunSpec 211–214", base, len, 26, 2, w))
         power = float32_value(w, false);
     if (role == SE_GRID) grid(r, -power);
     if (role == SE_HOME) house(r, power);
@@ -369,13 +499,13 @@ static double se_meter(reader_t *r, uint16_t id, uint16_t base, uint16_t len, se
 static double se_mppt(reader_t *r, uint16_t base, uint16_t len)
 {
     uint16_t w[7];
-    if (len < 28 || !inv_mb_read(r->bus, 3, base, 7, w)) return NAN;
+    if (len < 28 || !model_regs(r, "SunSpec 160", base, len, 0, 7, w)) return NAN;
     unsigned count = w[6];
     uint16_t scale = w[2];
     if (!count || count > 8 || len < 8 + 20 * count) return NAN;
     double sum = 0;
     for (unsigned i = 0; i < count; ++i) {
-        if (!inv_mb_read(r->bus, 3, base + 19 + 20 * i, 1, w)) return NAN;
+        if (!model_regs(r, "SunSpec 160 MPPT", base + 8 + 20 * i, 20, 11, 1, w)) return NAN;
         sum += sunspec_scale(u16(w[0]), scale);
     }
     return sum;
@@ -384,27 +514,27 @@ static double se_mppt(reader_t *r, uint16_t base, uint16_t len)
 static double solaredge(reader_t *r)
 {
     uint16_t w[37];
-    if (!inv_mb_read(r->bus, 3, 40000, 2, w) || w[0] != 0x5375 || w[1] != 0x6e53) return NAN;
+    if (!read_regs(r, 3, 40000, 2, w) || w[0] != 0x5375 || w[1] != 0x6e53) return NAN;
     double ac = NAN, dc = NAN, pv = NAN;
     bool inverter = false;
-    uint32_t pos = 40002;
+    uint32_t pos = anchor(r, 40000) + 2;
     se_meter_t role = SE_OTHER;
     /* A modellhossz vezeti a bejárást, így egy MPPT bővítés eltolhatja a mérőt. */
     for (unsigned i = 0; i < 24 && pos <= 65533; ++i) {
-        if (!inv_mb_read(r->bus, 3, pos, 2, w)) break;
+        if (!model_regs(r, "SunSpec header", pos, 65536 - pos, 0, 2, w)) break;
         uint16_t id = w[0], len = w[1];
         if (!len || id == 0xffff || pos + 2U + len > 65535) break;
         uint16_t base = pos + 2;
         if (id == 1) {
-            role = inverter && len >= 40 ? se_meter_role(r->bus, base) : SE_OTHER;
-        } else if (id >= 101 && id <= 103 && len >= 37) {
-            if (!inv_mb_read(r->bus, 3, base + 12, 25, w)) break;
+            role = inverter ? se_meter_role(r, base, len) : SE_OTHER;
+        } else if (id >= 101 && id <= 103) {
+            if (!model_regs(r, "SunSpec 101–103", base, len, 12, 25, w)) break;
             ac = sunspec_scale(s16(w[0]), w[1]);
             dc = sunspec_scale(s16(w[17]), w[18]);
             if (w[24] == 7) r->sample->status = 4;
             inverter = true;
-        } else if (id >= 111 && id <= 113 && len >= 47) {
-            if (!inv_mb_read(r->bus, 3, base + 20, 27, w)) break;
+        } else if (id >= 111 && id <= 113) {
+            if (!model_regs(r, "SunSpec 111–113", base, len, 20, 27, w)) break;
             ac = float32_value(w, false);
             dc = float32_value(w + 16, false);
             if (w[26] == 7) r->sample->status = 4;
@@ -473,6 +603,7 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
             .grid_unavailable = true, .soc_unavailable = true, .battery_power_unavailable = true,
         };
         reader_t reader = {.bus = &bus, .cfg = cfg, .sample = &result};
+        reader.fields = app_inverter_registers(cfg->profile, &reader.field_count);
         double pv = profiles[i].decode(&reader);
         inv_mb_close(&bus);
         if (!isfinite(pv) && bus.frame == INV_MB_LSE3) {

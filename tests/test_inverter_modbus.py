@@ -39,6 +39,84 @@ def v5_frame(payload, seq, serial):
     return frame + bytes([sum(frame[1:]) & 255, 0x15])
 
 
+class RegisterImage:
+    """Word-addressable fixture; missing ranges produce a Modbus exception."""
+    def __init__(self, blocks=()):
+        self.words = {}
+        for (function, address), values in dict(blocks).items():
+            self.put(function, address, values)
+
+    def put(self, function, address, values):
+        for offset, value in enumerate(values):
+            self.words[function, address + offset] = value
+
+    def read(self, function, address, count):
+        try:
+            return [self.words[function, addr] for addr in range(address, address + count)]
+        except KeyError:
+            return None
+
+
+def schema(exe, profile):
+    rows = json.loads(subprocess.check_output([str(exe), "--schema", profile], text=True))
+    assert len(rows) <= 32
+    assert len({row["key"] for row in rows}) == len(rows)
+    assert all(row["fc"] in (3, 4) and 1 <= row["words"] <= 8 and
+               0 <= row["address"] <= 65536 - row["words"] for row in rows)
+    return rows
+
+
+def relocated(exe, profile, blocks, expected, *, frame="tcp", unit=1, device="", battery=True):
+    fields = schema(exe, profile)
+    source = RegisterImage(blocks)
+    image = RegisterImage()
+    overrides = {}
+    required = set()
+    for i, field in enumerate(fields):
+        assert not field["base"]
+        address = 20000 + 12 * i
+        values = source.read(field["fc"], field["address"], field["words"])
+        overrides[field["key"]] = address
+        if values is not None:
+            image.put(field["fc"], address, values)
+            required.add((field["fc"], address, field["words"]))
+    seen = run(exe, profile, image, expected, device=device, unit=unit, battery=battery,
+               frame=frame, overrides=overrides)
+    # A feltételes útvonalak (eltérő modell, tartalék BMS) közül csak az aktív olvasható.
+    assert seen and all(a in overrides.values() for _, a, _ in seen)
+    assert set(seen) & required
+    return seen
+
+
+def verify_relative_registers(exe, original, pv):
+    # A fejléc és a teljes modelllánc új bázist kap, benne a DC és a mérő teljesítmény szava eltér.
+    image = RegisterImage()
+    moved_base = 12000
+    shift = moved_base - 40000
+    for (fc, addr), values in original.items():
+        if 40000 <= addr < 41000:
+            image.put(fc, addr + shift, values)
+    image.put(3, 40071 + shift + 42, [4321])
+    image.put(3, 40071 + shift + 43, [65535])  # SF = −1
+    image.put(3, 40190 + shift + 33, [20])
+    for target in (61000, 62000):
+        image.put(3, target + 0x42, original[3, 0xe142])
+        image.put(3, target + 0x6c, original[3, 0xe16c])
+        image.put(3, target + 155, [0, 0x4220])  # 40.0 °C, kis szó elöl
+    changes = {"sunspec_base": moved_base, "dc": 42, "dc_sf": 43, "meter_power": 33,
+               "bank1": 61000, "bank2": 62000, "bat_temp": 155}
+    seen = run(exe, "solaredge_modbus", image,
+               dict(pv, pv=1.9321, home=1, grid=-2, soc=55, battery=-1.5, temp=40), overrides=changes)
+    assert (3, moved_base, 2) in seen and (3, 40000, 2) not in seen
+    assert (3, 40071 + shift + 42, 2) in seen
+    assert (3, 61000 + 155, 2) in seen and (3, 62000 + 155, 2) in seen
+    # A modell hosszán kívüli cím nem érintheti a következő modellt vagy a 0. címet.
+    changes["dc"] = 65535
+    visits = run(exe, "solaredge_modbus", image, None, battery=False, overrides=changes)
+    assert all(addr != 0 for _, addr, _ in visits)
+    assert all(addr != ((40071 + shift + 65535) & 65535) for _, addr, _ in visits)
+
+
 def serve(listener, frame, unit, registers, fault):
     visited = []
     if frame == "lse8":
@@ -72,7 +150,10 @@ def serve(listener, frame, unit, registers, fault):
             assert slave == unit and function in (3, 4)
             assert 0 < count <= 125
             visited.append((function, address, count))
-            table = registers.get((function, address, count), registers.get((function, address)))
+            if isinstance(registers, RegisterImage):
+                table = registers.read(function, address, count)
+            else:
+                table = registers.get((function, address, count), registers.get((function, address)))
             if table is not None:
                 assert len(table) == count, (address, count, table)
                 data = bytes([slave, function, count * 2]) + struct.pack(">" + "H" * count, *table)
@@ -103,13 +184,15 @@ def serve(listener, frame, unit, registers, fault):
     return visited
 
 
-def run(exe, profile, registers, expected, *, frame="tcp", unit=1, battery=True, device="", fault=""):
+def run(exe, profile, registers, expected, *, frame="tcp", unit=1, battery=True, device="", fault="", overrides=None):
     with socket.socket() as listener, concurrent.futures.ThreadPoolExecutor() as pool:
         listener.bind(("127.0.0.1", 0))
         listener.listen()
         listener.settimeout(6)
         future = pool.submit(serve, listener, frame, unit, registers, fault)
         cmd = [str(exe), profile, str(listener.getsockname()[1]), str(unit), str(int(battery)), device]
+        for key, address in (overrides or {}).items():
+            cmd.extend([key, str(address)])
         result = json.loads(subprocess.check_output(cmd, text=True, timeout=7))
         visited = future.result(timeout=6)
     assert result == expected, (profile, result, expected)
@@ -135,7 +218,17 @@ def main():
         huawei = {(3, 32064): core, (3, 37100): padded(15, {0: 1, 14: 500}),
                   (3, 37760): [650, 0, 2, 0, 0, 0, 400], (3, 37022): [0]}
         run(exe, "huawei_modbus", huawei, dict(pv, grid=-.5, home=2.5, soc=65, battery=-.4, temp=0))
+        relocated(exe, "huawei_modbus", huawei, dict(pv, grid=-.5, home=2.5, soc=65, battery=-.4, temp=0))
         run(exe, "huawei_modbus", {(3, 32064): core}, pv, unit=0)
+        image = RegisterImage(huawei)
+        image.put(3, 0, [0, 2400])
+        changed = run(exe, "huawei_modbus", image, dict(pv, pv=2.4, grid=-.5, home=2.5, soc=65, battery=-.4),
+                      overrides={"pv": 0, "bat_temp": 12900})
+        assert (3, 0, 2) in changed and (3, 32064, 26) not in changed
+        assert (3, 37100, 15) in changed   # változatlan blokk továbbra is egy kérés
+        # Az első két szó áthelyezésekor a hiányzó új hőfok nem szünteti meg az energiamintát.
+        assert (3, 12900, 1) in changed
+        assert schema(exe, "fronius_local") == []
         visited = run(exe, "huawei_modbus", huawei, dict(pv, grid=-.5, home=2.5), battery=False)
         assert all(a < 37000 or a == 37100 for _, a, _ in visited)
         run(exe, "huawei_modbus", huawei, None, fault="sequence")
@@ -144,11 +237,13 @@ def main():
                   (3, 36004): [1], (3, 35138): [2600, 0, 1000], (3, 35182): [65535, 65036, 2],
                   (3, 37003): [0x8000, 0, 0, 0, 38]}
         run(exe, "goodwe_modbus", goodwe, dict(pv, grid=-1, home=1.6, battery=-.5, soc=38), unit=247)
+        relocated(exe, "goodwe_modbus", goodwe, dict(pv, grid=-1, home=1.6, battery=-.5, soc=38), unit=247)
         eh = {(3, 35105, 6): [0, 1800, 0, 0, 0, 1700]}
         run(exe, "goodwe_modbus", eh, pv, unit=247, battery=False)
         sungrow = {(4, 5016): [3500, 0], (4, 12999): padded(12, {0: 0x1000, 1: 4, 8: 1100, 10: -100, 11: -1}),
                    (4, 13019): [4820, 0, 100, 553, 0, 320]}
         run(exe, "sungrow_modbus", sungrow, dict(pv, home=1.1, grid=.1, battery=.1, soc=55.3, temp=32, status=3))
+        relocated(exe, "sungrow_modbus", sungrow, dict(pv, home=1.1, grid=.1, battery=.1, soc=55.3, temp=32, status=3))
         sungrow[4, 13049] = [0, 1 << 14]
         run(exe, "sungrow_modbus", sungrow, dict(pv, status=3), battery=False)
         solax = {(4, 0xb8): [1], (4, 9): [2, 1500, 2000], (4, 0x46): [500, 0], (4, 0x16): [300, 1, 22, 1, 0, 2, 50],
@@ -162,21 +257,27 @@ def main():
                         (4, 0x38): [300, 0, 0, 0, 40]})
             run(exe, "solax_modbus", pro, dict(pv, pv=4.43, grid=-.5, home=2.1, battery=-.3, soc=40, temp=18),
                 device="X3-G4-PRO")
+            relocated(exe, "solax_modbus", pro,
+                      dict(pv, pv=4.43, grid=-.5, home=2.1, battery=-.3, soc=40, temp=18), device="X3-G4-PRO")
             del pro[4, third]
             run(exe, "solax_modbus", pro, None, device="X3-G4-PRO")
         victron = {(3, 808): [2000] + [0] * 8, (3, 850): [1500], (3, 820): [65036, 400, 100],
                    (3, 817): [400, 500, 200], (3, 840): [482, 0, 200, 52]}
         run(exe, "victron_modbus", victron, dict(pv, home=1.1, grid=0, battery=-.2, soc=52), unit=100)
+        relocated(exe, "victron_modbus", victron, dict(pv, home=1.1, grid=0, battery=-.2, soc=52), unit=100)
         deye = {(3, 672): [2000, 1500], (3, 619): [65036], (3, 653): [1500],
                 (3, 500): [2], (3, 586): [1220, 4800, 35, 0, 250]}
         for profile, frame in [("deye_modbus", "tcp"), ("deye_v5", "v5"), ("deye_rtu", "rtu"),
                                ("deye_lse3", "lse6"), ("deye_lse3", "lse8")]:
             run(exe, profile, deye, dict(pv, grid=-.5, home=1.5, battery=.25, soc=35, temp=22),
                 frame=frame, device="3631234567")
+            relocated(exe, profile, deye, dict(pv, grid=-.5, home=1.5, battery=.25, soc=35, temp=22),
+                      frame=frame, device="3631234567")
         for fault in ("serial", "crc", "checksum"):
             run(exe, "deye_v5", deye, None, frame="v5", device="3631234567", fault=fault)
         run(exe, "deye_rtu", deye, None, frame="rtu", fault="crc")
         run(exe, "solplanet_modbus", {(4, 1318): [3500, 700, 3000, 350]}, pv, unit=3, battery=False)
+        relocated(exe, "solplanet_modbus", {(4, 1318): [3500, 700, 3000, 350]}, pv, unit=3, battery=False)
         sunspec = {(3, 40000): [0x5375, 0x6e53], (3, 40002): [1, 65], (3, 40069): [103, 50],
                    (3, 40083): padded(25, {0: 30, 1: 2, 17: 35, 18: 2, 24: 4}),
                    (3, 40121): [1, 65], (3, 40155): list(struct.unpack(">8H", b"Export+Import".ljust(16, b"\0"))),
@@ -196,6 +297,7 @@ def main():
         second[25] = struct.unpack(">HH", struct.pack(">f", 35))[0]
         sunspec[3, 0xe26c] = second
         run(exe, "solaredge_modbus", sunspec, dict(pv, grid=-.5, home=2.5, battery=0, soc=45, temp=0))
+        verify_relative_registers(exe, sunspec, pv)
     print("Local inverter profiles and fragmented Modbus TCP/RTU/SolarMAN V5 frames passed.")
 
 
