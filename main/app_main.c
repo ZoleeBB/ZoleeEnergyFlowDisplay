@@ -16,6 +16,7 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "app_display_boot.h"
 
 #include "freertos/FreeRTOS.h"
@@ -50,6 +51,7 @@
 
 static const char *TAG = "app";
 static app_config_t s_config;
+static bool s_retry_web, s_retry_mqtt, s_retry_ingest;
 static app_display_boot_state_t s_boot_orientation = {.rotation_degrees=270};
 static uint16_t s_active_rotation = 270;
 
@@ -311,7 +313,8 @@ static void __attribute__((noinline)) app_boot(void)
     /* A mai és tegnapi statisztika betöltése / létrehozása. */
     if (app_stats_init(&s_config) != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "A statisztikai tárhely nem érhető el; az élő adatok továbbra is megjelennek.");
-    if (app_ingest_init(s_config.data_recept_mode) != ESP_OK)
+    s_retry_ingest = app_ingest_init(s_config.data_recept_mode) != ESP_OK;
+    if (s_retry_ingest)
         app_events_add(APP_EVENT_ERROR, "Az adatfogadó nem indult el.");
     if (app_storage_start_recovery_task() != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "Az SD helyreállítási feladata nem indult el.");
@@ -321,7 +324,8 @@ static void __attribute__((noinline)) app_boot(void)
         app_events_add(APP_EVENT_WARNING, "Az idő háttérszinkronja nem indult el.");
     if (app_ota_start_auto_update(&s_config) != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "Az automatikus frissítés nem indult el.");
-    if ((!slave || s_config.wifi.ssid[0]) && app_web_start(&s_config) != ESP_OK)
+    s_retry_web = (!slave || s_config.wifi.ssid[0]) && app_web_start(&s_config) != ESP_OK;
+    if (s_retry_web)
         app_events_add(APP_EVENT_ERROR, "A webfelület nem indult el.");
     if (s_config.data_recept_mode == APP_DATA_LOXONE) {
         if (app_loxone_audio_init() != ESP_OK)
@@ -329,8 +333,9 @@ static void __attribute__((noinline)) app_boot(void)
         if (app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK)
             app_events_add(APP_EVENT_ERROR, "A Loxone kliens előkészítése sikertelen.");
     }
-    if (s_config.data_recept_mode == APP_DATA_MQTT && s_config.mqtt.broker[0] &&
-        app_mqtt_start(&s_config) != ESP_OK)
+    s_retry_mqtt = s_config.data_recept_mode == APP_DATA_MQTT && s_config.mqtt.broker[0] &&
+        app_mqtt_start(&s_config) != ESP_OK;
+    if (s_retry_mqtt)
         app_events_add(APP_EVENT_ERROR, "Az MQTT kliens előkészítése sikertelen.");
     app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött. Szabad DMA-memória: %u B (legnagyobb blokk %u B).",
                    (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
@@ -352,23 +357,20 @@ void app_main(void)
     /* A boot helyi pufferei a visszatéréssel felszabadulnak. A noinline
      * határt és az itt megmaradó kis keretet a valódi ESP-build ellenőrzi. */
     app_boot();
-    if (s_config.data_recept_mode == APP_DATA_LOXONE) {
-        /* Az eddig tétlen 10 KiB-os main verem váltja ki a külön 8 KiB-os
-         * Audio-taskot. A Miniserver-parancsok továbbra is külön futnak. */
-        vTaskPrioritySet(NULL, 3);
-        app_loxone_audio_run();
-    }
-
-    if (s_config.data_recept_mode == APP_DATA_INVERTER) {
-        for (;;) {
-            app_inverter_tick();
-            vTaskDelay(pdMS_TO_TICKS(250));
+    int64_t next_retry = esp_timer_get_time() + 10000000LL;
+    for (;;) {
+        if (s_config.data_recept_mode == APP_DATA_LOXONE && !s_retry_web && !s_retry_ingest) {
+            /* A natív Audio-kapcsolat a már meglévő 10 KiB-os main vermen él. */
+            vTaskPrioritySet(NULL, 3);
+            app_loxone_audio_run();
         }
-    }
-
-    /* A többi adatforrás és a Master Slave módja nem indít Audio-kapcsolatot. */
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        if (s_config.data_recept_mode == APP_DATA_INVERTER) app_inverter_tick();
+        if (esp_timer_get_time() >= next_retry) {
+            if (s_retry_web) s_retry_web = app_web_start(&s_config) != ESP_OK;
+            if (s_retry_ingest) s_retry_ingest = app_ingest_init(s_config.data_recept_mode) != ESP_OK;
+            if (s_retry_mqtt) s_retry_mqtt = app_mqtt_start(&s_config) != ESP_OK;
+            next_retry = esp_timer_get_time() + 10000000LL;
+        }
+        vTaskDelay(pdMS_TO_TICKS(s_config.data_recept_mode == APP_DATA_INVERTER ? 250 : 10000));
     }
 }
-
