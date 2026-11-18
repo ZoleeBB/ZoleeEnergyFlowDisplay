@@ -48,7 +48,15 @@ typedef struct {
     bool save;
     lx_home_config_t *home;
 } request_t;
-static SemaphoreHandle_t s_lock;
+/* A mutexet csak a teljes modell és a worker elkészülte után tesszük
+ * láthatóvá a másik magon futó webes és kijelzőfeladatnak. */
+static _Atomic(SemaphoreHandle_t) s_lock;
+static atomic_flag s_starting = ATOMIC_FLAG_INIT;
+static bool s_intercom_started;
+typedef struct {
+    lx_config_t config;
+    SemaphoreHandle_t lock;
+} worker_context_t;
 static QueueHandle_t s_messages,s_requests,s_home_commands;
 static lx_config_t s_saved;
 /* Az új profil nem duzzasztja a hitelesítési konfiguráció másolatait. */
@@ -645,9 +653,12 @@ static void audio_session_retry(const lx_config_t *active, const char *token, bo
 
 static void worker(void *arg)
 {
-    (void)arg;
-    lx_config_t *active=calloc(1,sizeof(*active));request_t *request=NULL;
-    if(!active){status("Nincs elegendő memória a Loxone klienshez.");vTaskDelete(NULL);return;}
+    worker_context_t *context = arg;
+    /* Az új feladat már a létrehozó visszatérése előtt elindulhat. */
+    xSemaphoreTake(context->lock, portMAX_DELAY);
+    xSemaphoreGive(context->lock);
+    lx_config_t *active = &context->config;
+    request_t *request = NULL;
     char token[1024]={0};bool testing=false;unsigned failures=0;
     for(;;) {
         uint32_t presence_revision = app_slave_presence_service_source_revision();
@@ -754,35 +765,83 @@ retry:
         for(unsigned i=0;i<delay*10&&!uxQueueMessagesWaiting(s_requests);i++)vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
-esp_err_t app_loxone_start(uint32_t presence_default_seconds)
+static esp_err_t start_worker(uint32_t presence_default_seconds)
 {
+    QueueHandle_t messages = NULL, requests = NULL, commands = NULL;
+    lx_home_config_t *home = NULL;
+    worker_context_t *context = NULL;
+    SemaphoreHandle_t lock = xSemaphoreCreateMutex();
+    if (!lock) return ESP_ERR_NO_MEM;
+    messages = xQueueCreate(LX_QUEUE_DEPTH, sizeof(message_t));
+    if (!messages) goto failed;
+    requests = xQueueCreate(1, sizeof(request_t *));
+    if (!requests) goto failed;
+    commands = xQueueCreate(1, sizeof(home_command_t));
+    if (!commands) goto failed;
+    home = calloc(1, sizeof(*home));
+    if (!home) goto failed;
+    esp_err_t home_load = app_loxone_home_store_load(home);
+    if (home_load == ESP_ERR_NO_MEM) goto failed;
+    if (home_load != ESP_OK) {
+        home->intercom.speaker_volume = 55;
+        home->intercom.microphone_gain = 80;
+    }
+    context = calloc(1, sizeof(*context));
+    if (!context) goto failed;
+    esp_err_t config_load = app_loxone_store_load(&context->config);
+    if (config_load == ESP_ERR_NO_MEM) goto failed;
+    if (config_load != ESP_OK) lx_config_defaults(&context->config);
+    /* Régi SD-konfigurációnál az érintéshez már megadott idő marad meg. */
+    if (!context->config.presence.timeout_seconds)
+        context->config.presence.timeout_seconds =
+            presence_default_seconds >= 1 && presence_default_seconds <= 86400 ? presence_default_seconds : 60;
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
+    context->config.energy_flow_disabled = runtime.energy_flow_disabled;
+
+    context->lock = lock;
+    xSemaphoreTake(lock, portMAX_DELAY);
+    /* A GUI/touch CPU1-en, a hálózati feldolgozás CPU0-n fut. */
+    if (xTaskCreatePinnedToCore(worker, "loxone", 12288, context, 3, NULL, 0) != pdPASS) {
+        xSemaphoreGive(lock);
+        goto failed;
+    }
+    s_home = home;
+    s_messages = messages;
+    s_requests = requests;
+    s_home_commands = commands;
+    s_saved = context->config;
+    s_password = s_saved.password[0] != 0;
     s_energy_disabled = runtime.energy_flow_disabled;
-    s_lock=xSemaphoreCreateMutex();s_messages=xQueueCreate(LX_QUEUE_DEPTH,sizeof(message_t));s_requests=xQueueCreate(1,sizeof(request_t*));
-    s_home_commands = xQueueCreate(1, sizeof(home_command_t));
-    if(!s_lock||!s_messages||!s_requests||!s_home_commands)return ESP_ERR_NO_MEM;
-    s_home = calloc(1, sizeof(*s_home));
-    if (!s_home)
-        return ESP_ERR_NO_MEM;
-    esp_err_t home_load = app_loxone_home_store_load(s_home);
-    if (home_load != ESP_OK) s_home->intercom.speaker_volume = 55;
-    if (home_load != ESP_OK) s_home->intercom.microphone_gain = 80;
     if (home_load != ESP_OK && home_load != ESP_ERR_NOT_FOUND)
         snprintf(s_home_status, sizeof(s_home_status), "%s",
                  "Az Otthon-profil nem tölthető be. Ellenőrizd az SD-kártyát.");
-    lx_config_defaults(&s_saved);(void)app_loxone_store_load(&s_saved);s_password=s_saved.password[0]!=0;
-    /* Régi SD-konfigurációnál az érintéshez már megadott idő marad meg.
-     * Az első Loxone-mentés az önálló jelenlétprofilba is átviszi. */
-    if (!s_saved.presence.timeout_seconds)
-        s_saved.presence.timeout_seconds = presence_default_seconds >= 1 &&
-            presence_default_seconds <= 86400 ? presence_default_seconds : 60;
-    s_saved.energy_flow_disabled = s_energy_disabled;
-    /* A GUI/touch a CPU1-en fut; a hálózati állapotfeldolgozás CPU0-n marad.
-     * A rövid snapshot-lockokat mindkét magról ugyanaz a mutex védi. */
-    if (xTaskCreatePinnedToCore(worker, "loxone", 12288, NULL, 3, NULL, 0) != pdPASS)
-        return ESP_ERR_NO_MEM;
-    return app_intercom_start();
+    atomic_store(&s_lock, lock);
+    xSemaphoreGive(lock);
+    return ESP_OK;
+
+failed:
+    if (context) mbedtls_platform_zeroize(context, sizeof(*context));
+    if (home) mbedtls_platform_zeroize(home, sizeof(*home));
+    free(context);
+    free(home);
+    if (commands) vQueueDelete(commands);
+    if (requests) vQueueDelete(requests);
+    if (messages) vQueueDelete(messages);
+    vSemaphoreDelete(lock);
+    return ESP_ERR_NO_MEM;
+}
+
+esp_err_t app_loxone_start(uint32_t presence_default_seconds)
+{
+    if (atomic_flag_test_and_set(&s_starting)) return ESP_ERR_INVALID_STATE;
+    esp_err_t result = s_lock ? ESP_OK : start_worker(presence_default_seconds);
+    if (result == ESP_OK && !s_intercom_started) {
+        result = app_intercom_start();
+        s_intercom_started = result == ESP_OK;
+    }
+    atomic_flag_clear(&s_starting);
+    return result;
 }
 cJSON *app_loxone_web_state(void)
 {
