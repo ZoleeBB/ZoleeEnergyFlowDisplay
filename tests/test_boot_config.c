@@ -143,6 +143,10 @@ int main(void)
     assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK);
     assert(cfg.data_recept_mode == APP_DATA_INVERTER && !app_boot_config_setup_pending() && !cfg.cardless_slave);
     assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_ERR_INVALID_STATE);
+    setup[0] = 'X';
+    unsigned before_repair = writes;
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_ERR_NOT_FOUND);
+    assert(app_boot_config_setup_pending() && writes == before_repair);
     setup_size = 0;
     old_bond = true;
     strcpy(cfg.wifi.ssid, "paired");

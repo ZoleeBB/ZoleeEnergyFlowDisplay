@@ -219,10 +219,14 @@ esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *erro
     size_t length = INTERNAL_CONFIG_MAX + 1;
     err = nvs_get_blob(handle, "setup_v4", record, &length);
     if (err == ESP_OK) {
+        /* Hibás tartalomnál az SD/flash-tartalék, majd szükség esetén a
+         * helyi paneles beállítás következik. Olvasás közben semmit sem írunk. */
         if (length < 3 || (record[0] != 'P' && record[0] != 'C'))
-            err = ESP_ERR_INVALID_STATE;
-        else
+            err = ESP_ERR_NVS_NOT_FOUND;
+        else {
             err = app_config_parse_json(record + 1, length - 1, cfg, error, error_len);
+            if (err == ESP_ERR_INVALID_ARG) err = ESP_ERR_NVS_NOT_FOUND;
+        }
         if (err == ESP_OK && record[0] == 'C' && slave_only && cfg->data_recept_mode != APP_DATA_SLAVE)
             err = ESP_ERR_INVALID_STATE;
         if (err == ESP_OK) {
@@ -306,12 +310,16 @@ esp_err_t app_boot_config_cache_file(const char *path)
 {
     FILE *file = fopen(path, "rb");
     if (!file) return ESP_ERR_NOT_FOUND;
-    char *text = malloc(16385);
+    long size = fseek(file, 0, SEEK_END) == 0 ? ftell(file) : -1;
+    if (size <= 0 || size > 16384 || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return ESP_ERR_INVALID_SIZE;
+    }
+    char *text = malloc((size_t)size);
     if (!text) { fclose(file); return ESP_ERR_NO_MEM; }
-    size_t length = fread(text, 1, 16385, file);
-    bool ok = !ferror(file) && length > 0 && length <= 16384;
+    bool ok = fread(text, 1, (size_t)size, file) == (size_t)size;
     fclose(file);
-    cJSON *root = ok ? cJSON_ParseWithLength(text, length) : NULL;
+    cJSON *root = ok ? cJSON_ParseWithLength(text, (size_t)size) : NULL;
     free(text);
     char *compact = cJSON_IsObject(root) ? cJSON_PrintUnformatted(root) : NULL;
     cJSON_Delete(root);
