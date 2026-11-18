@@ -9,6 +9,8 @@
 #include "app_ble_seed.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "app_ble_profile.h"
+#include "app_inverter.h"
+#include "app_inverter_schedule.h"
 #endif
 #include "app_slave_display_input.h"
 #include "app_slave_presence_service.h"
@@ -1962,7 +1964,8 @@ void app_ui_set_config(const app_config_t *cfg)
      * nappali fényerő az indulási képernyőkre is azonnal érvényes.
      */
     bsp_display_brightness_set(s_brightness);
-    if (cfg->data_recept_mode == APP_DATA_LOXONE && !cfg->energy_flow_disabled &&
+    if (((cfg->data_recept_mode == APP_DATA_LOXONE && !cfg->energy_flow_disabled) ||
+         cfg->data_recept_mode == APP_DATA_INVERTER) &&
         bsp_display_lock(-1) == ESP_OK)
     {
         /* Jelenlétpárosítás nélkül a keep_visible miatt sosem sötétít:
@@ -2332,6 +2335,23 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     }
 }
 
+static void bind_backlight_input(void)
+{
+    if (!s_slave_input.input)
+    {
+        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+        {
+            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+                lv_indev_get_display(input) == lv_display_get_default())
+            {
+                (void)app_slave_display_input_bind(&s_slave_input, input,
+                                                  &s_slave_display, esp_timer_get_time);
+                break;
+            }
+        }
+    }
+}
+
 /* Kizárólag a kijelző zárja alatt: az inputkapu ugyanazt az állapotot frissíti. */
 static void slave_display_update(const app_runtime_state_t *state,
                                   const app_energy_sample_t *sample, bool have, int64_t now)
@@ -2350,19 +2370,7 @@ static void slave_display_update(const app_runtime_state_t *state,
         (void)app_slave_display_profile(&s_slave_display, &profile, now);
     }
 #endif
-    if (!s_slave_input.input)
-    {
-        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
-        {
-            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
-                lv_indev_get_display(input) == lv_display_get_default())
-            {
-                (void)app_slave_display_input_bind(&s_slave_input, input,
-                                                  &s_slave_display, esp_timer_get_time);
-                break;
-            }
-        }
-    }
+    bind_backlight_input();
     if (have && state->slave_connected &&
         !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg)))
         app_slave_display_night(&s_slave_display, sample->night_mode, now);
@@ -2371,7 +2379,10 @@ static void slave_display_update(const app_runtime_state_t *state,
     /* Használható érintő nélkül ne lehessen véletlenül felébreszthetetlenül sötét. */
     app_slave_display_keep_visible(&s_slave_display,
                                    pairing.pin_required || !s_slave_input.input, now);
-    app_slave_presence_service_apply(&s_slave_display, now);
+#ifndef APP_TEMPLATE_DESKTOP
+    if (!app_ble_seed_slave_backlight(&s_slave_display, now, NULL))
+#endif
+        app_slave_presence_service_apply(&s_slave_display, now);
     s_target = (int)app_slave_display_brightness(&s_slave_display, now);
     if (s_brightness != s_target)
     {
@@ -2390,6 +2401,27 @@ static void slave_display_update(const app_runtime_state_t *state,
 static void master_presence_update(const app_runtime_state_t *state,
                                    const app_energy_sample_t *sample, bool have, int64_t now)
 {
+#ifndef APP_TEMPLATE_DESKTOP
+    if (s_cfg.data_recept_mode == APP_DATA_INVERTER && s_master_display_ready) {
+        bind_backlight_input();
+        app_energy_sample_t sun = {0};
+        if (app_inverter_sun_now(&sun)) app_slave_display_night(&s_slave_display, sun.night_mode, now);
+        app_inverter_schedule_t schedule = {.touch_wake_seconds = s_cfg.display.touch_wake_seconds};
+        struct tm local;
+        time_t epoch = time(NULL);
+        bool blank = state->time_synced && app_inverter_display_schedule(NULL, &schedule) &&
+                     localtime_r(&epoch, &local) &&
+                     app_inverter_schedule_active(&schedule, (unsigned)(local.tm_wday + 6) % 7,
+                                                 (unsigned)(local.tm_hour * 60 + local.tm_min));
+        app_slave_display_scheduled(&s_slave_display, blank, schedule.touch_wake_seconds, now);
+        app_slave_display_keep_visible(&s_slave_display, !s_slave_input.input, now);
+        int level = (int)app_slave_display_brightness(&s_slave_display, now);
+        if (level != s_brightness) bsp_display_brightness_set(level);
+        s_target = s_brightness = level;
+        s_presence_control = true;
+        return;
+    }
+#endif
     bool control = s_master_display_ready && s_cfg.data_recept_mode == APP_DATA_LOXONE &&
                    !s_cfg.energy_flow_disabled && s_loxone_signals.presence.configured;
     if (!control)
@@ -2420,19 +2452,7 @@ static void master_presence_update(const app_runtime_state_t *state,
         app_slave_display_reset_presence(&s_slave_display, now);
         s_master_presence_revision = s_loxone_signals.presence_revision;
     }
-    if (!s_slave_input.input)
-    {
-        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
-        {
-            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
-                lv_indev_get_display(input) == lv_display_get_default())
-            {
-                (void)app_slave_display_input_bind(&s_slave_input, input,
-                                                  &s_slave_display, esp_timer_get_time);
-                break;
-            }
-        }
-    }
+    bind_backlight_input();
     bool fresh = have && state->loxone_connected &&
                  !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg));
     if (fresh)
@@ -2463,7 +2483,7 @@ static void master_display_update(bool have, bool night, bool intercom_active)
 {
     /* A jelenlétvezérlés a zár alatt állítja a fényerőt; a kaputelefon
      * viszont mindig a napszak szerinti, látható fényerőt kapja. */
-    if (s_presence_control && !intercom_active)
+    if ((s_presence_control || s_cfg.data_recept_mode == APP_DATA_INVERTER) && !intercom_active)
         return;
     if ((have || s_cfg.energy_flow_disabled) && s_cfg.data_recept_mode != APP_DATA_SLAVE)
     {
@@ -2499,6 +2519,10 @@ static void runtime(void *arg)
         app_energy_sample_t s = {0};
         bool have = app_state_get_sample(&s);
         if (rt.energy_flow_disabled) s.night_mode = rt.standalone_night;
+#ifndef APP_TEMPLATE_DESKTOP
+        if (s_cfg.data_recept_mode == APP_DATA_INVERTER) (void)app_inverter_sun_now(&s);
+        if (s_cfg.data_recept_mode == APP_DATA_SLAVE) (void)app_ble_seed_slave_backlight(NULL, now, &s.night_mode);
+#endif
         if (have)
         {
             app_stats_get_snapshot(&s_stats_snapshot);

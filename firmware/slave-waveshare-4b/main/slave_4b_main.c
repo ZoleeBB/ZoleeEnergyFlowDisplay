@@ -42,6 +42,7 @@
 static app_config_t config;
 static uint16_t rotation_degrees;
 static int last_brightness = -1;
+static atomic_bool intercom_started;
 static bool last_runtime_wifi;
 static bool pairing_pin_required;
 static app_slave_display_t display_state;
@@ -439,6 +440,7 @@ static void refresh(lv_timer_t *timer)
     app_runtime_state_t visible_runtime = runtime;
     if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
         visible_runtime.slave_source_stale = true;
+    bool direct = app_ble_seed_slave_backlight(&display_state, now, &sample.night_mode);
     slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
     /* Kulcshiány után a kijelző mondja meg, mit kell tenni: a Slave magától
      * nem tud újrapárosítani, ahhoz a Masteren kell ablakot nyitni. */
@@ -452,15 +454,15 @@ static void refresh(lv_timer_t *timer)
     slave_4b_ui_pairing(&pairing);
     /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
-    if (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale))
+    if (!direct && (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale)))
         app_slave_display_night(&display_state, runtime.energy_flow_disabled ? runtime.standalone_night : sample.night_mode, now);
-    bool intercom_visible = slave_4b_intercom_update();
+    bool intercom_visible = atomic_load(&intercom_started) && slave_4b_intercom_update();
     /* Nyitott diagnosztika alatt nem sötétítünk: a hibakeresést nem szakíthatja
      * meg az időkorlát lejárta. */
     app_slave_display_keep_visible(&display_state,
                                    intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input || slave_4b_ui_diagnostics_visible(), now);
-    app_slave_presence_service_apply(&display_state, now);
+    if (!direct) app_slave_presence_service_apply(&display_state, now);
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
     if (!pairing.pin_required && !intercom_visible)
@@ -601,8 +603,6 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(lv_timer_create(refresh, 33, NULL) ? ESP_OK : ESP_ERR_NO_MEM);
     bsp_display_unlock();
-    (void)app_intercom_prepare_video();
-    ESP_ERROR_CHECK(app_intercom_start());
     ESP_ERROR_CHECK(app_ble_seed_start(&config));
 
     app_runtime_state_t runtime;
@@ -624,8 +624,23 @@ void app_main(void)
     app_ble_profile_boot_complete();
     atomic_store(&boot_complete, true);
     for (;;) {
-        app_intercom_audio_poll();
-        slave_4b_intercom_prepare();
+        if (atomic_load(&intercom_started) && app_ble_seed_slave_direct()) {
+            /* On an authenticated switch of Master mode, release all media DMA,
+             * decoder and I2S allocations before running the inverter profile. */
+            app_events_add(APP_EVENT_INFO, "Inverter Master: újraindulás kaputelefon nélkül.");
+            esp_restart();
+        }
+        if (app_ble_seed_slave_intercom_allowed()) {
+            if (!atomic_load(&intercom_started)) {
+                app_intercom_control_init(&config);
+                (void)app_intercom_prepare_video();
+                if (app_intercom_start() == ESP_OK) atomic_store(&intercom_started, true);
+            }
+            if (atomic_load(&intercom_started)) {
+                app_intercom_audio_poll();
+                slave_4b_intercom_prepare();
+            }
+        }
         /* A kijelzőkör megállását nem tudja kezelni önmagában: az érintés és a
          * fényerő is onnan jönne. Ilyenkor az eszköz inkább újraindul. */
         int64_t now = esp_timer_get_time();
