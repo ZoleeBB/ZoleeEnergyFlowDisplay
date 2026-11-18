@@ -342,6 +342,7 @@ subprocess.run(['node','--check',str(ROOT/'assets/web/loxone.js')],check=True)
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_store.py")],check=True)
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_protocol.py")],check=True)
 subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_http.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_victron.py")], check=True)
 subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True)
 
 # A kézi automatikus OTA tesztgomb valódi HTTP-kezelője és JS-e.
