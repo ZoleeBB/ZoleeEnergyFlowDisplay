@@ -85,6 +85,12 @@ A hálózati próbák helyi szerverrel vagy rögzített mintaválasszal futnak. 
 
 ## Hibakeresés
 
+A **Megszakadt az inverterkapcsolat** felirat akkor jelenik meg, ha az inverter korábban már adott mérést, és azóta a lekérdezés sikertelen. Helyi kapcsolatnál az utolsó jó mérés után 10 másodpercig az energiaábra marad látható. Felhős profilnál a kijelző kivárja az adott szolgáltató két lekérdezési időközét és további egy percet. Ha a szolgáltató elérhető, de a visszaküldött mérés elavult, a kijelző **Nincs friss invertermérés** üzenetet mutat.
+
+A Master a háttérben újrapróbálkozik. Új érvényes méréskor az üzenet automatikusan eltűnik és visszatér az energiaábra. Közben a Masteren kiírt címen megnyithatod az **Inverter beállítások** fület. A párosított v4 Slave ugyanazt a kiesést jelzi, amíg Bluetooth-on eléri a Mastert. Ha a Bluetooth-kapcsolat is megszakad, a Slave a Mastert keresi.
+
+![A Master kapcsolatvesztési képernyője a háttérben futó helyi keresés és a webes beállítások címével](images/inverter/connection-lost.png)
+
 | Jelenség | Mit nézz meg? |
 | --- | --- |
 | A panel a beállítási címet mutatja | Nyisd meg a kiírt HTTP-címet azonos hálózatról és mentsd el az általános beállításokat. Ezután állítsd be a kiválasztott üzemmódot. |
