@@ -213,6 +213,14 @@ int main(void)
     have_role = false;
     fail_commit = true;
     assert(fallback() == ESP_FAIL);
+    strcpy(cfg.wifi.ssid, "erased-network");
+    strcpy(cfg.wifi.password, "erased-password");
+    app_boot_config_begin_setup(&cfg, true);
+    assert(app_boot_config_setup_pending() && app_boot_config_internal());
+    assert(!cfg.wifi.ssid[0] && !cfg.wifi.password[0] && !cfg.cardless_slave && !cfg.data_seed_enabled);
+    assert(!strcmp(cfg.time.ntp_server, "hu.pool.ntp.org"));
+    app_boot_config_begin_setup(&cfg, false);
+    assert(app_boot_config_setup_pending() && !app_boot_config_internal());
     puts("PASS: SD-less boot, NVS JSON roundtrip, role safety, legacy master, corrupt config and "
          "commit/open errors");
 }

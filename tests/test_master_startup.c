@@ -26,7 +26,8 @@ static int fixture_rename(const char *from, const char *to);
 #undef rename
 
 static app_data_mode_t mode;
-static bool setup, retry_loxone;
+static bool setup, retry_loxone, resetting, reset_cardless;
+static unsigned reset_calls, remounts;
 static int wifi_starts, wifi_waits, ntp_attempts, web_starts, mqtt_starts;
 static int audio_starts, audio_runs, loxone_starts, intercom_preparations, inverter_ticks, ingest_starts;
 static bool runtime_started, ble_started, ble_profile_applied, setup_waiting_for_time, setup_web;
@@ -59,6 +60,7 @@ static void fixture_config(app_config_t *config)
 esp_err_t app_config_load_file(const char *path, app_config_t *cfg, char *error, size_t len)
 {
     (void)path; (void)error; (void)len;
+    assert(!resetting);
     if (setup) return ESP_ERR_NOT_FOUND;
     fixture_config(cfg);
     return ESP_OK;
@@ -107,6 +109,7 @@ esp_err_t app_time_sync_once(void)
 esp_err_t app_setup_wifi_provision(app_config_t *config)
 {
     assert(setup && config->data_recept_mode == mode);
+    if (resetting) assert(!*config->wifi.ssid && !*config->wifi.password && !config->data_seed_enabled);
     app_state_set_wifi_connected(true);
     return ESP_OK;
 }
@@ -212,7 +215,13 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(argv[1], "inverter")) mode = APP_DATA_INVERTER;
     else if (!strcmp(argv[1], "slave")) mode = APP_DATA_SLAVE;
-    else { assert(!strcmp(argv[1], "setup")); setup = true; mode = APP_DATA_MQTT; }
+    else {
+        resetting = !strcmp(argv[1], "reset-sd") || !strcmp(argv[1], "reset-cardless");
+        reset_cardless = !strcmp(argv[1], "reset-cardless");
+        assert(resetting || !strcmp(argv[1], "setup"));
+        setup = true;
+        mode = APP_DATA_MQTT;
+    }
     if (setjmp(boot_finished) == 0) app_main();
 
     assert(ntp_attempts == (mode == APP_DATA_SLAVE ? 0 : 2));
@@ -231,6 +240,7 @@ int main(int argc, char **argv)
         assert(loxone_starts == 0 && audio_starts == 0 && audio_runs == 0 && intercom_preparations == 0);
     }
     assert(ingest_starts == !setup);
+    if (resetting) assert(reset_calls == (reset_cardless ? 1u : 2u) && remounts == !reset_cardless);
     printf("10.1 startup: %s OK\n", argv[1]);
     return 0;
 }
@@ -238,7 +248,7 @@ int main(int argc, char **argv)
 /* Változatlanul sikeres tesztkörnyezet az adott forgatókönyvet nem érintő
  * szolgáltatásoknak. Váratlan, végzetes hiba azonnal megszakítja a tesztet. */
 static int fixture_access(const char *path, int flag)
-{ (void)flag; return !setup && !strcmp(path, CONFIG_PATH) ? 0 : -1; }
+{ assert(!resetting); (void)flag; return !setup && !strcmp(path, CONFIG_PATH) ? 0 : -1; }
 static int fixture_rename(const char *from, const char *to)
 { (void)from; (void)to; abort(); }
 void app_ui_show_fatal(const char *title, const char *detail)
@@ -247,9 +257,9 @@ void esp_restart(void) { abort(); }
 void app_config_set_defaults(app_config_t *cfg) { fixture_config(cfg); }
 bool app_boot_config_setup_pending(void) { return setup; }
 esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave, char *error, size_t len)
-{ (void)cfg; (void)slave; (void)error; (void)len; return ESP_ERR_NOT_FOUND; }
+{ assert(!resetting); (void)cfg; (void)slave; (void)error; (void)len; return ESP_ERR_NOT_FOUND; }
 esp_err_t app_backup_flash_boot_config(app_config_t *cfg, char *error, size_t len)
-{ (void)cfg; (void)error; (void)len; return ESP_ERR_NOT_FOUND; }
+{ assert(!resetting); (void)cfg; (void)error; (void)len; return ESP_ERR_NOT_FOUND; }
 esp_err_t app_backup_flash_restore_sd(unsigned *files, char error[APP_BACKUP_ERROR_SIZE])
 { (void)files; (void)error; return ESP_ERR_NOT_FOUND; }
 void app_events_add(app_event_level_t level, const char *fmt, ...) { (void)level; (void)fmt; }
@@ -286,7 +296,31 @@ OK_SERVICE(nvs_flash_erase)
 OK_SERVICE(esp_netif_init)
 OK_SERVICE(esp_event_loop_create_default)
 OK_SERVICE(app_ota_start_validation_task)
-OK_SERVICE(app_storage_boot_mount)
+esp_err_t app_storage_boot_mount(void) { return resetting ? ESP_ERR_NOT_FOUND : ESP_OK; }
+esp_err_t app_factory_reset_read(app_reset_plan_t *plan)
+{
+    *plan = (app_reset_plan_t){.scope = resetting ? (reset_cardless ? APP_RESET_INTERNAL : APP_RESET_WITH_CARD) : 0};
+    return ESP_OK;
+}
+esp_err_t app_factory_reset_apply(app_reset_plan_t *plan, const char *root, app_reset_stage_t *stage)
+{
+    assert(plan->scope && resetting && !wifi_starts && !runtime_started && !ble_started);
+    ++reset_calls;
+    if (!root && !reset_cardless) {
+        *stage = APP_RESET_CARD;
+        return ESP_ERR_INVALID_STATE;
+    }
+    *stage = APP_RESET_JOURNAL;
+    return ESP_OK;
+}
+esp_err_t app_factory_reset_remount(void) { ++remounts; return ESP_OK; }
+esp_err_t app_factory_reset_remember_sd(void) { assert(!reset_cardless); return ESP_OK; }
+void app_boot_config_begin_setup(app_config_t *cfg, bool internal)
+{
+    assert(resetting && internal == reset_cardless);
+    fixture_config(cfg);
+    cfg->wifi.ssid[0] = 0;
+}
 OK_SERVICE(app_templates_init)
 OK_SERVICE(app_storage_start_recovery_task)
 OK_SERVICE(app_stats_start_task)

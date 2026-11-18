@@ -169,6 +169,14 @@ static bool s_restrict_slave_role;
 bool app_boot_config_setup_pending(void) { return atomic_load(&s_setup_pending); }
 bool app_boot_config_internal(void) { return atomic_load(&s_internal); }
 
+void app_boot_config_begin_setup(app_config_t *cfg, bool internal)
+{
+    app_config_set_defaults(cfg);
+    s_restrict_slave_role = false;
+    atomic_store(&s_internal, internal);
+    atomic_store(&s_setup_pending, true);
+}
+
 static esp_err_t write_setup_record(const char *json, size_t length, bool pending)
 {
     if (!length || length > INTERNAL_CONFIG_MAX)

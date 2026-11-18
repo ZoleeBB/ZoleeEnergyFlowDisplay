@@ -41,6 +41,8 @@ set(app_png_files
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_factory_reset.c"
+        "app_factory_reset_storage.c"
         "app_setup_wifi.c"
         "app_setup_ui.c"
         "app_inverter.c"

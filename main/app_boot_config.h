@@ -9,6 +9,7 @@ esp_err_t app_boot_config_save(
 
 /* A v4 első beállítás befejezett profilja és a Wi-Fi után félbemaradt állapot. */
 bool app_boot_config_setup_pending(void);
+void app_boot_config_begin_setup(app_config_t *cfg, bool internal);
 bool app_boot_config_internal(void);
 esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *error, size_t error_len);
 esp_err_t app_boot_config_save_setup_wifi(const app_config_t *cfg);

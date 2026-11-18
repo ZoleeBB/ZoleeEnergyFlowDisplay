@@ -23,6 +23,7 @@
 #include "freertos/task.h"
 
 #include "app_config.h"
+#include "app_factory_reset.h"
 #include "app_ble_seed.h"
 #include "app_backup.h"
 #include "app_events.h"
@@ -144,7 +145,9 @@ static void __attribute__((noinline)) app_boot(void)
     ESP_ERROR_CHECK(app_ota_start_validation_task());
 
     /* Az első UI-képkocka előtt kiválasztjuk az NVS-ben eltárolt tájolást. */
-    if(orientation_read(&s_boot_orientation)!=ESP_OK)
+    app_reset_plan_t reset;
+    esp_err_t reset_read = app_factory_reset_read(&reset);
+    if (reset_read == ESP_OK && !reset.scope && orientation_read(&s_boot_orientation) != ESP_OK)
         app_events_add(APP_EVENT_WARNING,"Tájolási NVS nem olvasható; 270 fokkal indulunk.");
     s_active_rotation=app_display_boot_select(&s_boot_orientation);
     ESP_LOGI(TAG,"Display startup rotation: %u degrees",(unsigned)s_active_rotation);
@@ -159,10 +162,34 @@ static void __attribute__((noinline)) app_boot(void)
     app_ui_show_boot(APP_BOOT_SD, NULL);
     esp_err_t err = app_storage_boot_mount();
     bool cardless = err != ESP_OK;
+    /* Élő feladat a régi RAM-konfigurációt bármikor visszaírhatná a törlés
+     * után. Ezért a tartós kérés feldolgozása a boot kizárólagos szakasza. */
+    for (;;) {
+        app_reset_stage_t stage = APP_RESET_JOURNAL;
+        esp_err_t step = reset_read;
+        if (step == ESP_OK && reset.scope)
+            step = app_factory_reset_apply(&reset, cardless ? NULL : APP_SD_MOUNT_POINT, &stage);
+        if (step == ESP_OK) {
+            if (stage == APP_RESET_RESTART) esp_restart();
+            break;
+        }
+        const char *reason = "A belső visszaállításjelző nem olvasható vagy nem menthető.";
+        if (stage == APP_RESET_CARD) reason = reset.scope == APP_RESET_INTERNAL ?
+            "A visszaállítás SD nélkül indult. Vedd ki az időközben behelyezett kártyát." :
+            "Helyezd vissza a jóváhagyáskor használt SD-kártyát.";
+        else if (stage == APP_RESET_RADIO) reason = "A Wi-Fi modul gyári visszaállítása sikertelen.";
+        else if (stage == APP_RESET_STORAGE) reason = "A tárolt adatok törlése sikertelen.";
+        char detail[200];
+        snprintf(detail, sizeof(detail), "%s (%s) Újrapróbálás…", reason, esp_err_to_name(step));
+        app_ui_show_boot(APP_BOOT_SD, detail);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        if (stage == APP_RESET_CARD) cardless = app_factory_reset_remount() != ESP_OK;
+        if (stage == APP_RESET_JOURNAL) reset_read = app_factory_reset_read(&reset);
+    }
     app_ui_show_boot(APP_BOOT_CONFIG, NULL);
     char config_error[256] = {0};
     bool trusted_sd = false;
-    if (!cardless) {
+    if (!reset.scope && !cardless) {
         if (access(CONFIG_PATH, F_OK) != 0 && access(CONFIG_BACKUP_PATH, F_OK) == 0)
             (void)rename(CONFIG_BACKUP_PATH, CONFIG_PATH);
         if (access(CONFIG_PATH, F_OK) != 0) {
@@ -173,7 +200,9 @@ static void __attribute__((noinline)) app_boot(void)
         }
         trusted_sd = app_config_load_file(CONFIG_PATH, &s_config, config_error, sizeof(config_error)) == ESP_OK;
     }
-    if (trusted_sd) {
+    if (reset.scope) {
+        app_boot_config_begin_setup(&s_config, cardless);
+    } else if (trusted_sd) {
         (void)app_boot_config_cache_file(CONFIG_PATH);
         if (app_boot_config_remember(&s_config) != ESP_OK)
             app_events_add(APP_EVENT_WARNING, "A tartalék szerepjelölő nem menthető.");
@@ -191,6 +220,10 @@ static void __attribute__((noinline)) app_boot(void)
         s_config.cardless_slave = cardless && s_config.data_recept_mode == APP_DATA_SLAVE;
         app_boot_config_use_storage(cardless);
     }
+    /* A még üres, első beállításra váró kártyát is megjegyezzük: a webes
+     * config-mentés és az első teljes indulás között is kivehetik. */
+    if (!cardless && app_factory_reset_remember_sd() != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "A beállításokat tároló SD azonosítója nem menthető.");
     if (s_config.cardless_slave) app_storage_set_cardless();
     const bool setup = app_boot_config_setup_pending();
 
