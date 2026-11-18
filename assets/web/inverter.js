@@ -63,7 +63,10 @@ function endpointUnchanged() {
     if (!saved || !saved.profile || get('profile').value !== saved.profile) return false;
     return ['host', 'port', 'unit', 'device', 'user'].every(key => {
         const input = get(key);
-        return !input || String(saved[key] ?? '') === input.value.trim();
+        if (!input) return true;
+        const before = String(saved[key] ?? ''), after = input.value.trim();
+        if (key === 'host') return before.toLowerCase().replace(/\.$/, '') === after.toLowerCase().replace(/\.$/, '');
+        return before === after;
     });
 }
 function updateEndpointFields() {
@@ -225,7 +228,7 @@ function values() {
     if (!get('rebind-control').hidden && get('rebind-device').checked) data.rebindDevice = true;
     for (const key of ['device', 'user', 'secret', 'key', 'trustedPem']) {
         const input = get(key);
-        if (input && input.value) data[key] = (key === 'key' || key === 'secret') ? input.value : input.value.trim();
+        if (input && (input.value || key === 'trustedPem')) data[key] = (key === 'key' || key === 'secret') ? input.value : input.value.trim();
     }
     for (const [id, entry] of overrides) if (entry.own.checked) data.slaveSchedules[id] = entry.editor.value();
     return data;

@@ -121,6 +121,41 @@ typedef struct {
     char pem[3072];
 } stored_v1_t;
 
+static void hostname_migration_test(void)
+{
+    runtime.data_recept_mode = APP_DATA_INVERTER;
+    const stored_v1_t old = {.version=1, .driver={.profile="victron_mqtt", .host="VeNuS.Local.",
+        .device="001122334455", .user="testuser", .key="testkey", .secret="testsecret",
+        .unit=1, .port=8883}, .master={.touch_wake_seconds=30}, .pem="local test CA"};
+    nvs_size = offsetof(stored_v1_t, pem) + strlen(old.pem) + 1;
+    memcpy(nvs_data, &old, nvs_size);
+    assert(app_inverter_settings_open());
+    assert(app_inverter_settings_local_name("VENUS.LOCAL", 11));
+    app_inverter_settings_t snapshot;
+    uint32_t revision, old_source, source;
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &old_source));
+    cJSON *form = app_inverter_settings_get();
+    assert(!strcmp(cJSON_GetObjectItem(form, "host")->valuestring, "venus.local"));
+    assert(!cJSON_GetObjectItem(form, "secret") && !cJSON_GetObjectItem(form, "key"));
+    cJSON_DeleteItemFromObject(form, "trustedPem");
+    cJSON_DeleteItemFromObject(form, "revision");
+    cJSON_ReplaceItemInObject(form, "host", cJSON_CreateString("VENUS.local."));
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &source));
+    assert(source == old_source && !strcmp(snapshot.driver.host, "venus.local"));
+    assert(!strcmp(snapshot.driver.secret, old.driver.secret) && !strcmp(snapshot.driver.key, old.driver.key));
+    assert(snapshot.driver.trusted_pem && !strcmp(snapshot.driver.trusted_pem, old.pem));
+    cJSON_AddStringToObject(form, "trustedPem", "");
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &source) && !snapshot.driver.trusted_pem);
+    cJSON_ReplaceItemInObject(form, "host", cJSON_CreateString("another.local"));
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &source));
+    assert(source != old_source && !snapshot.driver.key[0] && !snapshot.driver.secret[0]);
+    cJSON_Delete(form);
+    puts("PASS legacy DNS identity, secret reuse on equivalent names and explicit CA removal");
+}
+
 static void register_settings_tests(const char *persisted)
 {
     runtime.data_recept_mode = APP_DATA_INVERTER;
@@ -176,6 +211,7 @@ static void register_settings_tests(const char *persisted)
 
 int main(int argc, char **argv)
 {
+    if (argc == 2 && !strcmp(argv[1], "hostname")) { hostname_migration_test(); return 0; }
     if (argc == 3 && !strcmp(argv[1], "registers")) {
         register_settings_tests(argv[2]);
         return 0;

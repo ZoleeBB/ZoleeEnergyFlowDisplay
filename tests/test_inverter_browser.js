@@ -69,6 +69,11 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await page.locator('#latitude').inputValue(), '0');
         assert.equal(await page.locator('#secret').inputValue(), '');
         assert.equal(await page.locator('#secret').evaluate(e => e.required), false);
+        await page.locator('#host').fill('GLOBAL.SolaXCloud.COM.');
+        assert.equal(await page.locator('#secret').evaluate(e => e.required), false);
+        await page.locator('#host').fill('other.solaxcloud.com');
+        assert.equal(await page.locator('#secret').evaluate(e => e.required), true);
+        await page.locator('#host').fill(initial.host);
         await page.locator('#device').fill('NEW_SN');
         assert.equal(await page.locator('#secret').evaluate(e => e.required), true);
         await page.locator('#device').fill(initial.device);

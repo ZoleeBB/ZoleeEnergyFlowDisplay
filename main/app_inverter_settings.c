@@ -310,6 +310,7 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
     if (same) {
         if (!candidate->driver.secret[0]) strcpy(candidate->driver.secret, active->driver.secret);
         if (!candidate->driver.key[0]) strcpy(candidate->driver.key, active->driver.key);
+        if (!ITEM(object,"trustedPem")) strcpy(candidate->pem, active->pem);
     }
     if (credentials_ready(&candidate->driver)) {
         nvs_handle_t h;

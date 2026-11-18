@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory() as tmp:
         objs.append(obj)
     run([cpp, *cflags, *objs, *solar, "-Wl,--wrap=time", "-l:libcjson.so.1", "-pthread", "-o", tmp/"runtime"])
     run([tmp/"runtime"])
+    run([tmp/"runtime", "hostname"])
     run([tmp/"runtime", "registers", tmp/"nvs.bin"])
     run([tmp/"runtime", "restart", tmp/"nvs.bin"])
 
