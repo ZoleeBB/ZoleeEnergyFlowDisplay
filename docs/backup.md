@@ -15,20 +15,15 @@ indulva magától visszaállítja a korábbi beállításokat.
 | `templates/order.txt` | A témák sorrendje |
 | `templates/selection.txt` | Az aktív téma |
 
-Nem része a mentésnek a statisztika, a témák képei és a csengőhangok.
-Ezeket a kiadási csomagokból (`-templates.zip`, `-ringtones.zip`) vagy a
-Sablonok oldal GitHub-frissítésével lehet újratelepíteni.
+A mentés az öt felsorolt fájlt tartalmazhatja. A helyi mérési előzmények külön tárolódnak. A Közvetlen inverter kapcsolatát, hitelesítési adatait, koordinátáit és heti időprogramját a Master a belső beállítástárban őrzi. Ezeket gyári visszaállítás után ismét meg kell adni. A témák képei és a csengőhangok külön SD-csomagok. A gyári csomagok a kiadás `-templates.zip` és `-ringtones.zip` állományában is elérhetők.
 
 ## Jelszavak
 
 - A **letöltött fájlban** a Wi-Fi-, MQTT- és webes adminisztrátori jelszó
   `null` értékű. Visszaállításkor a kijelzőn éppen tárolt jelszavak maradnak.
 - A Loxone- és a kamerajelszó a fájlokban eleve az eszköz saját kulcsával
-  titkosítva van. Ugyanazon a kijelzőn visszaállítva működik, másik kijelzőn a
-  Loxone oldalon újra meg kell adni.
-- A **belső tartalék** a teljes beállítást tartalmazza (az SD-kártya
-  `config.json`-jához hasonlóan), mert csak így lehet egy új SD-kártyával
-  kézi beavatkozás nélkül újra Wi-Fi-re csatlakozni.
+  titkosítva van. Visszatöltéskor az eredeti eszközkulcs szükséges. Másik kijelzőn, illetve a kulcsot törlő gyári visszaállítás után a Loxone oldalon add meg újra a jelszavakat.
+- A **belső tartalék** az öt menthető fájlban szereplő adatokat a Wi-Fi- és egyéb beállított jelszavakkal együtt tartalmazza. Így a kijelző új SD-kártyával is a mentett hálózathoz tud csatlakozni.
 
 ## Visszaállítás fájlból
 
@@ -41,6 +36,22 @@ Sablonok oldal GitHub-frissítésével lehet újratelepíteni.
 3. A statisztika mentése után az eszköz újraindul.
 
 Részleges mentés is visszaállítható: csak a benne szereplő fájlok íródnak felül.
+
+## Gyári visszaállítás
+
+Az **Alaphelyzetbe állítás** a 10,1 hüvelykes kijelző saját webes kezdőlapján (`/`) érhető el Master és Slave szerepben is. A címsorban ellenőrizd, hogy a visszaállítandó kijelző IP-címét nyitottad meg. A törlés csak ezt az eszközt érinti. A többi kijelző és a hozzájuk tartozó helyi beállítások megmaradnak. A külön 4B Slave saját beüzemelő oldalán ez a művelet nem érhető el.
+
+1. Ha később szeretnéd visszatölteni a menthető beállításokat, SD-s készüléken előbb töltsd le a JSON-fájlt a **Mentés** oldalról a számítógépedre. A fenti táblázat mutatja, mit tudsz így megőrizni.
+2. SD-ről működő kijelzőn hagyd a használt kártyát a készülékben a visszaállítás végéig. Válaszd az **Alaphelyzetbe állítás** gombot. A megnyíló ablak felsorolja a törlendő adatokat. A **Mégsem** bezárja az ablakot. A törlést az **Adatok törlése és újraindítás** gomb indítja el. Ha csak újra szeretnéd indítani a készüléket, a kezdőlapon az **Eszköz újraindítása** műveletet válaszd.
+3. Az elfogadott kérés után a kijelző újraindul, és a törlés befejeztével megjelenik az első beállítás. A panelen válaszd ki a Wi-Fi-hálózatot és szükség esetén írd be a jelszót. Az időszinkron után nyisd meg a kijelzőn megjelenő HTTP-címet, és végezd el a beállítást. Slave szerephez ismét párosítsd a kijelzőt a Masterrel. [Első beállítás Wi-Fi-n](first-run-wifi.md) · [Párosítás a Masterrel](ble-data-seed.md#pin-es-párosítás-és-beállításöröklés)
+
+| Adat | Mi történik a helyi kijelzőn? |
+| --- | --- |
+| Wi-Fi, webes belépés, adatfogadási mód és adatkapcsolatok | Törlődnek a hitelesítési adatokkal, az inverterprofillal, a helyszínnel és az időprogramokkal együtt. |
+| Bluetooth-párosítások, helyi Slave-beállítások | A kijelző elfelejti az eszközkapcsolatait. Új párosításkor nyisd meg a Master párosítási ablakát. |
+| Statisztikák, mérési előzmények és helyi események | A korábbi mérési adatok és események törlődnek. Az újonnan beállított rendszer saját előzményeket kezd gyűjteni. |
+| Belső konfigurációs tartalék és az SD-n lévő alkalmazásbeállítások | A kijelző törli a belső mentéseket és a behelyezett kártyán tárolt alkalmazásbeállításokat. Ha később másik, korábban konfigurált SD-kártyát teszel be, a kijelző betöltheti az azon lévő beállításokat. |
+| Firmware, telepített témák, csengőhangok és az alkalmazáshoz nem tartozó SD-fájlok | A firmware jelenlegi verziója és a fájlok a helyükön maradnak. A témaválasztást és a sorrendet újra beállíthatod. |
 
 ## Belső tartalék
 

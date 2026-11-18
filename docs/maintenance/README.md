@@ -15,6 +15,7 @@ megállapításaikat ne tekintsd automatikusan a jelenlegi firmware állapotána
 
 - [Webfelület és OTA, kapcsolható automatikus éjféli GitHub-frissítés](../ota.md)
 - [Beállítások mentése és visszaállítása](../backup.md)
+- [Gyári visszaállítás egy 10,1 hüvelykes kijelzőn](../backup.md#gyári-visszaállítás)
 - [Hibakezelés](../errors.md)
 - [Automatikus OTA-frissítés diagnosztikája, kézi próba és memória](../automatic-update-diagnostics.md)
 - [Önkéntes fejlesztői támogatás – Revolut.me és Ko-fi, kizárólag a webfelületen](../voluntary-support.md)

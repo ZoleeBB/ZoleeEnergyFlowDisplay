@@ -36,7 +36,7 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 - **Kaputelefon:** élőkép, kétirányú hang, kapunyitás és csengőhangok, Master és 4B Slave támogatással. [Útmutató](docs/intercom.md).
 - **Energiafunkciók:** [akkudiagnosztika](docs/battery-diagnostics.md), [elektromos autó](docs/electric-car.md) és [helyi energiaasszisztens](docs/energy-assistant.md).
 - **Megjelenítés:** világos/sötét témák, saját sablonok és [Loxone Otthon kaputelefon-kijelzőként](docs/energy-flow-disable.md).
-- **Karbantartás:** webes beállítások, mentés/visszaállítás, OTA és diagnosztika. [Útmutatók](docs/maintenance/README.md).
+- **Karbantartás:** webes beállítások, mentés, OTA és diagnosztika. A 10,1 hüvelykes kijelző a saját webes kezdőlapjáról gyári állapotba állítható. [Gyári visszaállítás](docs/backup.md#gyári-visszaállítás) · [Karbantartási útmutatók](docs/maintenance/README.md).
 
 ## Téma-előnézetek
 
