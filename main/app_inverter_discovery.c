@@ -76,7 +76,7 @@ static bool network_now(network_t *out)
     out->mask = ntohl(ip.netmask.addr);
     out->gateway = ntohl(ip.gw.addr);
     uint32_t hosts = ~out->mask;
-    return out->own && (out->own >> 24) != 127 && out->own < UINT32_C(0xe0000000) &&
+    return (out->own >> 24) && (out->own >> 24) != 127 && out->own < UINT32_C(0xe0000000) &&
            out->mask && !(hosts & (hosts + 1));
 }
 
@@ -84,7 +84,8 @@ static bool eligible(const network_t *net, uint32_t address)
 {
     uint32_t host = address & ~net->mask;
     return host && host != ~net->mask && address != net->own && address != net->gateway &&
-           address < UINT32_C(0xe0000000) && (address & net->mask) == (net->own & net->mask);
+           (address >> 24) && (address >> 24) != 127 && address < UINT32_C(0xe0000000) &&
+           (address & net->mask) == (net->own & net->mask);
 }
 
 static bool continuing(search_t *s, app_inverter_discovery_state_t *end)
@@ -192,7 +193,7 @@ static bool logger_reply(const search_t *s, char *packet, uint32_t source, app_i
     while (n && (serial[n - 1] == '\r' || serial[n - 1] == '\n')) serial[--n] = 0;
     if (!n || n > 10 || strspn(serial, "0123456789") != n) return false;
     unsigned long long value = strtoull(serial, NULL, 10);
-    if (!value || value > UINT32_MAX || (*s->device && strcmp(serial, s->device))) return false;
+    if (!value || value > UINT32_MAX) return false;
     if (!inet_ntop(AF_INET, &ip, row->host, sizeof(row->host))) return false;
     strcpy(row->model, "SOLARMAN");
     strcpy(row->device, serial);
@@ -305,7 +306,7 @@ static void search_network(search_t *s, scratch_t *buf, app_inverter_discovery_s
                                 app_inverter_discovery_http_supported(profile));
     if (!continuing(s, end)) return;
     size_t native = logger ? logger_search(s, buf->native, APP_DISCOVERY_MAX_RESULTS + 1) :
-                    app_inverter_discovery_native(profile, buf->native, APP_DISCOVERY_MAX_RESULTS + 1);
+                    app_inverter_discovery_native(profile, htonl(s->net.own), buf->native, APP_DISCOVERY_MAX_RESULTS + 1);
     /* A nagy hálózaton a gyártói felderítés az egész helyi szegmenst eléri.
      * Az egyedi címek ellenőrzése a kijelző saját 256 címes részére korlátos. */
     uint32_t mask = s->net.mask | UINT32_C(0xffffff00);
@@ -382,7 +383,8 @@ esp_err_t app_inverter_discovery_start(const char *profile, uint16_t port, uint8
     s->port = port;
     s->unit = unit;
     strcpy(s->status.profile, profile);
-    if (device && (solarman(profile) || !strcmp(profile, "solax_modbus"))) strcpy(s->device, device);
+    /* A régi V5-modul sorozatszáma ne takarja el a kicserélt vagy második adatgyűjtőt. */
+    if (device && !strcmp(profile, "solax_modbus")) strcpy(s->device, device);
     s->deadline = esp_timer_get_time() + SEARCH_US;
     s->status.state = APP_DISCOVERY_RUNNING;
     portENTER_CRITICAL(&lock);

@@ -48,5 +48,6 @@ bool app_inverter_discovery_modbus(const char *profile, const char *device, uint
 bool app_inverter_discovery_http_supported(const char *profile);
 size_t app_inverter_discovery_http(const char *profile, int fd, uint32_t timeout_ms,
                                    app_inverter_discovery_result_t *out, size_t capacity);
-size_t app_inverter_discovery_native(const char *profile, app_inverter_discovery_result_t *out,
-                                     size_t capacity);
+/* A helyi STA IPv4-címe hálózati bájtsorrendben érkezik. */
+size_t app_inverter_discovery_native(const char *profile, uint32_t local,
+                                     app_inverter_discovery_result_t *out, size_t capacity);

@@ -76,9 +76,9 @@ bool app_inverter_discovery_modbus_supported(const char *profile)
 }
 bool app_inverter_discovery_http_supported(const char *profile) { return !strcmp(profile, "http"); }
 
-size_t app_inverter_discovery_native(const char *profile, app_inverter_discovery_result_t *out, size_t n)
+size_t app_inverter_discovery_native(const char *profile, uint32_t local, app_inverter_discovery_result_t *out, size_t n)
 {
-    assert(n >= 4);
+    assert(n >= 4 && local == inet_addr(own));
     if (strcmp(profile, "victron_modbus") && strcmp(profile, "victron_mqtt")) return 0;
     strcpy(out[0].host, mqtt ? "192.168.8.6" : "192.168.99.9");
     strcpy(out[0].model, "Victron GX");
@@ -273,7 +273,7 @@ int main(void)
     assert(status.count == 1 && !status.results[0].verified && !strcmp(status.results[0].model, "SOLARMAN"));
     start("sofar_v5", "3000000002");
     finish();
-    assert(!connects && !protocols && !status.count);
+    assert(connects == 1 && protocols == 1 && status.count == 1 && !strcmp(status.results[0].device, "3000000001"));
     usec += 59999999;
     app_inverter_discovery_expire();
     assert(app_inverter_discovery_snapshot(id, &status) == ESP_OK);
