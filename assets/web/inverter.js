@@ -15,11 +15,11 @@ const profiles = {
     deye_modbus: {name: 'Deye SG04LP3 · Modbus TCP átjáró', unit: 1},
     deye_rtu: {name: 'Deye SG04LP3 · nyers Modbus RTU TCP-n', port: 8899, unit: 1},
     deye_v5: {name: 'Deye SG04LP3 · SOLARMAN V5', port: 8899, unit: 1, device: 'Adatgyűjtő sorozatszáma (decimális)'},
-    solplanet_modbus: {name: 'Solplanet / Tracon ASW-T · Modbus TCP átjáró', unit: 3},
+    solplanet_modbus: {name: 'Solplanet ASW8000-T (ASW-T) · Modbus TCP átjáró', unit: 3},
     fronius_http: {name: 'Fronius · helyi Solar API', port: 80, device: 'Inverterazonosító az akkutöltöttséghez (több inverter esetén)'},
     solax_http: {name: 'SolaX Pocket · helyi HTTP', port: 80, secret: 'Pocket helyi jelszó'},
-    solplanet_http: {name: 'Solplanet / Tracon · helyi HTTP', port: 8484, device: serial},
-    solplanet_https: {name: 'Solplanet / Tracon · helyi HTTPS', port: 443, device: serial, trustedPem: pem},
+    solplanet_http: {name: 'Solplanet ASW8000-T · helyi HTTP', port: 8484, device: serial},
+    solplanet_https: {name: 'Solplanet ASW8000-T · helyi HTTPS', port: 443, device: serial, trustedPem: pem},
     victron_mqtt: {name: 'Victron GX · helyi MQTT', port: 1883, device: 'VRM Portal ID (12 hexadecimális karakter)',
         user: 'MQTT-felhasználónév (opcionális)', secret: 'MQTT-jelszó (opcionális)', trustedPem: pem},
     fronius_cloud: {name: 'Fronius Solar.web Query API', port: 443, host: 'api.solarweb.com', interval: 5,
@@ -28,7 +28,7 @@ const profiles = {
         device: serial, user: 'Northbound API-felhasználó', secret: 'Rendszerkód (systemCode)'},
     solax_cloud: {name: 'SolaXCloud v2', port: 443, host: 'global.solaxcloud.com', interval: 5,
         device: 'Wi-Fi modul sorozatszáma (Wi-Fi SN)', secret: 'API-token (tokenId)'},
-    solplanet_cloud: {name: 'Solplanet / Tracon · AISWEI Cloud', port: 443, host: 'eu-api-genergal.aisweicloud.com', interval: 20,
+    solplanet_cloud: {name: 'Solplanet ASW8000-T · AISWEI Cloud', port: 443, host: 'eu-api-genergal.aisweicloud.com', interval: 20,
         user: 'Fiók AppKey', secret: 'Fiók AppSecret', key: 'Erőmű API-kulcsa (Plant API Key)'}
 };
 const weekdays = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'];
