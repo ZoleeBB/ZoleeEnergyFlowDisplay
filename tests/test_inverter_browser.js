@@ -77,6 +77,8 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         }
         assert.equal(await page.locator('#trustedPem').count(), 1);
         await page.locator('#profile').selectOption('solax_modbus');
+        await page.locator('#device').selectOption('X3-G4-PRO');
+        assert.equal(await page.locator('#device').inputValue(), 'X3-G4-PRO');
         await page.locator('#device').selectOption('X1-G4');
         await page.locator('#host').fill('192.0.2.1');
         fail = true;
