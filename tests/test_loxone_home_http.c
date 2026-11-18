@@ -40,6 +40,8 @@ esp_err_t app_ringtones_install_prepared(const char *path, cJSON **report, char 
         snprintf(error, 160, "%s", "Egyetlen hangot sem sikerült telepíteni.");
     return ringtone_all_failed ? ESP_ERR_INVALID_ARG : ESP_OK;
 }
+static bool s_hu = true;
+static const char *inverter_query;
 static bool ringtone_query, ringtone_file = true, task_fail, async_fail;
 static app_ringtone_load_status_t ringtone_load_status = APP_RINGTONE_LOAD_OK;
 static unsigned media_loads, media_sends, async_complete, deleted_tasks, queued;
@@ -56,10 +58,16 @@ uint8_t *app_ringtones_load_ex(const char *name, size_t *size, app_ringtone_load
 bool app_intercom_control_media_key(const char *key) { (void)key; return false; }
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out) { memset(out, 0, sizeof(*out)); return true; }
 esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) {
-    (void)r; snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
+    (void)r;
+    if (inverter_query) { snprintf(q, n, "%s", inverter_query); return ESP_OK; }
+    snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
 }
 esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) {
-    (void)q; (void)k; snprintf(v, n, "tubular-chime.wav"); return ESP_OK;
+    if (!strcmp(k, "profile")) {
+        if (strncmp(q, "profile=", 8)) return ESP_FAIL;
+        snprintf(v, n, "%s", q + 8); return ESP_OK;
+    }
+    snprintf(v, n, "tubular-chime.wav"); return ESP_OK;
 }
 esp_err_t httpd_resp_send(httpd_req_t *r, const char *b, int n) {
     (void)r; assert(b && n == 64); media_sends++; return ESP_OK;
@@ -173,12 +181,28 @@ static void inverter_http_tests(void)
     assert(inverter_register(NULL) == ESP_OK && registered == count);
     s_config.data_recept_mode = APP_DATA_INVERTER;
     assert(loxone_register(NULL) == ESP_OK && registered == count);
-    assert(inverter_register(NULL) == ESP_OK && registered == count + 5);
+    assert(inverter_register(NULL) == ESP_OK && registered == count + 6);
     httpd_req_t req = {.method=HTTP_GET, .uri="/api/inverter"};
     authorized = false; status_code = 200;
     inverter_get(&req); assert(status_code == 401);
     authorized = true;
     inverter_get(&req); assert(strcmp(response,"{\"hasSecret\":true}") == 0);
+    inverter_query = "profile=huawei_modbus";
+    authorized = false; status_code = 200;
+    inverter_registers_get(&req); assert(status_code == 401);
+    authorized = true; response[0] = 0; status_code = 200;
+    inverter_registers_get(&req);
+    cJSON *schema = cJSON_Parse(response);
+    cJSON *rows = cJSON_GetObjectItem(schema, "registers");
+    assert(cJSON_GetArraySize(rows) > 1 && status_code == 200);
+    cJSON *first = cJSON_GetArrayItem(rows, 0);
+    assert(cJSON_GetObjectItem(first, "address")->valueint == 32064);
+    assert(cJSON_GetObjectItem(first, "words")->valueint == 2);
+    assert(cJSON_IsNull(cJSON_GetObjectItem(first, "base")));
+    cJSON_Delete(schema);
+    inverter_query = "profile=fronius_http";
+    inverter_registers_get(&req); assert(status_code == 400);
+    inverter_query = NULL;
     req.method = HTTP_POST; req.content_len = 2;
     input = "{}"; position = 0; status_code = 200;
     header_ok = false;

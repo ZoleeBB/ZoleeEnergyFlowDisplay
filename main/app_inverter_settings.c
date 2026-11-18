@@ -54,6 +54,41 @@ static bool direct_master(void)
     return state.data_recept_mode == APP_DATA_INVERTER;
 }
 
+/* Az első v4 tesztfirmware profilja a tanúsítványmutató után rögtön a
+ * koordinátákat tárolta. A célplatform igazítását a fordítóval számoltatjuk. */
+typedef struct {
+    unsigned version;
+    _Alignas(app_inverter_config_t) unsigned char driver[offsetof(app_inverter_config_t, registers)];
+    double latitude;
+} inverter_v1_prefix_t;
+
+static bool decode_profile(app_inverter_settings_t *s, size_t size)
+{
+    const size_t pem_offset = offsetof(app_inverter_settings_t, pem);
+    if (s->version == 1) {
+        const size_t old_tail = offsetof(inverter_v1_prefix_t, latitude);
+        const size_t new_tail = offsetof(app_inverter_settings_t, latitude);
+        const size_t shift = new_tail - old_tail;
+        if (size <= pem_offset - shift || size > pem_offset + sizeof(s->pem) - shift)
+            return false;
+        memmove(&s->latitude, (unsigned char *)s + old_tail, size - old_tail);
+        memset(&s->driver.registers, 0, sizeof(s->driver.registers));
+        s->version = 2;
+        size += shift;
+    }
+    if (s->version != 2 || size <= pem_offset || size > pem_offset + sizeof(s->pem) ||
+        !memchr(s->pem, 0, size - pem_offset)) return false;
+    const app_inverter_config_t *c = &s->driver;
+    if (!memchr(c->profile, 0, sizeof(c->profile)) || !app_inverter_profile(c->profile) ||
+        !memchr(c->host, 0, sizeof(c->host)) || !memchr(c->device, 0, sizeof(c->device)) ||
+        !memchr(c->user, 0, sizeof(c->user)) || !memchr(c->secret, 0, sizeof(c->secret)) ||
+        !memchr(c->key, 0, sizeof(c->key))) return false;
+    for (size_t i = 0; i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i) {
+        if (!memchr(s->peers[i].id, 0, sizeof(s->peers[i].id))) return false;
+    }
+    return true;
+}
+
 bool app_inverter_settings_open(void)
 {
     if (!direct_master()) return false;
@@ -73,9 +108,7 @@ bool app_inverter_settings_open(void)
                 err = nvs_get_blob(h, "profile1", s, &len);
                 nvs_close(h);
             }
-            if (err != ESP_OK || len <= offsetof(app_inverter_settings_t, pem) ||
-                s->version != 1 || s->pem[sizeof(s->pem)-1] || !memchr(s->driver.profile, 0, sizeof(s->driver.profile)) ||
-                !app_inverter_profile(s->driver.profile)) {
+            if (err != ESP_OK || !decode_profile(s, len)) {
                 memset(s, 0, sizeof(*s));
                 s->master.touch_wake_seconds = 30;
             }
@@ -132,6 +165,31 @@ static bool peer_id_valid(const char *id)
     return strspn(id + 6, "0123456789abcdef") == 12;
 }
 
+static bool read_register_overrides(const cJSON *values, app_inverter_config_t *config)
+{
+    if (!values) return true;
+    if (!cJSON_IsObject(values)) return false;
+    size_t count = 0;
+    const app_inverter_register_t *schema = app_inverter_registers(config->profile, &count);
+    uint32_t seen = 0;
+    const cJSON *entry;
+    cJSON_ArrayForEach(entry, values) {
+        size_t i = 0;
+        while (i < count && strcmp(entry->string, schema[i].key)) ++i;
+        if (i >= count || i >= APP_INVERTER_REGISTER_MAX) return false;
+        uint32_t bit = UINT32_C(1) << i;
+        int address;
+        if ((seen & bit) || !integer(entry, 0, 65536 - schema[i].words, &address))
+            return false;
+        seen |= bit;
+        if (address != schema[i].address) {
+            config->registers.mask |= bit;
+            config->registers.address[i] = (uint16_t)address;
+        }
+    }
+    return true;
+}
+
 static bool read_form(const cJSON *o, app_inverter_settings_t *s)
 {
     if (!cJSON_IsObject(o)) return false;
@@ -160,8 +218,8 @@ static bool read_form(const cJSON *o, app_inverter_settings_t *s)
             !read_schedule(entry, &s->peers[i].schedule)) return false;
         strcpy(s->peers[i++].id, entry->string);
     }
-    s->version = 1;
-    return true;
+    s->version = 2;
+    return read_register_overrides(ITEM(o,"registerOverrides"), c);
 }
 
 static bool same_endpoint(const app_inverter_config_t *a, const app_inverter_config_t *b)
@@ -198,6 +256,10 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
         goto done;
     }
     bool same = same_endpoint(&active->driver, &candidate->driver);
+    /* A régebbi webes űrlap nem küldi ezt a kulcsot. Azonos profilnál
+     * megőrizzük a címeket; az explicit üres objektum visszaállítja a gyáriakat. */
+    if (!ITEM(object,"registerOverrides") && !strcmp(candidate->driver.profile, active->driver.profile))
+        candidate->driver.registers = active->driver.registers;
     if (same) {
         if (!candidate->driver.secret[0]) strcpy(candidate->driver.secret, active->driver.secret);
         if (!candidate->driver.key[0]) strcpy(candidate->driver.key, active->driver.key);
@@ -212,7 +274,9 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
             nvs_close(h);
         }
         if (err == ESP_OK) {
-            if (!same || active->driver.battery != candidate->driver.battery) {
+            if (!same || active->driver.battery != candidate->driver.battery ||
+                memcmp(&active->driver.registers, &candidate->driver.registers,
+                       sizeof(candidate->driver.registers)) != 0) {
                 source_revision++;
                 last_measurement = 0;
             }
@@ -332,6 +396,14 @@ cJSON *app_inverter_settings_get(void)
     if (c->profile[0]) { ADD(Number,"latitude",active->latitude); ADD(Number,"longitude",active->longitude); }
     if (last_measurement) { ADD(Number,"measurementAgeSeconds",fmax(0,difftime(time(NULL),last_measurement))); }
 #undef ADD
+    cJSON *registers = cJSON_AddObjectToObject(o, "registerOverrides");
+    if (!registers) goto fail;
+    size_t count = 0;
+    const app_inverter_register_t *schema = app_inverter_registers(c->profile, &count);
+    for (size_t i = 0; i < count; ++i) {
+        if ((c->registers.mask & (UINT32_C(1) << i)) &&
+            !cJSON_AddNumberToObject(registers, schema[i].key, c->registers.address[i])) goto fail;
+    }
     cJSON *schedule = schedule_json(&active->master);
     if (!schedule || !cJSON_AddItemToObject(o,"schedule",schedule)) { cJSON_Delete(schedule); goto fail; }
     cJSON *peers = cJSON_AddObjectToObject(o,"slaveSchedules");

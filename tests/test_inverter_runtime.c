@@ -88,8 +88,79 @@ static cJSON *settings(const char *profile) {
     cJSON_AddStringToObject(s,"profile",profile); return s;
 }
 
-int main(void)
+/* A korábbi bináris NVS-formátum független másolata. A PEM változó
+ * hosszban volt elmentve, a régi igazítás hoston és P4-en is számít. */
+typedef struct {
+    unsigned version;
+    struct {
+        char profile[40], host[128], device[96], user[96], secret[160], key[160];
+        uint16_t port;
+        uint8_t unit;
+        bool battery;
+        const char *trusted_pem;
+    } driver;
+    double latitude, longitude;
+    app_inverter_schedule_t master;
+    struct {
+        char id[APP_SLAVE_PRESENCE_ID_SIZE];
+        app_inverter_schedule_t schedule;
+    } peers[APP_SLAVE_PRESENCE_MAX_PEERS];
+    char pem[3072];
+} stored_v1_t;
+
+static void register_settings_tests(void)
 {
+    runtime.data_recept_mode = APP_DATA_INVERTER;
+    stored_v1_t previous = {.version=1, .driver={.profile="huawei_modbus", .host="site.local",
+        .unit=7, .port=1502, .battery=true}, .latitude=47.25, .longitude=18.5,
+        .master={.touch_wake_seconds=59}, .pem="old certificate"};
+    previous.peers[0].schedule.touch_wake_seconds = 23;
+    strcpy(previous.peers[0].id, "ble-0-112233445566");
+    nvs_size = offsetof(stored_v1_t, pem) + strlen(previous.pem) + 1;
+    memcpy(nvs_data, &previous, nvs_size);
+    assert(app_inverter_settings_open());
+    app_inverter_settings_t snapshot;
+    uint32_t revision, source, last_source;
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &source));
+    assert(snapshot.version == 2 && !snapshot.driver.registers.mask && !commits);
+    assert(snapshot.driver.unit == 7 && snapshot.driver.port == 1502 && snapshot.driver.battery);
+    assert(!strcmp(snapshot.driver.trusted_pem, previous.pem) && snapshot.latitude == 47.25);
+    assert(snapshot.master.touch_wake_seconds == 59 && snapshot.peers[0].schedule.touch_wake_seconds == 23);
+
+    cJSON *form = settings("huawei_modbus");
+    cJSON_AddItemToObject(form, "registerOverrides", cJSON_Parse("{\"pv\":0,\"ac\":32080}"));
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &source));
+    assert(snapshot.driver.registers.mask == 1 && snapshot.driver.registers.address[0] == 0);
+    cJSON *get = app_inverter_settings_get();
+    cJSON *values = cJSON_GetObjectItem(get, "registerOverrides");
+    assert(cJSON_GetArraySize(values) == 1 && cJSON_GetObjectItem(values, "pv")->valueint == 0);
+    cJSON_Delete(get);
+    cJSON_DeleteItemFromObject(form, "registerOverrides");
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &last_source));
+    assert(last_source == source && snapshot.driver.registers.mask == 1);
+    const char *invalid[] = {"null", "[]", "{\"unknown\":1}", "{\"pv\":1.5}",
+                             "{\"pv\":-1}", "{\"pv\":65535}", "{\"pv\":0,\"pv\":1}"};
+    for (size_t i = 0; i < sizeof(invalid)/sizeof(*invalid); ++i) {
+        cJSON_AddItemToObject(form, "registerOverrides", cJSON_Parse(invalid[i]));
+        assert(app_inverter_settings_save(form) == ESP_ERR_INVALID_ARG);
+        cJSON_DeleteItemFromObject(form, "registerOverrides");
+    }
+    cJSON_AddItemToObject(form, "registerOverrides", cJSON_CreateObject());
+    assert(app_inverter_settings_save(form) == ESP_OK);
+    assert(app_inverter_settings_snapshot(&snapshot, &revision, &last_source));
+    assert(last_source != source && !snapshot.driver.registers.mask);
+    cJSON_ReplaceItemInObject(form, "profile", cJSON_CreateString("fronius_http"));
+    cJSON_AddNumberToObject(cJSON_GetObjectItem(form, "registerOverrides"), "pv", 123);
+    assert(app_inverter_settings_save(form) == ESP_ERR_INVALID_ARG);
+    cJSON_Delete(form);
+    puts("PASS legacy NVS migration, per-field register editing, sparse defaults, exact zero and reset");
+}
+
+int main(int argc, char **argv)
+{
+    if (argc == 2 && !strcmp(argv[1], "registers")) { register_settings_tests(); return 0; }
     app_inverter_schedule_t schedule;
     runtime.data_recept_mode=APP_DATA_LOXONE;
     assert(!app_inverter_settings_get() && !app_inverter_display_schedule(NULL,&schedule) && !allocations);
