@@ -19,6 +19,8 @@ beállítás nem kell. [Párosítás és átállítás](ble-data-seed.md).
 
 A 10,1″-es kijelző MQTT, HTTP, Loxone és Slave módban az indulóképernyőn jelzi, melyik kapcsolatra vagy adatra vár. A korábbi mérés elévülése vagy a kapcsolat lassú felépülése közben is itt követheted az indulást. Az első sikeres kapcsolódás és adatfogadás után egy újabb kapcsolatvesztést már az üzemi hibaablak jelez.
 
+![A 10,1″-es kijelző magyar indulóképernyője, miközben a Loxone Miniserver kapcsolatára vár](images/first-run/loxone-boot.png)
+
 | Üzemmód | Mikor jelenik meg a beállított nézet? |
 | --- | --- |
 | Közvetlen Loxone, 10,1″ | Wi-Fi és időszinkron után a kijelző megvárja a Miniserver hitelesített állapotkapcsolatát és az első érvényes, friss energiamérést. Ha hiányoznak a hozzáférési adatok vagy az állapotok párosításai, nyisd meg a „Loxone kapcsolat” lépésnél látható webcímet. Letiltott energiaáramlásnál az Otthon nézet a Miniserver-kapcsolat felépülésekor megnyílik. |
