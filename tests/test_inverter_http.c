@@ -103,6 +103,13 @@ int main(void)
     near(s.power_pv_kw, 3);
     done();
 
+    queue("getdevdata.cgi?device=2&sn=ASW8000T", "{\"vpv\":[4000],\"ipv\":[1000]}");
+    queue("getdevdata.cgi?device=3", "{\"pac\":-1100}");
+    assert(app_inverter_http_read(&cfg, &s, &t) && s.home_unavailable && !s.grid_unavailable);
+    near(s.power_pv_kw, 4);
+    near(s.power_grid_kw, -1.1);
+    done();
+
     strcpy(cfg.profile, "solplanet_https");
     expect_pem = cfg.trusted_pem = "logger-cert";
     cfg.battery = true;

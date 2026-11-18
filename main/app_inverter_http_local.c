@@ -154,13 +154,15 @@ static bool solplanet(const app_inverter_config_t *cfg, app_energy_sample_t *sam
     double ac = 0;
     bool v1 = false;
     cJSON *inverter = solplanet_device(cfg, sn, 2, false);
-    if (!MEMBER(inverter, "pac") && !strcmp(cfg->profile, "solplanet_http")) {
+    bool ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
+    bool pv = solplanet_dc(inverter, &sample->power_pv_kw);
+    if (!ac_ok && !pv && !strcmp(cfg->profile, "solplanet_http")) {
         cJSON_Delete(inverter);
         v1 = true;
         inverter = solplanet_device(cfg, sn, 2, true);
+        ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
+        pv = solplanet_dc(inverter, &sample->power_pv_kw);
     }
-    bool ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
-    bool pv = solplanet_dc(inverter, &sample->power_pv_kw);
     double err;
     if (inv_http_scale(inverter, "err", 1, &err) && err != 0) sample->status = 4;
     cJSON_Delete(inverter);
