@@ -52,5 +52,13 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
  await nodes.get('settings').onsubmit({preventDefault(){}});
  assert.equal(posted.DataReceptMode,'slave');assert.equal(posted.DataSeedEnabled,0);
  assert.equal(posted.cardless_slave,true);
+ configuration.setup_pending=true; configuration.cardless_slave=false;
+ await sandbox.api.load();
+ assert.equal(mode.value,'');assert(nodes.get('save').disabled);assert(!mode.disabled);
+ assert(nodes.get('message').textContent.includes('Első beállítás'));
+ mode.value='inverter';mode.onchange();
+ assert(!nodes.get('save').disabled);
+ assert.equal(sandbox.api.values().DataReceptMode,'inverter');
+ assert(!Object.hasOwn(sandbox.api.values(),'setup_pending'));
  console.log('PASS: actual settings JS switches Slave without Wi-Fi/MQTT/NTP, prevents relay mode and saves canonical config');
 })().catch(error=>{console.error(error);process.exitCode=1;});
