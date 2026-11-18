@@ -7,8 +7,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
-static struct netif sta;
+static struct netif sta, inverter;
+static bool cable_connected;
+static unsigned requests, replies;
 static unsigned frees;
 static const uint8_t own[6] = {2,1,1,1,1,1};
 static const uint8_t peer[6] = {2,2,2,2,2,2};
@@ -26,15 +29,31 @@ u32_t lwip_htonl(u32_t value) { return __builtin_bswap32(value); }
 u8_t ip4_addr_isbroadcast_u32(u32_t ip,const struct netif *n) {
     return ip==0xffffffff || ip==(netif_ip4_addr(n)->addr|~netif_ip4_netmask(n)->addr);
 }
-u8_t pbuf_free(struct pbuf *p) { assert(p && p->ref==1); p->ref=0; frees++; return 1; }
+u8_t pbuf_free(struct pbuf *p)
+{
+    assert(p && p->ref==1);
+    p->ref=0; frees++;
+    if (p->type_internal == (u8_t)PBUF_RAM) free(p);
+    return 1;
+}
 struct pbuf *pbuf_alloc(pbuf_layer layer,u16_t len,pbuf_type type) {
-    (void)layer; (void)len; (void)type; return NULL;
+    if (!cable_connected) return NULL;
+    assert(layer == PBUF_LINK && type == PBUF_RAM);
+    struct pbuf *p = calloc(1,sizeof(*p) + 14 + len);
+    assert(p);
+    p->payload=(uint8_t *)(p+1)+14; p->len=p->tot_len=len;
+    p->ref=1; p->type_internal=(u8_t)PBUF_RAM;
+    return p;
 }
 struct pbuf *pbuf_clone(pbuf_layer layer,pbuf_type type,struct pbuf *p) {
     (void)layer; (void)type; (void)p; return NULL;
 }
 void pbuf_ref(struct pbuf *p) { p->ref++; }
-u8_t pbuf_add_header(struct pbuf *p,size_t size) { (void)p; (void)size; return 1; }
+u8_t pbuf_add_header(struct pbuf *p,size_t size)
+{
+    assert(p->type_internal==(u8_t)PBUF_RAM && size==14 && p->payload==(uint8_t *)(p+1)+size);
+    p->payload=(uint8_t *)p->payload-size; p->len+=size; p->tot_len+=size; return 0;
+}
 u8_t pbuf_remove_header(struct pbuf *p,size_t len) {
     if (len>p->len) return 1;
     p->payload=(uint8_t *)p->payload+len; p->len-=len; p->tot_len-=len; return 0;
@@ -54,6 +73,23 @@ static void frame(const uint8_t mac[6],unsigned sender,unsigned target,unsigned 
     unsigned before=frees;
     assert(ethernet_input(&p,&sta)==ERR_OK && frees==before+1);
 }
+/* Kizárólag a fizikai vezetéket utánozzuk. Mindkét félen az eredeti
+ * ethernet_input és etharp_input dolgozza fel a másik fél teljes keretét. */
+static err_t deliver(struct netif *from,struct pbuf *p)
+{
+    bool request=from==&sta;
+    struct netif *to=request ? &inverter : &sta;
+    uint8_t bytes[42];
+    assert(!p->next && p->len==sizeof(bytes));
+    memcpy(bytes,p->payload,sizeof(bytes));
+    assert(!memcmp(bytes,to->hwaddr,6) && !memcmp(bytes+6,from->hwaddr,6));
+    assert(bytes[12]==8 && bytes[13]==6 && bytes[20]==0 && bytes[21]==(request ? 1 : 2));
+    if (request) ++requests; else ++replies;
+    struct pbuf rx={.payload=bytes,.len=sizeof(bytes),.tot_len=sizeof(bytes),.ref=1};
+    assert(ethernet_input(&rx,to)==ERR_OK && !rx.ref);
+    return ERR_OK;
+}
+
 int main(void)
 {
     sta.flags=NETIF_FLAG_UP|NETIF_FLAG_LINK_UP|NETIF_FLAG_ETHARP|NETIF_FLAG_BROADCAST;
@@ -81,5 +117,33 @@ int main(void)
     app_inverter_link_idle();
     frame(peer,77,77,1,42);
     assert(app_inverter_link(moved.addr,peer,false,&link) && !link.announced);
-    puts("PASS: linked ESP lwIP input, forwarding, malformed/foreign packets and passive DHCP announcement");
+    /* Az inverter csendben újraindult .83-on. A .20 korábbi címen már más
+     * MAC van. A nem megfelelő cél-IP-kre a valódi inverteroldali lwIP hallgat. */
+    ip4_addr_t silent;
+    IP4_ADDR(&silent,192,168,1,83);
+    inverter=sta;
+    inverter.num=1;
+    memcpy(inverter.hwaddr,peer,6);
+    ip_2_ip4(&inverter.ip_addr)->addr=silent.addr;
+    sta.linkoutput=inverter.linkoutput=deliver;
+    app_inverter_pin_t pin={.last=initial.addr,.network=link.local & link.mask,
+        .mask=link.mask,.gateway=link.gateway,.ssid="home"};
+    memcpy(pin.mac,peer,6);
+    assert(app_inverter_link(silent.addr,peer,false,&link) && !link.announced && !link.exact_mac[0]);
+    cable_connected=true;
+    assert(!app_inverter_link_who_has(&pin,link.local) &&
+           !app_inverter_link_who_has(&pin,link.gateway));
+    ip4_addr_t foreign; IP4_ADDR(&foreign,192,168,2,83);
+    assert(!app_inverter_link_who_has(&pin,foreign.addr));
+    assert(app_inverter_link_who_has(&pin,initial.addr));
+    assert(app_inverter_link_who_has(&pin,moved.addr));
+    assert(requests==2 && !replies);
+    assert(app_inverter_link_who_has(&pin,silent.addr));
+    assert(requests==3 && replies==1);
+    assert(app_inverter_link(silent.addr,peer,false,&link) && link.announced==silent.addr &&
+           link.sequence!=0 && !memcmp(link.exact_mac,peer,6));
+    app_inverter_link_idle();
+    assert(!app_inverter_link_who_has(&pin,silent.addr) && requests==3);
+    puts("PASS: linked ESP lwIP on both peers, passive announcements, silent DHCP move, "
+         "MAC-only unicast requests, real ARP reply and inactive forwarding");
 }
