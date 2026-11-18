@@ -169,6 +169,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-auto-ota-') as directory:
                     '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_auto.c',
                     'main/app_ota_release.c', '-l:libcjson.so.1', '-lmbedcrypto', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ota-validation-') as directory:
+    binary = str(Path(directory) / 'test_ota_validation')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-fsanitize=undefined', '-fno-sanitize-recover=all', '-Itests/ble_profile_stubs',
+                    '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_validation.c',
+                    'main/app_ota.c', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ota-release-') as directory:
     binary = str(Path(directory) / 'test_ota_release')
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra',
