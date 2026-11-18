@@ -120,6 +120,27 @@ static const app_inverter_register_t deye[] = {
     H("discharge", "Akkukisütés", "Battery discharge", 590, S16, "S16 · W"),
 };
 
+static const app_inverter_register_t sofar[] = {
+    H("pv1", "PV1 teljesítmény", "PV1 power", 0x0586, U16, "U16 · 10 W"),
+    H("pv2", "PV2 teljesítmény", "PV2 power", 0x0589, U16, "U16 · 10 W"),
+    H("pv", "Összes PV (tartalék adatforrás)", "Total PV (fallback)", 0x05c4, U16, "U16 · 100 W"),
+    H("state", "Inverterállapot", "Inverter state", 0x0404, U16, "U16"),
+    H("fault7", "Mérőkommunikációs hiba (ID105)", "Meter communication fault (ID105)", 0x040b, U16, "U16 · bit 8"),
+    H("export", "Hálózati betáplálás", "Grid export", 0x0488, S16, "S16 · 10 W"),
+    H("house", "Rendszerterhelés", "System load", 0x04af, U16, "U16 · 10 W"),
+    H("charge", "Összes akkutöltés", "Total battery charging", 0x0667, S16, "S16 · 100 W"),
+    H("soc", "Rendszer-SOC", "System SOC", 0x0668, U16, "U16 · %"),
+    H("bat_count", "Aktív akkukörök száma", "Active battery circuits", 0x066a, U16, "U16"),
+    H("bat1_voltage", "Első akkukör feszültsége", "Battery 1 voltage", 0x0604, U16, "U16 · 0.1 V"),
+    H("bat1_charge", "Első akkukör töltése", "Battery 1 charging", 0x0606, S16, "S16 · 10 W"),
+    H("bat1_temp", "Első akkukör hőfoka", "Battery 1 temperature", 0x0607, S16, "S16 · °C"),
+    H("bat1_soc", "Első akkukör töltöttsége", "Battery 1 SOC", 0x0608, U16, "U16 · %"),
+    H("bat2_voltage", "Második akkukör feszültsége", "Battery 2 voltage", 0x060b, U16, "U16 · 0.1 V"),
+    H("bat2_charge", "Második akkukör töltése", "Battery 2 charging", 0x060d, S16, "S16 · 10 W"),
+    H("bat2_temp", "Második akkukör hőfoka", "Battery 2 temperature", 0x060e, S16, "S16 · °C"),
+    H("bat2_soc", "Második akkukör töltöttsége", "Battery 2 SOC", 0x060f, U16, "U16 · %"),
+};
+
 static const app_inverter_register_t solplanet[] = {
     I("pv1_voltage", "PV1 feszültség", "PV1 voltage", 1318, U16, "U16 · 0.1 V"),
     I("pv1_current", "PV1 áram", "PV1 current", 1319, U16, "U16 · 0.01 A"),
@@ -165,6 +186,7 @@ static const app_inverter_register_t solaredge[] = {
 #define PROFILE(id, table) {id, table, COUNT(table)}
 #define CHECK_SIZE(table) _Static_assert(COUNT(table) <= APP_INVERTER_REGISTER_MAX, "register table too long")
 CHECK_SIZE(huawei); CHECK_SIZE(goodwe); CHECK_SIZE(sungrow); CHECK_SIZE(solax);
+CHECK_SIZE(sofar);
 CHECK_SIZE(victron); CHECK_SIZE(deye); CHECK_SIZE(solplanet); CHECK_SIZE(solaredge);
 
 const app_inverter_register_t *app_inverter_registers(const char *profile, size_t *count)
@@ -178,6 +200,7 @@ const app_inverter_register_t *app_inverter_registers(const char *profile, size_
         PROFILE("sungrow_modbus", sungrow), PROFILE("solax_modbus", solax),
         PROFILE("victron_modbus", victron), PROFILE("solaredge_modbus", solaredge),
         PROFILE("deye_modbus", deye), PROFILE("deye_v5", deye), PROFILE("deye_rtu", deye),
+        PROFILE("sofar_modbus", sofar), PROFILE("sofar_v5", sofar),
         PROFILE("deye_lse3", deye), PROFILE("solplanet_modbus", solplanet),
     };
     for (size_t i = 0; profile && i < COUNT(profiles); ++i) {

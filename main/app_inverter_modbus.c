@@ -404,6 +404,77 @@ static double deye(reader_t *r)
     return pv;
 }
 
+static double sofar_word(reader_t *r, unsigned address, bool signed_word)
+{
+    uint16_t word;
+    if (!read_regs(r, 3, address, 1, &word)) return NAN;
+    return signed_word ? s16(word) : u16(word);
+}
+
+static void sofar_battery(reader_t *r)
+{
+    /* A készülék egy vagy két akkukört mér. A rendszer-SOC az elsődleges;
+     * régebbi firmware-nél csak ismert számú, aktív körből képzünk összeget. */
+    double charging = NAN, soc = NAN, temperature = NAN;
+    uint16_t totals[2];
+    if (read_regs(r, 3, 0x0667, 2, totals)) {
+        charging = 100 * s16(totals[0]);
+        soc = u16(totals[1]);
+        if (soc > 100) soc = NAN;
+    }
+
+    unsigned active = 0, known = 0;
+    double bank_charging = 0, bank_soc = 0;
+    for (unsigned i = 0; i < 2; ++i) {
+        unsigned base = 0x0604 + 7 * i;
+        uint16_t w[5];
+        bool block = read_regs(r, 3, base, 5, w);
+        double voltage = block ? u16(w[0]) : sofar_word(r, base, false);
+        if (!isfinite(voltage)) continue;
+        ++known;
+        if (voltage == 0) continue;
+        ++active;
+        double temp = block ? s16(w[3]) : sofar_word(r, base + 3, true);
+        if (temp >= -60 && temp <= 150) temperature = fmax(temperature, temp);
+        if (!isfinite(charging))
+            bank_charging += 10 * (block ? s16(w[2]) : sofar_word(r, base + 2, true));
+        if (!isfinite(soc)) {
+            double pct = block ? u16(w[4]) : sofar_word(r, base + 4, false);
+            bank_soc += pct <= 100 ? pct : NAN;
+        }
+    }
+    if (!active) return;
+    if ((!isfinite(charging) || !isfinite(soc)) &&
+        (known == 2 || sofar_word(r, 0x066a, false) == active)) {
+        if (!isfinite(charging)) charging = bank_charging;
+        if (!isfinite(soc)) soc = bank_soc / active;
+    }
+    battery(r, -charging, soc, temperature);
+}
+
+static double sofar(reader_t *r)
+{
+    uint16_t w[4];
+    double pv = NAN;
+    /* A két MPPT külön mérése tíz watt felbontású. A későbbi firmware
+     * összegzett PV-regisztere száz watt felbontással használható. */
+    if (read_regs(r, 3, 0x0586, 4, w))
+        pv = 10 * (u16(w[0]) + u16(w[3]));
+    if (!isfinite(pv)) pv = 100 * sofar_word(r, 0x05c4, false);
+    if (!isfinite(pv)) return NAN;
+    double state = sofar_word(r, 0x0404, false);
+    if (state == 3) r->sample->status = 3;
+    if (state == 4 || state == 5) r->sample->status = 4;
+
+    /* ID105 esetén a mérőkapcsolat hibás, a terhelési mérleg sem hiteles. */
+    if (read_regs(r, 3, 0x040b, 1, w) && !(w[0] & (1U << 8))) {
+        grid(r, -10 * sofar_word(r, 0x0488, true));
+        house(r, 10 * sofar_word(r, 0x04af, false));
+    }
+    if (r->cfg->battery) sofar_battery(r);
+    return pv;
+}
+
 static double solplanet(reader_t *r)
 {
     uint16_t w[4];
@@ -598,6 +669,8 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
         {"deye_lse3", deye, INV_MB_LSE3, 8899},
         {"deye_rtu", deye, INV_MB_RTU, 8899},
         {"solplanet_modbus", solplanet, INV_MB_TCP, 502},
+        {"sofar_modbus", sofar, INV_MB_TCP, 502},
+        {"sofar_v5", sofar, INV_MB_V5, 8899},
     };
     if (!cfg || !sample || !source_epoch || !cfg->host[0]) return false;
     for (unsigned i = 0; i < sizeof(profiles) / sizeof(profiles[0]); ++i) {
