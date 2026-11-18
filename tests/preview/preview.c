@@ -200,7 +200,13 @@ void bsp_display_brightness_set(int value){last_pwm_brightness=value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
-void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=runtime_wifi_connected,.mqtt_connected=true};}
+static bool runtime_operational;
+void app_state_set_operational(bool active) { runtime_operational = active; }
+void app_state_get_runtime(app_runtime_state_t *out)
+{
+    *out = (app_runtime_state_t){.wifi_connected = runtime_wifi_connected, .mqtt_connected = true,
+                                 .operational = runtime_operational};
+}
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
 void app_stats_get_period(bool month,app_stats_period_t *out){
