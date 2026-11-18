@@ -106,6 +106,9 @@ def verify_schema_order(exe):
     }
     for profile in ("deye_modbus", "deye_v5", "deye_lse3", "deye_rtu"):
         keys[profile] = "pv1 pv2 import house state bat_temp bat_voltage soc discharge"
+    for profile in ("sofar_modbus", "sofar_v5"):
+        keys[profile] = ("pv1 pv2 pv state fault7 export house charge soc bat_count bat1_voltage "
+                         "bat1_charge bat1_temp bat1_soc bat2_voltage bat2_charge bat2_temp bat2_soc")
     for profile, expected in keys.items():
         ordered = expected.split()
         assert [row["key"] for row in schema(exe, profile)][:len(ordered)] == ordered
@@ -265,6 +268,44 @@ def padded(length, values):
     return data
 
 
+def verify_sofar(exe):
+    # A gyári regiszterfelbontások és a két különböző előjeles energiairány.
+    base = {(3, 0x0586): [140, 0, 0, 210], (3, 0x0404): [3], (3, 0x040b): [0],
+            (3, 0x0488): [65], (3, 0x04af): [120], (3, 0x0667): [3, 60],
+            (3, 0x0604): padded(5, {0: 4100, 2: 23, 3: -4, 4: 58}),
+            (3, 0x060b): padded(5, {0: 4010, 2: 10, 3: 0, 4: 62})}
+    expected = dict(pv=3.5, status=3, grid=-.65, home=1.2, battery=-.3, soc=60, temp=0)
+    for profile, frame, device in [("sofar_modbus", "tcp", ""), ("sofar_v5", "v5", "3631234567")]:
+        run(exe, profile, RegisterImage(base), expected, frame=frame, device=device)
+        relocated(exe, profile, base, expected, frame=frame, device=device)
+    # Régebbi firmware-nél a két valóban jelen lévő körből készül összeg és átlag.
+    old = dict(base)
+    del old[3, 0x0667]
+    old[3, 0x0604] = padded(5, {0: 4100, 2: -23, 3: -4, 4: 0})
+    old[3, 0x060b] = padded(5, {0: 4010, 2: -10, 3: -2, 4: 10})
+    old[3, 0x0488] = [(-65) & 65535]
+    run(exe, "sofar_modbus", RegisterImage(old),
+        dict(expected, grid=.65, battery=.33, soc=5, temp=-2))
+    # A hiányzó hőfokregiszter mellett a mért nulla W és 0% is érvényes.
+    single = RegisterImage({(3, 0x0586): [0, 0, 0, 0], (3, 0x0604): [4020],
+                            (3, 0x0606): [0], (3, 0x0608): [0], (3, 0x066a): [1]})
+    run(exe, "sofar_modbus", single, dict(pv=0, status=1, battery=0, soc=0))
+    # A második kör kiesésénél a részösszeget nem jelenítjük meg összes tárolóként.
+    single.put(3, 0x066a, [2])
+    run(exe, "sofar_modbus", single, dict(pv=0, status=1))
+    # Mérőhiba esetén a hálózat és a ház opcionális. Akku nélküli rendszernél
+    # egyetlen akkucímre sem küldünk kérést.
+    broken = dict(base)
+    broken[3, 0x0404] = [4]
+    broken[3, 0x040b] = [1 << 8]
+    broken[3, 0x0586] = [140, 0, 0, 65535]
+    broken[3, 0x05c4] = [34]
+    seen = run(exe, "sofar_modbus", RegisterImage(broken), dict(pv=3.4, status=4), battery=False)
+    assert all(a < 0x0600 for _, a, _ in seen)
+    del broken[3, 0x05c4]
+    run(exe, "sofar_modbus", RegisterImage(broken), None)
+
+
 def main():
     with tempfile.TemporaryDirectory() as temp:
         exe = Path(temp) / "reader"
@@ -284,6 +325,7 @@ def main():
             new_ip.listen()
             subprocess.run([dns_wire, str(port)], check=True, timeout=10)
         verify_schema_order(exe)
+        verify_sofar(exe)
         verify_mppt_float_registers(exe)
         pv = {"pv": 3.5, "status": 1}
         core = padded(26, {1: 3500, 17: 3000, 25: 0x0200})
