@@ -177,8 +177,11 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await persist();
         assert.deepEqual(posted.registerOverrides, {pv: 0, soc: 82});
         assert.equal(posted.rebindDevice, undefined);
+        stored.activeIpv4 = '192.0.2.12';
         await page.reload();
         await pv.waitFor(); assert.equal(await pv.inputValue(), '0');
+        assert((await page.locator('#sync-status').textContent()).includes('Aktuális helyi IP-cím: 192.0.2.12'));
+        assert.equal(await page.locator('#host').inputValue(), '192.0.2.10');
         assert.equal(await soc.inputValue(), '82');
         assert.equal(await page.locator('#register-status').textContent(), '');
         const rebind = page.locator('#rebind-device');

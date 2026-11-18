@@ -185,7 +185,10 @@ async function readSettings() {
 function syncStatus(data) {
     const age = data.measurementAgeSeconds;
     const ageText = Number.isFinite(age) ? (age < 60 ? age + ' mp' : Math.floor(age / 60) + ' perc') : 'ismeretlen';
-    get('sync-status').textContent = (data.syncStatus || '') + (data.profile ? ' · Mérés kora: ' + ageText : '');
+    const status = [data.syncStatus];
+    if (data.profile) status.push('Mérés kora: ' + ageText);
+    if (data.activeIpv4) status.push('Aktuális helyi IP-cím: ' + data.activeIpv4);
+    get('sync-status').textContent = status.filter(Boolean).join(' · ');
 }
 function fill(data) {
     saved = data;
