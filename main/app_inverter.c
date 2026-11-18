@@ -24,7 +24,7 @@ typedef struct {
 
 static worker_t *worker;
 static portMUX_TYPE sun_lock = portMUX_INITIALIZER_UNLOCKED;
-static _Atomic uint32_t source_timeout = 30;
+static _Atomic uint32_t source_timeout = APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
 typedef struct {
     int64_t minute;
     uint32_t revision;
@@ -81,7 +81,7 @@ static void reload(worker_t *w)
     w->revision = rev;
     w->source = source;
     w->profile = profile;
-    uint16_t timeout = profile->seconds == 5 ? 30 : app_cloud_sample_timeout(profile->seconds);
+    uint16_t timeout = profile->seconds == 5 ? APP_INVERTER_LOCAL_TIMEOUT_SECONDS : app_cloud_sample_timeout(profile->seconds);
     atomic_store(&source_timeout,timeout);
     app_state_set_inverter_timeout(timeout);
     app_state_set_inverter_ready(true);

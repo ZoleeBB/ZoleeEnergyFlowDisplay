@@ -169,13 +169,15 @@ static inline unsigned app_cloud_sample_timeout(unsigned cadence_s)
     return 2 * cadence_s + 60;
 }
 
+#define APP_INVERTER_LOCAL_TIMEOUT_SECONDS 30u
+
 /* A már mért inverter átmeneti kiesésekor két helyi mérési periódusig a
  * legutolsó mintát mutatjuk. Felhőnél a szolgáltatói frissítési idő számít. */
 static inline bool app_state_inverter_searching(const app_runtime_state_t *s, int64_t now)
 {
     if (s->data_recept_mode != APP_DATA_INVERTER || !s->inverter_ready ||
         !s->has_valid_sample || !s->inverter_read_failed || !s->wifi_connected) return false;
-    unsigned grace = s->inverter_timeout_seconds > 30 ? s->inverter_timeout_seconds : 10;
+    unsigned grace = s->inverter_timeout_seconds > APP_INVERTER_LOCAL_TIMEOUT_SECONDS ? s->inverter_timeout_seconds : 10;
     return now - s->last_valid_packet_monotonic_us >= (int64_t)grace * 1000000;
 }
 
