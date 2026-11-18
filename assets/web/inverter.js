@@ -69,8 +69,12 @@ function secretRequirements() {
         input.placeholder = keep ? 'Mentett érték megtartása' : '';
     }
 }
+function updateSaveButton() {
+    get('save-inverter').disabled = saving || !saved || !inverterRegisters.isReady();
+}
 function showProfile(initial) {
     const id = get('profile').value, profile = profiles[id];
+    inverterRegisters.select(id);
     const grid = get('connection');
     grid.replaceChildren();
     get('transport-help').textContent = '';
@@ -174,6 +178,7 @@ function syncStatus(data) {
 }
 function fill(data) {
     saved = data;
+    inverterRegisters.reset();
     get('profile').value = data.profile || '';
     showProfile(true);
     get('battery').checked = !!data.battery;
@@ -182,7 +187,7 @@ function fill(data) {
     get('master-program').replaceChildren();
     master = programEditor(get('master-program'), data.schedule);
     overrides.clear(); get('slave-programs').replaceChildren(); peerPrograms([]);
-    get('save-inverter').disabled = false;
+    updateSaveButton();
     syncStatus(data);
 }
 function values() {
@@ -191,6 +196,7 @@ function values() {
         unit: Number(get('unit')?.value ?? 0), battery: get('battery').checked,
         latitude: Number(get('latitude').value), longitude: Number(get('longitude').value),
         schedule: master.value(), slaveSchedules: {}};
+    if (profiles[id]?.unit != null) data.registerOverrides = inverterRegisters.values();
     if (saved.revision != null) data.revision = saved.revision;
     for (const key of ['device', 'user', 'secret', 'key', 'trustedPem']) {
         const input = get(key);
@@ -216,12 +222,12 @@ for (const [id, profile] of Object.entries(profiles)) {
 get('profile').onchange = () => showProfile(get('profile').value === saved?.profile);
 get('inverter-form').onsubmit = async event => {
     event.preventDefault();
-    if (saving || !saved || !get('inverter-form').reportValidity()) return;
+    if (saving || !saved || !inverterRegisters.isReady() || !get('inverter-form').reportValidity()) return;
     const data = values();
     if (data.profile === 'deye_v5' && (!Number(data.device) || Number(data.device) > 4294967295)) {
         get('result').textContent = 'Az adatgyűjtő sorozatszáma 1 és 4294967295 közötti egész szám lehet.'; return;
     }
-    saving = true; get('save-inverter').disabled = true;
+    saving = true; updateSaveButton();
     get('result').textContent = 'Mentés folyamatban…';
     try {
         const response = await apiFetch('/api/inverter', {method: 'POST', headers: {'Content-Type': 'application/json',
@@ -233,7 +239,7 @@ get('inverter-form').onsubmit = async event => {
         get('result').textContent = 'Mentve. A kijelző szinkronizálja az adatokat.';
     } catch (error) {
         get('result').textContent = 'A mentés nem igazolt. ' + error.message;
-    } finally { saving = false; get('save-inverter').disabled = false; }
+    } finally { saving = false; updateSaveButton(); }
 };
 refresh();
 setInterval(refresh, 15000);

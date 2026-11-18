@@ -4,6 +4,9 @@
 body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#fff}
 .week-row{display:grid;grid-template-columns:minmax(7em,1fr) 1fr 1fr;gap:10px;align-items:center;margin:7px 0}
 .week-row label{min-width:0}.week-row input[type=time]{padding:8px 4px}
+.register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
+.register-row small{display:block;overflow-wrap:anywhere}.register-row label{margin:0}
+@media(max-width:640px){.register-row{grid-template-columns:minmax(0,1fr) auto}.register-row>div{grid-column:1/-1}}
 #slave-profiles button{margin:4px 8px 4px 0}.feedback-error{color:var(--danger)}
 @media(max-width:480px){.week-row{grid-template-columns:1fr 1fr}.week-row>label:first-child{grid-column:1/-1}.grid{grid-template-columns:minmax(0,1fr)}}
 </style></head>
@@ -16,6 +19,11 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <p class="hint" id="transport-help"></p>
 <div id="connection" class="grid"></div>
 <p><label><input id="battery" type="checkbox">Van akkumulátor</label></p>
+</section>
+<section id="registers" aria-labelledby="register-heading" hidden><h2 id="register-heading">Modbus olvasási regiszterek</h2>
+<p>A címeket tízes számrendszerben, nullától számozva add meg. A SunSpec-modellhez viszonyított sorokban eltolást adhatsz meg. A funkciókód és az adatformátum az adott méréshez tartozik.</p>
+<div id="register-rows"></div>
+<p id="register-status" role="status"></p><button type="button" class="secondary" id="register-retry" hidden>Regiszterlista újrapróbálása</button>
 </section>
 <section><h2>Master sötétítési időprogramja</h2>
 <p>A kijelző napnyugtától napkeltéig az éjszakai fényerőt használja. Az időprogram a kijelző teljes elsötétítését szabályozza a beállított helyi idő szerint. Az éjfélen átnyúló időszakot a kezdőnapján jelöld be. Azonos kezdet és vég a teljes kijelölt napot jelenti.</p>
@@ -30,4 +38,4 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>
 <button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
 <p id="result" role="status" aria-live="polite"></p></form>
-<script>/*SLAVES_JS*/</script><script>/*INVERTER_JS*/</script></body></html>
+<script>/*SLAVES_JS*/</script><script>/*REGISTER_JS*/</script><script>/*INVERTER_JS*/</script></body></html>

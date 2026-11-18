@@ -59,6 +59,8 @@ def embed(html, js, placeholder, name, header):
     page = page.replace('/*COMMON_CSS*/', common_css()).replace('<!--APP_NAV-->', nav_html('hu'))
     if html in ('loxone.html', 'inverter.html'):
         page = page.replace('/*SLAVES_JS*/', (ROOT / 'assets/web/loxone-slaves.js').read_text())
+    if html == 'inverter.html':
+        page = page.replace('/*REGISTER_JS*/', (ROOT / 'assets/web/inverter-registers.js').read_text())
     if html == 'loxone.html':
         icons = json.loads((ROOT / 'assets/loxone-home/catalog.json').read_text())['icons']
         compact = [{key: icon[key] for key in ('id', 'hu', 'en')} for icon in icons]

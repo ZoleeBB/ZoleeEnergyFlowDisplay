@@ -11,6 +11,12 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 5. Állítsd be az igényelt heti sötétítést és a párosított Slave-eket. Az oldal végén add meg a ház GPS-szélességét és hosszúságát tizedes fokban. Példa Budapesthez: **47.4979, 19.0402**. Az első szám a szélesség (−90…90), a második a hosszúság (−180…180).
 6. Mentsd a profilt. A szinkronizálási állapot és a legutóbbi valódi mérés kora a fülön ellenőrizhető. Az elérési adatok cseréjekor add meg az új célhoz tartozó kulcsokat is. A helyi mentés a Master belső NVS-tárában marad meg újraindításkor. Az azonos kapcsolathoz tartozó változatlan jelszót a webfelület üresen hagyhatja.
 
+### Modbus-regisztercímek módosítása
+
+A **Modbus olvasási regiszterek** az inverterkapcsolat kiválasztása után jelennek meg. Minden mérésnél látható az aktuális és a gyári cím, a funkciókód, a 16 bites szavak száma és az adatformátum. A mezőbe tízes számrendszerű, nullától számozott PDU-cím kerül. SunSpec-modellnél a felület külön jelzi a modellhez viszonyított eltolást. A 0 érvényes érték. A több szóból álló mérés utolsó regiszterének is bele kell férnie a címtartományba.
+
+Módosítsd a kívánt címet, majd válaszd az **Inverter és időprogramok mentése** gombot. A **Gyári cím visszaállítása** csak a kiválasztott sort állítja vissza, a visszaállítást is menteni kell. A módosítás azt határozza meg, honnan olvas a kijelző. Az inverter regisztereibe a kijelző nem ír.
+
 ## Támogatott invertercsaládok és adatgyűjtők
 
 | Inverter | Használható kapcsolat | Telepítéskor ezt ellenőrizd |
