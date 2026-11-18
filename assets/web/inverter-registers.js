@@ -7,10 +7,19 @@ const inverterRegisters = (() => {
     function savedOverrides() {
         return saved?.profile === selected ? (saved.registerOverrides || {}) : {};
     }
+    function applicable(spec) {
+        if (selected !== 'solax_modbus') return true;
+        const model = get('device')?.value || '';
+        if (spec.id.startsWith('x1_')) return model === 'X1-G4';
+        if (spec.id.startsWith('x3_')) return model !== 'X1-G4';
+        return !spec.id.startsWith('pro_') || model === 'X3-G4-PRO';
+    }
     function status() {
         const defaults = savedOverrides();
         let edited = 0;
-        for (const {spec, input, restore} of rows) {
+        for (const {spec, input, restore, box} of rows) {
+            box.hidden = input.disabled = !applicable(spec);
+            if (box.hidden) continue;
             const value = input.valueAsNumber;
             restore.disabled = value === spec.address;
             if (value !== (defaults[spec.id] ?? spec.address)) ++edited;
@@ -42,7 +51,7 @@ const inverterRegisters = (() => {
         description.append(label, info);
         box.append(description, input, restore);
         get('register-rows').append(box);
-        return {spec, input, restore};
+        return {spec, input, restore, box};
     }
     function validSchema(list) {
         if (!Array.isArray(list) || !list.length) return false;
@@ -89,8 +98,13 @@ const inverterRegisters = (() => {
         } finally { if (token === generation) updateSaveButton(); }
     }
     function values() {
-        return Object.fromEntries(rows.filter(({spec, input}) => input.valueAsNumber !== spec.address)
-            .map(({spec, input}) => [spec.id, input.valueAsNumber]));
+        const result = {}, previous = savedOverrides();
+        for (const {spec, input} of rows) {
+            // A rejtett változat mentett címét egy másik modell mentése ne módosítsa.
+            const value = applicable(spec) ? input.valueAsNumber : (previous[spec.id] ?? spec.address);
+            if (value !== spec.address) result[spec.id] = value;
+        }
+        return result;
     }
-    return {select, reset: () => drafts.clear(), isReady: () => ready, values};
+    return {select, reset: () => drafts.clear(), isReady: () => ready, variantChanged: () => { if (ready) status(); }, values};
 })();

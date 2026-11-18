@@ -104,7 +104,10 @@ function showProfile(initial) {
     if (id === 'solax_modbus') {
         const label = el('label', 'Inverter kivitele'), model = el('select');
         model.id = 'device';
-        model.onchange = updateEndpointFields;
+        model.onchange = () => {
+            updateEndpointFields();
+            inverterRegisters.variantChanged();
+        };
         for (const [value, title] of [['', 'X3-G4 (háromfázisú)'], ['X1-G4', 'X1-G4 (egyfázisú)'],
                 ['X3-G4-PRO', 'X3-HYB-G4 PRO (háromfázisú)']]) {
             const option = el('option', title); option.value = value; model.append(option);

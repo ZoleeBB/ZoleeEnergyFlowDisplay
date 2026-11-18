@@ -28,6 +28,12 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
             {id: 'pv', label: 'PV teljesítmény', address: 32064, words: 2, function: 3, base: null, format: 'S32 BE · W'},
             {id: 'soc', label: 'Töltöttség', address: 0, words: 1, function: 4, base: null, format: 'U16 · %'}
         ];
+        const solaxRegisters = [
+            {...schema[0], id: 'x1_ac', label: 'X1 AC', address: 2, words: 1},
+            {...schema[0], id: 'x3_ac_l1', label: 'X3 AC', address: 108, words: 1},
+            {...schema[0], id: 'pro_protocol', label: 'PRO protokoll', address: 130, words: 1},
+            schema[0]
+        ];
         let failSchema = '', stallSchema = '', resumeSchema, schemaStarted;
 
         page.on('pageerror', e => errors.push(e.message));
@@ -41,7 +47,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
                 if (profile === failSchema) return route.fulfill({status: 503, body: 'busy'});
                 if (profile === stallSchema) await new Promise(resolve => { resumeSchema = resolve; schemaStarted(); });
                 return route.fulfill({json: {registers: profile === 'solaredge_modbus' ?
-                    [{...schema[0], address: 6, base: 'SunSpec invertermodell kezdőcíme'}] : schema}});
+                    [{...schema[0], address: 6, base: 'SunSpec invertermodell kezdőcíme'}] : profile === 'solax_modbus' ? solaxRegisters : schema}});
             }
             if (path !== '/api/inverter') { unexpected.push(path); return route.abort(); }
             if (request.method() === 'POST') {
@@ -98,15 +104,25 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         }
         assert.equal(await page.locator('#trustedPem').count(), 1);
         await page.locator('#profile').selectOption('solax_modbus');
+        const x1 = page.getByRole('spinbutton', {name: 'X1 AC', exact: true});
+        const x3 = page.getByRole('spinbutton', {name: 'X3 AC', exact: true});
+        const pro = page.getByRole('spinbutton', {name: 'PRO protokoll', exact: true});
+        await x3.waitFor(); assert.equal(await x1.count(), 0); assert.equal(await pro.count(), 0);
         await page.locator('#device').selectOption('X3-G4-PRO');
+        await pro.fill('0'); assert.equal(await x3.inputValue(), '108');
         assert.equal(await page.locator('#device').inputValue(), 'X3-G4-PRO');
         await page.locator('#device').selectOption('X1-G4');
+        assert.equal(await pro.count(), 0); assert.equal(await x3.count(), 0);
+        await x1.fill('10');
         await page.locator('#host').fill('192.0.2.1');
         fail = true;
         await page.locator('#save-inverter').click();
         await page.waitForFunction(() => document.getElementById('result').textContent.includes('Másik mentés'));
         assert.equal(await page.locator('#host').inputValue(), '192.0.2.1');
         assert.equal(posted.device, 'X1-G4');
+        assert.deepEqual(posted.registerOverrides, {x1_ac: 10});
+        await page.locator('#device').selectOption('X3-G4-PRO');
+        assert.equal(await pro.inputValue(), '0');
         await page.evaluate(() => refresh());
         assert.equal(await page.locator('#profile').inputValue(), 'solax_modbus');
         for (const width of [320, 390, 1280]) {
@@ -197,6 +213,13 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await resetPv.click(); await persist();
         assert.deepEqual(posted.registerOverrides, {});
         assert.equal(posted.rebindDevice, undefined);
+        stored = {...stored, profile: 'solax_modbus', device: 'X1-G4', unit: 1,
+            registerOverrides: {x1_ac: 21, x3_ac_l1: 43, pro_protocol: 0}};
+        await page.reload();
+        await x1.waitFor(); assert.equal(await x1.inputValue(), '21');
+        assert.equal(await x3.count(), 0); assert.equal(await pro.count(), 0);
+        await x1.fill('2'); await persist();
+        assert.deepEqual(posted.registerOverrides, {x3_ac_l1: 43, pro_protocol: 0});
         assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_')));
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);
