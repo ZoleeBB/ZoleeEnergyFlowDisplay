@@ -400,6 +400,17 @@ esp_err_t app_ingest_slave_sample(const app_energy_sample_t *sample)
     return ESP_OK;
 }
 
+static bool presence_identity(uint16_t conn, app_slave_identity_t *identity)
+{
+    if (!security_authenticated(conn)) return false;
+    *identity = (app_slave_identity_t){.address={1,2,3,4,5,6}};
+    return true;
+}
+void app_state_set_sample(const app_energy_sample_t *sample)
+{
+    ingested = *sample;
+    runtime.has_valid_sample = true;
+}
 #include "../main/app_ble_slave.inc"
 
 static const struct ble_gatt_error ok = {0}, done = {BLE_HS_EDONE};
@@ -640,6 +651,10 @@ int main(void)
     make_frame(80, 1800000010);
     connect_link(true);
     assert(ingests == 4);
+    s_applied_sample_epoch = 0; /* Reconnected, previous measurement on the same Master. */
+    runtime.has_valid_sample = false;
+    slave_try_frame(now_us);
+    assert(ingests == 4 && runtime.has_valid_sample);
     make_frame(81, 1800000015);
     packets[0].data[12] = 0xff;
     packets[0].data[13] = 0xff;

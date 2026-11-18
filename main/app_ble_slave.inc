@@ -70,6 +70,9 @@ static int64_t s_next_scan_us, s_setup_deadline_us, s_last_frame_us;
  * csatlakozási állapotba: a keresés különben sosem indulna újra. */
 static int64_t s_connect_deadline_us;
 static int64_t s_applied_sample_epoch;
+/* Keep the last integrated source timestamp across a BLE reconnect. */
+static char s_integrated_identity[APP_SLAVE_PRESENCE_ID_SIZE];
+static int64_t s_integrated_epoch;
 static int64_t s_last_clock_receive_us;
 static int64_t s_energy_receive_us;
 static uint16_t s_frame_sequence;
@@ -267,8 +270,23 @@ static void slave_try_frame(int64_t now)
     if (sample.received_epoch_s > clock.epoch_ms / 1000 + 5)
         return;
     sample.integration_period_s = clock.integration_period_s;
-    if (app_ingest_slave_sample(&sample) == ESP_OK)
-        s_applied_sample_epoch = sample.received_epoch_s;
+    app_slave_identity_t identity;
+    char source[APP_SLAVE_PRESENCE_ID_SIZE];
+    if (!presence_identity(s_master, &identity) || !app_slave_identity_id(&identity, source))
+        return;
+    bool same_source = !strcmp(source, s_integrated_identity);
+    if (same_source && sample.received_epoch_s < s_integrated_epoch) return;
+    if (same_source && sample.received_epoch_s == s_integrated_epoch) {
+        /* Disconnect clears the dashboard, but reconnecting to an unchanged
+         * cloud reading must never integrate the same measurement twice. */
+        app_state_set_sample(&sample);
+    } else {
+        if (!same_source && s_integrated_epoch) app_stats_break_continuity();
+        if (app_ingest_slave_sample(&sample) != ESP_OK) return;
+        memcpy(s_integrated_identity, source, sizeof(source));
+        s_integrated_epoch = sample.received_epoch_s;
+    }
+    s_applied_sample_epoch = sample.received_epoch_s;
     /* Induláskor a main előbb órát szinkronizál, utána indít statisztikát.
      * Addig ez a csomag a cache-ben marad, és a poll újrapróbálja. */
 }
