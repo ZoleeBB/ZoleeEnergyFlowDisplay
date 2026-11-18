@@ -110,7 +110,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
     return ESP_OK;
 }
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
-esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
+esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,s_config.data_recept_mode == APP_DATA_INVERTER ? "X-Zolee-Inverter" : "X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
 int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(require_ringtone_reset)assert(ringtone_resets);if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *route) { (void)server;assert(route->handler);registered++;return ESP_OK; }
 cJSON *app_loxone_web_state(void) { return cJSON_CreateObject(); }
@@ -143,6 +143,56 @@ bool app_slave_presence_service_update(const app_slave_identity_t *identity,
     return true;
 }
 #include "../main/app_loxone_web.inc"
+/* Ezen a szinten csak a hálózati határt teszteljük, a tárolót másik teszt fedi. */
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+static void *heap_caps_calloc(size_t n, size_t size, unsigned caps)
+{
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    return calloc(n, size);
+}
+#include "../main/app_inverter_web.inc"
+static int saves;
+static esp_err_t save_result;
+cJSON *app_inverter_settings_get(void) { return cJSON_Parse("{\"hasSecret\":true}"); }
+esp_err_t app_inverter_settings_save(const cJSON *form)
+{
+    assert(cJSON_IsObject(form)); saves++;
+    return save_result;
+}
+
+static void inverter_http_tests(void)
+{
+    int count = registered;
+    s_config.data_recept_mode = APP_DATA_LOXONE;
+    assert(inverter_register(NULL) == ESP_OK && registered == count);
+    s_config.data_recept_mode = APP_DATA_INVERTER;
+    assert(loxone_register(NULL) == ESP_OK && registered == count);
+    assert(inverter_register(NULL) == ESP_OK && registered == count + 5);
+    httpd_req_t req = {.method=HTTP_GET, .uri="/api/inverter"};
+    authorized = false; status_code = 200;
+    inverter_get(&req); assert(status_code == 401);
+    authorized = true;
+    inverter_get(&req); assert(strcmp(response,"{\"hasSecret\":true}") == 0);
+    req.method = HTTP_POST; req.content_len = 2;
+    input = "{}"; position = 0; status_code = 200;
+    header_ok = false;
+    inverter_post(&req); assert(status_code == 400 && !saves);
+    header_ok = true;
+    req.content_len = 12289;
+    inverter_post(&req); assert(status_code == 400 && !saves);
+    const char *invalid[] = {"{}", "{\"secret\":\"x\\u0000y\"}", "[]", "{}junk"};
+    for (unsigned i = 0; i < sizeof(invalid)/sizeof(invalid[0]); ++i) {
+        input = invalid[i]; req.content_len = strlen(input); position = 0;
+        broken = (i == 0); inverter_post(&req); assert(status_code == 400 && !saves);
+    }
+    broken = false; input = "{\"secret\":\"test\",\"key\":\"other\"}"; req.content_len = strlen(input);
+    position = 0; save_result = ESP_ERR_INVALID_STATE;
+    inverter_post(&req); assert(status_code == 409 && saves == 1);
+    position = 0; status_code = 200; save_result = ESP_OK;
+    inverter_post(&req); assert(status_code == 200 && saves == 2 && strstr(response, "saved"));
+    s_config.data_recept_mode = APP_DATA_LOXONE;
+}
 static void post(const char *body)
 {
     input=body;position=0;status_code=200;response[0]=0;
@@ -296,6 +346,19 @@ static void slave_tests(void)
     slave_post(request_body); assert(status_code == 202 && !slave_state.table.peers[0].profile.blank_at_day);
     free(request_body);
     cJSON_Delete(json);
+    /* Inverter módban kizárólag az aktív kijelzőmezők kerülnek a válaszba.
+     * Nevük/tájolásuk módosítása közben a Loxone jelenlétforrás megmarad. */
+    s_config.data_recept_mode = APP_DATA_INVERTER;
+    slave_get();
+    assert(status_code == 200 && !strstr(response, "presence_uuid") && !strstr(response, "timeout_seconds"));
+    char edit[512];
+    snprintf(edit,sizeof(edit),"{\"schema\":1,\"revision\":%u,\"id\":\"ble-0-060504030201\","
+        "\"profile\":{\"name\":\"Inverter Slave\",\"rotation_degrees\":180,\"day_brightness\":null,"
+        "\"night_brightness\":1}}", slave_state.revision);
+    slave_post(edit);
+    assert(status_code == 202 && slave_state.table.peers[0].profile.rotation_degrees == 180);
+    assert(!strcmp(slave_state.table.peers[0].profile.presence_uuid, "11223344-5566-7788-99aabbccddeeff00"));
+    s_config.data_recept_mode = APP_DATA_LOXONE;
     /* Minden cJSON-allokáció hibája tiszta 500-as válasz legyen. */
     cJSON_Hooks hooks = {.malloc_fn=fail_malloc, .free_fn=free};
     cJSON_InitHooks(&hooks);
@@ -338,6 +401,7 @@ int main(void)
     assert(cJSON_GetObjectItem(home_state,"resources_version")->valueint == 3);
     cJSON_Delete(home_state);
     slave_tests();
+    inverter_http_tests();
     char upload_path[] = "/tmp/ringtone-upload-test-XXXXXX";
     int upload_fd = mkstemp(upload_path); assert(upload_fd >= 0); close(upload_fd);
     char upload_error[160] = "";

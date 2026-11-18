@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix='loxone-home-http-') as directory:
         '-Wno-misleading-indentation', '-fsanitize=undefined', '-fno-sanitize-recover=all',
         '-Itests/stubs', '-Imain', 'tests/test_loxone_home_http.c', 'main/app_ringtone_wav.c',
         'main/app_loxone_home_model.c', 'main/app_loxone_model.c',
-        'main/app_slave_presence.c', 'main/app_slave_display.c', '-l:libcjson.so.1', '-lm',
+        'main/app_slave_presence.c', 'main/app_slave_display.c', '-lmbedcrypto', '-l:libcjson.so.1', '-lm',
         '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=15)

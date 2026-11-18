@@ -6,8 +6,8 @@ const pem = 'Megbízható helyi CA tanúsítványa (PEM, opcionális)';
 const hostLabel = 'Inverter, adatgyűjtő vagy átjáró IP-címe / gépneve';
 const cloudHost = 'A szolgáltató API-gépneve';
 const profiles = {
-    huawei_modbus: {name: 'Huawei SUN2000 M1 · Modbus TCP', unit: 1},
-    goodwe_modbus: {name: 'GoodWe ET · Modbus TCP', unit: 247},
+    huawei_modbus: {name: 'Huawei SUN2000 L1/M1 · Modbus TCP', unit: 1},
+    goodwe_modbus: {name: 'GoodWe ET/EH · Modbus TCP', unit: 247},
     sungrow_modbus: {name: 'Sungrow SH · Modbus TCP', unit: 1},
     solax_modbus: {name: 'SolaX X1/X3 G4 · Modbus TCP', unit: 1},
     victron_modbus: {name: 'Victron GX · Modbus TCP', unit: 100},
@@ -16,7 +16,7 @@ const profiles = {
     deye_rtu: {name: 'Deye SG04LP3 · nyers Modbus RTU TCP-n', port: 8899, unit: 1},
     deye_v5: {name: 'Deye SG04LP3 · SOLARMAN V5', port: 8899, unit: 1, device: 'Adatgyűjtő sorozatszáma (decimális)'},
     solplanet_modbus: {name: 'Solplanet / Tracon ASW-T · Modbus TCP átjáró', unit: 3},
-    fronius_http: {name: 'Fronius · helyi Solar API', port: 80},
+    fronius_http: {name: 'Fronius · helyi Solar API', port: 80, device: 'Inverterazonosító az akkutöltöttséghez (több inverter esetén)'},
     solax_http: {name: 'SolaX Pocket · helyi HTTP', port: 80, secret: 'Pocket helyi jelszó'},
     solplanet_http: {name: 'Solplanet / Tracon · helyi HTTP', port: 8484, device: serial},
     solplanet_https: {name: 'Solplanet / Tracon · helyi HTTPS', port: 443, device: serial, trustedPem: pem},
@@ -100,8 +100,9 @@ function showProfile(initial) {
         const hidden = key === 'secret' || key === 'key', cert = key === 'trustedPem';
         const input = field(grid, profile[key], hidden ? 'password' : cert ? 'textarea' : 'text', hidden ? '' : cfg[key],
             {id: key, maxLength: cert ? 3071 : hidden ? 159 : 95, autocomplete: hidden ? 'new-password' : 'off',
-                required: !cert && !(key === 'user' && id === 'victron_mqtt'), oninput: secretRequirements});
+                required: !cert && !(key === 'user' && id === 'victron_mqtt') && !(key === 'device' && id === 'fronius_http'), oninput: secretRequirements});
         if (cert) input.rows = 5;
+        if (key === 'device' && id === 'fronius_http') input.pattern = '[0-9]+';
         if (key === 'device' && id === 'deye_v5') input.pattern = '[0-9]{1,10}';
         if (key === 'device' && id === 'victron_mqtt') input.pattern = '[a-fA-F0-9]{12}';
     }

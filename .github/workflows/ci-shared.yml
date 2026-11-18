@@ -88,6 +88,10 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_slave_presence_browser.js
+      - name: Exercise direct inverter and Slave settings in Chromium
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_inverter_browser.js
       - name: Check Intercom save on actual embedded HTTP page
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
