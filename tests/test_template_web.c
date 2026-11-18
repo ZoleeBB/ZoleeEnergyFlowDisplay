@@ -38,6 +38,11 @@ esp_err_t httpd_resp_sendstr(httpd_req_t *r,const char *s){(void)r;free(response
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int s,const char *text){status=s;return httpd_resp_sendstr(r,text);}
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *k,char *out,size_t n){(void)r;(void)k;snprintf(out,n,"%s",header?"1":"");return ESP_OK;}
 int httpd_req_recv(httpd_req_t *r,char *out,size_t n){if(interrupted)return -1;size_t left=r->content_len-request_offset;if(n>left)n=left;if(n>317)n=317;memcpy(out,request_bytes+request_offset,n);request_offset+=n;return (int)n;}
+#include "app_support_web.h"
+static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
+{
+    return app_web_send_template(req, page, hu, s_config.data_recept_mode == APP_DATA_INVERTER);
+}
 #include "../main/app_template_web.inc"
 static void request(const char *uri,const unsigned char *bytes,size_t size){
  status=200;chunk_bytes=0;cache_control[0]=0;request_bytes=bytes;request_offset=0;free(response);response=NULL;
