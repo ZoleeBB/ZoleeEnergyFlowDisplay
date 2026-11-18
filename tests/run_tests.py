@@ -304,6 +304,19 @@ with tempfile.TemporaryDirectory(prefix='zolee-boot-') as directory:
     subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
                     '-Imain','tests/test_display_boot.c','-o',binary],cwd=ROOT,check=True)
     subprocess.run([binary],check=True,timeout=10)
+# A 10,1-es firmware belépési pontja lassú DHCP-vel, NTP-vel és hibázó szolgáltatással.
+with tempfile.TemporaryDirectory(prefix='zolee-master-boot-') as directory:
+    binary = str(Path(directory) / 'test_master_startup')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/master_boot_stubs', '-Itests/stubs', '-Itests/ota_stubs',
+        '-Itests/loxone_stubs', '-Itests/discovery_stubs', '-Imain',
+        'tests/test_master_startup.c', 'main/app_state.c', '-pthread', '-o', binary,
+    ], cwd=ROOT, check=True)
+    for scenario in ('mqtt', 'http', 'loxone', 'inverter', 'slave', 'setup'):
+        subprocess.run([binary, scenario], check=True, timeout=10)
+
 # Generated full/partial five-minute energy histories, built as real C code.
 with tempfile.TemporaryDirectory(prefix="zolee-compare-") as directory:
     binary=str(Path(directory)/"test_stats_comparison")
