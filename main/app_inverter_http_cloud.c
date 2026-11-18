@@ -123,6 +123,7 @@ static bool solax(const app_inverter_config_t *cfg, app_energy_sample_t *s, int6
  * Új profil/Jelszó vagy lejárt munkamenet esetén elengedi. */
 #define HUAWEI_TOKEN_SIZE 512
 static char *s_huawei_token;
+static time_t s_huawei_token_issued;
 
 void app_inverter_http_reset(void)
 {
@@ -150,16 +151,21 @@ static bool huawei_login(const app_inverter_config_t *cfg)
     cJSON_Delete(credentials);
     bool ok = cJSON_IsTrue(MEMBER(reply, "success")) && s_huawei_token && *s_huawei_token;
     cJSON_Delete(reply);
-    if (!ok) app_inverter_http_reset();
+    if (ok) s_huawei_token_issued = time(NULL);
+    else app_inverter_http_reset();
     return ok;
 }
 
 static bool huawei(const app_inverter_config_t *cfg, app_energy_sample_t *s, int64_t *epoch)
 {
+    time_t now = time(NULL);
+    /* A Northbound-fiók XSRF tokenje 30 percig él. Az óránkénti lekérdezés
+     * már friss tokennel induljon, egyetlen történeti API-hívást használva. */
+    if (s_huawei_token && (now < s_huawei_token_issued || now - s_huawei_token_issued >= 29 * 60))
+        app_inverter_http_reset();
     if (!s_huawei_token && !huawei_login(cfg)) return false;
     /* Egy inverter és rövid idősáv. A napi, akár 288 nagy rekordot tartalmazó
      * válasz nem férne a panel korlátozott JSON-keretébe. */
-    time_t now = time(NULL);
     cJSON *request = cJSON_CreateObject();
     if (!cJSON_AddStringToObject(request, "sns", cfg->device) ||
         !cJSON_AddNumberToObject(request, "devTypeId", 38) ||

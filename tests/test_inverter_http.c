@@ -10,9 +10,9 @@ static const char *uris[5], *replies[5], *expect_pem, *expect_body;
 static bool expect_sign;
 static char solax_reply[1500];
 
+static time_t now = 1774176450;
 time_t __wrap_time(time_t *out)
 {
-    const time_t now = 1774176450;
     if (out) *out = now;
     return now;
 }
@@ -201,6 +201,13 @@ int main(void)
     assert(app_inverter_http_read(&cfg, &s, &t) && t == 1774176300 && s.grid_unavailable);
     near(s.power_pv_kw, 2.25);
     done();
+    now += 3600;
+    queue("/thirdData/login", "{\"success\":true}");
+    queue("/thirdData/getDevHistoryKpi", "{\"success\":true,\"data\":[{\"sn\":\"HUAWEI1\",\"collectTime\":1774179900000,"
+          "\"dataItemMap\":{\"mppt_power\":2.45}}]}");
+    assert(app_inverter_http_read(&cfg, &s, &t) && t == 1774179900);
+    near(s.power_pv_kw, 2.45);
+    done();
     queue("/thirdData/getDevHistoryKpi", "{\"success\":false,\"failCode\":305}");
     assert(!app_inverter_http_read(&cfg, &s, &t));
     done();
@@ -210,6 +217,7 @@ int main(void)
     app_inverter_http_reset();
     done();
 
+    now = 1774176450;
     strcpy(cfg.profile, "solplanet_cloud");
     strcpy(cfg.host, "eu-api-genergal.aisweicloud.com");
     strcpy(cfg.key, "plant123");
