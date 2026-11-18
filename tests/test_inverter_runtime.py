@@ -38,6 +38,9 @@ with tempfile.TemporaryDirectory() as tmp:
     run([tmp/"runtime", "restart", tmp/"nvs.bin"])
 
 
+# Fizikai kijelző nélkül is fusson a teljes kiesési és visszatalálási adatút.
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_inverter_outage.py")], cwd=ROOT, check=True)
+
 # Telepített SDK esetén a regresszióban a valódi ethernet_input és etharp_input is részt vesz.
 idf_path = os.environ.get("IDF_PATH")
 if idf_path and (Path(idf_path)/"components/lwip/lwip/src/netif/ethernet.c").exists():
