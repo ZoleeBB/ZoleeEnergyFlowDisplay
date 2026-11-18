@@ -76,6 +76,17 @@ static void test_http(void){
     app_state_set_wifi_connected(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     app_state_set_wifi_connected(true);app_state_set_http_ready(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     app_state_set_data_mode(APP_DATA_MQTT);app_state_set_mqtt_connected(true);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
+    app_state_set_data_mode(APP_DATA_INVERTER);
+    app_state_clear_sample();
+    app_state_set_inverter_timeout(1200);
+    app_state_set_inverter_ready(true);
+    app_state_get_runtime(&rt);
+    assert(app_state_data_ready(&rt) && app_state_ota_ready(&rt));
+    assert(!app_state_data_timed_out(&rt, fake_us + 1199999999, 30));
+    assert(app_state_data_timed_out(&rt, fake_us + 1200000000, 30));
+    app_state_set_time_synced(false);
+    app_state_get_runtime(&rt);
+    assert(!app_state_ota_ready(&rt));
     puts("PASS: real HTTP handler (200/400/405/408/409/413/415/503), fragments, shared ingestion, timeout recovery and OTA readiness");tests++;
 }
 static void test_mode_config(void){
@@ -93,7 +104,7 @@ static void test_mode_config(void){
     };
     for(size_t i=0;i<sizeof(cases)/sizeof(*cases);i++){
         const char *path=APP_SD_MOUNT_POINT "/mode.json";FILE *f=fopen(path,"wb");assert(f);fputs(cases[i],f);fclose(f);
-        char error[256];esp_err_t e=app_config_load_file(path,&cfg,error,sizeof(error));assert((e==ESP_OK)==(i<4));
+        char error[256];esp_err_t e=app_config_load_file(path,&cfg,error,sizeof(error));assert((e==ESP_OK)==(i<4 || i==7));
         if(i==0)assert(cfg.data_recept_mode==APP_DATA_MQTT && app_config_data_timeout(&cfg)==30);
         if(i==1)assert(cfg.data_recept_mode==APP_DATA_HTTP && app_config_data_timeout(&cfg)==30);
         if(i==2)assert(app_config_data_timeout(&cfg)==5);

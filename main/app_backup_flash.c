@@ -9,6 +9,7 @@
  * az SD-n); a Loxone- és kamerajelszó eszközkulccsal titkosított marad.
  */
 #include "app_backup.h"
+#include "cJSON.h"
 #include "app_task_mem.h"
 #include "app_events.h"
 #include "app_storage.h"
@@ -168,6 +169,26 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
     if (result == ESP_OK && written)
         *written = true;
     return result;
+}
+
+/* Sérült vagy hiányzó SD esetén csak a hitelesített konfigurációt olvassuk
+ * RAM-ba. Az eredeti fájlokat a kezelő javíthatja a webes felületen. */
+esp_err_t app_backup_flash_boot_config(app_config_t *cfg, char *error, size_t error_len)
+{
+    char *json;
+    size_t length;
+    esp_err_t err = app_backup_flash_load(&json, &length);
+    if (err != ESP_OK) return err;
+    cJSON *bundle = cJSON_ParseWithLength(json, length);
+    free(json);
+    const cJSON *files = cJSON_GetObjectItemCaseSensitive(bundle, "files");
+    const cJSON *config = cJSON_GetObjectItemCaseSensitive(files, "config.json");
+    char *text = cJSON_IsObject(config) ? cJSON_PrintUnformatted(config) : NULL;
+    cJSON_Delete(bundle);
+    if (!text) return ESP_ERR_INVALID_STATE;
+    err = app_config_parse_json(text, strlen(text), cfg, error, error_len);
+    cJSON_free(text);
+    return err;
 }
 
 esp_err_t app_backup_flash_restore_sd(unsigned *files, char error[APP_BACKUP_ERROR_SIZE])

@@ -6,7 +6,8 @@
 #include "nvs.h"
 static uint8_t role[3];
 static char config[4096];
-static size_t config_size;
+static size_t config_size, setup_size;
+static char setup[3073];
 static bool have_role, legacy_display, legacy_pin, fail_open, fail_commit;
 static unsigned writes;
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
@@ -44,6 +45,11 @@ esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *len)
         data = role;
         size = 3;
     }
+    else if (!strcmp(key, "setup_v4")) {
+        if (!setup_size) return ESP_ERR_NVS_NOT_FOUND;
+        data = setup;
+        size = setup_size;
+    }
     else
     {
         assert(!strcmp(key, "config"));
@@ -69,6 +75,11 @@ esp_err_t nvs_set_blob(nvs_handle_t h, const char *key, const void *data, size_t
         assert(length == 3);
         memcpy(role, data, 3);
         have_role = true;
+    }
+    else if (!strcmp(key, "setup_v4")) {
+        assert(length <= sizeof(setup));
+        memcpy(setup, data, length);
+        setup_size = length;
     }
     else
     {
@@ -102,6 +113,28 @@ static esp_err_t fallback(void)
 }
 int main(void)
 {
+    /* Áramkimaradás Wi-Fi után és az első webes mentés két oldalán. */
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_ERR_NOT_FOUND);
+    assert(app_boot_config_setup_pending() && writes == 0);
+    strcpy(cfg.wifi.ssid, "árvíztűrő");
+    strcpy(cfg.wifi.password, "jég!#$");
+    assert(app_boot_config_save_setup_wifi(&cfg) == ESP_OK);
+    memset(&cfg, 0, sizeof(cfg));
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK);
+    assert(app_boot_config_setup_pending() && !strcmp(cfg.wifi.password, "jég!#$"));
+    const char *inverter = "{\"DataReceptMode\":\"inverter\",\"wifi\":{\"ssid\":\"otthon\"}}";
+    fail_commit = true;
+    assert(app_boot_config_complete(inverter, strlen(inverter), &cfg, error, sizeof(error)) != ESP_OK);
+    fail_commit = false;
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    assert(app_boot_config_setup_pending());
+    assert(app_boot_config_complete(inverter, strlen(inverter), &cfg, error, sizeof(error)) == ESP_ERR_INVALID_ARG);
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK);
+    assert(app_boot_config_complete(inverter, strlen(inverter), &cfg, error, sizeof(error)) == ESP_OK);
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK);
+    assert(cfg.data_recept_mode == APP_DATA_INVERTER && !app_boot_config_setup_pending() && !cfg.cardless_slave);
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_ERR_INVALID_STATE);
+    setup_size = 0;
     assert(fallback() == ESP_OK && cfg.cardless_slave && cfg.data_recept_mode == APP_DATA_SLAVE &&
            !cfg.data_seed_enabled);
     assert(have_role && role[2] == 1);
