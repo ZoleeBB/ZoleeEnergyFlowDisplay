@@ -112,7 +112,7 @@ static void measure(worker_t *w, int64_t now)
     bool cloud = w->profile->seconds > 5;
     if (!epoch && !cloud) epoch = wall;
     if (epoch <= 0 || epoch > wall+60 || wall-epoch >= app_inverter_sample_timeout_s()) {
-        app_inverter_report(w->revision,"Elavult vagy hibás mérési idő",0);
+        app_inverter_report(w->revision,"Elavult vagy hibás mérési idő",epoch > 0 && epoch <= wall ? epoch : 0);
         return;
     }
     if (epoch <= w->latest_epoch) {

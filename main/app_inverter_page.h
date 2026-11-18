@@ -30,7 +30,7 @@ static const char app_inverter_page[] =
 "<p>Az otthon GPS-koordinátáit tizedes fokban add meg. A helyi napszak számításához a kijelző időzónáját a Beállítások fülön állíthatod be. Az időjárás 15 percenként frissül.</p>\n"
 "<div class=\"grid\"><label>Földrajzi szélesség (°)<input id=\"latitude\" type=\"number\" min=\"-90\" max=\"90\" step=\"any\" placeholder=\"47.4979\" required></label>\n"
 "<label>Földrajzi hosszúság (°)<input id=\"longitude\" type=\"number\" min=\"-180\" max=\"180\" step=\"any\" placeholder=\"19.0402\" required></label></div>\n"
-"<small>Időjárási adatok: <a href=\"https://open-meteo.com/\" rel=\"noopener noreferrer\" target=\"_blank\">Open-Meteo</a>.</small></section>\n"
+"<small>Időjárási adatok: <a href=\"https://open-meteo.com/\" rel=\"noopener noreferrer\" target=\"_blank\">Open-Meteo</a> · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener noreferrer\" target=\"_blank\">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>\n"
 "<button type=\"submit\" id=\"save-inverter\" disabled>Inverter és időprogramok mentése</button>\n"
 "<p id=\"result\" role=\"status\" aria-live=\"polite\"></p></form>\n"
 "<script>/* A párosított kijelzők szerkesztése. A 202 csak átvétel; a tartós mentést\n"

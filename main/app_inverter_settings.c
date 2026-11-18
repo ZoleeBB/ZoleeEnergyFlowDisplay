@@ -294,7 +294,7 @@ void app_inverter_report(uint32_t generation, const char *status, int64_t measur
 {
     if (app_inverter_settings_lock_version(generation)) {
         status_text = status;
-        if (measured > 0) last_measurement = measured;
+        if (measured > last_measurement) last_measurement = measured;
         app_inverter_settings_unlock();
     }
 }
