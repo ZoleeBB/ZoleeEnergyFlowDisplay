@@ -19,7 +19,11 @@ Ha számként megadott IPv4-címmel indulsz, a Master az első érvényes invert
 
 Ha a router később másik címet oszt ki, a Master felismerheti a párosított eszközt a helyi ARP-táblában vagy az új címet bejelentő ARP-üzenetében. Az új címet célzottan ellenőrzi, majd ugyanazzal az inverterprofillal ismét mér. A beírt eredeti IP megmarad. Ha azt időközben egy másik készülék kapta meg, a kijelző várakozást jelez. Inverter-, kommunikációs modul- vagy helyi hálózatcsere után a beállítóoldalon jelöld be az **Új inverter párosítása ezen az IP-címen** lehetőséget, ha valóban a megadott végpontot akarod ismét azonosítani. Ha az eszköz új IP-jét tudod, közvetlenül is megadhatod azt.
 
-A csendes készülék új címe csak akkor követhető, ha a Masterhez eljut az új címhez tartozó szomszédbejegyzés vagy bejelentés. Másik VLAN, elkülönített Wi-Fi, NAT vagy proxy ARP esetén a valódi MAC-cím rejtve maradhat. Kiszámítható címhez adj az adatgyűjtőnek **DHCP-foglalást** a routerben, vagy használd a készülék saját, helyben feloldható nevét. HTTPS-nél a tanúsítványnak a használt névre vagy számként megadott címre is érvényesnek kell lennie. A felhős profilok elérését a gyártó kiszolgálóneve határozza meg.
+Ha az inverter újrainduláskor nem jelenti be az új IP-címét, a bekapcsolva maradt Master két célzott próbával ellenőrzi a régi címet, majd a rögzített MAC-címnek címzett ARP-kérésekkel keresi az új IPv4-címet. A régi cím szomszédaival kezd. A címtalálat után a Master új, érvényes invertermérést kér. Ekkor automatikusan visszaáll a műszerfal. A másik készüléknek újra kiosztott régi IP-címről nem vesz át mérést.
+
+A Master másodpercenként legfeljebb két keresőkérést küld. Egy szokásos, 255.255.255.0 maszkú hálózaton (`/24`) egy teljes kör ideális esetben nagyjából két perc. A közeli címet hamarabb megtalálhatja. A keresés `/22`-ig lefedi a teljes helyi alhálózatot, nagyobb hálózaton az utolsó ismert cím `/24` tartományát járja be. Sikertelen körök között egy, két, majd négy percet vár. Firmware-frissítés és megszakadt Wi-Fi alatt a keresés szünetel.
+
+Másik VLAN, elkülönített Wi-Fi, NAT vagy proxy ARP esetén a valódi MAC-cím, illetve az arra küldött kérések rejtve maradhatnak. Ha az adatgyűjtő a célzott keresésre nem válaszol, használj helyben feloldható gépnevet vagy **DHCP-foglalást** a routerben. HTTPS-nél a tanúsítványnak a használt névre vagy számként megadott címre is érvényesnek kell lennie. A felhős profilok elérését a gyártó kiszolgálóneve határozza meg.
 
 ### Modbus-regisztercímek módosítása
 
