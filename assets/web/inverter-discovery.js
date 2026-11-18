@@ -42,7 +42,12 @@ const inverterDiscovery = (() => {
         const device = get('device');
         if (device && device.tagName === 'INPUT' && item.device) device.value = item.device;
         updateEndpointFields();
-        reset('A kiválasztott eszköz adatai bekerültek a mezőkbe. Ellenőrizd a beállításokat, majd mentsd az űrlapot.');
+        let message = 'A kiválasztott eszköz adatai bekerültek a mezőkbe.';
+        if (!get('rebind-control').hidden)
+            message += ' Ha ezen az IP-címen az invertert vagy az adatgyűjtőt kicserélted, jelöld be az „Új inverter párosítása” mezőt.';
+        if (get('profile').value === 'victron_mqtt' && (item.port === 8883 || get('trustedPem')?.value.trim()))
+            message += ' Ha a TLS-tanúsítványban az IP-cím helyett a GX neve szerepel, a Cím mezőbe azt a nevet írd.';
+        reset(message + ' Ellenőrizd a beállításokat, majd mentsd az űrlapot.');
         get('host').focus();
     }
     function showResults(search, results) {
