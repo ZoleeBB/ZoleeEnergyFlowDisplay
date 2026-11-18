@@ -373,6 +373,7 @@ subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True
 
 # A kézi automatikus OTA tesztgomb valódi HTTP-kezelője és JS-e.
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_ota_web.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_factory_reset_web.py")], check=True)
 
 # Első indítás és mentett Wi-Fi profil a tényleges STA eseménykezelővel.
 subprocess.run([os.sys.executable, str(ROOT / "tests/test_setup_wifi.py")], check=True)
