@@ -64,7 +64,7 @@ def serve(listener, frame, unit, registers, fault):
             assert slave == unit and function in (3, 4)
             assert 0 < count <= 125
             visited.append((function, address, count))
-            table = registers.get((function, address))
+            table = registers.get((function, address, count), registers.get((function, address)))
             if table is not None:
                 assert len(table) == count, (address, count, table)
                 data = bytes([slave, function, count * 2]) + struct.pack(">" + "H" * count, *table)
@@ -132,10 +132,14 @@ def main():
                   (3, 36004): [1], (3, 35138): [2600, 0, 1000], (3, 35182): [65535, 65036, 2],
                   (3, 37003): [0x8000, 0, 0, 0, 38]}
         run(exe, "goodwe_modbus", goodwe, dict(pv, grid=-1, home=1.6, battery=-.5, soc=38), unit=247)
+        eh = {(3, 35105, 6): [0, 1800, 0, 0, 0, 1700]}
+        run(exe, "goodwe_modbus", eh, pv, unit=247, battery=False)
         sungrow = {(4, 5016): [3500, 0], (4, 12999): padded(12, {0: 0x1000, 1: 4, 8: 1100, 10: -100, 11: -1}),
                    (4, 13019): [4820, 0, 100, 553, 0, 320]}
         run(exe, "sungrow_modbus", sungrow, dict(pv, home=1.1, grid=.1, battery=.1, soc=55.3, temp=32, status=3))
-        solax = {(4, 9): [2, 1500, 2000], (4, 0x46): [500, 0], (4, 0x16): [300, 1, 22, 1, 0, 2, 50],
+        sungrow[4, 13049] = [0, 1 << 14]
+        run(exe, "sungrow_modbus", sungrow, dict(pv, status=3), battery=False)
+        solax = {(4, 0xb8): [1], (4, 9): [2, 1500, 2000], (4, 0x46): [500, 0], (4, 0x16): [300, 1, 22, 1, 0, 2, 50],
                  (4, 0x6c): padded(9, {0: 1000, 4: 900, 8: 700}), (4, 2): [2400]}
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=2.1, battery=-.3, soc=50, temp=22))
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=1.9), device="X1-G4", battery=False)
@@ -170,8 +174,15 @@ def main():
             high, low = struct.unpack(">HH", struct.pack(">f", value))
             battery_words[offset:offset+2] = [low, high]
         battery_words[26] = 3
+        sunspec[3, 0xe142] = [0, 0x4500]
         sunspec[3, 0xe16c] = battery_words
         run(exe, "solaredge_modbus", sunspec, dict(pv, pv=4.25, grid=-.5, home=2.5, battery=-.75, soc=55, temp=0))
+        sunspec[3, 0xe242] = [0, 0x4500]
+        second = battery_words.copy()
+        second[26] = 4
+        second[25] = struct.unpack(">HH", struct.pack(">f", 35))[0]
+        sunspec[3, 0xe26c] = second
+        run(exe, "solaredge_modbus", sunspec, dict(pv, grid=-.5, home=2.5, battery=0, soc=45, temp=0))
     print("Local inverter profiles and fragmented Modbus TCP/RTU/SolarMAN V5 frames passed.")
 
 

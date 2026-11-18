@@ -321,6 +321,7 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], ch
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_partial.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_inverter_modbus.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_sdio_window.py")], check=True)

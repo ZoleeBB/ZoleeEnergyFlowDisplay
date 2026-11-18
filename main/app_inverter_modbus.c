@@ -1,4 +1,4 @@
-/* A címtáblák forrásai és modellhatárai: docs/direct-inverter-registers.md. */
+/* A címtáblák forrásai és modellhatárai: docs/inverters/modbus.md. */
 #include "app_inverter_driver.h"
 #include "app_inverter_modbus_wire.h"
 #include <errno.h>
@@ -113,9 +113,14 @@ static double huawei(reader_t *r)
 static double goodwe(reader_t *r)
 {
     uint16_t w[14];
-    if (!inv_mb_read(r->bus, 3, 35105, 14, w)) return NAN;
+    unsigned channels = 4;
+    if (!inv_mb_read(r->bus, 3, 35105, 14, w)) {
+        /* Az egyfázisú EH és egyes ET verziók csak két MPPT-t címeznek. */
+        channels = 2;
+        if (!inv_mb_read(r->bus, 3, 35105, 6, w)) return NAN;
+    }
     double pv = NAN;
-    for (unsigned i = 0; i <= 12; i += 4) {
+    for (unsigned i = 0; i < channels * 4; i += 4) {
         double input = u32(w + i, false);
         if (isfinite(input)) pv = (isnan(pv) ? 0 : pv) + input;
     }
@@ -141,8 +146,17 @@ static double sungrow(reader_t *r)
     if (w[0] == 0x1000 || w[0] == 0x0041) r->sample->status = 3;
     if (w[0] == 0x0100 || w[0] == 0x5500) r->sample->status = 4;
     uint16_t flow = w[1];
-    house(r, s32(w + 8, true));
-    grid(r, -s32(w + 10, true));
+    double load = s32(w + 8, true);
+    double exported = s32(w + 10, true);
+    bool invalid_meter = false;
+    if (inv_mb_read(r->bus, 4, 13049, 2, w)) {
+        uint32_t alarms = pair(w, true);
+        invalid_meter = alarms != UINT32_MAX && (alarms & ((1U << 30) | (1U << 14)));
+    }
+    if (!invalid_meter) {
+        house(r, load);
+        grid(r, -exported);
+    }
     if (r->cfg->battery && inv_mb_read(r->bus, 4, 13019, 6, w) && w[0] && w[0] != 0xffff) {
         double magnitude = u16(w[2]);
         unsigned direction = flow & 6;
@@ -196,7 +210,10 @@ static double solax(reader_t *r)
             pv += u16(w[0]);
         }
     }
-    if (inv_mb_read(r->bus, 4, 0x46, 2, w)) grid(r, -s32(w, true));
+    /* A fizikai CT-hez nem tartozik soros mérő-kommunikáció. */
+    bool metered = inv_mb_read(r->bus, 4, 0xb8, 1, w) && w[0] == 1;
+    if (!metered) metered = inv_mb_read(r->bus, 3, 0x115, 1, w) && w[0] == 1;
+    if (metered && inv_mb_read(r->bus, 4, 0x46, 2, w)) grid(r, -s32(w, true));
     if (!strcasecmp(r->cfg->device, "x1") || !strcasecmp(r->cfg->device, "X1-G4")) {
         if (inv_mb_read(r->bus, 4, 2, 1, w)) house_from_ac(r, s16(w[0]));
     } else if (inv_mb_read(r->bus, 4, 0x6c, 9, w)) {
@@ -284,16 +301,36 @@ static double sunspec_scale(double value, uint16_t scale)
 
 static void se_battery(reader_t *r)
 {
+    static const uint16_t bases[] = {0xe100, 0xe200, 0xe400};
     uint16_t w[28];
-    /* A StorEdge első akkumulátora szófordított IEEE-754 formátumot használ. */
-    if (!inv_mb_read(r->bus, 3, 0xe16c, 28, w)) return;
-    uint32_t state = pair(w + 26, true);
-    if (state < 1 || state > 10 || state == 5 || state == 8 || state == 9) return;
-    double raw = float32_value(w + 8, true);
-    double power = raw == 0 ? 0 : NAN;
-    if (state == 3) power = -fabs(raw);
-    if (state == 4) power = fabs(raw);
-    battery(r, power, float32_value(w + 24, true), float32_value(w, true));
+    double total_power = 0, total_energy = 0, weighted_soc = 0, highest_temperature = NAN;
+    for (unsigned i = 0; i < sizeof(bases) / sizeof(bases[0]); ++i) {
+        /* A nem beépített tároló címét a firmware kivétellel vagy nulla kapacitással jelzi. */
+        if (!inv_mb_read(r->bus, 3, bases[i] + 0x42, 2, w)) continue;
+        double capacity = float32_value(w, true);
+        if (!(capacity > 0)) continue;
+        total_energy += capacity;
+        if (!inv_mb_read(r->bus, 3, bases[i] + 0x6c, 28, w)) {
+            total_power = weighted_soc = NAN;
+            continue;
+        }
+        uint32_t state = pair(w + 26, true);
+        if (state < 1 || state > 10 || state == 5 || state == 8 || state == 9) {
+            total_power = weighted_soc = NAN;
+            continue;
+        }
+        double raw = float32_value(w + 8, true);
+        double power = raw == 0 ? 0 : NAN;
+        if (state == 3) power = -fabs(raw);
+        if (state == 4) power = fabs(raw);
+        total_power += power;
+        double soc = float32_value(w + 24, true);
+        weighted_soc += (soc >= 0 && soc <= 100 ? soc : NAN) * capacity;
+        double temp = float32_value(w, true);
+        if (temp >= -60 && temp <= 150) highest_temperature = fmax(highest_temperature, temp);
+    }
+    if (total_energy > 0 && r->bus->fd >= 0)
+        battery(r, total_power, weighted_soc / total_energy, highest_temperature);
 }
 
 typedef enum { SE_OTHER, SE_GRID, SE_HOME, SE_PRODUCTION } se_meter_t;
