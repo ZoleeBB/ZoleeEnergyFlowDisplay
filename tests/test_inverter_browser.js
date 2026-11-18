@@ -59,6 +59,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await page.locator('#profile option').count(), 21);
         assert.equal(await page.locator('#registers').isVisible(), false);
         assert.deepEqual(registerRequests, []);
+        assert(!await page.locator('#rebind-control').isVisible());
         assert.equal(await page.locator('#latitude').inputValue(), '0');
         assert.equal(await page.locator('#secret').inputValue(), '');
         assert.equal(await page.locator('#secret').evaluate(e => e.required), false);
@@ -76,6 +77,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await page.locator('#slave-profiles input[id$="day_brightness"]').count(), 1);
         await page.locator('#save-inverter').click();
         await page.waitForFunction(() => document.getElementById('result').textContent.includes('Mentve.'));
+        assert.equal(posted.rebindDevice, undefined);
         assert.equal(posted.registerOverrides, undefined);
         assert.equal(posted.secret, undefined); assert.equal(posted.key, undefined);
         assert.equal(posted.revision, 5); assert.equal(posted.latitude, 0);
@@ -174,14 +176,24 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         }
         await persist();
         assert.deepEqual(posted.registerOverrides, {pv: 0, soc: 82});
+        assert.equal(posted.rebindDevice, undefined);
         await page.reload();
         await pv.waitFor(); assert.equal(await pv.inputValue(), '0');
         assert.equal(await soc.inputValue(), '82');
         assert.equal(await page.locator('#register-status').textContent(), '');
+        const rebind = page.locator('#rebind-device');
+        assert(await rebind.isVisible() && !await rebind.isChecked());
+        await rebind.check(); await page.locator('#port').fill('1502');
+        assert(!await rebind.isVisible() && !await rebind.isChecked());
+        await page.locator('#port').fill('502'); assert(await rebind.isVisible());
+        await rebind.check();
         await resetSoc.click(); await persist();
+        assert.equal(posted.rebindDevice, true);
+        assert(!await rebind.isChecked());
         assert.deepEqual(posted.registerOverrides, {pv: 0});
         await resetPv.click(); await persist();
         assert.deepEqual(posted.registerOverrides, {});
+        assert.equal(posted.rebindDevice, undefined);
         assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_')));
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);

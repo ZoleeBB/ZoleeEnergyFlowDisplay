@@ -59,8 +59,14 @@ function endpointUnchanged() {
         return !input || String(saved[key] ?? '') === input.value.trim();
     });
 }
-function secretRequirements() {
+function updateEndpointFields() {
     const same = endpointUnchanged();
+    const octets = (get('host')?.value.trim() || '').split('.');
+    const numericLan = octets.length === 4 && octets.every(octet =>
+        /^(0|[1-9][0-9]{0,2})$/.test(octet) && Number(octet) <= 255);
+    const rebind = same && numericLan && !profiles[saved.profile]?.interval;
+    get('rebind-control').hidden = !rebind;
+    if (!rebind) get('rebind-device').checked = false;
     for (const [key, flag] of [['secret', 'hasSecret'], ['key', 'hasKey']]) {
         const input = get(key);
         if (!input) continue;
@@ -80,6 +86,8 @@ function showProfile(initial) {
     const grid = get('connection');
     grid.replaceChildren();
     get('transport-help').textContent = '';
+    get('rebind-control').hidden = true;
+    get('rebind-device').checked = false;
     if (!profile) return;
     const cfg = initial ? saved : {};
     const hint = profile.interval ? 'Felhős lekérdezés ' + profile.interval + ' percenként. A szolgáltatói mérés kora az oldal tetején látható.' :
@@ -88,14 +96,15 @@ function showProfile(initial) {
         (id === 'victron_mqtt' ? ' A 8883-as port vagy helyi CA megadása TLS-t kapcsol.' : '') +
         (id === 'solax_http' ? ' A Pocket helyi HTTP-kapcsolata titkosítás nélkül küldi a jelszót.' : '');
     field(grid, profile.host ? cloudHost : hostLabel, 'text', cfg.host ?? profile.host,
-        {id: 'host', required: true, maxLength: 127, pattern: '[a-zA-Z0-9.\\-]+', oninput: secretRequirements});
+        {id: 'host', required: true, maxLength: 127, pattern: '[a-zA-Z0-9.\\-]+', oninput: updateEndpointFields});
     field(grid, 'Port', 'number', cfg.port ?? profile.port ?? 502, {id: 'port', min: 1, max: 65535,
-        step: 1, required: true, oninput: secretRequirements});
+        step: 1, required: true, oninput: updateEndpointFields});
     if (profile.unit != null) field(grid, 'Modbus eszközcím (Unit ID)', 'number', cfg.unit ?? profile.unit,
-        {id: 'unit', min: 0, max: 255, step: 1, required: true, oninput: secretRequirements});
+        {id: 'unit', min: 0, max: 255, step: 1, required: true, oninput: updateEndpointFields});
     if (id === 'solax_modbus') {
         const label = el('label', 'Inverter kivitele'), model = el('select');
         model.id = 'device';
+        model.onchange = updateEndpointFields;
         for (const [value, title] of [['', 'X3-G4 (háromfázisú)'], ['X1-G4', 'X1-G4 (egyfázisú)'],
                 ['X3-G4-PRO', 'X3-HYB-G4 PRO (háromfázisú)']]) {
             const option = el('option', title); option.value = value; model.append(option);
@@ -108,13 +117,13 @@ function showProfile(initial) {
         const hidden = key === 'secret' || key === 'key', cert = key === 'trustedPem';
         const input = field(grid, profile[key], hidden ? 'password' : cert ? 'textarea' : 'text', hidden ? '' : cfg[key],
             {id: key, maxLength: cert ? 3071 : hidden ? 159 : 95, autocomplete: hidden ? 'new-password' : 'off',
-                required: !cert && !(key === 'user' && id === 'victron_mqtt') && !(key === 'device' && id === 'fronius_http'), oninput: secretRequirements});
+                required: !cert && !(key === 'user' && id === 'victron_mqtt') && !(key === 'device' && id === 'fronius_http'), oninput: updateEndpointFields});
         if (cert) input.rows = 5;
         if (key === 'device' && id === 'fronius_http') input.pattern = '[0-9]+';
         if (key === 'device' && id === 'deye_v5') input.pattern = '[0-9]{1,10}';
         if (key === 'device' && id === 'victron_mqtt') input.pattern = '[a-fA-F0-9]{12}';
     }
-    secretRequirements();
+    updateEndpointFields();
 }
 function clock(minutes) {
     return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
@@ -200,6 +209,7 @@ function values() {
         schedule: master.value(), slaveSchedules: {}};
     if (profiles[id]?.unit != null) data.registerOverrides = inverterRegisters.values();
     if (saved.revision != null) data.revision = saved.revision;
+    if (!get('rebind-control').hidden && get('rebind-device').checked) data.rebindDevice = true;
     for (const key of ['device', 'user', 'secret', 'key', 'trustedPem']) {
         const input = get(key);
         if (input && input.value) data[key] = (key === 'key' || key === 'secret') ? input.value : input.value.trim();
@@ -229,6 +239,7 @@ get('inverter-form').onsubmit = async event => {
     if (data.profile === 'deye_v5' && (!Number(data.device) || Number(data.device) > 4294967295)) {
         get('result').textContent = 'Az adatgyűjtő sorozatszáma 1 és 4294967295 közötti egész szám lehet.'; return;
     }
+    get('rebind-device').checked = false;
     saving = true; updateSaveButton();
     get('result').textContent = 'Mentés folyamatban…';
     try {

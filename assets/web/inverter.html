@@ -19,6 +19,10 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <label>Inverter és kapcsolattípus<select id="profile" required><option value="">Válassz invertert…</option></select></label>
 <p class="hint" id="transport-help"></p>
 <div id="connection" class="grid"></div>
+<div id="rebind-control" hidden>
+<label><input id="rebind-device" type="checkbox" aria-describedby="rebind-help">Új inverter párosítása ezen az IP-címen</label>
+<small id="rebind-help">Csere vagy hálózati adatgyűjtőcsere után válaszd ezt, ha mentéskor a kijelző újra azonosíthatja a megadott címen elérhető eszközt.</small>
+</div>
 <p><label><input id="battery" type="checkbox">Van akkumulátor</label></p>
 </section>
 <section id="registers" aria-labelledby="register-heading" hidden><h2 id="register-heading">Modbus olvasási regiszterek</h2>
