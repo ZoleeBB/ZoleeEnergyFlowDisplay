@@ -13,12 +13,14 @@ static const uint8_t other[6] = {0x02,2,3,4,5,6};
 static const uint8_t router[6] = {0x02,3,4,5,6,7};
 static uint32_t old_ip, new_ip, announced, found;
 static const uint8_t *old_mac, *new_mac;
-static const char *ssid = "otthon";
+static const char *ssid = "otthon", *mask = "255.255.255.0";
+static bool expect_last_block;
 static unsigned writes, probes, sequence, probe_seen[256];
 static uint32_t responds, last_probed;
 bool app_inverter_link_who_has(const app_inverter_pin_t *pin,uint32_t target)
 {
     assert(!memcmp(pin->mac,inverter,6));
+    if (expect_last_block) assert((ntohl(target) >> 8) == (ntohl(pin->last) >> 8));
     ++probes; last_probed = target;
     ++probe_seen[ntohl(target) & 255];
     if (target == responds) {
@@ -32,7 +34,7 @@ void app_inverter_link_idle(void) {}
 bool app_inverter_link(uint32_t address,const uint8_t mac[6],bool probe,app_inverter_link_t *link)
 {
     (void)probe;
-    *link = (app_inverter_link_t){.local=inet_addr("192.168.1.5"),.mask=inet_addr("255.255.255.0"),
+    *link = (app_inverter_link_t){.local=inet_addr("192.168.1.5"),.mask=inet_addr(mask),
         .gateway=inet_addr("192.168.1.1")};
     strcpy(link->ssid,ssid);
     memcpy(link->router_mac,router,6);
@@ -129,6 +131,24 @@ int main(void)
     (void)app_inverter_identity_search_tick(&s,t+120000000);
     assert(probes==before);
     ssid="otthon";
+    assert(!app_inverter_identity_forget(1));
+    app_inverter_identity_load(&s,&cfg,true);
+    /* Nagy hálózaton csak a korábban használt /24 kerül sorra. Kihagyott
+     * perceket az ütemező egyetlen próbával követ, nem utólagos csomagsorral. */
+    mask="255.255.0.0"; old_mac=inverter;
+    assert(!app_inverter_identity_prepare(&s,actual));
+    assert(!app_inverter_identity_verify(&s) && !app_inverter_identity_commit(&s));
+    expect_last_block=true;
+    app_inverter_identity_outage(&s);
+    before=probes;
+    (void)app_inverter_identity_search_tick(&s,t);
+    t+=900000000;
+    (void)app_inverter_identity_search_tick(&s,t);
+    assert(probes==before+2);
+    for (unsigned i=0;i<560;++i,t+=250000) (void)app_inverter_identity_search_tick(&s,t);
+    assert(probes==before+2+253); /* .0 és .255 is gépcím ezen a tényleges /16-on */
+    expect_last_block=false;
+    mask="255.255.255.0";
     assert(!app_inverter_identity_forget(1));
     app_inverter_identity_load(&s,&cfg,true);
     old_mac=router;
