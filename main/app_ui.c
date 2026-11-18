@@ -2246,7 +2246,7 @@ static void busy_screen(void)
                             "The display returns on its own when it finishes."),
                          0, H / 2 + 10, APP_FONT_20, 0x9DB0BE);
     lv_obj_set_width(hint, W);
-    lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
     s_view = VIEW_BUSY;
     s_busy_refreshes = 0;
 }
