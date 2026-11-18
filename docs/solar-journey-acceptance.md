@@ -1,8 +1,6 @@
-# Nap pálya – aktuális működés (v21)
+# Nap pálya – a 09-es téma működése
 
-A `templates/09-solar-journey` csomag a jóváhagyott nappali és éjszakai házfotót,
-a külön mozgó napkorongokat, saját ikonokat és két LVGL-előnézetet tartalmazza.
-Mindkét jelenet 1280×800 px-es; a kártyák geometriája azonos.
+A 10,1″-es kijelzőre telepíthető gyári téma a Napot és a Holdat a napelemes ház feletti, illetve alatti íven mutatja. A jelenlegi SD-csomag verziója 27. Világos és sötét változata is 1280×800 képpontos, azonos kártyaelrendezéssel.
 
 ## Üzemállapot
 
@@ -22,13 +20,20 @@ Ehhez a v21-es témacsomag és a `status_bubble` mezőt támogató firmware szü
 
 ## Napjárás és sugárzás
 
-Az opcionális `SunPosition` formátuma: `azimut#napmagasság#napkeltePerc#napnyugtaPerc`.
-A [Loxone T1 bekötése](loxone.md) és a [JSON-protokoll](mqtt.md) közös az MQTT/HTTP módokban. Közvetlen Loxone módban négy külön numerikus állapot párosítható: azimut és magasság fokban, napkelte és napnyugta éjféltől eltelt percben; [beállítások](loxone-direct.md).
-Adat nélkül a témalapozás átugorja a Nap pályát. A napkorong a helyi idő,
-napkelte és napnyugta alapján, ívhossz szerint követi a háttérhez kalibrált
-31 pontos nappali és 21 pontos éjszakai pályát. A nappali ív napnyugta előtti
-szakasza sűrűbb, a háttér fényes vonalához illesztett pontokat használ; az első
-16 pont és az éjszakai út változatlan. Az ívek a háttér részei, nem rajzoljuk újra őket.
+A kijelző helyi órája szerint **a napkelte percétől a napnyugta percéig a Nap jár a felső íven**. **A napnyugta percében megjelenik a Hold**, és a következő napkelte percéig az alsó íven halad. A Hold az éjszaka előrehaladását jelöli. Például 06:32-es napkelte és 19:47-es napnyugta mellett 06:32-kor már a Nap, 19:47-kor már a Hold látható.
+
+A házfotót a világos vagy sötét témát kiválasztó éjszakai mód (`NightMode`) vezérli. Ha például a Loxone már 18:00-kor éjszakai módot küld, de a napnyugta 19:47, 18:00 és 19:47 között a sötét házfotó felett még a Nap mozog. A fényudvar az égitesttel együtt vált.
+
+| Adatfogadási mód | A pályához használt adatok |
+| --- | --- |
+| MQTT vagy HTTP | Az opcionális `SunPosition` értékben a küldő adja át az azimutot, a napmagasságot és a helyi napkelte, napnyugta percét. [Loxone Pico C T1 bemenet](loxone.md#opcionális-nappálya-t1-szöveges-bemenet) · [Üzenetformátum](mqtt.md#opcionális-nappályaadatok) |
+| Közvetlen Loxone | Négy numerikus állapotot kell párosítani a Miniserveren. [Mezők és mértékegységek](loxone-direct.md) |
+| Közvetlen inverter | A Master a megadott koordinátákból és a helyi időből számítja ki a napadatokat. Ebben a módban a háttér is a napkeltéhez és a napnyugtához igazodik. [Hely és időzóna](direct-inverter.md#nappálya-időjárás-és-éjszakai-mód) |
+| SD-kártyás 10,1″-es Slave | A párosított Master Bluetooth-on adja át a napadatokat és az időszinkront. [BLE-adatmegosztás](ble-data-seed.md) |
+
+A 720×720-as Waveshare 4B a saját beépített Energiaáramlás nézetét használja. [4B kijelző](slave-waveshare-4b.md)
+
+A gyári téma a háttérbe rajzolt vonalhoz illeszti a korongot. A v27-es csomagban a nappali pályát 50, az éjszakait 44 pont írja le. Ha a nappali időszak átnyúlik éjfélen, a kijelző ezt is követi. Ha rendelkezésre áll a naphelyzet, de nincs használható napkelte–napnyugta pár vagy helyi idő, a pozitív napmagasság Napot, a nulla vagy negatív napmagasság Holdat jelent. Hiányzó naphelyzetnél a korong rejtve marad, a témalapozás átugorja a 09-es témát. Az MQTT/HTTP üzenet ellenőrzésére a fenti protokollszabályok érvényesek.
 
 A nappali sugárzási réteg a korong középpontjából, 1 px-es pontból tágul.
 Erősebb, 110/255 induló fedettségű kitöltése és körvonala növekedés közben teljesen
@@ -86,7 +91,7 @@ a magyarázat az ikon bal szélétől indul.
 
 ## Ellenőrzés és frissítés
 
-A valódi LVGL-teszt kilenc sablon 18 nézetét rendereli. Ellenőrzi a sugárzás
+Az LVGL-teszt a tényleges sablont rendereli. Ellenőrzi a sugárzás
 induló pontját, kitöltését, rétegsorrendjét és fix ütemét, termelésarányos végméretét; kilenc SOC-határértéket,
 a hálózati színeket, a kártyák szövegeit és a rács pixelszélességét.
 Napnyugta előtt az utolsó teljes órát percenként végiglépteti: a napkorong
@@ -94,6 +99,8 @@ közepe legfeljebb 2 px-re térhet el a fotóról mért fényes ívtől. A nappa
 végpont és az éjszakai kezdőpont egyezését is ellenőrzi mindkét témamódban.
 A webes tesztek a mentett képek kiszolgálását, régi csomag üres keretét,
 gyorsítótárazást és a biztonságos csomagfrissítést vizsgálják.
+
+A Nap és Hold idő szerinti váltását a 10,1″-es kijelző firmware-frissítése adja. Ha a gyári v27-es téma telepítve van az SD-kártyán, a már telepített téma azonnal használható. A csomag már tartalmazza a `solar_day.png` és `solar_night.png` fájlokat. Korábbi, külön nap- és holdképpár nélkül készült 09-es témában a kijelző nappal aranyszínű, éjszaka kék korongot rajzol. Az egyedi témák a saját jelenetükben megadott `solar_disc` megjelenítést használják.
 
 A napnyugta-illesztést a v18-as ZIP tartalmazza. A v19 geometriailag azonos,
 friss előnézetet ad az erősebb holdudvarról. A holdudvar és a váltási hiba

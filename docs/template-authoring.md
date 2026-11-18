@@ -191,7 +191,7 @@ vagy `"source":"temperature"` mezőt, hogy ne maradjon magában a képernyőn.
 ## Nap pálya kiterjesztések
 
 A `solar_disc` LVGL-elem az opcionális `SunPosition` bemenetről vezérelt,
-24 órás felső/alsó ív mentén mozgó napkorong. Fényudvara a `PowerPV` alapján
+24 órás felső/alsó ív mentén mozgó korong. A gyári `09-solar-journey` esetében a helyi napkelte és napnyugta választja ki a Nap vagy a Hold képét és a hozzá tartozó fényudvart. Saját témában a korong képét továbbra is az adott jelenet `file` mezője adja. Fényudvara a `PowerPV` alapján
 0–8 kW között arányosan nagyobb végméretet ér el, a maximum fölött korlátozott;
 üteme fix 1,2 ciklus/s, a kitöltés minden méretnél teljesen eltűnik a ciklus végére. A `solar_hourly` chart 24 valódi, órás oszlopban
 mutatja a helyben felhasznált/tárolt (zöld) és visszatáplált (sárga) energiát.
