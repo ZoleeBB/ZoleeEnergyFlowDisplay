@@ -56,6 +56,16 @@ static bool home_storage_wait;
 static bool home_icon_corrupt;
 static bool home_missing_card_icons;
 
+/* A valódi LVGL-dekódert hívjuk tovább, miközben az ismételt bontást számláljuk. */
+static unsigned png_decodes;
+unsigned __real_lodepng_decode32(unsigned char **, unsigned *, unsigned *, const unsigned char *, size_t);
+unsigned __wrap_lodepng_decode32(unsigned char **out, unsigned *width, unsigned *height,
+                                const unsigned char *png, size_t size)
+{
+    ++png_decodes;
+    return __real_lodepng_decode32(out, width, height, png, size);
+}
+
 bool __real_app_templates_load_blocked(void);
 bool __wrap_app_templates_load_blocked(void)
 {
@@ -712,7 +722,8 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     assert(disc&&bar&&grid&&production&&comparison);
     app_energy_sample_t s=*original;
     s.sun_position_valid=true;s.sun_altitude_deg=25;s.night_mode=false;
-    s_animation_sample=s;
+    s.sunrise_minute=s.sunset_minute=-1;
+    template_update(&s,&fixture);
     const double levels[]={2,4,8,16};
     for(unsigned i=0;i<4;i++){
         s_animation_sample.power_pv_kw=levels[i];disc->phase=0;
@@ -743,11 +754,14 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     s_animation_sample.power_pv_kw=0;disc->phase=.5f;template_animate(.1f);
     assert(fabsf(disc->phase-.62f)<.0001f&&lv_obj_get_style_border_opa(disc->detail,0)==0);
     assert(lv_obj_get_style_bg_opa(disc->detail,0)==0);
-    s_animation_sample.night_mode=true;s_animation_sample.sun_altitude_deg=-10;
+    s.night_mode=true;s.sun_altitude_deg=-10;
+    template_update(&s,&fixture);
+    lv_obj_update_layout(s_screen);
     int disc_x=lv_obj_get_x(disc->obj),disc_y=lv_obj_get_y(disc->obj);
     template_animate(.1f);
     assert(lv_obj_get_style_border_width(disc->detail,0)==0);
     assert(lv_obj_get_x(disc->obj)==disc_x&&lv_obj_get_y(disc->obj)==disc_y);
+    s.night_mode=false;s.sun_altitude_deg=25;
     const int socs[]={0,29,30,47,49,50,70,71,100};
     const uint32_t soc_colors[]={RED,RED,ORANGE,ORANGE,ORANGE,YELLOW,YELLOW,GREEN,GREEN};
     for(unsigned i=0;i<sizeof(socs)/sizeof(socs[0]);i++){
@@ -828,6 +842,116 @@ static void test_solar_sunset(const app_energy_sample_t *original){
     puts("PASS: sunset last-hour clock sweep follows measured photo ridge within 2px; continuous night transition");
 }
 
+/* A változat nyers, PNG vagy előméretezett LVGL-forrása is a megnevezett SD-fájlhoz tartozzon. */
+static bool template_uses_asset(lv_obj_t *object, const char *file)
+{
+    const void *source = lv_image_get_src(object);
+    for (unsigned a = 0; a < template_view.asset_count; ++a) {
+        if (strcmp(template_view.assets[a].name, file)) continue;
+        if (source == &template_images[a]) return true;
+        for (unsigned r = 0; r < template_view.raw_count; ++r)
+            if (template_view.raws[r].asset == a && source == &template_raw_images[r]) return true;
+#if LV_USE_SNAPSHOT
+        for (unsigned r = 0; r < template_raster_count; ++r)
+            if (template_rasters[r].asset == a && source == &template_rasters[r].image) return true;
+#endif
+    }
+    return false;
+}
+
+/* A 09-es gyári fotón mért végpontok és ívfelezők. A háttér végig ugyanaz
+ * marad, a Nap és a Hold a szimulált helyi óra szerint cserélődik. */
+static void test_solar_clock(app_runtime_state_t rt, app_energy_sample_t sample)
+{
+    assert(!strcmp(template_view.id, "09-solar-journey"));
+    const time_t saved_epoch = epoch;
+    const app_energy_sample_t saved_sample = sample;
+    struct tm date = {.tm_year=126, .tm_mon=9, .tm_mday=5, .tm_isdst=-1};
+    const time_t midnight = mktime(&date);
+    static const struct {
+        int minute, second, rise, set, altitude;
+        bool day;
+        int x, y;
+    } cases[] = {
+        {1079, 59, 360, 1080, -8, true, 846, 414},
+        {1080,  0, 360, 1080,  8, false, 846, 416},
+        {1440,  0, 360, 1080,  8, false, 466, 610},
+        {1799, 59, 360, 1080,  8, false, 88, 403},
+        {1800,  0, 360, 1080, -8, true, 88, 401},
+        {2160,  0, 360, 1080, -8, true, 480, 94},
+        {   0,  0, 1080, 360, -8, true, 480, 94},
+        { 360,  0, 1080, 360,  8, false, 846, 416},
+        { 720,  0, 1080, 360,  8, false, 466, 610},
+        {1080,  0, 1080, 360, -8, true, 88, 401},
+        { 720,  0, -1,  1080,  8, true, 480, 94},
+        { 720,  0, 360,   -1, -8, false, 466, 610},
+        { 720,  0, 360,  360,  0, false, 466, 610},
+        { 720,  0, 360, 1440,  8, true, 480, 94},
+    };
+    sample.sun_position_valid = true;
+    sample.sun_azimuth_deg = 180;
+    sample.power_pv_kw = 0;
+    render_runtime(rt, sample, true, 31000000);
+    lv_obj_t *background = template_nodes[0].obj;
+    template_node_t *disc = NULL;
+    for (unsigned i = 0; i < template_node_count; ++i)
+        if (!strcmp(ts(template_nodes[i].spec, "type"), "solar_disc")) disc = &template_nodes[i];
+    assert(disc && template_uses_asset(background, sample.night_mode ? "night.png" : "day.png"));
+    lv_obj_t *sprite = disc->obj;
+    const void *scene_image = lv_image_get_src(background);
+    for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i) {
+        epoch = midnight + cases[i].minute * 60 + cases[i].second;
+        sample.sunrise_minute = cases[i].rise;
+        sample.sunset_minute = cases[i].set;
+        sample.sun_altitude_deg = cases[i].altitude;
+        render_runtime(rt, sample, true, 31000000);
+        lv_obj_update_layout(s_screen);
+        assert(template_nodes[0].obj == background && lv_image_get_src(background) == scene_image);
+        assert(disc->obj == sprite && !lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN));
+        assert(template_uses_asset(sprite, cases[i].day ? "solar_day.png" : "solar_night.png"));
+        assert(lv_color_eq(lv_obj_get_style_bg_color(disc->detail, 0), c(cases[i].day ? 0xFFD23B : 0x78BFEF)));
+        assert(abs(lv_obj_get_x(sprite) + 21 - cases[i].x) <= 2);
+        assert(abs(lv_obj_get_y(sprite) + 21 - cases[i].y) <= 2);
+        if (i < 2 && !sample.night_mode) save_frame(i ? "solar-clock-sunset" : "solar-clock-before-sunset");
+        template_update(&sample, &fixture);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        unsigned invalidations = 0, before = png_decodes;
+        lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+        template_update(&sample, &fixture);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+        assert(invalidations == 0 && png_decodes == before);
+    }
+    /* Egy régi vagy még nem szinkronizált falióra ne írja felül a mért magasságot. */
+    sample.sunrise_minute = 360;
+    sample.sunset_minute = 1080;
+    sample.sun_altitude_deg = -1;
+    epoch = midnight + 720 * 60;
+    rt.time_synced = false;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_night.png"));
+    rt.time_synced = true;
+    epoch = 12 * 3600;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_night.png"));
+    epoch = midnight + 720 * 60;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_day.png"));
+    sample.sunset_minute = -1;
+    sample.sun_position_valid = false;
+    render_runtime(rt, sample, true, 31000000);
+    assert(lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(disc->detail, LV_OBJ_FLAG_HIDDEN));
+    sample.sun_position_valid = true;
+    sample.sun_altitude_deg = -1;
+    render_runtime(rt, sample, true, 31000000);
+    assert(!lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN) && template_uses_asset(sprite, "solar_night.png"));
+    epoch = saved_epoch;
+    render_runtime(rt, saved_sample, true, 31000000);
+    puts("PASS: 09 solar clock boundaries, midnight, conflicting elevation, missing data and no idle redraw/decode");
+}
+
 /* A runtime frissítsen animációs mintát, képet és fényudvart lapozás nélkül. */
 static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -852,18 +976,7 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         assert(disc&&disc->detail);
         const char *file=night?"solar_night.png":"solar_day.png";
         assert(!strcmp(ts(disc->spec,"file"),file));
-        bool image_matches=false;
-        for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(template_view.assets[a].name,file)){
-            const void *src=lv_image_get_src(disc->obj);
-            if(src==&template_images[a])image_matches=true;
-            for(unsigned r=0;r<template_view.raw_count;r++)
-                if(template_view.raws[r].asset==a&&src==&template_raw_images[r])image_matches=true;
-#if LV_USE_SNAPSHOT
-            for(unsigned r=0;r<template_raster_count;r++)
-                if(template_rasters[r].asset==a&&src==&template_rasters[r].image)image_matches=true;
-#endif
-        }
-        assert(image_matches);
+        assert(template_uses_asset(disc->obj, file));
         assert(lv_obj_get_index(disc->detail)<lv_obj_get_index(disc->obj));
         assert(!lv_obj_has_flag(disc->detail,LV_OBJ_FLAG_HIDDEN));
         /* Már az első frame-en legyen megfelelő kitöltés és kiterjedés. */
@@ -896,6 +1009,7 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         }
     }
     epoch=saved_epoch;render_runtime(rt,*original,true,31000000);
+    test_solar_clock(rt, *original);
     puts("PASS: direct-template startup and day/moon/day transitions refresh image, live sample and halo on first frame; invalid/valid recovery without paging");
 }
 
@@ -3104,6 +3218,27 @@ int main(void)
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .relative_humidity_valid=true,.relative_humidity_pct=61,
         .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_valid=true,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
+    if (getenv("ZOLEE_SOLAR_CLOCK_ONLY")) {
+        ticks = 31000000;
+        config.data_recept_mode = APP_DATA_LOXONE;
+        app_ui_set_config(&config);
+        app_runtime_state_t runtime = {.data_recept_mode=APP_DATA_LOXONE, .wifi_connected=true, .time_synced=true,
+            .loxone_configured=true, .loxone_connected=true, .has_valid_sample=true,
+            .last_valid_packet_monotonic_us=31000000};
+        assert(app_templates_init() == ESP_OK);
+        assert(app_templates_select("09-solar-journey") == ESP_OK);
+        template_prepare();
+        for (unsigned night = 0; night < 2; ++night) {
+            sample.night_mode = night;
+            render_runtime(runtime, sample, true, 31000000);
+            test_solar_dashboard(&sample);
+            test_solar_sunset(&sample);
+            test_solar_mode_transitions(runtime, &sample);
+        }
+        lv_display_delete(display);
+        lv_deinit();
+        return 0;
+    }
     if (getenv("ZOLEE_AUDIO_ONLY") || getenv("ZOLEE_CONTROLS_ONLY") || getenv("ZOLEE_SHADING_ONLY") || getenv("ZOLEE_IRC_ONLY") || getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_HOME_CLEANUP_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
