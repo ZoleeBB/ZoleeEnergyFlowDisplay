@@ -25,7 +25,6 @@
 #include <string.h>
 #include <time.h>
 
-#define SLOT_SIZE (1024U * 1024U)
 #define SYNC_DELAY_MS 15000
 
 static const char *TAG = "backup";
@@ -33,7 +32,7 @@ static SemaphoreHandle_t s_lock, s_request;
 
 static const esp_partition_t *partition(void)
 {
-    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "storage");
+    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, APP_BACKUP_FLASH_PARTITION);
 }
 
 /* Egy slot fejléce és hasznos adatának CRC-je együtt érvényes. */
@@ -41,9 +40,9 @@ static bool slot_read(const esp_partition_t *part, unsigned index, app_backup_sl
                       char **payload)
 {
     uint8_t header[APP_BACKUP_SLOT_HEADER];
-    size_t offset = (size_t)index * SLOT_SIZE;
+    size_t offset = (size_t)index * APP_BACKUP_FLASH_SLOT_SIZE;
     if (esp_partition_read(part, offset, header, sizeof(header)) != ESP_OK ||
-        !app_backup_slot_decode(header, SLOT_SIZE, slot))
+        !app_backup_slot_decode(header, APP_BACKUP_FLASH_SLOT_SIZE, slot))
         return false;
     char *data = heap_caps_malloc(slot->length + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!data)
@@ -81,7 +80,7 @@ esp_err_t app_backup_flash_info(app_backup_flash_info_t *out)
     if (!out)
         return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -106,7 +105,7 @@ esp_err_t app_backup_flash_load(char **json, size_t *length)
         return ESP_ERR_INVALID_ARG;
     *json = NULL;
     *length = 0;
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -131,7 +130,7 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
         *written = false;
     if (!json || !length || length > APP_BACKUP_MAX)
         return ESP_ERR_INVALID_ARG;
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -157,7 +156,7 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
     };
     uint8_t header[APP_BACKUP_SLOT_HEADER];
     app_backup_slot_encode(&slot, header);
-    size_t offset = (size_t)target * SLOT_SIZE;
+    size_t offset = (size_t)target * APP_BACKUP_FLASH_SLOT_SIZE;
     size_t erase = (APP_BACKUP_SLOT_HEADER + length + 4095U) & ~4095U;
     /* Előbb a hasznos adat, a fejléc utoljára: félbeszakadt írásnál a slot érvénytelen. */
     result = esp_partition_erase_range(part, offset, erase);

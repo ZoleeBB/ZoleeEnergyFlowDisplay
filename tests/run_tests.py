@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
         '-lm', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_factory_reset_storage.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='battery-diagnostics-') as directory:
     binary = str(Path(directory) / 'test')
     subprocess.run([
