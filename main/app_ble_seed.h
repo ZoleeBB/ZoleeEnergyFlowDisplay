@@ -20,7 +20,7 @@ void app_ble_pairing_open(void);
 /* Slave oldal: a Master kulcshiányt jelzett, ezért kézi újrapárosítás kell. */
 bool app_ble_pairing_required(void);
 
-/* Last authenticated display policy, retained across transient BLE disconnects. */
+/* A legutóbb hitelesített kijelzőprofil átmeneti BLE-kiesés alatt is megmarad. */
 bool app_ble_seed_slave_intercom_allowed(void);
 bool app_ble_seed_slave_direct(void);
 bool app_ble_seed_slave_backlight(app_slave_display_t *display, int64_t now_us, bool *night);

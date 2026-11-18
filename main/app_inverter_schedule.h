@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Local civil time. Monday is index zero. Equal endpoints cover the entire
- * selected day. Overnight windows continue onto the following day. */
+/* Helyi idő, a hétfő indexe nulla. Azonos végpontoknál a teljes nap aktív.
+ * Az éjfélen átérő időablak a következő napon folytatódik. */
 typedef struct {
     bool enabled;
     uint16_t start_minute;

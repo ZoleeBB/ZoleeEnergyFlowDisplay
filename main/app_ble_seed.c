@@ -144,8 +144,8 @@ static seed_peer_t *peer_for(uint16_t conn)
     return NULL;
 }
 
-/* Legacy receivers reject partial samples. They keep receiving a valid clock
- * and a v1 no-data frame until a representable measurement is available. */
+/* A régi vevők csak teljes mintát ismernek. Addig érvényes órát és v1-es
+ * „nincs adat” keretet kapnak, amíg nincs átadható teljes mérés. */
 static const uint8_t *packet_for(seed_peer_t *peer, unsigned packet, uint8_t fallback[APP_BLE_PACKET_SIZE])
 {
     if (packet < 2 && s_packets[packet][0] == APP_BLE_OPTIONAL_VERSION &&
@@ -604,8 +604,8 @@ static void host_task(void *arg)
     ble_svc_gap_init();
     ble_svc_gatt_init();
 #if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
-    /* The media characteristics are last. Omit them from the inverter's
-     * attribute table, including when an older Slave discovers the service. */
+    /* A médiához tartozó attribútumok a lista végén vannak. Inverter módban
+     * a lista itt lezárul, így a régi Slave sem fedez fel kaputelefont. */
     if (s_config.data_recept_mode == APP_DATA_INVERTER) {
         for (struct ble_gatt_chr_def *entry = s_characteristics; entry->uuid; ++entry)
             if (entry->uuid == &s_intercom_uuid.u) { entry->uuid = NULL; break; }

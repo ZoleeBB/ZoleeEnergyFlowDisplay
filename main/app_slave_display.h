@@ -74,6 +74,6 @@ void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, in
 bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t now_us);
 unsigned app_slave_display_brightness(app_slave_display_t *state, int64_t now_us);
 
-/* Independent weekly schedule; touches use the configured duration exactly. */
+/* Az önálló heti időprogram minden érintésnél a megadott ébrenléti időt indítja. */
 void app_slave_display_scheduled(app_slave_display_t *state, bool blank,
                                  uint16_t wake_seconds, int64_t now_us);

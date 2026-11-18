@@ -2,7 +2,7 @@
 #include "app_inverter_schedule.h"
 #include "app_ble_protocol.h"
 
-/* Extension to the authenticated profile. The original 1004 stays at 102 bytes. */
+/* A hitelesített profil kiegészítése. A korábbi 1004-es karakterisztika mérete 102 bájt. */
 #define APP_BLE_POLICY_SIZE 33
 typedef struct {
     bool direct;

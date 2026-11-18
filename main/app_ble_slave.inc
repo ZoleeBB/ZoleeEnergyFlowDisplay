@@ -70,7 +70,7 @@ static int64_t s_next_scan_us, s_setup_deadline_us, s_last_frame_us;
  * csatlakozási állapotba: a keresés különben sosem indulna újra. */
 static int64_t s_connect_deadline_us;
 static int64_t s_applied_sample_epoch;
-/* Keep the last integrated source timestamp across a BLE reconnect. */
+/* A forrás utolsó feldolgozott időbélyegét újracsatlakozáskor is megőrizzük. */
 static char s_integrated_identity[APP_SLAVE_PRESENCE_ID_SIZE];
 static int64_t s_integrated_epoch;
 static int64_t s_last_clock_receive_us;
@@ -277,8 +277,8 @@ static void slave_try_frame(int64_t now)
     bool same_source = !strcmp(source, s_integrated_identity);
     if (same_source && sample.received_epoch_s < s_integrated_epoch) return;
     if (same_source && sample.received_epoch_s == s_integrated_epoch) {
-        /* Disconnect clears the dashboard, but reconnecting to an unchanged
-         * cloud reading must never integrate the same measurement twice. */
+        /* Újracsatlakozáskor az utolsó felhőmérés visszakerül a kijelzőre.
+         * Csak az új időbélyegű mintát integráljuk a statisztikába. */
         app_state_set_sample(&sample);
     } else {
         if (!same_source && s_integrated_epoch) app_stats_break_continuity();
