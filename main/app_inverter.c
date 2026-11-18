@@ -170,6 +170,8 @@ static void measure(worker_t *w, int64_t now)
         app_inverter_report_ipv4_locked(w->identity.active);
         app_stats_process_sample(&s);
         app_state_set_sample(&s);
+        /* A korábbi időbélyeg újraküldése még nem állítja helyre a kijelzőt. */
+        app_state_set_inverter_read_failed(false);
         w->latest_epoch = epoch;
         app_inverter_settings_unlock();
     }

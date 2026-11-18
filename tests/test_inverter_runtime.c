@@ -309,6 +309,10 @@ int main(int argc, char **argv)
     assert(!app_state_inverter_searching(&runtime, mono));
     runtime.wifi_connected = true;
     offline = false;
+    source_time = last.received_epoch_s;
+    tick(5);
+    assert(runtime.inverter_read_failed && app_state_inverter_searching(&runtime, mono));
+    source_time = 0;
     tick(5);
     assert(!runtime.inverter_read_failed && !app_state_inverter_searching(&runtime, mono));
     runtime.has_valid_sample = false;
