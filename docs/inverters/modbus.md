@@ -14,6 +14,24 @@ Az **Inverter beállítások** lapon válaszd ki az inverterhez és a tényleges
 | SOFAR HYD 5/6/8/10/15/20KTL-3PH | Modbus TCP átjáró jellemzően 502 / 1, SOLARMAN V5 jellemzően 8899 / 1 | A monitoring RS485-re csatlakozó átjáró vagy V5-kompatibilis adatgyűjtő szükséges. A V5 sorozatszáma a stick címkéjén található. [Modellváltozatok, címzés és regiszterkiosztás](sofar.md) |
 | Solplanet ASW8000-T, két MPPT-s hálózati inverter | Átjáró jellemzően 502, az MB001 leírás gyári egységcíme 3 | Az RS485-tel felszerelt változatot helyi Modbus TCP–RTU átjárón át éri el a kijelző. Az átjáró az MBAP-keretet alakítsa RTU-vá. Az RJ45 alakú kommunikációs aljzat kiosztását a típus kézikönyve adja meg. A két PV-bemenet külön feszültségéből és áramából mérő nélkül is előáll a termelés. Az ASW8000-T profilon hagyd üresen az akkujelölőt. |
 
+## Mit azonosít a helyi keresés?
+
+A keresés a beírt TCP-portot és Modbus-egységcímet használja. A találatban a készüléktől kiolvasott név vagy a felismert család neve jelenik meg. Ha az azonosítás sikerült, a kijelző ugyanazzal a meghajtóval kér energiamintát, amellyel mentés után mérni fog. A keresés a gyári regiszterkiosztással próbálkozik. Ha az egység csak egyedi regisztercímeken szolgáltat mérést, az űrlapon megadhatod az eltéréseket.
+
+| Profil | Azonosítási feltétel |
+| --- | --- |
+| Huawei | A 30000-es holdingregisztertől olvasott SUN2000 modellnév L1 vagy M1 kivitelű. |
+| GoodWe | A 35003-tól kiolvasott gyári szám és az ET/EH modellnév. A névmezőt kihagyó régebbi firmware-nél az ismert családkód alapján ismerhető fel az inverter. |
+| Sungrow | A 4999-es bemeneti protokollcímen a támogatott SH RT modellkódja szerepel. |
+| SolaX | A sorozatszám előtagja megfelel az űrlapon kiválasztott X1-G4, X3-G4 vagy X3-G4-PRO kivitelnek. |
+| Victron | A megadott egységcímen a GX rendszerszolgáltatás 800-as regiszterétől kiolvasható a 12 karakteres portálazonosító. |
+| SolarEdge | A SunSpec közös blokk SolarEdge gyártót és modellt ad vissza, utána támogatott invertermodell következik. |
+| Deye | Az egység alacsony akkufeszültségű, háromfázisú hibrid készüléket jelent, a gyári azonosítója mellett két MPPT-t és három fázist közöl. |
+| Solplanet | A 31019–31026 gyári számozású bemeneti regiszterek az ASW8000-T modellnevet adják vissza. |
+| SOFAR | A G3 gyári szám a támogatott háromfázisú HYD család ismert SP1, SP2 vagy SH1 előtagját viseli. A kizárólag tárolós SP1ES120N6 kivitel külön modell. |
+
+Az azonosítást helyi tesztszerverrel a `python3 tests/test_inverter_discovery_modbus.py` parancs ellenőrzi. A teszt az eltérő modellkódot, a mérőként jelentkező SunSpec-eszközt és a mérés nélkül jelentkező invertert is lefedi.
+
 ## Mi kerül a kijelzőre?
 
 A helyi mintavétel célüteme 5 másodperc. Egy beolvasás egy TCP-kapcsolaton történik, a kapcsolódásra és a regiszterválaszokra közös határidővel. Az inverterek csak olvasási kérést kapnak (03-as vagy 04-es kód). Az import és az akkumulátor kisütése pozitív a kijelzőn. A regiszterben jelentett wattszámot a kijelző kilowattra váltja. Az AC-kimenet és a csatlakozási pont méréséből képzett házfogyasztás egy inverter és egy közös hálózati mérő topológiájára vonatkozik. További, független inverterek termelése a ház mérlegét megváltoztatja.
@@ -34,10 +52,10 @@ A helyi mintavétel célüteme 5 másodperc. Egy beolvasás egy TCP-kapcsolaton 
 Az automatikus teszt a firmware valódi C-meghajtóját futtatja helyi TCP-szerverrel, szintetikus regiszterértékekkel. Lefedi többek között a kétirányú energiaáramlást, a valós nulla és a hiányzó hőfok esetét, az opcionális Modbus-kivételeket, a ritkán kiépített bemeneteket, a darabolva érkező kereteket és a hibás V5-ellenőrzőösszeg elutasítását. Futtatás a projekt gyökeréből: `python3 tests/test_inverter_modbus.py`. Ehhez a fejlesztéshez nem állt rendelkezésre élő inverter. Helyszíni próbakor a PV-t, a hálózati irányt és az akku töltés/kisütés irányát az inverter saját kijelzőjével is vesd össze.
 
 - [Huawei M1 kézikönyv](https://info.support.huawei.com/Energy/info/en_US/all/docView/EDOC1100163578), [Dongle helyi hozzáférésének beállítása](https://info.support.huawei.com/Energy/info/en_US/all/docView/EDOC1100261978), [Huawei Modbus regiszterek](https://github.com/wlcrs/huawei-solar-lib/blob/develop/src/huawei_solar/registers.py)
-- [GoodWe Modbus TCP útmutató](https://community.goodwe.com/resources/goodwe/2021-12-14558424.pdf), [SolarGo kézikönyv a hozzáférés engedélyezéséhez](https://en.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_SolarGo_User%20Manual-EN.pdf), [GoodWe ET/EH regiszterkiosztás](https://github.com/marcelblijleven/goodwe/blob/master/goodwe/et.py)
+- [GoodWe Modbus TCP útmutató](https://community.goodwe.com/resources/goodwe/2021-12-14558424.pdf), [SolarGo kézikönyv a hozzáférés engedélyezéséhez](https://en.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_SolarGo_User%20Manual-EN.pdf), [GoodWe ET/EH regiszterkiosztás](https://github.com/marcelblijleven/goodwe/blob/master/goodwe/et.py), [családkódok](https://github.com/marcelblijleven/goodwe/blob/master/goodwe/model.py)
 - [Sungrow RT/RT-20 kézikönyv](https://info-support.sungrowpower.com/product-materials/31d744b7-742d-4707-bd1d-d6ed665c733c.pdf), [Sungrow Residential Hybrid kommunikációs protokoll](https://github.com/Gnarfoz/Sungrow-Inverter/tree/main/Modbus%20Information)
 - [SolaX Modbus elérhetőség](https://kb.solaxpower.com/solution/detail/ff8080818407e2a701840a22dec20032), [X3-HYB-G4 PRO kézikönyv](https://www.solaxpower.com/uploads/file/solax-320101107101-x3-hyb-g4-pro-series-user-manual-en.pdf), [modell- és verziófüggő regiszterkiosztások](https://github.com/wills106/homeassistant-solax-modbus/blob/main/custom_components/solax_modbus/plugin_solax.py)
 - [Victron GX Modbus szolgáltatás](https://www.victronenergy.com/live/ccgx:modbustcp_faq), [GX jogosultságok és egységcímek](https://www.victronenergy.com/media/pg/Cerbo_GX/en/configuration.html), [hivatalos GX regiszterjegyzék](https://github.com/victronenergy/dbus_modbustcp/blob/master/attributes.csv)
 - [SolarEdge SunSpec műszaki kézikönyv](https://knowledge-center.solaredge.com/sites/kc/files/sunspec-implementation-technical-note.pdf), [SunSpec modellkatalógus](https://github.com/sunspec/models/tree/master/smdx), [StorEdge regiszterlista](https://github.com/nmakel/solaredge_modbus/blob/master/src/solaredge_modbus/__init__.py)
-- [Deye adatgyűjtők](https://www.deyeinverter.com/product/accessory-monitoring-1/stick-logger.html), [Deye helyi protokollváltozatok](https://www.openhab.org/addons/bindings/solarman/), [LSE-3 RAW keretfelvételek](https://github.com/StephanJoubert/home_assistant_solarman/issues/247), [SOLARMAN V5 keretezés](https://pysolarmanv5.readthedocs.io/en/latest/solarmanv5_protocol.html)
+- [Deye háromfázisú modell- és sorozatszám-regiszterek](https://github.com/davidrapan/ha-solarman/blob/main/custom_components/solarman/inverter_definitions/deye_p3.yaml), [Deye adatgyűjtők](https://www.deyeinverter.com/product/accessory-monitoring-1/stick-logger.html), [Deye helyi protokollváltozatok](https://www.openhab.org/addons/bindings/solarman/), [LSE-3 RAW keretfelvételek](https://github.com/StephanJoubert/home_assistant_solarman/issues/247), [SOLARMAN V5 keretezés](https://pysolarmanv5.readthedocs.io/en/latest/solarmanv5_protocol.html)
 - [Solplanet T-sorozat magyar kézikönyve](https://solplanet.net/wp-content/uploads/2021/07/Manual_ASW3000-1000-T_HU.pdf), [AISWEI MB001 ASW GEN-Modbus regiszterjegyzék](https://github.com/user-attachments/files/21190909/MB001_ASW.GEN-Modbus-en_V2.1.4-5.pdf)
