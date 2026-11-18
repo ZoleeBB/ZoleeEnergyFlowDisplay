@@ -9,7 +9,7 @@ static esp_err_t inverter_page(httpd_req_t *req)
     if (!authorize(req)) return ESP_OK;
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return app_web_send_page(req, app_inverter_page, true, true);
+    return app_web_send_page(req, app_inverter_page, true);
 }
 
 static esp_err_t inverter_get(httpd_req_t *req)
