@@ -176,6 +176,7 @@ int main(int argc, char **argv)
     if (argc == 2 && !strcmp(argv[1], "registers")) { register_settings_tests(); return 0; }
     app_inverter_schedule_t schedule;
     runtime.data_recept_mode=APP_DATA_LOXONE;
+    assert(!app_inverter_settings_local_name("unit.local", 10));
     assert(!app_inverter_settings_get() && !app_inverter_display_schedule(NULL,&schedule) && !allocations);
     runtime.data_recept_mode=APP_DATA_INVERTER; runtime.time_synced=runtime.wifi_connected=true;
     tick(0); assert(!configured && !reads && !weather);
@@ -183,8 +184,13 @@ int main(int argc, char **argv)
     assert(app_inverter_settings_save(s)==ESP_ERR_INVALID_ARG && commits==0);
     cJSON_Delete(s);
     s=settings("fronius_http");
+    cJSON_ReplaceItemInObject(s,"host",cJSON_CreateString("-unit.local"));
+    assert(app_inverter_settings_save(s) == ESP_ERR_INVALID_ARG);
+    cJSON_ReplaceItemInObject(s,"host",cJSON_CreateString("Unit.LOCAL."));
     assert(app_inverter_settings_save(s)==ESP_OK && commits==1);
     assert(app_inverter_display_schedule(NULL,&schedule) && schedule.touch_wake_seconds==30);
+    assert(app_inverter_settings_local_name("UNIT.LOCAL", 10));
+    assert(!app_inverter_settings_local_name("other.local", 11));
     tick(0); assert(configured && reads==1 && samples==1 && weather==1 && breaks==1);
     tick(4); assert(reads==1 && weather==1);
     tick(1); assert(reads==2 && samples==2 && last.temperature_valid && last.temperature_c==0 && last.battery_unavailable);
@@ -194,6 +200,7 @@ int main(int argc, char **argv)
     cJSON_AddStringToObject(s,"secret","TEST-FIXTURE");
     cJSON_AddStringToObject(s,"device","123456");
     assert(app_inverter_settings_save(s)==ESP_OK); source_time=clock_now;
+    assert(!app_inverter_settings_local_name("unit.local", 10));
     tick(0); assert(reads==3 && samples==3 && breaks==2 && last.integration_period_s==300);
     cJSON_DeleteItemFromObject(s,"secret"); assert(app_inverter_settings_save(s)==ESP_OK);
     tick(1); assert(reads==3);

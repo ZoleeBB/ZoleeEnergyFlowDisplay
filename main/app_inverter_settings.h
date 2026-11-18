@@ -27,6 +27,7 @@ typedef struct {
 const app_inverter_profile_t *app_inverter_profile(const char *id);
 /* Csak a Master inverteres feldolgozója nyitja meg az NVS-t. */
 bool app_inverter_settings_open(void);
+bool app_inverter_settings_local_name(const char *host, size_t length);
 bool app_inverter_settings_snapshot(app_inverter_settings_t *out, uint32_t *generation, uint32_t *source);
 bool app_inverter_settings_coords(double *lat, double *lon, uint32_t *generation);
 bool app_inverter_settings_current(uint32_t generation);

@@ -21,6 +21,9 @@ with tempfile.TemporaryDirectory() as tmp:
     run([cc, *cflags, "-std=gnu11", "-Itests/stubs", "-Itests/ble_profile_stubs",
          "main/app_inverter_identity.c", "tests/test_inverter_identity.c", "-o", tmp/"identity"])
     run([tmp/"identity"])
+    run([cc, *cflags, "-std=gnu11", "-Itests/inverter_stubs", "-Itests/stubs", "main/app_inverter_mdns.c",
+         "tests/test_inverter_mdns.c", "-o", tmp/"mdns"])
+    run([tmp/"mdns"])
     objs = []
     for name in ["main/app_inverter_identity.c", "main/app_inverter_registers.c", "main/app_inverter_settings.c", "main/app_inverter_weather.c", "main/app_inverter.c",
                  "tests/test_inverter_runtime.c"]:

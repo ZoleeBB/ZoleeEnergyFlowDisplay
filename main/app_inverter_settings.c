@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 static const app_inverter_profile_t profiles[] = {
@@ -50,6 +51,38 @@ static void *ps_alloc(size_t size)
 
 static void lock(void) { xSemaphoreTake(atomic_load(&mux), portMAX_DELAY); }
 void app_inverter_settings_unlock(void) { xSemaphoreGive(atomic_load(&mux)); }
+
+static bool normalize_host(app_inverter_config_t *driver)
+{
+    char *host = driver->host;
+    size_t len = strnlen(host, sizeof(driver->host));
+    if (!len || len == sizeof(driver->host)) return false;
+    if (host[len-1] == '.') host[--len] = 0;
+    size_t label_len = 0;
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char ch = (unsigned char)host[i];
+        if (ch == '.') {
+            if (!label_len || host[i-1] == '-') return false;
+            label_len = 0;
+        } else {
+            if (!isalnum(ch) && (ch != '-' || !label_len)) return false;
+            if (++label_len > 63) return false;
+            host[i] = (char)tolower(ch);
+        }
+    }
+    return label_len && host[len-1] != '-';
+}
+
+bool app_inverter_settings_local_name(const char *host, size_t length)
+{
+    if (!host || !atomic_load(&mux)) return false;
+    lock();
+    const app_inverter_profile_t *p = active ? app_inverter_profile(active->driver.profile) : NULL;
+    bool match = p && p->seconds == 5 && strlen(active->driver.host) == length &&
+                 !strncasecmp(host, active->driver.host, length);
+    app_inverter_settings_unlock();
+    return match;
+}
 
 static bool direct_master(void)
 {
@@ -112,7 +145,7 @@ bool app_inverter_settings_open(void)
                 err = nvs_get_blob(h, "profile1", s, &len);
                 nvs_close(h);
             }
-            if (err != ESP_OK || !decode_profile(s, len)) {
+            if (err != ESP_OK || !decode_profile(s, len) || !normalize_host(&s->driver)) {
                 memset(s, 0, sizeof(*s));
                 s->master.touch_wake_seconds = 30;
             }
@@ -203,7 +236,7 @@ static bool read_form(const cJSON *o, app_inverter_settings_t *s)
         !STR("device",device,false) || !STR("user",user,false) || !STR("secret",secret,false) ||
         !STR("key",key,false) || !string_field(o,"trustedPem",s->pem,sizeof(s->pem),false)) return false;
 #undef STR
-    if (strspn(c->host, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-0123456789") != strlen(c->host)) return false;
+    if (!normalize_host(c)) return false;
     int port, unit;
     if (!integer(ITEM(o,"port"), 1, 65535, &port) || !integer(ITEM(o,"unit"), 0, 255, &unit)) return false;
     c->unit = unit; c->port = port;

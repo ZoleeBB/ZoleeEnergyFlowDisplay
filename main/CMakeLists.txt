@@ -47,6 +47,7 @@ idf_component_register(
         "app_inverter_net.c"
         "app_inverter_identity.c"
         "app_inverter_neighbor.c"
+        "app_inverter_mdns.c"
         "app_inverter_weather.c"
         "app_inverter_solar.cpp"
         "third_party/SolarCalculator/SolarCalculator.cpp"

@@ -11,6 +11,10 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 5. Állítsd be az igényelt heti sötétítést és a párosított Slave-eket. Az oldal végén add meg a ház GPS-szélességét és hosszúságát tizedes fokban. Példa Budapesthez: **47.4979, 19.0402**. Az első szám a szélesség (−90…90), a második a hosszúság (−180…180).
 6. Mentsd a profilt. A szinkronizálási állapot és a legutóbbi valódi mérés kora a fülön ellenőrizhető. Az elérési adatok cseréjekor add meg az új célhoz tartozó kulcsokat is. A helyi mentés a Master belső NVS-tárában marad meg újraindításkor. Az azonos kapcsolathoz tartozó változatlan jelszót a webfelület üresen hagyhatja.
 
+### Helyi elérés DHCP-vel
+
+A helyi kapcsolat címeként az inverter vagy LAN-adapter helyi hálózati nevét is beírhatod. Egy routerben bejegyzett név lehet például `inverter.home.arpa`. Minden új kapcsolódáskor a hálózati névfeloldó adja meg a címet, a router DNS-bejegyzésének érvényességi ideje (TTL) szerint. Az azonos helyi hálózaton mDNS-t hirdető eszköz `név.local` formában is megadható. Egyetlen Victron GX esetén a gyári név például `venus.local`. A kijelző ehhez új kapcsolódáskor közvetlenül az adott nevet kérdezi le. A HTTPS- és MQTT/TLS-kapcsolat tanúsítványának a beállított nevet kell igazolnia.
+
 ### Modbus-regisztercímek módosítása
 
 A **Modbus olvasási regiszterek** az inverterkapcsolat kiválasztása után jelennek meg. Minden mérésnél látható az aktuális és a gyári cím, a funkciókód, a 16 bites szavak száma és az adatformátum. A mezőbe tízes számrendszerű, nullától számozott PDU-cím kerül. SunSpec-modellnél a felület külön jelzi a modellhez viszonyított eltolást. A SolaX X1, X3 és X3 PRO kiválasztásakor csak az adott modell sorai jelennek meg. A másik kivitel mentett címei megmaradnak. A 0 érvényes érték. A több szóból álló mérés utolsó regiszterének is bele kell férnie a címtartományba.
