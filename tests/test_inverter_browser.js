@@ -9,7 +9,7 @@ const html = lines.map(line => JSON.parse(line.replace(/;$/, '').replace(/\\\?/g
 const id = 'ble-0-010203040506';
 const initial = {
     profile: 'solax_cloud', host: 'global.solaxcloud.com', device: 'A123', hasSecret: true, hasKey: false,
-    user: '', unit: 0, port: 443, revision: 5, battery: false, latitude: 0, longitude: 0,
+    user: '', unit: 1, port: 443, revision: 5, battery: false, latitude: 0, longitude: 0,
     schedule: {days: Array.from({length: 7}, () => ({enabled: false, start: 1320, end: 360})), touchWakeSeconds: 30},
     slaveSchedules: {}, syncStatus: 'Szinkronizálva', measurementAgeSeconds: 0
 };
@@ -86,6 +86,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(posted.rebindDevice, undefined);
         assert.equal(posted.registerOverrides, undefined);
         assert.equal(posted.secret, undefined); assert.equal(posted.key, undefined);
+        assert.equal(posted.unit, 1);
         assert.equal(posted.revision, 5); assert.equal(posted.latitude, 0);
         assert.deepEqual(posted.schedule.days[0], {enabled: true, start: 1320, end: 360});
         assert.equal(posted.slaveSchedules[id].days[0].end, 435);

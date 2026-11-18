@@ -1,6 +1,13 @@
 'use strict';
 const get = id => document.getElementById(id);
-const apiFetch = (url, options) => fetch(url, options);
+function apiFetch(url, options = {}) {
+    // A kapcsolat vagy a JSON-törzs elakadása után a felületen újrapróbálható a kérés.
+    if (typeof AbortSignal.timeout === 'function')
+        return fetch(url, {...options, signal: AbortSignal.timeout(15000)});
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    return fetch(url, {...options, signal: controller.signal}).finally(() => clearTimeout(timer));
+}
 const serial = 'Inverter sorozatszáma';
 const pem = 'Megbízható helyi CA tanúsítványa (PEM, opcionális)';
 const hostLabel = 'Inverter, adatgyűjtő vagy átjáró IP-címe / gépneve';
@@ -210,7 +217,7 @@ function fill(data) {
 function values() {
     const id = get('profile').value;
     const data = {profile: id, host: get('host').value.trim(), port: Number(get('port').value),
-        unit: Number(get('unit')?.value ?? 0), battery: get('battery').checked,
+        unit: Number(get('unit')?.value ?? (saved.profile === id ? saved.unit : 0) ?? 0), battery: get('battery').checked,
         latitude: Number(get('latitude').value), longitude: Number(get('longitude').value),
         schedule: master.value(), slaveSchedules: {}};
     if (profiles[id]?.unit != null) data.registerOverrides = inverterRegisters.values();
