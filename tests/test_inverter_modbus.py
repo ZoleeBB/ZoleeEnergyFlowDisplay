@@ -88,6 +88,65 @@ def relocated(exe, profile, blocks, expected, *, frame="tcp", unit=1, device="",
     return seen
 
 
+def verify_schema_order(exe):
+    # NVS/JSON kulcsok és korábbi sémasorrend. Új kulcsok a lista végére kerülhetnek.
+    keys = {
+        "huawei_modbus": "pv ac state meter_state export soc bat_state charge bat1_state bat1_charge bat1_soc bat_temp",
+        "goodwe_modbus": "pv1 pv2 pv3 pv4 meter_state ac export discharge bat_state bat_temp soc",
+        "sungrow_modbus": "pv state flow house export alarms bat_voltage bat_power soc bat_temp",
+        "solax_modbus": ("state pv1 pv2 pro_protocol pro_mppt_count pro_pv3_old pro_pv3_new meter_state meter_ct export "
+                         "x1_ac x3_ac_l1 x3_ac_l2 x3_ac_l3 bat1_charge bat_state bat_temp bat1_soc pro_charge pro_soc "
+                         "pro_bat2_voltage pro_bat2_charge pro_soc_old"),
+        "victron_modbus": ("pv_out_l1 pv_out_l2 pv_out_l3 pv_grid_l1 pv_grid_l2 pv_grid_l3 pv_gen_l1 pv_gen_l2 pv_gen_l3 "
+                           "house_l1 house_l2 house_l3 import_l1 import_l2 import_l3 pv_dc bat_voltage charge soc"),
+        "solaredge_modbus": ("sunspec_base bank1 bank2 bank3 model_id model_length meter_role ac ac_sf dc dc_sf state "
+                             "ac_float dc_float state_float mppt_sf mppt_count mppt_power meter_power meter_sf meter_float "
+                             "bank_capacity bat_temp charge soc bat_state"),
+        "solplanet_modbus": "pv1_voltage pv1_current pv2_voltage pv2_current pv state meter_state import ac",
+    }
+    for profile in ("deye_modbus", "deye_v5", "deye_lse3", "deye_rtu"):
+        keys[profile] = "pv1 pv2 import house state bat_temp bat_voltage soc discharge"
+    for profile, expected in keys.items():
+        ordered = expected.split()
+        assert [row["key"] for row in schema(exe, profile)][:len(ordered)] == ordered
+
+
+def verify_mppt_float_registers(exe):
+    # Változó modellhosszak, IEEE-754 mérő és MPPT-nként ismétlődő relatív mező.
+    origin = 40000
+    image = RegisterImage({(3, origin): [0x5375, 0x6e53]})
+    position = origin + 2
+
+    def model(identifier, length):
+        nonlocal position
+        image.put(3, position, [identifier, length])
+        base = position + 2
+        position = base + length
+        return base
+
+    model(1, 65)
+    inv = model(113, 54)
+    image.put(3, inv + 20, [0] * 27)
+    image.put(3, inv + 28, struct.unpack(">HH", struct.pack(">f", 3500.0)))
+    image.put(3, inv + 46, [4])
+    tracker = model(160, 48)
+    image.put(3, tracker + 2, [0])
+    image.put(3, tracker + 3, [2])
+    image.put(3, tracker + 8 + 14, [2300])
+    image.put(3, tracker + 28 + 14, [1700])
+    common = model(1, 65)
+    image.put(3, common + 43, struct.unpack(">8H", b"Export+Import".ljust(16, b"\0")))
+    meter = model(213, 54)
+    image.put(3, meter + 18, struct.unpack(">HH", struct.pack(">f", 1500.0)))
+    image.put(3, position, [65535, 0])
+    changes = {"ac_float": 28, "meter_role": 43, "meter_float": 18, "mppt_count": 3, "mppt_power": 14}
+    seen = run(exe, "solaredge_modbus", image, {"pv": 4, "grid": -1.5, "home": 2, "status": 1},
+               battery=False, overrides=changes)
+    assert (3, tracker + 22, 1) in seen
+    assert (3, tracker + 42, 1) in seen
+    assert (3, common + 43, 8) in seen
+
+
 def verify_relative_registers(exe, original, pv):
     # A fejléc és a teljes modelllánc új bázist kap, benne a DC és a mérő teljesítmény szava eltér.
     image = RegisterImage()
@@ -213,6 +272,8 @@ def main():
                         "-Werror=frame-larger-than=512", "-Itests/stubs", "-Imain",
                         "main/app_inverter_modbus_wire.c", "main/app_inverter_modbus.c", "main/app_inverter_registers.c",
                         "tests/test_inverter_modbus.c", "-lm", "-o", str(exe)], cwd=ROOT, check=True)
+        verify_schema_order(exe)
+        verify_mppt_float_registers(exe)
         pv = {"pv": 3.5, "status": 1}
         core = padded(26, {1: 3500, 17: 3000, 25: 0x0200})
         huawei = {(3, 32064): core, (3, 37100): padded(15, {0: 1, 14: 500}),
@@ -250,6 +311,9 @@ def main():
                  (4, 0x6c): padded(9, {0: 1000, 4: 900, 8: 700}), (4, 2): [2400]}
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=2.1, battery=-.3, soc=50, temp=22))
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=1.9), device="X1-G4", battery=False)
+        seen = run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=1.9, battery=-.3, soc=50, temp=22),
+                   device="X1-G4", overrides={"pro_mppt_count": 23000})
+        assert not any(address == 23000 for _, address, _ in seen)
         for version, third in [(98, 0x2c), (100, 0x124)]:
             pro = dict(solax)
             pro.update({(3, 0x82): [version], (4, 0x1b): [3], (4, third): [930],

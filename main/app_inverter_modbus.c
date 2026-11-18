@@ -72,7 +72,7 @@ static bool in_bounds(uint32_t base, unsigned limit, unsigned address, unsigned 
 }
 
 static bool mapped_block(reader_t *r, const char *space, uint32_t base, unsigned limit,
-                         uint8_t fn, unsigned start, unsigned count, uint16_t *out)
+                         uint8_t fn, unsigned start, unsigned count, uint32_t used, uint16_t *out)
 {
     r->valid_words = 0;
     if (!count || count > 32) return false;
@@ -83,7 +83,7 @@ static bool mapped_block(reader_t *r, const char *space, uint32_t base, unsigned
         for (size_t i = 0; i < r->field_count; ++i) {
             const app_inverter_register_t *f = r->fields + i;
             if (f->function != fn || f->address < start || f->address + f->words > start + count ||
-                !same_space(space, f->base)) continue;
+                !same_space(space, f->base) || !(used & (UINT32_C(1) << (f->address - start)))) continue;
             indices[members++] = (uint8_t)i;
             if (address_of(r, i) != f->address) custom = true;
         }
@@ -98,7 +98,7 @@ static bool mapped_block(reader_t *r, const char *space, uint32_t base, unsigned
      * ismét egy csomagba kerülnek, a 32 bites érték saját szópárja oszthatatlan. */
     for (unsigned i = 0; i < members; ++i) {
         const app_inverter_register_t *f = r->fields + indices[i];
-        missing_value(f, out + f->address - start);
+        missing_value(f, out + (f->address - start));
     }
     for (unsigned i = 0; i < members;) {
         unsigned first = i++;
@@ -132,13 +132,13 @@ static bool mapped_block(reader_t *r, const char *space, uint32_t base, unsigned
 
 static bool read_regs(reader_t *r, uint8_t fn, unsigned addr, unsigned count, uint16_t *w)
 {
-    return mapped_block(r, NULL, 0, 65536, fn, addr, count, w);
+    return mapped_block(r, NULL, 0, 65536, fn, addr, count, UINT32_MAX, w);
 }
 
 static bool model_regs(reader_t *r, const char *model, uint32_t base, unsigned len,
                        unsigned offset, unsigned count, uint16_t *w)
 {
-    return mapped_block(r, model, base, len, 3, offset, count, w);
+    return mapped_block(r, model, base, len, 3, offset, count, UINT32_MAX, w);
 }
 
 static double u16(uint16_t word)
@@ -296,10 +296,18 @@ static double sungrow(reader_t *r)
     return pv;
 }
 
+static bool solax_battery_block(reader_t *r, uint16_t *w)
+{
+    /* Az első tároló négy értékét kérjük. A tartományba eső MPPT-számnak
+     * külön olvasása csak a PRO modell PV-útvonalán indokolt. */
+    const uint32_t used = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 6);
+    return mapped_block(r, NULL, 0, 65536, 4, 0x16, 7, used, w);
+}
+
 static void solax_pro_battery(reader_t *r, unsigned version)
 {
     uint16_t w[8];
-    if (!read_regs(r, 4, 0x16, 7, w) || w[1] != 0) return;
+    if (!solax_battery_block(r, w) || w[1] != 0) return;
     double temp = s16(w[2]);
     double soc = u16(w[6]);
     double power = -s16(w[0]);
@@ -349,7 +357,7 @@ static double solax(reader_t *r)
     }
     if (r->cfg->battery) {
         if (pro) solax_pro_battery(r, version);
-        else if (read_regs(r, 4, 0x16, 7, w) && w[1] == 1)
+        else if (solax_battery_block(r, w) && w[1] == 1)
             battery(r, -s16(w[0]), u16(w[6]), s16(w[2]));
     }
     return pv;
