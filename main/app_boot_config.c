@@ -163,7 +163,8 @@ esp_err_t app_boot_config_save(
 /* Egyetlen NVS-blobban marad együtt az állapot és a hozzá tartozó JSON.
  * Félbeszakadt első mentésnél vagy a korábbi, vagy a teljes új profil él. */
 static atomic_bool s_setup_pending, s_internal;
-static bool s_slave_only;
+/* A dedikált 4B és a már üzemelő kártya nélküli Slave belső mentésének szerepkorlátja. */
+static bool s_restrict_slave_role;
 
 bool app_boot_config_setup_pending(void) { return atomic_load(&s_setup_pending); }
 bool app_boot_config_internal(void) { return atomic_load(&s_internal); }
@@ -207,7 +208,7 @@ static bool restore_paired_slave(app_config_t *cfg)
 esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *error, size_t error_len)
 {
     if (!cfg) return ESP_ERR_INVALID_ARG;
-    s_slave_only = slave_only;
+    s_restrict_slave_role = slave_only;
     atomic_store(&s_internal, true);
     atomic_store(&s_setup_pending, false);
     app_config_set_defaults(cfg);
@@ -232,6 +233,7 @@ esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *erro
         if (err == ESP_OK) {
             atomic_store(&s_setup_pending, record[0] == 'P');
             cfg->cardless_slave = record[0] == 'C' && cfg->data_recept_mode == APP_DATA_SLAVE;
+            if (cfg->cardless_slave) s_restrict_slave_role = true;
         }
     } else if (err == ESP_ERR_NVS_NOT_FOUND) {
         /* Régi, már üzembe helyezett kártya nélküli Slave: a tartós szerep
@@ -242,6 +244,7 @@ esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *erro
         if (role_err == ESP_OK && length == 3 && role[0] == 'Z' && role[1] == 1 && role[2] == 1) {
             nvs_close(handle);
             free(record);
+            s_restrict_slave_role = true;
             return app_boot_config_fallback(cfg, error, error_len);
         }
         if (role_err == ESP_ERR_NVS_NOT_FOUND && slave_only && restore_paired_slave(cfg))
@@ -280,8 +283,8 @@ esp_err_t app_boot_config_complete(const char *json, size_t length, app_config_t
     if (!cfg || !json) return ESP_ERR_INVALID_ARG;
     esp_err_t err = app_config_parse_json(json, length, cfg, error, error_len);
     if (err != ESP_OK) return err;
-    if (s_slave_only && cfg->data_recept_mode != APP_DATA_SLAVE) {
-        snprintf(error, error_len, "A 4B kijelző kizárólag Slave módban használható.");
+    if (s_restrict_slave_role && cfg->data_recept_mode != APP_DATA_SLAVE) {
+        snprintf(error, error_len, "Ez a kijelző a belső tárból csak Slave módban indítható.");
         return ESP_ERR_INVALID_ARG;
     }
     err = write_setup_record(json, length, false);

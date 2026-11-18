@@ -168,6 +168,17 @@ int main(void)
     memset(&cfg, 0, sizeof(cfg));
     assert(fallback() == ESP_OK && cfg.cardless_slave);
     assert(!strcmp(cfg.project.language, "en"));
+    /* A v3 kártya nélküli 10,1-es Slave szerepe a v4 webes/NVS mentés útján is kötött.
+     * Friss 10,1-es kijelzőn az előző teszt továbbra is szabad módválasztást ellenőriz. */
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK &&
+           cfg.data_recept_mode == APP_DATA_SLAVE && !app_boot_config_setup_pending());
+    unsigned before_role_change = writes;
+    assert(app_boot_config_complete(inverter, strlen(inverter), &cfg, error, sizeof(error)) == ESP_ERR_INVALID_ARG);
+    assert(writes == before_role_change);
+    assert(app_boot_config_complete(json, strlen(json), &cfg, error, sizeof(error)) == ESP_OK);
+    assert(app_boot_config_restore(&cfg, false, error, sizeof(error)) == ESP_OK && cfg.cardless_slave);
+    assert(app_boot_config_complete(inverter, strlen(inverter), &cfg, error, sizeof(error)) == ESP_ERR_INVALID_ARG);
+    setup_size = 0;
     assert(app_boot_config_save("{", 1, &cfg, error, sizeof(error)) != ESP_OK);
     const char *main_json = "{\"DataReceptMode\":\"MQTT\"}";
     assert(app_boot_config_save(main_json, strlen(main_json), &cfg, error, sizeof(error)) !=
