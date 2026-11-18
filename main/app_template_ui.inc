@@ -28,6 +28,12 @@ static TEMPLATE_RAM template_node_t template_nodes[96];static unsigned template_
 static lv_image_dsc_t template_images[32];static int64_t template_chart_time;
 /* Előre dekódolt, már a megjelenítési méretre hozott képek az SD-ről. */
 static lv_image_dsc_t template_raw_images[32];
+/* A Nap pálya két kis képe a már betöltött SD-nézethez tartozik. */
+static struct {
+    template_node_t *node;
+    const lv_image_dsc_t *sun, *moon;
+    bool daylight;
+} solar_journey;
 static bool template_enter_transition;
 static bool template_loading_requested;
 static bool template_waiting_for_load;
@@ -84,23 +90,38 @@ static const lv_image_dsc_t *template_raw_image(unsigned asset,int w,int h){
     }
     return NULL;
 }
-static void template_image(lv_obj_t *obj,const char *file,int w,int h){
+static const lv_image_dsc_t *template_find_image(const char *file,int w,int h){
     for(unsigned i=0;i<template_view.asset_count;i++)if(!strcmp(file,template_view.assets[i].name)){
-        const lv_image_dsc_t *image=&template_images[i];bool native=false;
         /* Dekódolás és méretezés nélkül: a telepítéskor elkészített segédfájl. */
         const lv_image_dsc_t *ready=template_raw_image(i,w,h);
-        if(ready){image=ready;native=true;}
+        if(ready)return ready;
 #if LV_USE_SNAPSHOT
-        if(!native&&((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height)){
-            const lv_image_dsc_t *r=template_raster(i,w,h);if(r){image=r;native=true;}
+        if((unsigned)w!=template_view.assets[i].width||(unsigned)h!=template_view.assets[i].height){
+            const lv_image_dsc_t *r=template_raster(i,w,h);if(r)return r;
         }
 #endif
-        /* set_src invalidates even an unchanged image in LVGL 9.5. */
-        if(lv_image_get_src(obj)==image)return;
-        lv_image_set_src(obj,image);lv_image_set_pivot(obj,0,0);
-        lv_image_set_scale_x(obj,native?256:w*256/template_view.assets[i].width);
-        lv_image_set_scale_y(obj,native?256:h*256/template_view.assets[i].height);return;
+        return &template_images[i];
     }
+    return NULL;
+}
+static void template_set_image(lv_obj_t *obj,const lv_image_dsc_t *image,int w,int h){
+    if(!image || lv_image_get_src(obj)==image)return;
+    lv_image_set_src(obj,image);lv_image_set_pivot(obj,0,0);
+    lv_image_set_scale_x(obj,w*256/image->header.w);
+    lv_image_set_scale_y(obj,h*256/image->header.h);
+}
+static void template_image(lv_obj_t *obj,const char *file,int w,int h){
+    template_set_image(obj,template_find_image(file,w,h),w,h);
+}
+/* A régi 09-es csomag is megnevezi a másik égitestet a túloldali jelenetben. */
+static const lv_image_dsc_t *solar_scene_image(const char *scene){
+    const cJSON *layout=cJSON_GetObjectItemCaseSensitive(template_view.document,scene);
+    const cJSON *e;
+    cJSON_ArrayForEach(e,cJSON_GetObjectItemCaseSensitive(layout,"elements")){
+        if(!strcmp(ts(e,"type"),"solar_disc"))
+            return template_find_image(ts(e,"file"),tn(e,"w",1),tn(e,"h",1));
+    }
+    return NULL;
 }
 static void template_path(template_node_t *node,const cJSON *e){
     lv_point_precise_t control[8];unsigned n=0;const cJSON *pt;
@@ -532,6 +553,7 @@ static void navigation_bind_inputs(void)
     }
 }
 static void template_release_cache(void){
+    memset(&solar_journey,0,sizeof(solar_journey));
     template_flow_release_paths();
 #if LV_USE_SNAPSHOT
     for(unsigned i=0;i<template_raster_count;i++){lv_image_cache_drop(&template_rasters[i].image);lv_draw_buf_destroy(template_rasters[i].buffer);}
@@ -783,6 +805,7 @@ static void template_build(bool night){
      * beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
      */
     if(template_built_valid&&template_built_night!=night)template_release_cache();
+    memset(&solar_journey,0,sizeof(solar_journey));
     template_built_night=night;template_built_valid=true;
     const cJSON *scene=cJSON_GetObjectItem(template_view.document,night?"dark":"light");
     /*
@@ -915,19 +938,27 @@ static void template_build(bool night){
             /* A napkorong külön, kis LVGL objektum: nincs teljes képes újrarajzolás. */
             /* A grafikai csomag különálló napkorongját használjuk, ha van.
              * Régi SD-sablon esetén megtartjuk a vektoros kört. */
-            const char *disc=ts(e,"file");
-            bool found=false;
-            for(unsigned asset=0;disc[0] && asset<template_view.asset_count;asset++)
-                if(!strcmp(disc,template_view.assets[asset].name)){found=true;break;}
+            const lv_image_dsc_t *disc=template_find_image(ts(e,"file"),w,h);
+            if(!strcmp(template_view.id,"09-solar-journey")){
+                solar_journey.node=node;
+                solar_journey.daylight=!night;
+                solar_journey.sun=night?solar_scene_image("light"):disc;
+                solar_journey.moon=night?disc:solar_scene_image("dark");
+                /* Hiányos régi képpárnál mindkét állapotot az eredeti,
+                 * színezhető vektorkoronggal mutatjuk. */
+                if(!solar_journey.sun || !solar_journey.moon){
+                    solar_journey.sun=solar_journey.moon=disc=NULL;
+                }
+            }
             /* A fényudvar külön alakzat, ezért a PNG alfa-rétege mögött is
              * látható. A kép soha nem kap négyszögű háttérkitöltést. */
             node->detail=shape(s_dash,x-6,y-6,w+12,h+12,text,LV_RADIUS_CIRCLE);
             bg_opa_if_changed(node->detail,LV_OPA_10,0);
             lv_obj_set_style_shadow_color(node->detail,c(text),0);
             lv_obj_set_style_shadow_width(node->detail,tn(e,"glow",20),0);
-            if(found){
+            if(disc){
                 node->obj=lv_image_create(s_dash);
-                template_image(node->obj,disc,w,h);
+                template_set_image(node->obj,disc,w,h);
                 lv_obj_set_pos(node->obj,x,y);
             }else{
                 node->obj=shape(s_dash,x,y,w,h,text,LV_RADIUS_CIRCLE);
@@ -1089,7 +1120,7 @@ static void template_solar_halo(template_node_t *node,const app_energy_sample_t 
     double pv=fmax(0,s->power_pv_kw);
     if(!s->sun_position_valid)return;
     float fraction=(float)fmin(pv/8.,1.);
-    bool daylight=!s->night_mode&&s->sun_altitude_deg>0;
+    bool daylight=node==solar_journey.node ? solar_journey.daylight : !s->night_mode&&s->sun_altitude_deg>0;
     /* Fix 1,2 ciklus/s: a termelés csak a végső körméretet adja.
      * 8 kW-tól a korábbi maximális méret; nullánál nincs fényudvar. */
     node->phase=fmodf(node->phase+dt*(daylight?1.2f:1.f/4.2f),1.f);
@@ -1181,18 +1212,35 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
 
             /* Fotóból kalibrált abszolút napív, külön fényes vonal nélkül. */
             int sunrise=s->sunrise_minute,sunset=s->sunset_minute;
-            time_t clock_now=time(NULL);struct tm local_now;
-            localtime_r(&clock_now,&local_now);
+            time_t clock_now=time(NULL);struct tm local_now={0};
+            bool clock=localtime_r(&clock_now,&local_now)!=NULL;
             int minute=local_now.tm_hour*60+local_now.tm_min;
             bool daylight=s->sun_altitude_deg>0;
-            float travel;
-            if(sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
+            float travel=(float)(s->sun_azimuth_deg/360.);
+            bool journey=node==solar_journey.node;
+            if(journey){
+                if(template_clock_synced && clock && local_now.tm_year>=120 &&
+                   sunrise>=0 && sunrise<1440 && sunset>=0 && sunset<1440 && sunrise!=sunset){
+                    /* Napkelte már nappal, napnyugta már éjjel. A moduló az
+                     * éjfélen átnyúló nappalt és éjszakát is folytonosan viszi. */
+                    int day_minutes=(sunset-sunrise+1440)%1440;
+                    int since_rise=(minute-sunrise+1440)%1440;
+                    daylight=since_rise<day_minutes;
+                    travel=daylight ? (float)since_rise/day_minutes :
+                                      (float)(since_rise-day_minutes)/(1440-day_minutes);
+                }
+                if(solar_journey.daylight!=daylight){
+                    solar_journey.daylight=daylight;
+                    template_set_image(node->obj,daylight?solar_journey.sun:solar_journey.moon,
+                                       tn(e,"w",42),tn(e,"h",42));
+                }
+            }else if(clock&&sunrise>=0&&sunrise<1440&&sunset>sunrise&&sunset<1440){
                 if(daylight)travel=(float)(minute-sunrise)/(float)(sunset-sunrise);
                 else{
                     int passed=minute>=sunset?minute-sunset:minute+1440-sunset;
                     travel=(float)passed/(float)(sunrise+1440-sunset);
                 }
-            }else travel=(float)(s->sun_azimuth_deg/360.);
+            }
             travel=fmaxf(0.f,fminf(1.f,travel));
             int px,py;
             const cJSON *arc=cJSON_GetObjectItem(e,daylight?"day_path":"night_path");
@@ -1238,7 +1286,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
                 int pad=(lv_obj_get_width(node->detail)-tn(e,"w",40))/2;
                 lv_obj_set_pos(node->detail,px-pad,py-pad);
             }
-            if(!*ts(e,"file")){
+            if(journey ? !solar_journey.sun : !*ts(e,"file")){
                 uint32_t disc_color=daylight?0xFFD23B:0x78BFEF;
                 bg_color_if_changed(node->obj,c(disc_color),0);
                 shadow_color_if_changed(node->obj,c(disc_color),0);
