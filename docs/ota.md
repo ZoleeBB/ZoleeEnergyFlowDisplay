@@ -95,19 +95,11 @@ Ha mindkettő üres, nincs hitelesítés.
 
 A firmware két alkalmazáspartíciót használ. Az új image először próbaállapotban indul.
 
-Az új firmware legfeljebb 5 percen belül akkor minősül sikeresnek, ha a
-konfiguráció betöltődött, és a módnak megfelelő indulási feltételek teljesültek:
+A v4-ben minden módban a sikeres időszinkron után indul a kezelőfelület. Korábbi konfigurációval a Master NTP-ről, a Slave a párosított Mastertől kap időt. Az első beállítás alatt mindkét kijelző a panelen kiválasztott Wi-Fi-hálózaton éri el az NTP-kiszolgálót.
 
-| Mód | Tárhely | Kapcsolat és idő | Adatfeltétel |
-| --- | --- | --- | --- |
-| MQTT | Elérhető SD | Wi-Fi és NTP | Brokerkapcsolat |
-| HTTP | Elérhető SD | Wi-Fi és NTP | Elindult HTTP-fogadó |
-| Közvetlen Loxone | Elérhető SD | Wi-Fi és NTP | Működő webfelület; a kezdeti párosítás kivárható |
-| Slave SD-vel | Elérhető SD | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
-| Slave SD nélkül | Friss, teljes master-statisztika RAM-ban | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
+Az új OTA-kép véglegesítéséhez a kijelző működését is ellenőrzi a firmware. Beállított eszközön a futó alkalmazásnak el kell jutnia a kirajzolásig. Üres profilú eszközön a webkiszolgálónak el kell indulnia, és a panelnek meg kell jelenítenie a beállítóképernyőt az elérhető helyi címmel. Az ellenőrzéshez az „inverter beállítása szükséges” vagy az adatforrásra váró nézet is elegendő. Az első mérés, az inverter-, MQTT- vagy Miniserver-kapcsolat és az SD-statisztika ettől függetlenül válhat elérhetővé.
 
-Az első három módhoz nem kell már beérkezett érvényes mérés. Slave módban kell;
-a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
+A szokásos ellenőrzési idő 5 perc. A már Slave módban induló, Masterre váró kijelző legfeljebb 20 percet kap, hogy a két eszköz egymást követő frissítésénél ismét létrejöhessen a kapcsolat.
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
 

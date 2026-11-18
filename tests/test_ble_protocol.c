@@ -210,7 +210,7 @@ int main(void)
                               .slave_source_timeout_seconds = 45,
                               .sd_ok = true,
                               .config_ok = true,
-                              .time_synced = true};
+                              .operational = true, .time_synced = true};
     assert(app_state_data_ready(&rt) && app_state_ota_ready(&rt)); /* Wi-Fi nélkül is. */
     assert(!app_state_data_timed_out(&rt, 20000000, 15));
     assert(app_state_data_timed_out(&rt, 35000000, 15)); /* BLE heartbeat 15 s. */

@@ -1510,8 +1510,13 @@ static void __attribute__((noinline)) setup_ui_tick(void)
     next_update = now + 150000;
     app_setup_wifi_state_t setup;
     app_setup_wifi_snapshot(&setup);
-    app_setup_ui_update(lv_layer_top(), lv_display_get_horizontal_resolution(NULL),
-                        lv_display_get_vertical_resolution(NULL), &setup);
+    bool rendered = app_setup_ui_update(lv_layer_top(), lv_display_get_horizontal_resolution(NULL),
+                                         lv_display_get_vertical_resolution(NULL), &setup);
+    static bool reported;
+    if (rendered && !reported && setup.phase == APP_SETUP_WEB && setup.ip[0]) {
+        app_state_set_operational(true);
+        reported = true;
+    }
 }
 #endif
 
@@ -2671,6 +2676,7 @@ static void runtime(void *arg)
                 have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
                 &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
+            if (!rt.operational) app_state_set_operational(true);
             if (loxone) {
                 assistant_render();
                 mail_render();

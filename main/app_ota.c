@@ -125,9 +125,10 @@ static void validation_task(void *arg)
      */
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
-    const char *reason = runtime.time_synced
-        ? "Az OTA-kép véglegesítése sikertelen."
-        : "Az OTA-ellenőrzés határidejéig nem történt sikeres időszinkron.";
+    const char *reason = !runtime.time_synced
+        ? "Az OTA-ellenőrzés határidejéig nem történt sikeres időszinkron."
+        : !runtime.operational ? "A kijelző nem jutott el a működő alkalmazásnézetig."
+                               : "Az OTA-kép véglegesítése sikertelen.";
     save_rollback_reason(reason);
     app_events_add(APP_EVENT_ERROR, "%s", reason);
 

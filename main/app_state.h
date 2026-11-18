@@ -80,6 +80,7 @@ typedef struct
     bool config_ok;
     bool wifi_connected;
     bool time_synced;
+    bool operational; /* Az adott indításban már kirajzolt üzemkész nézet. */
     bool mqtt_connected;
     bool has_valid_sample;
     bool slave_connected;
@@ -109,6 +110,7 @@ void app_state_set_remote_stats(bool valid);
 void app_state_set_config_ok(bool value);
 void app_state_set_wifi_connected(bool value);
 void app_state_set_time_synced(bool value);
+void app_state_set_operational(bool value);
 void app_state_set_mqtt_connected(bool value);
 
 /* Utolsó érvényes MQTT minta tárolása. */
@@ -149,7 +151,7 @@ static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
 }
 static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 {
-    return s->time_synced;
+    return s->time_synced && s->operational;
 }
 
 static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, uint32_t fallback)

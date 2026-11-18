@@ -36,6 +36,9 @@ static void test_http(void){
     app_state_set_config_ok(true);app_state_set_time_synced(true);app_state_set_wifi_connected(true);app_state_set_sd_ok(true);
     app_state_set_http_ready(true);
     app_runtime_state_t rt;app_state_get_runtime(&rt);
+    assert(rt.time_synced && !app_state_ota_ready(&rt));
+    app_state_set_operational(true);
+    app_state_get_runtime(&rt);
     assert(!rt.mqtt_connected && app_state_ota_ready(&rt) && !rt.has_valid_sample);
     assert(!app_state_data_timed_out(&rt,fake_us+29999999,30));
     assert(app_state_data_timed_out(&rt,fake_us+30000000,30));
