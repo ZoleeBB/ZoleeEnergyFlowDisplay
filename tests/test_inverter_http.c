@@ -30,6 +30,8 @@ cJSON *app_inverter_json_request(const char *url, const char *method, const char
     assert(call < count && strstr(url, uris[call]));
     assert(!strcmp(method, body ? "POST" : "GET"));
     if (expect_body) assert(body && strstr(body, expect_body));
+    const char *meter = strstr(url, "/getdevdata.cgi?device=3");
+    if (meter) assert(!strcmp(meter, "/getdevdata.cgi?device=3"));
     if (expect_pem) assert(pem && !strcmp(pem, expect_pem));
     if (strstr(url, "login")) {
         assert(strstr(body, "\"systemCode\":\"test-secret\""));
@@ -112,6 +114,13 @@ int main(void)
     near(s.power_bat_kw, -0.8);
     near(s.power_pv_kw, 4);
     done();
+    queue("device=2", "{\"pac\":2500,\"vpv\":[5000],\"ipv\":[500]}");
+    queue("device=3", "{}");
+    queue("device=4", "{\"cst\":0,\"bst\":0,\"vb\":0,\"tb\":0,\"soc\":0,\"soh\":0,\"cli\":0,\"clo\":0,\"ppv\":0,\"pb\":0}");
+    assert(app_inverter_http_read(&cfg, &s, &t) && s.soc_unavailable && !s.battery_temperature_valid);
+    assert(s.battery_power_unavailable && s.grid_unavailable);
+    near(s.power_pv_kw, 2.5);
+    done();
     cfg.trusted_pem = NULL;
 
     strcpy(cfg.profile, "solax_http");
@@ -142,6 +151,27 @@ int main(void)
     assert(app_inverter_http_read(&cfg, &s, &t) && t == 1774176450 && s.battery_power_unavailable);
     near(s.power_full_kw, 2.7);
     near(s.power_grid_kw, -1.1);
+    done();
+    queue("pvsystems/pv-01/flowdata", "{\"pvSystemId\":\"pv-01\",\"status\":{\"isOnline\":true},"
+          "\"data\":{\"logDateTime\":\"2026-03-22T10:47:30Z\",\"channels\":["
+          "{\"channelName\":\"PowerPV\",\"unit\":\"W\",\"value\":4057.5},"
+          "{\"channelName\":\"PowerBattCharge\",\"unit\":\"W\",\"value\":-2521.10},"
+          "{\"channelName\":\"BattSOC\",\"unit\":\"%\",\"value\":99}]}}");
+    assert(app_inverter_http_read(&cfg, &s, &t) && !s.battery_power_unavailable && !s.soc_unavailable);
+    near(s.power_bat_kw, -2.5211);
+    near(s.soc_bat_pct, 99);
+    done();
+    const char *meterless = "{\"pvSystemId\":\"pv-01\",\"status\":{\"isOnline\":true},"
+        "\"data\":{\"logDateTime\":\"2026-03-22T10:47:30Z\",\"channels\":["
+        "{\"channelName\":\"PowerOutput\",\"unit\":\"W\",\"value\":1041}]}}";
+    cfg.battery = false;
+    queue("pvsystems/pv-01/flowdata", meterless);
+    assert(app_inverter_http_read(&cfg, &s, &t) && s.home_unavailable && s.grid_unavailable);
+    near(s.power_pv_kw, 1.041);
+    done();
+    cfg.battery = true;
+    queue("pvsystems/pv-01/flowdata", meterless);
+    assert(!app_inverter_http_read(&cfg, &s, &t));
     done();
     strcpy(cfg.host, "fakesolarweb.com");
     assert(!app_inverter_http_read(&cfg, &s, &t));

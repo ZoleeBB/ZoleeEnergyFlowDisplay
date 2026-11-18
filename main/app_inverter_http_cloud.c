@@ -40,8 +40,9 @@ static bool fronius(const app_inverter_config_t *cfg, app_energy_sample_t *s, in
     free(path);
     const cJSON *data = MEMBER(root, "data"), *channels = MEMBER(data, "channels");
     bool pv = false;
+    double output_kw = NAN;
     if (equal(MEMBER(root, "pvSystemId"), cfg->device) && cJSON_IsArray(channels) &&
-        !cJSON_IsFalse(MEMBER(MEMBER(root, "status"), "isOnline"))) {
+        cJSON_IsTrue(MEMBER(MEMBER(root, "status"), "isOnline"))) {
         *epoch = inv_http_timestamp(cJSON_GetStringValue(MEMBER(data, "logDateTime")), false);
         const cJSON *item;
         cJSON_ArrayForEach(item, channels) {
@@ -53,6 +54,8 @@ static bool fronius(const app_inverter_config_t *cfg, app_energy_sample_t *s, in
             if (equal(name, "PowerPV")) {
                 s->power_pv_kw = kw;
                 pv = true;
+            } else if (equal(name, "PowerOutput")) {
+                output_kw = kw;
             } else if (equal(name, "PowerLoad")) {
                 s->power_full_kw = -kw;
                 s->home_unavailable = false;
@@ -63,6 +66,12 @@ static bool fronius(const app_inverter_config_t *cfg, app_energy_sample_t *s, in
                 s->power_bat_kw = kw;
                 s->battery_power_unavailable = false;
             }
+        }
+        /* Mérő nélküli string inverter esetén a gyártó csak a termelt AC-
+         * teljesítményt adja. Akkus rendszernél ez kisütést is tartalmazhat. */
+        if (!pv && !cfg->battery && s->grid_unavailable && s->home_unavailable && isfinite(output_kw)) {
+            s->power_pv_kw = fmax(0, output_kw);
+            pv = true;
         }
     }
     cJSON_Delete(root);

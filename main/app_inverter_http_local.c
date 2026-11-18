@@ -123,13 +123,25 @@ static cJSON *solplanet_device(const app_inverter_config_t *cfg, const char *ser
 {
     char *path = NULL;
     bool tls = !strcmp(cfg->profile, "solplanet_https");
-    if (v1 && device == 3) return inv_http_fetch(cfg, NULL, "/emeter.cgi", 8484, false, NULL, NULL, 0, NULL, 0);
+    if (device == 3) return inv_http_fetch(cfg, NULL, v1 ? "/emeter.cgi" : "/getdevdata.cgi?device=3",
+                                          tls ? 443 : 8484, tls, NULL, NULL, 0, NULL, 0);
     int n = v1 ? asprintf(&path, "/invdata.cgi?sn=%s", serial) :
                  asprintf(&path, "/getdevdata.cgi?device=%d&sn=%s", device, serial);
     if (n < 0) return NULL;
     cJSON *json = inv_http_fetch(cfg, NULL, path, tls ? 443 : 8484, tls, NULL, NULL, 0, NULL, 0);
     free(path);
     return json;
+}
+
+/* Egyes dongle-ok induláskor teljes, nullával kitöltött BMS-választ adnak. */
+static bool solplanet_empty_battery(const cJSON *battery)
+{
+    static const char *const fields[] = {"cst", "bst", "vb", "tb", "soc", "soh", "cli", "clo"};
+    for (size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) {
+        double value;
+        if (!inv_http_number(MEMBER(battery, fields[i]), &value) || value != 0) return false;
+    }
+    return true;
 }
 
 static bool solplanet(const app_inverter_config_t *cfg, app_energy_sample_t *sample)
@@ -171,8 +183,13 @@ static bool solplanet(const app_inverter_config_t *cfg, app_energy_sample_t *sam
     cJSON_Delete(meter);
     if (!v1 && cfg->battery) {
         cJSON *battery = solplanet_device(cfg, sn, 4, false);
-        if (inv_http_scale(battery, "ppv", 0.001, &sample->power_pv_kw)) pv = true;
-        if (inv_http_soc(MEMBER(battery, "soc"), sample)) {
+        if (battery && !solplanet_empty_battery(battery)) {
+            double battery_pv;
+            if (inv_http_scale(battery, "ppv", 0.001, &battery_pv) && battery_pv >= 0) {
+                sample->power_pv_kw = battery_pv;
+                pv = true;
+            }
+            inv_http_soc(MEMBER(battery, "soc"), sample);
             sample->battery_power_unavailable = !inv_http_scale(battery, "pb", 0.001, &sample->power_bat_kw);
             sample->battery_temperature_valid = inv_http_scale(battery, "tb", 0.1, &sample->battery_temperature_c) &&
                 sample->battery_temperature_c >= -50 && sample->battery_temperature_c <= 120;
