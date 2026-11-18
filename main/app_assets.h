@@ -7,6 +7,7 @@
  * grafikai elemek. A normál dashboard fő illusztrációi nagy felbontású
  * PNG-k; az időjárás, kapcsolati és ritka állapotok is PNG-k.
  */
+extern const lv_image_dsc_t app_img_boot_logo;
 extern const lv_image_dsc_t app_img_header_home_leaf;
 extern const lv_image_dsc_t app_img_leaf;
 extern const lv_image_dsc_t app_img_house;

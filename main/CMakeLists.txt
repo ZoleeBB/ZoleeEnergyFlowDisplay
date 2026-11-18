@@ -1,5 +1,6 @@
 # A teljes PNG készlet és a valódi fájlméretek egy forrásból származnak.
 set(app_png_files
+    "assets/png/boot_logo.png"
     "assets/png/flow_battery.png"
     "assets/png/flow_grid.png"
     "assets/png/flow_house.png"

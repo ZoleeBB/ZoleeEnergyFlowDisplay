@@ -38,6 +38,18 @@ PNG_IMAGE(app_img_weather_snow, weather_snow_png, APP_PNG_WEATHER_SNOW_SIZE);
 PNG_IMAGE(app_img_weather_moon, weather_moon_png, APP_PNG_WEATHER_MOON_SIZE);
 PNG_IMAGE(app_img_wind, wind_png, APP_PNG_WIND_SIZE);
 
+/* A projektlogó az indítólista jobb alsó sarkába kerül, natív méretben. */
+extern const uint8_t _binary_boot_logo_png_start[];
+const lv_image_dsc_t app_img_boot_logo = {
+    .header = {
+        .magic = LV_IMAGE_HEADER_MAGIC,
+        .cf = LV_COLOR_FORMAT_RAW_ALPHA,
+        .w = 176, .h = 107, .stride = 0,
+    },
+    .data_size = APP_PNG_BOOT_LOGO_SIZE,
+    .data = _binary_boot_logo_png_start,
+};
+
 /* Natív fejlécméret: a kis ikonhoz nem foglalunk 128×128-as dekódolt képet. */
 extern const uint8_t _binary_weather_humidity_png_start[];
 const lv_image_dsc_t app_img_humidity = {
