@@ -237,6 +237,7 @@ static bool credentials_ready(const app_inverter_config_t *c)
     if (!strcmp(c->profile,"huawei_cloud")) return c->device[0] && c->user[0] && c->secret[0];
     if (!strcmp(c->profile,"fronius_cloud")) return c->device[0] && c->key[0] && c->secret[0];
     if (!strcmp(c->profile,"solax_cloud")) return c->device[0] && c->secret[0];
+    if (!strcmp(c->profile,"solax_http")) return c->secret[0];
     if (!strcmp(c->profile,"solplanet_cloud")) return c->key[0] && c->user[0] && c->secret[0];
     return true;
 }

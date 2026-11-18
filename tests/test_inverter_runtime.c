@@ -166,7 +166,10 @@ int main(int argc, char **argv)
     assert(!app_inverter_settings_get() && !app_inverter_display_schedule(NULL,&schedule) && !allocations);
     runtime.data_recept_mode=APP_DATA_INVERTER; runtime.time_synced=runtime.wifi_connected=true;
     tick(0); assert(!configured && !reads && !weather);
-    cJSON *s=settings("fronius_http");
+    cJSON *s=settings("solax_http");
+    assert(app_inverter_settings_save(s)==ESP_ERR_INVALID_ARG && commits==0);
+    cJSON_Delete(s);
+    s=settings("fronius_http");
     assert(app_inverter_settings_save(s)==ESP_OK && commits==1);
     assert(app_inverter_display_schedule(NULL,&schedule) && schedule.touch_wake_seconds==30);
     tick(0); assert(configured && reads==1 && samples==1 && weather==1 && breaks==1);
