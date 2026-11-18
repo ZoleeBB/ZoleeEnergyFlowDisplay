@@ -18,6 +18,26 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
     {id, name: 'Konyha', rotation_degrees: 0, day_brightness: null, night_brightness: null}
 ]};
 
+// A felirat és a vezérlő tetejét külön mérjük: a PEM mező több sor magas.
+async function checkFieldRows(page, grid) {
+    const cells = await grid.locator(':scope > label').evaluateAll(labels => labels.map(label => {
+        const field = label.control;
+        const box = label.getBoundingClientRect(), control = field.getBoundingClientRect();
+        return {id: field.id, row: box.top, top: control.top, bottom: control.bottom,
+            right: control.right, left: control.left, inside: control.bottom <= box.bottom + 1};
+    }));
+    assert(cells.length);
+    const width = page.viewportSize().width;
+    for (const cell of cells) {
+        assert(cell.inside && cell.left >= 0 && cell.right <= width + 1, cell.id);
+        const adjacent = cells.filter(peer => Math.abs(cell.row - peer.row) <= 1);
+        for (const peer of adjacent)
+            assert(Math.abs(cell.top - peer.top) <= 1,
+                `${width}px: ${cell.id} és ${peer.id} felső széle ${cell.top} / ${peer.top}`);
+    }
+    return cells;
+}
+
 (async () => {
     const browser = await chromium.launch({headless: true, executablePath: process.env.CHROMIUM_EXECUTABLE || undefined});
     try {
@@ -214,7 +234,10 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         for (const width of [320, 390, 1280]) {
             await page.setViewportSize({width, height: 900});
             assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
-            assert((await resetSoc.boundingBox()).width >= 44);
+            const resetBounds = await resetSoc.boundingBox(), addressBounds = await soc.boundingBox();
+            assert(resetBounds.width >= 44);
+            assert(addressBounds.width >= 90, 'Az ötjegyű Modbus-címnek maradjon hely.');
+            assert(Math.abs(resetBounds.y - addressBounds.y) <= 1);
         }
         async function persist() {
             const write = page.waitForResponse(r => r.url().endsWith('/api/inverter') && r.request().method() === 'POST');
@@ -326,6 +349,23 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await page.waitForFunction(() => document.querySelector('#discovery-status').textContent.includes('Nincs találat'));
         assert.deepEqual(discoveryRequests.at(-1), {profile: 'solax_modbus', port: 502, unit: 1, device: 'X3-G4-PRO'});
         assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_') || id === 'sofar_v5'));
+        const profiles = await profile.locator('option').evaluateAll(options => options.map(o => o.value).filter(Boolean));
+        for (const width of [320, 600, 900, 1280]) {
+            await page.setViewportSize({width, height: 900});
+            for (const key of profiles) {
+                await profile.selectOption(key);
+                const fields = await checkFieldRows(page, page.locator('#connection'));
+                if (width === 320)
+                    assert.equal(new Set(fields.map(f => f.row)).size, fields.length);
+                if (width === 1280 && key === 'solplanet_https') {
+                    assert.equal(new Set(fields.map(f => f.row)).size, 1);
+                    const pem = fields.find(f => f.id === 'trustedPem'), port = fields.find(f => f.id === 'port');
+                    assert(pem.bottom - pem.top > 2 * (port.bottom - port.top));
+                }
+            }
+            await checkFieldRows(page, page.locator('#slave-profiles .grid').first());
+            await checkFieldRows(page, page.locator('.grid').filter({has: page.locator('#latitude')}));
+        }
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);
         console.log('PASS: all inverter options, credentials, GPS origin, Slave inheritance/schedules, Modbus defaults, per-row reset, late schema replies, edit retention and responsive layout');

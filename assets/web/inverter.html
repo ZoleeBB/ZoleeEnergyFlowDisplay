@@ -4,9 +4,9 @@
 body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#fff}
 .week-row{display:grid;grid-template-columns:minmax(7em,1fr) 1fr 1fr;gap:10px;align-items:center;margin:7px 0}
 .week-row label{min-width:0}.week-row input[type=time]{padding:8px 4px}
-.register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
-.register-row small{display:block;overflow-wrap:anywhere}.register-row label{margin:0}
-@media(max-width:640px){.register-row{grid-template-columns:minmax(0,1fr) auto}.register-row>div{grid-column:1/-1}}
+.register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:start;border-top:1px solid var(--line);padding:12px 0}
+.register-row>div,.register-row button{overflow-wrap:anywhere}.register-row small{display:block}.register-row label{margin:0}
+@media(max-width:640px){.register-row{grid-template-columns:minmax(min(6em,45%),1fr) minmax(0,auto)}.register-row>div{grid-column:1/-1}}
 .discovery-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
 .discovery-row span{overflow-wrap:anywhere}.discovery-row small{display:block}#discovery{margin-bottom:16px}
 #inverter-fields{min-width:0;border:0;padding:0;margin:0}
@@ -25,7 +25,7 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <button type="button" class="secondary" id="cancel-search" hidden>Keresés leállítása</button></div>
 <p id="discovery-status" role="status"></p><div id="discovery-results"></div>
 </div>
-<div id="connection" class="grid"></div>
+<div id="connection" class="grid field-grid"></div>
 <div id="rebind-control" hidden>
 <label><input id="rebind-device" type="checkbox" aria-describedby="rebind-help">Új inverter párosítása ezen az IP-címen</label>
 <small id="rebind-help">Csere vagy hálózati adatgyűjtőcsere után válaszd ezt, ha mentéskor a kijelző újra azonosíthatja a megadott címen elérhető eszközt.</small>
@@ -45,7 +45,7 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <div id="slave-programs"></div></section>
 <section><h2>Időjárás és nappálya</h2>
 <p>Az otthon GPS-koordinátáit tizedes fokban add meg. A helyi napszak számításához a kijelző időzónáját a Beállítások fülön állíthatod be. Az időjárás 15 percenként frissül.</p>
-<div class="grid"><label>Földrajzi szélesség (°)<input id="latitude" type="number" min="-90" max="90" step="any" placeholder="47.4979" required></label>
+<div class="grid field-grid"><label>Földrajzi szélesség (°)<input id="latitude" type="number" min="-90" max="90" step="any" placeholder="47.4979" required></label>
 <label>Földrajzi hosszúság (°)<input id="longitude" type="number" min="-180" max="180" step="any" placeholder="19.0402" required></label></div>
 <small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>
 <button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
