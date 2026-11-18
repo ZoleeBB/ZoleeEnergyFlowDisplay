@@ -229,7 +229,7 @@ static bool aiswei_read_day(const app_inverter_config_t *cfg, const char *date, 
             const char *clock = cJSON_GetStringValue(MEMBER(row, "time"));
             if (!clock || (strlen(clock) != 5 && strlen(clock) != 8)) continue;
             char iso[24];
-            snprintf(iso, sizeof(iso), "%s %.8s%s", date, clock, strlen(clock) == 5 ? ":00" : "");
+            snprintf(iso, sizeof(iso), "%.10s %.8s%s", date, clock, strlen(clock) == 5 ? ":00" : "");
             int64_t t = inv_http_timestamp(iso, true);
             if (!t || t > now || t <= *epoch) continue;
             const cJSON *value = MEMBER(row, "value");
