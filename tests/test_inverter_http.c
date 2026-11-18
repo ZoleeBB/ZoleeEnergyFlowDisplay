@@ -141,8 +141,8 @@ int main(void)
 
     strcpy(cfg.profile, "fronius_cloud");
     strcpy(cfg.host, "api.solarweb.com");
-    strcpy(cfg.device, "pv-01");
-    queue("pvsystems/pv-01/flowdata", "{\"pvSystemId\":\"pv-01\",\"status\":{\"isOnline\":true},"
+    strcpy(cfg.device, "04D81B82-7861-4E36-8E7F-41036CE711A4");
+    queue("pvsystems/04D81B82-7861-4E36-8E7F-41036CE711A4/flowdata", "{\"pvSystemId\":\"04d81b82-7861-4e36-8e7f-41036ce711a4\",\"status\":{\"isOnline\":true},"
           "\"data\":{\"logDateTime\":\"2026-03-22T10:47:30Z\",\"channels\":["
           "{\"channelName\":\"PowerPV\",\"unit\":\"W\",\"value\":3700},"
           "{\"channelName\":\"PowerFeedIn\",\"unit\":\"W\",\"value\":-1100},"
@@ -152,7 +152,7 @@ int main(void)
     near(s.power_full_kw, 2.7);
     near(s.power_grid_kw, -1.1);
     done();
-    queue("pvsystems/pv-01/flowdata", "{\"pvSystemId\":\"pv-01\",\"status\":{\"isOnline\":true},"
+    queue("pvsystems/04D81B82-7861-4E36-8E7F-41036CE711A4/flowdata", "{\"pvSystemId\":\"04d81b82-7861-4e36-8e7f-41036ce711a4\",\"status\":{\"isOnline\":true},"
           "\"data\":{\"logDateTime\":\"2026-03-22T10:47:30Z\",\"channels\":["
           "{\"channelName\":\"PowerPV\",\"unit\":\"W\",\"value\":4057.5},"
           "{\"channelName\":\"PowerBattCharge\",\"unit\":\"W\",\"value\":-2521.10},"
@@ -161,16 +161,16 @@ int main(void)
     near(s.power_bat_kw, -2.5211);
     near(s.soc_bat_pct, 99);
     done();
-    const char *meterless = "{\"pvSystemId\":\"pv-01\",\"status\":{\"isOnline\":true},"
+    const char *meterless = "{\"pvSystemId\":\"04d81b82-7861-4e36-8e7f-41036ce711a4\",\"status\":{\"isOnline\":true},"
         "\"data\":{\"logDateTime\":\"2026-03-22T10:47:30Z\",\"channels\":["
         "{\"channelName\":\"PowerOutput\",\"unit\":\"W\",\"value\":1041}]}}";
     cfg.battery = false;
-    queue("pvsystems/pv-01/flowdata", meterless);
+    queue("pvsystems/04D81B82-7861-4E36-8E7F-41036CE711A4/flowdata", meterless);
     assert(app_inverter_http_read(&cfg, &s, &t) && s.home_unavailable && s.grid_unavailable);
     near(s.power_pv_kw, 1.041);
     done();
     cfg.battery = true;
-    queue("pvsystems/pv-01/flowdata", meterless);
+    queue("pvsystems/04D81B82-7861-4E36-8E7F-41036CE711A4/flowdata", meterless);
     assert(!app_inverter_http_read(&cfg, &s, &t));
     done();
     strcpy(cfg.host, "fakesolarweb.com");

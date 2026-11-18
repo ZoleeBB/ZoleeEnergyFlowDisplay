@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #define MEMBER cJSON_GetObjectItemCaseSensitive
 
@@ -41,7 +42,8 @@ static bool fronius(const app_inverter_config_t *cfg, app_energy_sample_t *s, in
     const cJSON *data = MEMBER(root, "data"), *channels = MEMBER(data, "channels");
     bool pv = false;
     double output_kw = NAN;
-    if (equal(MEMBER(root, "pvSystemId"), cfg->device) && cJSON_IsArray(channels) &&
+    const char *id_in_reply = cJSON_GetStringValue(MEMBER(root, "pvSystemId"));
+    if (id_in_reply && !strcasecmp(id_in_reply, cfg->device) && cJSON_IsArray(channels) &&
         cJSON_IsTrue(MEMBER(MEMBER(root, "status"), "isOnline"))) {
         *epoch = inv_http_timestamp(cJSON_GetStringValue(MEMBER(data, "logDateTime")), false);
         const cJSON *item;
