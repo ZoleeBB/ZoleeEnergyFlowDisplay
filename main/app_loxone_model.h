@@ -5,6 +5,7 @@
 #include "cJSON.h"
 
 #define LX_FIELD_COUNT 19
+#define LX_FIELD_BATTERY_TEMP 7
 #define LX_SUN_FIRST 12
 #define LX_SUN_COUNT 4
 #define LX_SUN_END (LX_SUN_FIRST + LX_SUN_COUNT)

@@ -36,6 +36,13 @@ typedef struct
     bool night_mode;
     bool energy_flow_disabled; /* BLE vezérlőállapot, nem energiaminta. */
     double battery_temperature_c;
+    bool battery_temperature_valid;
+    /* A régi, teljes energiaminták nulla inicializálással is érvényesek. */
+    bool battery_unavailable;       /* Nincs telepítve akkumulátor. */
+    bool grid_unavailable;
+    bool home_unavailable;
+    bool soc_unavailable;
+    bool battery_power_unavailable;
 
     /* Csak közvetlen Loxone módban: az „Elektromos autótöltő” ikonos
      * fogyasztók összege. Hiányzó/elavult részadatnál érvénytelen. */

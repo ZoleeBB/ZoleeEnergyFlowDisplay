@@ -18,7 +18,7 @@ const lx_field_t lx_fields[LX_FIELD_COUNT] = {{"PowerGrid", true, false},
                                               {"SocBat", true, false},
                                               {"Status", true, false},
                                               {"NightMode", true, true},
-                                              {"BatteryTemperature", true, false},
+                                              {"BatteryTemperature", false, false},
                                               {"Temperature", false, false},
                                               {"WindSpeed", false, false},
                                               {"HasSunRadiation", false, true},
@@ -274,7 +274,7 @@ bool lx_values_update(
                     double value = raw * cfg->map[i].scale + cfg->map[i].offset;
                     if (!isfinite(value))
                     {
-                        if (i != LX_FIELD_HUMIDITY)
+                        if (i != LX_FIELD_HUMIDITY && i != LX_FIELD_BATTERY_TEMP)
                             return false;
                         /* Hibás opcionális páratartalom csak önmagát rejtse el. */
                         v->value[i] = 0;

@@ -243,9 +243,21 @@ static void test_payload(void){
         cJSON *d=cJSON_Parse(payload);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateString("null"));
         char *text=cJSON_PrintUnformatted(d);assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);
         cJSON_free(text);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateNull());text=cJSON_PrintUnformatted(d);
-        bool optional=j>=5 && j<=8;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
+        bool optional=(j>=5 && j<=8) || j==11;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
         cJSON_free(text);cJSON_Delete(d);
     }
+    cJSON *sensor = cJSON_Parse(payload);
+    cJSON_DeleteItemFromObject(sensor, "BatteryTemperature");
+    for (int kind = 0; kind < 3; kind++) {
+        if (kind == 1) cJSON_AddNullToObject(sensor, "BatteryTemperature");
+        if (kind == 2) cJSON_ReplaceItemInObject(sensor, "BatteryTemperature", cJSON_CreateNumber(0));
+        char *wire = cJSON_PrintUnformatted(sensor);
+        assert(app_payload_parse(wire, strlen(wire), &result, error, sizeof(error)) == ESP_OK);
+        assert(result.battery_temperature_valid == (kind == 2));
+        near(result.battery_temperature_c, 0);
+        cJSON_free(wire);
+    }
+    cJSON_Delete(sensor);
     /* Mind az öt egész státusz fogadható; a határon kívüli/tört érték atomi hibát ad. */
     const double states[] = {1, 2, 3, 4, 5, 0, 6, 4.5, 5.5};
     for (unsigned i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
