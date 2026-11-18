@@ -89,6 +89,12 @@ static bool nesting_allowed(const char *data, size_t length)
     return !depth && !string;
 }
 
+cJSON *app_inverter_json_parse(const char *data, size_t length)
+{
+    if (!data || !length || data[length] != 0 || !nesting_allowed(data, length)) return NULL;
+    return cJSON_ParseWithOpts(data, NULL, true);
+}
+
 cJSON *app_inverter_json_request(const char *url, const char *method, const char *body,
                                  const char *const headers[][2], size_t header_count,
                                  char *response_token, size_t token_capacity, const char *trusted_pem)
@@ -117,8 +123,8 @@ cJSON *app_inverter_json_request(const char *url, const char *method, const char
     bool complete = esp_http_client_is_complete_data_received(client);
     esp_http_client_cleanup(client);
     cJSON *result = NULL;
-    if (err == ESP_OK && status >= 200 && status < 300 && complete && !r.failed && r.data && nesting_allowed(r.data,r.size))
-        result = cJSON_ParseWithOpts(r.data, NULL, true);
+    if (err == ESP_OK && status >= 200 && status < 300 && complete && !r.failed)
+        result = app_inverter_json_parse(r.data, r.size);
     if (!result && response_token && token_capacity) response_token[0] = 0;
     free(r.data);
     return result;

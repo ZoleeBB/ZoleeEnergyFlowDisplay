@@ -102,7 +102,7 @@ static bool solax(const app_inverter_config_t *cfg, app_energy_sample_t *sample)
     return ok;
 }
 
-static bool solplanet_dc(const cJSON *inverter, double *kw)
+bool inv_http_solplanet_dc(const cJSON *inverter, double *kw)
 {
     const cJSON *v = MEMBER(inverter, "vpv"), *i = MEMBER(inverter, "ipv");
     int count = cJSON_GetArraySize(v);
@@ -156,13 +156,13 @@ static bool solplanet(const app_inverter_config_t *cfg, app_energy_sample_t *sam
     bool v1 = false;
     cJSON *inverter = solplanet_device(cfg, sn, 2, false);
     bool ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
-    bool pv = solplanet_dc(inverter, &sample->power_pv_kw);
+    bool pv = inv_http_solplanet_dc(inverter, &sample->power_pv_kw);
     if (!ac_ok && !pv && !strcmp(cfg->profile, "solplanet_http")) {
         cJSON_Delete(inverter);
         v1 = true;
         inverter = solplanet_device(cfg, sn, 2, true);
         ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
-        pv = solplanet_dc(inverter, &sample->power_pv_kw);
+        pv = inv_http_solplanet_dc(inverter, &sample->power_pv_kw);
     }
     double err;
     if (inv_http_scale(inverter, "err", 1, &err) && err != 0) sample->status = 4;
