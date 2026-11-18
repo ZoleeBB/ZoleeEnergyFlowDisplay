@@ -97,7 +97,7 @@ const LoxoneSlaves = (() => {
         row.box.append(row.legend);
         row.box.append(create('small', 'Eszköz: ' + value.id));
         const grid = create('div');
-        grid.className = 'grid';
+        grid.className = 'grid field-grid';
         for (const [key, title, type] of [['name', 'Eszköz neve', 'text'],
             ['presence_uuid', 'Loxone jelenlétállapot', 'select'],
             ['timeout_seconds', 'Sötétítési késleltetés (másodperc)', 'number'],

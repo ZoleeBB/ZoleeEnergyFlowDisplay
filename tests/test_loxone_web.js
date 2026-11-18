@@ -7,6 +7,7 @@ class Element {
  set value(v){this._value=String(v);}get value(){return this._value;}
  append(child){this.children.push(child);if(this.tagName==='SELECT'&&this.children.length===1)this.value=child.value;}
  replaceChildren(){this.children=[];this.value='';}
+ setAttribute(key,value){this[key]=value;}
  addEventListener(name,callback){this['on'+name]=callback;}
  get options(){return this.children;}
 }

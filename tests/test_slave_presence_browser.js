@@ -57,6 +57,38 @@ const server = http.createServer(async (req, res) => {
     else if (req.url === '/api/loxone') {masterGets++;res.end(JSON.stringify(master));}
     else { res.statusCode = 404; res.end('{}'); }
 });
+
+async function checkEditorLayout(page) {
+    assert(!await page.locator('#home-page-panel').isVisible());
+    await page.locator('#home-add-page').click();
+    await page.locator('#home-add-card').click();
+    await page.locator('#home-cards [data-field=type] select').selectOption('value');
+    const presence = '#slave-' + id + '-presence_uuid';
+    const pairs = [
+        ['#slave-' + id + '-name', presence],
+        ['#home-cards [data-field=warning_low] input', '#home-cards [data-field=warning_high] input'],
+    ];
+    // A böngésző egymás mellett és egymás alatt is kirakja ugyanazokat az élő mezőket.
+    await page.locator(presence).evaluate(node => {
+        node.labels[0].firstChild.textContent = 'Az emeleti kijelző elsötétítését vezérlő Loxone jelenlétállapot';
+        node.closest('fieldset').querySelector('legend').textContent = 'EmeletiKijelző'.repeat(5);
+    });
+    for (const width of [320, 530, 680, 915, 1280]) {
+        await page.setViewportSize({width, height:900});
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${width}px`);
+        for (const [first, second] of pairs) {
+            const a = await page.locator(first).boundingBox(), b = await page.locator(second).boundingBox();
+            assert(a && b, `${first}, ${second}`);
+            if (b.x >= a.x + a.width) assert(Math.abs(a.y - b.y) <= 1, `${width}px: ${first}, ${second}`);
+            else assert(b.y >= a.y + a.height, `${width}px: ${second}`);
+        }
+    }
+    assert.equal(await page.getByRole('combobox', {name:'Hálózati teljesítmény (kW) – Loxone állapot', exact:true}).count(), 1);
+    assert.equal(await page.getByRole('spinbutton', {name:'Hálózati teljesítmény (kW) – Szorzó', exact:true}).count(), 1);
+    await page.reload();
+    await page.locator(presence).waitFor();
+}
+
 (async () => {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const browser = await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE||undefined});
@@ -67,6 +99,7 @@ const server = http.createServer(async (req, res) => {
         await page.goto('http://127.0.0.1:' + server.address().port);
         await page.locator('#slave-' + id + '-name').waitFor();
         assert.equal(await page.locator('#slave-profiles fieldset').count(),3);
+        await checkEditorLayout(page);
         const name = page.locator('#slave-' + id + '-name');
         await name.fill('Szerkesztett <b>név</b>');
         const before = gets;
