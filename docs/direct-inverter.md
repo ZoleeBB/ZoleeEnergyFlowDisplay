@@ -6,10 +6,18 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 
 1. Új, mentett konfiguráció nélküli készüléken válassz Wi-Fi-hálózatot a panelen. A jelszót az érintőbillentyűzettel adhatod meg. Az IP-cím megszerzése után a kijelző szinkronizál a gyári `hu.pool.ntp.org` szerverrel. A fekete beállítóképernyőn látható címet, például `http://192.168.1.80`, nyisd meg a helyi hálózat egyik böngészőjében. [A képernyők és a billentyűzet](first-run-wifi.md)
 2. Az általános **Beállítások** oldalon válaszd a **Közvetlen inverter** adatfogadási módot, mentsd a beállítást, és alkalmazd a módváltást. Már működő Masteren is innen válthatsz. SD-s konfigurációhoz az üzemmód azonosítója `"DataReceptMode": "inverter"`.
-3. Nyisd meg az **Inverter beállítások** fület. Válaszd ki a gyártót és a kapcsolatot a közös listából. Helyi kapcsolatnál a gépnevet vagy IPv4-címet add meg, a portot külön mezőbe írd. Modbus esetén a szerelő által beállított eszközcím, gyártói felhőnél a megfelelő API-hozzáférés szükséges.
+3. Nyisd meg az **Inverter beállítások** fület. Válaszd ki az inverter és a kommunikációs modul közös profilját. A megjelenő súgó mutatja, mit kell engedélyezni az inverteren vagy a gyártói fiókban. Helyi kapcsolatnál indíts keresést, ha a profilnál elérhető, vagy írd be a gépnevet vagy IPv4-címet. A port külön mező. Modbusnál az inverter telepített eszközcímét használd.
 4. A **Van akkumulátor** jelölőt olyan telepítésnél kapcsold be, ahol az inverter akkumulátort kezel. Kikapcsolva a kijelző elhagyja az akkumulátorméréseket. Az akku hőmérséklete minden adatfogadási módban opcionális. A hiányzó érték és a hozzá tartozó felirat vagy ikon eltűnik, míg a mért 0 °C megjelenik.
 5. Állítsd be az igényelt heti sötétítést és a párosított Slave-eket. Az oldal végén add meg a ház GPS-szélességét és hosszúságát tizedes fokban. Példa Budapesthez: **47.4979, 19.0402**. Az első szám a szélesség (−90…90), a második a hosszúság (−180…180).
 6. Mentsd a profilt. A szinkronizálási állapot és a legutóbbi valódi mérés kora a fülön ellenőrizhető. Az elérési adatok cseréjekor add meg az új célhoz tartozó kulcsokat is. A helyi mentés a Master belső NVS-tárában marad meg újraindításkor. Az azonos kapcsolathoz tartozó változatlan jelszót a webfelület üresen hagyhatja.
+
+### Inverter keresése a helyi hálózaton
+
+1. Csatlakoztasd az adatgyűjtőt vagy az inverter helyi hálózati portját a Masterrel közös hálózathoz. A gyártói alkalmazásban akkor is látható lehet a termelés, ha csak a felhő felé működik az adatkapcsolat. Helyi olvasáshoz kövesd a kiválasztott profil súgóját.
+2. Ha a telepítő a szokásostól eltérő portot vagy Modbus-eszközcímet állított be, azt még a keresés előtt írd be. Nyomd meg az **Inverter keresése a helyi hálózaton** gombot. Az IP-cím maradhat üres. A keresést a Master végzi, így a telefonról és a számítógépről megnyitott oldal ugyanazt a hálózatot látja.
+3. Válaszd ki a találatot. Több készüléknél hasonlítsd össze a megjelenő típust és az elérhető sorozatszámot a készülék címkéjével. Egy adatgyűjtő azonosítója a modul címkéjéhez tartozik. Az eredmény kiválasztása kitölti az ismert kapcsolati mezőket. A tartós beállításhoz az oldal alján mentsd az űrlapot. Az első sikeres mérés idejét a fül tetején ellenőrizheted.
+
+**Ha nincs találat**, ellenőrizd a modul típusát, a helyi szolgáltatás engedélyezését és a portot. Modbus-átjárónál ellenőrizd a mögötte lévő inverter egységcímét is. Vendég-Wi-Fi-n vagy elkülönített hálózatok között a router akadályozhatja a felderítést. A kézi beállításhoz a router csatlakozott eszközeinek listájában keresd az adatgyűjtő IP-címét, vagy adj meg egy helyben feloldható gépnevet. A felhős profilokhoz a gyártó kiszolgálója és API-hozzáférés szükséges.
 
 ### Helyi elérés DHCP-vel
 
