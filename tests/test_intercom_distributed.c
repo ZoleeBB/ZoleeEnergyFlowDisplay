@@ -307,6 +307,9 @@ int main(void)
     status[2] = 1;
     assert(app_intercom_control_receive(status, 20) && gates == 1);
     assert(app_intercom_control_receive(status, 20) && gates == 1);
+    /* The optional media service can start after the protected BLE profile. */
+    app_config_t local_display = {.display = {.day_brightness = 65, .night_brightness = 12}};
+    app_intercom_control_init(&local_display);
     unsigned day, night;
     app_intercom_control_brightness(&day, &night);
     assert(day == 82 && night == 17);

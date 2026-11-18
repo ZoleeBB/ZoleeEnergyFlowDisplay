@@ -253,8 +253,14 @@ static unsigned s_day = 85, s_night = 20;
 
 void app_intercom_control_init(const app_config_t* config)
 {
-    s_day = config->display.day_brightness;
-    s_night = config->display.night_brightness;
+    /* A BLE már a 4B médiafunkcióinak indítása előtt átvehette a hitelesített
+     * Master-profilt. A helyi fényerő csak addig alapérték, amíg ez hiányzik. */
+    portENTER_CRITICAL(&s_control_lock);
+    if (!s_profile_ready) {
+        s_day = config->display.day_brightness;
+        s_night = config->display.night_brightness;
+    }
+    portEXIT_CRITICAL(&s_control_lock);
 }
 
 static bool fresh(void)
