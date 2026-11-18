@@ -30,6 +30,7 @@ static cJSON *slave_presence_json(void)
         !cJSON_AddNumberToObject(root, "saved_revision", snapshot.saved_revision) ||
         !cJSON_AddNumberToObject(root, "save_error", snapshot.save_error))
         goto failed;
+    bool loxone = s_config.data_recept_mode == APP_DATA_LOXONE;
     for (unsigned i = 0; ready && i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i)
     {
         const app_slave_presence_peer_t *peer = &snapshot.table.peers[i];
@@ -40,10 +41,10 @@ static cJSON *slave_presence_json(void)
         if (!item || !app_slave_identity_id(&peer->identity, id) ||
             !cJSON_AddStringToObject(item, "id", id) ||
             !cJSON_AddStringToObject(item, "name", peer->profile.name) ||
-            !cJSON_AddStringToObject(item, "presence_uuid", peer->profile.presence_uuid) ||
+            (loxone && (!cJSON_AddStringToObject(item, "presence_uuid", peer->profile.presence_uuid) ||
             !cJSON_AddNumberToObject(item, "timeout_seconds", peer->profile.timeout_seconds) ||
             !cJSON_AddBoolToObject(item, "blank_at_night", peer->profile.blank_at_night) ||
-            !cJSON_AddBoolToObject(item, "blank_at_day", peer->profile.blank_at_day) ||
+            !cJSON_AddBoolToObject(item, "blank_at_day", peer->profile.blank_at_day))) ||
             !cJSON_AddNumberToObject(item, "rotation_degrees", peer->profile.rotation_degrees) ||
             !(peer->profile.day_brightness
                   ? cJSON_AddNumberToObject(item, "day_brightness", peer->profile.day_brightness)
@@ -118,7 +119,8 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     if (!authorize(req))
         return ESP_OK;
     char header[8];
-    if (httpd_req_get_hdr_value_str(req, "X-Zolee-Loxone", header, sizeof(header)) != ESP_OK ||
+    bool inverter = s_config.data_recept_mode == APP_DATA_INVERTER;
+    if (httpd_req_get_hdr_value_str(req, inverter ? "X-Zolee-Inverter" : "X-Zolee-Loxone", header, sizeof(header)) != ESP_OK ||
         strcmp(header, "1") || req->content_len < 2 || req->content_len > SLAVE_PROFILE_JSON_MAX)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Érvénytelen Slave-kérés.");
     app_slave_presence_snapshot_t snapshot;
@@ -148,6 +150,7 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     const char *const profile_fields[] = {"name", "presence_uuid", "timeout_seconds",
                                           "blank_at_night", "rotation_degrees", "day_brightness", "night_brightness",
                                           "blank_at_day"};
+    const char *const inverter_fields[] = {"name", "rotation_degrees", "day_brightness", "night_brightness"};
     const cJSON *schema = cJSON_GetObjectItemCaseSensitive(root, "schema");
     const cJSON *revision = cJSON_GetObjectItemCaseSensitive(root, "revision");
     const cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
@@ -162,29 +165,18 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
     const cJSON *night = cJSON_GetObjectItemCaseSensitive(data, "night_brightness");
     app_slave_presence_profile_t profile = {0};
     bool valid = slave_fields(root, root_fields, 4) &&
-                 slave_fields(data, profile_fields, blank_day ? 8 : 7) &&
+                 (inverter ? slave_fields(data, inverter_fields, 4) :
+                             slave_fields(data, profile_fields, blank_day ? 8 : 7)) &&
                  slave_integer(schema, 1, 1) && slave_integer(revision, 1, UINT32_MAX) &&
                  cJSON_IsString(id) && strlen(id->valuestring) == APP_SLAVE_PRESENCE_ID_SIZE - 1 &&
                  cJSON_IsString(name) && strlen(name->valuestring) < sizeof(profile.name) &&
-                 cJSON_IsString(uuid) && strlen(uuid->valuestring) < sizeof(profile.presence_uuid) &&
+                 (inverter || (cJSON_IsString(uuid) && strlen(uuid->valuestring) < sizeof(profile.presence_uuid) &&
                  slave_integer(timeout, 1, 86400) && cJSON_IsBool(blank) &&
-                 (!blank_day || cJSON_IsBool(blank_day)) &&
+                 (!blank_day || cJSON_IsBool(blank_day)))) &&
                  slave_integer(rotation, 0, 270) &&
                  (uint32_t)rotation->valuedouble % 90 == 0 &&
                   (cJSON_IsNull(day) || slave_integer(day, 1, 100)) &&
                   (cJSON_IsNull(night) || slave_integer(night, 1, 100));
-    if (valid)
-    {
-        memcpy(profile.name, name->valuestring, strlen(name->valuestring));
-        memcpy(profile.presence_uuid, uuid->valuestring, strlen(uuid->valuestring));
-        profile.timeout_seconds = (uint32_t)timeout->valuedouble;
-        profile.blank_at_night = cJSON_IsTrue(blank);
-        profile.blank_at_day = cJSON_IsTrue(blank_day);
-        profile.rotation_degrees = (uint16_t)rotation->valuedouble;
-        profile.day_brightness = cJSON_IsNull(day) ? 0 : (uint8_t)day->valuedouble;
-        profile.night_brightness = cJSON_IsNull(night) ? 0 : (uint8_t)night->valuedouble;
-        valid = app_slave_presence_profile_valid(&profile);
-    }
     int index = -1;
     for (unsigned i = 0; valid && i < APP_SLAVE_PRESENCE_MAX_PEERS; ++i)
     {
@@ -194,10 +186,24 @@ static esp_err_t slave_presence_post(httpd_req_t *req)
             !strcmp(key, id->valuestring))
             index = (int)i;
     }
-    /* A régi kliens hétmezős profilja nem törölheti az új nappali beállítást.
-     * A snapshot és az update közötti változást továbbra is a revízió védi. */
-    if (valid && index >= 0 && !blank_day)
-        profile.blank_at_day = snapshot.table.peers[index].profile.blank_at_day;
+    if (valid && index >= 0)
+    {
+        /* A nem megjelenített Loxone-jelenléti adatok módváltáskor megmaradnak. */
+        profile = snapshot.table.peers[index].profile;
+        snprintf(profile.name, sizeof(profile.name), "%s", name->valuestring);
+        if (!inverter)
+        {
+            snprintf(profile.presence_uuid, sizeof(profile.presence_uuid), "%s", uuid->valuestring);
+            profile.timeout_seconds = (uint32_t)timeout->valuedouble;
+            profile.blank_at_night = cJSON_IsTrue(blank);
+            if (blank_day)
+                profile.blank_at_day = cJSON_IsTrue(blank_day);
+        }
+        profile.rotation_degrees = (uint16_t)rotation->valuedouble;
+        profile.day_brightness = cJSON_IsNull(day) ? 0 : (uint8_t)day->valuedouble;
+        profile.night_brightness = cJSON_IsNull(night) ? 0 : (uint8_t)night->valuedouble;
+        valid = app_slave_presence_profile_valid(&profile);
+    }
     uint32_t expected = valid ? (uint32_t)revision->valuedouble : 0;
     cJSON_Delete(root);
     if (!valid || index < 0)
