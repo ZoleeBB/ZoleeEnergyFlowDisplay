@@ -55,16 +55,17 @@ def tag_for_merged_pr(repository, number, tags, releases, merged_pr=None):
             raise ValueError('Cannot assign v3.1.0: stable v3.1.0 or newer already exists')
         return validate_tag('v3.1.0')
     if (repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and
-            head.get('ref') == 'feature/v3-loxone-home' and
+            head.get('ref') in ('feature/v3-loxone-home', 'feature/direct-inverter-v4') and
             (head.get('repo') or {}).get('full_name') == repository):
         # A prepare előbb igazolja az összevont main PR-t és a merge SHA-t.
         # Azonos nevű forkág vagy önmagában a PR címe nem emelhet főverziót.
         versions = [stable_version(t.get('name')) for t in tags]
         versions += [stable_version(r.get('tag_name')) or stable_version(r.get('name'))
                      for r in releases if not r.get('prerelease')]
-        if any(v is not None and v >= (3, 0, 0) for v in versions):
-            raise ValueError('Cannot assign v3.0.0: stable v3.0.0 or newer already exists')
-        return validate_tag('v3.0.0')
+        target = 'v4.0.0' if head['ref'] == 'feature/direct-inverter-v4' else 'v3.0.0'
+        if any(v is not None and v >= stable_version(target) for v in versions):
+            raise ValueError(f'Cannot assign {target}: stable {target} or newer already exists')
+        return validate_tag(target)
     if repository == 'ZoleeBB/ZoleeEnergyFlowDisplay' and number == 12:
         versions=[stable_version(t.get('name')) for t in tags]
         versions += [stable_version(r.get('tag_name')) or stable_version(r.get('name')) for r in releases if not r.get('prerelease')]
