@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "05-calm-home",
   "name": "Nyugodt otthon",
-  "version": 11,
+  "version": 12,
   "light": {
     "home_hotspot": {
       "x": 1130,
@@ -91,6 +91,7 @@
         "color": "#536156"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 32,
         "y": 118,
@@ -101,6 +102,7 @@
         "opacity": 245
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 46,
         "y": 132,
@@ -213,6 +215,7 @@
         "color": "#966100"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 398,
         "y": 414,
@@ -223,6 +226,7 @@
         "opacity": 245
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 416,
         "y": 454,
@@ -231,6 +235,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 506,
         "y": 444,
@@ -252,6 +257,7 @@
         "color": "#136C65"
       },
       {
+        "requires": "soc",
         "type": "box",
         "x": 764,
         "y": 414,
@@ -262,6 +268,7 @@
         "opacity": 245
       },
       {
+        "requires": "soc",
         "type": "image",
         "x": 782,
         "y": 454,
@@ -270,6 +277,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 872,
         "y": 444,
@@ -352,6 +360,7 @@
         "color": "#966100"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 462,
         "y": 646,
@@ -373,6 +382,7 @@
         "color": "#AD3535"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 864,
         "y": 646,
@@ -538,6 +548,7 @@
         "color": "#D3CFBF"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 32,
         "y": 118,
@@ -548,6 +559,7 @@
         "opacity": 245
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 46,
         "y": 132,
@@ -660,6 +672,7 @@
         "color": "#F4C76C"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 398,
         "y": 414,
@@ -670,6 +683,7 @@
         "opacity": 245
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 416,
         "y": 454,
@@ -678,6 +692,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 506,
         "y": 444,
@@ -699,6 +714,7 @@
         "color": "#91D2C8"
       },
       {
+        "requires": "soc",
         "type": "box",
         "x": 764,
         "y": 414,
@@ -709,6 +725,7 @@
         "opacity": 245
       },
       {
+        "requires": "soc",
         "type": "image",
         "x": 782,
         "y": 454,
@@ -717,6 +734,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 872,
         "y": 444,
@@ -799,6 +817,7 @@
         "color": "#F4C76C"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 462,
         "y": 646,
@@ -820,6 +839,7 @@
         "color": "#E89891"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 864,
         "y": 646,

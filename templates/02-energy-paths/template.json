@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "02-energy-paths",
   "name": "Energiautak",
-  "version": 14,
+  "version": 15,
   "light": {
     "home_hotspot": {
       "x": 1020,
@@ -277,6 +277,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 100,
         "y": 390,
@@ -285,6 +286,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 70,
         "y": 495,
@@ -311,6 +313,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 1030,
         "y": 150,
@@ -319,6 +322,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 1000,
         "y": 255,
@@ -345,6 +349,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 1030,
         "y": 380,
@@ -353,6 +358,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1000,
         "y": 485,
@@ -501,6 +507,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -511,6 +518,7 @@
         "opacity": 130
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -535,6 +543,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -545,6 +554,7 @@
         "opacity": 130
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -569,6 +579,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -579,6 +590,7 @@
         "opacity": 130
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,
@@ -907,6 +919,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 100,
         "y": 390,
@@ -915,6 +928,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 70,
         "y": 495,
@@ -941,6 +955,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 1030,
         "y": 150,
@@ -949,6 +964,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 1000,
         "y": 255,
@@ -975,6 +991,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 1030,
         "y": 380,
@@ -983,6 +1000,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1000,
         "y": 485,
@@ -1131,6 +1149,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -1141,6 +1160,7 @@
         "opacity": 130
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -1165,6 +1185,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -1175,6 +1196,7 @@
         "opacity": 130
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -1199,6 +1221,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -1209,6 +1232,7 @@
         "opacity": 130
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,

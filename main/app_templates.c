@@ -643,6 +643,12 @@ static bool validate_scene(const cJSON *scene)
         if (cJSON_GetObjectItem(e, "x")->valueint + cJSON_GetObjectItem(e, "w")->valueint > 1280 ||
             cJSON_GetObjectItem(e, "y")->valueint + cJSON_GetObjectItem(e, "h")->valueint > 800)
             return false;
+        const cJSON *dependency = cJSON_GetObjectItemCaseSensitive(e, "requires");
+        if (dependency) {
+            const char *key = cJSON_GetStringValue(dependency);
+            if (!key || (!one_of(key, sources) && strcmp(key, "installed") && strcmp(key, "split")))
+                return false;
+        }
         if (source && !one_of(source, sources))
             return false;
         /* A két eseményfeliratnak és az óraskálának is el kell férnie. */

@@ -105,6 +105,7 @@ static lv_obj_t *s_screen, *s_dash, *s_sd_warn;
 static lv_obj_t *s_title, *s_date, *s_clock, *s_weather_temp, *s_wind_speed, *s_weather_icon,
     *s_wind_icon;
 static lv_obj_t *s_humidity, *s_humidity_icon;
+static lv_obj_t *s_grid_name, *s_home_name, *s_battery_name;
 static lv_obj_t *s_pv, *s_home, *s_bat, *s_grid, *s_soc, *s_bt, *s_status;
 static lv_obj_t *s_bat_icon, *s_grid_icon, *s_status_icon;
 static lv_obj_t *s_grid_node, *s_battery_node, *s_pv_node, *s_home_node, *s_status_bubble,
@@ -996,10 +997,10 @@ static void build_dashboard(bool night)
     lv_obj_set_width(s_grid, 150);
     lv_obj_set_style_text_align(s_grid, LV_TEXT_ALIGN_CENTER, 0);
 
-    lv_obj_t *grid_name =
+    s_grid_name =
         lbl(flow, tr("Hálózat", "Grid"), 170, 35, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
-    lv_obj_set_width(grid_name, 150);
-    lv_obj_set_style_text_align(grid_name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_grid_name, 150);
+    lv_obj_set_style_text_align(s_grid_name, LV_TEXT_ALIGN_CENTER, 0);
 
     /* Akkumulátor bal oldalon. */
     s_battery_node =
@@ -1021,7 +1022,7 @@ static void build_dashboard(bool night)
     lv_obj_set_style_radius(s_battery_bar, 4, LV_PART_MAIN);
     lv_obj_set_style_radius(s_battery_bar, 4, LV_PART_INDICATOR);
 
-    lbl(flow, tr("Akkumulátor", "Battery"), 6, 145, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
+    s_battery_name = lbl(flow, tr("Akkumulátor", "Battery"), 6, 145, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
 
     s_bat = lbl(flow, "-", 6, 166, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
 
@@ -1041,10 +1042,10 @@ static void build_dashboard(bool night)
     lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t *home_name =
+    s_home_name =
         lbl(flow, tr("Ház", "Home"), 170, 439, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
-    lv_obj_set_width(home_name, 150);
-    lv_obj_set_style_text_align(home_name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_home_name, 150);
+    lv_obj_set_style_text_align(s_home_name, LV_TEXT_ALIGN_CENTER, 0);
 
     s_home = lbl(flow, "-", 170, 459, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
     lv_obj_set_width(s_home, 150);
@@ -1437,7 +1438,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
      * Negatív PowerBat = töltés, ezért hub -> akku és zöld.
      */
     flow_update(&f_bat,
-                s->power_bat_kw,
+                s->battery_unavailable || s->battery_power_unavailable ? 0 : s->power_bat_kw,
                 s->power_bat_kw > 0,
                 s->power_bat_kw < 0 ? GREEN : ORANGE,
                 s->night_mode,
@@ -1446,7 +1447,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
     /*
      * A ház fogyasztása külön, narancs ágon mindig a hub -> ház irányba halad.
      */
-    flow_update(&f_home, s->power_full_kw, true, ORANGE, s->night_mode, dt);
+    flow_update(&f_home, s->home_unavailable ? 0 : s->power_full_kw, true, ORANGE, s->night_mode, dt);
 
     border_color_if_changed(s_pv_node, c(flow_color(s->power_pv_kw, GREEN, s->night_mode)), 0);
     border_color_if_changed(
@@ -1485,7 +1486,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
          */
         uint32_t grid_color = s->power_grid_kw < 0 ? GREEN : ORANGE;
 
-        flow_update(&f_grid, s->power_grid_kw, s->power_grid_kw > 0, grid_color, s->night_mode, dt);
+        flow_update(&f_grid, s->grid_unavailable ? 0 : s->power_grid_kw, s->power_grid_kw > 0, grid_color, s->night_mode, dt);
 
         if (lv_image_get_src(s_grid_icon) != &app_img_grid)
             lv_image_set_src(s_grid_icon, &app_img_grid);
@@ -1607,6 +1608,33 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
         snprintf(q, sizeof(q), "%04d-%02d-%02d", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
     label_text_if_changed(s_date, q);
 
+    bool battery = !s->battery_unavailable;
+    bool power = battery && !s->battery_power_unavailable;
+    bool soc = battery && !s->soc_unavailable;
+    bool balance = !s->home_unavailable && (power || !battery);
+    weather_visibility(s_battery_node, battery);
+    weather_visibility(s_battery_name, battery);
+    weather_visibility(s_bat, power);
+    weather_visibility(f_bat.line, power);
+    weather_visibility(s_soc, soc);
+    weather_visibility(s_battery_bar, soc);
+    weather_visibility(s_bt, battery && s->battery_temperature_valid);
+    weather_visibility(lv_obj_get_parent(s_bat_charge), power);
+    weather_visibility(s_home_name, !s->home_unavailable);
+    weather_visibility(s_home, !s->home_unavailable);
+    weather_visibility(s_home_node, !s->home_unavailable);
+    weather_visibility(f_home.line, !s->home_unavailable);
+    weather_visibility(s_grid_name, !s->grid_unavailable);
+    weather_visibility(s_grid, !s->grid_unavailable);
+    weather_visibility(s_grid_node, !s->grid_unavailable);
+    weather_visibility(f_grid.line, !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[1]), !s->home_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[2]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[3]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[4]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[7]), !s->home_unavailable && !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_chart1), balance);
+    weather_visibility(lv_obj_get_parent(s_chart2), balance);
     weather_visibility(lv_obj_get_parent(s_weather_icon), weather_available(s));
     weather_visibility(lv_obj_get_parent(s_wind_icon), s->wind_speed_valid);
     weather_visibility(s_weather_temp, s->temperature_valid);

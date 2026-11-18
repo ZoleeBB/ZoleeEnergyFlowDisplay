@@ -2880,7 +2880,7 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .relative_humidity_valid=true,.relative_humidity_pct=61,
-        .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
+        .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_valid=true,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
     if (getenv("ZOLEE_AUDIO_ONLY") || getenv("ZOLEE_CONTROLS_ONLY") || getenv("ZOLEE_SHADING_ONLY") || getenv("ZOLEE_IRC_ONLY") || getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_HOME_CLEANUP_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
@@ -2979,6 +2979,13 @@ int main(void)
         assert(lv_obj_has_flag(lv_obj_get_parent(s_wind_icon),LV_OBJ_FLAG_HIDDEN)==!optional.wind_speed_valid);
     }
     update(&sample,&fixture);
+    sample.battery_temperature_valid = false;
+    update(&sample, &fixture);
+    assert(lv_obj_has_flag(s_bt, LV_OBJ_FLAG_HIDDEN));
+    sample.battery_temperature_valid = true;
+    sample.battery_temperature_c = 0;
+    update(&sample, &fixture);
+    assert(!lv_obj_has_flag(s_bt, LV_OBJ_FLAG_HIDDEN) && strstr(lv_label_get_text(s_bt), "0 °C"));
     sample.status=4;sample.battery_temperature_c=51;update(&sample,&fixture);save_frame("hu-system-error");
     sample.status=1;sample.night_mode=true;sample.power_pv_kw=0;sample.has_sun_radiation=false;
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
@@ -3219,6 +3226,28 @@ int main(void)
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
                 test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_comparison_colors(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                app_energy_sample_t missing = sample;
+                missing.battery_temperature_valid = false;
+                template_update(&missing, &fixture);
+                for (unsigned j = 0; j < template_node_count; j++) {
+                    template_node_t *node = &template_nodes[j];
+                    if (node->needs & NEED_TEMP) {
+                        assert(lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN));
+                        if (node->detail) assert(lv_obj_has_flag(node->detail, LV_OBJ_FLAG_HIDDEN));
+                    }
+                }
+                missing.battery_unavailable = missing.grid_unavailable = missing.home_unavailable = true;
+                template_update(&missing, &fixture);
+                template_animate(.1f);
+                for (unsigned j = 0; j < template_node_count; j++) {
+                    template_node_t *node = &template_nodes[j];
+                    if (node->needs & (NEED_BAT | NEED_GRID | NEED_HOME | NEED_SPLIT)) {
+                        assert(lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN));
+                        for (unsigned d = 0; d < 4; d++)
+                            if (node->dots[d]) assert(lv_obj_has_flag(node->dots[d], LV_OBJ_FLAG_HIDDEN));
+                    }
+                }
+                template_update(&sample, &fixture);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){
@@ -3428,7 +3457,7 @@ int main(void)
     clear();template_release_cache();app_templates_view_free(&template_view);
     /* A firmware-be kerülő apró előnézetek ugyanebből a rajzolóból készülnek. */
     app_energy_sample_t builtin_sample=sample;
-    builtin_sample.status=1;builtin_sample.soc_bat_pct=74;builtin_sample.battery_temperature_c=32;
+    builtin_sample.status=1;builtin_sample.soc_bat_pct=74;builtin_sample.battery_temperature_valid=true;builtin_sample.battery_temperature_c=32;
     snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
     for(int night=0;night<2;night++){
         builtin_sample.night_mode=night;builtin_sample.power_pv_kw=night?0:7;

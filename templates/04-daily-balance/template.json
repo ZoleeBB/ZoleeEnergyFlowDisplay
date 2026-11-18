@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "04-daily-balance",
   "name": "Napi mérleg",
-  "version": 9,
+  "version": 10,
   "light": {
     "home_hotspot": {"x": 32, "y": 370, "w": 95, "h": 85},
     "background": "#E5F1ED",
@@ -78,6 +78,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "split",
         "type": "box",
         "x": 32,
         "y": 120,
@@ -88,6 +89,7 @@
         "opacity": 235
       },
       {
+        "requires": "split",
         "type": "image",
         "x": 50,
         "y": 125,
@@ -96,6 +98,7 @@
         "file": "flow_solar.png"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 104,
         "y": 135,
@@ -107,6 +110,7 @@
         "color": "#19352F"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 700,
         "y": 139,
@@ -118,6 +122,7 @@
         "color": "#16965F"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 877,
         "y": 139,
@@ -129,6 +134,7 @@
         "color": "#C57212"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1054,
         "y": 139,
@@ -140,6 +146,7 @@
         "color": "#087FC2"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 53,
         "y": 176,
@@ -149,6 +156,7 @@
         "color": "#657A75"
       },
       {
+        "requires": "split",
         "type": "box",
         "x": 32,
         "y": 385,
@@ -159,6 +167,7 @@
         "opacity": 235
       },
       {
+        "requires": "split",
         "type": "image",
         "x": 50,
         "y": 390,
@@ -167,6 +176,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 104,
         "y": 400,
@@ -178,6 +188,7 @@
         "color": "#19352F"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 700,
         "y": 404,
@@ -189,6 +200,7 @@
         "color": "#D92C5B"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 877,
         "y": 404,
@@ -200,6 +212,7 @@
         "color": "#16965F"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1054,
         "y": 404,
@@ -211,6 +224,7 @@
         "color": "#087FC2"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 53,
         "y": 441,
@@ -254,6 +268,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -264,6 +279,7 @@
         "opacity": 235
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -288,6 +304,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -298,6 +315,7 @@
         "opacity": 235
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -322,6 +340,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -332,6 +351,7 @@
         "opacity": 235
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,
@@ -453,6 +473,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "split",
         "type": "box",
         "x": 32,
         "y": 120,
@@ -463,6 +484,7 @@
         "opacity": 235
       },
       {
+        "requires": "split",
         "type": "image",
         "x": 50,
         "y": 125,
@@ -471,6 +493,7 @@
         "file": "flow_solar.png"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 104,
         "y": 135,
@@ -482,6 +505,7 @@
         "color": "#EDF4F8"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 700,
         "y": 139,
@@ -493,6 +517,7 @@
         "color": "#36AE7C"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 877,
         "y": 139,
@@ -504,6 +529,7 @@
         "color": "#EA9C3B"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1054,
         "y": 139,
@@ -515,6 +541,7 @@
         "color": "#559CDE"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 53,
         "y": 176,
@@ -524,6 +551,7 @@
         "color": "#A2B5BE"
       },
       {
+        "requires": "split",
         "type": "box",
         "x": 32,
         "y": 385,
@@ -534,6 +562,7 @@
         "opacity": 235
       },
       {
+        "requires": "split",
         "type": "image",
         "x": 50,
         "y": 390,
@@ -542,6 +571,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 104,
         "y": 400,
@@ -553,6 +583,7 @@
         "color": "#EDF4F8"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 700,
         "y": 404,
@@ -564,6 +595,7 @@
         "color": "#E66B6B"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 877,
         "y": 404,
@@ -575,6 +607,7 @@
         "color": "#36AE7C"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1054,
         "y": 404,
@@ -586,6 +619,7 @@
         "color": "#559CDE"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 53,
         "y": 441,
@@ -629,6 +663,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -639,6 +674,7 @@
         "opacity": 235
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -663,6 +699,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -673,6 +710,7 @@
         "opacity": 235
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -697,6 +735,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -707,6 +746,7 @@
         "opacity": 235
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,

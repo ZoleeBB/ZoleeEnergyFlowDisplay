@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "10-battery-diagnostics",
   "name": "Akku diagnosztika",
-  "version": 3,
+  "version": 4,
   "light": {
     "background": "#E3F0F8",
     "elements": [
@@ -46,6 +46,7 @@
         "color": "#183950"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 32,
         "y": 67,
@@ -77,6 +78,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 24,
         "y": 111,
@@ -87,6 +89,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 43,
         "y": 122,
@@ -122,6 +125,7 @@
         "opacity": 245
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 122,
@@ -132,6 +136,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 503,
         "y": 136,
@@ -173,6 +178,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 274,
@@ -183,6 +189,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 500,
         "y": 286,
@@ -214,6 +221,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 875,
         "y": 274,
@@ -224,6 +232,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 895,
         "y": 286,
@@ -255,6 +264,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 416,
@@ -265,6 +275,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 500,
         "y": 428,
@@ -296,6 +307,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 875,
         "y": 416,
@@ -306,6 +318,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 895,
         "y": 428,
@@ -337,6 +350,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 555,
@@ -347,6 +361,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 497,
         "y": 566,
@@ -368,6 +383,7 @@
         "color": "#087D69"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 741,
         "y": 555,
@@ -378,6 +394,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 758,
         "y": 566,
@@ -399,6 +416,7 @@
         "color": "#236FA7"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 1002,
         "y": 555,
@@ -409,6 +427,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1019,
         "y": 566,
@@ -430,6 +449,7 @@
         "color": "#91600C"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 665,
@@ -470,6 +490,7 @@
         "color": "#506F83"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 24,
         "y": 571,
@@ -480,6 +501,7 @@
         "opacity": 230
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 43,
         "y": 580,
@@ -592,6 +614,7 @@
         "color": "#E7F2FF"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 32,
         "y": 67,
@@ -623,6 +646,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 24,
         "y": 111,
@@ -633,6 +657,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 43,
         "y": 122,
@@ -668,6 +693,7 @@
         "opacity": 245
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 122,
@@ -678,6 +704,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 503,
         "y": 136,
@@ -719,6 +746,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 274,
@@ -729,6 +757,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 500,
         "y": 286,
@@ -760,6 +789,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 875,
         "y": 274,
@@ -770,6 +800,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 895,
         "y": 286,
@@ -801,6 +832,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 416,
@@ -811,6 +843,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 500,
         "y": 428,
@@ -842,6 +875,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 875,
         "y": 416,
@@ -852,6 +886,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 895,
         "y": 428,
@@ -883,6 +918,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 555,
@@ -893,6 +929,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 497,
         "y": 566,
@@ -914,6 +951,7 @@
         "color": "#56E2BC"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 741,
         "y": 555,
@@ -924,6 +962,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 758,
         "y": 566,
@@ -945,6 +984,7 @@
         "color": "#77BFFF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 1002,
         "y": 555,
@@ -955,6 +995,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1019,
         "y": 566,
@@ -976,6 +1017,7 @@
         "color": "#F3C677"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 480,
         "y": 665,
@@ -1016,6 +1058,7 @@
         "color": "#8CA7BF"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 24,
         "y": 571,
@@ -1026,6 +1069,7 @@
         "opacity": 238
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 43,
         "y": 580,

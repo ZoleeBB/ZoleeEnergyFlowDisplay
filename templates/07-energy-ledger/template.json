@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "07-energy-ledger",
   "name": "Energiafőkönyv",
-  "version": 15,
+  "version": 16,
   "light": {
     "home_hotspot": {
       "x": 45,
@@ -230,6 +230,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 48,
         "y": 291,
@@ -240,6 +241,7 @@
         "opacity": 130
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 64,
         "y": 307,
@@ -248,6 +250,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 146,
         "y": 307,
@@ -285,6 +288,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 48,
         "y": 397,
@@ -295,6 +299,7 @@
         "opacity": 130
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 64,
         "y": 413,
@@ -303,6 +308,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 146,
         "y": 413,
@@ -357,6 +363,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 603,
         "y": 462,
@@ -368,6 +375,7 @@
         "color": "#657A75"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 48,
         "y": 503,
@@ -378,6 +386,7 @@
         "opacity": 130
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 64,
         "y": 519,
@@ -386,6 +395,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 146,
         "y": 519,
@@ -436,6 +446,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 603,
         "y": 568,
@@ -447,6 +458,7 @@
         "color": "#657A75"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 842,
         "y": 126,
@@ -457,6 +469,7 @@
         "opacity": 160
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 869,
         "y": 148,
@@ -513,6 +526,7 @@
         "opacity": 160
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 869,
         "y": 408,
@@ -537,6 +551,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 869,
         "y": 522,
@@ -595,6 +610,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -605,6 +621,7 @@
         "opacity": 160
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -629,6 +646,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -639,6 +657,7 @@
         "opacity": 160
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -663,6 +682,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -673,6 +693,7 @@
         "opacity": 160
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,
@@ -968,6 +989,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 48,
         "y": 291,
@@ -978,6 +1000,7 @@
         "opacity": 130
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 64,
         "y": 307,
@@ -986,6 +1009,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 146,
         "y": 307,
@@ -1023,6 +1047,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 48,
         "y": 397,
@@ -1033,6 +1058,7 @@
         "opacity": 130
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 64,
         "y": 413,
@@ -1041,6 +1067,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 146,
         "y": 413,
@@ -1095,6 +1122,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 603,
         "y": 462,
@@ -1106,6 +1134,7 @@
         "color": "#A2B5BE"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 48,
         "y": 503,
@@ -1116,6 +1145,7 @@
         "opacity": 130
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 64,
         "y": 519,
@@ -1124,6 +1154,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 146,
         "y": 519,
@@ -1174,6 +1205,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 603,
         "y": 568,
@@ -1185,6 +1217,7 @@
         "color": "#A2B5BE"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 842,
         "y": 126,
@@ -1195,6 +1228,7 @@
         "opacity": 160
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 869,
         "y": 148,
@@ -1251,6 +1285,7 @@
         "opacity": 160
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 869,
         "y": 408,
@@ -1275,6 +1310,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 869,
         "y": 522,
@@ -1333,6 +1369,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -1343,6 +1380,7 @@
         "opacity": 160
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -1367,6 +1405,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -1377,6 +1416,7 @@
         "opacity": 160
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -1401,6 +1441,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -1411,6 +1452,7 @@
         "opacity": 160
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,

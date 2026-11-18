@@ -544,7 +544,7 @@ void slave_4b_ui_create(lv_obj_t *screen)
     wind_icon = image(&slave_4b_wind, 446, 25, 34);
     wind = label(root, "— km/h", 484, 32, 110, &app_font_20);
     clock_label = label(root, "--:--", 604, 25, 112, &app_font_28);
-    battery_detail = label(root, "— % · — °C", 40, 504, 180, &app_font_20);
+    battery_detail = label(root, "", 40, 504, 180, &app_font_20);
     lv_obj_set_style_text_align(battery_detail, LV_TEXT_ALIGN_CENTER, 0);
     soc = lv_bar_create(root);
     lv_obj_remove_style_all(soc);
@@ -640,7 +640,14 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     char text[256];
     for (int i = 0; i < 4; i++)
     {
-        flow(&nodes[i], available ? powers[i] : 0, inward[i], tones[i], seconds);
+        bool node = i == 0 ? !sample->grid_unavailable : i == 1 ? !sample->battery_unavailable :
+                    i == 3 ? !sample->home_unavailable : true;
+        bool has_power = node && (i != 1 || !sample->battery_power_unavailable);
+        visible(nodes[i].name, node);
+        visible(nodes[i].ring, node);
+        visible(nodes[i].value, has_power);
+        visible(nodes[i].path, has_power);
+        flow(&nodes[i], available && has_power ? powers[i] : 0, inward[i], tones[i], seconds);
         if (!available)
             snprintf(text, sizeof(text), "—");
         else if (fabs(powers[i]) < 1)
@@ -649,11 +656,30 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
             snprintf(text, sizeof(text), "%.1f kW", fabs(powers[i]));
         text_if_changed(nodes[i].value, text);
     }
-    if (available)
+    bool has_soc = available && !sample->battery_unavailable && !sample->soc_unavailable;
+    bool has_temperature = available && !sample->battery_unavailable && sample->battery_temperature_valid;
+    if (has_soc && has_temperature)
         snprintf(text, sizeof(text), "%.0f%% · %.0f °C", sample->soc_bat_pct, sample->battery_temperature_c);
+    else if (has_soc)
+        snprintf(text, sizeof(text), "%.0f%%", sample->soc_bat_pct);
+    else if (has_temperature)
+        snprintf(text, sizeof(text), "%.0f °C", sample->battery_temperature_c);
     else
-        snprintf(text, sizeof(text), "— %% · — °C");
+        text[0] = 0;
+    visible(battery_detail, has_soc || has_temperature);
     text_if_changed(battery_detail, text);
+    visible(soc, has_soc);
+    if (available) {
+        bool battery_power = !sample->battery_unavailable && !sample->battery_power_unavailable;
+        bool balance = !sample->home_unavailable && (sample->battery_unavailable || battery_power);
+        visible(summary_tiles[1], !sample->home_unavailable);
+        visible(summary_tiles[2], !sample->grid_unavailable);
+        visible(summary_tiles[3], !sample->grid_unavailable);
+        visible(summary_tiles[4], battery_power);
+        visible(summary_tiles[5], balance && !sample->grid_unavailable);
+        visible(summary_details[0], balance);
+        visible(summary_details[1], balance);
+    }
     lv_bar_set_value(soc, available ? (int)lround(fmax(0, fmin(100, sample->soc_bat_pct))) : 0, LV_ANIM_OFF);
     uint32_t soc_color = sample->soc_bat_pct < 20 ? 0xEF443D : sample->soc_bat_pct < 40 ? 0xFFAF32 : 0x5BF237;
     color_if_changed(soc, LV_STYLE_BG_COLOR, lv_color_hex(soc_color), LV_PART_INDICATOR);

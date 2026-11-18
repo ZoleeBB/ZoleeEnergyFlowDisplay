@@ -15,6 +15,7 @@
 LV_FONT_DECLARE(app_font_numbers_48);
 LV_FONT_DECLARE(app_font_numbers_96);
 typedef struct {
+    uint8_t needs;
     const cJSON *spec;lv_obj_t *obj,*detail,*bubble,*dots[4],*axis[3];
     /* Two cubic segments, 96 samples each; drawing and animation share this path. */
     lv_point_precise_t points[193];float segments[192],length;unsigned point_count;double power;float phase,charge_phase[2];int gauge_target;bool gauge_initialized;bool legacy_battery_corner;unsigned battery_branches;
@@ -236,6 +237,44 @@ static void template_flow_tone(template_node_t *node,uint32_t color,bool active)
     }
 }
 static const lv_font_t *tf(int size){return size==96?&app_font_numbers_96:size==48?&app_font_numbers_48:size==28?APP_FONT_28:size==20?APP_FONT_20:size==16?APP_FONT_16:APP_FONT_12;}
+/* A sablon betöltésekor oldjuk fel a mértékek függőségeit. A rajzolási
+ * ciklusban már csak bitmaszkot vizsgálunk, a statikus kísérőfeliratokon is. */
+enum { NEED_GRID=1, NEED_HOME=2, NEED_BAT=4, NEED_POWER=8, NEED_SOC=16, NEED_TEMP=32, NEED_SPLIT=64 };
+
+static uint8_t template_needs(const char *key)
+{
+    if (!*key) return 0;
+    if (!strcmp(key,"battery_temp")) return NEED_BAT | NEED_TEMP;
+    if (!strcmp(key,"installed") || !strcmp(key,"battery_capacity")) return NEED_BAT;
+    if (!strcmp(key,"soc") || !strcmp(key,"battery_energy") || !strcmp(key,"battery_summary"))
+        return NEED_BAT | NEED_SOC;
+    if (!strncmp(key,"battery_diag_",13) || !strcmp(key,"battery_eta"))
+        return NEED_BAT | NEED_POWER | NEED_SOC;
+    if (!strncmp(key,"battery_home",12) || !strncmp(key,"pv_stored",9))
+        return NEED_BAT | NEED_SPLIT;
+    if (!strncmp(key,"battery",7) || !strcmp(key,"charge_today") || !strcmp(key,"discharge_today"))
+        return NEED_BAT | NEED_POWER;
+    if (!strncmp(key,"grid_home",9) || !strncmp(key,"pv_home",7) || !strncmp(key,"pv_load",7) ||
+        !strncmp(key,"pv_export",9) || !strncmp(key,"self_",5) || !strcmp(key,"split"))
+        return NEED_SPLIT;
+    if (!strncmp(key,"savings",7) || !strcmp(key,"solar_savings_day")) return NEED_GRID | NEED_SPLIT;
+    if (!strncmp(key,"grid",4) || !strncmp(key,"import",6) || !strncmp(key,"export",6) ||
+        !strncmp(key,"purchase_",9) || !strncmp(key,"revenue_",8) || !strncmp(key,"net_",4))
+        return NEED_GRID;
+    if (!strcmp(key,"home") || !strncmp(key,"consumption",11)) return NEED_HOME;
+    return 0;
+}
+
+static uint8_t template_node_needs(const cJSON *element)
+{
+    uint8_t needs = template_needs(ts(element,"source")) | template_needs(ts(element,"requires"));
+    /* A korábban telepített SD-s témákban még nincs requires attribútum. */
+    const char *text = ts(element,"text");
+    if (!strcmp(ts(element,"file"),"battery_temp.png") || !strcmp(text,"Akku hőfok") ||
+        !strcmp(text,"Akku hőmérséklet")) needs |= NEED_BAT | NEED_TEMP;
+    return needs;
+}
+
 static double template_value(const char *source,const app_energy_sample_t *s,const app_stats_snapshot_t *st){
     app_energy_split_t split=app_energy_split(s->power_pv_kw,s->power_full_kw,s->power_bat_kw);
 #define V(key,value) if(!strcmp(source,key))return value
@@ -773,7 +812,7 @@ static void template_build(bool night){
     const cJSON *palette=cJSON_GetObjectItem(scene,"palette");
     lv_obj_remove_flag(s_dash,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
     const cJSON *e;cJSON_ArrayForEach(e,cJSON_GetObjectItem(scene,"elements")){
-        template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;
+        template_node_t *node=&template_nodes[template_node_count++];memset(node,0,sizeof(*node));node->spec=e;node->needs=template_node_needs(e);
         const char *type=ts(e,"type");int x=tn(e,"x",0),y=tn(e,"y",0),w=tn(e,"w",1),h=tn(e,"h",1);
         /* A gyári Energiakör régi (SD-n lévő) v7-v8-as sablonjait
          * OTA után is javítjuk; a v9 már tartalmazza az új pozíciókat. */
@@ -930,11 +969,18 @@ static void template_build(bool night){
             node->obj=app_chart_create_kind(s_dash,chart_kind,night,first,second,tc(palette,(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH)?"grid":"battery",tone(BLUE,night)));
             if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))app_chart_set_reference_style(node->obj);
             lv_obj_set_pos(node->obj,x+35,y+8);lv_obj_set_size(node->obj,w-45,h-35);
-            if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))lbl(s_dash,chart_kind==APP_CHART_SOC?"%":"kW",x+w-32,y+1,APP_FONT_12,text);
-            for(int i=0;i<3;i++)node->axis[i]=lbl(s_dash,"",x,y+(h-35)*i/2,APP_FONT_12,text);
+            /* A teljes tengelyfelirat-csoport együtt tűnik el a diagrammal. */
+            node->detail = lv_obj_create(s_dash);
+            lv_obj_remove_style_all(node->detail);
+            lv_obj_remove_flag(node->detail, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(node->detail, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+            lv_obj_set_pos(node->detail, x, y);
+            lv_obj_set_size(node->detail, w, h);
+            if(cJSON_IsTrue(cJSON_GetObjectItem(e,"reference_style")))lbl(node->detail,chart_kind==APP_CHART_SOC?"%":"kW",w-32,1,APP_FONT_12,text);
+            for(int i=0;i<3;i++)node->axis[i]=lbl(node->detail,"",0,(h-35)*i/2,APP_FONT_12,text);
             if(chart_kind==APP_CHART_WEEK||chart_kind==APP_CHART_MONTH){
-                lbl(s_dash,chart_kind==APP_CHART_WEEK?tr("Hétfő – Vasárnap · kWh","Mon – Sun · kWh"):tr("1 – hónap vége · kWh","1 – month end · kWh"),x+35,y+h-19,APP_FONT_12,text);
-            }else for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(s_dash,time,x+20+(w-46)*i/4,y+h-19,APP_FONT_12,text);}
+                lbl(node->detail,chart_kind==APP_CHART_WEEK?tr("Hétfő – Vasárnap · kWh","Mon – Sun · kWh"):tr("1 – hónap vége · kWh","1 – month end · kWh"),35,h-19,APP_FONT_12,text);
+            }else for(int i=0;i<5;i++){char time[8];snprintf(time,sizeof(time),"%02d:00",i*6);lbl(node->detail,time,20+(w-46)*i/4,h-19,APP_FONT_12,text);}
         }else{
             node->obj=lv_obj_create(s_dash);lv_obj_remove_style_all(node->obj);lv_obj_set_pos(node->obj,x,y);lv_obj_set_size(node->obj,w,h);
             bg_color_if_changed(node->obj,c(tc(e,"background",night?CARD_DARK:CARD_LIGHT)),0);bg_opa_if_changed(node->obj,tn(e,"opacity",255),0);lv_obj_set_style_radius(node->obj,tn(e,"radius",16),0);
@@ -1068,6 +1114,11 @@ static void template_solar_halo(template_node_t *node,const app_energy_sample_t 
 static void template_update(const app_energy_sample_t *s,const app_stats_snapshot_t *stats){
     /* A sablonok is az aktuális csomagot adják át az animációs timernek. */
     s_animation_sample=*s;
+    uint8_t missing = (s->grid_unavailable ? NEED_GRID : 0) | (s->home_unavailable ? NEED_HOME : 0) |
+        (s->battery_unavailable ? NEED_BAT : 0) | (s->battery_power_unavailable ? NEED_POWER : 0) |
+        (s->soc_unavailable ? NEED_SOC : 0) | (!s->battery_temperature_valid ? NEED_TEMP : 0);
+    if (s->home_unavailable || (!s->battery_unavailable && s->battery_power_unavailable))
+        missing |= NEED_SPLIT;
     /* Csak az autós nézet kér kis RAM-pillanatképet; más témák nem
      * járják be a fogyasztókat és nem foglalnak újabb munkapuffert. */
     template_ev = (app_ev_charging_t){0};
@@ -1099,6 +1150,7 @@ static void template_update(const app_energy_sample_t *s,const app_stats_snapsho
         /* A figyelmeztető státusz és az árnyéka normál üzemben együtt tűnjön el. */
         if (!strcmp(source, "status") && cJSON_IsTrue(cJSON_GetObjectItem(e, "hide_when_normal")))
             visible = s->status != 1;
+        visible = visible && !(missing & node->needs);
         weather_visibility(node->obj,visible);
         if(node->detail)weather_visibility(node->detail,visible);
         if(node->bubble)weather_visibility(node->bubble,visible);
@@ -1375,6 +1427,7 @@ static void template_animate(float dt){
             lv_obj_set_style_shadow_opa(node->obj,alpha,0);continue;
         }
         if(strcmp(ts(node->spec,"type"),"flow"))continue;
+        if (lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN)) continue;
         if(template_solar_battery_animate(node,dt))continue;
         bool forward=node->power>=0;
         if(cJSON_IsTrue(cJSON_GetObjectItem(node->spec,"reverse")))forward=!forward;

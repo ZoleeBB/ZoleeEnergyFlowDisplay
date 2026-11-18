@@ -61,7 +61,7 @@ static void scene(bool night)
         .power_bat_kw = night ? .6 : -2,
         .power_pv_kw = night ? 0 : 7,
         .power_full_kw = night ? 2.1 : 4,
-        .soc_bat_pct = 74, .battery_temperature_c = 32,
+        .soc_bat_pct = 74, .battery_temperature_valid = true, .battery_temperature_c = 32,
         .temperature_c = 18.2, .wind_speed_kmh = 12,
         .temperature_valid = true, .wind_speed_valid = true,
         .relative_humidity_valid = true, .relative_humidity_pct = 61,
