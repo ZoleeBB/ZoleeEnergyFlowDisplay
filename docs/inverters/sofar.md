@@ -9,6 +9,10 @@ A Közvetlen inverter mód a két PV-bemenetes **HYD 5KTL-3PH, HYD 6KTL-3PH, HYD
 | Az inverter monitoring RS485-csatlakozójára kötött Modbus TCP–RTU átjáró | Válaszd a **SOFAR HYD … · Modbus TCP átjáró** profilt. Az átjáró a hálózati Modbus TCP-kérést soros Modbus RTU-kéréssé alakítsa. A TCP-port általában 502. A soros beállítások egyezzenek az inverterével. A G3 protokoll szerinti alapbeállítás 9600 bit/s, paritás nélkül, egy stopbittel. |
 | Az inverteren helyi V5-kommunikációt biztosító SOLARMAN WiFi- vagy Ethernet-adatgyűjtő | Válaszd a **SOFAR HYD … · SOLARMAN V5** profilt. Az adatgyűjtőnek a kijelző helyi hálózatán kell elérhetőnek lennie. A szokásos TCP-port 8899. A decimális adatgyűjtő-sorozatszám a stick címkéjén található. Az inverter alfanumerikus sorozatszáma külön azonosító. |
 
+A képen egy kitöltött SOLARMAN V5 kapcsolat látható példaértékekkel. A saját telepítésednél az adatgyűjtő helyi címét és a modul címkéjén szereplő sorozatszámot add meg.
+
+![A SOLARMAN V5 beállításai az adatgyűjtő IP-címével, a porttal, az inverter Modbus-címével és a modul sorozatszámával](../images/inverter/sofar-v5-connection.png)
+
 Az **egységcím** mezőbe az inverteren beállított monitoring Modbus-cím kerüljön. A kijelző induló értéke 1. A SOFAR kézikönyve az RS485-lánc minden inverteréhez önálló, 1–31 közötti címet ír elő. Egy átjáró mögött így azonos IP-címen több inverter is elérhető a saját egységcímével. A beépített mérő és a BMS címe más célt szolgál.
 
 A helyi keresést a kiválasztott profilhoz indítsd el. Ha csak az adatgyűjtőt találja meg, ellenőrizd az inverter egységcímét és a modul V5-kompatibilitását. A SOFAR alkalmazásban megjelenő felhős mérés önmagában nem jelzi a stick helyi V5-képességét. Kézi beállításkor add meg az átjáró vagy a stick helyi IP-címét. A mentés és a kijelzők időprogramjainak leírása a [Közvetlen inverter útmutatóban](../direct-inverter.md) található.
