@@ -37,6 +37,8 @@ esp_mqtt_client_handle_t esp_mqtt_client_init(const esp_mqtt_client_config_t *cf
 {
     assert((cfg->broker.address.transport == MQTT_TRANSPORT_OVER_SSL) == tls);
     if (tls) assert(!strcmp(cfg->broker.verification.certificate, "trusted-pem"));
+    assert(cfg->network.disable_auto_reconnect);
+    assert(!strcmp(cfg->broker.address.hostname,"gx.local"));
     assert(!active);
     active = calloc(1, sizeof(*active));
     return active;
@@ -152,7 +154,15 @@ int main(void)
     assert(!app_inverter_victron_read(&cfg,&s));
     retained_only = true;
     assert(!app_inverter_victron_read(&cfg,&s));
+    /* Két elmaradt válasz bontja a TCP-n látszólag még élő munkamenetet. */
+    wrong_echo = true;
+    assert(!app_inverter_victron_read(&cfg,&s));
+    assert(active && stops == 2);
+    assert(!app_inverter_victron_read(&cfg,&s));
+    assert(!active && stops == 3);
+    wrong_echo = retained_only = false;
+    assert(app_inverter_victron_read(&cfg,&s));
     app_inverter_victron_close();
-    assert(starts == 3 && stops == 3);
+    assert(starts == 4 && stops == 4);
     puts("PASS: GX MQTT feliratkozás, TLS, frissesség, részleges fázisok és munkamenetváltás");
 }

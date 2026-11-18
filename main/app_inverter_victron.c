@@ -26,6 +26,7 @@ typedef struct {
     char id[13], echo[20];
     char *pem;
     bool battery, ready, started;
+    unsigned unanswered; /* Csak a lekérdező feladat módosítja. */
     uint32_t session;
     int64_t last_keepalive;
     inv_gx_model_t model;
@@ -173,7 +174,7 @@ static bool start(const app_inverter_config_t *cfg)
         .credentials.authentication.password=cfg->secret[0] ? cfg->secret : NULL,
         .broker.verification.certificate=c->pem,
         .broker.verification.crt_bundle_attach=tls && !c->pem ? esp_crt_bundle_attach : NULL,
-        .network.timeout_ms=1800, .network.reconnect_timeout_ms=5000,
+        .network.timeout_ms=1800, .network.disable_auto_reconnect=true,
         .task.stack_size=6144, .buffer.size=1024, .buffer.out_size=1024
     };
     c->mqtt = esp_mqtt_client_init(&mqtt);
@@ -193,6 +194,14 @@ static bool publish(gx_client_t *c, const char *path, const char *body)
     return esp_mqtt_client_publish(c->mqtt, topic, body, 0, 0, 0) >= 0;
 }
 
+/* A következő mérést a worker indítja az aktuális cél ellenőrzése után.
+ * Hiányos, de élő adatforrásnál a már felépített kapcsolat megmarad. */
+static bool unanswered(gx_client_t *c)
+{
+    if (++c->unanswered >= 2) app_inverter_victron_close();
+    return false;
+}
+
 bool app_inverter_victron_read(const app_inverter_config_t *cfg, app_energy_sample_t *out)
 {
     if (!cfg || !out || strcmp(cfg->profile, "victron_mqtt")) return false;
@@ -204,7 +213,7 @@ bool app_inverter_victron_read(const app_inverter_config_t *cfg, app_energy_samp
         app_inverter_victron_close();
         return false;
     }
-    if (!(bits & GX_SUBSCRIBED)) return false;
+    if (!(bits & GX_SUBSCRIBED)) return unanswered(c);
     int64_t now = esp_timer_get_time();
     xEventGroupClearBits(c->events, GX_REPLY);
     xSemaphoreTake(c->lock, portMAX_DELAY);
@@ -218,17 +227,17 @@ bool app_inverter_victron_read(const app_inverter_config_t *cfg, app_energy_samp
     }
     xSemaphoreGive(c->lock);
     if (first) {
-        if (!publish(c, "keepalive", request)) return false;
+        if (!publish(c, "keepalive", request)) return unanswered(c);
         c->last_keepalive = now;
     } else {
         /* Az első teljes kép után a broker minden változást és érvénytelenítést
          * elküld. Az ötmásodperces célzott olvasás a D-Bus szolgáltatás élőségét
          * igazolja; nem árasztjuk el a többi klienst teljes GX újraközlésekkel. */
         if (now - c->last_keepalive >= 25000000) {
-            if (!publish(c, "keepalive", "{\"keepalive-options\":[\"suppress-republish\"]}")) return false;
+            if (!publish(c, "keepalive", "{\"keepalive-options\":[\"suppress-republish\"]}")) return unanswered(c);
             c->last_keepalive = now;
         }
-        if (!publish(c, "system/0/DeviceInstance", "")) return false;
+        if (!publish(c, "system/0/DeviceInstance", "")) return unanswered(c);
     }
     bits = xEventGroupWaitBits(c->events, GX_REPLY | GX_LOST, pdFALSE, pdFALSE, pdMS_TO_TICKS(1500));
     xSemaphoreTake(c->lock, portMAX_DELAY);
@@ -236,5 +245,11 @@ bool app_inverter_victron_read(const app_inverter_config_t *cfg, app_energy_samp
                  c->ready && inv_gx_sample(&c->model, c->battery, out);
     if (!(bits & GX_REPLY)) c->ready = false;
     xSemaphoreGive(c->lock);
+    if (bits & GX_LOST) {
+        app_inverter_victron_close();
+        return false;
+    }
+    if (!(bits & GX_REPLY)) return unanswered(c);
+    c->unanswered = 0;
     return valid;
 }
