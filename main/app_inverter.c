@@ -77,7 +77,7 @@ static void reload(worker_t *w)
     w->revision = rev;
     w->source = source;
     w->profile = profile;
-    uint16_t timeout = profile->seconds == 5 ? 30 : profile->seconds * 2 + 60;
+    uint16_t timeout = profile->seconds == 5 ? 30 : app_cloud_sample_timeout(profile->seconds);
     atomic_store(&source_timeout,timeout);
     app_state_set_inverter_timeout(timeout);
     app_state_set_inverter_ready(true);

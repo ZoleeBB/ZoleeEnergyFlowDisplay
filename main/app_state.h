@@ -162,6 +162,12 @@ static inline bool app_state_ota_ready(const app_runtime_state_t *s)
     return s->time_synced && s->operational;
 }
 
+/* A felhőmérés két lekérdezési ciklus és egy perc ráhagyás után avul el. */
+static inline unsigned app_cloud_sample_timeout(unsigned cadence_s)
+{
+    return 2 * cadence_s + 60;
+}
+
 static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, uint32_t fallback)
 {
     if (s->data_recept_mode == APP_DATA_INVERTER && s->inverter_timeout_seconds)

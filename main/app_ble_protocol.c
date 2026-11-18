@@ -44,7 +44,8 @@ void app_ble_clock_encode(int64_t epoch_ms,
     put32(packet + 2, (uint32_t)(epoch_ms / 1000));
     put16(packet + 6, (uint16_t)(epoch_ms % 1000));
     put16(packet + 8, (uint16_t)offset_minutes);
-    put16(packet + 10, source_timeout);
+    /* Régi Slave 3600 s felett az egész óracsomagot eldobná. */
+    put16(packet + 10, source_timeout > 3600 ? 3600 : source_timeout);
     put16(packet + 18, sequence);
 }
 
@@ -79,6 +80,8 @@ esp_err_t app_ble_clock_decode(const uint8_t *packet, size_t length, app_ble_clo
         return ESP_ERR_INVALID_ARG;
     next.integration_period_s = get16(packet + 12) >> 2;
     if (next.integration_period_s > 3600) return ESP_ERR_INVALID_ARG;
+    if (next.source_timeout_seconds == 3600 && app_cloud_sample_timeout(next.integration_period_s) > 3600)
+        next.source_timeout_seconds = app_cloud_sample_timeout(next.integration_period_s);
     if ((packet[12] & 1) && get16(packet + 14) < 1440 &&
         get16(packet + 16) < 1440) {
         next.sun_valid = true;

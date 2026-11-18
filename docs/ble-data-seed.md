@@ -331,7 +331,7 @@ Nincs szükség teljes sorszámfolytonosságra: a cache értesítés nélkül is
 | 2 | u32 | Jelenlegi UTC Unix-idő, másodperc |
 | 6 | u16 | Másodpercen belüli ezredmásodperc, 0–999 |
 | 8 | i16 | Aktuális helyi UTC-eltolás, perc; Budapest télen +60, nyáron +120 |
-| 10 | u16 | Master energiaforrás timeoutja, másodperc, 5–3600 |
+| 10 | u16 | Energiaforrás elévülése, 5–3600 s. A hosszabb felhős határt a Master 3600-ként küldi a régi Slave-eknek. A v4 Slave a mérési periódusból állítja helyre (órás FusionSolar: 7260 s). |
 | 12–13 | u16 | Bit0 érvényes napadat, bit1 éjszaka, a felső 14 bit a mérési periódus másodpercben (0 helyi mérés) |
 | 14–15 | u16 | Helyi napkelte percben, érvényes napadatnál |
 | 16–17 | u16 | Helyi napnyugta percben, érvényes napadatnál; egyenlő napidőknél az éjszakajelző dönt |

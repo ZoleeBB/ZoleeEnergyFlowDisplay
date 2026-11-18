@@ -179,6 +179,15 @@ int main(void)
 
     uint8_t clock_packet[20];
     app_ble_clock_t clock;
+    /* FusionSolar óránként küld adatot. Az első óra még minta nélkül is érvényes. */
+    app_ble_clock_encode(INT64_C(1800000000123), 60, 7260, true, 90, clock_packet);
+    assert(u16(clock_packet + 10) == 3600);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.source_timeout_seconds == 3600);
+    app_ble_clock_cadence(clock_packet, 3600);
+    app_ble_clock_sun(clock_packet, true, 400, 1100);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.source_timeout_seconds == 7260 && clock.integration_period_s == 3600 && clock.night);
     app_ble_clock_encode(INT64_C(1800000000123), 120, 45, true, 77, clock_packet);
     assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK);
     assert(clock.epoch_ms == INT64_C(1800000000123) && clock.utc_offset_minutes == 120);
