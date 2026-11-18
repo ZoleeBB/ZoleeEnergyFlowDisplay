@@ -17,7 +17,7 @@ h3{font-size:17px;margin:0 0 10px}
 section,article,.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin:16px 0;box-shadow:var(--shadow)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}
 label{display:flex;flex-direction:column;gap:6px;font-weight:600}
-label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:10px}
+label:where(:has(>input[type=checkbox])){flex-direction:row;align-items:center;gap:10px}
 .field-grid>label,.field-grid>.field-extra{min-width:0;overflow-wrap:anywhere}
 @supports(grid-template-rows:subgrid){
     .field-grid>label,.field-grid>.field-extra{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:subgrid;grid-row:span 2;row-gap:6px;align-self:stretch}
@@ -45,7 +45,8 @@ small,.hint,.muted{color:var(--muted)}
 [role=status],[role=alert]{white-space:pre-wrap}
 .status-ok{color:var(--ok)}.error{color:var(--danger)}.warning{color:var(--warn)}
 details{margin:12px 0}summary{cursor:pointer;font-weight:600}
-fieldset{border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+fieldset{min-inline-size:0;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+legend{max-inline-size:100%;overflow-wrap:anywhere}
 code{background:var(--accent-soft);padding:2px 6px;border-radius:6px}
 progress{width:100%;accent-color:var(--accent)}
 .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
