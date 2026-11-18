@@ -286,6 +286,14 @@ páratartalom v1 mintapárt jelent; a korábbi páratartalom nem öröklődik.
 A Slave-ek eddig is saját fényerőprofilt használtak, a Master fényerőbájtját
 nem alkalmazták. A v2 minden egyéb eltolása, flagje és sorszáma változatlan.
 
+A korábban működő közvetlen inverterkapcsolat megszakadását a Master külön
+v3-as üres mintapárral jelzi. Az energiacsomag 1. bájtja 2, a 2. bájtja 1
+és a minta kora 65535. A v4-es védett profilt olvasó Slave a három egyező
+sorszámú csomag beérkezésekor az inverter keresését mutatja. Az első mérésre
+várakozás, a forrás régi időbélyege és a Bluetooth-kapcsolat elvesztése külön
+állapot. Régi olvasók v1-es üres mintát kapnak. A hibajelzés nem kerül a
+statisztikába. Az óra és a napszak továbbra is frissül.
+
 ### Energiaáramlás tiltás módjelzése
 
 Az [Energiaáramlás tiltás](energy-flow-disable.md) az energia-csomag bit3

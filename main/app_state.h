@@ -93,6 +93,7 @@ typedef struct
     bool has_valid_sample;
     bool slave_connected;
     bool slave_source_stale;
+    bool slave_inverter_searching;
     uint16_t slave_source_timeout_seconds;
     int64_t slave_connected_monotonic_us;
     int64_t slave_packet_monotonic_us;
@@ -136,7 +137,7 @@ void app_state_set_inverter_timeout(uint16_t seconds);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
 void app_state_set_energy_flow_disabled(bool disabled, bool night);
-void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet);
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet, bool inverter_searching);
 void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
                        bool scanning, unsigned slaves, const char *address,
                        const char *peer, int rssi);
@@ -186,6 +187,14 @@ static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, ui
     if (s->data_recept_mode == APP_DATA_INVERTER && s->inverter_timeout_seconds)
         return s->inverter_timeout_seconds;
     return fallback;
+}
+
+/* Az upstream hibát csak a jelenleg is élő Master közölheti. A BLE-link
+ * megszakadásakor az eredeti Master-keresés kap elsőbbséget. */
+static inline bool app_state_slave_inverter_search(const app_runtime_state_t *s, int64_t now)
+{
+    return s->data_recept_mode == APP_DATA_SLAVE && s->slave_connected && s->time_synced &&
+           s->slave_inverter_searching && now - s->slave_packet_monotonic_us < INT64_C(15000000);
 }
 
 static inline bool

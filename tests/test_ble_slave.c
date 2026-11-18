@@ -359,10 +359,11 @@ void app_state_set_energy_flow_disabled(bool disabled, bool night)
     runtime.standalone_night = night;
     if (disabled) runtime.has_valid_sample = false;
 }
-void app_state_set_slave(bool connected, bool stale, uint16_t timeout, bool packet)
+void app_state_set_slave(bool connected, bool stale, uint16_t timeout, bool packet, bool inverter_searching)
 {
     runtime.slave_connected = connected;
     runtime.slave_source_stale = stale;
+    runtime.slave_inverter_searching = inverter_searching;
     runtime.slave_source_timeout_seconds = timeout;
     if (packet)
         runtime.slave_packet_monotonic_us = now_us;
@@ -386,6 +387,7 @@ void app_state_set_ble(bool enabled,
 }
 esp_err_t app_time_sync_from_master(int64_t epoch, int16_t offset)
 {
+    runtime.time_synced = true;
     clock_ms = epoch;
     clock_offset = offset;
     ++clocks;
@@ -720,7 +722,36 @@ int main(void)
     unsigned clocks_before = clocks;
     slave_receive(2, &packets[2]);
     assert(clocks == clocks_before + 1 && !runtime.has_valid_sample);
+    runtime.data_recept_mode = APP_DATA_SLAVE;
+    app_config_t direct_config = {.data_recept_mode = APP_DATA_INVERTER};
+    s_slave_ready = true;
+    app_ble_protocol_encode_timeout(NULL, &direct_config, 1860, false, now_us, 80,
+                                    packets[0].data, packets[1].data);
+    slave_receive(0, &packets[0]);
+    slave_receive(1, &packets[1]);
+    assert(runtime.slave_connected && runtime.slave_source_stale && !runtime.slave_inverter_searching);
+    app_ble_protocol_encode_timeout(NULL, &direct_config, 1860, true, now_us, 81,
+                                    packets[0].data, packets[1].data);
+    app_ble_clock_encode(INT64_C(1800000017123), 60, 1860, true, 81, packets[2].data);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    slave_receive(0, &packets[0]);
+    slave_receive(1, &packets[1]);
+    assert(!runtime.slave_inverter_searching); /* A korábbi óra másik mintához tartozik. */
+    slave_receive(2, &packets[2]);
+    assert(app_state_slave_inverter_search(&runtime, now_us));
+    assert(!app_state_slave_inverter_search(&runtime, now_us + INT64_C(15000000)));
+    s_remote_v4_profile = 0;
+    slave_try_frame(now_us);
+    assert(!runtime.slave_inverter_searching); /* A régi vagy más forrás nem jelez inverterhibát. */
+    s_remote_v4_profile = 150;
+    make_frame(82, 1800000018);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    slave_receive(2, &packets[2]);
+    slave_receive(1, &packets[1]);
+    slave_receive(0, &packets[0]);
+    assert(runtime.has_valid_sample && !runtime.slave_inverter_searching);
     slave_reset();
+    assert(!runtime.slave_connected && !app_state_slave_inverter_search(&runtime, now_us));
     app_slave_display_t display;
     app_slave_display_profile_t local = {.day_brightness = 80, .night_brightness = 20, .presence_timeout_seconds = 30};
     assert(app_slave_display_init(&display, &local, now_us));

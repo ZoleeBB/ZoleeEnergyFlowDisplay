@@ -24,8 +24,14 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
 
 /* A periodikus BLE-kódoló számára a gyártói forrás élettartama felülírható. */
 void app_ble_protocol_encode_timeout(const app_energy_sample_t *sample, const app_config_t *cfg,
-                                     uint32_t timeout_seconds, int64_t now_us, uint16_t sequence,
+                                     uint32_t timeout_seconds, bool inverter_searching, int64_t now_us, uint16_t sequence,
                                      uint8_t energy[APP_BLE_PACKET_SIZE], uint8_t weather[APP_BLE_PACKET_SIZE]);
+
+/* A v3 „nincs minta” keret külön oka: az előzőleg működő inverterkapcsolat megszakadt. */
+static inline bool app_ble_packet_inverter_search(const uint8_t energy[APP_BLE_PACKET_SIZE])
+{
+    return energy[0] == APP_BLE_OPTIONAL_VERSION && energy[1] == 2 && energy[2] == 1;
+}
 
 typedef struct
 {

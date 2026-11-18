@@ -384,7 +384,8 @@ static int64_t refresh_packets(int64_t now)
     }
     uint32_t timeout = app_state_source_timeout(&runtime, app_config_data_timeout(&s_config));
     app_ble_protocol_encode_timeout(
-        valid ? &sample : NULL, &s_config, timeout, now, ++s_sequence, s_packets[0], s_packets[1]);
+        valid ? &sample : NULL, &s_config, timeout,
+        app_state_inverter_searching(&runtime, now), now, ++s_sequence, s_packets[0], s_packets[1]);
     struct timeval current;
     gettimeofday(&current, NULL);
     struct tm local;
@@ -433,6 +434,7 @@ static void poll_state(struct ble_npl_event *event)
             "BLE vezérlő nem válaszol; ellenőrizd a C6 firmware Bluetooth HCI támogatását.");
     }
     uint8_t previous_flags = s_packets[0][1];
+    bool previously_searching = app_ble_packet_inverter_search(s_packets[0]);
     if (slave_mode())
     {
         slave_poll(now);
@@ -446,6 +448,7 @@ static void poll_state(struct ble_npl_event *event)
 #endif
     int64_t sample_us = refresh_packets(now);
     bool publish = sample_us != s_last_sample_us || previous_flags != s_packets[0][1] ||
+                   previously_searching != app_ble_packet_inverter_search(s_packets[0]) ||
                    now - s_last_publish_us >= 5000000;
     if (s_synced && publish)
     {

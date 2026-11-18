@@ -141,7 +141,7 @@ static void slave_reset(void)
     s_master_timeout = 45;
     s_next_scan_us = esp_timer_get_time() + 3000000;
     s_source_disabled = false;
-    app_state_set_slave(false, true, 45, false);
+    app_state_set_slave(false, true, 45, false, false);
     app_state_set_energy_flow_disabled(false, false);
     app_state_clear_sample();
 }
@@ -247,7 +247,9 @@ static void slave_try_frame(int64_t now)
         s_last_frame_us = now;
     }
     if (result == ESP_OK && sample.energy_flow_disabled) s_master_stale = false;
-    app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame);
+    bool inverter_searching = s_remote_v4_profile && app_ble_packet_inverter_search(s_received[0]) &&
+                              app_ble_seed_slave_direct();
+    app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame, inverter_searching);
     if (result != ESP_OK)
     {
         s_source_disabled = false;
@@ -404,7 +406,7 @@ static void slave_setup_next(void)
         if (!s_remote_presence)
             app_slave_presence_service_legacy();
         s_last_frame_us = esp_timer_get_time();
-        app_state_set_slave(true, true, s_master_timeout, false);
+        app_state_set_slave(true, true, s_master_timeout, false, false);
         slave_try_frame(s_last_frame_us);
         app_events_add(APP_EVENT_INFO, "BLE master csatlakoztatva: %s", s_master_address);
         return;

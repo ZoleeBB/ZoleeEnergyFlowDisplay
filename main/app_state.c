@@ -166,13 +166,14 @@ void app_state_set_data_mode(app_data_mode_t mode)
     unlock();
 }
 
-void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet)
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet, bool inverter_searching)
 {
     lock();
     if (connected && !s_runtime.slave_connected)
         s_runtime.slave_connected_monotonic_us = esp_timer_get_time();
     s_runtime.slave_connected = connected;
     s_runtime.slave_source_stale = stale;
+    s_runtime.slave_inverter_searching = inverter_searching;
     s_runtime.slave_source_timeout_seconds = source_timeout;
     if (packet)
         s_runtime.slave_packet_monotonic_us = esp_timer_get_time();

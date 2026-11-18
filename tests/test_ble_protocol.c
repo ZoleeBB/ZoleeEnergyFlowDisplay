@@ -177,6 +177,13 @@ int main(void)
     assert(fabs(decoded.power_pv_kw - 123.45) < 1e-9 && decoded.sunrise_minute == -1 &&
            decoded.sunset_minute == -1 && !decoded.battery_temperature_valid);
 
+    /* A hibás kapcsolat külön vezérlőkeret, akkor is, ha a cache-ben még van minta. */
+    app_ble_protocol_encode_timeout(&sample, &cfg, 30, true, 2000000, 80, energy, weather);
+    assert(app_ble_packet_inverter_search(energy) && weather[0] == APP_BLE_OPTIONAL_VERSION);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_ERR_INVALID_STATE);
+    assert(app_ble_packet_sequence(energy) == 80 && u16(energy + 16) == UINT16_MAX);
+    app_ble_protocol_encode_timeout(NULL, &cfg, 30, false, 2000000, 81, energy, weather);
+    assert(!app_ble_packet_inverter_search(energy) && energy[0] == APP_BLE_PROTOCOL_VERSION);
     uint8_t clock_packet[20];
     app_ble_clock_t clock;
     /* FusionSolar óránként küld adatot. Az első óra még minta nélkül is érvényes. */

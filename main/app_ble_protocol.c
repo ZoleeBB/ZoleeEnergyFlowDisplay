@@ -207,11 +207,11 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
                              uint8_t energy[APP_BLE_PACKET_SIZE],
                              uint8_t weather[APP_BLE_PACKET_SIZE])
 {
-    app_ble_protocol_encode_timeout(sample, cfg, app_config_data_timeout(cfg), now_us, sequence, energy, weather);
+    app_ble_protocol_encode_timeout(sample, cfg, app_config_data_timeout(cfg), false, now_us, sequence, energy, weather);
 }
 
 void app_ble_protocol_encode_timeout(const app_energy_sample_t *sample, const app_config_t *cfg,
-                                     uint32_t timeout_seconds, int64_t now_us, uint16_t sequence,
+                                     uint32_t timeout_seconds, bool inverter_searching, int64_t now_us, uint16_t sequence,
                                      uint8_t energy[APP_BLE_PACKET_SIZE], uint8_t weather[APP_BLE_PACKET_SIZE])
 {
     memset(energy, 0, APP_BLE_PACKET_SIZE);
@@ -224,8 +224,12 @@ void app_ble_protocol_encode_timeout(const app_energy_sample_t *sample, const ap
         energy[1] = 8 | (sample && sample->night_mode ? 4 : 0);
         return;
     }
-    if (!sample)
+    if (!sample || inverter_searching)
     {
+        if (inverter_searching && cfg->data_recept_mode == APP_DATA_INVERTER) {
+            energy[0] = weather[0] = APP_BLE_OPTIONAL_VERSION;
+            energy[2] = 1; /* Csak az explicit megszakadás kap okkódot. */
+        }
         energy[1] = 2; /* Nincs minta: lejárt adatként kezelendő. */
         put16(energy + 16, UINT16_MAX);
         return;

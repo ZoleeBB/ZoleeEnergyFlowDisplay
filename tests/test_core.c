@@ -572,7 +572,7 @@ static void test_cardless_stats(void)
     assert(app_stats_remote_publish(&snapshot));
     app_state_set_cardless(true);app_state_set_data_mode(APP_DATA_SLAVE);
     app_state_set_config_ok(true);app_state_set_time_synced(true);
-    app_state_set_operational(true);app_state_set_slave(true,false,30,true);
+    app_state_set_operational(true);app_state_set_slave(true,false,30,true,false);
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
     runtime.has_valid_sample=true;
