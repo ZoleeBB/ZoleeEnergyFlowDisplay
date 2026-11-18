@@ -21,7 +21,10 @@ static bool ready(inv_mb_t *bus, bool write)
 {
     for (;;) {
         int64_t left = bus->deadline_ms - now_ms();
-        if (left <= 0 || bus->fd < 0 || bus->fd >= FD_SETSIZE) return false;
+        if (left <= 0 || bus->fd < 0) return false;
+#ifndef ESP_PLATFORM
+        if (bus->fd >= FD_SETSIZE) return false;
+#endif
         struct timeval timeout = {.tv_sec = left / 1000, .tv_usec = left % 1000 * 1000};
         fd_set set;
         FD_ZERO(&set);
@@ -44,7 +47,8 @@ bool inv_mb_open(inv_mb_t *bus, const char *host, uint16_t port)
     struct addrinfo hint = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
     struct addrinfo *addresses = NULL;
     bus->fd = -1;
-    bus->deadline_ms = now_ms() + 4400;
+    bus->deadline_ms = now_ms() + ((bus->frame == INV_MB_LSE3 ||
+                                    bus->frame == INV_MB_LSE3_CRC_LENGTH) ? 2150 : 4400);
     if (getaddrinfo(host, service, &hint, &addresses) != 0) return false;
     for (struct addrinfo *a = addresses; a && now_ms() < bus->deadline_ms; a = a->ai_next) {
         bus->fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
@@ -107,7 +111,8 @@ static void put_be16(uint8_t *p, unsigned v)
 
 static size_t request(inv_mb_t *bus, uint8_t *frame, uint8_t fn, uint16_t addr, unsigned count)
 {
-    size_t pos = bus->frame == INV_MB_TCP ? 6 : bus->frame == INV_MB_V5 ? 26 : 0;
+    bool lse = bus->frame == INV_MB_LSE3 || bus->frame == INV_MB_LSE3_CRC_LENGTH;
+    size_t pos = bus->frame == INV_MB_V5 ? 26 : bus->frame == INV_MB_RTU ? 0 : 6;
     uint8_t *rtu = frame + pos;
     rtu[0] = bus->unit;
     rtu[1] = fn;
@@ -122,6 +127,13 @@ static size_t request(inv_mb_t *bus, uint8_t *frame, uint8_t fn, uint16_t addr, 
     rtu[6] = crc;
     rtu[7] = crc >> 8;
     if (bus->frame == INV_MB_RTU) return 8;
+    if (lse) {
+        /* Az LSE-3 RAW kérése 1000-es MBAP azonosító és CRC-s RTU együtt.
+         * A helyszíni felvételekben a hossz 6, az openHAB változatában 8. */
+        put_be16(frame, 1000);
+        put_be16(frame + 4, bus->frame == INV_MB_LSE3 ? 6 : 8);
+        return 14;
+    }
     frame[0] = 0xa5;
     frame[1] = 23;
     frame[3] = 0x10;
@@ -164,11 +176,18 @@ bool inv_mb_read(inv_mb_t *bus, uint8_t fn, uint16_t addr, unsigned count, uint1
     ++bus->sequence;
     size_t n = request(bus, data, fn, addr, count);
     if (!transfer(bus, data, n, true)) goto broken;
-    if (bus->frame == INV_MB_TCP) {
-        if (!transfer(bus, data, 6, false) || be16(data) != bus->sequence || be16(data + 2))
+    bool lse = bus->frame == INV_MB_LSE3 || bus->frame == INV_MB_LSE3_CRC_LENGTH;
+    if (bus->frame == INV_MB_TCP || lse) {
+        unsigned expected_id = lse ? 1000 : bus->sequence;
+        if (!transfer(bus, data, 6, false) || be16(data) != expected_id || be16(data + 2))
             goto broken;
         n = be16(data + 4);
-        if (n < 3 || n > 254 || !transfer(bus, data, n, false)) goto broken;
+        if (n < 3 || n > 255 || !transfer(bus, data, n, false)) goto broken;
+        size_t bare_length = (data[1] & 0x80) ? 3 : (size_t)data[2] + 3;
+        if (lse && n == bare_length + 2) {
+            if (crc16(data, n) != 0) goto broken;
+            n -= 2;
+        }
     } else {
         if (bus->frame == INV_MB_V5) {
             if (!receive_v5(bus, data, sizeof(data), &n)) goto broken;

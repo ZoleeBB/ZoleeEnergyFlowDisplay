@@ -457,6 +457,7 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
         {"solaredge_modbus", solaredge, INV_MB_TCP, 1502},
         {"deye_v5", deye, INV_MB_V5, 8899},
         {"deye_modbus", deye, INV_MB_TCP, 502},
+        {"deye_lse3", deye, INV_MB_LSE3, 8899},
         {"deye_rtu", deye, INV_MB_RTU, 8899},
         {"solplanet_modbus", solplanet, INV_MB_TCP, 502},
     };
@@ -465,7 +466,8 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
         if (strcmp(cfg->profile, profiles[i].name)) continue;
         inv_mb_t bus = {.fd = -1, .unit = cfg->unit, .frame = profiles[i].frame};
         if (bus.frame == INV_MB_V5 && !logger_serial(cfg->device, &bus.serial)) return false;
-        if (!inv_mb_open(&bus, cfg->host, cfg->port ? cfg->port : profiles[i].port)) return false;
+        uint16_t port = cfg->port ? cfg->port : profiles[i].port;
+        if (!inv_mb_open(&bus, cfg->host, port)) return false;
         app_energy_sample_t result = {
             .status = 1, .battery_unavailable = !cfg->battery, .home_unavailable = true,
             .grid_unavailable = true, .soc_unavailable = true, .battery_power_unavailable = true,
@@ -473,6 +475,12 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
         reader_t reader = {.bus = &bus, .cfg = cfg, .sample = &result};
         double pv = profiles[i].decode(&reader);
         inv_mb_close(&bus);
+        if (!isfinite(pv) && bus.frame == INV_MB_LSE3) {
+            bus.frame = INV_MB_LSE3_CRC_LENGTH;
+            if (!inv_mb_open(&bus, cfg->host, port)) return false;
+            pv = deye(&reader);
+            inv_mb_close(&bus);
+        }
         if (!isfinite(pv)) return false;
         result.power_pv_kw = fmax(0, pv) / 1000;
         *sample = result;

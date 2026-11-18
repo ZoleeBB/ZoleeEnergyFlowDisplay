@@ -41,13 +41,21 @@ def v5_frame(payload, seq, serial):
 
 def serve(listener, frame, unit, registers, fault):
     visited = []
+    if frame == "lse8":
+        with listener.accept()[0] as first:
+            assert exact(first, 14)[:6] == bytes.fromhex("03e800000006")
     with listener.accept()[0] as client:
         client.settimeout(5)
         while True:
-            packet = exact(client, {"tcp": 12, "rtu": 8, "v5": 36}[frame])
+            packet = exact(client, {"tcp": 12, "rtu": 8, "v5": 36, "lse6": 14, "lse8": 14}[frame])
             if packet is None:
                 break
-            if frame == "tcp":
+            if frame.startswith("lse"):
+                seq, protocol, size = struct.unpack(">HHH", packet[:6])
+                assert (seq, protocol, size) == (1000, 0, int(frame[3:]))
+                request = packet[6:-2]
+                assert packet[-2:] == crc(request)
+            elif frame == "tcp":
                 seq, protocol, size = struct.unpack(">HHH", packet[:6])
                 assert protocol == 0 and size == 6
                 request = packet[6:]
@@ -70,7 +78,11 @@ def serve(listener, frame, unit, registers, fault):
                 data = bytes([slave, function, count * 2]) + struct.pack(">" + "H" * count, *table)
             else:
                 data = bytes([slave, function | 128, 2])
-            if frame == "tcp":
+            if frame.startswith("lse"):
+                if frame == "lse8":
+                    data += crc(data)
+                reply = struct.pack(">HHH", 1000, 0, len(data)) + data
+            elif frame == "tcp":
                 reply = struct.pack(">HHH", seq + (fault == "sequence"), 0, len(data)) + data
             else:
                 data += crc(data)
@@ -157,7 +169,8 @@ def main():
         run(exe, "victron_modbus", victron, dict(pv, home=1.1, grid=0, battery=-.2, soc=52), unit=100)
         deye = {(3, 672): [2000, 1500], (3, 619): [65036], (3, 653): [1500],
                 (3, 500): [2], (3, 586): [1220, 4800, 35, 0, 250]}
-        for profile, frame in [("deye_modbus", "tcp"), ("deye_v5", "v5"), ("deye_rtu", "rtu")]:
+        for profile, frame in [("deye_modbus", "tcp"), ("deye_v5", "v5"), ("deye_rtu", "rtu"),
+                               ("deye_lse3", "lse6"), ("deye_lse3", "lse8")]:
             run(exe, profile, deye, dict(pv, grid=-.5, home=1.5, battery=.25, soc=35, temp=22),
                 frame=frame, device="3631234567")
         for fault in ("serial", "crc", "checksum"):

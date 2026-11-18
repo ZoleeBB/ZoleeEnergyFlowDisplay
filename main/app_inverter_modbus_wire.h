@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum { INV_MB_TCP, INV_MB_RTU, INV_MB_V5 } inv_mb_frame_t;
+typedef enum { INV_MB_TCP, INV_MB_RTU, INV_MB_V5, INV_MB_LSE3, INV_MB_LSE3_CRC_LENGTH } inv_mb_frame_t;
 
 typedef struct {
     int fd;
