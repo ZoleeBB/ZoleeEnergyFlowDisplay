@@ -6,6 +6,7 @@
  *   GET  /update  - firmware feltöltő oldal
  *   POST /update  - bináris OTA image feltöltése
  *   POST /reboot  - eszköz újraindítása
+ *   POST /api/factory-reset - megerősített helyi alaphelyzetbe állítás
  *
  * Ha az OTA felhasználónév és jelszó ki van töltve, minden végpont ugyanazt
  * a HTTP Basic Auth hitelesítést használja.
@@ -861,6 +862,13 @@ static esp_err_t reboot_post(httpd_req_t *req)
     return exclusive_request(req, reboot_post_locked);
 }
 
+#include "app_factory_reset_web.inc"
+
+static esp_err_t factory_reset_post(httpd_req_t *req)
+{
+    return exclusive_request(req, factory_reset_post_locked);
+}
+
 static esp_err_t diagnostics_get(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     app_diagnostics_t d;app_diagnostics_capture(&d);
@@ -1099,7 +1107,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
         return err;
     }
 
-    /* A négy alkalmazásszintű végpont definíciója. */
+    /* A kezdőlap és a készülékműveletek végpontjai. */
     httpd_uri_t root_uri = {
         .uri = "/",
         .method = HTTP_GET,
@@ -1131,6 +1139,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
         .handler = reboot_post
     };
 
+    const httpd_uri_t factory_reset_uri = {
+        .uri = "/api/factory-reset",
+        .method = HTTP_POST,
+        .handler = factory_reset_post
+    };
+
     if ((err = httpd_register_uri_handler(
             s_server,
             &root_uri)) != ESP_OK) {
@@ -1156,6 +1170,9 @@ esp_err_t app_web_start(const app_config_t *cfg)
     }
 
     if ((err = httpd_register_uri_handler(s_server, &auto_update_uri)) != ESP_OK) {
+        goto failed;
+    }
+    if ((err = httpd_register_uri_handler(s_server, &factory_reset_uri)) != ESP_OK) {
         goto failed;
     }
 
