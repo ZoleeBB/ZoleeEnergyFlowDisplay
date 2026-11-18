@@ -1,6 +1,7 @@
 /* Valódi profil, ütemező és időjáráskezelő, ellenőrzött órával és válaszokkal. */
 #include "app_inverter.h"
 #include "app_inverter_settings.h"
+#include "app_inverter_identity.h"
 #include "app_inverter_net.h"
 #include "app_inverter_weather.h"
 #include "app_ota.h"
@@ -36,6 +37,18 @@ SemaphoreHandle_t xSemaphoreCreateMutex(void) {
 void vSemaphoreDelete(SemaphoreHandle_t m) { pthread_mutex_destroy(m); free(m); }
 int xSemaphoreTake(SemaphoreHandle_t m,unsigned t) { (void)t; return !pthread_mutex_lock(m); }
 int xSemaphoreGive(SemaphoreHandle_t m) { return !pthread_mutex_unlock(m); }
+bool app_inverter_link(uint32_t ip,const uint8_t mac[6],bool probe,app_inverter_link_t *out)
+{
+    (void)ip; (void)mac; (void)probe; (void)out;
+    assert(!"a DNS-es és a felhős teszt nem igényel ARP-t");
+    return false;
+}
+void app_inverter_link_idle(void) {}
+esp_err_t nvs_erase_key(nvs_handle_t h,const char *key)
+{
+    assert(h==1 && !strcmp(key,"lan_pin"));
+    return ESP_ERR_NVS_NOT_FOUND;
+}
 esp_err_t nvs_open(const char *n,int mode,nvs_handle_t *h) {
     assert(!strcmp(n,"inverter_v4")); (void)mode; *h=1; return ESP_OK;
 }

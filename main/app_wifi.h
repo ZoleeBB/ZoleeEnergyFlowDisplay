@@ -28,5 +28,7 @@ bool app_wifi_is_connected(void);
 /* Jelerősség lekérése dBm-ben. */
 esp_err_t app_wifi_get_rssi(int *rssi);
 
+const char *app_wifi_configured_ssid(void);
+
 /* Aktuális IPv4 cím szöveges lekérése. */
 esp_err_t app_wifi_get_ip(char *out, size_t out_len);

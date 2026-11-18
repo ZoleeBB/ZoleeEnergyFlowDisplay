@@ -311,6 +311,9 @@ esp_err_t app_wifi_get_rssi(int *rssi)
     return err;
 }
 
+/* A normál induláskor betöltött STA profil az újraindításig változatlan. */
+const char *app_wifi_configured_ssid(void) { return s_cfg.ssid; }
+
 /* Aktuális STA IPv4 cím szöveges formában. */
 esp_err_t app_wifi_get_ip(char *out, size_t out_len)
 {

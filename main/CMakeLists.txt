@@ -45,6 +45,8 @@ idf_component_register(
         "app_inverter.c"
         "app_inverter_settings.c"
         "app_inverter_net.c"
+        "app_inverter_identity.c"
+        "app_inverter_neighbor.c"
         "app_inverter_weather.c"
         "app_inverter_solar.cpp"
         "third_party/SolarCalculator/SolarCalculator.cpp"
@@ -211,3 +213,10 @@ target_link_options(${COMPONENT_LIB} INTERFACE
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE APP_INTERCOM_DISTRIBUTED=1)
+
+
+# Egyetlen párosított helyi partner ARP-bejelentéseit figyeljük a TCP/IP szálon.
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=etharp_input"
+    "-Wl,-u,__wrap_etharp_input"
+)

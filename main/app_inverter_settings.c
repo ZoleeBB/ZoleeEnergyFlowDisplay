@@ -2,6 +2,8 @@
  * Az állandó PSRAM-területet kizárólag az aktív inverteres Master kapja meg. */
 #include "app_inverter.h"
 #include "app_inverter_settings.h"
+#include "app_inverter_identity.h"
+#include <arpa/inet.h>
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -9,6 +11,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -30,6 +33,7 @@ static _Atomic(SemaphoreHandle_t) mux;
 static app_inverter_settings_t *active;
 static uint32_t revision, source_revision;
 static int64_t last_measurement;
+static char active_ipv4[16];
 static const char *status_text = "Beállításra vár";
 
 const app_inverter_profile_t *app_inverter_profile(const char *id)
@@ -261,6 +265,15 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
      * megőrizzük a címeket; az explicit üres objektum visszaállítja a gyáriakat. */
     if (!ITEM(object,"registerOverrides") && !strcmp(candidate->driver.profile, active->driver.profile))
         candidate->driver.registers = active->driver.registers;
+    const cJSON *rebind_field = ITEM(object,"rebindDevice");
+    bool rebind = cJSON_IsTrue(rebind_field);
+    struct in_addr ip;
+    if ((rebind_field && !cJSON_IsBool(rebind_field)) || (rebind &&
+        (!same || app_inverter_profile(candidate->driver.profile)->seconds != 5 ||
+         inet_pton(AF_INET,candidate->driver.host,&ip) != 1))) {
+        app_inverter_settings_unlock();
+        goto done;
+    }
     if (same) {
         if (!candidate->driver.secret[0]) strcpy(candidate->driver.secret, active->driver.secret);
         if (!candidate->driver.key[0]) strcpy(candidate->driver.key, active->driver.key);
@@ -271,15 +284,17 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
         if (err == ESP_OK) {
             size_t size = offsetof(app_inverter_settings_t, pem) + strlen(candidate->pem) + 1;
             err = nvs_set_blob(h, "profile1", candidate, size);
+            if (err == ESP_OK && rebind) err = app_inverter_identity_forget(h);
             if (err == ESP_OK) err = nvs_commit(h);
             nvs_close(h);
         }
         if (err == ESP_OK) {
-            if (!same || active->driver.battery != candidate->driver.battery ||
+            if (!same || rebind || active->driver.battery != candidate->driver.battery ||
                 memcmp(&active->driver.registers, &candidate->driver.registers,
                        sizeof(candidate->driver.registers)) != 0) {
                 source_revision++;
                 last_measurement = 0;
+                active_ipv4[0] = 0;
             }
             app_inverter_settings_t *old = active;
             active = candidate;
@@ -356,6 +371,10 @@ bool app_inverter_display_schedule(const char *id, app_inverter_schedule_t *out)
     return ok;
 }
 
+void app_inverter_report_ipv4_locked(const char *address)
+{
+    snprintf(active_ipv4,sizeof(active_ipv4),"%s",address);
+}
 void app_inverter_report(uint32_t generation, const char *status, int64_t measured)
 {
     if (app_inverter_settings_lock_version(generation)) {
@@ -394,6 +413,7 @@ cJSON *app_inverter_settings_get(void)
     ADD(String,"user",c->user); ADD(Bool,"hasKey",c->key[0]); ADD(Bool,"hasSecret",c->secret[0]);
     ADD(Number,"port",c->port); ADD(Number,"unit",c->unit); ADD(Bool,"battery",c->battery);
     ADD(String,"trustedPem",active->pem); ADD(String,"syncStatus",status_text);
+    if (active_ipv4[0]) { ADD(String,"activeIpv4",active_ipv4); }
     if (c->profile[0]) { ADD(Number,"latitude",active->latitude); ADD(Number,"longitude",active->longitude); }
     if (last_measurement) { ADD(Number,"measurementAgeSeconds",fmax(0,difftime(time(NULL),last_measurement))); }
 #undef ADD

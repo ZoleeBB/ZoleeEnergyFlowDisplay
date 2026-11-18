@@ -1,6 +1,7 @@
 /* Az inverter minden hálózati művelete a már létező main feladaton fut.
  * A mintavétel és a környezeti adatok frissülése egymástól független. */
 #include "app_inverter.h"
+#include "app_inverter_identity.h"
 #include "app_inverter_settings.h"
 #include "app_inverter_weather.h"
 #include "app_ota.h"
@@ -15,6 +16,7 @@
 
 typedef struct {
     app_inverter_settings_t config;
+    app_inverter_identity_t identity;
     uint32_t revision, source;
     int64_t due, latest_epoch, overlay_due;
     const app_inverter_profile_t *profile;
@@ -67,6 +69,7 @@ static void reload(worker_t *w)
     bool changed = w->source != source;
     app_inverter_http_reset();
     app_inverter_victron_close();
+    app_inverter_identity_load(&w->identity,&w->config.driver,profile->seconds == 5);
     if (changed) {
         app_stats_break_continuity();
         app_state_clear_sample();
@@ -94,7 +97,18 @@ static void measure(worker_t *w, int64_t now)
     app_energy_sample_t s = {0};
     int64_t epoch = 0;
     w->due = now + (int64_t)w->profile->seconds * 1000000;
-    const app_inverter_config_t *cfg = &w->config.driver;
+    app_inverter_config_t *cfg = &w->config.driver;
+    char address[16];
+    const char *problem = app_inverter_identity_prepare(&w->identity,address);
+    if (problem) {
+        if (w->profile->transport == INV_MQTT) app_inverter_victron_close();
+        app_inverter_report(w->revision,problem,0);
+        return;
+    }
+    if (address[0] && strcmp(cfg->host,address)) {
+        if (w->profile->transport == INV_MQTT) app_inverter_victron_close();
+        strcpy(cfg->host,address);
+    }
     bool ok;
     switch (w->profile->transport) {
         case INV_MODBUS: ok = app_inverter_modbus_read(cfg,&s,&epoch); break;
@@ -135,8 +149,21 @@ static void measure(worker_t *w, int64_t now)
     if (s.battery_power_unavailable) s.power_bat_kw = 0;
     if (s.soc_unavailable) s.soc_bat_pct = 0;
     if (!s.battery_temperature_valid) s.battery_temperature_c = 0;
+    problem = app_inverter_identity_verify(&w->identity);
+    if (problem) {
+        if (w->profile->transport == INV_MQTT) app_inverter_victron_close();
+        app_inverter_report(w->revision,problem,0);
+        return;
+    }
     overlay(&s);
     if (app_inverter_settings_lock_version(w->revision)) {
+        problem = app_inverter_identity_commit(&w->identity);
+        if (problem) {
+            app_inverter_settings_unlock();
+            app_inverter_report(w->revision,problem,0);
+            return;
+        }
+        app_inverter_report_ipv4_locked(w->identity.active);
         app_stats_process_sample(&s);
         app_state_set_sample(&s);
         w->latest_epoch = epoch;
