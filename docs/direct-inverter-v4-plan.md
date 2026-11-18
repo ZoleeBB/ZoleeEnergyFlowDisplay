@@ -19,6 +19,8 @@ A 4B firmware jelenleg a Master azonosítása előtt előkészíti a JPEG-dekód
 
 Az első futtatható változatnál mindkét bináris méretét és linker-térképét össze kell vetni a kiinduló állapottal. Panelen rögzítendő a szabad és legnagyobb belső/DMA blokk, PSRAM, tasklista és veremtartalék bootkor, beállítás nélkül, LAN-on, HTTPS-kézfogáskor, webes mentésnél, újracsatlakozásnál és BLE Slave + témaváltás/OTA mellett. A kapcsolatok ismételt létrehozása után a memória visszaállását is ellenőrizni kell. Hagyományos módban nem jelenhet meg új inverteres task vagy tartós inverterpuffer. Készülékmérés nélkül a futásidejű alkalmasság előzetes megállapítás.
 
+A változatlan v3.4.0 alapregresszió a `python3 tests/run_tests.py` paranccsal sikeres (158 PASS-sor). Ebben a hostkörnyezetben a ptrace miatt a LeakSanitizer ki volt kapcsolva. Az upstream LVGL JPEG és a WebSocket TX opcionális ellenőrzése helyben kimaradt; az alapcommit [GitHub Actions futásában](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/44083654440) mind a 11 job zöld, a két ESP-IDF 5.5.4 buildet is beleértve. Ez az induló állapot igazolása.
+
 ## 2. Módválasztás és közös indulás
 
 - A felület neve **Közvetlen inverter**, a mentett mód azonosítója tervezetten `inverter`. Régi konfiguráció és meglévő MQTT/HTTP küldő v4 alatt is használható.
@@ -49,11 +51,25 @@ Az első futtatható változatnál mindkét bináris méretét és linker-térk�
 
 Gyártónként külön leírás és rögzített, titokmentes mintaválasz szükséges. Dokumentálandó a telepítői engedély, firmware/modul, IP/port, eszközcím, regiszter- vagy API-verzió, egység/előjel, mérő/akku és lekérdezési ütem. A válaszokból vezessük le a kijelzett állapotokat. Ellenőrizendő esetek: időtúllépés, hibás vagy csonka keret, hibás modell, lejárt token, kvóta, újrainduló inverter, hiányzó mérő, töltés/kisütés, vételezés/betáplálás. A kijelző energiamegfigyeléshez olvas; invertervezérlő parancsokat nem igényel.
 
+### Elsődleges kiinduló dokumentáció a driverekhez
+
+- [Fronius GEN24 magyar kézikönyv](https://manuals.fronius.com/html/4204260315/hu.html) és [Solar.web Query API](https://www.fronius.com/hu-hu/solarweb-query-api/csatlakozzon).
+- [Sungrow SH-RT / RT-20 kézikönyv](https://info-support.sungrowpower.com/product-materials/31d744b7-742d-4707-bd1d-d6ed665c733c.pdf).
+- [SolaX helyi Modbus és kompatibilitási táblázat](https://kb.solaxpower.com/solution/detail/ff8080818407e2a701840a22dec20032) és [SolaXCloud API v2](https://global.solaxcloud.com/blue/4/user_api/2024/SolaXCloud_User_API_V2.pdf).
+- [Huawei M1 kézikönyv](https://info.support.huawei.com/Energy/info/en_US/all/docView/EDOC1100163578) és [FusionSolar API-fiókok telepítői útmutatója](https://info.support.huawei.com/Energy/info/en_US/solar/docView/EDOC1100612098).
+- [GoodWe Modbus TCP útmutató](https://community.goodwe.com/resources/goodwe/2021-12-14558424.pdf).
+- [Victron GX Modbus kézikönyv](https://www.victronenergy.com/live/ccgx:modbustcp_faq) és [GX MQTT beállítások](https://www.victronenergy.com/media/pg/Cerbo_GX/en/configuration.html).
+- [SolarEdge SunSpec műszaki leírás](https://knowledge-center.solaredge.com/sites/kc/files/sunspec-implementation-technical-note.pdf).
+- [Deye adatgyűjtők](https://www.deyeinverter.com/product/accessory-monitoring-1/stick-logger.html) és a [konkrét Deye modellen kipróbált helyi keretezések](https://www.openhab.org/addons/bindings/solarman/).
+- [Solplanet T sorozat magyar kézikönyv](https://solplanet.net/wp-content/uploads/2021/07/Manual_ASW3000-1000-T_HU.pdf) és a [felhős API hozzáférésének integrátori útmutatója](https://help.energyid.eu/en/apps/solplanet-or-aiswei/).
+
 ## 5. Webes konfiguráció, időjárás, nappálya
 
 A **Loxone** fül helyén csak ebben a módban jelenik meg az **Inverter beállítások**. A sorrend: inverter és kapcsolatváltozat, ahhoz tartozó elérési/hitelesítési adatok, akkujelölő, kijelzők és időprogramok, végül földrajzi hely. Egyszerű első megoldás a szélesség és hosszúság közvetlen megadása. Határértékek és negatív koordináták ellenőrizendők, a nulla is lehet érvényes. Az alapértelmezett magyar időzónában a téli/nyári időváltást a meglévő időkezelés végzi. Mentés után a lemezre mentett érvényes beállítás lép életbe és azonnali első olvasást indít. Újramentés, hibás mentés, módváltás és forrásváltás közben nem maradhat párhuzamos régi kliens. A kulcsok/jelszavak nem kerülhetnek naplóba, diagnosztikába vagy böngészőbe visszaolvasható nyers formában.
 
 Az időjárást a Master kéri az Open-Meteótól, **15 percenként**. Külső hőmérséklet, páratartalom, szél, csapadék és napsugárzás külön érvényességgel érkezik. A kijelzett esőjelzés környékbeli becslés. A koordinátákból és a pontos órából a napirány, a napmagasság, a napkelte és a napnyugta helyben számítható; az energiafrissítés, a nappálya és az időjárás hibája külön kezelendő. Az időjárási forrás megjelölése, licence és a nyilvános API használati feltételei a kézikönyvben és a webfelületen megjelennek.
+
+Az adatmezők és az elérési feltételek forrásai az [Open-Meteo dokumentációja](https://open-meteo.com/en/docs), a [szolgáltatási feltételek](https://open-meteo.com/en/terms) és a [SolarCalculator forrása](https://github.com/jpb10/SolarCalculator).
 
 ## 6. Master, kétféle Slave, éjszakai megjelenés és sötétítés
 
@@ -81,4 +97,5 @@ A meglévő kiadási folyamat automatikus kiadást az igazolt main merge-hez kö
 
 1. Helyi inverter 5 másodpercenként, gyártói felhő a szolgáltatói ütemben, az utolsó valódi mérés korával. Elfogadva.
 2. Az időszinkron utáni indulás minden adatfogadási módra érvényes. Elfogadva.
-3. Az időprogram alatti érintés és az ideiglenes ébresztés működése egyeztetés alatt.
+3. Az időprogram alatt az első érintés ébreszt, az aktuális napi/éjjeli fényerőre. További érintés újraindítja a beállítható időt. Lejáratkor csak akkor sötétül vissza, ha még aktív a heti időablak. Elfogadva.
+4. A Master heti időprogramját minden Slave alapértelmezésben örökli. A Slave kártyáján önálló időprogram választható; az öröklés bármikor visszakapcsolható. Elfogadva.
