@@ -13,6 +13,7 @@ typedef struct {
 
 bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample,
                               int64_t *source_epoch);
+void app_inverter_http_reset(void);
 bool app_inverter_http_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample,
                             int64_t *source_epoch);
 bool app_inverter_victron_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample);
