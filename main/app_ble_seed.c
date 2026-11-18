@@ -220,72 +220,73 @@ static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
 #include "app_ble_intercom_server.inc"
 #endif
 
+static struct ble_gatt_chr_def s_characteristics[] = {
+    {
+        .uuid = &s_energy_uuid.u,
+        .access_cb = read_packet,
+        .arg = (void *)(uintptr_t)0,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &s_handles[0],
+    },
+    {
+        .uuid = &s_weather_uuid.u,
+        .access_cb = read_packet,
+        .arg = (void *)(uintptr_t)1,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &s_handles[1],
+    },
+    {
+        .uuid = &s_clock_uuid.u,
+        .access_cb = read_packet,
+        .arg = (void *)(uintptr_t)2,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &s_handles[2],
+    },
+    {
+        .uuid = &s_profile_uuid.u,
+        .access_cb = read_profile,
+        .flags =
+            BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+        .min_key_size = 16,
+    },
+    {
+        .uuid = &s_v4_profile_uuid.u, .access_cb = read_profile, .arg = (void *)1,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+        .min_key_size = 16,
+    },
+    {
+        .uuid = &s_stats_uuid.u,
+        .access_cb = access_stats,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE |
+                 BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN |
+                 BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
+        .min_key_size = 16,
+    },
+    {
+        .uuid = &s_presence_uuid.u,
+        .access_cb = read_presence,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC |
+                 BLE_GATT_CHR_F_READ_AUTHEN,
+        .min_key_size = 16,
+    },
+#if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
+    {.uuid = &s_intercom_uuid.u, .access_cb = access_intercom,
+     .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_READ_ENC |
+              BLE_GATT_CHR_F_READ_AUTHEN | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
+     .min_key_size = 16},
+    {.uuid = &s_intercom_profile_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)0,
+     .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
+    {.uuid = &s_intercom_extras_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)1,
+     .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
+#endif
+    {0},
+};
+
 static const struct ble_gatt_svc_def s_services[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = &s_service_uuid.u,
-        .characteristics =
-            (struct ble_gatt_chr_def[]){
-                {
-                    .uuid = &s_energy_uuid.u,
-                    .access_cb = read_packet,
-                    .arg = (void *)(uintptr_t)0,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
-                    .val_handle = &s_handles[0],
-                },
-                {
-                    .uuid = &s_weather_uuid.u,
-                    .access_cb = read_packet,
-                    .arg = (void *)(uintptr_t)1,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
-                    .val_handle = &s_handles[1],
-                },
-                {
-                    .uuid = &s_clock_uuid.u,
-                    .access_cb = read_packet,
-                    .arg = (void *)(uintptr_t)2,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
-                    .val_handle = &s_handles[2],
-                },
-                {
-                    .uuid = &s_profile_uuid.u,
-                    .access_cb = read_profile,
-                    .flags =
-                        BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
-                    .min_key_size = 16,
-                },
-                {
-                    .uuid = &s_v4_profile_uuid.u, .access_cb = read_profile, .arg = (void *)1,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
-                    .min_key_size = 16,
-                },
-                {
-                    .uuid = &s_stats_uuid.u,
-                    .access_cb = access_stats,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE |
-                             BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN |
-                             BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
-                    .min_key_size = 16,
-                },
-                {
-                    .uuid = &s_presence_uuid.u,
-                    .access_cb = read_presence,
-                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC |
-                             BLE_GATT_CHR_F_READ_AUTHEN,
-                    .min_key_size = 16,
-                },
-#if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
-                {.uuid = &s_intercom_uuid.u, .access_cb = access_intercom,
-                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_READ_ENC |
-                          BLE_GATT_CHR_F_READ_AUTHEN | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
-                 .min_key_size = 16},
-                {.uuid = &s_intercom_profile_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)0,
-                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
-                {.uuid = &s_intercom_extras_uuid.u, .access_cb = access_intercom_profile, .arg = (void *)1,
-                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN, .min_key_size = 16},
-#endif
-                {0},
-            },
+        .characteristics = s_characteristics,
     },
     {0},
 };
@@ -602,6 +603,14 @@ static void host_task(void *arg)
     }
     ble_svc_gap_init();
     ble_svc_gatt_init();
+#if defined(APP_INTERCOM_DISTRIBUTED) && !defined(APP_INTERCOM_SLAVE)
+    /* The media characteristics are last. Omit them from the inverter's
+     * attribute table, including when an older Slave discovers the service. */
+    if (s_config.data_recept_mode == APP_DATA_INVERTER) {
+        for (struct ble_gatt_chr_def *entry = s_characteristics; entry->uuid; ++entry)
+            if (entry->uuid == &s_intercom_uuid.u) { entry->uuid = NULL; break; }
+    }
+#endif
     int rc = ble_svc_gap_device_name_set(APP_BLE_SEED_NAME);
     if (rc == 0 && !slave_mode())
         rc = ble_gatts_count_cfg(s_services);
