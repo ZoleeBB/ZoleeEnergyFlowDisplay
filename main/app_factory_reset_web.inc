@@ -96,6 +96,22 @@ static esp_err_t factory_reset_post_locked(httpd_req_t *req)
         return factory_reset_reject(req, "400 Bad Request", "Hiányzó vagy hibás megerősítés.",
                                     "Missing or invalid confirmation.");
 
+    /* A törlési naplót ugyanennek a firmware-nek kell folytatnia az újraindítás után.
+     * A még nem véglegesített OTA-kép helyére a bootloader a régebbit indíthatná. */
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!running || running != esp_ota_get_boot_partition())
+        return factory_reset_reject(req, "409 Conflict", "A firmware cseréje folyamatban van. Próbáld újra az újraindítás után.",
+                                    "A firmware change is in progress. Try again after restart.");
+    esp_ota_img_states_t state;
+    esp_err_t checked = esp_ota_get_state_partition(running, &state);
+    if (checked == ESP_OK && state != ESP_OTA_IMG_VALID && state != ESP_OTA_IMG_UNDEFINED)
+        return factory_reset_reject(req, "409 Conflict", "Várd meg a firmware véglegesítését, majd próbáld újra.",
+                                    "Wait for firmware validation, then try again.");
+    /* Az első USB-telepítés OTA-bejegyzés nélkül, a factory partíció pedig OTA-állapot nélkül indul. */
+    if (checked != ESP_OK && checked != ESP_ERR_NOT_FOUND && checked != ESP_ERR_NOT_SUPPORTED)
+        return factory_reset_reject(req, "503 Service Unavailable", "A firmware állapota nem ellenőrizhető. Próbáld újra.",
+                                    "Could not check the firmware state. Please try again.");
+
     TaskHandle_t worker;
     esp_err_t result = factory_reset_schedule(&worker);
     if (result == ESP_ERR_INVALID_STATE)

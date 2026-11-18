@@ -118,8 +118,21 @@ esp_err_t httpd_resp_sendstr(httpd_req_t *req, const char *text)
 bool app_storage_is_ok(void) { return sd_ok; }
 bool app_boot_config_internal(void) { return internal_profile; }
 int64_t esp_timer_get_time(void) { return now; }
-static const void *esp_ota_get_running_partition(void) { return &task_slot; }
-static const void *esp_ota_get_boot_partition(void) { return &task_slot; }
+typedef unsigned esp_partition_t;
+typedef enum { ESP_OTA_IMG_NEW, ESP_OTA_IMG_PENDING_VERIFY, ESP_OTA_IMG_VALID,
+               ESP_OTA_IMG_INVALID, ESP_OTA_IMG_ABORTED, ESP_OTA_IMG_UNDEFINED } esp_ota_img_states_t;
+#define ESP_ERR_NOT_SUPPORTED 0x106
+static unsigned partitions[2], boot_partition;
+static esp_ota_img_states_t image_state = ESP_OTA_IMG_VALID;
+static esp_err_t image_result = ESP_OK;
+static const esp_partition_t *esp_ota_get_running_partition(void) { return &partitions[0]; }
+static const esp_partition_t *esp_ota_get_boot_partition(void) { return &partitions[boot_partition]; }
+static esp_err_t esp_ota_get_state_partition(const esp_partition_t *p, esp_ota_img_states_t *state)
+{
+    assert(p == &partitions[0]);
+    if (image_result == ESP_OK) *state = image_state;
+    return image_result;
+}
 static void xSemaphoreGive(void *sem) { (void)sem; assert(false); }
 
 int xTaskCreate(void (*worker)(void *), const char *name, unsigned stack,
@@ -255,6 +268,24 @@ int main(void)
     read_delay_us = 0;
     assert(!marker && !have_worker && !s_restart_pending && !s_operation_active && !create_calls && !requests);
 
+    boot_partition = 1;
+    post(valid, 409);
+    assert(!marker && !have_worker && !create_calls && !requests);
+    boot_partition = 0;
+    app_ota_end_operation();
+    static const esp_ota_img_states_t unavailable[] = {
+        ESP_OTA_IMG_NEW, ESP_OTA_IMG_PENDING_VERIFY, ESP_OTA_IMG_INVALID, ESP_OTA_IMG_ABORTED
+    };
+    for (size_t i = 0; i < sizeof(unavailable) / sizeof(unavailable[0]); ++i) {
+        image_state = unavailable[i];
+        post(valid, 409);
+        assert(!marker && !have_worker && !create_calls && !requests && !s_operation_active);
+    }
+    image_result = ESP_FAIL;
+    post(valid, 503);
+    assert(!marker && !have_worker && !create_calls && !requests && !s_operation_active);
+    image_result = ESP_OK;
+    image_state = ESP_OTA_IMG_VALID;
     no_task_memory = true;
     post(valid, 503);
     assert(!marker && !s_restart_pending && !s_operation_active && create_calls == 1 && !requests);
@@ -271,7 +302,9 @@ int main(void)
     }
     int requests_before_success = requests;
     marker_result = ESP_OK;
-    for (unsigned scenario = 0; scenario < 3; ++scenario) {
+    for (unsigned scenario = 0; scenario < 4; ++scenario) {
+        image_result = scenario == 1 ? ESP_ERR_NOT_FOUND : scenario == 3 ? ESP_ERR_NOT_SUPPORTED : ESP_OK;
+        image_state = scenario == 2 ? ESP_OTA_IMG_UNDEFINED : ESP_OTA_IMG_VALID;
         sd_ok = scenario == 0;
         internal_profile = scenario != 1;
         s_hu = scenario == 1;
@@ -279,7 +312,7 @@ int main(void)
         if (scenario == 2) s_auth_cfg.username[0] = '\0';
         timeout_reads = 1;
         post("\n { \t\"confirm\" \r: true \n} \t", 202);
-        assert(require_sd == (scenario != 2) && s_operation_active && marker && !reboots);
+        assert(require_sd == (scenario < 2) && s_operation_active && marker && !reboots);
         assert(!app_ota_try_begin_operation());
         lose_response = false;
         post(valid, 409);
