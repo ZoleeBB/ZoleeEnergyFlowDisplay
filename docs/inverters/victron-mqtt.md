@@ -3,7 +3,7 @@
 A helyi MQTT adatforrás egy Cerbo GX vagy más, Venus OS-t futtató GX eszköz rendszerösszesítését használja. A MultiPlus/Quattro és a Solar Charger, illetve az AC-oldali PV-inverter a GX rendszerében legyen látható. A profilhoz **Venus OS 3.50 vagy újabb** kell. Ebben a verzióban a GX a kijelző saját kérésazonosítójával igazolja vissza, hogy az induló adatsor teljes. Régebbi GX-en a helyi Modbus TCP-profil használható.
 
 1. A GX **Settings → Integrations → MQTT Access** menüjében engedélyezd a helyi MQTT-elérést. Régebbi kezelőfelületen a kapcsoló a **Settings → Services → MQTT on LAN** alatt található. A hozzáféréshez a GX hálózati és jogosultsági beállításai érvényesek.
-2. A kijelző **Inverter beállítások** fülén válaszd a **Victron GX – MQTT** profilt. Írd be a GX helyi nevét vagy IP-címét és a **VRM Portal ID** 12 hexadecimális karakterét. Ez az azonosító a GX VRM-beállításaiban olvasható.
+2. A kijelző **Inverter beállítások** fülén válaszd a **Victron GX – MQTT** profilt. A helyi keresés a GX hálózati hirdetéséből megkeresheti a készüléket és kitöltheti a **VRM Portal ID** mezőjét. A helyi nevet vagy IP-címet és az azonosítót kézzel is megadhatod. A 12 hexadecimális karakterből álló Portal ID a GX VRM-beállításaiban olvasható.
 3. A 1883-as port a helyi titkosítatlan MQTT. A 8883-as port TLS-t használ. Saját hitelesítésszolgáltató esetén add meg a megbízható PEM-tanúsítványt és a tanúsítványban szereplő kiszolgálónevet. Ha a helyi broker bejelentkezést kér, a hozzá tartozó felhasználót és jelszót használd.
 4. Telepített akkumulátor esetén jelöld a **Van akkumulátor** mezőt. A GX-ben kiválasztott akkumulátormérő vagy BMS adja a rendszer SOC-ját és teljesítményét. Hőmérséklet csak érvényes mérésnél jelenik meg.
 
