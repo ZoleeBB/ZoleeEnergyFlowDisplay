@@ -182,6 +182,57 @@ static esp_err_t apply_credentials(const char *ssid, const char *password)
     return esp_wifi_set_config(WIFI_IF_STA, &cfg);
 }
 
+/* Elveszett RPC-válasznál a C6 már végrehajthatta az initet/deinitet.
+ * Az indulási resetet sorosan hívó boot-feladat a következő próbán először
+ * lezárja az előző drivert. Sikeres törlést csak lezárt driverrel igazol. */
+static enum {
+    RESET_WIFI_IDLE,
+    RESET_WIFI_CLOSE_AFTER_ERROR,
+    RESET_WIFI_CLOSE_AFTER_ERASE
+} s_reset_wifi;
+
+static esp_err_t close_reset_wifi(void)
+{
+    esp_err_t err = esp_wifi_deinit();
+    return err == ESP_ERR_WIFI_NOT_INIT ? ESP_OK : err;
+}
+
+esp_err_t app_wifi_factory_reset_credentials(void)
+{
+    if (s_events)
+        return ESP_ERR_INVALID_STATE;
+
+    if (s_reset_wifi != RESET_WIFI_IDLE)
+    {
+        esp_err_t err = close_reset_wifi();
+        if (err != ESP_OK)
+            return err;
+        bool erased = s_reset_wifi == RESET_WIFI_CLOSE_AFTER_ERASE;
+        s_reset_wifi = RESET_WIFI_IDLE;
+        if (erased)
+            return ESP_OK;
+    }
+
+    /* A 3.x az alapértelmezett flash-tárba is menthette a jelszót a külön
+     * C6-on. Az ESP-Hosted restore szinkron RPC: a távoli esp_wifi_restore()
+     * eredményét adja vissza. Ehhez sem STA-indítás, sem IP-interfész nem kell. */
+    wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
+    init.nvs_enable = 1;
+    esp_err_t err = esp_wifi_init(&init);
+    if (err == ESP_OK)
+        err = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    if (err == ESP_OK)
+        err = esp_wifi_restore();
+
+    esp_err_t closed = close_reset_wifi();
+    if (closed != ESP_OK)
+    {
+        s_reset_wifi = err == ESP_OK ? RESET_WIFI_CLOSE_AFTER_ERASE : RESET_WIFI_CLOSE_AFTER_ERROR;
+        return closed;
+    }
+    return err;
+}
+
 /* Wi-Fi STA alrendszer egyszeri inicializálása. */
 esp_err_t app_wifi_start(const app_config_t *cfg)
 {
@@ -190,7 +241,7 @@ esp_err_t app_wifi_start(const app_config_t *cfg)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (s_started)
+    if (s_started || s_reset_wifi != RESET_WIFI_IDLE)
     {
         return ESP_ERR_INVALID_STATE;
     }

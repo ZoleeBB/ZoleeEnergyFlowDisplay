@@ -34,7 +34,9 @@ with tempfile.TemporaryDirectory(prefix='zolee-setup-wifi-') as directory:
         'main/app_setup_wifi.c', 'main/app_wifi.c', 'tests/test_setup_wifi.c',
         '-o', str(binary)
     ], cwd=ROOT, check=True)
-    for scenario in ('retry', 'open', 'saved', 'no-dhcp', 'legacy', 'crowded'):
+    for scenario in ('retry', 'open', 'saved', 'no-dhcp', 'legacy', 'crowded', 'reset',
+                     'reset-init', 'reset-storage', 'reset-restore', 'reset-close', 'reset-lost-close',
+                     'reset-double-fault'):
         subprocess.run([binary, scenario], check=True, timeout=8)
 print('PASS: Wi-Fi scan cleanup, crowded multi-page selection, duplicate APs, retry, open/UTF-8 passwords, DHCP '
-      'gating and keyboard-free saved-profile boot')
+      'gating, keyboard-free saved-profile boot and verified cold Hosted Wi-Fi reset with retries')

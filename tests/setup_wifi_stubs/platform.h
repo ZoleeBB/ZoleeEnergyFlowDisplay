@@ -8,6 +8,7 @@
 #define ESP_RETURN_ON_ERROR(call, tag, message) do { esp_err_t err_ = (call); if (err_) return err_; } while (0)
 #define ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED 10
 #define ESP_ERR_WIFI_CONN 11
+#define ESP_ERR_WIFI_NOT_INIT 12
 #define ESP_EVENT_ANY_ID -1
 #define WIFI_EVENT 1
 #define IP_EVENT 2
@@ -24,7 +25,8 @@
 #define WIFI_IF_STA 1
 #define WIFI_MODE_STA 1
 #define WIFI_PS_NONE 0
-#define WIFI_STORAGE_RAM 0
+#define WIFI_STORAGE_FLASH 0
+#define WIFI_STORAGE_RAM 1
 #define WIFI_AUTH_OPEN 0
 #define WIFI_AUTH_WPA2_PSK 3
 #define WIFI_INIT_CONFIG_DEFAULT() {0}
@@ -44,7 +46,7 @@ typedef struct {
 } wifi_config_t;
 typedef struct { uint8_t ssid[33]; int authmode, rssi; } wifi_ap_record_t;
 typedef struct { uint8_t *ssid; } wifi_scan_config_t;
-typedef struct { int unused; } wifi_init_config_t;
+typedef struct { int nvs_enable; } wifi_init_config_t;
 typedef void *TaskHandle_t;
 typedef int portMUX_TYPE;
 #define portMUX_INITIALIZER_UNLOCKED 0
@@ -62,6 +64,8 @@ esp_err_t esp_wifi_sta_get_ap_info(wifi_ap_record_t *);
 esp_err_t esp_event_handler_register(int, int, event_fn_t, void *);
 esp_err_t esp_wifi_start(void);
 esp_err_t esp_wifi_init(const wifi_init_config_t *);
+esp_err_t esp_wifi_deinit(void);
+esp_err_t esp_wifi_restore(void);
 esp_err_t esp_wifi_set_ps(int);
 esp_err_t esp_wifi_set_storage(int);
 esp_err_t esp_wifi_set_mode(int);

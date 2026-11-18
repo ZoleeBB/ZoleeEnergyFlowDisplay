@@ -14,6 +14,10 @@
 /* Wi-Fi STA mód indítása a betöltött konfigurációval. */
 esp_err_t app_wifi_start(const app_config_t *cfg);
 
+/* A tartós gyári reset folytatása a normál STA indítása előtt. A C6 régi
+ * flashprofilját törli; nem indít rádiókapcsolatot vagy újracsatlakozó feladatot. */
+esp_err_t app_wifi_factory_reset_credentials(void);
+
 /* Első beállítás: a STA egyszer indul, a választást a boot-feladat alkalmazza. */
 esp_err_t app_wifi_start_setup(const app_config_t *cfg);
 esp_err_t app_wifi_join_setup(const char *ssid, const char *password);
