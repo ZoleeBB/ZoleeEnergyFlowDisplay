@@ -194,7 +194,7 @@ static int summary_test(void)
 
 /* A képernyő feliratai közül az elsőt adja vissza, amelyik a mintával kezdődik;
  * a diagnosztika rétegen belüli feliratokat is megtalálja. */
-static const char *find_label_in(lv_obj_t *parent, const char *prefix)
+static lv_obj_t *find_label_in(lv_obj_t *parent, const char *prefix)
 {
     for (uint32_t i = 0; i < lv_obj_get_child_count(parent); i++)
     {
@@ -203,18 +203,51 @@ static const char *find_label_in(lv_obj_t *parent, const char *prefix)
         {
             const char *text = lv_label_get_text(child);
             if (text && !strncmp(text, prefix, strlen(prefix)))
-                return text;
+                return child;
         }
-        const char *found = find_label_in(child, prefix);
+        lv_obj_t *found = find_label_in(child, prefix);
         if (found)
             return found;
     }
     return NULL;
 }
 
-static const char *find_label(const char *prefix)
+static lv_obj_t *find_label(const char *prefix)
 {
     return find_label_in(lv_screen_active(), prefix);
+}
+
+/* A valós Master-csomag dekódolása után csak a rendelkezésre álló adatok
+ * legyenek láthatók. A mért 0 °C és az érzékelő hiánya külön eset. */
+static int optional_inverter_fields(const app_config_t *config)
+{
+    app_energy_sample_t original = sample, source = sample;
+    lv_obj_t *detail = find_label("74%"), *pv = find_label("Napelem");
+    lv_obj_t *grid = find_label("Hálózat"), *battery = find_label("Akkumulátor");
+    lv_obj_t *home = find_label("Ház");
+    CHECK(detail && pv && grid && battery && home);
+    for (unsigned stage = 0; stage < 3; ++stage) {
+        source.battery_temperature_c = 0;
+        source.battery_temperature_valid = stage == 0;
+        source.battery_unavailable = stage == 2;
+        source.grid_unavailable = source.home_unavailable = stage == 2;
+        uint8_t energy[APP_BLE_PACKET_SIZE], weather[APP_BLE_PACKET_SIZE];
+        app_ble_protocol_encode(&source, config, 0, 1, energy, weather);
+        CHECK(app_ble_protocol_decode(energy, sizeof(energy), weather, sizeof(weather), 0, &sample) == ESP_OK);
+        step(0);
+        CHECK(!lv_obj_has_flag(pv, LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_has_flag(grid, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(battery, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(detail, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(!strcmp(lv_label_get_text(detail), stage == 0 ? "74% · 0 °C" : stage == 1 ? "74%" : ""));
+    }
+    sample = original;
+    step(0);
+    CHECK(!lv_obj_has_flag(grid, LV_OBJ_FLAG_HIDDEN) && !lv_obj_has_flag(battery, LV_OBJ_FLAG_HIDDEN));
+    CHECK(!lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN) && !lv_obj_has_flag(detail, LV_OBJ_FLAG_HIDDEN));
+    puts("PASS: 4B shows measured 0 C, hides absent battery temperature and renders PV-only BLE samples");
+    return 0;
 }
 
 static int self_test(void)
@@ -232,6 +265,7 @@ static int self_test(void)
     CHECK(decoded.relative_humidity_valid && decoded.relative_humidity_pct == 61);
     sample = decoded;
     step(33);
+    CHECK(optional_inverter_fields(&config) == 0);
     /* A hiányzó adat és a valódi 0% különbözik; az ikon is követi a flaget. */
     lv_obj_t *humidity_label = NULL, *humidity_image = NULL;
     lv_obj_t *humidity_screen = lv_screen_active();
@@ -393,7 +427,9 @@ static int self_test(void)
     slave_4b_ui_status(&status);
     step(0);
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
-    const char *info = find_label("Waveshare 4B");
+    lv_obj_t *info_label = find_label("Waveshare 4B");
+    CHECK(info_label);
+    const char *info = lv_label_get_text(info_label);
     CHECK(info && strstr(info, "IP: 192.168.2.77") && strstr(info, "FW: 3.3.0-test"));
     CHECK(strstr(info, "Tájolás: 90°") && strstr(info, "Üzemidő: 1 ó 2 p"));
     CHECK(strstr(info, "Érintések indulás óta: 3"));
