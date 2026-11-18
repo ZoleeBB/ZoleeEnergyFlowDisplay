@@ -138,6 +138,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-boot-config-') as directory:
                     '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
                     '-Itests/ble_profile_stubs', '-Itests/stubs', '-Imain',
                     'tests/test_boot_config.c', 'main/app_boot_config.c', 'main/app_config.c',
+                    'main/app_ble_profile_model.c',
                     '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-') as directory:

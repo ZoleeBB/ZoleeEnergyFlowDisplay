@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "app_boot_config.h"
+#include "app_ble_profile.h"
 #include "nvs.h"
 static uint8_t role[3];
 static char config[4096];
@@ -10,6 +11,8 @@ static size_t config_size, setup_size;
 static char setup[3073];
 static bool have_role, legacy_display, legacy_pin, fail_open, fail_commit;
 static unsigned writes;
+static bool old_bond;
+static uint8_t paired[APP_BLE_PROFILE_SIZE];
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
 {
     if (fail_open)
@@ -26,7 +29,7 @@ esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
         *h = 2;
         return ESP_OK;
     }
-    if (!strcmp(name, "ble_profile") && legacy_pin)
+    if (!strcmp(name, "ble_profile") && (legacy_pin || old_bond))
     {
         *h = 3;
         return ESP_OK;
@@ -35,6 +38,12 @@ esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
 }
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *len)
 {
+    if (h == 3 && !strcmp(key, "slave") && old_bond) {
+        assert(*len >= sizeof(paired));
+        memcpy(out, paired, sizeof(paired));
+        *len = sizeof(paired);
+        return ESP_OK;
+    }
     assert(h == 1);
     const void *data;
     size_t size;
@@ -135,6 +144,14 @@ int main(void)
     assert(cfg.data_recept_mode == APP_DATA_INVERTER && !app_boot_config_setup_pending() && !cfg.cardless_slave);
     assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_ERR_INVALID_STATE);
     setup_size = 0;
+    old_bond = true;
+    strcpy(cfg.wifi.ssid, "paired");
+    app_ble_profile_encode(&cfg, paired);
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    assert(cfg.cardless_slave && !app_boot_config_setup_pending() && !strcmp(cfg.wifi.ssid, "paired"));
+    paired[0] = 'X';
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_ERR_NOT_FOUND);
+    old_bond = false;
     assert(fallback() == ESP_OK && cfg.cardless_slave && cfg.data_recept_mode == APP_DATA_SLAVE &&
            !cfg.data_seed_enabled);
     assert(have_role && role[2] == 1);

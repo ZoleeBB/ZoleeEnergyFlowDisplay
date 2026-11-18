@@ -1,5 +1,7 @@
 /* Verziótól független JSON NVS-beállítások, külön tartós szerepjelölővel. */
 #include "app_boot_config.h"
+#include "app_ble_profile.h"
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -160,7 +162,6 @@ esp_err_t app_boot_config_save(
 
 /* Egyetlen NVS-blobban marad együtt az állapot és a hozzá tartozó JSON.
  * Félbeszakadt első mentésnél vagy a korábbi, vagy a teljes új profil él. */
-#include <stdatomic.h>
 static atomic_bool s_setup_pending, s_internal;
 static bool s_slave_only;
 
@@ -184,6 +185,23 @@ static esp_err_t write_setup_record(const char *json, size_t length, bool pendin
     }
     free(record);
     return err;
+}
+
+/* Régi 4B-n a párosításhoz használt profil a szerepjelölő előtt is élhetett. */
+static bool restore_paired_slave(app_config_t *cfg)
+{
+    nvs_handle_t handle;
+    if (nvs_open("ble_profile", NVS_READONLY, &handle) != ESP_OK) return false;
+    uint8_t profile[APP_BLE_PROFILE_SIZE];
+    size_t length = sizeof(profile);
+    bool valid = nvs_get_blob(handle, "slave", profile, &length) == ESP_OK &&
+                 app_ble_profile_decode(profile, length, cfg);
+    nvs_close(handle);
+    if (valid) {
+        cfg->data_recept_mode = APP_DATA_SLAVE;
+        cfg->cardless_slave = true;
+    }
+    return valid;
 }
 
 esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *error, size_t error_len)
@@ -222,7 +240,10 @@ esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *erro
             free(record);
             return app_boot_config_fallback(cfg, error, error_len);
         }
-        if (role_err != ESP_OK && role_err != ESP_ERR_NVS_NOT_FOUND) err = role_err;
+        if (role_err == ESP_ERR_NVS_NOT_FOUND && slave_only && restore_paired_slave(cfg))
+            err = ESP_OK;
+        else if (role_err != ESP_OK && role_err != ESP_ERR_NVS_NOT_FOUND)
+            err = role_err;
     }
     nvs_close(handle);
     free(record);
