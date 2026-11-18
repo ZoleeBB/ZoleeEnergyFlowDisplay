@@ -345,6 +345,9 @@ subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_store.py")],check=
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_protocol.py")],check=True)
 subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_http.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_runtime.py")], check=True)
+for discovery_test in ("test_inverter_discovery.py", "test_inverter_discovery_http.py",
+                       "test_inverter_discovery_modbus.py"):
+    subprocess.run([os.sys.executable, str(ROOT / "tests" / discovery_test)], check=True)
 subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_victron.py")], check=True)
 subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True)
 

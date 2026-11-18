@@ -43,6 +43,9 @@ idf_component_register(
         "app_setup_wifi.c"
         "app_setup_ui.c"
         "app_inverter.c"
+        "app_inverter_discovery.c"
+        "app_inverter_discovery_http.c"
+        "app_inverter_discovery_modbus.c"
         "app_inverter_settings.c"
         "app_inverter_net.c"
         "app_inverter_identity.c"
@@ -139,6 +142,7 @@ idf_component_register(
         esp_event
         esp_driver_jpeg
         esp_http_client
+        http_parser
         esp_websocket_client
         esp_http_server
         esp_netif
