@@ -39,6 +39,7 @@ typedef int (*callback_t)(uint16_t, const struct ble_gatt_error *, struct ble_ga
 typedef struct
 {
     bool used;
+    bool accepts_optional;
     uint16_t handle;
     uint8_t *stats_wire;
     uint32_t stats_id;

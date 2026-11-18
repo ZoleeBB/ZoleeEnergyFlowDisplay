@@ -35,7 +35,7 @@ access_stats(uint16_t connection, uint16_t attr, struct ble_gatt_access_ctxt *ct
             if (valid)
             {
                 app_stats_get_snapshot(snapshot);
-                valid = app_ble_stats_encode(snapshot, id, (uint32_t)time(NULL), wire);
+                valid = app_ble_stats_encode_peer(snapshot, id, (uint32_t)time(NULL), peer->accepts_optional, wire);
             }
             free(snapshot);
             if (!valid)

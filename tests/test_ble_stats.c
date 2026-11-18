@@ -132,7 +132,12 @@ int main(void)
     assert(!app_ble_stats_encode(&source, 42, 1792324800, wire));
     source.slots[1].split.pv_home = 31;
     assert(!app_ble_stats_encode(&source, 42, 1792324800, wire));
+    source.slots[1].partial_fields = APP_STATS_NO_GRID | APP_STATS_NO_SPLIT;
+    assert(app_ble_stats_encode_peer(&source, 42, 1792324800, true, wire) && decode());
+    assert(result.slots[1].partial_fields == source.slots[1].partial_fields && result.slots[1].split.pv_home == 31);
     source.slots[1].split.pv_home = 0;
+    assert(app_ble_stats_encode(&source, 42, 1792324800, wire) && decode());
+    assert(result.slots[1].chart_gap && !result.slots[1].partial_fields);
     strcpy(source.date, "2026-02-29");
     assert(!app_ble_stats_encode(&source, 42, 1792324800, wire));
     strcpy(source.date, "2028-02-29");
