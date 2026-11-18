@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app_state.h"
+#include "app_inverter_registers.h"
 
 /* Egyetlen aktív profil. A tanúsítvány a konfiguráció pillanatképéhez tartozik. */
 typedef struct {
@@ -9,6 +10,7 @@ typedef struct {
     uint8_t unit;
     bool battery;
     const char *trusted_pem;
+    app_inverter_overrides_t registers;
 } app_inverter_config_t;
 
 bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample,
