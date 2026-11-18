@@ -12,6 +12,7 @@
  */
 #include "app_web.h"
 #include "app_support_web.h"
+#include "app_home_actions.h"
 #include "app_web_style.h"
 #include "app_http.h"
 #include "app_loxone.h"
@@ -368,6 +369,15 @@ static esp_err_t root_handler(httpd_req_t *req)
         ".events-box{max-height:320px;overflow-y:auto;overscroll-behavior:contain}"
         ".events-box table{margin:0}.events-box thead th{position:sticky;top:0;background:var(--card)}"
         ".log-links{margin:10px 0 0;display:flex;gap:10px;flex-wrap:wrap}"
+        "button.restart{background:#b34a09;color:#fff}"
+        "@media(prefers-color-scheme:dark){button.restart{background:#ff9e4f;color:#211205}"
+        "body[data-page=home] button.danger{color:#27100e}}"
+        "#device-dialog{width:min(32rem,calc(100% - 24px));max-height:calc(100% - 24px);"
+        "padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--card);"
+        "color:var(--text);box-shadow:var(--shadow);overflow:auto;overflow-wrap:anywhere}"
+        "#device-dialog::backdrop{background:#091219b8}#device-dialog p:empty{margin:0}"
+        "#device-countdown{font-weight:600}"
+        "@media(max-width:480px){.device-actions>*,#device-buttons>button{width:100%}}"
         "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
     const char *nav = s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN;
@@ -390,13 +400,15 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* A navigáció a felső menüben van; itt csak az állapot és a gyakori műveletek. */
     httpd_resp_send_chunk(req, s_hu ?
         "<p class='lead'>Eszközállapot, legutóbbi események és gyors műveletek.</p>"
-        "<div class='actions'><a class='button secondary' href='/settings'>Beállítások</a>"
+        "<div class='actions device-actions'><a class='button secondary' href='/settings'>Beállítások</a>"
         "<a class='button secondary' href='/backup'>Mentés és visszaállítás</a>"
-        "<button class='danger restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button></div>" :
+        "<button class='restart' type='button' data-device-action='restart'>Eszköz újraindítása</button>"
+        "<button class='danger' type='button' data-device-action='factory'>Alaphelyzetbe állítás</button></div>" :
         "<p class='lead'>Device status, recent events and quick actions.</p>"
-        "<div class='actions'><a class='button secondary' href='/settings'>Settings</a>"
+        "<div class='actions device-actions'><a class='button secondary' href='/settings'>Settings</a>"
         "<a class='button secondary' href='/backup'>Backup and restore</a>"
-        "<button class='danger restart' type='button' onclick='restartDevice()'>Restart device</button></div>",
+        "<button class='restart' type='button' data-device-action='restart'>Restart device</button>"
+        "<button class='danger' type='button' data-device-action='factory'>Factory reset</button></div>",
         HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
@@ -553,34 +565,9 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* A műveletgombok már az oldal tetején, a Beállítások mellett szerepelnek. */
 
     sendf(req,"<script>document.documentElement.lang='%s';</script>",s_hu?"hu":"en");
-    httpd_resp_send_chunk(req,
-        "<div id='reboot-mask' hidden style='position:fixed;inset:0;background:#000;color:#fff;"
-        "z-index:999;display:none;align-items:center;justify-content:center;text-align:center'>"
-        "<div><h1 id='reboot-title'></h1><p id='reboot-state'></p>"
-        "<p id='reboot-countdown' style='font-size:28px'></p></div></div>"
-        "<script>"
-        "async function restartDevice(){"
-        "const hu=document.documentElement.lang!=='en';"
-        "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
-        "const m=document.getElementById('reboot-mask');m.hidden=false;m.style.display='flex';"
-        "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
-        "const status=document.getElementById('reboot-state');"
-        "const counter=document.getElementById('reboot-countdown');"
-        "status.textContent=hu?'Statisztika mentése és az eszköz újraindítása…':'Saving statistics and restarting…';"
-        "try{const r=await fetch('/reboot',{method:'POST'});if(!r.ok)throw Error(await r.text());}"
-        "catch(e){status.textContent=(hu?'Újraindítási hiba: ':'Restart error: ')+e.message;return;}"
-        "let remaining=20,started=Date.now(),offline=false;"
-        "const tick=async()=>{remaining=Math.max(0,20-Math.floor((Date.now()-started)/1000));"
-        "counter.textContent=remaining>0?(hu?'Visszaszámlálás: ':'Countdown: ')+remaining+' s':'';"
-        "if(remaining>0){setTimeout(tick,1000);return;}"
-        "status.textContent=hu?'Kapcsolódás az újraindult eszközhöz…':'Reconnecting to device…';"
-        "const probe=async()=>{try{const c=new AbortController();"
-        "const t=setTimeout(()=>c.abort(),1800);"
-        "const r=await fetch('/api/settings?ping='+Date.now(),{cache:'no-store',signal:c.signal});"
-        "clearTimeout(t);if(r.ok){location.href='/';return;} }catch(e){}"
-        "setTimeout(probe,2000);};probe();};tick();"
-        "}"
-        "</script>",HTTPD_RESP_USE_STRLEN);
+    if (httpd_resp_send_chunk(req, app_home_actions, sizeof(app_home_actions) - 1) != ESP_OK) {
+        return ESP_FAIL;
+    }
 
     /* A chunked HTTP választ nulla hosszú chunk zárja le. */
     if (httpd_resp_send_chunk(

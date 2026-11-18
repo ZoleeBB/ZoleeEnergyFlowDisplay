@@ -76,6 +76,8 @@ def embed(html, js, placeholder, name, header):
     write_or_check(ROOT / 'main' / header, content)
 
 
+embed('home-actions.html', 'home-actions.js', '/*HOME_ACTIONS_JS*/',
+      'app_home_actions', 'app_home_actions.h')
 embed('template-manager.html', 'template-manager.js', '/*MANAGER_JS*/',
       'template_manager_page', 'app_template_page.h')
 embed('loxone.html', 'loxone.js', '/*LOXONE_JS*/',

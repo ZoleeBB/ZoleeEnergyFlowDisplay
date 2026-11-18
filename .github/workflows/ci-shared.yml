@@ -100,6 +100,10 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_intercom_browser.js
+      - name: Check home page restart and factory reset confirmations
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_home_actions_browser.js
       - name: Check voluntary support cards on desktop and mobile
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
