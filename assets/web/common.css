@@ -22,6 +22,7 @@ label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:10px}
 @supports(grid-template-rows:subgrid){
     .field-grid>label,.field-grid>.field-extra{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:subgrid;grid-row:span 2;row-gap:6px;align-self:stretch}
     .field-grid>label>:is(input,select,textarea),.field-grid>.field-extra>div{grid-row:2;align-self:start;min-width:0}
+    .field-grid>label>input:is([type=checkbox],[type=radio]){margin:0}
 }
 @supports not (grid-template-rows:subgrid){
     .field-grid{grid-template-columns:minmax(0,1fr)!important}
