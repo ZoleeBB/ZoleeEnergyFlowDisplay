@@ -176,7 +176,7 @@ void app_state_set_wifi_connected(bool connected) { online = connected; }
 void app_events_add(app_event_level_t level, const char *format, ...) { (void)level; (void)format; }
 esp_err_t esp_event_handler_register(int base, int id, event_fn_t cb, void *arg)
 {
-    assert(!arg);
+    assert(!in_reset && !arg);
     if (base == WIFI_EVENT) { assert(id == ESP_EVENT_ANY_ID); on_wifi = cb; }
     else { assert(base == IP_EVENT && id == IP_EVENT_STA_GOT_IP); on_ip = cb; }
     return ESP_OK;

@@ -214,8 +214,9 @@ esp_err_t app_wifi_factory_reset_credentials(void)
     }
 
     /* A 3.x az alapértelmezett flash-tárba is menthette a jelszót a külön
-     * C6-on. Az ESP-Hosted restore szinkron RPC: a távoli esp_wifi_restore()
-     * eredményét adja vissza. Ehhez sem STA-indítás, sem IP-interfész nem kell. */
+     * C6-on. Az ESP-Hosted 1.4.7 transzportja a P4-en a main előtt inicializál.
+     * Az init, restore és deinit szinkron RPC a C6 saját Wi-Fi driveréhez:
+     * nem kér P4-es alapértelmezett eseményhurkot, hálózati interfészt vagy STA-indítást. */
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     init.nvs_enable = 1;
     esp_err_t err = esp_wifi_init(&init);
