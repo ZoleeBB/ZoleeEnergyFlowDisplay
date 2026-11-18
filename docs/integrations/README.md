@@ -13,6 +13,7 @@ szerződések a felhasználói beállításhoz és a fejlesztéshez is elérhet�
 
 ## Útmutatók
 
+- [Közvetlen inverter – családok, helyi és felhős elérés, sötétítés](../direct-inverter.md)
 - [JSON és MQTT](../mqtt.md)
 - [HTTP adatfogadás](../http-input.md)
 - [Közvetlen Loxone kapcsolat](../loxone-direct.md)

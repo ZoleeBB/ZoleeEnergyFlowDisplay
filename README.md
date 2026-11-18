@@ -10,7 +10,7 @@ panelhez, külön **Waveshare 4B Slave (720×720)** firmware-rel. A napelem, a h
 a hálózat és az akkumulátor pillanatnyi adatait, energiaútjait és statisztikáit
 mutatja, nappali és éjszakai megjelenéssel.
 
-Adatfogadás: **MQTT, HTTP POST, közvetlen Loxone vagy Bluetooth Slave**.
+Adatfogadás: **MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter vagy Bluetooth Slave**.
 A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 
 [Első indítás](#első-indítás) · [Funkciók](#funkciók-és-üzemmódok) ·
@@ -19,14 +19,14 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 ## Első indítás
 
 1. Telepítsd a megfelelő Master vagy Slave firmware-t az [USB útmutató](docs/usb-install.md) szerint.
-2. Készítsd elő a [konfigurációt](docs/configuration.md) és az [SD-kártyát](docs/sd-card.md), amennyiben az adott üzemmód használja.
+2. Konfiguráció nélküli készüléken kövesd az [érintőképernyős első beállítást](docs/first-run-wifi.md). Előre konfigurált telepítéshez készítsd elő a [konfigurációt](docs/configuration.md) és az [SD-kártyát](docs/sd-card.md), amennyiben az adott üzemmód használja.
 3. Állítsd be a kiválasztott [adatkapcsolatot](docs/integrations/README.md); Slave esetén végezd el a Masterrel a párosítást.
 4. A kezeléshez és a helyi webfelülethez kövesd az [első indítás részletes leírását](docs/first-start.md) és a [gesztusok útmutatóját](docs/gestures.md).
 
 ## Funkciók és üzemmódok
 
 - **Energiaáramlás és statisztika:** pillanatnyi teljesítmények, animált energiautak, napi/heti/havi adatok és pénzügyi mutatók. [Statisztika](docs/statistics.md).
-- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone és Bluetooth Master/Slave. [Beállítások](docs/integrations/README.md).
+- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone, [Közvetlen inverter](docs/direct-inverter.md) és Bluetooth Master/Slave. [Beállítások](docs/integrations/README.md).
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. A szerkesztés típusválasztással indul, a kártyák fel/le gombokkal rendezhetők. [Otthon-konfiguráció](docs/v3-home-config.md).
 - **Világításvezérlés:** automatikus blokkfelismerés, `− / Ki / +` gombok, dimmer- és RGB/RGBW-kezelés. [Útmutató és képek](docs/lighting-controller.md).
 - **IRC termosztát:** célhőfok a kötött termosztátikonon, mért szobahőmérséklet, fűtési/hűtési üzemmódjel és `− / +` állítás 0,5 °C-os lépéssel. [Használat és beállítás](docs/irc-controller.md).
