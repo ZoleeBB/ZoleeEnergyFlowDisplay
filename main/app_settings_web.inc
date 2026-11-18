@@ -11,6 +11,7 @@ static cJSON *settings_json(const app_config_t *v)
 {
     cJSON *root=cJSON_CreateObject();
     if(!root)return NULL;
+    cJSON_AddBoolToObject(root,"setup_pending",app_boot_config_setup_pending());
     cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave);
     cJSON_AddNumberToObject(root,"EnergyFlowDisabled",v->energy_flow_disabled?1:0);
     cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
@@ -128,14 +129,19 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
     cJSON *root=cJSON_ParseWithLength(body,(size_t)received);
     free(body);
     if(!cJSON_IsObject(root)){cJSON_Delete(root);return settings_response(req,400,"Érvénytelen JSON konfiguráció.",false,NULL);}
+    bool setup = app_boot_config_setup_pending();
+    if (setup && !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(root, "DataReceptMode"))) {
+        cJSON_Delete(root);
+        return settings_response(req,400,"Válassz adatfogadási módot.",false,NULL);
+    }
     keep_secret(root,"wifi",s_config.wifi.password);
     keep_secret(root,"mqtt",s_config.mqtt.password);
     keep_secret(root,"ota",s_config.ota.password);
     char *data=cJSON_PrintUnformatted(root);cJSON_Delete(root);
     if(!data)return settings_response(req,500,"Nincs elegendő memória.",false,NULL);
     app_config_t next;char error[256]={0};
-    if (s_config.cardless_slave) {
-        esp_err_t result = app_boot_config_save(data, strlen(data), &next, error, sizeof(error));
+    if (app_boot_config_internal()) {
+        esp_err_t result = app_boot_config_complete(data, strlen(data), &next, error, sizeof(error));
         free(data);
         if (result != ESP_OK) return settings_response(req,400,error[0]?error:"A belső mentés sikertelen.",false,NULL);
         goto apply_settings;
@@ -164,15 +170,19 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
      * helyreállítható váratlan tápvesztés esetén.
      */
     remove(bak);
-    if(rename(path,bak)!=0){
+    bool had_file = access(path, F_OK) == 0;
+    if(had_file && rename(path,bak)!=0){
         remove(tmp);app_storage_unlock();
         return settings_response(req,500,"A régi konfiguráció nem menthető.",false,NULL);
     }
     if(rename(tmp,path)!=0){
-        (void)rename(bak,path);remove(tmp);app_storage_unlock();
+        if (had_file) (void)rename(bak,path);
+        remove(tmp);app_storage_unlock();
         return settings_response(req,500,"A konfiguráció nem aktiválható.",false,NULL);
     }
     remove(bak);
+    if (app_boot_config_cache_file(path) != ESP_OK)
+        app_events_add(APP_EVENT_WARNING, "Az SD-beállítás mentve, a belső gyorsindítási másolat nem frissült.");
     app_storage_unlock();
 
 apply_settings:
@@ -180,10 +190,10 @@ apply_settings:
     app_config_t old_cmp=s_config,new_cmp=next;
     memset(&old_cmp.statistics,0,sizeof(old_cmp.statistics));
     memset(&new_cmp.statistics,0,sizeof(new_cmp.statistics));
-    bool restart=memcmp(&old_cmp,&new_cmp,sizeof(old_cmp))!=0;
+    bool restart=setup || memcmp(&old_cmp,&new_cmp,sizeof(old_cmp))!=0;
     s_config=next;
     if(restart){
-        if(app_stats_save_now()!=ESP_OK)
+        if(app_stats_is_ready() && app_stats_save_now()!=ESP_OK)
             return settings_response(req,500,"A konfiguráció mentve, de a statisztika mentése sikertelen. Kézi újraindítás szükséges.",false,NULL);
         if(xTaskCreate(reboot_task,"settings_restart",2048,NULL,8,NULL)!=pdPASS)
             return settings_response(req,500,"Beállítások mentve, de az automatikus újraindítás nem indítható.",false,NULL);

@@ -6,6 +6,11 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "app_boot_config.h"
+#include "app_setup_wifi.h"
+#include "app_setup_ui.h"
+#endif
 #include "app_ble_seed.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "app_ble_profile.h"
@@ -188,6 +193,7 @@ typedef enum
     VIEW_LOXONE_WAIT,
     VIEW_LOXONE_ERROR,
     VIEW_WAIT_DATA,
+    VIEW_INVERTER_SETUP,
     VIEW_DATA_TIMEOUT,
     VIEW_FATAL
 } runtime_view_t;
@@ -1493,10 +1499,31 @@ static void update_flows(const app_energy_sample_t *s, float dt)
 
 #include "app_ble_pin_ui.inc"
 
+#ifndef APP_TEMPLATE_DESKTOP
+/* A paneles hálózatválasztásnak már az időszinkron és a runtime előtt élnie kell. */
+static void __attribute__((noinline)) setup_ui_tick(void)
+{
+    static int64_t next_update;
+    int64_t now = esp_timer_get_time();
+    if (now < next_update) return;
+    next_update = now + 150000;
+    app_setup_wifi_state_t setup;
+    app_setup_wifi_snapshot(&setup);
+    app_setup_ui_update(lv_layer_top(), lv_display_get_horizontal_resolution(NULL),
+                        lv_display_get_vertical_resolution(NULL), &setup);
+}
+#endif
+
 /* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
+#ifndef APP_TEMPLATE_DESKTOP
+    if (!s_started && s_view != VIEW_FATAL && app_boot_config_setup_pending()) {
+        setup_ui_tick();
+        return;
+    }
+#endif
     if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Nincs animált energiaút vagy újrarajzolás befagyasztott Loxone-adattal.
      * A belső időalap tovább lép, helyreálláskor sincs animációs ugrás. */
@@ -1513,13 +1540,6 @@ static void animation_tick(lv_timer_t *timer)
             error_screen(
                 VIEW_WIFI_ERROR,
                 tr("Nincs Wi-Fi kapcsolat", "No Wi-Fi connection"),
-                tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
-                false);
-        else if (s_boot_stage > APP_BOOT_MQTT && s_cfg.data_recept_mode == APP_DATA_MQTT &&
-                 !state.mqtt_connected)
-            error_screen(
-                VIEW_MQTT_ERROR,
-                tr("Nincs MQTT kapcsolat", "No MQTT connection"),
                 tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
                 false);
     }
@@ -2018,22 +2038,12 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
     const char *hu_steps[] = {s_cfg.cardless_slave ? "Belső tár (SD nélkül)" : "SD-kártya",
                               "Konfiguráció",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (opcionális)" : "Wi-Fi kapcsolat",
-                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron",
-                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / master keresése" :
-                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone kapcsolat"
-                              : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP adatfogadó"
-                                                                        : "MQTT kapcsolat",
-                              "Várakozás az első adatcsomagra"};
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron"};
 
     const char *en_steps[] = {s_cfg.cardless_slave ? "Internal storage (no SD)" : "SD card",
                               "Configuration",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (optional)" : "Wi-Fi connection",
-                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization",
-                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / searching for master" :
-                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone connection"
-                              : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP receiver"
-                                                                        : "MQTT connection",
-                              "Waiting for first data packet"};
+                              s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization"};
 
     lbl(s_screen,
         s_cfg_ok ? s_cfg.project.title : "Zolee Energy Flow Display",
@@ -2057,7 +2067,7 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
      * kész = zöld ellenőrzött otthon, aktív = narancs adatmozgás,
      * jövőbeli = visszafogott szürke kör.
      */
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i <= APP_BOOT_NTP; i++)
     {
         int y = 300 + i * 57;
 
@@ -2248,7 +2258,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         loxone_screen(!rt.loxone_configured ? VIEW_LOXONE_SETUP : VIEW_HOME_SETUP);
         return;
     }
-    if (home_render(&s, have && rt.loxone_connected &&
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE && home_render(&s, have && rt.loxone_connected &&
                     !app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg)))) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
@@ -2299,6 +2309,16 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
             tr("Nincs MQTT kapcsolat", "No MQTT connection"),
             tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
             false);
+    }
+    else if (s_cfg.data_recept_mode == APP_DATA_INVERTER && (!rt.inverter_ready || !have || timed_out))
+    {
+        error_screen(!rt.inverter_ready ? VIEW_INVERTER_SETUP : timed_out ? VIEW_DATA_TIMEOUT : VIEW_WAIT_DATA,
+            !rt.inverter_ready ? tr("Inverter beállítása szükséges", "Inverter setup required")
+                : timed_out ? tr("Nincs friss invertermérés", "No recent inverter reading")
+                            : tr("Inverter lekérdezése", "Reading inverter"),
+            !rt.inverter_ready ? tr("Nyisd meg a webes felületen az Inverter beállítások fület.",
+                                    "Open Inverter settings on the local web interface.")
+                               : tr("Az első friss mérésre várunk.", "Waiting for a fresh reading."), false);
     }
     else if (!have && !timed_out)
     {
@@ -2537,14 +2557,16 @@ static void runtime(void *arg)
 
         if (s_cfg.data_recept_mode == APP_DATA_LOXONE)
             (void)app_loxone_signals(&s_loxone_signals);
-        bool intercom_active = intercom_prepare();
+        bool loxone = s_cfg.data_recept_mode == APP_DATA_LOXONE;
+        bool intercom_active = loxone && intercom_prepare();
 #ifdef APP_INTERCOM_DISTRIBUTED
-        app_intercom_audio_poll();
+        if (loxone || (s_cfg.data_recept_mode == APP_DATA_SLAVE && app_ble_seed_slave_intercom_allowed()))
+            app_intercom_audio_poll();
 #endif
         master_display_update(have, s.night_mode, intercom_active);
         /* A felugró nézet a türelmi idő alatt sem maradhat vezérelhető.
          * A kaputelefon elsőbbsége még a rendes Otthon-frissítés előtt él. */
-        if ((!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
+        if (loxone && (!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
         {
             home_controls_suspend();
             bsp_display_unlock();
@@ -2562,7 +2584,7 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
-        if (intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
+        if (loxone && intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
         {
             intercom_render();
             bsp_display_unlock();
@@ -2593,10 +2615,10 @@ static void runtime(void *arg)
             continue;
         }
         diagnostics_capture();
-        assistant_prepare();
+        if (loxone) assistant_prepare();
         /* Az Otthon-kártyák külön előtöltési ága is kap időkorlátot.
          * Visszatérés után a normál UI-ciklus építi fel a helyes nézetet. */
-        if (home_restore_watchdog())
+        if (loxone && home_restore_watchdog())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
@@ -2607,7 +2629,7 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        if (!home_prepare(have || s_cfg.energy_flow_disabled ? s.night_mode : home_night))
+        if (loxone && !home_prepare(have || s_cfg.energy_flow_disabled ? s.night_mode : home_night))
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
@@ -2617,12 +2639,14 @@ static void runtime(void *arg)
         {
             slave_display_update(&rt, &s, have || rt.energy_flow_disabled, now);
             master_presence_update(&rt, &s, have, now);
-            app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
+            if (loxone) app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
                 have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
                 &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
-            assistant_render();
-            mail_render();
+            if (loxone) {
+                assistant_render();
+                mail_render();
+            }
 
             bsp_display_unlock();
         }

@@ -1028,6 +1028,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     if (!cfg) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (cfg != &s_cfg) s_cfg = *cfg;
 
     if (!s_mutex) {
         s_mutex = xSemaphoreCreateMutex();
@@ -1037,7 +1038,6 @@ esp_err_t app_stats_init(const app_config_t *cfg)
         return ESP_ERR_NO_MEM;
     }
 
-    s_cfg = *cfg;
     if (cfg->cardless_slave) {
         if (cfg->data_recept_mode != APP_DATA_SLAVE) return ESP_ERR_INVALID_ARG;
         if (!s_remote) s_remote = calloc(1, sizeof(*s_remote));
@@ -1127,7 +1127,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 /* Egy új érvényes MQTT minta beépítése a napi energiába és az ötperces átlagba. */
 void app_stats_process_sample(const app_energy_sample_t *sample)
 {
-    if (s_cfg.cardless_slave) return; /* A master az egyetlen hiteles integrátor. */
+    if (!app_stats_is_ready() || s_cfg.cardless_slave) return; /* A master az egyetlen hiteles integrátor. */
     if (!sample || !s_mutex) {
         return;
     }
@@ -1192,7 +1192,9 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
 /* Szálbiztos snapshot készítése a UI számára, tegnapi azonos időszakos referenciával. */
 void app_stats_get_snapshot(app_stats_snapshot_t *out)
 {
-    if (!out || !s_mutex) {
+    if (!out) return;
+    if (!app_stats_is_ready()) {
+        memset(out, 0, sizeof(*out));
         return;
     }
 
@@ -1310,7 +1312,7 @@ esp_err_t app_stats_save_now(void)
     /* SD nélküli slave-en nincs helyi, elveszíthető statisztikai írás.
      * A konfiguráció/profil már a saját NVS-commitja után kér újraindítást. */
     if (app_stats_is_ready() && s_cfg.cardless_slave) return ESP_OK;
-    if(!s_mutex || !s_save_mutex)return ESP_ERR_INVALID_STATE;
+    if(!app_stats_is_ready())return ESP_ERR_INVALID_STATE;
     if(!app_storage_is_ok())return ESP_ERR_INVALID_STATE;
     day_data_t *copy=malloc(sizeof(*copy));
     if(!copy)return ESP_ERR_NO_MEM;
@@ -1348,7 +1350,7 @@ esp_err_t app_stats_save_now(void)
 
 void app_stats_update_config(const app_statistics_config_t *cfg)
 {
-    if (!cfg || !s_mutex) return;
+    if (!cfg || !app_stats_is_ready()) return;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_cfg.statistics = *cfg;
     xSemaphoreGive(s_mutex);
@@ -1403,6 +1405,16 @@ static void stats_task(void *arg)
 {
     (void)arg;
     while(true){
+        if (!app_stats_is_ready()) {
+            if ((s_cfg.cardless_slave || app_storage_is_ok()) && app_storage_lock() == ESP_OK) {
+                (void)app_stats_init(&s_cfg);
+                app_storage_unlock();
+            }
+            if (!app_stats_is_ready()) {
+                vTaskDelay(pdMS_TO_TICKS(10000));
+                continue;
+            }
+        }
         app_stats_tick();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -1457,7 +1469,7 @@ void app_stats_remote_disconnected(void)
 
 /* Naptári hét (hétfőtől) vagy aktuális hónap; hiányzó nap nem nulla mérés. */
 void app_stats_get_period(bool month,app_stats_period_t *out){
-    if (s_cfg.cardless_slave) { if (out) memset(out, 0, sizeof(*out)); return; }
+    if (!app_stats_is_ready() || s_cfg.cardless_slave) { if (out) memset(out, 0, sizeof(*out)); return; }
     if(!out)return;
     memset(out,0,sizeof(*out));if(!s_mutex)return;
     time_t now=time(NULL);struct tm local;localtime_r(&now,&local);
@@ -1480,7 +1492,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 
 void app_stats_break_continuity(void)
 {
-    if(!s_mutex)return;
+    if(!app_stats_is_ready())return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     s_have_prev=false;
     app_battery_break(&s_today.battery);

@@ -1540,10 +1540,7 @@ static void diagnostics_render(app_runtime_state_t rt)
     snprintf(text,
              sizeof(text),
              "%s · %s",
-             rt.data_recept_mode == APP_DATA_SLAVE    ? "Slave (BLE)"
-             : rt.data_recept_mode == APP_DATA_LOXONE ? "Loxone"
-             : rt.data_recept_mode == APP_DATA_HTTP   ? "HTTP"
-                                                      : "MQTT",
+             app_data_mode_label(rt.data_recept_mode),
              app_state_data_ready(&rt) ? tr("Elérhető", "Ready")
                                        : tr("Nem elérhető", "Unavailable"));
     label_text_if_changed(s_diagnostic_values[1], text);
