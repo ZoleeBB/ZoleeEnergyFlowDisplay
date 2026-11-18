@@ -98,7 +98,7 @@ function showProfile(initial) {
     if (!profile) return;
     const cfg = initial ? saved : {};
     const hint = profile.interval ? 'Felhős lekérdezés ' + profile.interval + ' percenként. A szolgáltatói mérés kora az oldal tetején látható.' :
-        'Helyi adatfrissítés 5 másodpercenként.';
+        'Helyi adatfrissítés 5 másodpercenként. Változó IP-címnél a helyi hálózaton feloldható gépnevet is megadhatod.';
     get('transport-help').textContent = hint + (profile.trustedPem ? ' TLS-nél a megadott gépnévnek szerepelnie kell a tanúsítványban.' : '') +
         (id === 'victron_mqtt' ? ' A 8883-as port vagy helyi CA megadása TLS-t kapcsol.' : '') +
         (id === 'solax_http' ? ' A Pocket helyi HTTP-kapcsolata titkosítás nélkül küldi a jelszót.' : '');
@@ -197,7 +197,7 @@ function syncStatus(data) {
     const ageText = Number.isFinite(age) ? (age < 60 ? age + ' mp' : Math.floor(age / 60) + ' perc') : 'ismeretlen';
     const status = [data.syncStatus];
     if (data.profile) status.push('Mérés kora: ' + ageText);
-    if (data.activeIpv4) status.push('Aktuális helyi IP-cím: ' + data.activeIpv4);
+    if (data.activeIpv4) status.push('Legutóbb igazolt helyi IP-cím: ' + data.activeIpv4);
     get('sync-status').textContent = status.filter(Boolean).join(' · ');
 }
 function fill(data) {
