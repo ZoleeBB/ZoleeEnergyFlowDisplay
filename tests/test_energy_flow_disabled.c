@@ -63,7 +63,7 @@ int main(void)
     assert(!(energy[1] & 8));
     assert(app_ble_protocol_decode(energy, 20, weather, 20, 1, &decoded) == ESP_ERR_INVALID_STATE);
     app_runtime_state_t runtime = {.data_recept_mode = APP_DATA_SLAVE, .config_ok = true,
-        .operational = true, .time_synced = true, .slave_connected = true, .cardless_slave = true,
+        .time_synced = true, .slave_connected = true, .cardless_slave = true,
         .energy_flow_disabled = true, .slave_packet_monotonic_us = 50000000};
     assert(app_state_ota_ready(&runtime));
     assert(!app_state_data_timed_out(&runtime, 60000000, 15));

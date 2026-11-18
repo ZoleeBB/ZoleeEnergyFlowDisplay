@@ -56,13 +56,6 @@ void app_state_set_config_ok(bool value)
     unlock();
 }
 
-void app_state_set_operational(bool value)
-{
-    lock();
-    s_runtime.operational = value;
-    unlock();
-}
-
 void app_state_set_cardless(bool value)
 {
     xSemaphoreTake(s_mutex, portMAX_DELAY);

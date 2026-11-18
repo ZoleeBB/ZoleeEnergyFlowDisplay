@@ -1,9 +1,8 @@
 /*
  * OTA firmware rollback-életciklus.
  *
- * Új OTA image csak akkor válik véglegessé, ha 5 percen belül teljesül:
- * SD + config + Wi-Fi + NTP + MQTT broker kapcsolat.
- * Érvényes MQTT payload nem feltétel.
+ * Hálózati módban a Wi-Fi IP-címe és a sikeres időszinkron,
+ * párosított Slave-nél a Mastertől átvett idő igazolja az indítást.
  */
 #include "app_ota.h"
 
@@ -37,7 +36,6 @@ static void save_rollback_reason(const char *reason)
     nvs_close(handle);
 }
 
-/* A hiányzó feltételek nevei a napló egy sorában. */
 void app_ota_report_boot_state(void)
 {
     nvs_handle_t handle;
@@ -103,7 +101,6 @@ static void validation_task(void *arg)
 
         if (app_state_ota_ready(&runtime))
         {
-
             esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
             if (err == ESP_OK)
             {
@@ -125,10 +122,11 @@ static void validation_task(void *arg)
      */
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
-    const char *reason = !runtime.time_synced
-        ? "Az OTA-ellenőrzés határidejéig nem történt sikeres időszinkron."
-        : !runtime.operational ? "A kijelző nem jutott el a működő alkalmazásnézetig."
-                               : "Az OTA-kép véglegesítése sikertelen.";
+    const char *reason = "Az OTA-kép véglegesítése sikertelen.";
+    if (runtime.data_recept_mode != APP_DATA_SLAVE && !runtime.wifi_connected)
+        reason = "Az OTA-ellenőrzés határidejekor nincs Wi-Fi IP-cím.";
+    else if (!runtime.time_synced)
+        reason = "Az OTA-ellenőrzés határidejéig nem történt sikeres időszinkron.";
     save_rollback_reason(reason);
     app_events_add(APP_EVENT_ERROR, "%s", reason);
 

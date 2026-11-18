@@ -2,7 +2,6 @@
 #include "app_boot_config.h"
 #include "app_setup_ui.h"
 #include "app_setup_wifi.h"
-#include "app_state.h"
 #include "app_time.h"
 #include "bsp/esp-bsp.h"
 #include "cJSON.h"
@@ -27,12 +26,7 @@ static void setup_render(lv_timer_t *timer)
     (void)timer;
     app_setup_wifi_state_t state;
     app_setup_wifi_snapshot(&state);
-    bool visible = app_setup_ui_update(lv_screen_active(), 720, 720, &state);
-    static bool operational;
-    if (!operational && visible && state.phase == APP_SETUP_WEB && state.ip[0]) {
-        app_state_set_operational(true);
-        operational = true;
-    }
+    app_setup_ui_update(lv_screen_active(), 720, 720, &state);
 }
 
 static esp_err_t setup_page(httpd_req_t *req)

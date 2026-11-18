@@ -211,7 +211,7 @@ static bool searching(void)
 {
     app_runtime_state_t s;
     app_state_get_runtime(&s);
-    assert(s.wifi_connected && s.time_synced && s.operational);
+    assert(s.wifi_connected && s.time_synced);
     return app_state_inverter_searching(&s, now);
 }
 
@@ -273,7 +273,6 @@ int main(int argc, char **argv)
     app_state_set_data_mode(APP_DATA_INVERTER);
     app_state_set_wifi_connected(true);
     app_state_set_time_synced(true);
-    app_state_set_operational(true);
     if (!strcmp(argv[1], "configure")) configure();
     else if (!strcmp(argv[1], "outage")) test_outage();
     else {

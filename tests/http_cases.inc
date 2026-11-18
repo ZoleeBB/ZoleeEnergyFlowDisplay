@@ -36,9 +36,6 @@ static void test_http(void){
     app_state_set_config_ok(true);app_state_set_time_synced(true);app_state_set_wifi_connected(true);app_state_set_sd_ok(true);
     app_state_set_http_ready(true);
     app_runtime_state_t rt;app_state_get_runtime(&rt);
-    assert(rt.time_synced && !app_state_ota_ready(&rt));
-    app_state_set_operational(true);
-    app_state_get_runtime(&rt);
     assert(!rt.mqtt_connected && app_state_ota_ready(&rt) && !rt.has_valid_sample);
     assert(!app_state_data_timed_out(&rt,fake_us+29999999,30));
     assert(app_state_data_timed_out(&rt,fake_us+30000000,30));
@@ -76,7 +73,7 @@ static void test_http(void){
     /* Exactly 4096 bytes accepted, no arbitrary smaller buffer limit. */
     char *full=malloc(4097);memset(full,' ',4096);memcpy(full,payload,strlen(payload));full[4096]=0;
     request(HTTP_POST,full,4096,"application/json",200);free(full);
-    app_state_set_wifi_connected(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
+    app_state_set_wifi_connected(false);app_state_get_runtime(&rt);assert(!app_state_ota_ready(&rt));
     app_state_set_wifi_connected(true);app_state_set_http_ready(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     app_state_set_data_mode(APP_DATA_MQTT);app_state_set_mqtt_connected(true);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     app_state_set_data_mode(APP_DATA_INVERTER);

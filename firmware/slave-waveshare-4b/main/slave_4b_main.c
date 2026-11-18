@@ -432,8 +432,6 @@ static void refresh(lv_timer_t *timer)
         visible_runtime.slave_source_stale = true;
     bool direct = app_ble_seed_slave_backlight(&display_state, now, &sample.night_mode);
     slave_4b_ui_update(&sample, available, &visible_runtime, now, clock, elapsed);
-    if (!runtime.operational && runtime.time_synced && atomic_load(&boot_complete))
-        app_state_set_operational(true);
     /* Kulcshiány után a kijelző mondja meg, mit kell tenni: a Slave magától
      * nem tud újrapárosítani, ahhoz a Masteren kell ablakot nyitni. */
     if (app_ble_pairing_required() && !pairing_pin_required)
