@@ -34,3 +34,10 @@ with tempfile.TemporaryDirectory() as tmp:
     run([cpp, *cflags, *objs, *solar, "-Wl,--wrap=time", "-l:libcjson.so.1", "-pthread", "-o", tmp/"runtime"])
     run([tmp/"runtime"])
     run([tmp/"runtime", "registers"])
+
+
+# Telepített SDK esetén a regresszióban a valódi ethernet_input és etharp_input is részt vesz.
+idf_path = os.environ.get("IDF_PATH")
+if idf_path and (Path(idf_path)/"components/lwip/lwip/src/netif/ethernet.c").exists():
+    subprocess.run([os.sys.executable, str(ROOT/"tests/test_inverter_arp_wire.py"),
+                    str(Path(idf_path)/"components/lwip/lwip")], cwd=ROOT, check=True)

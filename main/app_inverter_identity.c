@@ -43,11 +43,18 @@ void app_inverter_identity_load(app_inverter_identity_t *s, const app_inverter_c
     app_inverter_link_idle();
     uint32_t ip;
     if (!local || inet_pton(AF_INET,cfg->host,&ip) != 1) return;
+    uint32_t first = ntohl(ip) >> 24;
+    if (!first || first == 127 || first >= 224) {
+        s->invalid_address = true;
+        return;
+    }
     s->pin.original = ip;
     s->pin.version = 1;
     s->pin.port = cfg->port;
     s->pin.unit = cfg->unit;
     snprintf(s->pin.profile,sizeof(s->pin.profile),"%s",cfg->profile);
+    snprintf(s->pin.user,sizeof(s->pin.user),"%s",cfg->user);
+    snprintf(s->pin.device,sizeof(s->pin.device),"%s",cfg->device);
     nvs_handle_t h;
     esp_err_t err = nvs_open("inverter_v4",NVS_READONLY,&h);
     if (err == ESP_OK) {
@@ -57,12 +64,13 @@ void app_inverter_identity_load(app_inverter_identity_t *s, const app_inverter_c
         nvs_close(h);
         if (err == ESP_OK) {
             if (size != sizeof(saved) || saved.version != 1 || !real_mac(saved.mac) ||
-                !memchr(saved.profile,0,sizeof(saved.profile)) || !memchr(saved.ssid,0,sizeof(saved.ssid))) {
+                !memchr(saved.profile,0,sizeof(saved.profile)) || !memchr(saved.ssid,0,sizeof(saved.ssid)) ||
+                !memchr(saved.user,0,sizeof(saved.user)) || !memchr(saved.device,0,sizeof(saved.device))) {
                 s->storage_error = true;
                 return;
             }
             if (saved.original == ip && saved.port == cfg->port && saved.unit == cfg->unit &&
-                !strcmp(saved.profile,cfg->profile)) {
+                !strcmp(saved.profile,cfg->profile) && !strcmp(saved.device,cfg->device) && !strcmp(saved.user,cfg->user)) {
                 s->pin = saved;
                 s->bound = true;
             }
@@ -75,6 +83,7 @@ const char *app_inverter_identity_prepare(app_inverter_identity_t *s, char out[1
 {
     out[0] = 0;
     s->direct = false;
+    if (s->invalid_address) return "Érvényes egyedi invertercímet kell megadni";
     if (s->storage_error) return storage;
     if (!s->pin.original) return NULL;
     uint32_t target = s->bound ? s->pin.last : s->pin.original;
@@ -82,6 +91,9 @@ const char *app_inverter_identity_prepare(app_inverter_identity_t *s, char out[1
     if (!app_inverter_link(target,s->bound ? s->pin.mac : NULL,true,&link)) return wait_neighbor;
     if (s->bound && !same_scope(&s->pin,&link))
         return "Másik helyi hálózat: a mentett inverter címe nem igazolható";
+    if (target == link.local || ((target & link.mask) == (link.local & link.mask) &&
+        (!(target & ~link.mask) || (target & ~link.mask) == ~link.mask)))
+        return "A megadott IP a kijelző, a hálózat vagy a szórás címe";
     if (!on_link(target,&link)) {
         if (s->bound) return wait_neighbor;
         return NULL; /* Útválasztott címen az inverter saját MAC-címe nem látható. */

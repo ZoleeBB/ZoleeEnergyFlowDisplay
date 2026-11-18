@@ -93,7 +93,7 @@ static void lookup(void *arg)
      * kérünk normál ARP-feloldást. A távoli címekhez a szokásos router kell. */
     uint32_t bits = r->address & ~out->mask;
     if (r->probe && (r->address & out->mask) == (out->local & out->mask) &&
-        r->address != out->local && bits && bits != ~out->mask && ntohl(r->address) < 0xe0000000) {
+        r->address != out->local && bits && bits != ~out->mask && lwip_ntohl(r->address) < 0xe0000000) {
         if (!found) {
             ip4_addr_t wanted = {.addr=r->address};
             (void)etharp_request(n,&wanted);
