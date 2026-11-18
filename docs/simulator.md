@@ -1,6 +1,6 @@
 # Windows UI-szimulátor (Visual Studio 2026)
 
-A szimulátor ugyanazt az `app_ui.c`, `app_chart.c`, PNG-ikonokat és betűkészleteket használja, mint az ESP32 firmware. A 12 kötelező mezőt és az opcionális SunPosition adatot tartalmazó JSON-csomag a valódi `app_ingest_process` → `app_payload_parse` → `app_state_set_sample` útvonalon érkezik. Nincs szükség eszközre, MQTT-brokerre, ESP-IDF-re vagy SD-kártyára.
+A szimulátor ugyanazt az `app_ui.c`, `app_chart.c`, PNG-ikonokat és betűkészleteket használja, mint az ESP32 firmware. A 11 kötelező mezőt és az opcionális BatteryTemperature és SunPosition adatot tartalmazó JSON-csomag a valódi `app_ingest_process` → `app_payload_parse` → `app_state_set_sample` útvonalon érkezik. Nincs szükség eszközre, MQTT-brokerre, ESP-IDF-re vagy SD-kártyára.
 
 ## Indítás F5-tel
 

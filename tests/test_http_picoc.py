@@ -47,6 +47,7 @@ for sample_name in ['loxone-energy-http-post.picoc','loxone-energy-payload.picoc
         data = [json.loads(line) for line in lines]
         reference = json.loads((ROOT/'examples/mqtt-payload.sample.json').read_text())
         assert all(set(item)==set(reference) and len(item)==13 for item in data)
+        assert all(item['BatteryTemperature'] is None for item in data)
         assert data[0]['SunPosition']=='132#38.5#420#1077' and data[1]['SunPosition'] is None
         if 'http' in sample_name:assert lines[0]!=lines[1], 'constant inputs must produce a text change'
         if 'http' in sample_name:assert lines[0].startswith('{"') and lines[1].startswith('{ "')
