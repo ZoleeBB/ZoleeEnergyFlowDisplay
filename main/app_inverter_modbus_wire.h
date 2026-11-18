@@ -1,0 +1,20 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef enum { INV_MB_TCP, INV_MB_RTU, INV_MB_V5 } inv_mb_frame_t;
+
+typedef struct {
+    int fd;
+    int64_t deadline_ms;
+    inv_mb_frame_t frame;
+    uint32_t serial;
+    uint16_t sequence;
+    uint8_t unit;
+} inv_mb_t;
+
+/* Egy mintához közös határidő és kapcsolat tartozik. Kizárólag olvasó funkciók. */
+bool inv_mb_open(inv_mb_t *bus, const char *host, uint16_t port);
+bool inv_mb_read(inv_mb_t *bus, uint8_t function, uint16_t address, unsigned count, uint16_t *words);
+void inv_mb_close(inv_mb_t *bus);
