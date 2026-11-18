@@ -1,8 +1,7 @@
 /* A kezelt fájlokat név szerint töröljük. Egyetlen könyvtárat vagy teljes
  * NVS-partíciót sem ürítünk: a felhasználó fájljai és a resetjelző megmaradnak. */
 #include "app_factory_reset_storage.h"
-#include "app_backup.h"
-#include "esp_partition.h"
+#include "app_backup_flash_partition.h"
 #include "nvs.h"
 #include <dirent.h>
 #include <errno.h>
@@ -114,6 +113,34 @@ static esp_err_t erase_namespace(const char *name)
     return err;
 }
 
+/* A nyers olvasás titkosított tárolón is a törölt 0xff mintát látja.
+ * A félbemaradt törlés megismétlésekor csak az írt szektorokat terheljük. */
+static esp_err_t erase_backups(void)
+{
+    const esp_partition_t *part = app_backup_flash_partition();
+    if (!part) return ESP_OK;
+    size_t bytes = APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE;
+    if (!part->erase_size || bytes % part->erase_size || part->size < bytes)
+        return ESP_ERR_INVALID_SIZE;
+    unsigned char block[512];
+    for (size_t sector = 0; sector < bytes; sector += part->erase_size) {
+        size_t end = sector + part->erase_size;
+        for (size_t pos = sector; pos < end; pos += sizeof(block)) {
+            size_t n = end - pos < sizeof(block) ? end - pos : sizeof(block);
+            esp_err_t err = esp_partition_read_raw(part, pos, block, n);
+            if (err != ESP_OK) return err;
+            size_t i = 0;
+            while (i < n && block[i] == 0xff) ++i;
+            if (i != n) {
+                err = esp_partition_erase_range(part, sector, part->erase_size);
+                if (err != ESP_OK) return err;
+                break;
+            }
+        }
+    }
+    return ESP_OK;
+}
+
 esp_err_t app_factory_reset_storage(const char *sd_root)
 {
     if (sd_root) {
@@ -123,14 +150,8 @@ esp_err_t app_factory_reset_storage(const char *sd_root)
 
     /* Mindkét slot teljes tartalma törlődik, a rövidebb mentések korábbi
      * maradéka is. A storage többi részéhez és az OTA-hoz nem nyúlunk. */
-    const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, APP_BACKUP_FLASH_PARTITION);
-    if (part) {
-        size_t backup_bytes = APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE;
-        if (part->size < backup_bytes) return ESP_ERR_INVALID_SIZE;
-        esp_err_t err = esp_partition_erase_range(part, 0, backup_bytes);
-        if (err != ESP_OK) return err;
-    }
+    esp_err_t err = erase_backups();
+    if (err != ESP_OK) return err;
 
     /* A STA WIFI_STORAGE_RAM-ot használ; a Wi-Fi hitelesítést a device_boot,
      * a védett BLE-profil, az SD config és a két flash-tartalék hordozza.

@@ -44,9 +44,6 @@ esp_err_t app_backup_restore(const char *root, const char *json, size_t length,
 /* Belső flash-tartalék két váltakozó slottal. A fejléc és a hasznos adat
  * CRC-je együtt dönti el, melyik slot érvényes; áramszünet csak a félig írt
  * slotot ronthatja el, a másik érintetlen marad. */
-#define APP_BACKUP_FLASH_PARTITION "storage"
-#define APP_BACKUP_FLASH_SLOT_SIZE (1024U * 1024U)
-#define APP_BACKUP_FLASH_SLOT_COUNT 2U
 #define APP_BACKUP_SLOT_MAGIC 0x314B425AU /* "ZBK1" little-endian */
 #define APP_BACKUP_SLOT_HEADER 32U
 typedef struct

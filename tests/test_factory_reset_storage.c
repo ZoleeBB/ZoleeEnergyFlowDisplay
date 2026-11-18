@@ -16,7 +16,7 @@ static bool content[12], erased[12];
 static const char *fault;
 static unsigned flash_calls;
 static bool has_partition = true, missing_optional_namespace;
-static esp_partition_t part = {.size = 7 * 1024 * 1024};
+static esp_partition_t part = {.size = 7 * 1024 * 1024, .erase_size = 4096};
 static unsigned char flash[7 * 1024 * 1024];
 static const unsigned backup_end = 2 * 1024 * 1024;
 
@@ -27,9 +27,20 @@ const esp_partition_t *esp_partition_find_first(int type, int subtype, const cha
     return has_partition ? &part : NULL;
 }
 
-esp_err_t esp_partition_erase_range(const esp_partition_t *p, size_t start, size_t length)
+esp_err_t esp_partition_read_raw(const esp_partition_t *p, size_t start, void *out, size_t length)
 {
     assert(p == &part && start + length <= backup_end);
+    if (!strcmp(fault, "flash_read")) return ESP_FAIL;
+    memcpy(out, flash + start, length);
+    return ESP_OK;
+}
+
+esp_err_t esp_partition_erase_range(const esp_partition_t *p, size_t start, size_t length)
+{
+    assert(p == &part && length == p->erase_size && start % length == 0 && start + length <= backup_end);
+    bool dirty = false;
+    for (size_t i = start; i < start + length; ++i) dirty |= flash[i] != 0xff;
+    assert(dirty);
     ++flash_calls;
     if (!strcmp(fault, "flash")) {
         memset(flash + start, 0xff, length / 2); /* tápvesztés / félbemaradt művelet */
@@ -98,8 +109,10 @@ int main(int argc, char **argv)
     assert((result == ESP_OK) == ok);
     if (ok) {
         for (unsigned i=0; i<9; ++i) assert(!content[i]);
+        unsigned previous_erases = flash_calls;
         assert(app_factory_reset_storage(root) == ESP_OK);
-    } else if (!strncmp(fault, "sd_", 3) || !strcmp(fault, "small_flash")) {
+        assert(flash_calls == previous_erases);
+    } else if (!strncmp(fault, "sd_", 3) || !strcmp(fault, "small_flash") || !strcmp(fault, "flash_read")) {
         assert(!flash_calls && content[0] && content[4]);
     } else if (!strcmp(fault, "flash")) {
         assert(flash_calls && content[0] && content[4]);

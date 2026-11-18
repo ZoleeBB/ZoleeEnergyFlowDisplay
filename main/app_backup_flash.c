@@ -15,7 +15,7 @@
 #include "app_storage.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
-#include "esp_partition.h"
+#include "app_backup_flash_partition.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -29,11 +29,6 @@
 
 static const char *TAG = "backup";
 static SemaphoreHandle_t s_lock, s_request;
-
-static const esp_partition_t *partition(void)
-{
-    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, APP_BACKUP_FLASH_PARTITION);
-}
 
 /* Egy slot fejléce és hasznos adatának CRC-je együtt érvényes. */
 static bool slot_read(const esp_partition_t *part, unsigned index, app_backup_slot_t *slot,
@@ -76,7 +71,7 @@ static bool ensure_lock(void)
 
 esp_err_t app_backup_flash_info(app_backup_flash_info_t *out)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (!out)
         return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
@@ -100,7 +95,7 @@ esp_err_t app_backup_flash_info(app_backup_flash_info_t *out)
 
 esp_err_t app_backup_flash_load(char **json, size_t *length)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (!json || !length)
         return ESP_ERR_INVALID_ARG;
     *json = NULL;
@@ -125,7 +120,7 @@ esp_err_t app_backup_flash_load(char **json, size_t *length)
 
 esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (written)
         *written = false;
     if (!json || !length || length > APP_BACKUP_MAX)

@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as tmp:
                     "-Itests/stubs", "-Imain", "tests/test_factory_reset_storage.c",
                     "main/app_factory_reset_storage.c", "-Wl,--wrap=unlink", "-o", binary],
                    cwd=ROOT, check=True)
-    for fault in ("none", "sd_write", "flash", "small_flash", "missing_flash", "nvs_read",
+    for fault in ("none", "sd_write", "flash_read", "flash", "small_flash", "missing_flash", "nvs_read",
                   "nvs_write", "nvs_erase", "nvs_commit", "sd_conflict", "sd_unmounted"):
         sd = Path(tmp) / fault
         if fault != "sd_unmounted":
