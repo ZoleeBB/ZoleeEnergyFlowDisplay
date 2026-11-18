@@ -117,3 +117,14 @@ A külső hőmérséklet megjelenítési tartománya −35…+50 °C, a szélé 
 a páratartalomé 0…100%. A határértékek is megjelennek. A határon túli értéket
 csak az érintett időjárási mezőből hagyja ki a kijelző, így a többi mérés és a
 Slave energiaadatainak frissítése folytatódik.
+
+## Frissítés meglévő kijelzőn
+
+| Üzemelő konfiguráció | A v4-es frissítéskor ellenőrzött működés |
+| --- | --- |
+| 10,1 hüvelykes Master érvényes SD-konfigurációval | A kártyán választott MQTT, HTTP vagy Loxone mód marad aktív. A Wi-Fi-varázsló kimarad. A Loxone Otthon-, jelenlét- és kaputelefonbeállításai a korábbi helyükről töltődnek be. |
+| Kártya nélküli 10,1 hüvelykes Slave | A v3-as szerepjelölő és a belső JSON alapján továbbra is Slave-ként indul. A beállítófelület mentése a firmware-ben is ellenőrzi ezt, így egy korábbi böngészőlap sem állíthatja át más szerepre. |
+| Párosított 4B és Loxone Master | A régi párosítás használható. A 4B a kaputelefont az igazolt képesség után indítja. Ha a hitelesített nappali és éjszakai fényerőprofil előbb érkezik meg, annak értékei maradnak érvényben. |
+| 4B és inverter Master átmeneti kapcsolatvesztéssel | A 4B helyben működteti az átvett időprogramot, amíg a rádió újabb keresési ciklusokat indít. A gazdagépes próba 700 másodpercnyi kiesést, az újbóli csatlakozásra várást és a beragadt rádió külön kezelését ellenőrzi. |
+
+A vizsgálat a konfigurációmentést, a BLE-állapotgépet, a fényerőszabályozást és a valódi LVGL-nézeteket gazdagépen futtatta. A rádiós hatótáv, a panel tényleges fényereje és a telepített inverter válaszideje helyszíni próbával mérhető. [BLE-verziók együttműködése](ble-data-seed.md#100a-védett-kijelzőprofil-és-verziók)
