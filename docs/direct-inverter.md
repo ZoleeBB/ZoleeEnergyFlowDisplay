@@ -17,7 +17,7 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 | --- | --- | --- |
 | Fronius Primo/Symo GEN24 Plus | Helyi Solar API HTTP, Solar.web Query API | Engedélyezett Solar API vagy külön Solar.web API-kulcs. Ház és hálózat megjelenítéséhez Smart Meter. |
 | Sungrow SH5.0–10RT, RT-20 | Helyi Modbus TCP | Az inverter megfelelő LAN-portja, Modbus-eszközcíme, mérő és a telepített akkumulátor. |
-| SolaX X3-Hybrid G4 | Helyi Modbus TCP, kompatibilis Pocket HTTP, SolaXCloud v2 | A pontos Pocket/G4 változat és engedélyezett interfész. A G4 Pro adatgyűjtőjének külön ellenőrizd a regiszterkiosztását. |
+| SolaX X3-Hybrid G4 és X3-HYB-G4 PRO | Helyi Modbus TCP, kompatibilis Pocket HTTP, SolaXCloud v2 | Modbusnál válaszd ki a pontos kivitelt. A külön PRO beállítás az inverter protokollverzióját és a két- vagy három-MPPT-s kiosztást is figyelembe veszi. A helyi Pocket HTTP profil a hagyományos G4-hez készült. |
 | Huawei SUN2000 L1/M1, köztük 5KTL-M1 | Helyi Modbus TCP, FusionSolar Northbound | WLAN-FE Smart Dongle és telepítő által engedélyezett Modbus TCP, illetve külön API-fiók. A helyi adatgyűjtő egyidejű klienskorlátjára ügyelj. |
 | GoodWe ET/EH | Helyi Modbus TCP | A megfelelő adatgyűjtő támogassa a Modbus TCP-t. A Wi-Fi kapcsolat önmagában a gyártói felhő elérését is jelentheti. |
 | Victron MultiPlus/Quattro GX rendszerrel | GX Modbus TCP vagy helyi MQTT | A GX-ben engedélyezd a választott szolgáltatást. MQTT-hez a VRM Portal ID kell. [GX MQTT beállítása](inverters/victron-mqtt.md) |

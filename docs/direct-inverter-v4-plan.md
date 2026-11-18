@@ -109,3 +109,7 @@ előjeles. Hibás vagy ezen kívüli termelésből nem készül új minta. A tö
 hőfoka −20…+80 °C között jelenik meg. A statisztika a mért teljesítményből integrál.
 A napi, heti és havi grafikonok az adatsorhoz méreteznek. A frissített Műszerfal
 témában a műszerívek és a végpontfeliratok is követik a 15 kW fölötti méréseket.
+
+## Első indítási varázsló
+
+Menet közben hozzáadott követelmény mindkét panelhez és az összes üzemmódhoz. Érvényes SD- vagy megőrzött belső konfiguráció hiányában a panel először kereshető, lapozható Wi-Fi-listát mutat. A kiválasztott védett hálózat jelszava ékezetes és speciális karaktereket támogató érintőbillentyűzeten adható meg. A tényleges IPv4-cím megszerzése engedi tovább a folyamatot. A hálózatválasztó és a jelszóbeviteli erőforrások felszabadulnak. A gyári időszerver sikeres szinkronja után a fekete felületen megjelenő nagy HTTP-cím közvetlenül a helyi webes beállítóoldalt nyitja meg. A mentett profil a következő indítástól kihagyja a varázslót. [Képes kezelési útmutató](first-run-wifi.md)
