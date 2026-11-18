@@ -7,6 +7,8 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 .register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
 .register-row small{display:block;overflow-wrap:anywhere}.register-row label{margin:0}
 @media(max-width:640px){.register-row{grid-template-columns:minmax(0,1fr) auto}.register-row>div{grid-column:1/-1}}
+.discovery-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
+.discovery-row span{overflow-wrap:anywhere}.discovery-row small{display:block}#discovery{margin-bottom:16px}
 #inverter-fields{min-width:0;border:0;padding:0;margin:0}
 #slave-profiles button{margin:4px 8px 4px 0}.feedback-error{color:var(--danger)}
 @media(max-width:480px){.week-row{grid-template-columns:1fr 1fr}.week-row>label:first-child{grid-column:1/-1}.grid{grid-template-columns:minmax(0,1fr)}}
@@ -17,7 +19,12 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <form id="inverter-form"><fieldset id="inverter-fields">
 <section><h2>Inverterkapcsolat</h2>
 <label>Inverter és kapcsolattípus<select id="profile" required><option value="">Válassz invertert…</option></select></label>
-<p class="hint" id="transport-help"></p>
+<p id="setup-help"></p><p class="hint" id="transport-help"></p>
+<div id="discovery" hidden>
+<div class="actions"><button type="button" class="secondary" id="search-inverter">Inverter keresése a helyi hálózaton</button>
+<button type="button" class="secondary" id="cancel-search" hidden>Keresés leállítása</button></div>
+<p id="discovery-status" role="status"></p><div id="discovery-results"></div>
+</div>
 <div id="connection" class="grid"></div>
 <div id="rebind-control" hidden>
 <label><input id="rebind-device" type="checkbox" aria-describedby="rebind-help">Új inverter párosítása ezen az IP-címen</label>
@@ -43,4 +50,4 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>
 <button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
 </fieldset><p id="result" role="status" aria-live="polite"></p></form>
-<script>/*SLAVES_JS*/</script><script>/*REGISTER_JS*/</script><script>/*INVERTER_JS*/</script></body></html>
+<script>/*SLAVES_JS*/</script><script>/*REGISTER_JS*/</script><script>/*DISCOVERY_JS*/</script><script>/*INVERTER_JS*/</script></body></html>

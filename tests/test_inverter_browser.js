@@ -8,6 +8,7 @@ const lines = fs.readFileSync('main/app_inverter_page.h', 'utf8').split('\n').fi
 const html = lines.map(line => JSON.parse(line.replace(/;$/, '').replace(/\\\?/g, '?'))).join('');
 const id = 'ble-0-010203040506';
 const initial = {
+    discoverable: ['huawei_modbus', 'solplanet_http', 'sofar_v5', 'victron_modbus', 'solax_modbus'],
     profile: 'solax_cloud', host: 'global.solaxcloud.com', device: 'A123', hasSecret: true, hasKey: false,
     user: '', unit: 1, port: 443, revision: 5, battery: false, latitude: 0, longitude: 0,
     schedule: {days: Array.from({length: 7}, () => ({enabled: false, start: 1320, end: 360})), touchWakeSeconds: 30},
@@ -23,7 +24,9 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         const page = await browser.newPage({viewport: {width: 390, height: 900}});
         const errors = [], unexpected = [];
         let stored = structuredClone(initial), posted = null, fail = false;
-        const registerRequests = [];
+        const registerRequests = [], discoveryRequests = [], cancellations = [];
+        let job = 20, discoveryStatus = {}, holdStart, startReply, nextStartError = false;
+
         const schema = [
             {id: 'pv', label: 'PV teljesítmény', address: 32064, words: 2, function: 3, base: null, format: 'S32 BE · W'},
             {id: 'soc', label: 'Töltöttség', address: 0, words: 1, function: 4, base: null, format: 'U16 · %'}
@@ -41,6 +44,28 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
             const request = route.request(), path = new URL(request.url()).pathname;
             if (path === '/inverter') return route.fulfill({contentType: 'text/html; charset=utf-8', body: html});
             if (path === '/api/inverter/slaves') return route.fulfill({json: peers});
+            if (path === '/api/inverter/discovery/cancel') {
+                assert.equal(request.method(), 'POST');
+                assert.equal(request.headers()['x-zolee-inverter'], '1');
+                cancellations.push(request.postDataJSON().job);
+                return route.fulfill({json: {cancelled: true}});
+            }
+            if (path === '/api/inverter/discovery') {
+                if (request.method() === 'POST') {
+                    assert.equal(request.headers()['x-zolee-inverter'], '1');
+                    const params = request.postDataJSON();
+                    assert(Object.keys(params).every(k => ['profile', 'unit', 'port', 'device'].includes(k)));
+                    discoveryRequests.push(params);
+                    if (nextStartError) return route.fulfill({status: 409, body: 'Már fut egy keresés.'});
+                    const thisJob = ++job;
+                    if (holdStart) await new Promise(resolve => { startReply = resolve; holdStart(); });
+                    return route.fulfill({json: {job: thisJob}});
+                }
+                const profile = discoveryRequests[discoveryRequests.length - 1].profile;
+                assert.equal(Number(new URL(request.url()).searchParams.get('job')), job);
+                return route.fulfill({json: {profile, job, state: 'done', checked: 16, total: 16, limited: false,
+                    results: [], ...discoveryStatus}});
+            }
             if (path === '/api/inverter/registers') {
                 const profile = new URL(request.url()).searchParams.get('profile');
                 registerRequests.push(profile);
@@ -62,7 +87,9 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         });
         await page.goto('http://display.test/inverter');
         await page.locator('#slave-programs legend').waitFor();
-        assert.equal(await page.locator('#profile option').count(), 21);
+        assert.equal(await page.locator('#profile option').count(), 23);
+        assert(!await page.locator('#search-inverter').isVisible());
+        assert((await page.locator('#setup-help').textContent()).includes('tokenId'));
         assert.equal(await page.locator('#registers').isVisible(), false);
         assert.deepEqual(registerRequests, []);
         assert(!await page.locator('#rebind-control').isVisible());
@@ -226,7 +253,71 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await x3.count(), 0); assert.equal(await pro.count(), 0);
         await x1.fill('2'); await persist();
         assert.deepEqual(posted.registerOverrides, {x3_ac_l1: 43, pro_protocol: 0});
-        assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_')));
+        const profile = page.locator('#profile'), search = page.locator('#search-inverter');
+        const setup = page.locator('#setup-help'), searchStatus = page.locator('#discovery-status');
+        for (const profileId of await profile.locator('option').evaluateAll(items => items.map(i => i.value).filter(Boolean))) {
+            await profile.selectOption(profileId);
+            assert((await setup.textContent()).length > 30, 'Missing setup help: ' + profileId);
+            assert.equal(await search.isVisible(), initial.discoverable.includes(profileId), profileId);
+        }
+        assert.deepEqual(discoveryRequests, []);
+        await profile.selectOption('sofar_v5');
+        assert((await setup.textContent()).includes('SOLARMAN V5'));
+        assert.equal(await page.locator('#port').inputValue(), '8899');
+        assert.equal(await page.locator('#unit').inputValue(), '1');
+        await page.locator('#port').fill('8898');
+        const active = {host: '192.0.2.21', port: 8898, unit: 1, model: 'HYD 10KTL-3PH',
+            serial: 'INVERTER-SN', device: '3912345678', verified: true};
+        const probable = {...active, host: '192.0.2.22', serial: '', device: '', model: 'SOLARMAN <img>', verified: false};
+        discoveryStatus = {state: 'running', results: [active, probable]};
+        await search.click();
+        const pick = page.locator('#discovery-results button');
+        await pick.first().waitFor();
+        assert.equal(await pick.count(), 2);
+        assert.equal(await page.locator('#discovery-results img').count(), 0);
+        assert((await page.locator('#discovery-results').textContent()).includes('Eszköz észlelve'));
+        assert.equal(await page.locator('#host').inputValue(), '');
+        assert.equal(await page.locator('#device').inputValue(), '');
+        assert.deepEqual(discoveryRequests.at(-1), {profile: 'sofar_v5', port: 8898, unit: 1});
+        const selectedJob = job;
+        const selectCancel = page.waitForResponse(r => r.url().endsWith('/discovery/cancel'));
+        await pick.first().click(); await selectCancel;
+        assert.equal(cancellations.at(-1), selectedJob);
+        assert.equal(await page.locator('#host').inputValue(), active.host);
+        assert.equal(await page.locator('#device').inputValue(), active.device);
+        assert.equal(posted.profile, 'solax_modbus');
+        await profile.selectOption('huawei_modbus');
+        discoveryStatus = {state: 'done', results: [], limited: true};
+        await search.click();
+        await page.waitForFunction(() => document.querySelector('#discovery-status').textContent.includes('Nincs találat'));
+        assert((await searchStatus.textContent()).includes('korlátját'));
+        nextStartError = true;
+        await search.click();
+        await page.waitForFunction(() => document.querySelector('#discovery-status').textContent.includes('Már fut'));
+        assert(await search.isEnabled());
+        nextStartError = false;
+        const pending = new Promise(resolve => { holdStart = resolve; });
+        await search.click(); await pending;
+        await profile.selectOption('solplanet_https');
+        assert(!await search.isVisible());
+        assert((await setup.textContent()).includes('tanúsítvány'));
+        const lateCancel = page.waitForResponse(r => r.url().endsWith('/discovery/cancel'));
+        holdStart = null; startReply(); await lateCancel;
+        assert.equal(cancellations.at(-1), job);
+        assert.equal(await page.locator('#host').inputValue(), '');
+        assert.equal(await pick.count(), 0);
+        await profile.selectOption('solplanet_http');
+        discoveryStatus = {state: 'running'};
+        await search.click();
+        await page.waitForFunction(() => document.querySelector('#discovery-status').textContent.includes('Ellenőrzött címek'));
+        const explicitCancel = page.waitForResponse(r => r.url().endsWith('/discovery/cancel'));
+        await page.locator('#cancel-search').click(); await explicitCancel;
+        assert.equal(cancellations.at(-1), job);
+        assert(await search.isEnabled());
+        await profile.selectOption('solax_modbus');
+        await page.locator('#device').selectOption('X3-G4-PRO');
+        assert((await setup.textContent()).includes('vezetékes LAN'));
+        assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_') || id === 'sofar_v5'));
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);
         console.log('PASS: all inverter options, credentials, GPS origin, Slave inheritance/schedules, Modbus defaults, per-row reset, late schema replies, edit retention and responsive layout');

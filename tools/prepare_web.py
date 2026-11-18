@@ -60,6 +60,7 @@ def embed(html, js, placeholder, name, header):
     if html in ('loxone.html', 'inverter.html'):
         page = page.replace('/*SLAVES_JS*/', (ROOT / 'assets/web/loxone-slaves.js').read_text())
     if html == 'inverter.html':
+        page = page.replace('/*DISCOVERY_JS*/', (ROOT / 'assets/web/inverter-discovery.js').read_text())
         page = page.replace('/*REGISTER_JS*/', (ROOT / 'assets/web/inverter-registers.js').read_text())
     if html == 'loxone.html':
         icons = json.loads((ROOT / 'assets/loxone-home/catalog.json').read_text())['icons']

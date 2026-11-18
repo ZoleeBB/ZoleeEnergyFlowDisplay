@@ -12,6 +12,31 @@ const serial = 'Inverter sorozatszáma';
 const pem = 'Megbízható helyi CA tanúsítványa (PEM, opcionális)';
 const hostLabel = 'Inverter, adatgyűjtő vagy átjáró IP-címe / gépneve';
 const cloudHost = 'A szolgáltató API-gépneve';
+const loggerSerial = 'Adatgyűjtő sorozatszáma (decimális)';
+const setupHelp = {
+    huawei_modbus: 'A FusionSolar helyi üzembe helyezési felületén nyisd meg a Settings → Communication configuration → Dongle parameter settings menüt, és engedélyezd a Modbus TCP-t az SDongleA-05 modulon. Korlátozott hozzáférésnél add az engedélyezett címekhez a master kijelző IP-címét.',
+    goodwe_modbus: 'Az ET/EH inverterhez helyi Modbus TCP-t támogató LAN vagy Wi-Fi/LAN modul kell. A SolarGo alkalmazásban engedélyezd a Modbus-TCP opciót. Az ezt használó modulokon a kapcsoló a Settings → Communication Setting → Privacy & Security menüben található.',
+    sungrow_modbus: 'Az SH5.0/6.0/8.0/10RT és RT-20 típusokon az inverter LAN feliratú Ethernet-csatlakozóját kösd a helyi hálózathoz. A port és a Modbus eszközcím egyezzen az inverter beállításával.',
+    solax_modbus: 'Válaszd ki az inverter pontos kivitelét. A kijelzővel közös hálózatra Modbus TCP-t támogató Pocket modult vagy Modbus TCP–RS485 átjárót csatlakoztass. Az eszközcím az inverteren beállított Modbus-cím.',
+    victron_modbus: 'A GX-en válaszd a Settings → Integrations → Modbus TCP Server menüt, és engedélyezd a szervert. Régebbi rendszeren a kapcsoló a Services menüben található. Az Available services listában ellenőrizd a com.victronenergy.system egységcímét. Az olvasási jogosultság elegendő.',
+    solaredge_modbus: 'A SetApp üzembe helyezési felületén válaszd a Site Communication → Modbus TCP → Enable beállítást, majd ellenőrizd a portot (gyárilag 1502). Az inverter egyszerre egy Modbus TCP klienst szolgál ki.',
+    deye_modbus: 'A Deye SG04LP3 monitoring RS485-csatlakozására kötött átjárón a Modbus TCP–RTU protokollátalakítást válaszd. Az átjáró portját és az inverter RS485-eszközcímét add meg.',
+    deye_rtu: 'Az inverter monitoring RS485-portjára kötött átjárót állítsd átlátszó TCP-szerver módba. Ezen a kapcsolaton teljes Modbus RTU keretek mennek át. Az átjáró soros beállításai egyezzenek az inverterével.',
+    deye_lse3: 'A SOLARMAN LSE-3 Ethernet-adatgyűjtőt csatlakoztasd a helyi hálózatra. Ez a profil a RAW keretezésű modult kezeli. Ellenőrizd az adatgyűjtő portját (jellemzően 8899) és a Deye eszközcímét.',
+    deye_v5: 'A Deye inverter SOLARMAN V5-kompatibilis adatgyűjtőjét csatlakoztasd a helyi hálózatra. A port jellemzően 8899. Az adatgyűjtő címkéjén lévő decimális sorozatszámot és az inverter Modbus-címét használd.',
+    solplanet_modbus: 'Az ASW8000-T RS485-ös kivitelét Modbus TCP–RTU átjárón keresztül csatlakoztasd. Az MB001 szerinti gyári eszközcím 3. A portot az átjárón ellenőrizd. Ennél a hálózati inverternél hagyd üresen a „Van akkumulátor” mezőt.',
+    sofar_modbus: 'A HYD 5/6/8/10/15/20KTL-3PH monitoring RS485-csatlakozásához Modbus TCP–RTU átjáró szükséges. Ellenőrizd az átjáró TCP-portját és az inverter kommunikációs eszközcímét. A gyári eszközcím 1.',
+    sofar_v5: 'A HYD 5/6/8/10/15/20KTL-3PH inverterhez csatlakozó adatgyűjtőnek támogatnia kell a helyi SOLARMAN V5 protokollt. A logger címkéjéről olvasd le a decimális sorozatszámot. Az eszközcím az inverter monitoring címe, a port jellemzően 8899.',
+    fronius_http: 'A Primo/Symo GEN24 webfelületén nyisd meg a Communication → Solar API menüt, és kapcsold be az „Activate communication via Solar API” opciót. Több inverter esetén add meg annak a Solar API-azonosítóját, amelyikhez az akkumulátor csatlakozik.',
+    solax_http: 'A két MPPT-s X3-Hybrid G4 Pocket modulját csatlakoztasd a ház hálózatára. Ehhez a profilhoz a 14-es helyi adatprotokoll és a Pocket helyi jelszava szükséges. Egyes moduloknál a beállított jelszó a regisztrációs szám. A jelszó HTTP-n, titkosítás nélkül jut el a modulhoz.',
+    solplanet_http: 'Csatlakoztasd a helyi HTTP API-t kínáló adatgyűjtőt a ház hálózatához. A V2 stick portja jellemzően 8484. A sorozatszámot az inverter címkéjéről vagy a felismert inverter adataiból vedd át. Az ASW8000-T esetén hagyd üresen a „Van akkumulátor” mezőt.',
+    solplanet_https: 'Használd a helyi HTTPS API-t támogató V2 adatgyűjtő tanúsítványában szereplő nevet vagy IP-címet és az inverter sorozatszámát. Saját hitelesítésszolgáltató esetén a telepítőtől kapott, ellenőrzött PEM-tanúsítvány kell. Az ASW8000-T típushoz hagyd üresen az akkumulátor jelölőjét.',
+    victron_mqtt: 'A GX-en legalább Venus OS 3.50 szükséges. A Settings → Integrations → MQTT Access (régebben Services → MQTT on LAN) menüben engedélyezd a helyi MQTT-t. A 12 karakteres VRM Portal ID-t a GX VRM-beállításaiban találod. A 8883-as port vagy helyi CA megadása TLS-t kapcsol. TLS-hez a tanúsítványban szereplő nevet add meg.',
+    fronius_cloud: 'A Solar.web rendszeredhez aktív Query API-hozzáférés és adatcsomag szükséges. A PV-rendszer UUID-jét és a Query API-hoz tartozó AccessKeyId és AccessKeyValue kulcspárt add meg.',
+    huawei_cloud: 'A FusionSolar telepítőjétől kérj Northbound API-fiókot a telephelyhez, történeti eszközadatok olvasására jogosultsággal. A telepítő a System → Company Management → Northbound Management menüben rendelheti a fiókhoz a telephelyet. A régiós kiszolgáló, az API-felhasználónév, a systemCode és az inverter sorozatszáma szükséges.',
+    solax_cloud: 'A SolaXCloud Service → API oldalán ellenőrizd a régiós kiszolgálót és a v2 tokenId hozzáférést. A Wi-Fi modul regisztrációs számát add meg. A fejlesztői portál más API-verzióhoz kiadott kulcsa ezzel a profillal nem használható.',
+    solplanet_cloud: 'Az AISWEI/Solplanet ügyfélszolgálatától igényeld a lakossági API-hozzáférést. A fiók AppKey és AppSecret kulcsait az Account and security → Account settings alatt, a Plant API Key kulcsot a választott erőmű adatainál találod. A kijelző időzónája egyezzen az erőműével.'
+};
 const profiles = {
     huawei_modbus: {name: 'Huawei SUN2000 L1/M1 · Modbus TCP', unit: 1},
     goodwe_modbus: {name: 'GoodWe ET/EH · Modbus TCP', unit: 247},
@@ -22,8 +47,10 @@ const profiles = {
     deye_modbus: {name: 'Deye SG04LP3 · Modbus TCP átjáró', unit: 1},
     deye_rtu: {name: 'Deye SG04LP3 · általános RTU-over-TCP átjáró', port: 8899, unit: 1},
     deye_lse3: {name: 'Deye SG04LP3 · SOLARMAN LSE-3 RAW adatgyűjtő', port: 8899, unit: 1},
-    deye_v5: {name: 'Deye SG04LP3 · SOLARMAN V5', port: 8899, unit: 1, device: 'Adatgyűjtő sorozatszáma (decimális)'},
+    deye_v5: {name: 'Deye SG04LP3 · SOLARMAN V5', port: 8899, unit: 1, device: loggerSerial},
     solplanet_modbus: {name: 'Solplanet ASW8000-T (ASW-T) · Modbus TCP átjáró', unit: 3},
+    sofar_modbus: {name: 'SOFAR HYD 5–20KTL-3PH · Modbus TCP átjáró', unit: 1},
+    sofar_v5: {name: 'SOFAR HYD 5–20KTL-3PH · SOLARMAN V5', port: 8899, unit: 1, device: loggerSerial},
     fronius_http: {name: 'Fronius · helyi Solar API', port: 80, device: 'Inverterazonosító az akkutöltöttséghez (több inverter esetén)'},
     solax_http: {name: 'SolaX Pocket · helyi HTTP', port: 80, secret: 'Pocket helyi jelszó'},
     solplanet_http: {name: 'Solplanet ASW8000-T · helyi HTTP', port: 8484, device: serial},
@@ -92,19 +119,20 @@ function updateSaveButton() {
 }
 function showProfile(initial) {
     const id = get('profile').value, profile = profiles[id];
+    inverterDiscovery.select(id);
     inverterRegisters.select(id);
     const grid = get('connection');
     grid.replaceChildren();
     get('transport-help').textContent = '';
+    get('setup-help').textContent = setupHelp[id] || '';
     get('rebind-control').hidden = true;
     get('rebind-device').checked = false;
     if (!profile) return;
     const cfg = initial ? saved : {};
     const hint = profile.interval ? 'Felhős lekérdezés ' + profile.interval + ' percenként. A szolgáltatói mérés kora az oldal tetején látható.' :
         'Helyi adatfrissítés 5 másodpercenként. Változó IP-címnél a helyi hálózaton feloldható gépnevet is megadhatod.';
-    get('transport-help').textContent = hint + (profile.trustedPem ? ' TLS-nél a megadott gépnévnek szerepelnie kell a tanúsítványban.' : '') +
-        (id === 'victron_mqtt' ? ' A 8883-as port vagy helyi CA megadása TLS-t kapcsol.' : '') +
-        (id === 'solax_http' ? ' A Pocket helyi HTTP-kapcsolata titkosítás nélkül küldi a jelszót.' : '');
+    get('transport-help').textContent = hint + (!profile.interval && get('discovery').hidden ?
+        ' Ennél a kapcsolattípusnál az eszköz címét kézzel add meg.' : '');
     field(grid, profile.host ? cloudHost : hostLabel, 'text', cfg.host ?? profile.host,
         {id: 'host', required: true, maxLength: 127, pattern: '[a-zA-Z0-9.\\-]+', oninput: updateEndpointFields});
     field(grid, 'Port', 'number', cfg.port ?? profile.port ?? 502, {id: 'port', min: 1, max: 65535,
@@ -116,6 +144,8 @@ function showProfile(initial) {
         model.id = 'device';
         model.onchange = () => {
             updateEndpointFields();
+            get('setup-help').textContent = setupHelp[id] + (model.value === 'X3-G4-PRO' ?
+                ' A gyártó az X3-HYB-G4 PRO Modbus TCP-kapcsolatához vezetékes LAN-t ír elő.' : '');
             inverterRegisters.variantChanged();
         };
         for (const [value, title] of [['', 'X3-G4 (háromfázisú)'], ['X1-G4', 'X1-G4 (egyfázisú)'],
@@ -123,7 +153,7 @@ function showProfile(initial) {
             const option = el('option', title); option.value = value; model.append(option);
         }
         model.value = /^x1/i.test(cfg.device || '') ? 'X1-G4' : cfg.device === 'X3-G4-PRO' ? 'X3-G4-PRO' : '';
-        label.append(model); grid.append(label);
+        label.append(model); grid.append(label); model.onchange();
     }
     for (const key of ['device', 'user', 'key', 'secret', 'trustedPem']) {
         if (!profile[key]) continue;
@@ -133,7 +163,7 @@ function showProfile(initial) {
                 required: !cert && !(key === 'user' && id === 'victron_mqtt') && !(key === 'device' && id === 'fronius_http'), oninput: updateEndpointFields});
         if (cert) input.rows = 5;
         if (key === 'device' && id === 'fronius_http') input.pattern = '[0-9]+';
-        if (key === 'device' && id === 'deye_v5') input.pattern = '[0-9]{1,10}';
+        if (key === 'device' && profile.device === loggerSerial) input.pattern = '[0-9]{1,10}';
         if (key === 'device' && id === 'victron_mqtt') input.pattern = '[a-fA-F0-9]{12}';
     }
     updateEndpointFields();
@@ -252,10 +282,11 @@ get('inverter-form').onsubmit = async event => {
     event.preventDefault();
     if (saving || !saved || !inverterRegisters.isReady() || !get('inverter-form').reportValidity()) return;
     const data = values();
-    if (data.profile === 'deye_v5' && (!Number(data.device) || Number(data.device) > 4294967295)) {
+    if (profiles[data.profile]?.device === loggerSerial && (!Number(data.device) || Number(data.device) > 4294967295)) {
         get('result').textContent = 'Az adatgyűjtő sorozatszáma 1 és 4294967295 közötti egész szám lehet.'; return;
     }
     get('rebind-device').checked = false;
+    inverterDiscovery.reset();
     saving = true; updateSaveButton();
     get('result').textContent = 'Mentés folyamatban…';
     try {
@@ -270,5 +301,6 @@ get('inverter-form').onsubmit = async event => {
         get('result').textContent = 'A mentés nem igazolt. ' + error.message;
     } finally { saving = false; updateSaveButton(); }
 };
+inverterDiscovery.bind();
 refresh();
 setInterval(refresh, 15000);
