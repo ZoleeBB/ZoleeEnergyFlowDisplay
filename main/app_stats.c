@@ -9,6 +9,7 @@
 #include "app_stats.h"
 #include "app_task_mem.h"
 #include "app_stats_compare.h"
+#include "app_stats_files.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -900,12 +901,7 @@ static void cleanup_old_files(const char *today, const char *yesterday)
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        size_t len = strlen(entry->d_name);
-        if (len < 10 ||
-            entry->d_name[4] != '-' ||
-            entry->d_name[7] != '-') {
-            continue;
-        }
+        if (entry->d_type == DT_DIR || !app_stats_history_file(entry->d_name)) continue;
 
         char date[11] = {0};
         memcpy(date, entry->d_name, 10);

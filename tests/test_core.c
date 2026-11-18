@@ -791,8 +791,32 @@ static void test_battery_diagnostics_storage(void)
     tests++;
 }
 
+static void test_history_retention_preserves_other_files(void)
+{
+    reset(instant("2026-11-18", 12, 0, 0));
+    const char *const names[] = {
+        "2024-02-29.json", "2024-02-29.json.tmp", "2024-02-29.JSON.BAK",
+        "2024-02-29.csv", "2024-02-29.json.notes", "2025-02-29.json"
+    };
+    for (unsigned i = 0; i < 6; ++i) {
+        char path[256];
+        snprintf(path, sizeof(path), APP_SD_MOUNT_POINT "/stats/%s", names[i]);
+        FILE *file = fopen(path, "wb");
+        assert(file);
+        assert(fclose(file) == 0);
+    }
+    assert(app_stats_init(&cfg) == ESP_OK); /* First configured boot after reset also runs retention. */
+    for (unsigned i = 0; i < 6; ++i) {
+        char path[256];
+        snprintf(path, sizeof(path), APP_SD_MOUNT_POINT "/stats/%s", names[i]);
+        assert((access(path, F_OK) == 0) == (i >= 3));
+    }
+    tests++;
+}
+
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
+    test_history_retention_preserves_other_files();
     test_payload();test_config();test_flow();test_events();
     test_wide_power_storage();test_partial_cloud_measurements();test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();

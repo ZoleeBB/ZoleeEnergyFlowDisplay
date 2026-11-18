@@ -2,13 +2,13 @@
  * NVS-partíciót sem ürítünk: a felhasználó fájljai és a resetjelző megmaradnak. */
 #include "app_factory_reset_storage.h"
 #include "app_backup_flash_partition.h"
+#include "app_stats_files.h"
 #include "nvs.h"
 #include <dirent.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -21,25 +21,6 @@ static esp_err_t remove_file(const char *root, const char *name, const char *suf
     if (stat(path, &st) != 0) return errno == ENOENT ? ESP_OK : ESP_FAIL;
     if (!S_ISREG(st.st_mode)) return ESP_ERR_INVALID_STATE;
     return unlink(path) == 0 ? ESP_OK : ESP_FAIL;
-}
-
-static bool history_file(const char *name)
-{
-    if (strlen(name) < 15 || name[4] != '-' || name[7] != '-') return false;
-    for (unsigned i = 0; i < 10; ++i) {
-        if (i != 4 && i != 7 && (name[i] < '0' || name[i] > '9')) return false;
-    }
-    const char *ending = name + 10;
-    if (strcasecmp(ending, ".json") && strcasecmp(ending, ".json.tmp") &&
-        strcasecmp(ending, ".json.bak")) return false;
-
-    int year = (name[0] - '0') * 1000 + (name[1] - '0') * 100 + (name[2] - '0') * 10 + (name[3] - '0');
-    int month = (name[5] - '0') * 10 + (name[6] - '0');
-    int day = (name[8] - '0') * 10 + (name[9] - '0');
-    static const unsigned char days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    if (!year || month < 1 || month > 12 || !day) return false;
-    bool leap_day = month == 2 && !(year % 4) && (year % 100 || !(year % 400));
-    return day <= days[month-1] + leap_day;
 }
 
 static esp_err_t remove_history(const char *root)
@@ -57,7 +38,8 @@ static esp_err_t remove_history(const char *root)
             if (errno) err = ESP_FAIL;
             break;
         }
-        if (history_file(entry->d_name)) err = remove_file(path, entry->d_name, "");
+        if (entry->d_type != DT_DIR && app_stats_history_file(entry->d_name))
+            err = remove_file(path, entry->d_name, "");
     }
     if (closedir(dir) != 0 && err == ESP_OK) err = ESP_FAIL;
     return err;

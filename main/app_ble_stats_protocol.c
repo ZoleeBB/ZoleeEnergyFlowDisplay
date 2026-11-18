@@ -1,5 +1,6 @@
 /* Explicit little-endian formátum: nincs natív struktúra/padding a vezetéken. */
 #include "app_ble_stats_protocol.h"
+#include "app_stats_files.h"
 #include <string.h>
 #include <math.h>
 
@@ -45,19 +46,7 @@ uint32_t app_ble_stats_crc(const uint8_t *data, size_t length)
 
 static bool valid_date(const char *s)
 {
-    if (strlen(s) != 10 || s[4] != '-' || s[7] != '-')
-        return false;
-    for (unsigned i = 0; i < 10; i++)
-        if (i != 4 && i != 7 && (s[i] < '0' || s[i] > '9'))
-            return false;
-    unsigned year = (s[0] - '0') * 1000 + (s[1] - '0') * 100 + (s[2] - '0') * 10 + s[3] - '0';
-    unsigned month = (s[5] - '0') * 10 + s[6] - '0', day = (s[8] - '0') * 10 + s[9] - '0';
-    static const unsigned days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    if (year < 2020 || year > 2100 || month < 1 || month > 12)
-        return false;
-    unsigned maximum =
-        days[month - 1] + (month == 2 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
-    return day > 0 && day <= maximum;
+    return strlen(s) == 10 && app_stats_date_prefix_valid(s, 2020, 2100);
 }
 
 #define TOTAL_FIELDS(X)                                                                            \
