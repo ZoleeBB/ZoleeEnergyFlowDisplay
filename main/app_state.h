@@ -57,6 +57,7 @@ typedef struct
     int sunset_minute;
 
     /* Monotonic idő a timeoutokhoz, epoch idő a statisztikához. */
+    uint16_t integration_period_s; /* Felhőmérés forrásoldali periódusa. Helyi mintánál 0. */
     int64_t received_monotonic_us;
     int64_t received_epoch_s;
 } app_energy_sample_t;

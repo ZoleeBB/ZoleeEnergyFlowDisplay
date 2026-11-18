@@ -110,6 +110,32 @@ static void test_integrals(void){
     feed(t+41,15,15,15);app_stats_get_snapshot(&snapshot);
     near(snapshot.totals.production_kwh,70./3600);tests++;
 }
+static void test_partial_cloud_measurements(void)
+{
+    time_t t = instant("2026-10-05", 12, 0, 0);
+    reset(t);
+    app_energy_sample_t s = sample(t, 3, -2, 4);
+    s.home_unavailable = s.grid_unavailable = s.battery_unavailable = true;
+    s.integration_period_s = 300;
+    const unsigned elapsed[] = {0, 300, 900};
+    for (unsigned i = 0; i < 3; i++) {
+        s.received_epoch_s = t + elapsed[i];
+        clock_at(s.received_epoch_s);
+        app_stats_process_sample(&s);
+    }
+    assert(app_stats_save_now() == ESP_OK);
+    assert(app_stats_init(&cfg) == ESP_OK);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.production_kwh, .25);
+    near(snapshot.totals.consumption_kwh, 0);
+    near(snapshot.totals.pv_export_kwh, 0);
+    near(snapshot.totals.battery_discharge_kwh, 0);
+    near(snapshot.totals.grid_export_kwh, 0);
+    assert(snapshot.slots[144].partial_fields == 15);
+    assert(!snapshot.slots[144].soc_valid && !snapshot.slots[144].chart_gap);
+    assert(snapshot.slots[146].chart_gap);
+    tests++;
+}
 static unsigned day_notifications;
 static void day_notification(void){day_notifications++;}
 static void test_midnight(bool background_first){
@@ -748,7 +774,7 @@ static void test_battery_diagnostics_storage(void)
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
-    test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
+    test_partial_cloud_measurements();test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);

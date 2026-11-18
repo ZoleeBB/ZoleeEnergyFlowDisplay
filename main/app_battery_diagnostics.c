@@ -126,7 +126,8 @@ void app_battery_process(app_battery_diagnostics_t *state, const app_energy_samp
         app_battery_init(state, nominal);
     if (!state->nominal_kwh)
         return;
-    if (!isfinite(sample->power_bat_kw) || fabs(sample->power_bat_kw) > 15 ||
+    if (sample->battery_unavailable || sample->soc_unavailable || sample->battery_power_unavailable ||
+        !isfinite(sample->power_bat_kw) || fabs(sample->power_bat_kw) > 15 ||
         !isfinite(sample->soc_bat_pct) || sample->soc_bat_pct < 0 || sample->soc_bat_pct > 100 ||
         sample->received_monotonic_us < 0 || sample->received_epoch_s < 1577836800)
     {
@@ -346,6 +347,11 @@ void app_battery_eta_update(app_battery_eta_state_t *state, const app_energy_sam
 {
     if (!state || !sample || !isfinite(sample->power_bat_kw) || !isfinite(sample->power_full_kw))
         return;
+    if (sample->battery_unavailable || sample->battery_power_unavailable || sample->soc_unavailable ||
+        (sample->status == 2 && sample->home_unavailable)) {
+        app_battery_eta_reset(state);
+        return;
+    }
     int64_t now = sample->received_monotonic_us;
     if (state->valid && now == state->last_us)
         return;

@@ -349,7 +349,7 @@ void app_chart_update(lv_obj_t *obj,
             for (int k = 0; k < 12; k++)
             {
                 const app_stats_slot_t *slot = &snapshot->slots[hour * 12 + k];
-                if (!slot->valid || slot->chart_gap || hour * 60 + k * 5 > minute_of_day)
+                if (!slot->valid || slot->chart_gap || (slot->partial_fields & APP_STATS_NO_SPLIT) || hour * 60 + k * 5 > minute_of_day)
                     continue;
                 local += slot->energy.pv_home_kwh + slot->energy.pv_stored_kwh;
                 exported += slot->energy.pv_export_kwh;
@@ -368,6 +368,10 @@ void app_chart_update(lv_obj_t *obj,
     {
         const app_stats_slot_t *slot = &snapshot->slots[i];
         data->valid[i] = slot->valid && !slot->chart_gap && i * 5 <= minute_of_day;
+        if ((data->kind == APP_CHART_GRID && (slot->partial_fields & APP_STATS_NO_GRID)) ||
+            (data->kind == APP_CHART_BATTERY && (slot->partial_fields & APP_STATS_NO_BATTERY_POWER)) ||
+            (data->kind < APP_CHART_GRID && (slot->partial_fields & APP_STATS_NO_SPLIT)))
+            data->valid[i] = false;
         if (data->kind >= APP_CHART_GRID)
         {
             data->values[0][i] = data->kind == APP_CHART_GRID    ? slot->grid_kw
