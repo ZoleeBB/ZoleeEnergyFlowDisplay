@@ -16,5 +16,8 @@ typedef struct {
 
 /* Egy mintához közös határidő és kapcsolat tartozik. Kizárólag olvasó funkciók. */
 bool inv_mb_open(inv_mb_t *bus, const char *host, uint16_t port);
+/* LSE-3 keretváltozat újrapróbálása ugyanazon az eredeti időkereten belül. */
+bool inv_mb_open_until(inv_mb_t *bus, const char *host, uint16_t port, int64_t deadline_ms,
+                       uint32_t source_ipv4);
 bool inv_mb_read(inv_mb_t *bus, uint8_t function, uint16_t address, unsigned count, uint16_t *words);
 void inv_mb_close(inv_mb_t *bus);

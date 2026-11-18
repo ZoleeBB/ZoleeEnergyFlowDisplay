@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
@@ -42,17 +43,32 @@ void inv_mb_close(inv_mb_t *bus)
 
 bool inv_mb_open(inv_mb_t *bus, const char *host, uint16_t port)
 {
+    int64_t timeout = bus->frame == INV_MB_LSE3 || bus->frame == INV_MB_LSE3_CRC_LENGTH ? 2150 : 4400;
+    return inv_mb_open_until(bus, host, port, now_ms() + timeout, 0);
+}
+
+bool inv_mb_open_until(inv_mb_t *bus, const char *host, uint16_t port, int64_t deadline_ms,
+                       uint32_t source_ipv4)
+{
     char service[6];
     snprintf(service, sizeof(service), "%u", (unsigned)port);
-    struct addrinfo hint = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
+    struct addrinfo hint = {
+        .ai_family = source_ipv4 ? AF_INET : AF_UNSPEC, .ai_socktype = SOCK_STREAM,
+    };
     struct addrinfo *addresses = NULL;
     bus->fd = -1;
-    bus->deadline_ms = now_ms() + ((bus->frame == INV_MB_LSE3 ||
-                                    bus->frame == INV_MB_LSE3_CRC_LENGTH) ? 2150 : 4400);
+    bus->deadline_ms = deadline_ms;
     if (getaddrinfo(host, service, &hint, &addresses) != 0) return false;
     for (struct addrinfo *a = addresses; a && now_ms() < bus->deadline_ms; a = a->ai_next) {
         bus->fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
         if (bus->fd < 0) continue;
+        if (source_ipv4) {
+            struct sockaddr_in source = {.sin_family = AF_INET, .sin_addr.s_addr = source_ipv4};
+            if (bind(bus->fd, (struct sockaddr *)&source, sizeof(source)) != 0) {
+                inv_mb_close(bus);
+                continue;
+            }
+        }
         int flags = fcntl(bus->fd, F_GETFL, 0);
         if (flags >= 0 && fcntl(bus->fd, F_SETFL, flags | O_NONBLOCK) == 0) {
             if (connect(bus->fd, a->ai_addr, a->ai_addrlen) == 0) break;

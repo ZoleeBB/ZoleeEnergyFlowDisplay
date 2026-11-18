@@ -1,6 +1,5 @@
 /* A címtáblák forrásai és modellhatárai: docs/inverters/modbus.md. */
-#include "app_inverter_driver.h"
-#include "app_inverter_modbus_wire.h"
+#include "app_inverter_modbus_internal.h"
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h>
@@ -649,15 +648,16 @@ static bool logger_serial(const char *input, uint32_t *serial)
     return true;
 }
 
-bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample,
-                              int64_t *source_epoch)
+typedef struct {
+    const char *name;
+    double (*decode)(reader_t *);
+    inv_mb_frame_t frame;
+    uint16_t port;
+} modbus_profile_t;
+
+static const modbus_profile_t *find_profile(const char *name)
 {
-    static const struct {
-        const char *name;
-        double (*decode)(reader_t *);
-        inv_mb_frame_t frame;
-        uint16_t port;
-    } profiles[] = {
+    static const modbus_profile_t profiles[] = {
         {"huawei_modbus", huawei, INV_MB_TCP, 502},
         {"goodwe_modbus", goodwe, INV_MB_TCP, 502},
         {"sungrow_modbus", sungrow, INV_MB_TCP, 502},
@@ -672,32 +672,53 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sampl
         {"sofar_modbus", sofar, INV_MB_TCP, 502},
         {"sofar_v5", sofar, INV_MB_V5, 8899},
     };
+    for (size_t i = 0; i < sizeof(profiles) / sizeof(profiles[0]); ++i)
+        if (!strcmp(name, profiles[i].name)) return &profiles[i];
+    return NULL;
+}
+
+bool app_inverter_modbus_prepare(const app_inverter_config_t *cfg, inv_mb_t *bus, uint16_t *port)
+{
+    const modbus_profile_t *profile = find_profile(cfg->profile);
+    if (!profile) return false;
+    bus->frame = profile->frame;
+    bus->unit = cfg->unit;
+    *port = cfg->port ? cfg->port : profile->port;
+    return bus->frame != INV_MB_V5 || logger_serial(cfg->device, &bus->serial);
+}
+
+bool app_inverter_modbus_sample(const app_inverter_config_t *cfg, inv_mb_t *bus, app_energy_sample_t *sample)
+{
+    const modbus_profile_t *profile = find_profile(cfg->profile);
+    if (!profile) return false;
+    app_energy_sample_t result = {
+        .status = 1, .battery_unavailable = !cfg->battery, .home_unavailable = true,
+        .grid_unavailable = true, .soc_unavailable = true, .battery_power_unavailable = true,
+    };
+    reader_t reader = {.bus = bus, .cfg = cfg, .sample = &result};
+    reader.fields = app_inverter_registers(cfg->profile, &reader.field_count);
+    double pv = profile->decode(&reader);
+    if (!isfinite(pv)) return false;
+    result.power_pv_kw = fmax(0, pv) / 1000;
+    *sample = result;
+    return true;
+}
+
+bool app_inverter_modbus_read(const app_inverter_config_t *cfg, app_energy_sample_t *sample,
+                              int64_t *source_epoch)
+{
     if (!cfg || !sample || !source_epoch || !cfg->host[0]) return false;
-    for (unsigned i = 0; i < sizeof(profiles) / sizeof(profiles[0]); ++i) {
-        if (strcmp(cfg->profile, profiles[i].name)) continue;
-        inv_mb_t bus = {.fd = -1, .unit = cfg->unit, .frame = profiles[i].frame};
-        if (bus.frame == INV_MB_V5 && !logger_serial(cfg->device, &bus.serial)) return false;
-        uint16_t port = cfg->port ? cfg->port : profiles[i].port;
+    inv_mb_t bus = {.fd = -1};
+    uint16_t port;
+    if (!app_inverter_modbus_prepare(cfg, &bus, &port) || !inv_mb_open(&bus, cfg->host, port)) return false;
+    bool valid = app_inverter_modbus_sample(cfg, &bus, sample);
+    inv_mb_close(&bus);
+    if (!valid && bus.frame == INV_MB_LSE3) {
+        bus.frame = INV_MB_LSE3_CRC_LENGTH;
         if (!inv_mb_open(&bus, cfg->host, port)) return false;
-        app_energy_sample_t result = {
-            .status = 1, .battery_unavailable = !cfg->battery, .home_unavailable = true,
-            .grid_unavailable = true, .soc_unavailable = true, .battery_power_unavailable = true,
-        };
-        reader_t reader = {.bus = &bus, .cfg = cfg, .sample = &result};
-        reader.fields = app_inverter_registers(cfg->profile, &reader.field_count);
-        double pv = profiles[i].decode(&reader);
+        valid = app_inverter_modbus_sample(cfg, &bus, sample);
         inv_mb_close(&bus);
-        if (!isfinite(pv) && bus.frame == INV_MB_LSE3) {
-            bus.frame = INV_MB_LSE3_CRC_LENGTH;
-            if (!inv_mb_open(&bus, cfg->host, port)) return false;
-            pv = deye(&reader);
-            inv_mb_close(&bus);
-        }
-        if (!isfinite(pv)) return false;
-        result.power_pv_kw = fmax(0, pv) / 1000;
-        *sample = result;
-        *source_epoch = 0;
-        return true;
     }
-    return false;
+    if (valid) *source_epoch = 0;
+    return valid;
 }
