@@ -2,6 +2,7 @@
  * A valódi worker, MAC-azonosítás, tárolás, Modbus-meghajtó és képernyőállapot fut.
  * A tesztóra, a helyi szomszédok és a kernel loopback útvonala ellenőrizhető. */
 #include "app_inverter.h"
+#include "app_inverter_discovery.h"
 #include "app_inverter_identity.h"
 #include "app_inverter_settings.h"
 #include "app_inverter_weather.h"
@@ -19,6 +20,14 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+
+/* A kereső külön tesztje valódi hálózati munkát végez. Itt csak az ütemezett
+ * adatfogadás és az új kapcsolati beállítás az ellenőrzés tárgya. */
+void app_inverter_discovery_expire(void) {}
+bool app_inverter_discovery_supported(const char *profile)
+{
+    return strcmp(profile, "huawei_modbus") == 0;
+}
 
 #define OLD_IP "192.0.2.4"
 #define NEW_IP "192.0.2.6"

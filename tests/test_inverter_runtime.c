@@ -1,5 +1,6 @@
 /* Valódi profil, ütemező és időjáráskezelő, ellenőrzött órával és válaszokkal. */
 #include "app_inverter.h"
+#include "app_inverter_discovery.h"
 #include "app_inverter_settings.h"
 #include "app_inverter_identity.h"
 #include "app_inverter_net.h"
@@ -14,6 +15,14 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+
+/* A kereső külön tesztje valódi hálózati munkát végez. Itt csak az ütemezett
+ * adatfogadás és az új kapcsolati beállítás az ellenőrzés tárgya. */
+void app_inverter_discovery_expire(void) {}
+bool app_inverter_discovery_supported(const char *profile)
+{
+    return strcmp(profile, "huawei_modbus") == 0;
+}
 
 static app_runtime_state_t runtime;
 static app_energy_sample_t last;
@@ -270,6 +279,9 @@ int main(int argc, char **argv)
     tick(1); assert(reads==3);
     tick(299); assert(reads==4 && samples==3 && last.received_epoch_s==source_time);
     cJSON *view=app_inverter_settings_get(); char *text=cJSON_PrintUnformatted(view);
+    cJSON *available = cJSON_GetObjectItem(view, "discoverable");
+    assert(cJSON_GetArraySize(available) == 1 &&
+           !strcmp(cJSON_GetArrayItem(available, 0)->valuestring, "huawei_modbus"));
     assert(cJSON_IsTrue(cJSON_GetObjectItem(view,"hasSecret")) && !strstr(text,"TEST-FIXTURE") &&
            cJSON_GetObjectItem(view,"measurementAgeSeconds")->valueint==300);
     free(text); cJSON_Delete(view);

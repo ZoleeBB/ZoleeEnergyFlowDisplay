@@ -1,6 +1,7 @@
 /* Az inverter minden hálózati művelete a már létező main feladaton fut.
  * A mintavétel és a környezeti adatok frissülése egymástól független. */
 #include "app_inverter.h"
+#include "app_inverter_discovery.h"
 #include "app_inverter_identity.h"
 #include "app_inverter_settings.h"
 #include "app_inverter_weather.h"
@@ -180,6 +181,7 @@ static void measure(worker_t *w, int64_t now)
 
 void app_inverter_tick(void)
 {
+    app_inverter_discovery_expire();
     if (!worker) {
         if (!app_inverter_settings_open() || !app_inverter_settings_ready()) return;
         worker = heap_caps_calloc(1,sizeof(*worker),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);

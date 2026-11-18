@@ -63,6 +63,11 @@ esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) {
     snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
 }
 esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) {
+    if (!strcmp(k, "job")) {
+        if (strncmp(q, "job=", 4) || strlen(q + 4) >= n) return ESP_FAIL;
+        strcpy(v, q + 4);
+        return ESP_OK;
+    }
     if (!strcmp(k, "profile")) {
         if (strncmp(q, "profile=", 8)) return ESP_FAIL;
         snprintf(v, n, "%s", q + 8); return ESP_OK;
@@ -174,6 +179,98 @@ esp_err_t app_inverter_settings_save(const cJSON *form)
     return save_result;
 }
 
+/* A több egymást követő admin-kérés csak a saját feladatazonosítóját használja. */
+static unsigned discovery_starts, discovery_stops;
+esp_err_t app_inverter_discovery_start(const char *profile, uint16_t port, uint8_t unit,
+                                       const char *device, uint32_t *job)
+{
+    if (strcmp(profile, "huawei_modbus")) return ESP_ERR_INVALID_ARG;
+    assert(port == 502 && unit == 1 && !device[0]);
+    ++discovery_starts;
+    *job = UINT32_MAX;
+    return ESP_OK;
+}
+esp_err_t app_inverter_discovery_cancel(uint32_t job)
+{
+    if (job != UINT32_MAX) return ESP_ERR_NOT_FOUND;
+    ++discovery_stops;
+    return ESP_OK;
+}
+esp_err_t app_inverter_discovery_snapshot(uint32_t job, app_inverter_discovery_status_t *s)
+{
+    if (job != UINT32_MAX) return ESP_ERR_NOT_FOUND;
+    s->count = 1;
+    s->state = APP_DISCOVERY_DONE;
+    strcpy(s->profile, "huawei_modbus");
+    strcpy(s->results[0].host, "192.168.1.23");
+    strcpy(s->results[0].model, "SUN2000-5KTL-M1");
+    strcpy(s->results[0].serial, "test \"escaped\"");
+    s->results[0].port = 502;
+    s->results[0].unit = 1;
+    s->results[0].verified = true;
+    return ESP_OK;
+}
+
+static int discovery_post_test(esp_err_t (*handler)(httpd_req_t *), const char *body)
+{
+    httpd_req_t request = {.method=HTTP_POST, .content_len=strlen(body)};
+    input = body;
+    position = 0;
+    status_code = 200;
+    response[0] = 0;
+    assert(handler(&request) == ESP_OK);
+    return status_code;
+}
+
+static void discovery_http_tests(void)
+{
+    const char *valid = "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1}";
+    authorized = false;
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 401);
+    authorized = true;
+    header_ok = false;
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 400);
+    header_ok = true;
+    const char *invalid[] = {
+        "{}", "{\"profile\":\"fronius_cloud\",\"port\":443,\"unit\":0}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1,\"host\":\"elsewhere\"}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1,\"secret\":\"private\"}",
+        "{\"profile\":\"huawei_modbus\",\"port\":65536,\"unit\":1}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":0.5}"
+    };
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(*invalid); ++i)
+        assert(discovery_post_test(inverter_discovery_start_post, invalid[i]) == 400);
+    assert(discovery_starts == 0);
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 200);
+    assert(discovery_starts == 1 && !strcmp(response, "{\"job\":4294967295}"));
+    httpd_req_t request = {.method=HTTP_GET};
+    const char *bad_jobs[] = {"", "job=0", "job=-5", "job=1.1", "job=4294967296", "job=2x"};
+    for (unsigned i = 0; i < sizeof(bad_jobs) / sizeof(*bad_jobs); ++i) {
+        inverter_query = bad_jobs[i];
+        inverter_discovery_get(&request);
+        assert(status_code == 400);
+    }
+    inverter_query = "job=1";
+    inverter_discovery_get(&request);
+    assert(status_code == 404);
+    inverter_query = "job=4294967295";
+    authorized = false;
+    inverter_discovery_get(&request);
+    assert(status_code == 401);
+    authorized = true;
+    status_code = 200;
+    inverter_discovery_get(&request);
+    cJSON *json = cJSON_Parse(response);
+    assert(json && status_code == 200);
+    assert(!strcmp(cJSON_GetObjectItem(json, "state")->valuestring, "done"));
+    cJSON *row = cJSON_GetArrayItem(cJSON_GetObjectItem(json, "results"), 0);
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(row, "verified")));
+    assert(!strcmp(cJSON_GetObjectItem(row, "serial")->valuestring, "test \"escaped\""));
+    cJSON_Delete(json);
+    assert(discovery_post_test(inverter_discovery_cancel_post, "{\"job\":2}") == 404 && !discovery_stops);
+    assert(discovery_post_test(inverter_discovery_cancel_post, "{\"job\":4294967295}") == 200 && discovery_stops == 1);
+    inverter_query = NULL;
+}
 static void inverter_http_tests(void)
 {
     int count = registered;
@@ -181,7 +278,7 @@ static void inverter_http_tests(void)
     assert(inverter_register(NULL) == ESP_OK && registered == count);
     s_config.data_recept_mode = APP_DATA_INVERTER;
     assert(loxone_register(NULL) == ESP_OK && registered == count);
-    assert(inverter_register(NULL) == ESP_OK && registered == count + 6);
+    assert(inverter_register(NULL) == ESP_OK && registered == count + 9);
     httpd_req_t req = {.method=HTTP_GET, .uri="/api/inverter"};
     authorized = false; status_code = 200;
     inverter_get(&req); assert(status_code == 401);
@@ -203,6 +300,7 @@ static void inverter_http_tests(void)
     inverter_query = "profile=fronius_http";
     inverter_registers_get(&req); assert(status_code == 400);
     inverter_query = NULL;
+    discovery_http_tests();
     req.method = HTTP_POST; req.content_len = 2;
     input = "{}"; position = 0; status_code = 200;
     header_ok = false;

@@ -1,6 +1,7 @@
 /* Az inverterprofil és a heti programok az NVS egyetlen atomi bejegyzésében élnek.
  * Az állandó PSRAM-területet kizárólag az aktív inverteres Master kapja meg. */
 #include "app_inverter.h"
+#include "app_inverter_discovery.h"
 #include "app_inverter_settings.h"
 #include "app_inverter_identity.h"
 #include <sys/socket.h>
@@ -454,6 +455,16 @@ cJSON *app_inverter_settings_get(void)
     if (c->profile[0]) { ADD(Number,"latitude",active->latitude); ADD(Number,"longitude",active->longitude); }
     if (last_measurement) { ADD(Number,"measurementAgeSeconds",fmax(0,difftime(time(NULL),last_measurement))); }
 #undef ADD
+    cJSON *discoverable = cJSON_AddArrayToObject(o, "discoverable");
+    if (!discoverable) goto fail;
+    for (size_t i = 0; i < sizeof(profiles) / sizeof(profiles[0]); ++i) {
+        if (!app_inverter_discovery_supported(profiles[i].id)) continue;
+        cJSON *id = cJSON_CreateString(profiles[i].id);
+        if (!id || !cJSON_AddItemToArray(discoverable, id)) {
+            cJSON_Delete(id);
+            goto fail;
+        }
+    }
     cJSON *registers = cJSON_AddObjectToObject(o, "registerOverrides");
     if (!registers) goto fail;
     size_t count = 0;
