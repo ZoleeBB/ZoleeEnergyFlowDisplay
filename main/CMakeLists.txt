@@ -200,6 +200,10 @@ add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
 )
 
 
+# Az lwIP a main archívumon kívül hivatkozik az egyetlen egyedi DNS-hookra.
+# A linker a komponensek sorrendjétől függetlenül vegye fel az alkalmazásét.
+target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,-u,lwip_hook_netconn_external_resolve")
+
 # BSP 2.0.3 hardcodes use_psram=false. Wrap its display registration, keeping
 # managed components intact and the existing rotation/triple-partial mode.
 target_link_options(${COMPONENT_LIB} INTERFACE
