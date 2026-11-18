@@ -60,6 +60,22 @@ static char s_expected_auth[256];
 static char s_project_title[APP_PROJECT_TITLE_MAX];
 static bool s_hu = true;
 
+static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
+{
+    return app_web_send_template(req, page, hu, s_config.data_recept_mode == APP_DATA_INVERTER);
+}
+
+static const char *web_mode_name(app_data_mode_t mode)
+{
+    switch (mode) {
+        case APP_DATA_INVERTER: return s_hu ? "Közvetlen inverter" : "Direct inverter";
+        case APP_DATA_LOXONE: return "Loxone";
+        case APP_DATA_SLAVE: return "Slave (BLE)";
+        case APP_DATA_HTTP: return "HTTP";
+        default: return "MQTT";
+    }
+}
+
 /* Az ESP reset okának rövid, emberileg olvasható szövege. */
 static const char *reset_text(esp_reset_reason_t reason)
 {
@@ -354,7 +370,9 @@ static esp_err_t root_handler(httpd_req_t *req)
         ".log-links{margin:10px 0 0;display:flex;gap:10px;flex-wrap:wrap}"
         "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req, s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN, HTTPD_RESP_USE_STRLEN);
+    const char *nav = s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN;
+    if (app_web_send_nav(req, nav, strlen(nav), s_hu, s_config.data_recept_mode == APP_DATA_INVERTER) != ESP_OK)
+        return ESP_FAIL;
 
     if (app_web_send_support(req, s_hu) != ESP_OK) {
         return ESP_FAIL;
@@ -411,7 +429,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<div><span class='k'>Wi-Fi RSSI</span><div class='v'>%d dBm</div></div>",
         runtime.wifi_connected ? rssi : 0);
 
-    const char *mode = runtime.data_recept_mode == APP_DATA_SLAVE ? "Slave (BLE)" : runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    const char *mode = web_mode_name(runtime.data_recept_mode);
     sendf(req, "<div><span class='k'>%s</span><div class='v'>%s</div></div>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
     sendf(req, "<div><span class='k'>%s %s</span><div class='v'>%s</div></div>", mode,
         s_hu ? "adatfogadó" : "receiver",
@@ -862,7 +880,7 @@ static esp_err_t diagnostics_get(httpd_req_t *req){
     cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
     cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
     cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
-    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_SLAVE?"Slave (BLE)":d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddStringToObject(o,"data_mode",web_mode_name(d.runtime.data_recept_mode));
     cJSON_AddBoolToObject(o,"ble_enabled",d.runtime.ble_enabled);
     if(d.runtime.ble_enabled){
         cJSON_AddStringToObject(o,"ble_role",d.runtime.ble_master?"Master":"Slave");

@@ -58,10 +58,18 @@ static const char *card_html(int hu)
 
 int main(void)
 {
+    reset_response();
+    const char *menu = "<nav><a href='/loxone' data-nav='loxone'>Loxone</a></nav>";
+    assert(app_web_send_nav(NULL, menu, strlen(menu), true, true) == ESP_OK);
+    assert(strstr(response, "/inverter") && !strstr(response, "/loxone"));
+    reset_response();
+    assert(app_web_send_nav(NULL, menu, strlen(menu), false, false) == ESP_OK);
+    assert(strcmp(response, menu) == 0);
+
     const char page[] = "<html><body><!--APP_SUPPORT--><form>Settings</form></body></html>";
     for (int hu = 0; hu < 2; hu++) {
         reset_response();
-        assert(app_web_send_page(NULL, page, hu) == ESP_OK);
+        assert(app_web_send_template(NULL, page, hu, false) == ESP_OK);
         assert(strstr(response, "<form>Settings</form>"));
         assert(strstr(response, "</body></html>"));
 #if SUPPORT_ENABLED
@@ -79,11 +87,11 @@ int main(void)
         for (int failure = 0; failure < 6; failure++) {
             reset_response();
             fail_at = failure;
-            assert(app_web_send_page(NULL, page, hu) == ESP_FAIL);
+            assert(app_web_send_template(NULL, page, hu, false) == ESP_FAIL);
             assert(calls == failure + 1 && endings == 0);
         }
         reset_response();
-        assert(app_web_send_page(NULL, "<!--APP_SUPPORT-->", hu) == ESP_OK);
+        assert(app_web_send_template(NULL, "<!--APP_SUPPORT-->", hu, false) == ESP_OK);
         assert(!strcmp(response, card_html(hu)) && endings == 1 && calls == 4);
 #else
         assert(!(hu ? app_support_card_hu : app_support_card_en)[0] && !app_support_logo[0]);
@@ -92,7 +100,7 @@ int main(void)
         assert(direct_sends == 1 && calls == 0 && endings == 0);
 #endif
         reset_response();
-        assert(app_web_send_page(NULL, "<html>Unmarked</html>", hu) == ESP_OK);
+        assert(app_web_send_template(NULL, "<html>Unmarked</html>", hu, false) == ESP_OK);
         assert(!strcmp(response, "<html>Unmarked</html>") && direct_sends == 1);
         reset_response();
         assert(app_web_send_support(NULL, hu) == ESP_OK);

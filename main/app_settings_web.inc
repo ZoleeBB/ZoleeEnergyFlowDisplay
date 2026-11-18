@@ -15,7 +15,7 @@ static cJSON *settings_json(const app_config_t *v)
     cJSON_AddNumberToObject(root,"EnergyFlowDisabled",v->energy_flow_disabled?1:0);
     cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
     cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
-    cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
+    cJSON_AddStringToObject(root,"DataReceptMode",v->data_recept_mode==APP_DATA_INVERTER?"inverter":v->data_recept_mode==APP_DATA_SLAVE?"slave":v->data_recept_mode==APP_DATA_LOXONE?"loxone":v->data_recept_mode==APP_DATA_HTTP?"http":"mqtt");
 #define OBJ(id) cJSON *id=cJSON_AddObjectToObject(root,#id)
 #define STR(o,k,val) cJSON_AddStringToObject(o,k,val)
 #define NUM(o,k,val) cJSON_AddNumberToObject(o,k,val)

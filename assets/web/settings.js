@@ -39,7 +39,7 @@ for(const [title,fields] of definitions){
   else if(type==='integer'||type==='number'){input.type='number';input.step=type==='integer'?'1':'any';}
   else if(type==='secret'){input.type='password';input.autocomplete='new-password';input.placeholder='Változatlan jelszó';}
   else if(input.tagName==='INPUT')input.type='text';
-  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
+  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['inverter','Közvetlen inverter'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
    const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);
   }
   label.append(input);
@@ -105,5 +105,4 @@ form.addEventListener('submit',async event=>{event.preventDefault();if(!state)re
  if(!result.restart){fill();save.disabled=false;}
  }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}
 });
-async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.className='button secondary';a.textContent='Loxone beállítások';const p=document.createElement('p');p.append(a);document.querySelector('h1').after(p);}}catch{}}
-loxoneLink();load();
+load();
