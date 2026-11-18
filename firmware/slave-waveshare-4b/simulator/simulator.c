@@ -69,7 +69,7 @@ static void scene(bool night)
         .has_sun_radiation = !night, .night_mode = night, .status = 1,
         .received_epoch_s = 1792327020
     };
-    runtime = (app_runtime_state_t){.slave_connected = true, .time_synced = true,
+    runtime = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .slave_connected = true, .time_synced = true,
         .has_valid_sample = true, .ble_rssi = -51, .wifi_connected = true};
     snprintf(runtime.ble_peer, sizeof(runtime.ble_peer), "AA:BB:CC:DD:EE:FF");
 }
@@ -79,7 +79,7 @@ static void step(unsigned ms)
     elapsed_ms += ms;
     lv_tick_inc(ms);
     slave_4b_ui_update(&sample, runtime.slave_connected && !runtime.slave_source_stale,
-                    &runtime, sample.night_mode ? "21:37" : "14:37", ms / 1000.f);
+                    &runtime, (int64_t)elapsed_ms * 1000, sample.night_mode ? "21:37" : "14:37", ms / 1000.f);
     slave_4b_ui_pairing(&pairing);
     lv_timer_handler();
     lv_refr_now(display);
@@ -374,12 +374,33 @@ static int self_test(void)
     step(200);
     CHECK(hash() == stale); /* Lejárt adatnál nincs továbbmozgó energia. */
     CHECK(save("slave-4b-timeout.ppm") == 0);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    runtime.slave_inverter_searching = true;
+    runtime.slave_packet_monotonic_us = (int64_t)elapsed_ms * 1000;
+    runtime.slave_source_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
+    step(33);
+    CHECK(find_label("Megszakadt az inverterkapcsolat") && find_label("A Master a háttérben"));
+    uint64_t search = hash();
+    step(200);
+    CHECK(hash() == search);
+    swipe(600, 150);
+    CHECK(!slave_4b_ui_summary_visible());
+    runtime.slave_source_timeout_seconds = 7260;
+    step(33);
+    CHECK(find_label("A Master újra megpróbálja"));
+    runtime.slave_source_stale = runtime.slave_inverter_searching = false;
+    step(33);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    runtime.slave_source_stale = runtime.slave_inverter_searching = true;
     runtime.slave_connected = false;
     step(33);
     uint64_t disconnected = hash();
     step(200);
     CHECK(hash() == disconnected);
     CHECK(save("slave-4b-disconnected.ppm") == 0);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    CHECK(find_label("Master keresése"));
+    puts("PASS: 4B separates confirmed local/cloud inverter loss, stale data, recovery and missing Master");
     /* Változatlan adatnál a 33 ms-os refresh nem érvényteleníthet: a feliratok,
      * a képek és a színek csak tényleges változáskor íródnak újra. */
     invalidations = 0;

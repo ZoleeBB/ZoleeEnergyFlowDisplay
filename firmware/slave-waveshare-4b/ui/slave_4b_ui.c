@@ -29,6 +29,7 @@ typedef struct
 } node_t;
 
 static lv_obj_t *root, *background, *hub, *soc, *battery_detail, *disabled_overlay;
+static lv_obj_t *inverter_search_overlay, *inverter_search_detail;
 static lv_obj_t *temperature, *wind, *clock_label, *weather, *wind_icon;
 static lv_obj_t *humidity, *humidity_icon;
 static lv_obj_t *message, *pin_pad, *pin_mask, *pin_countdown;
@@ -291,7 +292,7 @@ static void summary_gesture(lv_event_t *event)
 {
     (void)event;
     lv_indev_t *input = lv_indev_active();
-    if (!input || pin_pad || disabled_overlay)
+    if (!input || pin_pad || disabled_overlay || inverter_search_overlay)
         return;
     lv_dir_t direction = lv_indev_get_gesture_dir(input);
     if (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT)
@@ -599,9 +600,45 @@ void slave_4b_ui_message(const char *text)
     text_if_changed(message, text ? text : "");
 }
 
-void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
-                    const app_runtime_state_t *runtime, const char *clock, float seconds)
+/* Csak a kapcsolat megszakadásakor foglal LVGL-objektumokat. A párosítás és
+ * a diagnosztika a réteg felett marad, a korábbi nézet visszatér egy új mintánál. */
+static void inverter_search_screen(bool searching, bool cloud)
 {
+    if (!searching) {
+        if (inverter_search_overlay) {
+            lv_obj_delete(inverter_search_overlay);
+            inverter_search_overlay = inverter_search_detail = NULL;
+        }
+        return;
+    }
+    if (!inverter_search_overlay) {
+        inverter_search_overlay = box(root, 0, 0, 720, 720);
+        lv_obj_set_style_bg_color(inverter_search_overlay, lv_color_hex(0), 0);
+        lv_obj_set_style_bg_opa(inverter_search_overlay, LV_OPA_COVER, 0);
+        lv_obj_t *title = plain_label(inverter_search_overlay, "Megszakadt az inverterkapcsolat",
+                                      24, 303, 672, &app_font_34);
+        lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(title, lv_color_white(), 0);
+        inverter_search_detail = plain_label(inverter_search_overlay, "", 32, 362, 656, &app_font_24);
+        lv_obj_set_style_text_align(inverter_search_detail, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(inverter_search_detail, lv_color_hex(0xB9C6BE), 0);
+        lv_obj_move_to_index(inverter_search_overlay, lv_obj_get_index(diagnostics));
+    }
+    text_if_changed(inverter_search_detail, cloud ?
+        "A Master újra megpróbálja lekérni a felhőből a mérést." :
+        "A Master a háttérben keresi az invertert.");
+}
+
+void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
+                    const app_runtime_state_t *runtime, int64_t now_us, const char *clock, float seconds)
+{
+    if (runtime) {
+        last_runtime = *runtime;
+        have_runtime = true;
+    }
+    bool searching = runtime && app_state_slave_inverter_search(runtime, now_us);
+    inverter_search_screen(searching, searching &&
+        runtime->slave_source_timeout_seconds > APP_INVERTER_LOCAL_TIMEOUT_SECONDS);
     bool disabled = runtime && runtime->energy_flow_disabled && runtime->slave_connected && !runtime->slave_source_stale;
     if (disabled && !disabled_overlay)
     {
@@ -624,7 +661,7 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
         lv_obj_delete(disabled_overlay);
         disabled_overlay = NULL;
     }
-    if (disabled) return;
+    if (disabled || searching) return;
     app_energy_sample_t empty = {0};
     if (!sample)
         sample = &empty;
@@ -712,8 +749,6 @@ void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
     text_if_changed(clock_label, clock ? clock : "--:--");
     if (runtime)
     {
-        last_runtime = *runtime;
-        have_runtime = true;
         slave_4b_ui_message(available ? "" : runtime->slave_connected ? "Érvényes master adatra várunk..." : "Master keresése...");
     }
 }
