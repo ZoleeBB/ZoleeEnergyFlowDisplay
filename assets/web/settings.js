@@ -29,7 +29,7 @@ const byPath=p=>document.getElementById(p);
 const nestedGet=(obj,path)=>path.split('.').reduce((v,k)=>v?.[k],obj);
 function nestedSet(obj,path,value){const a=path.split('.'),last=a.pop();const target=a.reduce((v,k)=>v[k],obj);target[last]=value;}
 for(const [title,fields] of definitions){
- const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid';
+ const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid field-grid';
  sections.set(fields[0][0],section);
  for(const [path,labelText,type='text'] of fields){
   const label=document.createElement('label'),input=document.createElement(type==='mode'||type==='language'||type==='rotation'?'select':'input');
@@ -42,9 +42,15 @@ for(const [title,fields] of definitions){
   if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['','Válassz adatfogadási módot…'],['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['inverter','Közvetlen inverter'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
    const option=document.createElement('option');option.value=value;option.textContent=text;if(type==='mode'&&!value){option.disabled=true;option.hidden=true;input.required=true;}input.append(option);
   }
-  label.append(input);
-  if(type==='secret'){const clear=document.createElement('label'),check=document.createElement('input');clear.className='clear';clear.textContent='Meglévő jelszó törlése';check.type='checkbox';check.id=path+'__clear';clear.prepend(check);label.append(clear);check.onchange=()=>{input.disabled=check.checked;if(check.checked)input.value='';};}
-  grid.append(label);
+  if(type==='secret'){
+   const field=document.createElement('div'),controls=document.createElement('div'),clear=document.createElement('label'),check=document.createElement('input');
+   field.className='field-extra';label.htmlFor=path;clear.className='clear';clear.textContent='Meglévő jelszó törlése';
+   check.type='checkbox';check.id=path+'__clear';clear.prepend(check);controls.append(input,clear);field.append(label,controls);grid.append(field);
+   check.onchange=()=>{input.disabled=check.checked;if(check.checked)input.value='';};
+  }else{
+   label.append(input);
+   grid.append(label);
+  }
  }
  section.append(h,grid);holder.append(section);
  if(fields[0][0]==='display.day_brightness'){

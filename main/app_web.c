@@ -601,11 +601,11 @@ static esp_err_t update_get(httpd_req_t *req)
     if(!authorize(req))return ESP_OK;
     static const char page_hu[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Firmware frissítés</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
+        "<title>Firmware frissítés</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
         "<h1>Firmware frissítés</h1><p class='lead'>Új firmware a GitHubról automatikusan vagy kézzel, .bin fájlból. A frissítés után az eszköz újraindul; az SD-s témákat a Sablonok oldalon frissítheted.</p>"
         "<section><h2>Automatikus frissítés</h2><p>A legújabb stabil GitHub-kiadás ellenőrzése és telepítése. <a href='/'>Rendszernapló megnyitása</a></p><button id='auto' onclick='autoNow()'>Automatikus frissítés most</button></section>"
         "<section><h2>Kézi frissítés</h2>"
-        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
+        "<div id='pick'><input id='f' type='file' aria-label='Firmware-fájl (.bin)' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"GitHub-ellenőrzés indítása…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Kapcsolati hiba; ellenőrizd a rendszernaplót.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
@@ -631,11 +631,11 @@ static esp_err_t update_get(httpd_req_t *req)
         "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Firmware update</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_EN "<!--APP_SUPPORT-->"
+        "<title>Firmware update</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_EN "<!--APP_SUPPORT-->"
         "<h1>Firmware update</h1><p class='lead'>Install new firmware from GitHub automatically or manually from a .bin file. The device restarts afterwards; update SD themes on the Templates page.</p>"
         "<section><h2>Automatic update</h2><p>Check and install the latest stable GitHub release. <a href='/'>Open system log</a></p><button id='auto' onclick='autoNow()'>Check for automatic update now</button></section>"
         "<section><h2>Manual update</h2>"
-        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
+        "<div id='pick'><input id='f' type='file' aria-label='Firmware file (.bin)' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"Starting GitHub check…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Connection error; check the system log.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"

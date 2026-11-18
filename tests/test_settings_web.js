@@ -24,6 +24,16 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
 (async()=>{
  await sandbox.api.load();
  const mode=nodes.get('DataReceptMode'),seed=nodes.get('DataSeedEnabled'),sections=sandbox.api.sections;
+ for(const id of ['wifi.password','mqtt.password','ota.password']){
+  const password=nodes.get(id),clear=nodes.get(id+'__clear'),controls=password.parentElement;
+  assert.equal(controls.parentElement.children[0].htmlFor,id);
+  assert.equal(controls.children[1].children[0],clear);
+  password.value='replacement';clear.checked=true;clear.onchange();
+  assert.equal(password.value,'');assert(password.disabled);
+  assert.equal(sandbox.api.values()[id.split('.')[0]].password,'');
+  clear.checked=false;clear.onchange();assert(!password.disabled);
+  assert.equal(sandbox.api.values()[id.split('.')[0]].password,null);
+ }
  const disabled=nodes.get('EnergyFlowDisabled');assert(disabled.disabled&&!disabled.checked);
  mode.value='loxone';mode.onchange();assert(!disabled.disabled);disabled.checked=true;assert.equal(sandbox.api.values().EnergyFlowDisabled,1);
  mode.value='mqtt';mode.onchange();assert(disabled.disabled&&!disabled.checked);
