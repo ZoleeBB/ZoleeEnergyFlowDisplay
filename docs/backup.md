@@ -45,6 +45,8 @@ Az **Alaphelyzetbe állítás** a 10,1 hüvelykes kijelző saját webes kezdőla
 2. SD-ről működő kijelzőn hagyd a használt kártyát a készülékben a visszaállítás végéig. Válaszd az **Alaphelyzetbe állítás** gombot. A megnyíló ablak felsorolja a törlendő adatokat. A **Mégsem** bezárja az ablakot. A törlést az **Adatok törlése és újraindítás** gomb indítja el. Ha csak újra szeretnéd indítani a készüléket, a kezdőlapon az **Eszköz újraindítása** műveletet válaszd.
 3. Az elfogadott kérés után a kijelző újraindul, és a törlés befejeztével megjelenik az első beállítás. A panelen válaszd ki a Wi-Fi-hálózatot és szükség esetén írd be a jelszót. Az időszinkron után nyisd meg a kijelzőn megjelenő HTTP-címet, és végezd el a beállítást. Slave szerephez ismét párosítsd a kijelzőt a Masterrel. [Első beállítás Wi-Fi-n](first-run-wifi.md) · [Párosítás a Masterrel](ble-data-seed.md#pin-es-párosítás-és-beállításöröklés)
 
+![Az újraindítás és az alaphelyzetbe állítás gombja a kezdőlapon, alattuk a törlés megerősítése.](images/first-run/factory-reset.png)
+
 | Adat | Mi történik a helyi kijelzőn? |
 | --- | --- |
 | Wi-Fi, webes belépés, adatfogadási mód és adatkapcsolatok | Törlődnek a hitelesítési adatokkal, az inverterprofillal, a helyszínnel és az időprogramokkal együtt. |
