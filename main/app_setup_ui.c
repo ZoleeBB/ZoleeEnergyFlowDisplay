@@ -107,6 +107,11 @@ static void scan(lv_event_t *ev)
     app_setup_wifi_scan();
 }
 
+static void page(lv_event_t *ev)
+{
+    app_setup_wifi_page((unsigned)(uintptr_t)lv_event_get_user_data(ev));
+}
+
 static void choose(lv_event_t *ev)
 {
     size_t i = (uintptr_t)lv_event_get_user_data(ev);
@@ -234,7 +239,16 @@ static void networks(setup_view_t *ui, const app_setup_wifi_state_t *s)
         lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
         label(row,s->aps[i].secured ? "Jelszavas" : "Nyílt",w-156,13,122,&app_font_20,muted,LV_TEXT_ALIGN_RIGHT);
     }
-    button(ui->panel,"Újrakeresés",0,ui->height-78,176,scan,NULL,false);
+    int y = ui->height - 78;
+    button(ui->panel,"Újrakeresés",0,y,176,scan,NULL,false);
+    if (s->total > APP_SETUP_WIFI_MAX_APS) {
+        unsigned pages = (s->total - 1) / APP_SETUP_WIFI_MAX_APS + 1;
+        char counter[32];
+        snprintf(counter,sizeof(counter),"%u / %u",s->page + 1,pages);
+        label(ui->panel,counter,188,y+10,100,&app_font_20,muted,LV_TEXT_ALIGN_LEFT);
+        if (s->page) button(ui->panel,"Előző",w-300,y,140,page,(void *)(uintptr_t)(s->page-1),false);
+        if (s->page + 1 < pages) button(ui->panel,"Következő",w-148,y,148,page,(void *)(uintptr_t)(s->page+1),false);
+    }
 }
 
 /* Ugyanaz a méretfüggetlen, vonalas beállításikon mindkét panelen. */

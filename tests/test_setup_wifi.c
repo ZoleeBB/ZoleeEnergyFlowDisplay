@@ -6,10 +6,11 @@
 #include "app_events.h"
 #include "freertos/task.h"
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-enum scenario { RETRY, OPEN, SAVED, NO_DHCP, LEGACY };
+enum scenario { RETRY, OPEN, SAVED, NO_DHCP, LEGACY, CROWDED };
 static enum scenario scenario;
 static const char *const secured_ssid = "Ház-5GHz", *const open_ssid = "Vendég Wi-Fi";
 static const char *const unicode_key = "árvíz tűrő?!@#'\"\\";
@@ -20,6 +21,7 @@ static event_fn_t on_wifi, on_ip;
 static EventBits_t bits;
 static unsigned scans, clears, joins, waits, actions, notifications, starts;
 static bool online;
+static unsigned scan_index;
 
 static void got_ip(void)
 {
@@ -50,19 +52,32 @@ esp_err_t esp_wifi_set_config(int iface, wifi_config_t *value)
 esp_err_t esp_wifi_scan_start(const wifi_scan_config_t *options, bool block)
 {
     scans++;
+    scan_index = 0;
     assert(block && options && !options->ssid);
     return ESP_OK;
 }
-esp_err_t esp_wifi_scan_get_ap_records(uint16_t *count, wifi_ap_record_t *aps)
+esp_err_t esp_wifi_scan_get_ap_num(uint16_t *count)
 {
-    assert(*count == APP_SETUP_WIFI_MAX_APS);
-    if (scenario == RETRY && scans == 1) return ESP_FAIL;
-    const char *names[] = {secured_ssid, "", secured_ssid, open_ssid, long_ssid};
-    for (unsigned i = 0; i < 5; i++) {
-        strcpy((char *)aps[i].ssid, names[i]);
-        aps[i].authmode = i == 3 ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+    *count = scenario == CROWDED ? 97 : 5;
+    return ESP_OK;
+}
+
+esp_err_t esp_wifi_scan_get_ap_record(wifi_ap_record_t *ap)
+{
+    unsigned i = scan_index++;
+    if ((scenario == RETRY && scans == 1) || (scenario == CROWDED && scans == 2 && i == 40)) return ESP_FAIL;
+    memset(ap, 0, sizeof(*ap));
+    if (scenario == CROWDED) {
+        /* Az első 65 BSSID mind ugyanahhoz az AP-hálózathoz tartozik. */
+        if (i < 65) strcpy((char *)ap->ssid, "Mesh");
+        else snprintf((char *)ap->ssid, sizeof(ap->ssid), "SSID-%u", i - 64);
+        ap->authmode = i ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    } else {
+        const char *names[] = {secured_ssid, "", secured_ssid, open_ssid, long_ssid};
+        assert(i < 5);
+        strcpy((char *)ap->ssid, names[i]);
+        ap->authmode = i == 3 ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
     }
-    *count = 5;
     return ESP_OK;
 }
 esp_err_t esp_wifi_clear_ap_list(void) { clears++; return ESP_OK; }
@@ -99,6 +114,22 @@ void vTaskDelay(TickType_t ticks)
     assert(ticks == 50 && ++actions <= 5);
     app_setup_wifi_state_t view;
     app_setup_wifi_snapshot(&view);
+    if (scenario == CROWDED) {
+        if (actions == 1) {
+            assert(view.phase == APP_SETUP_SELECT && view.page == 0 && view.count == 16 && view.total == 33);
+            assert(scan_index == 97 && !view.aps[0].secured && !strcmp(view.aps[0].ssid, "Mesh"));
+            assert(!app_setup_wifi_page(3) && app_setup_wifi_page(1));
+            app_setup_wifi_snapshot(&view);
+            assert(view.count == 16 && !strcmp(view.aps[0].ssid, "SSID-16"));
+            assert(!app_setup_wifi_connect("Mesh", "") && app_setup_wifi_page(0) && app_setup_wifi_page(2));
+            assert(app_setup_wifi_scan() && !app_setup_wifi_page(1));
+        } else {
+            assert(actions == 2 && view.phase == APP_SETUP_FAILED && view.total == 33 && view.page == 2);
+            assert(view.count == 1 && !strcmp(view.aps[0].ssid, "SSID-32") && clears == 1);
+            assert(app_setup_wifi_connect(view.aps[0].ssid, unicode_key));
+        }
+        return;
+    }
     if (scenario == RETRY && actions == 1) {
         assert(view.phase == APP_SETUP_FAILED && !view.count && clears == 1);
         assert(app_setup_wifi_scan() && !app_setup_wifi_scan());
@@ -158,7 +189,7 @@ int main(int argc, char **argv)
 {
     assert(argc == 2);
     scenario = !strcmp(argv[1],"retry") ? RETRY : !strcmp(argv[1],"open") ? OPEN :
-               !strcmp(argv[1],"saved") ? SAVED : !strcmp(argv[1],"no-dhcp") ? NO_DHCP : LEGACY;
+               !strcmp(argv[1],"crowded") ? CROWDED : !strcmp(argv[1],"saved") ? SAVED : !strcmp(argv[1],"no-dhcp") ? NO_DHCP : LEGACY;
     if (scenario == SAVED || scenario == LEGACY || scenario == NO_DHCP) {
         strcpy(config.wifi.ssid, secured_ssid);
         strcpy(config.wifi.password, unicode_key);
@@ -169,10 +200,10 @@ int main(int argc, char **argv)
     } else {
         assert(app_setup_wifi_provision(&config) == ESP_OK);
         assert(!strcmp(config.wifi.password, scenario == OPEN ? "" : unicode_key));
-        assert(!strcmp(config.wifi.ssid, scenario == OPEN ? open_ssid : secured_ssid));
+        assert(!strcmp(config.wifi.ssid, scenario == OPEN ? open_ssid : scenario == CROWDED ? "SSID-32" : secured_ssid));
         assert(waits == (scenario == RETRY || scenario == NO_DHCP ? 2U : 1U));
-        assert(scans == (scenario == SAVED ? 0U : scenario == RETRY ? 2U : 1U));
-        assert(actions == (scenario == SAVED ? 0U : scenario == RETRY ? 3U : 1U));
+        assert(scans == (scenario == SAVED ? 0U : (scenario == RETRY || scenario == CROWDED) ? 2U : 1U));
+        assert(actions == (scenario == SAVED ? 0U : scenario == RETRY ? 3U : scenario == CROWDED ? 2U : 1U));
         app_setup_wifi_state_t view;
         app_setup_wifi_snapshot(&view);
         assert(view.phase == APP_SETUP_WAIT_TIME && !view.count);

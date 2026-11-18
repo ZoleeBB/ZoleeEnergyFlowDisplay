@@ -52,7 +52,8 @@ typedef int portMUX_TYPE;
 #define portEXIT_CRITICAL(lock) (*(lock) -= 1)
 
 esp_err_t esp_wifi_scan_start(const wifi_scan_config_t *, bool);
-esp_err_t esp_wifi_scan_get_ap_records(uint16_t *, wifi_ap_record_t *);
+esp_err_t esp_wifi_scan_get_ap_num(uint16_t *);
+esp_err_t esp_wifi_scan_get_ap_record(wifi_ap_record_t *);
 esp_err_t esp_wifi_clear_ap_list(void);
 esp_err_t esp_wifi_connect(void);
 esp_err_t esp_wifi_disconnect(void);

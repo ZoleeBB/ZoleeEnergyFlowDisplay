@@ -4,7 +4,7 @@ Amikor a kijelző első beállítást kér, a Wi-Fi-hálózatot közvetlenül az
 
 ## Kapcsolódás a hálózathoz
 
-1. Várd meg a hálózatkeresést. Érintsd meg a saját hálózatod nevét. A hosszabb listát görgetheted. Ha hiányzik a hálózatod, válaszd az **Újrakeresés** gombot.
+1. Várd meg a hálózatkeresést. Érintsd meg a saját hálózatod nevét. A listát görgetheted. Ha több mint 16 különböző hálózat látható, az **Előző** és **Következő** gombbal lapozhatsz. Az azonos nevű hozzáférési pontok egyszer szerepelnek. Ha hiányzik a hálózatod, válaszd az **Újrakeresés** gombot.
 2. **Nyílt** hálózat kiválasztásakor a kijelző rögtön csatlakozni próbál. **Jelszavas** hálózatnál írd be a Wi-Fi-jelszót. Az **ABC** és **abc** vált a nagy- és kisbetűk között, a **123** a számokat és a speciális karaktereket mutatja. A magyar ékezetes betűk mindkét betűméretben elérhetők. A **Törlés** az utolsó karaktert törli. A beírt jelszó karakterei takarva jelennek meg.
 3. Érintsd meg a **Csatlakozás** gombot. Sikertelen kapcsolódás után válaszd ki újra a hálózatot, és add meg ismét a jelszót. Másik hálózat kereséséhez érintsd meg az **Újrakeresés** gombot.
 

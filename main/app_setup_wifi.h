@@ -15,12 +15,13 @@ typedef struct {
 typedef struct {
     app_setup_phase_t phase;
     app_setup_ap_t aps[APP_SETUP_WIFI_MAX_APS];
-    unsigned count;
+    unsigned count, page, total;
     char ip[APP_IPV4_TEXT_MAX], selected_ssid[APP_WIFI_SSID_MAX];
 } app_setup_wifi_state_t;
 
 /* A panelhívások csak rövid üzenetet tesznek a boot feldolgozójának sorába. */
 bool app_setup_wifi_scan(void);
+bool app_setup_wifi_page(unsigned page);
 bool app_setup_wifi_connect(const char *ssid, const char *password);
 void app_setup_wifi_snapshot(app_setup_wifi_state_t *out);
 void app_setup_wifi_set_phase(app_setup_phase_t phase);

@@ -4,8 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-static unsigned scans, joins;
+static unsigned scans, joins, requested_page;
 static char joined[33], pass[65];
+
+bool app_setup_wifi_page(unsigned page)
+{
+    requested_page = page;
+    return true;
+}
 
 bool app_setup_wifi_scan(void)
 {
@@ -62,6 +68,20 @@ static void dimensions(int w,int h)
     strcpy(state.aps[0].ssid,"Vendég");
     strcpy(state.aps[1].ssid,"Otthon_ŐŰ");
     state.aps[1].secured = true;
+    assert(app_setup_ui_update(parent,w,h,&state));
+    assert(!find(parent,"Következő",&lv_label_class));
+    state.total = 18;
+    assert(app_setup_ui_update(parent,w,h,&state));
+    assert(find(parent,"1 / 2",&lv_label_class) && !find(parent,"Előző",&lv_label_class));
+    click_label(parent,"Következő");
+    assert(requested_page == 1);
+    state.page = 1;
+    assert(app_setup_ui_update(parent,w,h,&state));
+    assert(find(parent,"2 / 2",&lv_label_class) && !find(parent,"Következő",&lv_label_class));
+    click_label(parent,"Előző");
+    assert(requested_page == 0);
+    state.page = 0;
+    state.total = state.count;
     assert(app_setup_ui_update(parent,w,h,&state));
     click_label(parent,"Újrakeresés");
     click_label(parent,"Vendég");

@@ -12,7 +12,13 @@
 #include <string.h>
 
 typedef struct {
+    app_setup_ap_t ap;
+    uint16_t scan_order;
+} scan_entry_t;
+
+typedef struct {
     app_setup_wifi_state_t view;
+    scan_entry_t *list;
     enum { CMD_IDLE, CMD_SCAN, CMD_CONNECT } command;
     char password[APP_WIFI_PASSWORD_MAX];
 } chooser_t;
@@ -58,6 +64,17 @@ bool app_setup_wifi_connect(const char *ssid,const char *password)
     portENTER_CRITICAL(&guard);
     bool ok = chooser && (phase == APP_SETUP_SELECT || phase == APP_SETUP_FAILED);
     if (ok) {
+        /* A legutolsó kirajzolás óta lapozás vagy új keresés is történhetett. */
+        ok = false;
+        for (unsigned i = 0; i < chooser->view.count; ++i) {
+            const app_setup_ap_t *ap = &chooser->view.aps[i];
+            if (!strcmp(ap->ssid, ssid) && ap->secured == (password[0] != 0)) {
+                ok = true;
+                break;
+            }
+        }
+    }
+    if (ok) {
         strcpy(chooser->view.selected_ssid,ssid);
         strcpy(chooser->password,password);
         chooser->command = CMD_CONNECT;
@@ -67,33 +84,87 @@ bool app_setup_wifi_connect(const char *ssid,const char *password)
     return ok;
 }
 
-static void scan_aps(chooser_t *c)
+/* A scan_order az SDK jelerősség szerinti sorrendje. Azonos nevű AP-kból
+ * így azt a biztonsági módot választjuk, amely az első találathoz tartozik. */
+static int by_scan_order(const void *a, const void *b)
 {
-    uint16_t count = APP_SETUP_WIFI_MAX_APS;
-    wifi_ap_record_t *aps = heap_caps_calloc(count,sizeof(*aps),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    wifi_scan_config_t options = {0};
-    bool ok = aps && esp_wifi_scan_start(&options,true)==ESP_OK;
-    if (ok) {
-        ok = esp_wifi_scan_get_ap_records(&count,aps)==ESP_OK;
-        if (!ok) esp_wifi_clear_ap_list();
-    }
+    const scan_entry_t *first = a, *second = b;
+    return (int)first->scan_order - (int)second->scan_order;
+}
+
+static int by_ssid(const void *a, const void *b)
+{
+    const scan_entry_t *first = a, *second = b;
+    int cmp = strcmp(first->ap.ssid, second->ap.ssid);
+    return cmp ? cmp : by_scan_order(a, b);
+}
+
+/* Csak a kiválasztott oldal kerül az LVGL által is olvasott pillanatképbe. */
+static void show_page(chooser_t *c, unsigned page)
+{
+    unsigned offset = page * APP_SETUP_WIFI_MAX_APS;
+    c->view.page = page;
+    c->view.count = c->view.total - offset;
+    if (c->view.count > APP_SETUP_WIFI_MAX_APS) c->view.count = APP_SETUP_WIFI_MAX_APS;
+    memset(c->view.aps, 0, sizeof(c->view.aps));
+    for (unsigned i = 0; i < c->view.count; ++i) c->view.aps[i] = c->list[offset + i].ap;
+}
+
+bool app_setup_wifi_page(unsigned page)
+{
     portENTER_CRITICAL(&guard);
-    c->view.count = 0;
-    for (unsigned i=0; ok && i<count; ++i) {
-        const char *ssid = (const char *)aps[i].ssid;
-        size_t len = strnlen(ssid,sizeof(aps[i].ssid));
-        if (!len || len>=APP_WIFI_SSID_MAX) continue;
-        bool duplicate = false;
-        for (unsigned j=0; j<c->view.count; ++j)
-            if (!strcmp(ssid,c->view.aps[j].ssid)) duplicate = true;
-        if (duplicate) continue;
-        app_setup_ap_t *a = &c->view.aps[c->view.count++];
-        memcpy(a->ssid,ssid,len+1);
-        a->secured = aps[i].authmode != WIFI_AUTH_OPEN;
-    }
-    phase = ok ? APP_SETUP_SELECT : APP_SETUP_FAILED;
+    bool ok = chooser && (phase == APP_SETUP_SELECT || phase == APP_SETUP_FAILED) &&
+              chooser->view.total && page <= (chooser->view.total - 1) / APP_SETUP_WIFI_MAX_APS;
+    if (ok) show_page(chooser, page);
     portEXIT_CRITICAL(&guard);
-    free(aps);
+    return ok;
+}
+
+static void scan_aps(chooser_t *c, app_setup_phase_t success_phase)
+{
+    wifi_scan_config_t options = {0};
+    uint16_t count = 0;
+    bool started = esp_wifi_scan_start(&options, true) == ESP_OK;
+    bool ok = started && esp_wifi_scan_get_ap_num(&count) == ESP_OK;
+    scan_entry_t *list = NULL;
+    if (ok && count) {
+        list = heap_caps_calloc(count, sizeof(*list), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        ok = list != NULL;
+    }
+    unsigned visible = 0;
+    for (unsigned i = 0; ok && i < count; ++i) {
+        wifi_ap_record_t record;
+        ok = esp_wifi_scan_get_ap_record(&record) == ESP_OK;
+        if (!ok) break;
+        size_t len = strnlen((const char *)record.ssid, sizeof(record.ssid));
+        if (!len || len >= APP_WIFI_SSID_MAX) continue;
+        scan_entry_t *entry = &list[visible++];
+        memcpy(entry->ap.ssid, record.ssid, len);
+        entry->ap.secured = record.authmode != WIFI_AUTH_OPEN;
+        entry->scan_order = (uint16_t)i;
+    }
+    if (started && !ok) esp_wifi_clear_ap_list();
+    unsigned unique = 0;
+    if (ok && visible) {
+        qsort(list, visible, sizeof(*list), by_ssid);
+        for (unsigned i = 0; i < visible; ++i) {
+            if (unique && !strcmp(list[unique - 1].ap.ssid, list[i].ap.ssid)) continue;
+            list[unique++] = list[i];
+        }
+        qsort(list, unique, sizeof(*list), by_scan_order);
+    }
+    /* A hibás/frissítés alatt álló pásztázás nem cseréli ki a meglévő oldalt. */
+    portENTER_CRITICAL(&guard);
+    if (ok) {
+        scan_entry_t *previous = c->list;
+        c->list = list;
+        list = previous;
+        c->view.total = unique;
+        show_page(c, 0);
+    }
+    phase = ok ? success_phase : APP_SETUP_FAILED;
+    portEXIT_CRITICAL(&guard);
+    free(list);
 }
 
 esp_err_t app_setup_wifi_provision(app_config_t *cfg)
@@ -125,7 +196,7 @@ esp_err_t app_setup_wifi_provision(app_config_t *cfg)
             mbedtls_platform_zeroize(c->password,sizeof(c->password));
         }
         portEXIT_CRITICAL(&guard);
-        if (cmd == CMD_SCAN) scan_aps(c);
+        if (cmd == CMD_SCAN) scan_aps(c, APP_SETUP_SELECT);
         if (cmd == CMD_CONNECT) {
             bool joined = app_wifi_join_setup(ssid,password)==ESP_OK &&
                           app_wifi_wait_connected(pdMS_TO_TICKS(15000));
@@ -136,8 +207,8 @@ esp_err_t app_setup_wifi_provision(app_config_t *cfg)
             mbedtls_platform_zeroize(password,sizeof(password));
             if (joined) break;
             esp_wifi_disconnect();
-            if (!c->view.count) scan_aps(c);
-            app_setup_wifi_set_phase(APP_SETUP_FAILED);
+            if (!c->view.total) scan_aps(c, APP_SETUP_FAILED);
+            else app_setup_wifi_set_phase(APP_SETUP_FAILED);
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -145,6 +216,7 @@ esp_err_t app_setup_wifi_provision(app_config_t *cfg)
     chooser = NULL;
     phase = APP_SETUP_WAIT_TIME;
     portEXIT_CRITICAL(&guard);
+    free(c->list);
     mbedtls_platform_zeroize(c,sizeof(*c));
     free(c);
     app_wifi_finish_setup();
