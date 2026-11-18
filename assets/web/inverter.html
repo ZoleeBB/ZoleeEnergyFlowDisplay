@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inverter beállítások</title><style>/*COMMON_CSS*/
+body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#fff}
+.week-row{display:grid;grid-template-columns:minmax(7em,1fr) 1fr 1fr;gap:10px;align-items:center;margin:7px 0}
+.week-row label{min-width:0}.week-row input[type=time]{padding:8px 4px}
+#slave-profiles button{margin:4px 8px 4px 0}.feedback-error{color:var(--danger)}
+@media(max-width:480px){.week-row{grid-template-columns:1fr 1fr}.week-row>label:first-child{grid-column:1/-1}.grid{grid-template-columns:minmax(0,1fr)}}
+</style></head>
+<body data-page="inverter"><!--APP_NAV--><!--APP_SUPPORT-->
+<h1>Inverter beállítások</h1>
+<p id="sync-status" role="status"></p>
+<form id="inverter-form">
+<section><h2>Inverterkapcsolat</h2>
+<label>Inverter és kapcsolattípus<select id="profile" required><option value="">Válassz invertert…</option></select></label>
+<p class="hint" id="transport-help"></p>
+<div id="connection" class="grid"></div>
+<p><label><input id="battery" type="checkbox">Van akkumulátor</label></p>
+</section>
+<section><h2>Master sötétítési időprogramja</h2>
+<p>A kijelző napnyugtától napkeltéig az éjszakai fényerőt használja. Az időprogram a kijelző teljes elsötétítését szabályozza a beállított helyi idő szerint. Az éjfélen átnyúló időszakot a kezdőnapján jelöld be. Azonos kezdet és vég a teljes kijelölt napot jelenti.</p>
+<div id="master-program"></div></section>
+<section><h2>Slave kijelzők</h2>
+<p id="slave-status" role="status"></p><div id="slave-profiles"></div>
+<div id="slave-programs"></div></section>
+<section><h2>Időjárás és nappálya</h2>
+<p>Az otthon GPS-koordinátáit tizedes fokban add meg. A helyi napszak számításához a kijelző időzónáját a Beállítások fülön állíthatod be. Az időjárás 15 percenként frissül.</p>
+<div class="grid"><label>Földrajzi szélesség (°)<input id="latitude" type="number" min="-90" max="90" step="any" placeholder="47.4979" required></label>
+<label>Földrajzi hosszúság (°)<input id="longitude" type="number" min="-180" max="180" step="any" placeholder="19.0402" required></label></div>
+<small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a>.</small></section>
+<button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
+<p id="result" role="status" aria-live="polite"></p></form>
+<script>/*SLAVES_JS*/</script><script>/*INVERTER_JS*/</script></body></html>

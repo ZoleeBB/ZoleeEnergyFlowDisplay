@@ -1051,6 +1051,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
 #include "app_template_web.inc"
 #include "app_settings_web.inc"
 #include "app_loxone_web.inc"
+#include "app_inverter_web.inc"
 #include "app_backup_web.inc"
 #include "app_template_update_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
@@ -1174,6 +1175,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
     if ((err = settings_register(s_server)) != ESP_OK) goto failed;
     if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
+    if ((err = inverter_register(s_server)) != ESP_OK) goto failed;
     if ((err = backup_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_updates_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={
