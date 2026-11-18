@@ -272,6 +272,17 @@ def main():
                         "-Werror=frame-larger-than=512", "-Itests/stubs", "-Imain",
                         "main/app_inverter_modbus_wire.c", "main/app_inverter_modbus.c", "main/app_inverter_registers.c",
                         "tests/test_inverter_modbus.c", "-lm", "-o", str(exe)], cwd=ROOT, check=True)
+        dns_wire = Path(temp) / "dns-wire"
+        subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Imain",
+                        "main/app_inverter_modbus_wire.c", "tests/test_inverter_dns_wire.c", "-Wl,--wrap=getaddrinfo",
+                        "-o", str(dns_wire)], cwd=ROOT, check=True)
+        with socket.socket() as old_ip, socket.socket() as new_ip:
+            old_ip.bind(("127.0.0.1", 0))
+            port = old_ip.getsockname()[1]
+            new_ip.bind(("127.0.0.2", port))
+            old_ip.listen()
+            new_ip.listen()
+            subprocess.run([dns_wire, str(port)], check=True, timeout=10)
         verify_schema_order(exe)
         verify_mppt_float_registers(exe)
         pv = {"pv": 3.5, "status": 1}
