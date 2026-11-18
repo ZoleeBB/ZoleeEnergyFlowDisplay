@@ -35,4 +35,4 @@ bool app_inverter_settings_current(uint32_t generation);
 bool app_inverter_settings_lock_version(uint32_t generation);
 void app_inverter_settings_unlock(void);
 void app_inverter_report_ipv4_locked(const char *address);
-void app_inverter_report(uint32_t generation, const char *status, int64_t measured);
+void app_inverter_report(uint32_t generation, const char *status, int64_t measured, bool read_failed);

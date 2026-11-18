@@ -72,6 +72,7 @@ static void reload(worker_t *w)
     app_inverter_identity_load(&w->identity,&w->config.driver,profile->seconds == 5);
     if (changed) {
         app_stats_break_continuity();
+        app_state_set_inverter_read_failed(false);
         app_state_clear_sample();
         w->latest_epoch = 0;
     }
@@ -102,7 +103,8 @@ static void measure(worker_t *w, int64_t now)
     const char *problem = app_inverter_identity_prepare(&w->identity,address);
     if (problem) {
         if (w->profile->transport == INV_MQTT) app_inverter_victron_close();
-        app_inverter_report(w->revision,problem,0);
+        app_inverter_identity_outage(&w->identity);
+        app_inverter_report(w->revision,problem,0,true);
         return;
     }
     if (address[0] && strcmp(cfg->host,address)) {
@@ -118,7 +120,8 @@ static void measure(worker_t *w, int64_t now)
     }
     if (!app_inverter_settings_current(w->revision)) return;
     if (!ok || !isfinite(s.power_pv_kw) || s.power_pv_kw < 0 || s.power_pv_kw > APP_DIRECT_POWER_MAX_KW) {
-        app_inverter_report(w->revision,"Az inverter nem adott érvényes választ",0);
+        if (!ok) app_inverter_identity_outage(&w->identity);
+        app_inverter_report(w->revision,"Az inverter nem adott érvényes választ",0,!ok);
         return;
     }
     time_t wall = time(NULL);
@@ -126,11 +129,11 @@ static void measure(worker_t *w, int64_t now)
     bool cloud = w->profile->seconds > 5;
     if (!epoch && !cloud) epoch = wall;
     if (epoch <= 0 || epoch > wall+60 || wall-epoch >= app_inverter_sample_timeout_s()) {
-        app_inverter_report(w->revision,"Elavult vagy hibás mérési idő",epoch > 0 && epoch <= wall ? epoch : 0);
+        app_inverter_report(w->revision,"Elavult vagy hibás mérési idő",epoch > 0 && epoch <= wall ? epoch : 0,false);
         return;
     }
     if (epoch <= w->latest_epoch) {
-        app_inverter_report(w->revision,"Újabb mérésre vár",0);
+        app_inverter_report(w->revision,"Újabb mérésre vár",0,false);
         return;
     }
     s.received_epoch_s = epoch;
@@ -152,7 +155,8 @@ static void measure(worker_t *w, int64_t now)
     problem = app_inverter_identity_verify(&w->identity);
     if (problem) {
         if (w->profile->transport == INV_MQTT) app_inverter_victron_close();
-        app_inverter_report(w->revision,problem,0);
+        app_inverter_identity_outage(&w->identity);
+        app_inverter_report(w->revision,problem,0,true);
         return;
     }
     overlay(&s);
@@ -160,7 +164,7 @@ static void measure(worker_t *w, int64_t now)
         problem = app_inverter_identity_commit(&w->identity);
         if (problem) {
             app_inverter_settings_unlock();
-            app_inverter_report(w->revision,problem,0);
+            app_inverter_report(w->revision,problem,0,false);
             return;
         }
         app_inverter_report_ipv4_locked(w->identity.active);
@@ -169,7 +173,7 @@ static void measure(worker_t *w, int64_t now)
         w->latest_epoch = epoch;
         app_inverter_settings_unlock();
     }
-    app_inverter_report(w->revision,"Szinkronizálva",epoch);
+    app_inverter_report(w->revision,"Szinkronizálva",epoch,false);
 }
 
 void app_inverter_tick(void)

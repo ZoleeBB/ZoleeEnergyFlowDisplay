@@ -20,7 +20,7 @@ static app_energy_sample_t last;
 static app_energy_sample_t measurement = {.power_pv_kw = 2.5, .status = 1};
 static double weather_temp, weather_wind;
 static int allocations, commits, weather, reads, samples, breaks;
-static bool fail_save, configured;
+static bool fail_save, configured, offline;
 static time_t clock_now = 1782010800;
 static int64_t source_time, mono = 1000000;
 static void (*meteo_job)(void *);
@@ -65,10 +65,14 @@ esp_err_t nvs_get_blob(nvs_handle_t h,const char *key,void *v,size_t *size) {
 }
 void app_state_get_runtime(app_runtime_state_t *out) { *out=runtime; }
 bool app_state_get_sample(app_energy_sample_t *out) { *out=last; return runtime.has_valid_sample; }
-void app_state_set_sample(const app_energy_sample_t *s) { last=*s; runtime.has_valid_sample=true; }
+void app_state_set_sample(const app_energy_sample_t *s) {
+    last=*s; runtime.has_valid_sample=true;
+    runtime.last_valid_packet_monotonic_us = s->received_monotonic_us;
+}
 void app_state_clear_sample(void) { runtime.has_valid_sample=false; }
 void app_state_set_inverter_timeout(uint16_t s) { runtime.inverter_timeout_seconds=s; }
-void app_state_set_inverter_ready(bool ready) { configured=ready; }
+void app_state_set_inverter_ready(bool ready) { runtime.inverter_ready=configured=ready; }
+void app_state_set_inverter_read_failed(bool failed) { runtime.inverter_read_failed=failed; }
 void app_stats_break_continuity(void) { breaks++; }
 void app_stats_process_sample(const app_energy_sample_t *s) { assert(s->received_epoch_s>0); samples++; }
 void app_inverter_http_reset(void) {}
@@ -80,7 +84,7 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg,app_energy_sample
     (void)cfg;(void)s;(void)stamp; abort();
 }
 bool app_inverter_http_read(const app_inverter_config_t *cfg,app_energy_sample_t *s,int64_t *stamp) {
-    assert(cfg->host[0]); reads++; *s=measurement; *stamp=source_time; return true;
+    assert(cfg->host[0]); reads++; *s=measurement; *stamp=source_time; return !offline;
 }
 bool app_ota_operation_active(void) { return false; }
 bool app_ota_background_post(void (*f)(void *),void *arg) { assert(!arg && !meteo_job); meteo_job=f; return true; }
@@ -296,6 +300,21 @@ int main(int argc, char **argv)
         assert(last.temperature_valid==(i<2) && last.wind_speed_valid==(i<2));
         if (i<2) assert(last.temperature_c==weather_temp && last.wind_speed_kmh==weather_wind);
     }
+    offline = true;
+    tick(5);
+    assert(runtime.inverter_read_failed && !app_state_inverter_searching(&runtime, mono));
+    tick(5);
+    assert(app_state_inverter_searching(&runtime, mono));
+    runtime.wifi_connected = false;
+    assert(!app_state_inverter_searching(&runtime, mono));
+    runtime.wifi_connected = true;
+    offline = false;
+    tick(5);
+    assert(!runtime.inverter_read_failed && !app_state_inverter_searching(&runtime, mono));
+    runtime.has_valid_sample = false;
+    offline = true;
+    tick(30);
+    assert(runtime.inverter_read_failed && !app_state_inverter_searching(&runtime, mono));
     cJSON_Delete(s);
     puts("PASS inverter mode isolation, NVS atomic save, weather and cloud timing, stale sample dedup");
 }

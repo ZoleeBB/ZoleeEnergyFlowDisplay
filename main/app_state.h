@@ -78,7 +78,7 @@ typedef struct
     bool loxone_configured;
     bool loxone_connected;
     int64_t loxone_connected_monotonic_us;
-    bool inverter_ready;
+    bool inverter_ready, inverter_read_failed;
     uint16_t inverter_timeout_seconds;
     int64_t inverter_ready_monotonic_us;
     bool http_ready;
@@ -131,6 +131,7 @@ bool app_state_get_sample(app_energy_sample_t *out);
 void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
 void app_state_set_inverter_ready(bool ready);
+void app_state_set_inverter_read_failed(bool failed);
 void app_state_set_inverter_timeout(uint16_t seconds);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
@@ -166,6 +167,16 @@ static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 static inline unsigned app_cloud_sample_timeout(unsigned cadence_s)
 {
     return 2 * cadence_s + 60;
+}
+
+/* A már mért inverter átmeneti kiesésekor két helyi mérési periódusig a
+ * legutolsó mintát mutatjuk. Felhőnél a szolgáltatói frissítési idő számít. */
+static inline bool app_state_inverter_searching(const app_runtime_state_t *s, int64_t now)
+{
+    if (s->data_recept_mode != APP_DATA_INVERTER || !s->inverter_ready ||
+        !s->has_valid_sample || !s->inverter_read_failed || !s->wifi_connected) return false;
+    unsigned grace = s->inverter_timeout_seconds > 30 ? s->inverter_timeout_seconds : 10;
+    return now - s->last_valid_packet_monotonic_us >= (int64_t)grace * 1000000;
 }
 
 static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, uint32_t fallback)

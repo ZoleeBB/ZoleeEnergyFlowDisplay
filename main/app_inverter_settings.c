@@ -409,9 +409,10 @@ void app_inverter_report_ipv4_locked(const char *address)
 {
     snprintf(active_ipv4,sizeof(active_ipv4),"%s",address);
 }
-void app_inverter_report(uint32_t generation, const char *status, int64_t measured)
+void app_inverter_report(uint32_t generation, const char *status, int64_t measured, bool read_failed)
 {
     if (app_inverter_settings_lock_version(generation)) {
+        app_state_set_inverter_read_failed(read_failed);
         status_text = status;
         if (measured > last_measurement) last_measurement = measured;
         app_inverter_settings_unlock();
