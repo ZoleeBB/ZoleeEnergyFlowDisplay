@@ -127,6 +127,7 @@ def main():
         visited = run(exe, "huawei_modbus", huawei, dict(pv, grid=-.5, home=2.5), battery=False)
         assert all(a < 37000 or a == 37100 for _, a, _ in visited)
         run(exe, "huawei_modbus", huawei, None, fault="sequence")
+        run(exe, "huawei_modbus", {(3, 32064): padded(26, {0: 0x7fff, 1: 65535})}, None)
         goodwe = {(3, 35105): padded(14, {1: 2000, 5: 1500, 8: -1, 9: -1, 12: -1, 13: -1}),
                   (3, 36004): [1], (3, 35138): [2600, 0, 1000], (3, 35182): [65535, 65036, 2],
                   (3, 37003): [0x8000, 0, 0, 0, 38]}
@@ -138,6 +139,15 @@ def main():
                  (4, 0x6c): padded(9, {0: 1000, 4: 900, 8: 700}), (4, 2): [2400]}
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=2.1, battery=-.3, soc=50, temp=22))
         run(exe, "solax_modbus", solax, dict(pv, grid=-.5, home=1.9), device="X1-G4", battery=False)
+        for version, third in [(98, 0x2c), (100, 0x124)]:
+            pro = dict(solax)
+            pro.update({(3, 0x82): [version], (4, 0x1b): [3], (4, third): [930],
+                        (4, 0x16): [300, 0, 18, 0, 0, 3, 40],
+                        (4, 0x38): [300, 0, 0, 0, 40]})
+            run(exe, "solax_modbus", pro, dict(pv, pv=4.43, grid=-.5, home=2.1, battery=-.3, soc=40, temp=18),
+                device="X3-G4-PRO")
+            del pro[4, third]
+            run(exe, "solax_modbus", pro, None, device="X3-G4-PRO")
         victron = {(3, 808): [2000] + [0] * 8, (3, 850): [1500], (3, 820): [65036, 400, 100],
                    (3, 817): [400, 500, 200], (3, 840): [482, 0, 200, 52]}
         run(exe, "victron_modbus", victron, dict(pv, home=1.1, grid=0, battery=-.2, soc=52), unit=100)

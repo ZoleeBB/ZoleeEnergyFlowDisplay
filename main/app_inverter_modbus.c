@@ -76,16 +76,22 @@ static void battery(reader_t *r, double power, double soc, double temperature)
     }
 }
 
+/* A SUN2000 előjeles szabványértékeinek kimaradása a legnagyobb pozitív számmal jelölt. */
+static double huawei_i32(const uint16_t *p)
+{
+    return pair(p, false) == 0x7fffffff ? NAN : s32(p, false);
+}
+
 static double huawei(reader_t *r)
 {
     uint16_t w[26];
     if (!inv_mb_read(r->bus, 3, 32064, 26, w)) return NAN;
-    double pv = s32(w, false);
-    double ac = s32(w + 16, false);
+    double pv = huawei_i32(w);
+    double ac = huawei_i32(w + 16);
     if (w[25] == 0x0203) r->sample->status = 3;
     if (w[25] == 0x0300) r->sample->status = 4;
     if (inv_mb_read(r->bus, 3, 37100, 15, w) && w[0] == 1) {
-        grid(r, -s32(w + 13, false));
+        grid(r, -huawei_i32(w + 13));
         house_from_ac(r, ac);
     }
     if (r->cfg->battery) {
@@ -93,10 +99,10 @@ static double huawei(reader_t *r)
         bool online = false;
         if (inv_mb_read(r->bus, 3, 37760, 7, w)) {
             online = w[2] == 1 || w[2] == 2 || w[2] == 4;
-            if (online) battery(r, -s32(w + 5, false), u16(w[0]) / 10, NAN);
+            if (online) battery(r, -huawei_i32(w + 5), u16(w[0]) / 10, NAN);
         } else if (inv_mb_read(r->bus, 3, 37000, 5, w)) {
             online = w[0] == 1 || w[0] == 2 || w[0] == 4;
-            if (online) battery(r, -s32(w + 1, false), u16(w[4]) / 10, NAN);
+            if (online) battery(r, -huawei_i32(w + 1), u16(w[4]) / 10, NAN);
         }
         if (online && inv_mb_read(r->bus, 3, 37022, 1, w))
             battery(r, NAN, NAN, s16(w[0]) / 10);
@@ -148,6 +154,29 @@ static double sungrow(reader_t *r)
     return pv;
 }
 
+static void solax_pro_battery(reader_t *r, unsigned version)
+{
+    uint16_t w[8];
+    if (!inv_mb_read(r->bus, 4, 0x16, 7, w) || w[1] != 0) return;
+    double temp = s16(w[2]);
+    double soc = u16(w[6]);
+    double power = -s16(w[0]);
+    if (version >= 100) {
+        /* A 100-as verziótól a közös töltöttség és teljesítmény külön blokkban van. */
+        if (inv_mb_read(r->bus, 4, 0x38, 5, w))
+            battery(r, -s32(w, true), u16(w[4]), temp);
+        else
+            battery(r, NAN, NAN, temp);
+        return;
+    }
+    /* Második csatlakoztatott tároló esetén csak a közös SOC-t jelenítjük meg. */
+    if (inv_mb_read(r->bus, 4, 0x127, 8, w) && w[0] && w[0] != 0xffff) {
+        power -= s16(w[2]);
+        soc = u16(w[7]);
+    }
+    battery(r, power, soc, temp);
+}
+
 static double solax(reader_t *r)
 {
     uint16_t w[13];
@@ -155,14 +184,29 @@ static double solax(reader_t *r)
     if (w[0] == 3 || w[0] == 4) r->sample->status = 4;
     if (w[0] == 7) r->sample->status = 3;
     double pv = u16(w[1]) + u16(w[2]);
+    bool pro = !strcasecmp(r->cfg->device, "X3-G4-PRO");
+    unsigned version = 0;
+    if (pro) {
+        if (!inv_mb_read(r->bus, 3, 0x82, 1, w) || !w[0] || w[0] >= 1000) return NAN;
+        version = w[0];
+        if (!inv_mb_read(r->bus, 4, 0x1b, 1, w) || (w[0] != 2 && w[0] != 3)) return NAN;
+        if (w[0] == 3) {
+            uint16_t tracker = version >= 100 ? 0x124 : 0x2c;
+            if (!inv_mb_read(r->bus, 4, tracker, 1, w)) return NAN;
+            pv += u16(w[0]);
+        }
+    }
     if (inv_mb_read(r->bus, 4, 0x46, 2, w)) grid(r, -s32(w, true));
     if (!strcasecmp(r->cfg->device, "x1") || !strcasecmp(r->cfg->device, "X1-G4")) {
         if (inv_mb_read(r->bus, 4, 2, 1, w)) house_from_ac(r, s16(w[0]));
     } else if (inv_mb_read(r->bus, 4, 0x6c, 9, w)) {
         house_from_ac(r, s16(w[0]) + s16(w[4]) + s16(w[8]));
     }
-    if (r->cfg->battery && inv_mb_read(r->bus, 4, 0x16, 7, w) && w[1] == 1)
-        battery(r, -s16(w[0]), u16(w[6]), s16(w[2]));
+    if (r->cfg->battery) {
+        if (pro) solax_pro_battery(r, version);
+        else if (inv_mb_read(r->bus, 4, 0x16, 7, w) && w[1] == 1)
+            battery(r, -s16(w[0]), u16(w[6]), s16(w[2]));
+    }
     return pv;
 }
 
