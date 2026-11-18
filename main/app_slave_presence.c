@@ -441,6 +441,7 @@ void app_slave_presence_apply(app_slave_presence_receiver_t *receiver,
     if (display->last_now_us > now)
         now = display->last_now_us;
     receiver->last_now_us = now;
+    display->profile.scheduled = false;
     if (receiver->reset_presence)
     {
         app_slave_display_presence(display, false, false, now);

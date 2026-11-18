@@ -265,3 +265,39 @@ void app_ble_protocol_encode_timeout(const app_energy_sample_t *sample, const ap
     put16(weather + 12, (uint16_t)sample->sunset_minute);
     put32(weather + 14, sample->received_epoch_s > 0 ? (uint32_t)sample->received_epoch_s : 0);
 }
+
+#include "app_ble_display_policy.h"
+
+void app_ble_policy_encode(const app_ble_display_profile_t *profile, uint8_t wire[APP_BLE_POLICY_SIZE])
+{
+    memset(wire, 0, APP_BLE_POLICY_SIZE);
+    wire[0] = 1;
+    wire[1] = profile->direct ? 1 : profile->intercom ? 2 : 0;
+    if (!profile->direct) return;
+    put16(wire + 2, profile->schedule.touch_wake_seconds);
+    for (unsigned i = 0; i < 7; ++i) {
+        const app_inverter_day_window_t *day = &profile->schedule.days[i];
+        if (!day->enabled) continue;
+        wire[4] |= (uint8_t)(1u << i);
+        put16(wire + 5 + 4 * i, day->start_minute);
+        put16(wire + 7 + 4 * i, day->end_minute);
+    }
+}
+
+bool app_ble_policy_decode(const uint8_t wire[APP_BLE_POLICY_SIZE], app_ble_display_profile_t *out)
+{
+    if (wire[0] != 1 || wire[1] > 2 || (wire[4] & 128)) return false;
+    app_ble_display_profile_t next = {.direct = wire[1] == 1, .intercom = wire[1] == 2};
+    next.schedule.touch_wake_seconds = get16(wire + 2);
+    if (next.direct && (!next.schedule.touch_wake_seconds || next.schedule.touch_wake_seconds > 3600))
+        return false;
+    for (unsigned i = 0; i < 7; ++i) {
+        app_inverter_day_window_t *day = &next.schedule.days[i];
+        day->enabled = (wire[4] & (1u << i)) != 0;
+        day->start_minute = get16(wire + 5 + 4 * i);
+        day->end_minute = get16(wire + 7 + 4 * i);
+        if (day->start_minute >= 1440 || day->end_minute >= 1440) return false;
+    }
+    *out = next;
+    return true;
+}

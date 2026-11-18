@@ -5,6 +5,10 @@
  * futnak; az MQTT/HTTP/Loxone adatfogadást nem blokkolják.
  */
 #include "app_ble_seed.h"
+#include "app_ble_display_policy.h"
+#ifndef APP_INTERCOM_SLAVE
+#include "app_inverter.h"
+#endif
 #include "app_ble_protocol.h"
 #include "app_events.h"
 #include "app_time.h"
@@ -67,6 +71,7 @@ static const ble_uuid128_t s_energy_uuid = SEED_UUID(0x01);
 static const ble_uuid128_t s_weather_uuid = SEED_UUID(0x02);
 static const ble_uuid128_t s_clock_uuid = SEED_UUID(0x03);
 static const ble_uuid128_t s_profile_uuid = SEED_UUID(0x04);
+static const ble_uuid128_t s_v4_profile_uuid = SEED_UUID(0x0a);
 static const ble_uuid128_t s_stats_uuid = SEED_UUID(0x05);
 static const ble_uuid128_t s_presence_uuid = SEED_UUID(0x06);
 #ifdef APP_INTERCOM_DISTRIBUTED
@@ -94,6 +99,7 @@ typedef struct
     bool used;
     uint16_t handle;
     bool subscribed[3];
+    bool accepts_optional;
     uint32_t presence_sequence;
 #ifdef APP_INTERCOM_DISTRIBUTED
     uint32_t intercom_id;
@@ -131,6 +137,31 @@ void ble_transport_ll_deinit(void)
 /* A célprofil lekérése a hitelesített BLE peer identitásához kötött. */
 static bool presence_identity(uint16_t connection, app_slave_identity_t *identity);
 
+static seed_peer_t *peer_for(uint16_t conn)
+{
+    for (unsigned i = 0; i < CONFIG_BT_NIMBLE_MAX_CONNECTIONS; ++i)
+        if (s_peers[i].used && s_peers[i].handle == conn) return &s_peers[i];
+    return NULL;
+}
+
+/* Legacy receivers reject partial samples. They keep receiving a valid clock
+ * and a v1 no-data frame until a representable measurement is available. */
+static const uint8_t *packet_for(seed_peer_t *peer, unsigned packet, uint8_t fallback[APP_BLE_PACKET_SIZE])
+{
+    if (packet < 2 && s_packets[packet][0] == APP_BLE_OPTIONAL_VERSION &&
+        (!peer || !peer->accepts_optional)) {
+        memset(fallback, 0, APP_BLE_PACKET_SIZE);
+        fallback[0] = APP_BLE_PROTOCOL_VERSION;
+        if (packet == 0) {
+            fallback[1] = 2;
+            fallback[16] = fallback[17] = UINT8_MAX;
+        }
+        memcpy(fallback + 18, s_packets[packet] + 18, 2);
+        return fallback;
+    }
+    return s_packets[packet];
+}
+
 /* A nyilvános mérési karakterisztikák nem tartalmaznak Wi-Fi-t vagy PIN-t. */
 static int read_packet(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -139,7 +170,8 @@ static int read_packet(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt
     if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR)
         return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
     unsigned packet = (unsigned)(uintptr_t)arg;
-    return os_mbuf_append(ctxt->om, s_packets[packet], APP_BLE_PACKET_SIZE) == 0
+    uint8_t fallback[APP_BLE_PACKET_SIZE];
+    return os_mbuf_append(ctxt->om, packet_for(peer_for(conn), packet, fallback), APP_BLE_PACKET_SIZE) == 0
              ? 0
              : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
@@ -160,6 +192,24 @@ static int read_profile(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
         app_slave_presence_service_brightness(&identity, &day, &night))
         app_ble_profile_override_brightness(profile, day, night);
     int rc = os_mbuf_append(ctxt->om, profile, sizeof(profile));
+#ifndef APP_INTERCOM_SLAVE
+    if (!rc && arg) {
+        seed_peer_t *peer = peer_for(conn);
+        char id[APP_SLAVE_PRESENCE_ID_SIZE];
+        if (!peer || !presence_identity(conn, &identity) || !app_slave_identity_id(&identity, id))
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+        app_ble_display_profile_t extra = {
+            .direct = s_config.data_recept_mode == APP_DATA_INVERTER,
+            .intercom = s_config.data_recept_mode == APP_DATA_LOXONE,
+            .schedule.touch_wake_seconds = s_config.display.touch_wake_seconds,
+        };
+        if (extra.direct) (void)app_inverter_display_schedule(id, &extra.schedule);
+        uint8_t wire[APP_BLE_POLICY_SIZE];
+        app_ble_policy_encode(&extra, wire);
+        rc = os_mbuf_append(ctxt->om, wire, sizeof(wire));
+        if (!rc) peer->accepts_optional = true;
+    }
+#endif
     memset(profile, 0, sizeof(profile));
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
@@ -202,6 +252,11 @@ static const struct ble_gatt_svc_def s_services[] = {
                     .access_cb = read_profile,
                     .flags =
                         BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                    .min_key_size = 16,
+                },
+                {
+                    .uuid = &s_v4_profile_uuid.u, .access_cb = read_profile, .arg = (void *)1,
+                    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
                     .min_key_size = 16,
                 },
                 {
@@ -309,7 +364,8 @@ static void notify_peer(seed_peer_t *peer, unsigned packet)
 {
     if (!peer->used || !peer->subscribed[packet])
         return;
-    struct os_mbuf *om = ble_hs_mbuf_from_flat(s_packets[packet], APP_BLE_PACKET_SIZE);
+    uint8_t fallback[APP_BLE_PACKET_SIZE];
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(packet_for(peer, packet, fallback), APP_BLE_PACKET_SIZE);
     if (om)
         (void)ble_gatts_notify_custom(peer->handle, s_handles[packet], om);
 }
@@ -325,8 +381,9 @@ static int64_t refresh_packets(int64_t now)
         sample = (app_energy_sample_t){.night_mode = runtime.standalone_night};
         valid = true; /* Csak a kódoló NightMode bemenete, nem mérési minta. */
     }
-    app_ble_protocol_encode(
-        valid ? &sample : NULL, &s_config, now, ++s_sequence, s_packets[0], s_packets[1]);
+    uint32_t timeout = app_state_source_timeout(&runtime, app_config_data_timeout(&s_config));
+    app_ble_protocol_encode_timeout(
+        valid ? &sample : NULL, &s_config, timeout, now, ++s_sequence, s_packets[0], s_packets[1]);
     struct timeval current;
     gettimeofday(&current, NULL);
     struct tm local;
@@ -341,10 +398,21 @@ static int64_t refresh_packets(int64_t now)
                   (offset[0] == '-' ? -1 : 1);
     app_ble_clock_encode((int64_t)current.tv_sec * 1000 + current.tv_usec / 1000,
                          (int16_t)minutes,
-                         (uint16_t)app_config_data_timeout(&s_config),
+                         (uint16_t)timeout,
                          runtime.time_synced,
                          s_sequence,
                          s_packets[2]);
+#ifndef APP_INTERCOM_SLAVE
+    if (s_config.data_recept_mode == APP_DATA_INVERTER && runtime.time_synced) {
+        app_energy_sample_t sun = {0};
+        if (app_inverter_sun_now(&sun)) {
+            bool events = sun.sunrise_minute >= 0 && sun.sunrise_minute < 1440 &&
+                          sun.sunset_minute >= 0 && sun.sunset_minute < 1440;
+            app_ble_clock_sun(s_packets[2], sun.night_mode,
+                              events ? sun.sunrise_minute : 0, events ? sun.sunset_minute : 0);
+        }
+    }
+#endif
     return valid ? sample.received_monotonic_us : -1;
 }
 
@@ -372,7 +440,7 @@ static void poll_state(struct ble_npl_event *event)
     }
     presence_register_peers();
 #ifdef APP_INTERCOM_DISTRIBUTED
-    app_intercom_control_tick();
+    if (s_config.data_recept_mode == APP_DATA_LOXONE) app_intercom_control_tick();
 #endif
     int64_t sample_us = refresh_packets(now);
     bool publish = sample_us != s_last_sample_us || previous_flags != s_packets[0][1] ||
@@ -574,10 +642,11 @@ esp_err_t app_ble_seed_start(const app_config_t *cfg)
         return ESP_OK;
     if (s_started)
         return ESP_ERR_INVALID_STATE;
-    if (cfg->data_recept_mode == APP_DATA_SLAVE || cfg->data_recept_mode == APP_DATA_LOXONE)
+    if (cfg->data_recept_mode == APP_DATA_SLAVE || cfg->data_recept_mode == APP_DATA_LOXONE ||
+        cfg->data_recept_mode == APP_DATA_INVERTER)
     {
         #ifdef APP_INTERCOM_DISTRIBUTED
-        app_intercom_control_init(cfg);
+        if (cfg->data_recept_mode == APP_DATA_LOXONE) app_intercom_control_init(cfg);
         #endif
         esp_err_t presence_error = app_slave_presence_service_init(cfg->data_recept_mode != APP_DATA_SLAVE);
         if (presence_error != ESP_OK)

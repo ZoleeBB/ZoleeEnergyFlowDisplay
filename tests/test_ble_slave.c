@@ -6,6 +6,11 @@
 #include <time.h>
 #include "app_ble_stats_protocol.h"
 #include "app_ble_protocol.h"
+#include "app_ble_display_policy.h"
+#define portMUX_TYPE int
+#define portMUX_INITIALIZER_UNLOCKED 0
+#define portENTER_CRITICAL(lock) ((void)(lock))
+#define portEXIT_CRITICAL(lock) ((void)(lock))
 #include "app_events.h"
 #include "app_ble_profile.h"
 #ifdef APP_INTERCOM_SLAVE
@@ -121,7 +126,7 @@ typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_
 
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
                            s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
-                           s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
+                           s_v4_profile_uuid = {{1010}}, s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
 #ifdef APP_INTERCOM_SLAVE
 static const ble_uuid128_t s_intercom_uuid = {{1007}}, s_intercom_profile_uuid = {{1008}}, s_intercom_extras_uuid = {{1009}};
 void app_intercom_control_disconnected(void) {}
@@ -407,6 +412,7 @@ static void make_frame(uint16_t sequence, int64_t epoch)
                                   .power_bat_kw = -2,
                                   .power_grid_kw = -1,
                                   .soc_bat_pct = 80,
+                                  .battery_temperature_valid = true,
                                   .battery_temperature_c = 25,
                                   .status = 1,
                                   .received_monotonic_us = 1000000,

@@ -17,7 +17,7 @@ static bool presence_identity(uint16_t connection, app_slave_identity_t *identit
 
 static void presence_register_peers(void)
 {
-    if (s_config.data_recept_mode != APP_DATA_LOXONE)
+    if (s_config.data_recept_mode != APP_DATA_LOXONE && s_config.data_recept_mode != APP_DATA_INVERTER)
         return;
     for (unsigned i = 0; i < CONFIG_BT_NIMBLE_MAX_CONNECTIONS; ++i)
     {
@@ -44,7 +44,7 @@ static int read_presence(uint16_t conn, uint16_t attr,
     if (!peer)
         return BLE_ATT_ERR_UNLIKELY;
     uint8_t data[APP_SLAVE_PRESENCE_PACKET_SIZE];
-    if (s_config.data_recept_mode == APP_DATA_LOXONE)
+    if (s_config.data_recept_mode == APP_DATA_LOXONE || s_config.data_recept_mode == APP_DATA_INVERTER)
     {
         if (!app_slave_presence_service_register(&identity) ||
             !app_slave_presence_service_packet(&identity, ++peer->presence_sequence, data))
