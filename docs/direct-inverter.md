@@ -63,6 +63,16 @@ Az időprogram naponként egy kezdő és egy záró időpontot fogad. Például 
 
 Aktív időablakban a panel elsötétül. Az első érintés a pillanatnyilag érvényes nappali vagy éjszakai fényerőre ébreszti. Az újabb érintések újraindítják az ébrenléti időt. Lejáratkor csak a még aktív időablakban sötétül vissza. Így például a napnyugtakor megjelenő éjszakai téma estig látható maradhat, miközben a teljes sötétítést csak 22 órától kéred.
 
+## Mit ellenőriztünk az integrációkban?
+
+| Kapcsolat | Automatizált ellenőrzés | Mit érdemes a saját telepítésen összevetni? |
+| --- | --- | --- |
+| 11 helyi Modbus-profil | A tényleges meghajtó által küldött regisztercím, olvasási funkció, szósorrend és skála. Gyári és módosított címek, hiányzó mérő, több tároló és eltérő SolaX-változatok. | A pontos modell és adatgyűjtő regisztertérképe, a hálózati teljesítmény előjele, a csatlakoztatott fogyasztásmérő szerepe. [Modbus-próbák](../tests/test_inverter_modbus.py) |
+| 8 helyi HTTP/HTTPS vagy felhős profil | Gyártói válaszformátumok feldolgozása, részleges adat, hitelesítés, mérési idő és munkamenet-megújítás. | A stick firmware-e, az API-fiók régiója és jogosultsága, valamint a legutolsó adat ideje a gyártó alkalmazásában. [HTTP-próbák](../tests/test_inverter_http.c) |
+| Victron GX MQTT | Feliratkozás, mérési témák, azonosító, megszakadt adatfolyam és új kapcsolat. | A GX helyi MQTT-beállítása és a Portal ID. [GX-beállítások](inverters/victron-mqtt.md) |
+
+A hálózati próbák helyi szerverrel vagy rögzített mintaválasszal futnak. Egy konkrét inverter, mérő és firmware együttműködését a telepítésenkénti próba igazolja.
+
 ## Hibakeresés
 
 | Jelenség | Mit nézz meg? |
