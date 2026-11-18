@@ -16,6 +16,7 @@
 
 static app_runtime_state_t runtime;
 static app_energy_sample_t last;
+static app_energy_sample_t measurement = {.power_pv_kw = 2.5, .status = 1};
 static int allocations, commits, weather, reads, samples, breaks;
 static bool fail_save, configured;
 static time_t clock_now = 1782010800;
@@ -65,7 +66,7 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg,app_energy_sample
     (void)cfg;(void)s;(void)stamp; abort();
 }
 bool app_inverter_http_read(const app_inverter_config_t *cfg,app_energy_sample_t *s,int64_t *stamp) {
-    assert(cfg->host[0]); reads++; s->power_pv_kw=2.5; s->status=1; *stamp=source_time; return true;
+    assert(cfg->host[0]); reads++; *s=measurement; *stamp=source_time; return true;
 }
 bool app_ota_operation_active(void) { return false; }
 bool app_ota_background_post(void (*f)(void *),void *arg) { assert(!arg && !meteo_job); meteo_job=f; return true; }
@@ -116,6 +117,25 @@ int main(void)
     cJSON_ReplaceItemInObject(s,"host",cJSON_CreateString("other.local"));
     assert(app_inverter_settings_save(s)==ESP_ERR_INVALID_ARG);
     tick(595); assert(weather==2);
+    cJSON_Delete(s);
+    s=settings("fronius_http");
+    cJSON_ReplaceItemInObject(s,"battery",cJSON_CreateTrue());
+    assert(app_inverter_settings_save(s)==ESP_OK);
+    measurement = (app_energy_sample_t){.status=1, .power_pv_kw=APP_DIRECT_POWER_MAX_KW,
+        .power_full_kw=NAN, .power_grid_kw=-80, .power_bat_kw=45, .soc_bat_pct=102,
+        .battery_temperature_valid=true, .battery_temperature_c=81};
+    source_time=0;
+    tick(5);
+    assert(last.power_pv_kw==APP_DIRECT_POWER_MAX_KW && last.power_grid_kw==-80 && last.power_bat_kw==45);
+    assert(!last.battery_temperature_valid && last.home_unavailable && last.soc_unavailable);
+    measurement.battery_temperature_c=0;
+    measurement.power_bat_kw=500;
+    tick(5);
+    assert(last.battery_temperature_valid && last.battery_temperature_c==0 && last.battery_power_unavailable);
+    int before=samples;
+    measurement.power_pv_kw=APP_DIRECT_POWER_MAX_KW+.01;
+    tick(5);
+    assert(samples==before);
     cJSON_Delete(s);
     puts("PASS inverter mode isolation, NVS atomic save, weather and cloud timing, stale sample dedup");
 }

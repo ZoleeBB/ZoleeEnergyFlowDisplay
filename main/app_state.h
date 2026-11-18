@@ -4,6 +4,14 @@
 #include <stdint.h>
 #include "app_config.h"
 
+/* Közvetlen profiloknál az egyes csatornákat eddig legalább 10 W felbontással továbbítjuk. */
+#define APP_DIRECT_POWER_MAX_KW 327.67
+
+static inline bool app_battery_temperature_in_range(double celsius)
+{
+    return celsius >= -20 && celsius <= 80;
+}
+
 /*
  * Egy teljesen validált MQTT mérési minta.
  * A teljesítmények kW-ban, a hőmérsékletek Celsius-fokban szerepelnek.

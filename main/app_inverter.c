@@ -103,7 +103,7 @@ static void measure(worker_t *w, int64_t now)
         default: return;
     }
     if (!app_inverter_settings_current(w->revision)) return;
-    if (!ok || !isfinite(s.power_pv_kw) || s.power_pv_kw < 0) {
+    if (!ok || !isfinite(s.power_pv_kw) || s.power_pv_kw < 0 || s.power_pv_kw > APP_DIRECT_POWER_MAX_KW) {
         app_inverter_report(w->revision,"Az inverter nem adott érvényes választ",0);
         return;
     }
@@ -122,10 +122,19 @@ static void measure(worker_t *w, int64_t now)
     s.received_epoch_s = epoch;
     s.received_monotonic_us = age_us - (wall > epoch ? wall-epoch : 0)*INT64_C(1000000);
     s.integration_period_s = cloud ? w->profile->seconds : 0;
-    if (!cfg->battery) {
-        s.battery_unavailable = s.soc_unavailable = s.battery_power_unavailable = true;
-        s.battery_temperature_valid = false;
-    }
+    s.battery_unavailable |= !cfg->battery;
+    s.grid_unavailable |= !isfinite(s.power_grid_kw) || fabs(s.power_grid_kw) > APP_DIRECT_POWER_MAX_KW;
+    s.home_unavailable |= !(s.power_full_kw >= 0 && s.power_full_kw <= APP_DIRECT_POWER_MAX_KW);
+    s.battery_power_unavailable |= s.battery_unavailable || !isfinite(s.power_bat_kw) ||
+                                   fabs(s.power_bat_kw) > APP_DIRECT_POWER_MAX_KW;
+    s.soc_unavailable |= s.battery_unavailable || !(s.soc_bat_pct >= 0 && s.soc_bat_pct <= 100);
+    s.battery_temperature_valid &= !s.battery_unavailable && app_battery_temperature_in_range(s.battery_temperature_c);
+    /* Régi megjelenítők is véges számmal számoljanak. Az érvényességet kizárólag a jelző dönti el. */
+    if (s.grid_unavailable) s.power_grid_kw = 0;
+    if (s.home_unavailable) s.power_full_kw = 0;
+    if (s.battery_power_unavailable) s.power_bat_kw = 0;
+    if (s.soc_unavailable) s.soc_bat_pct = 0;
+    if (!s.battery_temperature_valid) s.battery_temperature_c = 0;
     overlay(&s);
     if (app_inverter_settings_lock_version(w->revision)) {
         app_stats_process_sample(&s);

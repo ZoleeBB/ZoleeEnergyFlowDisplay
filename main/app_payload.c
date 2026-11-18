@@ -238,11 +238,16 @@ esp_err_t app_payload_parse(
         goto invalid;
     }
     sample.battery_temperature_valid = fields[F_BAT_TEMP] && !cJSON_IsNull(fields[F_BAT_TEMP]);
-    if (sample.battery_temperature_valid &&
-        !number_in_range(fields[F_BAT_TEMP], -20, 80, &sample.battery_temperature_c))
+    if (sample.battery_temperature_valid && !cJSON_IsNumber(fields[F_BAT_TEMP]))
     {
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_BAT_TEMP]);
         goto invalid;
+    }
+
+    if (sample.battery_temperature_valid) {
+        double celsius = fields[F_BAT_TEMP]->valuedouble;
+        sample.battery_temperature_valid = app_battery_temperature_in_range(celsius);
+        if (sample.battery_temperature_valid) sample.battery_temperature_c = celsius;
     }
 
     /* A logikai mezők a protokoll szerint kizárólag numerikus 0/1 értékek lehetnek. */

@@ -136,6 +136,20 @@ static void test_partial_cloud_measurements(void)
     assert(snapshot.slots[146].chart_gap);
     tests++;
 }
+static void test_wide_power_storage(void)
+{
+    time_t t = instant("2026-10-05", 12, 0, 0);
+    reset(t);
+    feed(t, APP_DIRECT_POWER_MAX_KW, -80, 45);
+    feed(t + 10, APP_DIRECT_POWER_MAX_KW, -80, 45);
+    assert(app_stats_save_now() == ESP_OK && app_stats_init(&cfg) == ESP_OK);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.production_kwh, APP_DIRECT_POWER_MAX_KW * 10 / 3600.);
+    near(snapshot.totals.grid_export_kwh, 80. * 10 / 3600.);
+    near(snapshot.totals.battery_discharge_kwh, 45. * 10 / 3600.);
+    assert(fabs(snapshot.slots[144].split.pv_home - APP_DIRECT_POWER_MAX_KW) < .001);
+    tests++;
+}
 static unsigned day_notifications;
 static void day_notification(void){day_notifications++;}
 static void test_midnight(bool background_first){
@@ -283,6 +297,12 @@ static void test_payload(void){
         near(result.battery_temperature_c, 0);
         cJSON_free(wire);
     }
+    cJSON_ReplaceItemInObject(sensor, "BatteryTemperature", cJSON_CreateNumber(81));
+    char *hot = cJSON_PrintUnformatted(sensor);
+    assert(app_payload_parse(hot, strlen(hot), &result, error, sizeof(error)) == ESP_OK);
+    assert(!result.battery_temperature_valid);
+    near(result.power_pv_kw, 3);
+    cJSON_free(hot);
     cJSON_Delete(sensor);
     /* Mind az öt egész státusz fogadható; a határon kívüli/tört érték atomi hibát ad. */
     const double states[] = {1, 2, 3, 4, 5, 0, 6, 4.5, 5.5};
@@ -297,8 +317,8 @@ static void test_payload(void){
         cJSON_free(text);
         cJSON_Delete(state);
     }
-    const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","BatteryTemperature","WindSpeed"};
-    double bad[]={101,1.5,2,-.051,-36,81,-1};
+    const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","WindSpeed"};
+    double bad[]={101,1.5,2,-.051,-36,-1};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){
         cJSON *d=cJSON_Parse(payload);cJSON_SetNumberValue(cJSON_GetObjectItem(d,fields[i]),bad[i]);char *text=cJSON_PrintUnformatted(d);
         result.power_pv_kw=123;assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);near(result.power_pv_kw,123);
@@ -774,7 +794,7 @@ static void test_battery_diagnostics_storage(void)
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
     test_payload();test_config();test_flow();test_events();
-    test_partial_cloud_measurements();test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
+    test_wide_power_storage();test_partial_cloud_measurements();test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);

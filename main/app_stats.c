@@ -578,10 +578,10 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             !isfinite(count->valuedouble) || count->valuedouble < 0 ||
             count->valuedouble > UINT32_MAX || floor(count->valuedouble)!=count->valuedouble ||
             (cJSON_IsTrue(valid)!=(count->valuedouble>0)) ||
-            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) || pv->valuedouble<0 || pv->valuedouble>15 ||
-            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) || load->valuedouble<0 || load->valuedouble>15 ||
-            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) || fabs(grid->valuedouble)>15 ||
-            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) || fabs(battery->valuedouble)>15 ||
+            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) || pv->valuedouble<0 || pv->valuedouble>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) || load->valuedouble<0 || load->valuedouble>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) || fabs(grid->valuedouble)>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) || fabs(battery->valuedouble)>(float)APP_DIRECT_POWER_MAX_KW ||
             !totals_from_json(energy, &parsed->slots[i].energy)) {
             goto invalid;
         }
@@ -636,7 +636,7 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             slot->chart_gap=cJSON_IsTrue(gap);
 #define LOAD_SPLIT(field) do { \
     cJSON *v=cJSON_GetObjectItemCaseSensitive(split,#field); \
-    if(!cJSON_IsNumber(v) || !isfinite(v->valuedouble) || v->valuedouble<0 || v->valuedouble>15)goto invalid; \
+    if(!cJSON_IsNumber(v) || !isfinite(v->valuedouble) || v->valuedouble<0 || v->valuedouble>(float)APP_DIRECT_POWER_MAX_KW)goto invalid; \
     slot->split.field=(float)v->valuedouble; \
 } while(0)
             LOAD_SPLIT(pv_home); LOAD_SPLIT(pv_export); LOAD_SPLIT(pv_stored);

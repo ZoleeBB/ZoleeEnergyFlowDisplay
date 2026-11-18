@@ -74,7 +74,8 @@ A timeout után teljes képernyős MQTT-adathiány hiba jelenik meg. Érvényes 
 A 11 kötelező kulcs közül a `Temperature`, `WindSpeed`, `HasSunRadiation` és
 `HasPrecipitation` értéke lehet JSON `null`. Az opcionális `BatteryTemperature`
 elhagyható vagy lehet `null`. Ekkor minden téma elrejti az akku hőfokát.
-A mért 0 °C érvényes érték.
+A mért 0 °C érvényes érték. A −20…80 °C tartományon kívül eső
+számnál a hőfok eltűnik, a csomag többi érvényes mérése tovább frissül.
 
 A hőmérséklet és a szél külön-külön jelenik meg, ha van adat. Az időjárásikon
 csak érvényes hőmérséklet-, napsugárzás- és csapadékadat mellett látszik,

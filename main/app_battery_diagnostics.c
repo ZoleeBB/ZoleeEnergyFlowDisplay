@@ -127,7 +127,7 @@ void app_battery_process(app_battery_diagnostics_t *state, const app_energy_samp
     if (!state->nominal_kwh)
         return;
     if (sample->battery_unavailable || sample->soc_unavailable || sample->battery_power_unavailable ||
-        !isfinite(sample->power_bat_kw) || fabs(sample->power_bat_kw) > 15 ||
+        !isfinite(sample->power_bat_kw) || fabs(sample->power_bat_kw) > APP_DIRECT_POWER_MAX_KW ||
         !isfinite(sample->soc_bat_pct) || sample->soc_bat_pct < 0 || sample->soc_bat_pct > 100 ||
         sample->received_monotonic_us < 0 || sample->received_epoch_s < 1577836800)
     {
@@ -139,7 +139,9 @@ void app_battery_process(app_battery_diagnostics_t *state, const app_energy_samp
         const app_energy_sample_t *previous = &state->previous;
         double seconds = (sample->received_monotonic_us - previous->received_monotonic_us) / 1e6;
         double epoch_seconds = (double)(sample->received_epoch_s - previous->received_epoch_s);
-        double allowed_jump = 2 + 3 * 15 * fmax(seconds, 0) / 3600 * 100 / nominal;
+        /* A 15 kW-os alapzajtűrés a régi mintáknál megmarad. */
+        double peak_power = fmax(15, fmax(fabs(sample->power_bat_kw), fabs(previous->power_bat_kw)));
+        double allowed_jump = 2 + 3 * peak_power * fmax(seconds, 0) / 3600 * 100 / nominal;
         if (seconds <= 0 || seconds > timeout || fabs(epoch_seconds - seconds) > 2 ||
             fabs(sample->soc_bat_pct - previous->soc_bat_pct) > allowed_jump)
             app_battery_break(state);
@@ -328,7 +330,7 @@ bool app_battery_from_json(const cJSON *json, app_battery_diagnostics_t *out)
             return false;
         run->direction = (int)direction;
         run->end_epoch_s = (int64_t)epoch;
-        if (!ready(run, parsed.nominal_kwh) || run->energy_kwh > 15 * run->seconds / 3600 + 1e-6 ||
+        if (!ready(run, parsed.nominal_kwh) || run->energy_kwh > APP_DIRECT_POWER_MAX_KW * run->seconds / 3600 + 1e-6 ||
             (parsed.count && run->end_epoch_s < parsed.history[parsed.count - 1].end_epoch_s))
             return false;
         parsed.count++;
