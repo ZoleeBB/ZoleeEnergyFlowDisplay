@@ -104,6 +104,7 @@ esp_err_t slave_4b_setup_run(app_config_t *cfg)
     if (!timer) return ESP_ERR_NO_MEM;
     esp_err_t err = app_setup_wifi_provision(cfg);
     if (err != ESP_OK) return err;
+    if ((err = app_boot_config_save_setup_wifi(cfg)) != ESP_OK) return err;
     app_setup_wifi_set_phase(APP_SETUP_WAIT_TIME);
     /* The first boot uses network time. On the next boot the confirmed
      * Slave role switches to the authenticated Master's clock. */
