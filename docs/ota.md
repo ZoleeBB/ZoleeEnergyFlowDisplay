@@ -95,9 +95,13 @@ Ha mindkettő üres, nincs hitelesítés.
 
 A firmware két alkalmazáspartíciót használ. Az új image először próbaállapotban indul.
 
-A v4-ben minden módban a sikeres időszinkron után indul a kezelőfelület. Korábbi konfigurációval a Master NTP-ről, a Slave a párosított Mastertől kap időt. Az első beállítás alatt mindkét kijelző a panelen kiválasztott Wi-Fi-hálózaton éri el az NTP-kiszolgálót.
+| Hol indul a friss firmware? | Mikor véglegesül az OTA-kép? |
+| --- | --- |
+| Wi-Fi-t használó Master, bármely adatforrással | A kijelző IP-címet kap a Wi-Fi-hálózaton, és sikeresen szinkronizálja az óráját. |
+| Első beállítás alatt álló 10,1″ vagy 4B kijelző | A panelen kiválasztott hálózat IP-címet ad, és a gyári NTP-kiszolgálóról sikerül az időszinkron. |
+| Már beállított Bluetooth Slave, SD-vel vagy SD nélkül | A párosított Mastertől megérkezik a hiteles idő. A Slave saját Wi-Fi-je ehhez opcionális. |
 
-Az új OTA-kép véglegesítéséhez a kijelző működését is ellenőrzi a firmware. Beállított eszközön a futó alkalmazásnak el kell jutnia a kirajzolásig. Üres profilú eszközön a webkiszolgálónak el kell indulnia, és a panelnek meg kell jelenítenie a beállítóképernyőt az elérhető helyi címmel. Az ellenőrzéshez az „inverter beállítása szükséges” vagy az adatforrásra váró nézet is elegendő. Az első mérés, az inverter-, MQTT- vagy Miniserver-kapcsolat és az SD-statisztika ettől függetlenül válhat elérhetővé.
+A véglegesítés közben a 10,1″-es indulóképernyő még mutathatja a Loxone-kapcsolat felépítését vagy az első adatcsomagra várást. Az első mérés, a statisztika és a téma megjelenése külön követhető. [Az indulóképernyő viselkedése üzemmódonként](first-start.md#indulás-mentett-beállításokkal)
 
 A szokásos ellenőrzési idő 5 perc. A már Slave módban induló, Masterre váró kijelző legfeljebb 20 percet kap, hogy a két eszköz egymást követő frissítésénél ismét létrejöhessen a kapcsolat.
 
@@ -149,4 +153,4 @@ Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az esz
 
 A gyári Napi mérleg, Nyugodt otthon, Energiakör és Energiafőkönyv témák szín-/háttérjavításait az OTA után a kijelző a régebbi SD-sablonokon is alkalmazza. A teljesen új sablonfájlok telepítéséhez továbbra is a webes sablonkezelő vagy az SD-re másolás használható.
 
-A v2-es Loxone mód OTA-ellenőrzése a működő webfelületet vizsgálta. A v4 ellenőrzése a fent leírt időszinkront és kirajzolást használja. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.
+A v2-es Loxone mód OTA-ellenőrzése a működő webfelületet vizsgálta. A v4 OTA-képének elfogadási feltételeit a fenti táblázat mutatja. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.

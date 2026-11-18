@@ -103,8 +103,8 @@ után a mastertől töltődik vissza. Régi, 1005 nélküli master mellett az é
 működhet, de statisztika nem lesz; a mastert is frissíteni kell.
 
 Az éjféli automatikus OTA SD nélkül is működik, ha van örökölt internetkapcsolat.
-A frissen telepített firmware elfogadásához sikeres időszinkron és használható
-üzemi vagy első beállítási felület szükséges. A statisztikai pillanatkép ettől
+A már beállított Slave a párosított Master órájának átvételekor véglegesítheti a
+friss firmware-t. Az első mérés és az SD nélküli Slave statisztikája ettől
 függetlenül érkezik meg. [OTA és visszaállítás](ota.md)
 
 ## Közös kapcsolódás és időszinkron

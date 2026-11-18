@@ -17,3 +17,5 @@ Sikeres csatlakozás után a kijelző megvárja az időszinkronizálást. Ha az 
 Amikor megjelenik **A kijelző beállítása szükséges** felirat, írd a telefon vagy számítógép böngészőjének címsorába a kijelzőn látható teljes `http://` címet. Ott add meg és mentsd el a kijelző beállításait. Az alábbi 4B-képernyőképen a `192.0.2.47` példacím. A saját kijelződ a helyi hálózattól kapott IP-címet mutatja.
 
 ![A 4B kijelző a böngészőbe írandó címmel az időszinkronizálás után](images/first-run/web-address.png)
+
+A helyi Wi-Fi és a sikeres időszinkron a frissen telepített firmware véglegesítéséhez is elegendő. A beállítások mentése után a következő indítás a kiválasztott üzemmód szerint folytatódik. [Indulás mentett beállításokkal](first-start.md#indulás-mentett-beállításokkal)

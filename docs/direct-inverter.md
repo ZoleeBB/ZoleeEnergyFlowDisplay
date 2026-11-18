@@ -4,6 +4,8 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 
 ## Első beállítás
 
+Ha a Masteren már a **Közvetlen inverter** mód van elmentve, az időszinkron után az üres inverterprofilhoz a kijelző beállítást kér. Nyisd meg a helyi webfelületen az **Inverter beállítások** fület. Az energiaábra az első érvényes mérésből épül fel.
+
 1. Új, mentett konfiguráció nélküli készüléken válassz Wi-Fi-hálózatot a panelen. A jelszót az érintőbillentyűzettel adhatod meg. Az IP-cím megszerzése után a kijelző szinkronizál a gyári `hu.pool.ntp.org` szerverrel. A fekete beállítóképernyőn látható címet, például `http://192.168.1.80`, nyisd meg a helyi hálózat egyik böngészőjében. [A képernyők és a billentyűzet](first-run-wifi.md)
 2. Az általános **Beállítások** oldalon válaszd a **Közvetlen inverter** adatfogadási módot, mentsd a beállítást, és alkalmazd a módváltást. Már működő Masteren is innen válthatsz. SD-s konfigurációhoz az üzemmód azonosítója `"DataReceptMode": "inverter"`.
 3. Nyisd meg az **Inverter beállítások** fület. Válaszd ki az inverter és a kommunikációs modul közös profilját. A megjelenő súgó mutatja, mit kell engedélyezni az inverteren vagy a gyártói fiókban. Helyi kapcsolatnál indíts keresést, ha a profilnál elérhető. A gépnevet vagy IPv4-címet kézzel is beírhatod. A port külön mező. Modbusnál az inverter telepített eszközcímét használd.

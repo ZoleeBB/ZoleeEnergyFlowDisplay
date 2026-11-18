@@ -24,7 +24,7 @@ A változatlan v3.4.0 alapregresszió a `python3 tests/run_tests.py` paranccsal 
 ## 2. Módválasztás és közös indulás
 
 - A felület neve **Közvetlen inverter**, a mentett mód azonosítója tervezetten `inverter`. Régi konfiguráció és meglévő MQTT/HTTP küldő v4 alatt is használható.
-- Egyeztetett döntés: **minden adatfogadási módban az időszinkron az egyetlen alkalmazásszintű indulási feltétel**. Masteren NTP, Slave-en a hitelesített Master órája. A Wi-Fi, illetve BLE ehhez szükséges adatút. A konfigurációs felület és a mérési adatok készenlétét külön kell kezelni. Az üres profil, az elérhetetlen adatforrás és a hiányzó első minta nem lehet végtelen bootképernyő oka.
+- A friss firmware véglegesítéséhez a Masternek Wi-Fi-s IP-cím és sikeres időszinkron kell. A beállított Slave a párosított Mastertől kap órát. A 10,1″-es kijelző korábbi üzemmódjai a kapcsolat felépülését a megszokott indítási képernyőn jelzik. Közvetlen inverter módban az időszinkron után már megadható az inverterprofil. [Az indulás lépései](first-start.md#indulás-mentett-beállításokkal)
 - Ki kell dolgozni az indulást hiányzó/hibás SD-vel, a korábbi beállítások biztonságos helyreállítását, a gyári Wi-Fi-beállítást, valamint a háttértár nélkül használható funkciók körét. Ne íródjon felül hibásan olvasott beállítás, és a webes javítási út maradjon elérhető. A hardveres/OTA önellenőrzést és az alkalmazás használhatóságát külön kezeljük. Üres profil, elérhetetlen inverter vagy broker miatt az egészséges frissítés ne álljon vissza.
 - Inverteres Masteren és hozzá kapcsolt Slave-en kaputelefonos kép/hang, SIP/RTP, Loxone, Otthon-kártyák és Audioserver nem indulhatnak. A képernyőt, helyi admint, időkezelést, statisztikát, karbantartást és a szükséges BLE-kapcsolatot meg kell tartani. Más módokban az inverteres kliens, felhős hitelesítés és Open-Meteo nem indul.
 
@@ -99,7 +99,7 @@ A meglévő kiadási folyamat automatikus kiadást az igazolt main merge-hez kö
 ## Döntési napló
 
 1. Helyi inverter 5 másodpercenként, gyártói felhő a szolgáltatói ütemben, az utolsó valódi mérés korával. Elfogadva.
-2. Az időszinkron utáni indulás minden adatfogadási módra érvényes. Elfogadva.
+2. Az egyszerűsített feltétel minden üzemmódban az OTA-kép véglegesítésére vonatkozik. A Közvetlen inverter beállítható az időszinkron után. A többi üzemmód megőrzi saját indulási folyamatát.
 3. Az időprogram alatt az első érintés ébreszt, az aktuális napi/éjjeli fényerőre. További érintés újraindítja a beállítható időt. Lejáratkor csak akkor sötétül vissza, ha még aktív a heti időablak. Elfogadva.
 4. A Master heti időprogramját minden Slave alapértelmezésben örökli. A Slave kártyáján önálló időprogram választható; az öröklés bármikor visszakapcsolható. Elfogadva.
 

@@ -21,7 +21,7 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 1. Telepítsd a megfelelő Master vagy Slave firmware-t az [USB útmutató](docs/usb-install.md) szerint.
 2. Konfiguráció nélküli készüléken kövesd az [érintőképernyős első beállítást](docs/first-run-wifi.md). Előre konfigurált telepítéshez készítsd elő a [konfigurációt](docs/configuration.md) és az [SD-kártyát](docs/sd-card.md), amennyiben az adott üzemmód használja.
 3. Állítsd be a kiválasztott [adatkapcsolatot](docs/integrations/README.md); Slave esetén végezd el a Masterrel a párosítást.
-4. A kezeléshez és a helyi webfelülethez kövesd az [első indítás részletes leírását](docs/first-start.md) és a [gesztusok útmutatóját](docs/gestures.md).
+4. A 10,1″-es Loxone kijelzőn az indulási lista végigkíséri a kapcsolat felépülését. Közvetlen inverter módban az időszinkron után már megadható az inverterprofil. [Indulás üzemmódonként](docs/first-start.md#indulás-mentett-beállításokkal) · [Kezelés és gesztusok](docs/gestures.md)
 
 ## Funkciók és üzemmódok
 
