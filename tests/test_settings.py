@@ -9,6 +9,7 @@ page=(root/'assets/web/settings.html').read_text()
 js=(root/'assets/web/settings.js').read_text()
 assert 'app_stats_save_now()' in web
 assert 'settings_register(s_server)' in web
+assert '.handler = app_boot_config_setup_pending() ? settings_page : root_handler' in web
 assert 'X-Zolee-Settings' in settings and 'keep_secret(' in settings
 assert 'cJSON_AddNullToObject(wifi,"password")' in settings
 assert 'cJSON_AddNullToObject(mqtt,"password")' in settings

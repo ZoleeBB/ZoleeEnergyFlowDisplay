@@ -1116,7 +1116,8 @@ esp_err_t app_web_start(const app_config_t *cfg)
     httpd_uri_t root_uri = {
         .uri = "/",
         .method = HTTP_GET,
-        .handler = root_handler
+        /* A fekete beállítóképernyőn a csupasz helyi IP-cím látszik. */
+        .handler = app_boot_config_setup_pending() ? settings_page : root_handler
     };
 
     httpd_uri_t update_get_uri = {
