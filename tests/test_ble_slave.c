@@ -15,6 +15,7 @@
 #include "app_ble_profile.h"
 #ifdef APP_INTERCOM_SLAVE
 #include "app_intercom_control.h"
+#include "../firmware/slave-waveshare-4b/main/slave_4b_link_watchdog.h"
 #endif
 #include "app_slave_presence_service.h"
 
@@ -735,6 +736,23 @@ int main(void)
     assert(app_inverter_schedule_active(&weekend, 6, 1320));
     assert(app_inverter_schedule_active(&weekend, 0, 359));
     assert(!app_inverter_schedule_active(&weekend, 0, 360));
+#ifdef APP_INTERCOM_SLAVE
+    /* Tartósan kikapcsolt Master: a működő 4B rádió keresési ciklusai alatt
+     * a memóriában lévő heti program megmarad. Beragadt rádiónál javítunk. */
+    slave_4b_link_watchdog_t direct_link = {0}, legacy_link = {0};
+    int64_t t = 1;
+    app_runtime_state_t link = {.ble_ready = true, .slave_connected = true};
+    assert(!slave_4b_link_timed_out(&direct_link, &link, true, 0, t));
+    assert(!slave_4b_link_timed_out(&legacy_link, &link, false, 0, t));
+    link.slave_connected = false;
+    for (unsigned sec = 1; sec <= 700; ++sec) {
+        t = 1 + (int64_t)sec * 1000000;
+        link.ble_scanning = (sec % 8) < 5;
+        assert(!slave_4b_link_timed_out(&direct_link, &link, true, 0, t));
+        assert((slave_4b_link_timed_out(&legacy_link, &link, false, 0, t) != 0) == (sec >= 600));
+    }
+    assert(slave_4b_link_timed_out(&direct_link, &link, true, 0, t + INT64_C(600000000)));
+#endif
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");
     return 0;

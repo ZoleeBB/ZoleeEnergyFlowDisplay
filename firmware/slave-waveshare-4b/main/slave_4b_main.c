@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "slave_4b_ui.h"
 #include "slave_4b_setup.h"
+#include "slave_4b_link_watchdog.h"
 #include "slave_4b_intercom.h"
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
@@ -207,13 +208,11 @@ static void slave_report_restart(void)
     nvs_close(handle);
 }
 
-#define SLAVE_BLE_SYNC_LIMIT_US INT64_C(90000000)
-#define SLAVE_BLE_LINK_LIMIT_US INT64_C(600000000)
 #define SLAVE_BLE_BACKOFF_KEY "ble_restarts"
 
-static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
+static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime, bool direct)
 {
-    static int64_t good_us;
+    static slave_4b_link_watchdog_t watchdog;
     static bool restarting;
     static uint8_t attempts = UINT8_MAX;
     if (attempts == UINT8_MAX)
@@ -227,11 +226,9 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
             nvs_close(handle);
         }
     }
-    if (!good_us)
-        good_us = now;
+    int64_t limit = slave_4b_link_timed_out(&watchdog, runtime, direct, attempts, now);
     if (runtime->slave_connected)
     {
-        good_us = now;
         if (attempts)
         {
             nvs_handle_t handle;
@@ -245,15 +242,7 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
         }
         return;
     }
-    if (restarting)
-        return;
-    /* Az első próbálkozás 10 perc után, a továbbiak 30, majd 120 percenként. */
-    int64_t limit = !runtime->ble_ready ? SLAVE_BLE_SYNC_LIMIT_US :
-                    attempts == 0 ? SLAVE_BLE_LINK_LIMIT_US :
-                    attempts == 1 ? 3 * SLAVE_BLE_LINK_LIMIT_US :
-                                    12 * SLAVE_BLE_LINK_LIMIT_US;
-    if (now - good_us < limit || now < limit)
-        return;
+    if (!limit || restarting) return;
     restarting = true;
     nvs_handle_t handle;
     if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
@@ -469,7 +458,7 @@ static void refresh(lv_timer_t *timer)
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
     if (!pairing.pin_required && !intercom_visible)
-        ble_watchdog(now, &runtime);
+        ble_watchdog(now, &runtime, direct);
     if (atomic_load(&boot_complete))
         brightness_follow(now);
     /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját
