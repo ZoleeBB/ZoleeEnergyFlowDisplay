@@ -61,6 +61,30 @@ static esp_err_t collect(esp_http_client_event_t *event)
     return ESP_OK;
 }
 
+/* A szolgáltatói válasz lehet sérült. A rekurzív JSON-parser előtt egyetlen
+ * bejárás korlátozza a veremmélységet, az idézett JSON-szöveget átugorva. */
+static bool nesting_allowed(const char *data, size_t length)
+{
+    unsigned depth = 0;
+    bool string = false, escape = false;
+    for (size_t i = 0; i < length; ++i) {
+        char ch = data[i];
+        if (!ch) return false;
+        if (string) {
+            if (escape) escape = false;
+            else if (ch == '\\') escape = true;
+            else if (ch == '"') string = false;
+        } else if (ch == '"') string = true;
+        else if (ch == '{' || ch == '[') {
+            if (++depth > 20) return false;
+        } else if (ch == '}' || ch == ']') {
+            if (!depth) return false;
+            --depth;
+        }
+    }
+    return !depth && !string;
+}
+
 cJSON *app_inverter_json_request(const char *url, const char *method, const char *body,
                                  const char *const headers[][2], size_t header_count,
                                  char *response_token, size_t token_capacity, const char *trusted_pem)
@@ -86,9 +110,10 @@ cJSON *app_inverter_json_request(const char *url, const char *method, const char
     if (err == ESP_OK && body) err = esp_http_client_set_post_field(client, body, strlen(body));
     if (err == ESP_OK) err = esp_http_client_perform(client);
     int status = esp_http_client_get_status_code(client);
+    bool complete = esp_http_client_is_complete_data_received(client);
     esp_http_client_cleanup(client);
     cJSON *result = NULL;
-    if (err == ESP_OK && status >= 200 && status < 300 && !r.failed && r.data)
+    if (err == ESP_OK && status >= 200 && status < 300 && complete && !r.failed && r.data && nesting_allowed(r.data,r.size))
         result = cJSON_ParseWithOpts(r.data, NULL, true);
     if (!result && response_token && token_capacity) response_token[0] = 0;
     free(r.data);

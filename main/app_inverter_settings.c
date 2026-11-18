@@ -190,6 +190,12 @@ esp_err_t app_inverter_settings_save(const cJSON *object)
     esp_err_t err = ESP_ERR_INVALID_ARG;
     if (!read_form(object, candidate)) goto done;
     lock();
+    const cJSON *expected = ITEM(object,"revision");
+    if (expected && (!cJSON_IsNumber(expected) || expected->valuedouble != revision)) {
+        err = ESP_ERR_INVALID_STATE;
+        app_inverter_settings_unlock();
+        goto done;
+    }
     bool same = same_endpoint(&active->driver, &candidate->driver);
     if (same) {
         if (!candidate->driver.secret[0]) strcpy(candidate->driver.secret, active->driver.secret);
@@ -317,6 +323,7 @@ cJSON *app_inverter_settings_get(void)
     lock();
     const app_inverter_config_t *c = &active->driver;
 #define ADD(f,k,v) if (!cJSON_Add##f##ToObject(o,k,v)) goto fail
+    ADD(Number,"revision",revision);
     ADD(String,"profile",c->profile); ADD(String,"host",c->host); ADD(String,"device",c->device);
     ADD(String,"user",c->user); ADD(Bool,"hasKey",c->key[0]); ADD(Bool,"hasSecret",c->secret[0]);
     ADD(Number,"port",c->port); ADD(Number,"unit",c->unit); ADD(Bool,"battery",c->battery);
