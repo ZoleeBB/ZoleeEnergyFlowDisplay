@@ -48,6 +48,16 @@ void app_ble_clock_encode(int64_t epoch_ms,
     put16(packet + 18, sequence);
 }
 
+void app_ble_clock_sun(uint8_t packet[APP_BLE_PACKET_SIZE], bool night,
+                       uint16_t sunrise, uint16_t sunset)
+{
+    if (sunrise > 1439 || sunset > 1439) return;
+    packet[12] = 1;
+    packet[13] = night ? 1 : 0;
+    put16(packet + 14, sunrise);
+    put16(packet + 16, sunset);
+}
+
 esp_err_t app_ble_clock_decode(const uint8_t *packet, size_t length, app_ble_clock_t *clock)
 {
     if (!packet || !clock || length != APP_BLE_PACKET_SIZE || packet[0] != 1 || packet[1] != 1 ||
@@ -62,6 +72,13 @@ esp_err_t app_ble_clock_decode(const uint8_t *packet, size_t length, app_ble_clo
         next.utc_offset_minutes < -720 || next.utc_offset_minutes > 840 ||
         next.source_timeout_seconds < 5 || next.source_timeout_seconds > 3600)
         return ESP_ERR_INVALID_ARG;
+    if (packet[12] == 1 && packet[13] <= 1 && get16(packet + 14) < 1440 &&
+        get16(packet + 16) < 1440) {
+        next.sun_valid = true;
+        next.night = packet[13] != 0;
+        next.sunrise = get16(packet + 14);
+        next.sunset = get16(packet + 16);
+    }
     *clock = next;
     return ESP_OK;
 }
@@ -76,9 +93,9 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
                                   app_energy_sample_t *sample)
 {
     if (!energy || !weather || !sample || energy_length != 20 || weather_length != 20 ||
-        (energy[0] != APP_BLE_PROTOCOL_VERSION && energy[0] != APP_BLE_HUMIDITY_VERSION) ||
+        (energy[0] < APP_BLE_PROTOCOL_VERSION || energy[0] > APP_BLE_OPTIONAL_VERSION) ||
         weather[0] != energy[0] ||
-        app_ble_packet_sequence(energy) != app_ble_packet_sequence(weather) || (energy[1] & ~15) ||
+        app_ble_packet_sequence(energy) != app_ble_packet_sequence(weather) || (energy[1] & ~(energy[0] == APP_BLE_OPTIONAL_VERSION ? 31 : 15)) ||
         (weather[1] & 128))
         return ESP_ERR_INVALID_ARG;
     if (energy[1] & 8)
@@ -101,9 +118,25 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
     next.power_full_kw = (int16_t)get16(energy + 10) / 1000.;
     next.soc_bat_pct = get16(energy + 12) / 100.;
     next.battery_temperature_c = (int16_t)get16(energy + 14) / 100.;
+    bool optional = energy[0] == APP_BLE_OPTIONAL_VERSION;
+    next.battery_temperature_valid = !optional || (int16_t)get16(energy + 14) != INT16_MIN;
+    if (!next.battery_temperature_valid) next.battery_temperature_c = 0;
+    if (optional) {
+        next.battery_unavailable = (energy[1] & 16) != 0;
+        next.grid_unavailable = (int16_t)get16(energy + 4) == INT16_MIN;
+        next.battery_power_unavailable = (int16_t)get16(energy + 6) == INT16_MIN;
+        next.home_unavailable = (int16_t)get16(energy + 10) == INT16_MIN;
+        next.soc_unavailable = get16(energy + 12) == UINT16_MAX;
+        if (next.grid_unavailable) next.power_grid_kw = 0;
+        if (next.battery_power_unavailable) next.power_bat_kw = 0;
+        if (next.home_unavailable) next.power_full_kw = 0;
+        if (next.soc_unavailable) next.soc_bat_pct = 0;
+        if (next.battery_unavailable && (next.battery_temperature_valid ||
+            !next.battery_power_unavailable || !next.soc_unavailable)) return ESP_ERR_INVALID_ARG;
+    }
     next.status = energy[2];
     next.night_mode = (energy[1] & 4) != 0;
-    next.relative_humidity_valid = energy[0] == APP_BLE_HUMIDITY_VERSION;
+    next.relative_humidity_valid = energy[0] == APP_BLE_HUMIDITY_VERSION || (optional && energy[3] != UINT8_MAX);
     next.relative_humidity_pct = next.relative_humidity_valid ? energy[3] : 0;
     next.temperature_valid = (weather[1] & 1) != 0;
     next.wind_speed_valid = (weather[1] & 2) != 0;
@@ -124,8 +157,8 @@ esp_err_t app_ble_protocol_decode(const uint8_t *energy,
         next.power_pv_kw > 15 || next.power_full_kw < 0 || next.power_full_kw > 15 ||
         next.soc_bat_pct > 100 || next.battery_temperature_c < -20 ||
         next.battery_temperature_c > 80 || next.status < 1 || next.status > 5 ||
-        (!next.relative_humidity_valid && energy[3] < 1) ||
-        energy[3] > 100 ||
+        (energy[0] == APP_BLE_PROTOCOL_VERSION && energy[3] < 1) ||
+        (energy[3] > 100 && !(optional && energy[3] == UINT8_MAX)) ||
         (next.temperature_valid && (next.temperature_c < -35 || next.temperature_c > 50)) ||
         (next.wind_speed_valid && next.wind_speed_kmh > 150) ||
         (next.sun_position_valid &&
@@ -157,6 +190,13 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
                              uint8_t energy[APP_BLE_PACKET_SIZE],
                              uint8_t weather[APP_BLE_PACKET_SIZE])
 {
+    app_ble_protocol_encode_timeout(sample, cfg, app_config_data_timeout(cfg), now_us, sequence, energy, weather);
+}
+
+void app_ble_protocol_encode_timeout(const app_energy_sample_t *sample, const app_config_t *cfg,
+                                     uint32_t timeout_seconds, int64_t now_us, uint16_t sequence,
+                                     uint8_t energy[APP_BLE_PACKET_SIZE], uint8_t weather[APP_BLE_PACKET_SIZE])
+{
     memset(energy, 0, APP_BLE_PACKET_SIZE);
     memset(weather, 0, APP_BLE_PACKET_SIZE);
     energy[0] = weather[0] = APP_BLE_PROTOCOL_VERSION;
@@ -177,7 +217,7 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
     int64_t age_us =
         now_us > sample->received_monotonic_us ? now_us - sample->received_monotonic_us : 0;
     uint64_t age_s = (uint64_t)age_us / 1000000;
-    bool stale = age_us >= (int64_t)app_config_data_timeout(cfg) * 1000000;
+    bool stale = age_us >= (int64_t)timeout_seconds * 1000000;
     energy[1] = 1 | (stale ? 2 : 0) | (sample->night_mode ? 4 : 0);
     energy[2] = (uint8_t)sample->status;
     if (sample->relative_humidity_valid && sample->relative_humidity_pct <= 100)
@@ -195,6 +235,20 @@ void app_ble_protocol_encode(const app_energy_sample_t *sample,
     put16(energy + 10, (uint16_t)scaled(sample->power_full_kw, 1000));
     put16(energy + 12, (uint16_t)scaled(sample->soc_bat_pct, 100));
     put16(energy + 14, (uint16_t)scaled(sample->battery_temperature_c, 100));
+    if (!sample->battery_temperature_valid || sample->battery_unavailable ||
+        sample->grid_unavailable || sample->home_unavailable || sample->soc_unavailable ||
+        sample->battery_power_unavailable) {
+        energy[0] = weather[0] = APP_BLE_OPTIONAL_VERSION;
+        energy[3] = sample->relative_humidity_valid ? sample->relative_humidity_pct : UINT8_MAX;
+        if (sample->battery_unavailable) energy[1] |= 16;
+        if (sample->grid_unavailable) put16(energy + 4, (uint16_t)INT16_MIN);
+        if (sample->battery_unavailable || sample->battery_power_unavailable)
+            put16(energy + 6, (uint16_t)INT16_MIN);
+        if (sample->home_unavailable) put16(energy + 10, (uint16_t)INT16_MIN);
+        if (sample->battery_unavailable || sample->soc_unavailable) put16(energy + 12, UINT16_MAX);
+        if (sample->battery_unavailable || !sample->battery_temperature_valid)
+            put16(energy + 14, (uint16_t)INT16_MIN);
+    }
     put16(energy + 16, age_s > UINT16_MAX ? UINT16_MAX : (uint16_t)age_s);
 
     weather[1] = (sample->temperature_valid ? 1 : 0) | (sample->wind_speed_valid ? 2 : 0) |

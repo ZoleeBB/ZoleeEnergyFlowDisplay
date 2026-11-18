@@ -33,6 +33,7 @@ int main(void)
         .power_pv_kw = 15,
         .power_full_kw = 0.042,
         .soc_bat_pct = 76.54,
+        .battery_temperature_valid = true,
         .battery_temperature_c = -20,
         .status = 3,
         .night_mode = true,
@@ -107,6 +108,7 @@ int main(void)
         .power_pv_kw = 7,
         .power_full_kw = 3.421,
         .soc_bat_pct = 54.32,
+        .battery_temperature_valid = true,
         .battery_temperature_c = 31.25,
         .status = 2,
         .received_epoch_s = 1800000000,
@@ -150,6 +152,15 @@ int main(void)
     energy[12] = 0xff;
     energy[13] = 0xff;
     assert(app_ble_protocol_decode(energy, 20, weather, 20, 0, &decoded) == ESP_ERR_INVALID_ARG);
+
+    sample.battery_temperature_valid = false;
+    sample.battery_unavailable = sample.grid_unavailable = sample.home_unavailable = true;
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 78, energy, weather);
+    assert(energy[0] == APP_BLE_OPTIONAL_VERSION && energy[3] == UINT8_MAX);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK);
+    assert(decoded.battery_unavailable && decoded.grid_unavailable && decoded.home_unavailable);
+    assert(decoded.soc_unavailable && decoded.battery_power_unavailable && !decoded.battery_temperature_valid);
+    assert(!decoded.relative_humidity_valid && decoded.power_pv_kw == 7);
 
     uint8_t clock_packet[20];
     app_ble_clock_t clock;
