@@ -22,10 +22,10 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 | GoodWe ET/EH | Helyi Modbus TCP | A megfelelő adatgyűjtő támogassa a Modbus TCP-t. A Wi-Fi kapcsolat önmagában a gyártói felhő elérését is jelentheti. |
 | Victron MultiPlus/Quattro GX rendszerrel | GX Modbus TCP vagy helyi MQTT | A GX-ben engedélyezd a választott szolgáltatást. MQTT-hez a VRM Portal ID kell. [GX MQTT beállítása](inverters/victron-mqtt.md) |
 | SolarEdge SetApp | SunSpec Modbus TCP | Engedélyezett TCP-szerver, helyes port és eszközcím. A mérő szerepe dönti el, melyik pontot méri. |
-| Deye SUN-SG, SG04LP3 háromfázisú sorozat | SOLARMAN V5, nyers RTU/TCP vagy Modbus TCP átjáró | A három keretezés külön profil. V5 esetén az adatgyűjtő decimális sorozatszáma kell. |
+| Deye SUN-SG, SG04LP3 háromfázisú sorozat | SOLARMAN V5, LSE-3, nyers RTU TCP-n vagy Modbus TCP átjáró | Válaszd az adatgyűjtő saját keretezését. V5 esetén az adatgyűjtő decimális sorozatszáma kell. |
 | Solplanet ASW8000-T | Kompatibilis stick helyi HTTP/HTTPS, Modbus TCP–RS485 átjáró, AISWEI Cloud | Az ASW8000-T string inverterhez az akkujelölő kikapcsolható. Az RJ45 kivitelű RS485-porthoz megfelelő átjáró kell. A termelés külön mérő nélkül is megjelenhet. |
 
-A mezőket, portokat, hitelesítést és protokollverziókat a [helyi HTTP és a gyártói felhők útmutatója](inverters/http.md) ismerteti. A kompatibilitást az inverter, az adatgyűjtő és annak firmware-e együtt határozza meg. Az adott telepítésen a termelést és az előjeleket a gyári monitorozóval érdemes összevetni. A kijelzőn a pozitív hálózati teljesítmény vételezés, a pozitív akkumulátorteljesítmény kisütés.
+A [helyi Modbus-kézikönyv](inverters/modbus.md) modellenként felsorolja a portokat, regisztereket és mérőfeltételeket. A HTTP-profilokhoz szükséges mezők és jogosultságok a [helyi HTTP és a gyártói felhők útmutatójában](inverters/http.md) találhatók. A kompatibilitást az inverter, az adatgyűjtő és annak firmware-e együtt határozza meg. Az adott telepítésen a termelést és az előjeleket a gyári monitorozóval érdemes összevetni. A kijelzőn a pozitív hálózati teljesítmény vételezés, a pozitív akkumulátorteljesítmény kisütés.
 
 ## Frissítési idő és mérési hiányok
 
