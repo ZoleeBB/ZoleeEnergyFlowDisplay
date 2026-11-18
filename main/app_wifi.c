@@ -162,8 +162,8 @@ event_handler(void *handler_arg, esp_event_base_t base, int32_t event_id, void *
 
         ESP_LOGI(TAG, "IP acquired: " IPSTR, IP2STR(&event->ip_info.ip));
 
-        xEventGroupSetBits(s_events, WIFI_CONNECTED_BIT);
         app_state_set_wifi_connected(true);
+        xEventGroupSetBits(s_events, WIFI_CONNECTED_BIT);
         app_events_add(APP_EVENT_INFO, "Wi-Fi kapcsolat létrejött.");
     }
 }

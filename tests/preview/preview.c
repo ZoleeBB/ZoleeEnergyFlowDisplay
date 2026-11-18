@@ -200,12 +200,9 @@ void bsp_display_brightness_set(int value){last_pwm_brightness=value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
-static bool runtime_operational;
-void app_state_set_operational(bool active) { runtime_operational = active; }
 void app_state_get_runtime(app_runtime_state_t *out)
 {
-    *out = (app_runtime_state_t){.wifi_connected = runtime_wifi_connected, .mqtt_connected = true,
-                                 .operational = runtime_operational};
+    *out = (app_runtime_state_t){.wifi_connected = runtime_wifi_connected, .mqtt_connected = true};
 }
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
@@ -2888,6 +2885,142 @@ static void test_inverter_connection_views(app_config_t *cfg, const app_energy_s
     puts("PASS: inverter setup, first reading, local grace, cloud stale/outage, Slave outage vs BLE loss, automatic recovery");
 }
 
+static void assert_boot_stage(app_boot_stage_t stage, const char *heading)
+{
+    assert(s_view == VIEW_BOOT && !s_error_pulse && s_boot_stage == stage);
+    assert(!strcmp(lv_label_get_text(lv_obj_get_child(s_screen, 2)), heading));
+    lv_obj_t *logo = lv_obj_get_child(s_screen, -1);
+    assert(lv_obj_check_type(logo, &lv_image_class));
+    assert(lv_image_get_src(logo) == &app_img_boot_logo);
+    lv_obj_update_layout(s_screen);
+    lv_area_t area;
+    lv_obj_get_coords(logo, &area);
+    assert(lv_area_get_width(&area) == app_img_boot_logo.header.w);
+    assert(lv_area_get_height(&area) == app_img_boot_logo.header.h);
+    assert(area.x2 == W - 35 && area.y2 == H - 29);
+}
+
+static void test_display_startup(const app_config_t *original)
+{
+    app_config_t cfg = *original;
+    const int64_t now = 60000000;
+    const app_data_mode_t modes[] = {APP_DATA_HTTP, APP_DATA_MQTT, APP_DATA_LOXONE, APP_DATA_SLAVE};
+    const char *connections[] = {"HTTP adatfogadó", "MQTT kapcsolat", "Loxone kapcsolat", "Slave / master keresése"};
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i) {
+        app_data_mode_t mode = modes[i];
+        cfg.data_recept_mode = mode;
+        cfg.http.data_timeout_seconds = cfg.mqtt.data_timeout_seconds = 30;
+        app_ui_set_config(&cfg);
+        display_startup_t boot = {0};
+        app_runtime_state_t rt = {.data_recept_mode = mode};
+        app_ui_show_boot(APP_BOOT_NTP, NULL);
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        if (mode != APP_DATA_SLAVE) {
+            assert_boot_stage(APP_BOOT_WIFI, "Wi-Fi kapcsolat");
+            rt.wifi_connected = true;
+        }
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_NTP, mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron");
+        if (mode == APP_DATA_SLAVE) {
+            pairing_fixture = (app_ble_pairing_status_t){.pin_required = true, .token = 19, .seconds = 30};
+            animation_tick(NULL);
+            assert(s_pair_pad);
+            strcpy(s_pair_digits, "12");
+            app_ui_show_boot(APP_BOOT_MQTT, NULL);
+            assert(s_pair_pad && !strcmp(s_pair_digits, "12") && s_boot_stage == APP_BOOT_NTP);
+            pairing_fixture.pin_required = false;
+            animation_tick(NULL);
+            assert(!s_pair_pad);
+        }
+        rt.time_synced = true;
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_MQTT, connections[i]);
+        if (mode == APP_DATA_LOXONE) {
+            assert(strstr(lv_label_get_text(lv_obj_get_child(s_screen, 3)), "/loxone"));
+            rt.loxone_configured = true;
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_MQTT, connections[i]);
+            save_frame("loxone-boot-connection-hu");
+            unsigned green = 0;
+            for (int y = H - 28 - app_img_boot_logo.header.h; y < H - 28; ++y)
+                for (int x = W - 34 - app_img_boot_logo.header.w; x < W - 34; ++x) {
+                    unsigned pixel = pixel_rgb(y * W + x);
+                    unsigned g = (pixel >> 8) & 255;
+                    if (g > (pixel >> 16) + 20 && g > (pixel & 255) + 20) ++green;
+                }
+            assert(green > 100);
+        }
+        rt.http_ready = rt.mqtt_connected = rt.loxone_connected = rt.slave_connected = true;
+        rt.slave_packet_monotonic_us = now;
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+        lv_obj_t *logo = lv_obj_get_child(s_screen, -1);
+        assert(display_startup_waiting(&boot, &rt, false, now + 100000000));
+        assert(lv_obj_get_child(s_screen, -1) == logo);
+        if (mode == APP_DATA_LOXONE) {
+            /* OTA-képernyő és a csengetéshez felszabadított háttér után is újrarajzol. */
+            busy_screen();
+            assert(s_view == VIEW_BUSY);
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+            home_reset_theme();
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+        }
+        rt.has_valid_sample = true;
+        rt.last_valid_packet_monotonic_us = 1;
+        assert(display_startup_waiting(&boot, &rt, true, now));
+        rt.last_valid_packet_monotonic_us = now;
+        if (mode == APP_DATA_SLAVE) {
+            rt.slave_source_stale = true;
+            assert(display_startup_waiting(&boot, &rt, true, now));
+            rt.slave_source_stale = false;
+            assert(display_startup_waiting(&boot, &rt, true, now + 15000000));
+        }
+        assert(!display_startup_waiting(&boot, &rt, true, now));
+        rt.wifi_connected = rt.slave_connected = rt.loxone_connected = rt.mqtt_connected = false;
+        assert(!display_startup_waiting(&boot, &rt, false, now + 60000000));
+        if (mode == APP_DATA_HTTP) {
+            render_runtime(rt, (app_energy_sample_t){0}, false, now);
+            assert(s_view == VIEW_WIFI_ERROR && s_error_pulse);
+            assert(lv_obj_get_style_opa(s_error_pulse, 0) == LV_OPA_COVER);
+            assert(!lv_obj_get_style_outline_width(s_error_pulse, 0));
+            assert(!lv_obj_get_style_shadow_width(s_error_pulse, 0));
+            assert(lv_obj_get_style_border_opa(s_error_pulse, 0) >= 175);
+        }
+    }
+    cfg.data_recept_mode = APP_DATA_LOXONE;
+    cfg.energy_flow_disabled = true;
+    app_ui_set_config(&cfg);
+    app_runtime_state_t only = {.data_recept_mode = APP_DATA_LOXONE, .time_synced = true,
+                                .wifi_connected = true, .loxone_configured = true};
+    display_startup_t boot = {0};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.loxone_connected = true;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    cfg.energy_flow_disabled = false;
+    cfg.data_recept_mode = APP_DATA_SLAVE;
+    app_ui_set_config(&cfg);
+    only = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .time_synced = true,
+                                 .slave_connected = true, .energy_flow_disabled = true};
+    boot = (display_startup_t){0};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.slave_packet_monotonic_us = now;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    cfg.data_recept_mode = APP_DATA_INVERTER;
+    app_ui_set_config(&cfg);
+    boot = (display_startup_t){0};
+    app_ui_show_boot(APP_BOOT_NTP, NULL);
+    app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    assert_boot_stage(APP_BOOT_NTP, "Időszinkron");
+    only = (app_runtime_state_t){.data_recept_mode = APP_DATA_INVERTER};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.time_synced = true;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    app_ui_set_config(original);
+    puts("PASS: mode-specific LVGL boot checklists, branded corner, first fresh data, controls-only and recovery");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -2918,11 +3051,7 @@ int main(void)
     assert(s_error_pulse==NULL); /* Initial connection is progress, not a fault. */
     app_ui_show_boot(APP_BOOT_NTP,NULL);
     animation_tick(NULL);
-    assert(s_view==VIEW_WIFI_ERROR && s_error_pulse!=NULL);
-    assert(lv_obj_get_style_opa(s_error_pulse,0)==LV_OPA_COVER);
-    assert(lv_obj_get_style_outline_width(s_error_pulse,0)==0);
-    assert(lv_obj_get_style_shadow_width(s_error_pulse,0)==0);
-    assert(lv_obj_get_style_border_opa(s_error_pulse,0)>=175);
+    assert(s_view==VIEW_BOOT && !s_error_pulse);
     runtime_wifi_connected=true;
     app_ui_show_boot(APP_BOOT_NTP,NULL);
     lv_obj_t *text_probe=lbl(s_screen,"Probe",10,10,APP_FONT_14,0xffffff);
@@ -2939,7 +3068,6 @@ int main(void)
     assert(full_refresh ? frame_flushes>changed_flushes : invalidations>0);
     lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);lv_obj_delete(text_probe);
     puts("PASS: unchanged labels, colours and opacity do not invalidate the screen; changed text still refreshes");
-    puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
     app_config_t config={0};
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia");
     snprintf(config.project.language,sizeof(config.project.language),"hu");
@@ -2948,6 +3076,8 @@ int main(void)
     config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
+    test_display_startup(&config);
+    if (getenv("ZOLEE_STARTUP_ONLY")) return 0;
     test_intercom_frame_mailbox();
     if (getenv("ZOLEE_INTERCOM_MAILBOX_ONLY")) {
         lv_display_delete(display); lv_deinit(); return 0;
@@ -3090,8 +3220,8 @@ int main(void)
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
     app_ui_set_config(&config);
     app_ui_show_boot(APP_BOOT_NTP,NULL);
-    app_ui_show_boot((app_boot_stage_t)(APP_BOOT_NTP + 1), NULL);
-    assert(s_boot_stage == APP_BOOT_NTP);
+    app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    assert(s_boot_stage == APP_BOOT_MQTT);
     save_frame("http-boot-hu");
     app_runtime_state_t rt={.data_recept_mode=APP_DATA_HTTP,.wifi_connected=true,.http_ready=true,.http_ready_monotonic_us=1000000};
     render_runtime(rt,sample,false,30000000);assert(s_view==VIEW_WAIT_DATA);save_frame("http-wait-hu");
@@ -3174,7 +3304,7 @@ int main(void)
     app_boot_stage_t previous_boot=s_boot_stage;
     runtime_wifi_connected=false;s_started=false;
     app_ui_show_boot(APP_BOOT_NTP,"Master keresése...");
-    animation_tick(NULL);assert(s_view==VIEW_NONE);
+    animation_tick(NULL);assert(s_view==VIEW_BOOT);
     save_frame("slave-boot-no-wifi");
     s_started=previous_started;s_boot_stage=previous_boot;runtime_wifi_connected=true;
     clear();render_runtime(rt,sample,true,31000000);

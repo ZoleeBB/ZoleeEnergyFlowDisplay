@@ -51,7 +51,7 @@
 
 static const char *TAG = "app";
 static app_config_t s_config;
-static bool s_retry_web, s_retry_mqtt, s_retry_ingest;
+static bool s_retry_web, s_retry_mqtt, s_retry_ingest, s_retry_loxone;
 static app_display_boot_state_t s_boot_orientation = {.rotation_degrees=270};
 static uint16_t s_active_rotation = 270;
 
@@ -248,6 +248,9 @@ static void __attribute__((noinline)) app_boot(void)
         app_ui_show_boot(APP_BOOT_WIFI, NULL);
         err = app_wifi_start(&s_config);
         if (err != ESP_OK) fatal_forever("Wi-Fi indítási hiba", esp_err_to_name(err));
+        while (!app_wifi_wait_connected(pdMS_TO_TICKS(1000))) {
+            /* A Wi-Fi sor az első tényleges IP-címig marad aktív. */
+        }
     }
 
     /*
@@ -307,12 +310,16 @@ static void __attribute__((noinline)) app_boot(void)
         for (;;) vTaskDelay(pdMS_TO_TICKS(60000));
     }
 
+    if (s_config.data_recept_mode != APP_DATA_INVERTER)
+        app_ui_show_boot(APP_BOOT_MQTT, NULL);
+
     /* A helyi Otthon-modell a legelső párhuzamos UI- vagy webes olvasás
      * előtt épül fel. A Miniserver elérését már a külön worker intézi. */
     if (s_config.data_recept_mode == APP_DATA_LOXONE) {
         if (app_loxone_audio_init() != ESP_OK)
             app_events_add(APP_EVENT_WARNING, "Az Audio előkészítése átmenetileg sikertelen.");
-        if (app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK)
+        s_retry_loxone = app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK;
+        if (s_retry_loxone)
             app_events_add(APP_EVENT_ERROR, "A Loxone kliens előkészítése sikertelen.");
     }
     if (app_ui_start_runtime() != ESP_OK)
@@ -339,7 +346,7 @@ static void __attribute__((noinline)) app_boot(void)
         app_mqtt_start(&s_config) != ESP_OK;
     if (s_retry_mqtt)
         app_events_add(APP_EVENT_ERROR, "Az MQTT kliens előkészítése sikertelen.");
-    app_events_add(APP_EVENT_INFO, "Rendszerindítás befejeződött. Szabad DMA-memória: %u B (legnagyobb blokk %u B).",
+    app_events_add(APP_EVENT_INFO, "Háttérszolgáltatások indítása befejeződött. Szabad DMA-memória: %u B (legnagyobb blokk %u B).",
                    (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
                    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     /* Belső beállítás-tartalék: induláskor egyszer összeveti az SD-vel, és csak
@@ -361,7 +368,7 @@ void app_main(void)
     app_boot();
     int64_t next_retry = esp_timer_get_time() + 10000000LL;
     for (;;) {
-        if (s_config.data_recept_mode == APP_DATA_LOXONE && !s_retry_web && !s_retry_ingest) {
+        if (s_config.data_recept_mode == APP_DATA_LOXONE && !s_retry_web && !s_retry_ingest && !s_retry_loxone) {
             /* A natív Audio-kapcsolat a már meglévő 10 KiB-os main vermen él. */
             vTaskPrioritySet(NULL, 3);
             app_loxone_audio_run();
@@ -371,6 +378,7 @@ void app_main(void)
             if (s_retry_web) s_retry_web = app_web_start(&s_config) != ESP_OK;
             if (s_retry_ingest) s_retry_ingest = app_ingest_init(s_config.data_recept_mode) != ESP_OK;
             if (s_retry_mqtt) s_retry_mqtt = app_mqtt_start(&s_config) != ESP_OK;
+            if (s_retry_loxone) s_retry_loxone = app_loxone_start(s_config.display.touch_wake_seconds) != ESP_OK;
             next_retry = esp_timer_get_time() + 10000000LL;
         }
         vTaskDelay(pdMS_TO_TICKS(s_config.data_recept_mode == APP_DATA_INVERTER ? 250 : 10000));
