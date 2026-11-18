@@ -402,6 +402,7 @@ static int64_t refresh_packets(int64_t now)
                          runtime.time_synced,
                          s_sequence,
                          s_packets[2]);
+    if (valid) app_ble_clock_cadence(s_packets[2], sample.integration_period_s);
 #ifndef APP_INTERCOM_SLAVE
     if (s_config.data_recept_mode == APP_DATA_INVERTER && runtime.time_synced) {
         app_energy_sample_t sun = {0};

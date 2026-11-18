@@ -34,6 +34,7 @@ typedef struct
     uint16_t source_timeout_seconds;
     bool sun_valid, night;
     uint16_t sunrise, sunset;
+    uint16_t integration_period_s;
 } app_ble_clock_t;
 
 void app_ble_clock_encode(int64_t epoch_ms,
@@ -42,6 +43,7 @@ void app_ble_clock_encode(int64_t epoch_ms,
                           bool synced,
                           uint16_t sequence,
                           uint8_t packet[APP_BLE_PACKET_SIZE]);
+void app_ble_clock_cadence(uint8_t packet[APP_BLE_PACKET_SIZE], uint16_t seconds);
 void app_ble_clock_sun(uint8_t packet[APP_BLE_PACKET_SIZE], bool night,
                        uint16_t sunrise, uint16_t sunset);
 esp_err_t app_ble_clock_decode(const uint8_t *packet, size_t length, app_ble_clock_t *clock);

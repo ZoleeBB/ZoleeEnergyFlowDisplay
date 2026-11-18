@@ -127,6 +127,12 @@ int main(void)
     assert(decoded.wind_speed_valid && decoded.wind_speed_kmh == 0);
     assert(decoded.received_monotonic_us == 6000000 && decoded.received_epoch_s == 1800000000);
     app_energy_sample_t original = decoded;
+    /* A hibás akkumulátor-hőmérséklet sem rejtheti el a régi Master PV mérését. */
+    energy[14] = 0;
+    energy[15] = 0x80;
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK &&
+           !decoded.battery_temperature_valid && decoded.power_pv_kw == 7);
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 77, energy, weather);
     /* Az új érték változatlan BLE v1 csomagban, minden régi státusszal együtt átvihető. */
     for (int status = 1; status <= 5; status++) {
         energy[2] = status;
@@ -162,11 +168,25 @@ int main(void)
     assert(decoded.soc_unavailable && decoded.battery_power_unavailable && !decoded.battery_temperature_valid);
     assert(!decoded.relative_humidity_valid && decoded.power_pv_kw == 7);
 
+    cfg.data_recept_mode = APP_DATA_INVERTER;
+    sample.power_pv_kw = 123.45;
+    sample.sun_position_valid = true;
+    sample.sunrise_minute = sample.sunset_minute = -1;
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 79, energy, weather);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK);
+    assert(fabs(decoded.power_pv_kw - 123.45) < 1e-9 && decoded.sunrise_minute == -1 &&
+           decoded.sunset_minute == -1 && !decoded.battery_temperature_valid);
+
     uint8_t clock_packet[20];
     app_ble_clock_t clock;
     app_ble_clock_encode(INT64_C(1800000000123), 120, 45, true, 77, clock_packet);
     assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK);
     assert(clock.epoch_ms == INT64_C(1800000000123) && clock.utc_offset_minutes == 120);
+    app_ble_clock_sun(clock_packet, true, 345, 1167);
+    app_ble_clock_cadence(clock_packet, 900);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.sun_valid && clock.night && clock.sunrise == 345 && clock.sunset == 1167 &&
+           clock.integration_period_s == 900);
     assert(clock.source_timeout_seconds == 45 && app_ble_packet_sequence(clock_packet) == 77);
     assert(app_ble_clock_decode(clock_packet, 19, &clock) == ESP_ERR_INVALID_ARG);
     clock_packet[0] = 2;

@@ -686,6 +686,40 @@ int main(void)
     slave_poll(now_us);
     assert(stats_ready_checks == before_stats + 3);
 #endif
+    /* A v4 Master külön védett profilja az összes heti ablakot viszi.
+     * A közvetlen módban nincs energia vagy kaputelefon a kezdéskor. */
+    slave_reset();
+    s_master = 7;
+    s_remote_v4_profile = 150;
+    app_ble_display_profile_t policy = {.direct = true, .schedule.touch_wake_seconds = 5};
+    for (unsigned i = 0; i < 7; ++i) policy.schedule.days[i].enabled = true;
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    s_profile_accepted = true;
+    assert(app_ble_seed_slave_direct() && !app_ble_seed_slave_intercom_allowed());
+    app_ble_clock_encode(INT64_C(1800000016123), 60, 1860, true, 80, packets[2].data);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    app_ble_clock_cadence(packets[2].data, 900);
+    unsigned clocks_before = clocks;
+    slave_receive(2, &packets[2]);
+    assert(clocks == clocks_before + 1 && !runtime.has_valid_sample);
+    slave_reset();
+    app_slave_display_t display;
+    app_slave_display_profile_t local = {.day_brightness = 80, .night_brightness = 20, .presence_timeout_seconds = 30};
+    assert(app_slave_display_init(&display, &local, now_us));
+    bool night = false;
+    assert(app_ble_seed_slave_backlight(&display, now_us, &night) && night);
+    assert(app_slave_display_brightness(&display, now_us) == 0);
+    assert(app_slave_display_pointer(&display, true, now_us));
+    assert(app_slave_display_pointer(&display, false, now_us));
+    assert(app_slave_display_brightness(&display, now_us + 4999999) == 20);
+    assert(app_slave_display_brightness(&display, now_us + 5000000) == 0);
+    app_inverter_schedule_t weekend = {.days = {[6] = {true, 1320, 360}}};
+    assert(!app_inverter_schedule_active(&weekend, 6, 1319));
+    assert(app_inverter_schedule_active(&weekend, 6, 1320));
+    assert(app_inverter_schedule_active(&weekend, 0, 359));
+    assert(!app_inverter_schedule_active(&weekend, 0, 360));
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");
     return 0;

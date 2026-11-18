@@ -266,6 +266,7 @@ static void slave_try_frame(int64_t now)
         return;
     if (sample.received_epoch_s > clock.epoch_ms / 1000 + 5)
         return;
+    sample.integration_period_s = clock.integration_period_s;
     if (app_ingest_slave_sample(&sample) == ESP_OK)
         s_applied_sample_epoch = sample.received_epoch_s;
     /* Induláskor a main előbb órát szinkronizál, utána indít statisztikát.
