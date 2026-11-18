@@ -188,6 +188,22 @@ void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
     snprintf(s_runtime.ble_peer, sizeof(s_runtime.ble_peer), "%s", peer ? peer : "");
     unlock();
 }
+void app_state_set_inverter_ready(bool ready)
+{
+    lock();
+    if (ready && !s_runtime.inverter_ready)
+        s_runtime.inverter_ready_monotonic_us = esp_timer_get_time();
+    s_runtime.inverter_ready = ready;
+    unlock();
+}
+
+void app_state_set_inverter_timeout(uint16_t seconds)
+{
+    lock();
+    s_runtime.inverter_timeout_seconds = seconds;
+    unlock();
+}
+
 void app_state_set_http_ready(bool ready)
 {
     lock();

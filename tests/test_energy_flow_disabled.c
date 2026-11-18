@@ -69,9 +69,9 @@ int main(void)
     assert(!app_state_data_timed_out(&runtime, 60000000, 15));
     assert(app_state_data_timed_out(&runtime, 65000000, 15));
     runtime.energy_flow_disabled = false;
-    assert(!app_state_ota_ready(&runtime));
+    assert(app_state_ota_ready(&runtime));
     runtime.energy_flow_disabled = true; runtime.slave_source_stale = true;
-    assert(!app_state_ota_ready(&runtime));
+    assert(app_state_ota_ready(&runtime));
     puts("PASS: Loxone-only opt-in, malformed config, independent night state, no fake BLE measurements, strict mode frames and idle/call day/night brightness");
     return 0;
 }

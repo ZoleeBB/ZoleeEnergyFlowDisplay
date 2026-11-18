@@ -38,22 +38,6 @@ static void save_rollback_reason(const char *reason)
 }
 
 /* A hiányzó feltételek nevei a napló egy sorában. */
-static void missing_conditions(const app_runtime_state_t *runtime, char *out, size_t size)
-{
-    bool slave = runtime->data_recept_mode == APP_DATA_SLAVE;
-    snprintf(out, size, "%s%s%s%s%s%s",
-             runtime->config_ok ? "" : "konfiguráció ",
-             runtime->time_synced ? "" : "időszinkron ",
-             slave ? (runtime->slave_connected ? "" : "BLE-kapcsolat ")
-                   : (runtime->wifi_connected ? "" : "Wi-Fi "),
-             slave && runtime->slave_source_stale ? "friss masteradat " : "",
-             slave ? (runtime->cardless_slave
-                          ? (runtime->remote_stats_valid ? "" : "master statisztika ")
-                          : (runtime->sd_ok ? "" : "SD "))
-                   : (runtime->sd_ok ? "" : "SD "),
-             runtime->has_valid_sample ? "" : "érvényes mérés ");
-}
-
 void app_ota_report_boot_state(void)
 {
     nvs_handle_t handle;
@@ -141,15 +125,11 @@ static void validation_task(void *arg)
      */
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
-    char missing[128];
-    missing_conditions(&runtime, missing, sizeof(missing));
-    char reason[224];
-    snprintf(reason, sizeof(reason), "ellenőrzési időtúllépés: hiányzott %s",
-             missing[0] ? missing : "(ismeretlen feltétel)");
+    const char *reason = runtime.time_synced
+        ? "Az OTA-kép véglegesítése sikertelen."
+        : "Az OTA-ellenőrzés határidejéig nem történt sikeres időszinkron.";
     save_rollback_reason(reason);
-    app_events_add(APP_EVENT_ERROR,
-                   "OTA ellenőrzési időtúllépés; visszaállás az előző firmware-re. Hiányzott: %s",
-                   missing[0] ? missing : "(ismeretlen)");
+    app_events_add(APP_EVENT_ERROR, "%s", reason);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_ota_mark_app_invalid_rollback_and_reboot();

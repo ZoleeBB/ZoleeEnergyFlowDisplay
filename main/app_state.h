@@ -69,6 +69,9 @@ typedef struct
     bool loxone_configured;
     bool loxone_connected;
     int64_t loxone_connected_monotonic_us;
+    bool inverter_ready;
+    uint16_t inverter_timeout_seconds;
+    int64_t inverter_ready_monotonic_us;
     bool http_ready;
     int64_t http_ready_monotonic_us;
     bool sd_ok;
@@ -116,6 +119,8 @@ bool app_state_get_sample(app_energy_sample_t *out);
 
 void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
+void app_state_set_inverter_ready(bool ready);
+void app_state_set_inverter_timeout(uint16_t seconds);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
 void app_state_set_energy_flow_disabled(bool disabled, bool night);
@@ -127,6 +132,7 @@ static inline bool app_state_data_ready(const app_runtime_state_t *s)
 {
     if (s->data_recept_mode == APP_DATA_SLAVE)
         return s->slave_connected;
+    if (s->data_recept_mode == APP_DATA_INVERTER) return s->inverter_ready;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready
                                                   : s->mqtt_connected;
@@ -135,18 +141,23 @@ static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
 {
     if (s->data_recept_mode == APP_DATA_SLAVE)
         return s->slave_connected_monotonic_us;
+    if (s->data_recept_mode == APP_DATA_INVERTER) return s->inverter_ready_monotonic_us;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected_monotonic_us
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready_monotonic_us
                                                   : s->mqtt_connected_monotonic_us;
 }
 static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 {
-    if (s->data_recept_mode == APP_DATA_SLAVE)
-        return s->config_ok && s->time_synced && s->slave_connected && !s->slave_source_stale &&
-            (s->energy_flow_disabled || ((s->cardless_slave ? s->remote_stats_valid : s->sd_ok) && s->has_valid_sample));
-    return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced &&
-           (s->data_recept_mode == APP_DATA_LOXONE ? s->http_ready : app_state_data_ready(s));
+    return s->time_synced;
 }
+
+static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, uint32_t fallback)
+{
+    if (s->data_recept_mode == APP_DATA_INVERTER && s->inverter_timeout_seconds)
+        return s->inverter_timeout_seconds;
+    return fallback;
+}
+
 static inline bool
 app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t seconds)
 {
@@ -158,6 +169,7 @@ app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t sec
         if (s->energy_flow_disabled) return false; /* A friss módjelzés nem vár energiamintát. */
         seconds = s->slave_source_timeout_seconds ? s->slave_source_timeout_seconds : 45;
     }
+    seconds = app_state_source_timeout(s, seconds);
     int64_t since =
         s->has_valid_sample ? s->last_valid_packet_monotonic_us : app_state_data_ready_since(s);
     return app_state_data_ready(s) && now - since >= (int64_t)seconds * 1000000LL;

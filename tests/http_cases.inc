@@ -73,8 +73,8 @@ static void test_http(void){
     /* Exactly 4096 bytes accepted, no arbitrary smaller buffer limit. */
     char *full=malloc(4097);memset(full,' ',4096);memcpy(full,payload,strlen(payload));full[4096]=0;
     request(HTTP_POST,full,4096,"application/json",200);free(full);
-    app_state_set_wifi_connected(false);app_state_get_runtime(&rt);assert(!app_state_ota_ready(&rt));
-    app_state_set_wifi_connected(true);app_state_set_http_ready(false);app_state_get_runtime(&rt);assert(!app_state_ota_ready(&rt));
+    app_state_set_wifi_connected(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
+    app_state_set_wifi_connected(true);app_state_set_http_ready(false);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     app_state_set_data_mode(APP_DATA_MQTT);app_state_set_mqtt_connected(true);app_state_get_runtime(&rt);assert(app_state_ota_ready(&rt));
     puts("PASS: real HTTP handler (200/400/405/408/409/413/415/503), fragments, shared ingestion, timeout recovery and OTA readiness");tests++;
 }

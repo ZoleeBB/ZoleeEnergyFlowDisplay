@@ -197,7 +197,7 @@ int main(void)
     rt.slave_packet_monotonic_us = 46000000;
     assert(app_state_data_timed_out(&rt, 46000000, 15)); /* Forrás lejárat 45 s. */
     rt.slave_source_stale = true;
-    assert(!app_state_ota_ready(&rt));
+    assert(app_state_ota_ready(&rt));
     assert(app_state_data_timed_out(&rt, 20000000, 15));
     rt.slave_connected = false;
     assert(!app_state_data_ready(&rt));

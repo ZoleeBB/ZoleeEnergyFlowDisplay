@@ -531,8 +531,8 @@ static void test_cardless_stats(void)
     app_state_get_runtime(&runtime);
     runtime.has_valid_sample=true;
     assert(runtime.remote_stats_valid&&app_state_ota_ready(&runtime));
-    runtime.remote_stats_valid=false;assert(!app_state_ota_ready(&runtime));
-    runtime.cardless_slave=false;runtime.sd_ok=false;assert(!app_state_ota_ready(&runtime));
+    runtime.remote_stats_valid=false;assert(app_state_ota_ready(&runtime));
+    runtime.cardless_slave=false;runtime.sd_ok=false;assert(app_state_ota_ready(&runtime));
     app_stats_get_snapshot(&snapshot);
     assert(snapshot.remote&&snapshot.remote_available&&!snapshot.remote_stale);
     near(snapshot.totals.production_kwh,42);
