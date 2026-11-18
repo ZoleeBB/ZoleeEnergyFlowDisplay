@@ -128,7 +128,7 @@ def main():
         exe = Path(temp) / "reader"
         subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-Wall", "-Wextra", "-Werror",
                         "-Werror=frame-larger-than=512", "-Itests/stubs", "-Imain",
-                        "main/app_inverter_modbus_wire.c", "main/app_inverter_modbus.c",
+                        "main/app_inverter_modbus_wire.c", "main/app_inverter_modbus.c", "main/app_inverter_registers.c",
                         "tests/test_inverter_modbus.c", "-lm", "-o", str(exe)], cwd=ROOT, check=True)
         pv = {"pv": 3.5, "status": 1}
         core = padded(26, {1: 3500, 17: 3000, 25: 0x0200})

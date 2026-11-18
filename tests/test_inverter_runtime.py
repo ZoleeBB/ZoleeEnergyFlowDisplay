@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory() as tmp:
          "main/app_inverter_net.c", "tests/test_inverter_net.c", "-l:libcjson.so.1", "-o", tmp/"net"])
     run([tmp/"net"])
     objs = []
-    for name in ["main/app_inverter_settings.c", "main/app_inverter_weather.c", "main/app_inverter.c",
+    for name in ["main/app_inverter_registers.c", "main/app_inverter_settings.c", "main/app_inverter_weather.c", "main/app_inverter.c",
                  "tests/test_inverter_runtime.c"]:
         obj = tmp/(Path(name).stem + ".o")
         run([cc, *cflags, "-std=gnu11", "-Itests/inverter_stubs", "-Itests/stubs",

@@ -52,6 +52,7 @@ idf_component_register(
         "app_inverter_http_local.c"
         "app_inverter_http_cloud.c"
         "app_inverter_modbus.c"
+        "app_inverter_registers.c"
         "app_inverter_modbus_wire.c"
         "app_inverter_victron.c"
         "app_inverter_victron_model.c"
