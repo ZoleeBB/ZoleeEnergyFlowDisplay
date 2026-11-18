@@ -23,11 +23,26 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         const page = await browser.newPage({viewport: {width: 390, height: 900}});
         const errors = [], unexpected = [];
         let stored = structuredClone(initial), posted = null, fail = false;
+        const registerRequests = [];
+        const schema = [
+            {id: 'pv', label: 'PV teljesítmény', address: 32064, words: 2, function: 3, base: null, format: 'S32 BE · W'},
+            {id: 'soc', label: 'Töltöttség', address: 0, words: 1, function: 4, base: null, format: 'U16 · %'}
+        ];
+        let failSchema = '', stallSchema = '', resumeSchema, schemaStarted;
+
         page.on('pageerror', e => errors.push(e.message));
         await page.route('**/*', async route => {
             const request = route.request(), path = new URL(request.url()).pathname;
             if (path === '/inverter') return route.fulfill({contentType: 'text/html; charset=utf-8', body: html});
             if (path === '/api/inverter/slaves') return route.fulfill({json: peers});
+            if (path === '/api/inverter/registers') {
+                const profile = new URL(request.url()).searchParams.get('profile');
+                registerRequests.push(profile);
+                if (profile === failSchema) return route.fulfill({status: 503, body: 'busy'});
+                if (profile === stallSchema) await new Promise(resolve => { resumeSchema = resolve; schemaStarted(); });
+                return route.fulfill({json: {registers: profile === 'solaredge_modbus' ?
+                    [{...schema[0], address: 6, base: 'SunSpec invertermodell kezdőcíme'}] : schema}});
+            }
             if (path !== '/api/inverter') { unexpected.push(path); return route.abort(); }
             if (request.method() === 'POST') {
                 assert.equal(request.headers()['x-zolee-inverter'], '1');
@@ -42,6 +57,8 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         await page.goto('http://display.test/inverter');
         await page.locator('#slave-programs legend').waitFor();
         assert.equal(await page.locator('#profile option').count(), 21);
+        assert.equal(await page.locator('#registers').isVisible(), false);
+        assert.deepEqual(registerRequests, []);
         assert.equal(await page.locator('#latitude').inputValue(), '0');
         assert.equal(await page.locator('#secret').inputValue(), '');
         assert.equal(await page.locator('#secret').evaluate(e => e.required), false);
@@ -59,6 +76,7 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
         assert.equal(await page.locator('#slave-profiles input[id$="day_brightness"]').count(), 1);
         await page.locator('#save-inverter').click();
         await page.waitForFunction(() => document.getElementById('result').textContent.includes('Mentve.'));
+        assert.equal(posted.registerOverrides, undefined);
         assert.equal(posted.secret, undefined); assert.equal(posted.key, undefined);
         assert.equal(posted.revision, 5); assert.equal(posted.latitude, 0);
         assert.deepEqual(posted.schedule.days[0], {enabled: true, start: 1320, end: 360});
@@ -93,8 +111,80 @@ const peers = {schema: 1, ready: true, enabled: true, revision: 1, saved_revisio
             await page.setViewportSize({width, height: 900});
             assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
         }
+        // Ismételt lekérdezés, profilváltás és másik profilból későn érkező válasz.
+        fail = false;
+        failSchema = 'huawei_modbus';
+        await page.locator('#profile').selectOption(failSchema);
+        await page.locator('#register-retry').waitFor();
+        assert(await page.locator('#save-inverter').isDisabled());
+        failSchema = '';
+        await page.locator('#register-retry').click();
+        const pv = page.getByRole('spinbutton', {name: 'PV teljesítmény', exact: true});
+        const soc = page.getByRole('spinbutton', {name: 'Töltöttség', exact: true});
+        const resetPv = page.getByRole('button', {name: 'Gyári cím visszaállítása – PV teljesítmény'});
+        const resetSoc = page.getByRole('button', {name: 'Gyári cím visszaállítása – Töltöttség'});
+        await pv.waitFor();
+        assert.equal(await pv.inputValue(), '32064');
+        assert.equal(await pv.getAttribute('max'), '65534');
+        assert.equal(await soc.inputValue(), '0');
+        assert(await resetPv.isDisabled() && await resetSoc.isDisabled());
+        assert((await page.locator('#register-rows').textContent()).includes('S32 BE · W'));
+        await pv.fill('0');
+        await soc.fill('17');
+        await resetSoc.click();
+        assert.equal(await soc.inputValue(), '0');
+        assert.equal(await pv.inputValue(), '0');
+        assert(!await resetPv.isDisabled() && await resetSoc.isDisabled());
+        assert((await page.locator('#register-status').textContent()).includes('1'));
+        await page.evaluate(() => refresh());
+        assert.equal(await pv.inputValue(), '0');
+        const stalled = new Promise(resolve => { schemaStarted = resolve; });
+        stallSchema = 'goodwe_modbus';
+        await page.locator('#profile').selectOption(stallSchema);
+        await stalled;
+        assert((await page.locator('#register-status').textContent()).includes('betöltése'));
+        await page.locator('#profile').selectOption('solaredge_modbus');
+        await pv.waitFor();
+        assert.equal(await pv.inputValue(), '6');
+        assert((await page.locator('#register-rows').textContent()).includes('SunSpec invertermodell'));
+        assert.equal(await soc.count(), 0);
+        assert.equal(typeof resumeSchema, 'function');
+        const late = page.waitForResponse(r => r.url().endsWith('profile=goodwe_modbus'));
+        resumeSchema(); await late; stallSchema = '';
+        assert.equal(await pv.inputValue(), '6');
+        assert.equal(await soc.count(), 0);
+        await page.locator('#profile').selectOption('huawei_modbus');
+        await pv.waitFor(); assert.equal(await pv.inputValue(), '0');
+        await page.locator('#host').fill('192.0.2.10');
+        await soc.fill('82'); await pv.fill('65535');
+        assert.equal(await pv.evaluate(n => n.validity.rangeOverflow), true);
+        await pv.fill('1.5'); assert.equal(await pv.evaluate(n => n.validity.stepMismatch), true);
+        await pv.fill('0');
+        for (const width of [320, 390, 1280]) {
+            await page.setViewportSize({width, height: 900});
+            assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+            assert((await resetSoc.boundingBox()).width >= 44);
+        }
+        async function persist() {
+            const write = page.waitForResponse(r => r.url().endsWith('/api/inverter') && r.request().method() === 'POST');
+            await page.locator('#save-inverter').click();
+            assert.equal((await write).status(), 200);
+            await page.waitForFunction(() => !document.getElementById('save-inverter').disabled &&
+                document.getElementById('result').textContent.includes('Mentve.'));
+        }
+        await persist();
+        assert.deepEqual(posted.registerOverrides, {pv: 0, soc: 82});
+        await page.reload();
+        await pv.waitFor(); assert.equal(await pv.inputValue(), '0');
+        assert.equal(await soc.inputValue(), '82');
+        assert.equal(await page.locator('#register-status').textContent(), '');
+        await resetSoc.click(); await persist();
+        assert.deepEqual(posted.registerOverrides, {pv: 0});
+        await resetPv.click(); await persist();
+        assert.deepEqual(posted.registerOverrides, {});
+        assert(registerRequests.every(id => id.includes('modbus') || id.startsWith('deye_')));
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);
-        console.log('PASS: all inverter options, credentials, GPS origin, Slave inheritance/schedules, edit retention and responsive layout');
+        console.log('PASS: all inverter options, credentials, GPS origin, Slave inheritance/schedules, Modbus defaults, per-row reset, late schema replies, edit retention and responsive layout');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

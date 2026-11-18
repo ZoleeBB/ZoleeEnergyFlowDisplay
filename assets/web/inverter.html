@@ -7,13 +7,14 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 .register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
 .register-row small{display:block;overflow-wrap:anywhere}.register-row label{margin:0}
 @media(max-width:640px){.register-row{grid-template-columns:minmax(0,1fr) auto}.register-row>div{grid-column:1/-1}}
+#inverter-fields{min-width:0;border:0;padding:0;margin:0}
 #slave-profiles button{margin:4px 8px 4px 0}.feedback-error{color:var(--danger)}
 @media(max-width:480px){.week-row{grid-template-columns:1fr 1fr}.week-row>label:first-child{grid-column:1/-1}.grid{grid-template-columns:minmax(0,1fr)}}
 </style></head>
 <body data-page="inverter"><!--APP_NAV--><!--APP_SUPPORT-->
 <h1>Inverter beállítások</h1>
 <p id="sync-status" role="status"></p>
-<form id="inverter-form">
+<form id="inverter-form"><fieldset id="inverter-fields">
 <section><h2>Inverterkapcsolat</h2>
 <label>Inverter és kapcsolattípus<select id="profile" required><option value="">Válassz invertert…</option></select></label>
 <p class="hint" id="transport-help"></p>
@@ -37,5 +38,5 @@ body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#ff
 <label>Földrajzi hosszúság (°)<input id="longitude" type="number" min="-180" max="180" step="any" placeholder="19.0402" required></label></div>
 <small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>
 <button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
-<p id="result" role="status" aria-live="polite"></p></form>
+</fieldset><p id="result" role="status" aria-live="polite"></p></form>
 <script>/*SLAVES_JS*/</script><script>/*REGISTER_JS*/</script><script>/*INVERTER_JS*/</script></body></html>

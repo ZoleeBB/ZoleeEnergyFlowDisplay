@@ -70,6 +70,8 @@ function secretRequirements() {
     }
 }
 function updateSaveButton() {
+    get('inverter-fields').disabled = saving;
+    get('inverter-form').setAttribute('aria-busy', String(saving));
     get('save-inverter').disabled = saving || !saved || !inverterRegisters.isReady();
 }
 function showProfile(initial) {
