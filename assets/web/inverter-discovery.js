@@ -69,8 +69,11 @@ const inverterDiscovery = (() => {
             entry.signature = signature;
             const address = [item.host + ':' + item.port];
             if (item.serial) address.push('Sorozatszám: ' + item.serial);
-            if (item.device && profiles[search.profile]?.device === loggerSerial)
-                address.push('Adatgyűjtő száma: ' + item.device);
+            if (item.device) {
+                if (profiles[search.profile]?.device === loggerSerial) address.push('Adatgyűjtő száma: ' + item.device);
+                else if (search.profile === 'victron_mqtt') address.push('VRM Portal ID: ' + item.device);
+                else if (search.profile === 'fronius_http') address.push('Solar API-azonosító: ' + item.device);
+            }
             if (get('unit') && Number.isInteger(item.unit)) address.push('Modbus-cím: ' + item.unit);
             entry.details.textContent = item.model || 'Helyi eszköz';
             entry.details.append(el('small', address.join(' · ')), el('small', item.verified ?
