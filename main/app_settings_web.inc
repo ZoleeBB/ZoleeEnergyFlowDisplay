@@ -9,22 +9,25 @@
 
 static cJSON *settings_json(const app_config_t *v)
 {
-    cJSON *root=cJSON_CreateObject();
-    if(!root)return NULL;
-    cJSON_AddBoolToObject(root,"setup_pending",app_boot_config_setup_pending());
-    cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave);
-    cJSON_AddNumberToObject(root,"EnergyFlowDisabled",v->energy_flow_disabled?1:0);
-    cJSON_AddNumberToObject(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
-    cJSON_AddStringToObject(root,"DataSeedPin",v->data_seed_pin);
-    cJSON_AddStringToObject(root,"DataReceptMode",app_data_mode_token(v->data_recept_mode));
-#define OBJ(id) cJSON *id=cJSON_AddObjectToObject(root,#id)
-#define STR(o,k,val) cJSON_AddStringToObject(o,k,val)
-#define NUM(o,k,val) cJSON_AddNumberToObject(o,k,val)
+    cJSON *root = cJSON_CreateObject();
+    /* Hiányos űrlapot nem küldhetünk: a böngésző azt módosításként visszamenthetné. */
+#define REQUIRE(expr) do { if (!(expr)) goto failed; } while (0)
+#define OBJ(id) cJSON *id = cJSON_AddObjectToObject(root, #id); REQUIRE(id)
+#define STR(o,k,val) REQUIRE(cJSON_AddStringToObject(o,k,val))
+#define NUM(o,k,val) REQUIRE(cJSON_AddNumberToObject(o,k,val))
+    REQUIRE(root);
+    REQUIRE(cJSON_AddBoolToObject(root,"setup_pending",app_boot_config_setup_pending()));
+    REQUIRE(cJSON_AddBoolToObject(root,"cardless_slave",v->cardless_slave));
+    NUM(root,"EnergyFlowDisabled",v->energy_flow_disabled?1:0);
+    NUM(root,"DataSeedEnabled",v->data_seed_enabled?1:0);
+    STR(root,"DataSeedPin",v->data_seed_pin);
+    STR(root,"DataReceptMode",app_data_mode_token(v->data_recept_mode));
     OBJ(project);
     STR(project,"title",v->project.title);STR(project,"language",v->project.language);STR(project,"currency",v->project.currency);
     OBJ(wifi);
-    STR(wifi,"ssid",v->wifi.ssid);cJSON_AddNullToObject(wifi,"password");NUM(wifi,"reconnect_seconds",v->wifi.reconnect_seconds);
+    STR(wifi,"ssid",v->wifi.ssid);REQUIRE(cJSON_AddNullToObject(wifi,"password"));NUM(wifi,"reconnect_seconds",v->wifi.reconnect_seconds);
     cJSON *network=cJSON_AddObjectToObject(wifi,"network");
+    REQUIRE(network);
     NUM(network,"use_static_ip",v->wifi.network.use_static_ip?1:0);
     STR(network,"ip",v->wifi.network.ip);STR(network,"gateway",v->wifi.network.gateway);
     STR(network,"subnet",v->wifi.network.subnet);STR(network,"dns",v->wifi.network.dns);
@@ -37,7 +40,7 @@ static cJSON *settings_json(const app_config_t *v)
     OBJ(mqtt);
     STR(mqtt,"broker",v->mqtt.broker);NUM(mqtt,"port",v->mqtt.port);
     STR(mqtt,"topic",v->mqtt.topic);STR(mqtt,"username",v->mqtt.username);
-    cJSON_AddNullToObject(mqtt,"password");
+    REQUIRE(cJSON_AddNullToObject(mqtt,"password"));
     NUM(mqtt,"data_timeout_seconds",v->mqtt.data_timeout_seconds);
     NUM(mqtt,"reconnect_seconds",v->mqtt.reconnect_seconds);
     OBJ(http);NUM(http,"data_timeout_seconds",v->http.data_timeout_seconds);
@@ -57,26 +60,44 @@ static cJSON *settings_json(const app_config_t *v)
     NUM(energy,"tree_absorption_kg_per_year",v->energy.tree_absorption_kg_per_year);
     OBJ(ota);
     NUM(ota,"auto_update",v->ota.auto_update?1:0);
-    STR(ota,"username",v->ota.username);cJSON_AddNullToObject(ota,"password");
+    STR(ota,"username",v->ota.username);REQUIRE(cJSON_AddNullToObject(ota,"password"));
 #undef OBJ
 #undef STR
 #undef NUM
+#undef REQUIRE
     return root;
+failed:
+    cJSON_Delete(root);
+    return NULL;
 }
+/* Kimerült heapnél ez a válasz sem építhet új JSON-fát. */
+static esp_err_t settings_memory_error(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_status(req, "500 Internal Server Error");
+    return httpd_resp_sendstr(req, "{\"ok\":false,\"message\":\"Nincs elegendő memória.\"}");
+}
+
 static esp_err_t settings_response(httpd_req_t *req,int status,const char *message,bool restart,const app_config_t *cfg)
 {
-    cJSON *root=cJSON_CreateObject();if(!root)return ESP_ERR_NO_MEM;
-    cJSON_AddBoolToObject(root,"ok",status<400);
-    cJSON_AddBoolToObject(root,"restart",restart);
-    cJSON_AddStringToObject(root,"message",message?message:"");
-    if(cfg){cJSON *json=settings_json(cfg);if(json)cJSON_AddItemToObject(root,"config",json);}
-    char *body=cJSON_PrintUnformatted(root);cJSON_Delete(root);
-    if(!body)return ESP_ERR_NO_MEM;
+    cJSON *root = cJSON_CreateObject();
+    bool ok = root && cJSON_AddBoolToObject(root,"ok",status<400) &&
+              cJSON_AddBoolToObject(root,"restart",restart) &&
+              cJSON_AddStringToObject(root,"message",message?message:"");
+    if (ok && cfg) {
+        cJSON *json = settings_json(cfg);
+        ok = json && cJSON_AddItemToObject(root,"config",json);
+        if (!ok) cJSON_Delete(json);
+    }
+    char *body = ok ? cJSON_PrintUnformatted(root) : NULL;
+    cJSON_Delete(root);
+    if (!body) return settings_memory_error(req);
     httpd_resp_set_type(req,"application/json; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
     if(status==400)httpd_resp_set_status(req,"400 Bad Request");
     else if(status>=500)httpd_resp_set_status(req,"500 Internal Server Error");
-    esp_err_t result=httpd_resp_send(req,body,HTTPD_RESP_USE_STRLEN);free(body);
+    esp_err_t result=httpd_resp_send(req,body,HTTPD_RESP_USE_STRLEN);cJSON_free(body);
     return result;
 }
 static esp_err_t settings_page(httpd_req_t *req)
@@ -89,22 +110,25 @@ static esp_err_t settings_page(httpd_req_t *req)
 static esp_err_t settings_get(httpd_req_t *req)
 {
     if(!authorize(req))return ESP_OK;
-    cJSON *root=settings_json(&s_config);if(!root)return ESP_ERR_NO_MEM;
+    cJSON *root=settings_json(&s_config);if(!root)return settings_memory_error(req);
     char *json=cJSON_PrintUnformatted(root);cJSON_Delete(root);
-    if(!json)return ESP_ERR_NO_MEM;
+    if(!json)return settings_memory_error(req);
     httpd_resp_set_type(req,"application/json; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
-    esp_err_t result=httpd_resp_send(req,json,HTTPD_RESP_USE_STRLEN);free(json);
+    esp_err_t result=httpd_resp_send(req,json,HTTPD_RESP_USE_STRLEN);cJSON_free(json);
     return result;
 }
 /* Null esetén a webes formon nem megadott titkos értéket változatlanul hagyjuk. */
-static void keep_secret(cJSON *root,const char *section,const char *previous)
+static bool keep_secret(cJSON *root, const char *section, const char *previous)
 {
-    cJSON *object=cJSON_GetObjectItemCaseSensitive(root,section);
-    if(!cJSON_IsObject(object))return;
-    cJSON *password=cJSON_GetObjectItemCaseSensitive(object,"password");
-    if(cJSON_IsNull(password))
-        cJSON_ReplaceItemInObjectCaseSensitive(object,"password",cJSON_CreateString(previous));
+    cJSON *object = cJSON_GetObjectItemCaseSensitive(root, section);
+    cJSON *password = cJSON_GetObjectItemCaseSensitive(object, "password");
+    if (!cJSON_IsNull(password)) return true;
+    cJSON *replacement = cJSON_CreateString(previous);
+    if (replacement && cJSON_ReplaceItemInObjectCaseSensitive(object, "password", replacement))
+        return true;
+    cJSON_Delete(replacement);
+    return false;
 }
 static esp_err_t settings_post_locked(httpd_req_t *req)
 {
@@ -116,8 +140,8 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
     if(req->content_len<2||req->content_len>16384)
         return settings_response(req,400,"Érvénytelen konfigurációméret.",false,NULL);
     int length=req->content_len;
-    char *body=malloc((size_t)length+1);
-    if(!body)return settings_response(req,500,"Nincs elegendő memória.",false,NULL);
+    char *body=heap_caps_malloc((size_t)length+1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if(!body)return settings_memory_error(req);
     int received=0;int64_t deadline=esp_timer_get_time()+30000000LL;
     while(received<length){
         int n=httpd_req_recv(req,body+received,length-received);
@@ -134,11 +158,14 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
         cJSON_Delete(root);
         return settings_response(req,400,"Válassz adatfogadási módot.",false,NULL);
     }
-    keep_secret(root,"wifi",s_config.wifi.password);
-    keep_secret(root,"mqtt",s_config.mqtt.password);
-    keep_secret(root,"ota",s_config.ota.password);
+    if (!keep_secret(root,"wifi",s_config.wifi.password) ||
+        !keep_secret(root,"mqtt",s_config.mqtt.password) ||
+        !keep_secret(root,"ota",s_config.ota.password)) {
+        cJSON_Delete(root);
+        return settings_memory_error(req);
+    }
     char *data=cJSON_PrintUnformatted(root);cJSON_Delete(root);
-    if(!data)return settings_response(req,500,"Nincs elegendő memória.",false,NULL);
+    if(!data)return settings_memory_error(req);
     app_config_t next;char error[256]={0};
     if (app_boot_config_internal()) {
         esp_err_t result = app_boot_config_complete(data, strlen(data), &next, error, sizeof(error));
@@ -187,10 +214,10 @@ static esp_err_t settings_post_locked(httpd_req_t *req)
 
 apply_settings:
     ;
-    app_config_t old_cmp=s_config,new_cmp=next;
-    memset(&old_cmp.statistics,0,sizeof(old_cmp.statistics));
-    memset(&new_cmp.statistics,0,sizeof(new_cmp.statistics));
-    bool restart=setup || memcmp(&old_cmp,&new_cmp,sizeof(old_cmp))!=0;
+    /* A statisztika futás közben alkalmazható. A két összehasonlító másolat
+     * helyett azonnal frissítjük ezt a mezőt az egyetlen HTTP-task állapotában. */
+    s_config.statistics = next.statistics;
+    bool restart = setup || memcmp(&s_config, &next, sizeof(next)) != 0;
     s_config=next;
     if(restart){
         if(app_stats_is_ready() && app_stats_save_now()!=ESP_OK)

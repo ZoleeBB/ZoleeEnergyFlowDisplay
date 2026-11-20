@@ -296,6 +296,51 @@ static void html_escape(
 /* A fő információs oldal összeállítása az aktuális runtime állapotból. */
 #include "app_battery_web.inc"
 
+/* Az események kétnyelvű pillanatképe csak a táblázat küldéséig él.
+ * A több mint 5 KiB-os tömb nem foglalja a HTTP-task belső vermét. */
+static esp_err_t send_recent_events(httpd_req_t *req)
+{
+    app_event_entry_t *events = heap_caps_malloc(APP_EVENT_LOG_CAPACITY * sizeof(*events),
+                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!events) {
+        return httpd_resp_send_chunk(req, s_hu ? "<p class='muted'>Az eseménylista nem tölthető be.</p>"
+                                               : "<p class='muted'>The event list could not be loaded.</p>",
+                                     HTTPD_RESP_USE_STRLEN);
+    }
+    size_t count = app_events_snapshot(events, APP_EVENT_LOG_CAPACITY);
+    if (!count) {
+        free(events);
+        return httpd_resp_send_chunk(req, s_hu ? "<p class='muted'>Még nincs esemény.</p>"
+                                               : "<p class='muted'>No events yet.</p>",
+                                     HTTPD_RESP_USE_STRLEN);
+    }
+
+    esp_err_t result = httpd_resp_send_chunk(req, "<div class='events-box'><table class='events'>",
+                                             HTTPD_RESP_USE_STRLEN);
+    /* A legfrissebb esemény elöl, ahogy a kijelző diagnosztikai nézetében. */
+    while (count && result == ESP_OK) {
+        const app_event_entry_t *entry = &events[--count];
+        char when[32] = "-";
+        if (entry->epoch_s > 0) {
+            time_t epoch = (time_t)entry->epoch_s;
+            struct tm local;
+            localtime_r(&epoch, &local);
+            strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", &local);
+        }
+        const char *css = entry->level == APP_EVENT_ERROR ? "error" :
+                          entry->level == APP_EVENT_WARNING ? "warning" : "";
+        char safe_event[APP_EVENT_TEXT_MAX * 6];
+        html_escape(s_hu ? entry->text : entry->text_en, safe_event, sizeof(safe_event));
+        result = sendf(req, "<tr><td class='muted'>%s</td><td class='%s'>%s</td><td>",
+                       when, css, event_level_text(entry->level));
+        if (result == ESP_OK) result = httpd_resp_send_chunk(req, safe_event, strlen(safe_event));
+        if (result == ESP_OK) result = httpd_resp_send_chunk(req, "</td></tr>", HTTPD_RESP_USE_STRLEN);
+    }
+    free(events);
+    if (result != ESP_OK) return result;
+    return httpd_resp_send_chunk(req, "</table></div>", HTTPD_RESP_USE_STRLEN);
+}
+
 static esp_err_t root_handler(httpd_req_t *req)
 {
     if (!authorize(req)) {
@@ -347,13 +392,6 @@ static esp_err_t root_handler(httpd_req_t *req)
     const esp_app_desc_t *description =
         esp_app_get_description();
 
-    /* A RAM eseménynaplóból konzisztens snapshotot kérünk. */
-    app_event_entry_t events[APP_EVENT_LOG_CAPACITY];
-    size_t event_count =
-        app_events_snapshot(
-            events,
-            APP_EVENT_LOG_CAPACITY);
-
     httpd_resp_set_type(
         req,
         "text/html; charset=utf-8");
@@ -368,7 +406,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         /* Fix magasságú, görgethető lista: a kártya nem nyúlik el, a korábbi
          * sorok mégis visszanézhetők. */
         ".events-box{max-height:320px;overflow-y:auto;overscroll-behavior:contain}"
-        ".events-box table{margin:0}.events-box thead th{position:sticky;top:0;background:var(--card)}"
+        ".events-box table{margin:0}"
         ".log-links{margin:10px 0 0;display:flex;gap:10px;flex-wrap:wrap}"
         "button.restart{background:#b34a09;color:#fff}"
         "@media(prefers-color-scheme:dark){button.restart{background:#ff9e4f;color:#211205}"
@@ -478,68 +516,7 @@ static esp_err_t root_handler(httpd_req_t *req)
             : "<div class='card'><h2>Recent events</h2>",
         HTTPD_RESP_USE_STRLEN);
 
-    if (event_count == 0) {
-        httpd_resp_send_chunk(
-            req,
-            s_hu
-                ? "<p class='muted'>Még nincs esemény.</p>"
-                : "<p class='muted'>No events yet.</p>",
-            HTTPD_RESP_USE_STRLEN);
-    } else {
-        httpd_resp_send_chunk(
-            req,
-            "<div class='events-box'><table class='events'>",
-            HTTPD_RESP_USE_STRLEN);
-
-        /* A legfrissebb esemény elöl, ahogy a kijelző diagnosztikai nézetében. */
-        for (size_t shown = 0; shown < event_count; shown++) {
-            size_t i = event_count - 1 - shown;
-            char when[32] = "-";
-
-            if (events[i].epoch_s > 0) {
-                time_t event_epoch =
-                    (time_t)events[i].epoch_s;
-
-                struct tm local_time;
-                localtime_r(
-                    &event_epoch,
-                    &local_time);
-
-                strftime(
-                    when,
-                    sizeof(when),
-                    "%Y-%m-%d %H:%M:%S",
-                    &local_time);
-            }
-
-            const char *css_class =
-                events[i].level == APP_EVENT_ERROR
-                    ? "error"
-                    : events[i].level == APP_EVENT_WARNING
-                        ? "warning"
-                        : "";
-
-            char safe_event[APP_EVENT_TEXT_MAX * 6];
-            html_escape(
-                s_hu?events[i].text:events[i].text_en,
-                safe_event,
-                sizeof(safe_event));
-
-            sendf(
-                req,
-                "<tr><td class='muted'>%s</td>"
-                "<td class='%s'>%s</td><td>%s</td></tr>",
-                when,
-                css_class,
-                event_level_text(events[i].level),
-                safe_event);
-        }
-
-        httpd_resp_send_chunk(
-            req,
-            "</table></div>",
-            HTTPD_RESP_USE_STRLEN);
-    }
+    if (send_recent_events(req) != ESP_OK) return ESP_FAIL;
 
     /* A teljes napló az SD-ről: a mai és az előző napi fájl külön nyitható,
      * így újraindítás után is visszakereshető, mi történt. */
