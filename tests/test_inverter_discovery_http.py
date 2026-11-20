@@ -27,6 +27,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.server.requests.append((self.path, set(self.headers.keys())))
+        self.server.client_ips.append(self.client_address[0])
         status, body = self.server.fixtures.get(self.path, (404, {}))
         if isinstance(body, bytes):
             self.connection.sendall(body)
@@ -54,12 +55,14 @@ def scenarios(lib):
         def probe(profile, fixtures, capacity=8, timeout=1000, mismatch=False):
             http.fixtures = fixtures
             http.requests = []
+            http.client_ips = []
             out = (Result * capacity)()
             out[0].host = b"127.0.0.2" if mismatch else b"127.0.0.1"
             out[0].port = port
-            client = socket.create_connection(http.server_address)
+            client = socket.create_connection(http.server_address, source_address=("127.0.0.2", 0))
             client.setblocking(False)
             count = lib.probe(profile.encode(), client.detach(), timeout, out, capacity)
+            assert all(ip == "127.0.0.2" for ip in http.client_ips)
             assert all(names <= {"Host", "Accept", "Connection"} for _, names in http.requests)
             return count, out, [path for path, _ in http.requests]
 

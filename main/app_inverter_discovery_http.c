@@ -48,14 +48,19 @@ static bool ready(int fd, int64_t deadline, bool write)
     }
 }
 
-static int reconnect(const struct sockaddr_in *peer, int64_t deadline)
+typedef struct {
+    struct sockaddr_in peer, local;
+} probe_connection_t;
+
+static int reconnect(const probe_connection_t *connection, int64_t deadline)
 {
     if (now_ms() >= deadline) return -1;
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
     int flags = fcntl(fd, F_GETFL, 0);
-    if (flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0) {
-        if (!connect(fd, (const struct sockaddr *)peer, sizeof(*peer))) return fd;
+    if (flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 &&
+        bind(fd, (const struct sockaddr *)&connection->local, sizeof(connection->local)) == 0) {
+        if (!connect(fd, (const struct sockaddr *)&connection->peer, sizeof(connection->peer))) return fd;
         int err;
         socklen_t n = sizeof(err);
         if (errno == EINPROGRESS && ready(fd, deadline, true) &&
@@ -173,7 +178,7 @@ static const cJSON *fronius_data(const cJSON *root)
     return cJSON_IsNumber(status) && status->valuedouble == 0 ? MEMBER(MEMBER(root, "Body"), "Data") : NULL;
 }
 
-static size_t fronius_results(int fd, int64_t deadline, const struct sockaddr_in *peer,
+static size_t fronius_results(int fd, int64_t deadline, const probe_connection_t *connection,
                               app_inverter_discovery_result_t *out, size_t capacity)
 {
     cJSON *info = get(fd, deadline, out, "/solar_api/v1/GetInverterInfo.cgi");
@@ -199,7 +204,7 @@ static size_t fronius_results(int fd, int64_t deadline, const struct sockaddr_in
     }
     cJSON_Delete(info);
     if (!count) return 0;
-    cJSON *flow = get(reconnect(peer, deadline), deadline, out, "/solar_api/v1/GetPowerFlowRealtimeData.fcgi");
+    cJSON *flow = get(reconnect(connection, deadline), deadline, out, "/solar_api/v1/GetPowerFlowRealtimeData.fcgi");
     data = fronius_data(flow);
     const cJSON *pv = MEMBER(MEMBER(data, "Site"), "P_PV");
     const cJSON *inverters = MEMBER(data, "Inverters");
@@ -236,14 +241,14 @@ static bool solplanet_power(const cJSON *data, const char *serial)
     return cJSON_IsNumber(ac) && isfinite(ac->valuedouble) && ac->valuedouble >= 0 && ac->valuedouble <= 8000;
 }
 
-static size_t solplanet_results(int fd, int64_t deadline, const struct sockaddr_in *peer,
+static size_t solplanet_results(int fd, int64_t deadline, const probe_connection_t *connection,
                                 app_inverter_discovery_result_t *out, size_t capacity)
 {
     cJSON *info = get(fd, deadline, out, "/getdev.cgi?device=2");
     bool v1 = !cJSON_IsArray(MEMBER(info, "inv"));
     if (v1) {
         cJSON_Delete(info);
-        info = get(reconnect(peer, deadline), deadline, out, "/invinfo.cgi");
+        info = get(reconnect(connection, deadline), deadline, out, "/invinfo.cgi");
     }
     const cJSON *list = MEMBER(info, "inv"), *num = MEMBER(info, "num"), *item;
     size_t count = 0;
@@ -265,7 +270,7 @@ static size_t solplanet_results(int fd, int64_t deadline, const struct sockaddr_
                     char path[120];
                     snprintf(path, sizeof(path), v1 ? "/invdata.cgi?sn=%s" :
                              "/getdevdata.cgi?device=2&sn=%s", serial);
-                    cJSON *measurement = get(reconnect(peer, deadline), deadline, out, path);
+                    cJSON *measurement = get(reconnect(connection, deadline), deadline, out, path);
                     r->verified = solplanet_power(measurement, serial);
                     cJSON_Delete(measurement);
                 }
@@ -286,19 +291,23 @@ size_t app_inverter_discovery_http(const char *profile, int fd, uint32_t timeout
                                    app_inverter_discovery_result_t *out, size_t capacity)
 {
     if (fd < 0) return 0;
-    struct sockaddr_in peer;
-    socklen_t size = sizeof(peer);
+    probe_connection_t connection;
+    socklen_t peer_size = sizeof(connection.peer), local_size = sizeof(connection.local);
     struct in_addr expected;
     if (!app_inverter_discovery_http_supported(profile) || !timeout_ms || !out || !capacity ||
-        getpeername(fd, (struct sockaddr *)&peer, &size) || peer.sin_family != AF_INET ||
-        inet_pton(AF_INET, out->host, &expected) != 1 || expected.s_addr != peer.sin_addr.s_addr ||
-        out->port != ntohs(peer.sin_port)) {
+        getpeername(fd, (struct sockaddr *)&connection.peer, &peer_size) || connection.peer.sin_family != AF_INET ||
+        getsockname(fd, (struct sockaddr *)&connection.local, &local_size) || connection.local.sin_family != AF_INET ||
+        inet_pton(AF_INET, out->host, &expected) != 1 || expected.s_addr != connection.peer.sin_addr.s_addr ||
+        out->port != ntohs(connection.peer.sin_port)) {
         close(fd);
         return 0;
     }
+    /* A következő ellenőrző GET is ugyanarról a STA-címről induljon.
+     * Az előző TCP-portot a kapcsolat lezárása után a rendszer még foglalhatja. */
+    connection.local.sin_port = 0;
     int64_t deadline = now_ms() + (timeout_ms > 2000 ? 2000 : timeout_ms);
-    return !strcmp(profile, "fronius_http") ? fronius_results(fd, deadline, &peer, out, capacity) :
-                                             solplanet_results(fd, deadline, &peer, out, capacity);
+    return !strcmp(profile, "fronius_http") ? fronius_results(fd, deadline, &connection, out, capacity) :
+                                             solplanet_results(fd, deadline, &connection, out, capacity);
 }
 
 /* Venus OS az UPnP UDN utolsó tagjába a VRM Portal ID hat hexadecimális
