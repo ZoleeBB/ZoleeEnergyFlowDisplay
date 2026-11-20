@@ -21,6 +21,16 @@ void app_ble_pairing_open(void);
 bool app_ble_pairing_required(void);
 
 /* A legutóbb hitelesített kijelzőprofil átmeneti BLE-kiesés alatt is megmarad. */
-bool app_ble_seed_slave_intercom_allowed(void);
+typedef enum {
+    APP_BLE_INTERCOM_UNKNOWN,
+    APP_BLE_INTERCOM_ALLOWED,
+    APP_BLE_INTERCOM_DISABLED,
+} app_ble_intercom_policy_t;
+
+app_ble_intercom_policy_t app_ble_seed_slave_intercom_policy(void);
+static inline bool app_ble_seed_slave_intercom_allowed(void)
+{
+    return app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_ALLOWED;
+}
 bool app_ble_seed_slave_direct(void);
 bool app_ble_seed_slave_backlight(app_slave_display_t *display, int64_t now_us, bool *night);

@@ -617,13 +617,14 @@ void app_main(void)
     app_ble_profile_boot_complete();
     atomic_store(&boot_complete, true);
     for (;;) {
-        if (atomic_load(&intercom_started) && app_ble_seed_slave_direct()) {
-            /* On an authenticated switch of Master mode, release all media DMA,
-             * decoder and I2S allocations before running the inverter profile. */
-            app_events_add(APP_EVENT_INFO, "Inverter Master: újraindulás kaputelefon nélkül.");
+        app_ble_intercom_policy_t media = app_ble_seed_slave_intercom_policy();
+        if (atomic_load(&intercom_started) && media == APP_BLE_INTERCOM_DISABLED) {
+            /* A korábban lefoglalt JPEG/I²S DMA felszabadul a Master igazolt
+             * üzemmódváltásakor. Egy még ismeretlen régi profil nem indít újra. */
+            app_events_add(APP_EVENT_INFO, "A Master profilja megváltozott. Újraindulás kaputelefon nélkül.");
             esp_restart();
         }
-        if (app_ble_seed_slave_intercom_allowed()) {
+        if (media == APP_BLE_INTERCOM_ALLOWED) {
             if (!atomic_load(&intercom_started)) {
                 app_intercom_control_init(&config);
                 (void)app_intercom_prepare_video();

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "app_ble_stats_protocol.h"
+#include "app_ble_seed.h"
 #include "app_ble_protocol.h"
 #include "app_ble_display_policy.h"
 #define portMUX_TYPE int
@@ -709,13 +710,30 @@ int main(void)
     slave_reset();
     s_master = 7;
     s_remote_v4_profile = 150;
-    app_ble_display_profile_t policy = {.direct = true, .schedule.touch_wake_seconds = 5};
+    app_ble_display_profile_t policy = {.intercom = true};
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_ALLOWED);
+    slave_reset();
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_ALLOWED);
+    s_master = 7;
+    s_profile_length = APP_BLE_PROFILE_SIZE;
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_UNKNOWN);
+    s_remote_v4_profile = 150;
+    policy = (app_ble_display_profile_t){0}; /* HTTP/MQTT */
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_DISABLED && !app_ble_seed_slave_direct());
+    policy = (app_ble_display_profile_t){.direct = true, .schedule.touch_wake_seconds = 5};
     for (unsigned i = 0; i < 7; ++i) policy.schedule.days[i].enabled = true;
     app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
     s_profile_length = sizeof(s_slave_profile);
     slave_profile_read(7, &done, NULL, NULL);
     s_profile_accepted = true;
-    assert(app_ble_seed_slave_direct() && !app_ble_seed_slave_intercom_allowed());
+    assert(app_ble_seed_slave_direct() && app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_DISABLED);
     app_ble_clock_encode(INT64_C(1800000016123), 60, 1860, true, 80, packets[2].data);
     app_ble_clock_sun(packets[2].data, true, 0, 0);
     app_ble_clock_cadence(packets[2].data, 900);

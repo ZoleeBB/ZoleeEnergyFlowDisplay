@@ -11,13 +11,14 @@ static uint16_t s_remote_profile, s_remote_v4_profile;
 static portMUX_TYPE s_policy_lock = portMUX_INITIALIZER_UNLOCKED;
 static app_ble_display_profile_t s_display_profile;
 static app_ble_clock_t s_solar_clock;
+static app_ble_intercom_policy_t s_intercom_policy;
 
-bool app_ble_seed_slave_intercom_allowed(void)
+app_ble_intercom_policy_t app_ble_seed_slave_intercom_policy(void)
 {
     portENTER_CRITICAL(&s_policy_lock);
-    bool allowed = s_display_profile.intercom;
+    app_ble_intercom_policy_t policy = s_intercom_policy;
     portEXIT_CRITICAL(&s_policy_lock);
-    return allowed;
+    return policy;
 }
 
 bool app_ble_seed_slave_direct(void)
@@ -192,6 +193,9 @@ static int slave_profile_read(uint16_t conn,
         portENTER_CRITICAL(&s_policy_lock);
         if (!policy.direct || !s_display_profile.direct) memset(&s_solar_clock, 0, sizeof(s_solar_clock));
         s_display_profile = policy;
+        /* A régi Master csak a kaputelefon státuszolvasásával igazolhatja a támogatását. */
+        s_intercom_policy = policy.intercom ? APP_BLE_INTERCOM_ALLOWED :
+            s_remote_v4_profile ? APP_BLE_INTERCOM_DISABLED : APP_BLE_INTERCOM_UNKNOWN;
         portEXIT_CRITICAL(&s_policy_lock);
         memset(s_slave_profile, 0, sizeof(s_slave_profile));
         s_profile_reading = false;
@@ -633,7 +637,7 @@ static void slave_poll(int64_t now)
             slave_intercom_poll(now);
             if (!s_remote_v4_profile && s_intercom_status_data[0]) {
                 portENTER_CRITICAL(&s_policy_lock);
-                s_display_profile.intercom = true;
+                s_intercom_policy = APP_BLE_INTERCOM_ALLOWED;
                 portEXIT_CRITICAL(&s_policy_lock);
             }
         }
