@@ -4,7 +4,7 @@
 #include "app_inverter_solar.h"
 #include "app_slave_presence.h"
 
-typedef enum { INV_MODBUS, INV_HTTP, INV_MQTT } app_inverter_transport_t;
+typedef enum { INV_MODBUS, INV_HTTP, INV_HTTPS, INV_MQTT } app_inverter_transport_t;
 
 typedef struct {
     const char *id;

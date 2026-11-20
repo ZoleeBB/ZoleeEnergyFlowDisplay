@@ -117,6 +117,7 @@ static void measure(worker_t *w, int64_t now)
     bool ok;
     switch (w->profile->transport) {
         case INV_MODBUS: ok = app_inverter_modbus_read(cfg,&s,&epoch); break;
+        case INV_HTTPS:
         case INV_HTTP: ok = app_inverter_http_read(cfg,&s,&epoch); break;
         case INV_MQTT: ok = app_inverter_victron_read(cfg,&s); break;
         default: return;
@@ -201,7 +202,7 @@ void app_inverter_tick(void)
     if (state.wifi_connected && app_inverter_identity_search_tick(&worker->identity,now))
         worker->due = now;
     if (state.wifi_connected && now >= worker->due) {
-        bool https = worker->profile->seconds > 5 || !strcmp(worker->profile->id, "solplanet_https");
+        bool https = worker->profile->transport == INV_HTTPS;
         if (!https || app_ota_try_background_https()) {
             measure(worker, now);
             if (https) app_ota_end_background_https();

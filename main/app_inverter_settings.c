@@ -28,9 +28,9 @@ static const app_inverter_profile_t profiles[] = {
     {"solplanet_modbus", INV_MODBUS, 5},
     {"sofar_modbus", INV_MODBUS, 5}, {"sofar_v5", INV_MODBUS, 5},
     {"fronius_http", INV_HTTP, 5}, {"solax_http", INV_HTTP, 5},
-    {"solplanet_http", INV_HTTP, 5}, {"solplanet_https", INV_HTTP, 5},
-    {"fronius_cloud", INV_HTTP, 300}, {"huawei_cloud", INV_HTTP, 3600},
-    {"solax_cloud", INV_HTTP, 300}, {"solplanet_cloud", INV_HTTP, 1200},
+    {"solplanet_http", INV_HTTP, 5}, {"solplanet_https", INV_HTTPS, 5},
+    {"fronius_cloud", INV_HTTPS, 300}, {"huawei_cloud", INV_HTTPS, 3600},
+    {"solax_cloud", INV_HTTPS, 300}, {"solplanet_cloud", INV_HTTPS, 1200},
     {"victron_mqtt", INV_MQTT, 5}
 };
 static _Atomic(SemaphoreHandle_t) mux;
