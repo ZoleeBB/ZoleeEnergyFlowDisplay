@@ -2554,8 +2554,9 @@ static void master_presence_update(const app_runtime_state_t *state,
 #ifndef APP_TEMPLATE_DESKTOP
     if (s_cfg.data_recept_mode == APP_DATA_INVERTER && s_master_display_ready) {
         bind_backlight_input();
-        app_energy_sample_t sun = {0};
-        if (app_inverter_sun_now(&sun)) app_slave_display_night(&s_slave_display, sun.night_mode, now);
+        /* A runtime az LVGL-zár előtt már frissítette az adott perc napadatát. */
+        if (sample->sun_position_valid)
+            app_slave_display_night(&s_slave_display, sample->night_mode, now);
         app_inverter_schedule_t schedule = {.touch_wake_seconds = s_cfg.display.touch_wake_seconds};
         struct tm local;
         time_t epoch = time(NULL);

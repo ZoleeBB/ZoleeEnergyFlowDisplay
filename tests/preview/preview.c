@@ -2138,6 +2138,9 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
     slow_swipe(640, 400, -8, 0);
     assert(template_loading_requested);
     assert(template_loading_frame() && s_view == VIEW_THEME_LOADING);
+    /* A következő SD-olvasás előtt az eredeti PNG-knek és a közvetlenül
+     * kirajzolt RAW-puffereknek is fel kell szabadulniuk. */
+    assert(!template_view.document && !template_view.asset_count && !template_view.raw_count);
 #if LV_USE_SNAPSHOT
     assert(template_raster_count == 0 && template_raster_bytes == 0);
 #endif
@@ -2311,6 +2314,22 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
      * bilineáris szűrővel készül, ezért az ikonok képpontjai térhetnek el. */
     assert(!background);
     assert(strong < 1280 * 800 / 100);
+    /* Csak a jelenet újrarajzolását kérjük: a kiválasztás és az SD-pufferek
+     * azonosak maradnak. Tényleges témaváltásnál már az olvasás előtt eltűnnek. */
+    const void *raw_buffer = template_view.raws[0].bytes;
+    template_loading_requested = true;
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && template_view.raws[0].bytes == raw_buffer);
+    /* A webes választás a normál kör betöltőkép-ellenőrzése után érkezik. */
+    assert(template_loading_frame() && s_view == VIEW_DASHBOARD);
+    assert(app_templates_select("builtin") == ESP_OK);
+    template_prepare();
+    assert(s_view == VIEW_THEME_LOADING);
+    assert(!template_view.document && !template_view.asset_count && !template_view.raw_count);
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !template_is_active());
     puts("PASS: raw sidecars are built step by step in the background, replace the PNG path and render the same frame");
 }
 

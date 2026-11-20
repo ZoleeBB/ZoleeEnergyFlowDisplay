@@ -77,9 +77,9 @@ eseménynaplóba (Kezdőlap → eseménynapló):
 Témaváltás 09-solar-journey: kép 95, SD 420, csere 12, felépítés 60, 1. képkocka 380, összesen 967 ms
 ```
 
-- **kép**: a betöltőképernyő megjelenítése, benne a kötelező 85 ms várakozás.
+- **kép**: a betöltőképernyő megjelenítése, a lecserélt téma erőforrásainak felszabadítása és a kötelező 85 ms várakozás.
 - **SD**: a csomag beolvasása és ellenőrzése (`app_templates_load_pending`).
-- **csere**: a régi téma objektumainak és képeinek felszabadítása.
+- **csere**: az előkészített téma átvétele és az LVGL-képleírók beállítása.
 - **felépítés**: az LVGL objektumfa összeállítása (`template_build`).
 - **1. képkocka**: a felépítés vége és az első kész frissítés között eltelt idő;
   **ebben fut a háttér PNG-dekódolása**, ezért tipikusan ez a legnagyobb tétel.
@@ -89,9 +89,12 @@ A mérés néhány időbélyeg és váltásonként egy naplósor; a 200 ms-os fr
 körben nincs többletmunka. A további gyorsítás (például előre dekódolt RGB565
 háttér az SD-n) csak ezekkel a számokkal együtt érdemes.
 
-A témaváltás betöltőképernyője mögött a régi téma egyetlen objektuma sem látszik,
-ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképocka után
-elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
+Témaváltáskor a betöltőképernyő felépítése után felszabadul a régi téma
+LVGL-képgyorsítótára, PNG- és RAW-puffere, illetve JSON-leírója. Így a
+következő SD-olvasás már használhatja ezt a memóriát. A Nap pálya két
+1280×800-as RGB565A8 háttérfájlja fejléccel együtt egyenként 3 072 032 bájt.
+Azonos téma nappali és éjszakai jelenete között a betöltött SD-csomag megmarad.
+A korábbi működésben az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
 dekódolt képei mellé kért PSRAM-ot: gyors oda-vissza lapozásnál elfogyhatott a hely,
 a háttér dekódolása minden képkockán újra elbukott, és a kijelző használhatatlanul
 lelassult. A betöltőképernyő a runtime szálban hat másodperces szakaszokat

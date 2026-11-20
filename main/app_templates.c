@@ -1911,6 +1911,41 @@ bool app_templates_load_blocked(void)
     return load_blocked;
 }
 
+/* Katalóguszár alatt: a már kirajzolt választást elmentjük, új csomaghoz
+ * csak azt jelezzük, hogy a kijelzőnek ki kell ürítenie a régi nézetet. */
+static bool selection_changed_locked(unsigned applied_generation)
+{
+    /* A mentett kiválasztás sem kerülheti meg az adatfogadási módot. */
+    if (!template_mode_allowed(selected))
+    {
+        snprintf(selected, sizeof(selected), "builtin");
+        generation++;
+        save_selection = true;
+    }
+    if (applied_generation != generation) return true;
+    /* A téma már betöltődött: most, a megjelenítés után mentjük a
+     * választást. Foglalt SD-nél a következő körben újra próbáljuk. */
+#ifndef APP_TEMPLATE_DESKTOP
+    bool cardless = app_storage_is_cardless();
+#else
+    bool cardless = false;
+#endif
+    if (save_selection && !cardless && STORAGE_TRY())
+    {
+        persist_selection();
+        STORAGE_GIVE();
+    }
+    return false;
+}
+
+bool app_templates_service_selection(unsigned applied_generation)
+{
+    if (!lock || !xSemaphoreTake(lock, 0)) return false;
+    bool changed = selection_changed_locked(applied_generation);
+    xSemaphoreGive(lock);
+    return changed;
+}
+
 bool app_templates_load_pending(app_template_view_t *out)
 {
     if (!lock || !xSemaphoreTake(lock, 0))
@@ -1920,31 +1955,12 @@ bool app_templates_load_pending(app_template_view_t *out)
         STORAGE_WANT();
         return false;
     }
-    /* A mentett kiválasztás sem kerülheti meg az adatfogadási módot. */
-    if (!template_mode_allowed(selected))
+    if (!selection_changed_locked(out->generation))
     {
-        snprintf(selected, sizeof(selected), "builtin");
-        generation++;
-        save_selection = true;
-    }
-    const char *active_selection = temporary_builtin ? "builtin" : selected;
-    if (out->generation == generation)
-    {
-        /* A téma már betöltődött: most, a megjelenítés után mentjük a
-         * választást. Foglalt SD-nél a következő körben újra próbáljuk. */
-#ifndef APP_TEMPLATE_DESKTOP
-        bool cardless = app_storage_is_cardless();
-#else
-        bool cardless = false;
-#endif
-        if (save_selection && !cardless && STORAGE_TRY())
-        {
-            persist_selection();
-            STORAGE_GIVE();
-        }
         xSemaphoreGive(lock);
         return false;
     }
+    const char *active_selection = temporary_builtin ? "builtin" : selected;
     app_template_view_t *next = calloc(1, sizeof(*next));
     if (!next)
     {

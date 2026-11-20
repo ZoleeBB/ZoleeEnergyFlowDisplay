@@ -684,8 +684,8 @@ static void template_loading_watchdog(void)
             ESP_LOGW("app_ui", "Témabetöltés: katalógus foglalt, nem blokkoló újrapróbálás");
         }
     }
-    /* Az előtöltött adatok nem kerültek LVGL objektumba; biztonságosan
-     * felszabadíthatók. A régi aktív téma csak a szokásos cserekor szabadul. */
+    /* Az előtöltött adatok nem kerültek LVGL objektumba; újrapróbálás előtt
+     * felszabadíthatók. A generáció megőrzi az elmaradt betöltés tényét. */
     app_templates_view_free(&template_pending);
     template_pending.generation = template_view.generation;
     template_waiting_for_load = false;
@@ -727,24 +727,29 @@ static bool template_loading_frame(void){
     /* Minden runtime körben fut, akkor is, ha a betöltőképocka nem készült el. */
     template_step_retry();
     template_loading_watchdog();
-    if(!template_loading_requested&&!app_templates_has_pending(template_pending.generation))return true;
+    bool selection_changed = app_templates_has_pending(template_pending.generation);
+    if(!template_loading_requested && !selection_changed)return true;
     template_switch_begin();
     int64_t loading_started=esp_timer_get_time();
     if(bsp_display_lock(-1)!=ESP_OK)return false;
     /* Foglalt SD mellett a meglévő spinner folytatódjon, ne épüljön újra. */
-    if(s_view!=VIEW_THEME_LOADING){
+    bool entering = s_view != VIEW_THEME_LOADING;
+    if(entering)
         template_loading_screen();
-        /*
-         * A betöltőképernyő mögött a régi téma egyetlen objektuma sem látszik,
-         * ezért a dekódolt képeit (háttérképenként 1280x800 ARGB8888 = 4 MiB)
-         * és a raszter-gyorsítótárat már itt elengedjük. Így az SD-olvasás és
-         * az új háttér dekódolása nem a régi téma mellé kér PSRAM-ot: enélkül
-         * gyors oda-vissza lapozásnál elfogyhat a hely, a háttér dekódolása
-         * minden képkockán újra elbukik, és a kijelző használhatatlanul lelassul.
-         * Az SD-ről beolvasott PNG-bájtok megmaradnak, nincs újraolvasás.
-         */
+    bool replacing = selection_changed && template_view.document;
+    if(entering || replacing){
         template_release_cache();
         template_built_valid=false;
+    }
+    if(replacing){
+        /* Az LVGL-objektumok és a képcache már elengedték a forrásokat.
+         * A 09-es két RAW háttere önmagában 6 MB: ne foglalja az előző
+         * teljes SD-csomag a PSRAM-ot az új beolvasásakor. Azonos generációjú
+         * újrarajzolásnál viszont a csomag megmarad, nincs SD-olvasás. */
+        unsigned previous_generation = template_view.generation;
+        app_templates_view_free(&template_view);
+        template_view.generation = previous_generation;
+        template_node_count = 0;
     }
     bsp_display_unlock();
     if (!template_loading_wait()){
@@ -753,13 +758,19 @@ static bool template_loading_frame(void){
     }
     template_switch.loading_us+=esp_timer_get_time()-loading_started;
     template_loading_requested=false;
-    template_waiting_for_load=app_templates_has_pending(template_pending.generation);
+    template_waiting_for_load=selection_changed || app_templates_has_pending(template_pending.generation);
     return true;
 }
 static void template_prepare(void){
     if (s_cfg.cardless_slave) return;
     /* Nem a grafikus lock alatt olvasunk SD-t és dekódolunk ellenőrzéshez. */
     if(template_pending.document)return;
+    if (template_view.document) {
+        /* A webes kiválasztás a betöltőkép ellenőrzése óta is változhatott.
+         * A katalógus vizsgálata nem olvas új képeket az aktív csomag mellé. */
+        if (!app_templates_service_selection(template_view.generation)) return;
+        if (!template_loading_frame() || template_view.document) return;
+    }
     int64_t load_started=esp_timer_get_time();
     if(app_templates_load_pending(&template_pending)){
         template_waiting_for_load=false;
