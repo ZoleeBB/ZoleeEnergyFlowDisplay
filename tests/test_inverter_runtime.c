@@ -28,6 +28,7 @@ static app_runtime_state_t runtime;
 static app_energy_sample_t last;
 static app_energy_sample_t measurement = {.power_pv_kw = 2.5, .status = 1};
 static double weather_temp, weather_wind;
+static bool https_busy;
 static int allocations, commits, weather, reads, samples, breaks;
 static bool fail_save, configured, offline;
 static time_t clock_now = 1782010800;
@@ -98,13 +99,18 @@ bool app_inverter_modbus_read(const app_inverter_config_t *cfg,app_energy_sample
     (void)cfg;(void)s;(void)stamp; abort();
 }
 bool app_inverter_http_read(const app_inverter_config_t *cfg,app_energy_sample_t *s,int64_t *stamp) {
-    assert(cfg->host[0]); reads++; *s=measurement; *stamp=source_time; return !offline;
+    assert(cfg->host[0]);
+    if (!strcmp(cfg->profile, "solax_cloud")) assert(https_busy);
+    reads++; *s=measurement; *stamp=source_time; return !offline;
 }
 bool app_ota_operation_active(void) { return false; }
+bool app_ota_try_background_https(void) { if (https_busy) return false; https_busy=true; return true; }
+void app_ota_end_background_https(void) { assert(https_busy); https_busy=false; }
 bool app_ota_background_post(void (*f)(void *),void *arg) { assert(!arg && !meteo_job); meteo_job=f; return true; }
 cJSON *app_inverter_json_request(const char *url,const char *method,const char *b,
                                  const char *const h[][2],size_t n,char *token,size_t cap,const char *pem) {
     assert(strstr(url,"https://api.open-meteo.com/") && !strcmp(method,"GET") && !n && !h && !b && !token && !cap && !pem);
+    assert(https_busy);
     weather++;
     char json[240]; snprintf(json,sizeof(json),"{\"current\":{\"time\":%ld,\"temperature_2m\":%.1f,"
       "\"wind_speed_10m\":%.1f,\"relative_humidity_2m\":50,\"precipitation\":0,\"direct_normal_irradiance\":200}}",(long)clock_now,weather_temp,weather_wind);
@@ -274,6 +280,7 @@ int main(int argc, char **argv)
     cJSON_AddStringToObject(s,"device","123456");
     assert(app_inverter_settings_save(s)==ESP_OK); source_time=clock_now;
     assert(!app_inverter_settings_local_name("unit.local", 10));
+    https_busy=true; tick(0); assert(reads==2 && samples==2); https_busy=false;
     tick(0); assert(reads==3 && samples==3 && breaks==2 && last.integration_period_s==300);
     cJSON_DeleteItemFromObject(s,"secret"); assert(app_inverter_settings_save(s)==ESP_OK);
     tick(1); assert(reads==3);
@@ -295,7 +302,8 @@ int main(int argc, char **argv)
     free(text); cJSON_Delete(view);
     cJSON_ReplaceItemInObject(s,"host",cJSON_CreateString("other.local"));
     assert(app_inverter_settings_save(s)==ESP_ERR_INVALID_ARG);
-    tick(595); assert(weather==2);
+    https_busy=true; tick(595); assert(weather==1); https_busy=false;
+    tick(0); assert(weather==2);
     cJSON_Delete(s);
     s=settings("fronius_http");
     cJSON_ReplaceItemInObject(s,"battery",cJSON_CreateTrue());
@@ -304,7 +312,7 @@ int main(int argc, char **argv)
         .power_full_kw=NAN, .power_grid_kw=-80, .power_bat_kw=45, .soc_bat_pct=102,
         .battery_temperature_valid=true, .battery_temperature_c=81};
     source_time=0;
-    tick(5);
+    https_busy=true; tick(5); assert(https_busy); https_busy=false;
     assert(last.power_pv_kw==APP_DIRECT_POWER_MAX_KW && last.power_grid_kw==-80 && last.power_bat_kw==45);
     assert(!last.battery_temperature_valid && last.home_unavailable && last.soc_unavailable);
     measurement.battery_temperature_c=0;

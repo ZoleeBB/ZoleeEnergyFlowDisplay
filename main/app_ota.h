@@ -23,6 +23,11 @@ void app_ota_end_operation(void);
 /* Igaz, amíg ilyen művelet fut: a kijelző ilyenkor statikus üzenetre vált. */
 bool app_ota_operation_active(void);
 
+/* Egy rövid életű, kimenő inverteres HTTPS-munkamenet fér el egyszerre.
+ * Foglaltságkor a lekérdezés később próbálkozik, a webes mentés elérhető marad. */
+bool app_ota_try_background_https(void);
+void app_ota_end_background_https(void);
+
 /* Ugyanazon GitHub-ellenőrzés azonnali, aszinkron indítása; az éjszakai
  * kapcsolót nem módosítja, kikapcsolt automatikánál is tesztelhető. */
 esp_err_t app_ota_request_auto_update(void);

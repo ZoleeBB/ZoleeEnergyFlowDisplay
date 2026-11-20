@@ -16,7 +16,14 @@
 #include <time.h>
 
 typedef struct {
+    int64_t minute;
+    uint32_t revision;
+    app_solar_position_t sun;
+} solar_cache_t;
+
+typedef struct {
     app_inverter_settings_t config;
+    solar_cache_t solar;
     app_inverter_identity_t identity;
     uint32_t revision, source;
     int64_t due, latest_epoch, overlay_due;
@@ -26,11 +33,6 @@ typedef struct {
 static worker_t *worker;
 static portMUX_TYPE sun_lock = portMUX_INITIALIZER_UNLOCKED;
 static _Atomic uint32_t source_timeout = APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
-typedef struct {
-    int64_t minute;
-    uint32_t revision;
-    app_solar_position_t sun;
-} solar_cache_t;
 /* Egyetlen mutató kerül az általános módok BSS-ébe. */
 static solar_cache_t *solar_cache;
 
@@ -186,9 +188,8 @@ void app_inverter_tick(void)
         if (!app_inverter_settings_open() || !app_inverter_settings_ready()) return;
         worker = heap_caps_calloc(1,sizeof(*worker),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
         if (!worker) return;
-        solar_cache_t *cache = heap_caps_calloc(1,sizeof(*cache),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
         portENTER_CRITICAL(&sun_lock);
-        solar_cache = cache;
+        solar_cache = &worker->solar;
         portEXIT_CRITICAL(&sun_lock);
     }
     if (!app_inverter_settings_current(worker->revision)) reload(worker);
@@ -199,7 +200,13 @@ void app_inverter_tick(void)
     int64_t now = esp_timer_get_time();
     if (state.wifi_connected && app_inverter_identity_search_tick(&worker->identity,now))
         worker->due = now;
-    if (state.wifi_connected && now >= worker->due) measure(worker,now);
+    if (state.wifi_connected && now >= worker->due) {
+        bool https = worker->profile->seconds > 5 || !strcmp(worker->profile->id, "solplanet_https");
+        if (!https || app_ota_try_background_https()) {
+            measure(worker, now);
+            if (https) app_ota_end_background_https();
+        }
+    }
     if (state.wifi_connected) app_inverter_weather_start();
     if (now >= worker->overlay_due) {
         worker->overlay_due = now + INT64_C(5000000);

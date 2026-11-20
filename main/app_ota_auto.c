@@ -57,6 +57,26 @@ static bool s_slave_role;
 
 /* A kijelző runtime feladata olvassa; az atomic_flag nem kérdezhető le. */
 static atomic_bool s_operation_active;
+static atomic_bool s_background_https;
+
+bool app_ota_try_background_https(void)
+{
+    bool idle = false;
+    if (app_ota_operation_active() ||
+        !atomic_compare_exchange_strong(&s_background_https, &idle, true))
+        return false;
+    /* A két foglalás között az OTA elsőbbséget kérhetett. */
+    if (app_ota_operation_active()) {
+        atomic_store(&s_background_https, false);
+        return false;
+    }
+    return true;
+}
+
+void app_ota_end_background_https(void)
+{
+    atomic_store(&s_background_https, false);
+}
 
 bool app_ota_try_begin_operation(void)
 {
@@ -529,6 +549,15 @@ done:
 /* Külön hívható lépés, hogy a teljes letöltés/aktiválás hibautai tesztelhetők legyenek. */
 static void check_release(void)
 {
+    /* A hívónál már az OTA-é a műveleti jog. Egy korábban indult TLS-kérés
+     * időt kap a lezárásra, így nincs két egyidejű kézfogás a szűk DMA-kereten. */
+    for (unsigned wait = 0; atomic_load(&s_background_https); ++wait) {
+        if (wait >= 300) {
+            app_events_add(APP_EVENT_WARNING, "Az OTA-kísérlet kimaradt, mert az inverteres HTTPS-kérés még fut.");
+            return;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
     ota_trace_t trace = {.stage = "előkészítés"};
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t state;

@@ -37,7 +37,8 @@ static void weather_fetch(void *unused)
     double lat, lon;
     uint32_t generation;
     weather_t w = {0};
-    if (!app_ota_operation_active() && app_inverter_settings_coords(&lat,&lon,&generation)) {
+    bool acquired = app_inverter_settings_coords(&lat,&lon,&generation) && app_ota_try_background_https();
+    if (acquired) {
         char url[384];
         snprintf(url,sizeof(url),"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
                  "&timeformat=unixtime&current=temperature_2m,relative_humidity_2m,wind_speed_10m,"
@@ -57,9 +58,11 @@ static void weather_fetch(void *unused)
             w.valid_sun = field(data,"direct_normal_irradiance",0,1600,&w.sunshine);
         }
         cJSON_Delete(json);
+        app_ota_end_background_https();
     }
     portENTER_CRITICAL(&weather_lock);
     if (w.measured && latest) *latest = w;
+    if (!acquired) next_request = 0; /* Az ütközés nem számít lekérdezésnek. */
     pending = false;
     portEXIT_CRITICAL(&weather_lock);
 }
@@ -79,16 +82,18 @@ void app_inverter_weather_start(void)
     }
     portENTER_CRITICAL(&weather_lock);
     bool start = !pending && (now >= next_request || lat != requested_lat || lon != requested_lon);
-    if (start) pending = true;
-    portEXIT_CRITICAL(&weather_lock);
-    if (!start) return;
-    if (app_ota_background_post(weather_fetch,NULL)) {
+    if (start) {
+        pending = true;
         requested_lat = lat;
         requested_lon = lon;
         next_request = now + INT64_C(900000000);
-    } else {
+    }
+    portEXIT_CRITICAL(&weather_lock);
+    if (!start) return;
+    if (!app_ota_background_post(weather_fetch,NULL)) {
         portENTER_CRITICAL(&weather_lock);
         pending = false;
+        next_request = 0;
         portEXIT_CRITICAL(&weather_lock);
     }
 }

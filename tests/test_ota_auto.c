@@ -418,9 +418,16 @@ void esp_restart(void)
 {
     restarts++;
 }
+static unsigned tls_waits;
+static bool finish_https_on_delay;
 void vTaskDelay(TickType_t t)
 {
     (void)t;
+    ++tls_waits;
+    if (finish_https_on_delay) {
+        finish_https_on_delay = false;
+        app_ota_end_background_https();
+    }
 }
 int xTaskCreate(void (*f)(void *), const char *n, unsigned s, void *a, unsigned p, void *h)
 {
@@ -650,6 +657,21 @@ static void background_executor_test(void)
 int main(void)
 {
     assert(sizeof(esp_app_desc_t) == 256);
+    reset();
+    assert(app_ota_try_background_https());
+    assert(!app_ota_try_background_https());
+    assert(app_ota_try_begin_operation());
+    check_release();
+    assert(tls_waits == 300 && !requests && !begins);
+    assert(strstr(logs, "OTA-kísérlet kimaradt"));
+    app_ota_end_background_https();
+    assert(!app_ota_try_background_https());
+    app_ota_end_operation();
+    assert(app_ota_try_background_https() && app_ota_try_begin_operation());
+    finish_https_on_delay = true;
+    check_release();
+    assert(!finish_https_on_delay && requests && boots == 1);
+    app_ota_end_operation();
     assert(app_ota_try_begin_operation());
     assert(!app_ota_try_begin_operation());
     app_ota_end_operation();

@@ -190,6 +190,8 @@ void app_stats_process_sample(const app_energy_sample_t *s)
     ++samples;
 }
 bool app_ota_operation_active(void) { return false; }
+bool app_ota_try_background_https(void) { abort(); }
+void app_ota_end_background_https(void) { abort(); }
 void app_inverter_http_reset(void) {}
 void app_inverter_victron_close(void) {}
 bool app_inverter_http_read(const app_inverter_config_t *c, app_energy_sample_t *s, int64_t *e)
