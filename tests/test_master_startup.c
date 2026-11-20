@@ -28,7 +28,7 @@ static int fixture_rename(const char *from, const char *to);
 static app_data_mode_t mode;
 static bool setup, retry_loxone, resetting, reset_cardless;
 static unsigned reset_calls, remounts;
-static bool setup_ota_valid;
+static bool ota_valid, trial_rotation;
 static int wifi_starts, wifi_waits, ntp_attempts, web_starts, mqtt_starts;
 static int audio_starts, audio_runs, loxone_starts, intercom_preparations, inverter_ticks, ingest_starts;
 static bool runtime_started, ble_started, ble_profile_applied, setup_waiting_for_time, setup_web;
@@ -52,7 +52,7 @@ static void fixture_config(app_config_t *config)
 {
     memset(config, 0, sizeof(*config));
     config->data_recept_mode = mode;
-    config->display.rotation_degrees = 270;
+    config->display.rotation_degrees = trial_rotation ? 90 : 270;
     config->time.startup_retry_seconds = 1;
     if (mode != APP_DATA_SLAVE) strcpy(config->wifi.ssid, "boot-test");
     strcpy(config->mqtt.broker, "test-broker");
@@ -144,7 +144,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 {
     assert(cfg->data_recept_mode == mode && runtime().time_synced);
     /* Hibás első szerverindítás: a kezelőfelület mérés nélkül is újrapróbálja. */
-    assert(setup_ota_valid == setup);
+    assert(ota_valid);
     ++web_starts;
     return !retry_loxone && web_starts == 1 ? ESP_FAIL : ESP_OK;
 }
@@ -209,6 +209,10 @@ int main(int argc, char **argv)
 {
     assert(argc == 2);
     if (!strcmp(argv[1], "mqtt")) mode = APP_DATA_MQTT;
+    else if (!strcmp(argv[1], "trial-rotation")) {
+        mode = APP_DATA_MQTT;
+        trial_rotation = true;
+    }
     else if (!strcmp(argv[1], "http")) mode = APP_DATA_HTTP;
     else if (!strcmp(argv[1], "loxone")) mode = APP_DATA_LOXONE;
     else if (!strcmp(argv[1], "loxone-retry")) {
@@ -226,6 +230,10 @@ int main(int argc, char **argv)
     }
     if (setjmp(boot_finished) == 0) app_main();
 
+    if (trial_rotation) {
+        assert(wifi_starts == 1 && ntp_attempts == 2 && ota_valid && !web_starts && !runtime_started);
+        return 0;
+    }
     assert(ntp_attempts == (mode == APP_DATA_SLAVE ? 0 : 2));
     assert(wifi_starts == (!setup && mode != APP_DATA_SLAVE));
     assert(setup_web == setup);
@@ -255,7 +263,11 @@ static int fixture_rename(const char *from, const char *to)
 { (void)from; (void)to; abort(); }
 void app_ui_show_fatal(const char *title, const char *detail)
 { fprintf(stderr, "%s: %s\n", title, detail); abort(); }
-void esp_restart(void) { abort(); }
+void esp_restart(void)
+{
+    assert(trial_rotation && ota_valid);
+    longjmp(boot_finished, 1);
+}
 void app_config_set_defaults(app_config_t *cfg) { fixture_config(cfg); }
 bool app_boot_config_setup_pending(void) { return setup; }
 esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave, char *error, size_t len)
@@ -275,7 +287,13 @@ int xSemaphoreTake(SemaphoreHandle_t mutex, unsigned timeout)
 { (void)timeout; return pthread_mutex_lock(mutex) == 0; }
 int xSemaphoreGive(SemaphoreHandle_t mutex) { return pthread_mutex_unlock(mutex) == 0; }
 esp_err_t nvs_open(const char *name, int access_mode, nvs_handle_t *handle)
-{ (void)name; (void)access_mode; (void)handle; return ESP_ERR_NVS_NOT_FOUND; }
+{
+    if (trial_rotation && !strcmp(name, "display_ui") && access_mode == NVS_READWRITE) {
+        *handle = 1;
+        return ESP_OK;
+    }
+    return ESP_ERR_NVS_NOT_FOUND;
+}
 esp_err_t nvs_get_u16(nvs_handle_t h, const char *key, uint16_t *v)
 { (void)h; (void)key; (void)v; return ESP_ERR_NVS_NOT_FOUND; }
 esp_err_t nvs_set_u16(nvs_handle_t h, const char *key, uint16_t v)
@@ -289,10 +307,11 @@ esp_err_t app_ui_init(uint16_t rotation) { assert(rotation == 270); return ESP_O
 void app_ui_set_config(const app_config_t *cfg) { assert(cfg->data_recept_mode == mode); }
 void app_events_init(void) {}
 void app_ota_report_boot_state(void) {}
+bool app_ota_validation_pending(void) { return trial_rotation && !ota_valid; }
 void app_ota_wait_for_validation(void)
 {
-    assert(setup && runtime().time_synced && !web_starts);
-    setup_ota_valid = true;
+    assert(runtime().time_synced && !web_starts && !ota_valid);
+    ota_valid = true;
 }
 void app_ble_profile_boot_complete(void) {}
 void app_boot_config_use_trusted_backup(void) {}

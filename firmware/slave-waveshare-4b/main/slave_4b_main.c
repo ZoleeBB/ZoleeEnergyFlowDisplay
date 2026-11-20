@@ -100,7 +100,7 @@ static void rotation_follow(int64_t now, bool busy)
         pending_since = now;
         return;
     }
-    if (now - pending_since < SLAVE_ROTATION_DELAY_US)
+    if (now - pending_since < SLAVE_ROTATION_DELAY_US || app_ota_validation_pending())
         return;
     if (!rotation_save(desired))
     {
@@ -226,7 +226,7 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime, bool d
             nvs_close(handle);
         }
     }
-    int64_t limit = slave_4b_link_timed_out(&watchdog, runtime, direct, attempts, now);
+    int64_t limit = slave_4b_link_timed_out(&watchdog, runtime, direct, app_ota_validation_pending(), attempts, now);
     if (runtime->slave_connected)
     {
         if (attempts)
@@ -604,6 +604,7 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(250));
         app_state_get_runtime(&runtime);
     } while (!runtime.time_synced);
+    app_ota_wait_for_validation();
     app_ble_profile_apply(&config);
     if (config.wifi.ssid[0] && app_wifi_start(&config) != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "Opcionális Slave Wi-Fi nem indult el.");

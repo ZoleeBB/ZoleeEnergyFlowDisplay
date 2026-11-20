@@ -162,8 +162,13 @@ esp_err_t app_ota_start_validation_task(void)
     return ESP_OK;
 }
 
+bool app_ota_validation_pending(void)
+{
+    return atomic_load(&s_validation) == VALIDATION_PENDING;
+}
+
 void app_ota_wait_for_validation(void)
 {
-    while (atomic_load(&s_validation) == VALIDATION_PENDING)
+    while (app_ota_validation_pending())
         vTaskDelay(pdMS_TO_TICKS(100));
 }

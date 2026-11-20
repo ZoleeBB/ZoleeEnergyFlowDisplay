@@ -791,16 +791,17 @@ int main(void)
     slave_4b_link_watchdog_t direct_link = {0}, legacy_link = {0};
     int64_t t = 1;
     app_runtime_state_t link = {.ble_ready = true, .slave_connected = true};
-    assert(!slave_4b_link_timed_out(&direct_link, &link, true, 0, t));
-    assert(!slave_4b_link_timed_out(&legacy_link, &link, false, 0, t));
+    assert(!slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t));
+    assert(!slave_4b_link_timed_out(&legacy_link, &link, false, false, 0, t));
     link.slave_connected = false;
     for (unsigned sec = 1; sec <= 700; ++sec) {
         t = 1 + (int64_t)sec * 1000000;
         link.ble_scanning = (sec % 8) < 5;
-        assert(!slave_4b_link_timed_out(&direct_link, &link, true, 0, t));
-        assert((slave_4b_link_timed_out(&legacy_link, &link, false, 0, t) != 0) == (sec >= 600));
+        assert(!slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t));
+        assert(!slave_4b_link_timed_out(&legacy_link, &link, false, true, 0, t));
+        assert((slave_4b_link_timed_out(&legacy_link, &link, false, false, 0, t) != 0) == (sec >= 600));
     }
-    assert(slave_4b_link_timed_out(&direct_link, &link, true, 0, t + INT64_C(600000000)));
+    assert(slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t + INT64_C(600000000)));
 #endif
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");

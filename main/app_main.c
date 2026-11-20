@@ -230,11 +230,15 @@ static void __attribute__((noinline)) app_boot(void)
     /* Az SD-n tárolt konfiguráció a hiteles forrás. Változás esetén az NVS
      * gyorsindítási másolat frissül, és a kijelző az új beállítással újraindul.
      * Nem hívjuk az LVGL futás közbeni rotation API-ját. */
+    bool rotation_restart_pending = false;
     if(app_display_boot_sync(&s_boot_orientation,s_config.display.rotation_degrees)) {
         if(orientation_write(&s_boot_orientation)==ESP_OK) {
             ESP_LOGI(TAG,"New display orientation saved; controlled restart");
-            vTaskDelay(pdMS_TO_TICKS(100));
-            esp_restart();
+            rotation_restart_pending = app_ota_validation_pending();
+            if (!rotation_restart_pending) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+                esp_restart();
+            }
         } else {
             app_events_add(APP_EVENT_WARNING,"Tájolási NVS írása sikertelen; jelenlegi állás marad.");
         }
@@ -334,10 +338,14 @@ static void __attribute__((noinline)) app_boot(void)
 
     app_events_add(APP_EVENT_INFO, slave ? "Bluetooth master időszinkron sikeres." : "NTP időszinkron sikeres.");
 
+    /* Az új tájolás, a konfiguráló web és egy Slave-profil is kérhet újraindítást.
+     * A próbakép ekkorra teljesítette az ellenőrzés összes feltételét. */
+    app_ota_wait_for_validation();
+    if (rotation_restart_pending) esp_restart();
+
     /* Első konfigurálás alatt csak a helyi admin fut. A böngészős mentés
      * és az újraindítás után indul el a kiválasztott adatforrás. */
     if (setup) {
-        app_ota_wait_for_validation();
         while (app_web_start(&s_config) != ESP_OK)
             vTaskDelay(pdMS_TO_TICKS(5000));
         app_setup_wifi_set_phase(APP_SETUP_WEB);

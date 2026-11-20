@@ -5,8 +5,9 @@
 
 /* OTA próba-image ötperces automatikus validációjának elindítása. */
 esp_err_t app_ota_start_validation_task(void);
-/* Az első beállítás mentéskor újraindít. Csak a validáció befejezése után
- * indítható az ezt engedélyező webfelület. Elfogadott képen azonnal visszatér. */
+/* A beállítás, tájolás és Slave-kapcsolatfigyelő által kért újraindítás csak
+ * az új firmware véglegesítése után biztonságos. Normál bootnál nincs várás. */
+bool app_ota_validation_pending(void);
 void app_ota_wait_for_validation(void);
 
 /* Indulás után egyszer: ha az előző OTA visszaállt, naplózza a verzióját és –
