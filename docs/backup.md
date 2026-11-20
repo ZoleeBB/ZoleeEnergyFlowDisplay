@@ -84,3 +84,9 @@ a mastertől kapja.
 | `POST /api/backup/flash/restore` | Visszaállítás a belső tartalékból |
 
 A fenti `POST` műveletekhez meg kell adni a `X-Zolee-Settings: 1` fejlécet. Ha a kijelzőn beállítottál webes adminfiókot, a mentési és visszaállítási műveletekhez annak felhasználóneve és jelszava is szükséges. [Webes beállítások](configuration.md)
+
+### Ha a belső beállítástár sérül
+
+Mindkét kijelző újraformázza a belső NVS-t, ha induláskor az ESP-IDF elfogyott tárolólapokat vagy újabb, olvashatatlan NVS-formátumot jelez. Ilyenkor az SD nélküli Wi-Fi- és üzemmódbeállításokat ismét meg kell adni, a Slave-eket újra kell párosítani. A Master inverterprofilját, koordinátáit és időprogramját is újra be kell állítani. Az SD fájljai és a 10,1 hüvelykes kijelző külön flash-tartaléka megmaradnak. A tartalék és a letöltött JSON a fenti öt fájl beállításait tudja visszaadni.
+
+Ha ez a hiba gyári visszaállítás közben történik, a törlés folyamatjelzője is elveszhet. Ilyenkor a kijelző az SD-ről vagy a még ép flash-tartalékból betöltheti a korábbi konfigurációt. Ha ez történt, az eredeti SD-kártyával ismét végezd el az **Alaphelyzetbe állítás** műveletet.
