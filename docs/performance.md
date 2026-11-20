@@ -4,7 +4,7 @@ A célpanel a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1, 32 MB PSRAM-mal. A firmwa
 
 ## Közvetlen inverter és a v4 memóriakerete
 
-A 10,1″-es Master a meglévő 10 KiB-os főfeladatban olvassa a kiválasztott invertert. Az időjárást a meglévő 8 KiB-os OTA-feladat kéri le. A nem kiválasztott profilokhoz nem indul kapcsolat. A Victron GX helyi MQTT kliensének saját, 6144 bájtos verme és két 1024 bájtos puffere csak az aktív GX MQTT-profilhoz kell. Az alkalmi, kézzel indított hálózati keresés idején külön erőforrásokra van szükség. Az eredménylista legfeljebb egy percig marad meg a keresés vége után.
+A 10,1″-es Master a meglévő 10 KiB-os főfeladatban olvassa a kiválasztott invertert. Az időjárást a meglévő 8 KiB-os OTA-feladat kéri le. A nem kiválasztott profilokhoz nem indul kapcsolat. A Victron GX helyi MQTT kliensének saját, 6144 bájtos verme és két 1024 bájtos puffere csak az aktív GX MQTT-profilhoz kell. A kézzel indított hálózati kereső 8192 bájtos ideiglenes vermét elsősorban RTC-memóriából kapja. Ha ott kevés a hely, belső RAM-ból próbálkozik. A befejezett feladat vermét a következő inverterciklus vagy az új keresés felszabadítja. Az eredménylista a keresés vége után egy perccel lejár.
 
 | Terhelés | Mi korlátozza a memóriaigényt? | Mit ellenőriztünk? |
 | --- | --- | --- |
