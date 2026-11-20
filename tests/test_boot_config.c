@@ -11,7 +11,7 @@ static size_t config_size, setup_size;
 static char setup[3073];
 static bool have_role, legacy_display, legacy_pin, fail_open, fail_commit;
 static unsigned writes;
-static bool old_bond;
+static bool old_bond, no_boot_namespace, bond_io_failure, invalid_type;
 static uint8_t paired[APP_BLE_PROFILE_SIZE];
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
 {
@@ -19,7 +19,8 @@ esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
         return ESP_FAIL;
     if (!strcmp(name, "device_boot"))
     {
-        assert(mode == NVS_READWRITE);
+        assert(mode == NVS_READONLY || mode == NVS_READWRITE);
+        if (mode == NVS_READONLY && no_boot_namespace) return ESP_ERR_NVS_NOT_FOUND;
         *h = 1;
         return ESP_OK;
     }
@@ -39,6 +40,7 @@ esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *len)
 {
     if (h == 3 && !strcmp(key, "slave") && old_bond) {
+        if (bond_io_failure) return ESP_FAIL;
         assert(*len >= sizeof(paired));
         memcpy(out, paired, sizeof(paired));
         *len = sizeof(paired);
@@ -55,6 +57,7 @@ esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *len)
         size = 3;
     }
     else if (!strcmp(key, "setup_v4")) {
+        if (invalid_type) return ESP_ERR_NVS_TYPE_MISMATCH;
         if (!setup_size) return ESP_ERR_NVS_NOT_FOUND;
         data = setup;
         size = setup_size;
@@ -67,8 +70,9 @@ esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *len)
         data = config;
         size = config_size;
     }
+    if (!out) { *len = size; return ESP_OK; }
     if (*len < size)
-        return ESP_ERR_INVALID_SIZE;
+        return ESP_ERR_NVS_INVALID_LENGTH;
     memcpy(out, data, size);
     *len = size;
     return ESP_OK;
@@ -153,6 +157,24 @@ int main(void)
     app_ble_profile_encode(&cfg, paired);
     assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
     assert(cfg.cardless_slave && !app_boot_config_setup_pending() && !strcmp(cfg.wifi.ssid, "paired"));
+    /* A régi 4B BLE-párosítás hibás/hiányzó új gyorsítótár mellett is él. */
+    setup_size = 4096;
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    assert(!app_boot_config_setup_pending() && !strcmp(cfg.wifi.ssid, "paired"));
+    setup_size = 3;
+    memcpy(setup, "C{o", 3);
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    invalid_type = true;
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    invalid_type = false;
+    setup_size = 0;
+    no_boot_namespace = true;
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_OK);
+    bond_io_failure = true;
+    assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_FAIL);
+    assert(!app_boot_config_setup_pending());
+    bond_io_failure = false;
+    no_boot_namespace = false;
     paired[0] = 'X';
     assert(app_boot_config_restore(&cfg, true, error, sizeof(error)) == ESP_ERR_NOT_FOUND);
     old_bond = false;
@@ -208,7 +230,7 @@ int main(void)
     config[0] = 'X';
     assert(fallback() != ESP_OK);
     config_size = 4000;
-    assert(fallback() == ESP_ERR_INVALID_SIZE);
+    assert(fallback() == ESP_ERR_NVS_INVALID_LENGTH);
     config_size = 0;
     have_role = false;
     fail_commit = true;

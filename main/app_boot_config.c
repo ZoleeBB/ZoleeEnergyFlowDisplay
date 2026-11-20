@@ -197,42 +197,41 @@ static esp_err_t write_setup_record(const char *json, size_t length, bool pendin
 }
 
 /* Régi 4B-n a párosításhoz használt profil a szerepjelölő előtt is élhetett. */
-static bool restore_paired_slave(app_config_t *cfg)
+static esp_err_t restore_paired_slave(app_config_t *cfg)
 {
     nvs_handle_t handle;
-    if (nvs_open("ble_profile", NVS_READONLY, &handle) != ESP_OK) return false;
+    esp_err_t err = nvs_open("ble_profile", NVS_READONLY, &handle);
+    if (err != ESP_OK) return err;
     uint8_t profile[APP_BLE_PROFILE_SIZE];
     size_t length = sizeof(profile);
-    bool valid = nvs_get_blob(handle, "slave", profile, &length) == ESP_OK &&
-                 app_ble_profile_decode(profile, length, cfg);
+    err = nvs_get_blob(handle, "slave", profile, &length);
     nvs_close(handle);
-    if (valid) {
-        cfg->data_recept_mode = APP_DATA_SLAVE;
-        cfg->cardless_slave = true;
-    }
-    return valid;
+    if (err == ESP_ERR_NVS_TYPE_MISMATCH || err == ESP_ERR_NVS_INVALID_LENGTH)
+        return ESP_ERR_NVS_NOT_FOUND;
+    if (err != ESP_OK) return err;
+    if (!app_ble_profile_decode(profile, length, cfg)) return ESP_ERR_NVS_NOT_FOUND;
+    cfg->data_recept_mode = APP_DATA_SLAVE;
+    cfg->cardless_slave = true;
+    return ESP_OK;
 }
 
-esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *error, size_t error_len)
+static esp_err_t restore_setup_record(nvs_handle_t handle, app_config_t *cfg, bool slave_only,
+                                      char *error, size_t error_len)
 {
-    if (!cfg) return ESP_ERR_INVALID_ARG;
-    s_restrict_slave_role = slave_only;
-    atomic_store(&s_internal, true);
-    atomic_store(&s_setup_pending, false);
-    app_config_set_defaults(cfg);
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("device_boot", NVS_READWRITE, &handle);
+    /* Üres belső tárnál nincs foglalás. A mentett Wi-Fi-nél csak a néhány
+     * tucat bájtos rekord kell a boot közben szűkös belső memóriából. */
+    size_t length = 0;
+    esp_err_t err = nvs_get_blob(handle, "setup_v4", NULL, &length);
+    if (err == ESP_ERR_NVS_TYPE_MISMATCH) return ESP_ERR_NVS_NOT_FOUND;
     if (err != ESP_OK) return err;
-    char *record = calloc(1, INTERNAL_CONFIG_MAX + 2);
-    if (!record) { nvs_close(handle); return ESP_ERR_NO_MEM; }
-    size_t length = INTERNAL_CONFIG_MAX + 1;
+    if (length < 3 || length > INTERNAL_CONFIG_MAX + 1) return ESP_ERR_NVS_NOT_FOUND;
+    char *record = malloc(length);
+    if (!record) return ESP_ERR_NO_MEM;
     err = nvs_get_blob(handle, "setup_v4", record, &length);
     if (err == ESP_OK) {
-        /* Hibás tartalomnál az SD/flash-tartalék, majd szükség esetén a
-         * helyi paneles beállítás következik. Olvasás közben semmit sem írunk. */
-        if (length < 3 || (record[0] != 'P' && record[0] != 'C'))
+        if (length < 3 || (record[0] != 'P' && record[0] != 'C')) {
             err = ESP_ERR_NVS_NOT_FOUND;
-        else {
+        } else {
             err = app_config_parse_json(record + 1, length - 1, cfg, error, error_len);
             if (err == ESP_ERR_INVALID_ARG) err = ESP_ERR_NVS_NOT_FOUND;
         }
@@ -243,30 +242,46 @@ esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *erro
             cfg->cardless_slave = record[0] == 'C' && cfg->data_recept_mode == APP_DATA_SLAVE;
             if (cfg->cardless_slave) s_restrict_slave_role = true;
         }
-    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
-        /* Régi, már üzembe helyezett kártya nélküli Slave: a tartós szerep
-         * a 3.x firmware-ben a konfiguráció alapértékeivel együtt érvényes. */
-        uint8_t role[3];
-        length = sizeof(role);
-        esp_err_t role_err = nvs_get_blob(handle, "role", role, &length);
-        if (role_err == ESP_OK && length == 3 && role[0] == 'Z' && role[1] == 1 && role[2] == 1) {
-            nvs_close(handle);
-            free(record);
-            s_restrict_slave_role = true;
-            return app_boot_config_fallback(cfg, error, error_len);
-        }
-        if (role_err == ESP_ERR_NVS_NOT_FOUND && slave_only && restore_paired_slave(cfg))
-            err = ESP_OK;
-        else if (role_err != ESP_OK && role_err != ESP_ERR_NVS_NOT_FOUND)
-            err = role_err;
     }
-    nvs_close(handle);
     free(record);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        atomic_store(&s_setup_pending, true);
-        return ESP_ERR_NOT_FOUND;
-    }
     return err;
+}
+
+esp_err_t app_boot_config_restore(app_config_t *cfg, bool slave_only, char *error, size_t error_len)
+{
+    if (!cfg) return ESP_ERR_INVALID_ARG;
+    s_restrict_slave_role = slave_only;
+    atomic_store(&s_internal, true);
+    atomic_store(&s_setup_pending, false);
+    app_config_set_defaults(cfg);
+    nvs_handle_t handle;
+    uint8_t role[3] = {0};
+    size_t length = sizeof(role);
+    esp_err_t err = nvs_open("device_boot", NVS_READONLY, &handle);
+    if (err == ESP_OK) {
+        err = restore_setup_record(handle, cfg, slave_only, error, error_len);
+        if (err != ESP_ERR_NVS_NOT_FOUND) {
+            nvs_close(handle);
+            return err;
+        }
+        /* A félbemaradt JSON-beolvasás értékei ne kerüljenek tovább a
+         * korábbi profilba. A hiányzó és a hibás rekord azonos úton folytatja. */
+        app_config_set_defaults(cfg);
+        err = nvs_get_blob(handle, "role", role, &length);
+        nvs_close(handle);
+    }
+    if (err == ESP_OK && length == sizeof(role) && role[0] == 'Z' && role[1] == 1 && role[2] == 1) {
+        s_restrict_slave_role = true;
+        return app_boot_config_fallback(cfg, error, error_len);
+    }
+    if (err == ESP_ERR_NVS_NOT_FOUND && slave_only) {
+        err = restore_paired_slave(cfg);
+        if (err == ESP_OK) return ESP_OK;
+    }
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return err;
+    app_config_set_defaults(cfg);
+    atomic_store(&s_setup_pending, true);
+    return ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t app_boot_config_save_setup_wifi(const app_config_t *cfg)
