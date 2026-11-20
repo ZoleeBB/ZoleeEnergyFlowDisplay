@@ -104,6 +104,13 @@ int main(void)
     strcpy(cfg.profile, "solplanet_http");
     strcpy(cfg.device, "ASW8000T");
     cfg.battery = false;
+    queue("getdevdata.cgi?device=2&sn=ASW8000T", "{\"pac\":3000,\"isn\":\"OTHER\"}");
+    assert(!app_inverter_http_read(&cfg, &s, &t));
+    done();
+    queue("getdevdata.cgi?device=2&sn=ASW8000T", NULL);
+    queue("invdata.cgi?sn=ASW8000T", "{\"vpv\":[3000],\"ipv\":[500],\"sn\":\"OTHER\"}");
+    assert(!app_inverter_http_read(&cfg, &s, &t));
+    done();
     queue("getdevdata.cgi?device=2&sn=ASW8000T", NULL);
     queue("invdata.cgi?sn=ASW8000T", "{\"pac\":3000,\"err\":0,\"tmp\":345}");
     queue("emeter.cgi", "{}");

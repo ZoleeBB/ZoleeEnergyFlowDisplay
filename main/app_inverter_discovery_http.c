@@ -230,10 +230,7 @@ static bool asw8000(const char *model)
 
 static bool solplanet_power(const cJSON *data, const char *serial)
 {
-    const cJSON *echo = MEMBER(data, "isn");
-    if (echo && (!cJSON_IsString(echo) || strcmp(echo->valuestring, serial))) return false;
-    echo = MEMBER(data, "sn");
-    if (echo && (!cJSON_IsString(echo) || strcmp(echo->valuestring, serial))) return false;
+    if (!inv_http_solplanet_matches(data, serial)) return false;
     double kw;
     if (inv_http_solplanet_dc(data, &kw)) return kw >= 0 && kw <= APP_DIRECT_POWER_MAX_KW;
     const cJSON *ac = MEMBER(data, "pac");

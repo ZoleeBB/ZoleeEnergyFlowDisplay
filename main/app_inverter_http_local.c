@@ -102,6 +102,15 @@ static bool solax(const app_inverter_config_t *cfg, app_energy_sample_t *sample)
     return ok;
 }
 
+/* A mérés egyes stickeken az isn vagy sn kulccsal visszaadja az inverter
+ * sorozatszámát. A régi, sorozatszám nélküli válasz is támogatott. */
+bool inv_http_solplanet_matches(const cJSON *inverter, const char *serial)
+{
+    const cJSON *isn = MEMBER(inverter, "isn"), *sn = MEMBER(inverter, "sn");
+    return (!isn || (cJSON_IsString(isn) && !strcmp(isn->valuestring, serial))) &&
+           (!sn || (cJSON_IsString(sn) && !strcmp(sn->valuestring, serial)));
+}
+
 bool inv_http_solplanet_dc(const cJSON *inverter, double *kw)
 {
     const cJSON *v = MEMBER(inverter, "vpv"), *i = MEMBER(inverter, "ipv");
@@ -153,20 +162,22 @@ static bool solplanet(const app_inverter_config_t *cfg, app_energy_sample_t *sam
         return false;
     }
     double ac = 0;
-    bool v1 = false;
-    cJSON *inverter = solplanet_device(cfg, sn, 2, false);
-    bool ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
-    bool pv = inv_http_solplanet_dc(inverter, &sample->power_pv_kw);
-    if (!ac_ok && !pv && !strcmp(cfg->profile, "solplanet_http")) {
-        cJSON_Delete(inverter);
-        v1 = true;
-        inverter = solplanet_device(cfg, sn, 2, true);
+    bool v1 = false, ac_ok = false, pv = false;
+    unsigned variants = !strcmp(cfg->profile, "solplanet_http") ? 2 : 1;
+    for (unsigned i = 0; i < variants; ++i) {
+        v1 = i != 0;
+        cJSON *inverter = solplanet_device(cfg, sn, 2, v1);
+        if (!inv_http_solplanet_matches(inverter, cfg->device)) {
+            cJSON_Delete(inverter);
+            break;
+        }
         ac_ok = inv_http_scale(inverter, "pac", 0.001, &ac);
         pv = inv_http_solplanet_dc(inverter, &sample->power_pv_kw);
+        double err;
+        if ((ac_ok || pv) && inv_http_scale(inverter, "err", 1, &err) && err != 0) sample->status = 4;
+        cJSON_Delete(inverter);
+        if (ac_ok || pv) break;
     }
-    double err;
-    if (inv_http_scale(inverter, "err", 1, &err) && err != 0) sample->status = 4;
-    cJSON_Delete(inverter);
     if (!ac_ok && !pv) {
         free(sn);
         return false;
