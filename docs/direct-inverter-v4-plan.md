@@ -1,58 +1,61 @@
-# Közvetlen inverter – v4.0.0 fejlesztési terv
+# Közvetlen inverter – v4.0.0 megvalósítás és átvétel
 
-Ez a dokumentum a fejlesztés követelményeit, a kiinduló méréseket és az átvételi feltételeket rögzíti. Az alábbi kompatibilitási lista fejlesztési cél. Az egyes készülékek mellett a későbbi használati útmutatóban külön szerepel majd a dokumentált, mintaválasszal ellenőrzött és valódi eszközön kipróbált működés.
+A v4 fejlesztésének első kérdése az volt, hogy a 10,1 hüvelykes Master meglévő szolgáltatásai mellett marad-e elég memória egy inverterkapcsolathoz. Ez a lap megőrzi a v3.4.0 összehasonlítási alapját, a megvalósítás fő döntéseit és a fizikai átvétel feltételeit. A profilválasztás és a telepítői beállítások a [kezelési útmutatóban](direct-inverter.md) találhatók.
 
-## 1. Elbírja-e a kijelző?
+## Kiinduló kapacitás és ellenőrzési bázis
 
-Kiindulás a v3.4.0 kiadás és az `e0981f2` main commit. A [kiadás](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases/tag/v3.4.0) tényleges OTA-fájljai és a két projekt partíciós táblái alapján:
+A v3.4.0 kiadási fájlok és az `e0981f2` main commit partíciós táblái alapján mindkét célon volt szabad hely a következő firmware-kép számára. [v3.4.0 kiadás](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases/tag/v3.4.0)
 
-| Cél | OTA-kép | Egy OTA-hely kapacitása | Szabad hely |
+| v3.4.0 cél | OTA-kép | Egy OTA-hely kapacitása | Fennmaradt hely |
 | --- | ---: | ---: | ---: |
-| Master 10.1 | 3 679 648 B | 8 388 608 B | 4 708 960 B |
+| Master 10,1″ | 3 679 648 B | 8 388 608 B | 4 708 960 B |
 | Slave 4B | 3 590 128 B | 12 582 912 B | 8 992 784 B |
 
-A flash elegendőnek látszik. A 32 MiB külső PSRAM mellett a belső és a DMA-képes memória a kritikus. Egy korábbi Audio-próbán a szabad belső memória 20 795 B, a legnagyobb egybefüggő szabad blokk 7936 B, a szabad DMA 10 995 B volt. Ezek korábbi Loxone-mérések, az inverteres mód futásidejű tartaléka még nem ismert. A Masterben a boot után a 10 KiB-os main verem Loxone módban Audiot futtat, más módokban jelenleg várakozik. A kiválasztott inverter kezelése ezen a meglévő vermen vizsgálandó. [Teljesítmény és korábbi hardvermérések](performance.md)
+A panelekben 32 MiB külső PSRAM van. Egy korábbi, fizikai Loxone Audio-próbán 20 795 B szabad belső RAM és 10 995 B szabad DMA-képes memória maradt. A legnagyobb összefüggő szabad belső blokk 7 936 B volt. Ez indokolta a meglévő munkafeladatok újrahasználatát. A v4 inverteres terhelés alatti memóriatartalékot külön készülékmérés adja meg. [Teljesítmény és korábbi panelmérések](performance.md)
 
-Egy aktív inverterkapcsolat van Masterenként. Közös Modbus TCP, HTTPS és szükség esetén MQTT szállítás, kisméretű eszközleírásokkal. A nem kiválasztott driverek kódja flashben lehet, de külön taskot, kapcsolatot, válaszpuffert vagy folyamatos időzítőt nem kaphatnak. A webes felület inverteres erőforrásait is csak az érintett oldal kérheti. Az időjárás kis válaszát korlátos pufferrel kell feldolgozni. A DNS, TLS, tokenmegújítás, újracsatlakozás és sikertelen lekérdezés nem tarthatja fel a UI-t vagy a BLE-t. A felhős munka és az OTA egyidejű TLS-csúcsait mérni, szükség esetén sorosítani kell.
+Az alapcommit helyi regressziója sikerült. A gazdagépen a ptrace korlátozása miatt a LeakSanitizer ki volt kapcsolva, az upstream LVGL JPEG és a WebSocket TX opcionális próbája kimaradt. Az alapkiadás CI-futása a két ESP-IDF 5.5.4 firmware-t is lefordította. A v4 aktuális fordításai, tesztjei és méretjelentései a fejlesztési PR ellenőrzéseihez tartoznak. [Alapcommit CI](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/44083654440) · [v4 fejlesztési PR](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/pull/52)
 
-A 4B firmware jelenleg a Master azonosítása előtt előkészíti a JPEG-dekódert és elindítja a kaputelefont. A mód felismerését vagy a hitelesített Master képességeinek egyeztetését ezen foglalások elé kell helyezni. A visszacsatlakozás és a Master módváltása is felszabadítja a korábbi mód erőforrásait.
+## Megvalósított üzemmód és erőforrások
 
-Az első futtatható változatnál mindkét bináris méretét és linker-térképét össze kell vetni a kiinduló állapottal. Panelen rögzítendő a szabad és legnagyobb belső/DMA blokk, PSRAM, tasklista és veremtartalék bootkor, beállítás nélkül, LAN-on, HTTPS-kézfogáskor, webes mentésnél, újracsatlakozásnál és BLE Slave + témaváltás/OTA mellett. A kapcsolatok ismételt létrehozása után a memória visszaállását is ellenőrizni kell. Hagyományos módban nem jelenhet meg új inverteres task vagy tartós inverterpuffer. Készülékmérés nélkül a futásidejű alkalmasság előzetes megállapítás.
+A 10,1″-es Master a `DataReceptMode: "inverter"` üzemmódban egy aktív profilt olvas a meglévő, 10 KiB-os főfeladat vermén. Az Open-Meteo lekérése a meglévő OTA-háttérfeladaton fut. Az inverter HTTPS-lekérdezése, az időjárás és az OTA egyezteti a HTTPS-használatot, hogy a kézfogások memóriaigénye elkülönüljön. A hálózati inverterkeresés a webfelületről, kérésre indul. A többi üzemmód a saját adatforrását indítja. [Üzemmódok felépítése](architecture.md) · [Teljesítmény és memória](performance.md)
 
-A változatlan v3.4.0 alapregresszió a `python3 tests/run_tests.py` paranccsal sikeres (158 PASS-sor). Ebben a hostkörnyezetben a ptrace miatt a LeakSanitizer ki volt kapcsolva. Az upstream LVGL JPEG és a WebSocket TX opcionális ellenőrzése helyben kimaradt; az alapcommit [GitHub Actions futásában](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/actions/runs/44083654440) mind a 11 job zöld, a két ESP-IDF 5.5.4 buildet is beleértve. Ez az induló állapot igazolása.
+Inverter módban a kijelző energiaábrája, statisztikája, helyi adminfelülete és a bekapcsolt BLE-adatmegosztás működik. A Loxone, az Otthon, az Audioserver és a kaputelefon szolgáltatásai ehhez az üzemmódhoz nem indulnak el. A 10,1″-es és a dedikált 4B Slave az inverteres Mastertől kap órát és mérési adatokat. A 4B csak az azt támogató Master hitelesített képességjelzése után készíti elő a kaputelefonos médiát. Ha egy korábban erre képes Master másik módra vált, a 4B az új képesség megerősítésekor felszabadítja a médiát. [Slave-párosítás és profilverziók](ble-data-seed.md)
 
-## 2. Módválasztás és közös indulás
+## Indítás és meglévő telepítések
 
-- A felület neve **Közvetlen inverter**, a mentett mód azonosítója tervezetten `inverter`. Régi konfiguráció és meglévő MQTT/HTTP küldő v4 alatt is használható.
-- A friss firmware véglegesítéséhez a Masternek Wi-Fi-s IP-cím és sikeres időszinkron kell. A beállított Slave a párosított Mastertől kap órát. A 10,1″-es kijelző korábbi üzemmódjai a kapcsolat felépülését a megszokott indítási képernyőn jelzik. Közvetlen inverter módban az időszinkron után már megadható az inverterprofil. [Az indulás lépései](first-start.md#indulás-mentett-beállításokkal)
-- Ki kell dolgozni az indulást hiányzó/hibás SD-vel, a korábbi beállítások biztonságos helyreállítását, a gyári Wi-Fi-beállítást, valamint a háttértár nélkül használható funkciók körét. Ne íródjon felül hibásan olvasott beállítás, és a webes javítási út maradjon elérhető. A hardveres/OTA önellenőrzést és az alkalmazás használhatóságát külön kezeljük. Üres profil, elérhetetlen inverter vagy broker miatt az egészséges frissítés ne álljon vissza.
-- Inverteres Masteren és hozzá kapcsolt Slave-en kaputelefonos kép/hang, SIP/RTP, Loxone, Otthon-kártyák és Audioserver nem indulhatnak. A képernyőt, helyi admint, időkezelést, statisztikát, karbantartást és a szükséges BLE-kapcsolatot meg kell tartani. Más módokban az inverteres kliens, felhős hitelesítés és Open-Meteo nem indul.
+| Indulási helyzet | Működés |
+| --- | --- |
+| Új vagy gyári állapotra visszaállított panel | A felhasználó kiválasztja a Wi-Fi-t, védett hálózathoz az ékezetes és speciális karaktereket is kezelő billentyűzeten adja meg a jelszót. IPv4-cím megszerzésekor a választó erőforrásai felszabadulnak. A gyári időszerverrel végzett szinkron után a kijelző kiírja a helyi webcímet. A 4B saját beüzemelő oldalán a Slave szerepet kell megerősíteni. [Első beállítás](first-run-wifi.md) |
+| 10,1″-es Master mentett konfigurációval | A készülék betölti az érvényes beállítást. Inverter módban az időszinkron után már megadható a profil, az ábra az első érvényes mérésből épül fel. Az MQTT, HTTP és Loxone mód saját indulási lépéseit követi. Az új Master-firmware véglegesítéséhez Wi-Fi-cím és időszinkron szükséges. [Indulás üzemmódonként](first-start.md#indulás-mentett-beállításokkal) |
+| SD-csere, korábban beállított vagy párosított Slave | A 10,1″-es készülék használhatja a visszaállítható belső konfigurációt, a kártya nélküli Slave megőrzi a szerepét. A beállított Slave az órát és az OTA véglegesítéséhez szükséges időjelet a párosított Mastertől kapja. [SD-csere és Slave](sd-card.md) · [OTA-feltételek](ota.md#két-ota-partíció) |
+| Gyári beállítások visszaállítása | A 10,1″-es kijelző webes kezdőlapján megerősített törlés csak az adott készüléket érinti. Az új beüzemelést a Wi-Fi-választó indítja. [Menthető, törölt és megőrzött adatok](backup.md#gyári-visszaállítás) |
 
-## 3. Képességek és adatéletciklus
+## Adatkapcsolatok és elfogadott döntések
 
-- Külön kezelendő a tényleges nulla, a hiányzó adat, az elavult minta és a fizikailag hiányzó akkumulátor/mérő. Forrásonként ellenőrizendők az előjelek, W/kW, fázisösszeg, AC- és DC-oldali teljesítmény, pillanatnyi teljesítmény és összesített energia. A ház teljes fogyasztását csak arra alkalmas mérési topológiából szabad képezni.
-- A **Van akkumulátor** jelző kikapcsolásakor az akkuadatokat nem kérjük és nem várjuk. Az akkuút, SOC, diagnosztika és a kizárólag ezekből számolt adatok megjelenítését ehhez kell igazítani. Mérő nélküli rendszernél legalább a termelés megjelenhet. Nulla hálózati teljesítmény önmagában nem bizonyít szigetüzemet.
-- **Minden módban opcionális az akkumulátor-hőmérséklet.** Hiányzó kulcs, null vagy hiányzó párosítás/mérés elfogadható. Hiánykor minden témában eltűnik az érték és a hozzá tartozó díszítés; 0 °C érvényes adat. Ellenőrizni kell az MQTT, HTTP, Loxone, direkt inverter, BLE, előnézet és mindkét kijelző adatútját. A statisztika és az akkudiagnosztika csak valódi mintából dolgozhat.
-- Egyeztetett döntés: helyi inverterolvasás **5 másodpercenként**. A gyártói felhő az engedélyezett ütemben kérdezhető, és a tényleges mérés idejét mutatjuk. Ugyanaz a forrás-időbélyeg egyszer kerül a statisztikába. Azonos teljesítmény későbbi, önálló mérésben érvényes adat. Forrásváltáskor és adatszünetben ne legyen téves energiaösszegzés. A lassú felhő nem használhatja változtatás nélkül az 5 másodperces LAN-forrás hibaküszöbét.
+- **Támogatás és keresés.** Tíz invertercsaládhoz 22 profil tartozik. A 18 helyi profilból 16 kereshető. A SolaX Pocket HTTP és a Solplanet HTTPS kézi címmel állítható be. Négy további profil gyártói felhőt olvas. A webes találat külön jelzi, hogy egy adatgyűjtőt észlelt vagy az inverter mérését is ellenőrizte. A Modbus-profilok olvasási regiszterei egyenként módosíthatók és visszaállíthatók. Gépnév megadásánál a Master névfeloldással követi a DHCP-címváltozást. Közvetlenül elérhető helyi IPv4-címnél az első sikeres mérés után a megismert MAC-cím alapján keresheti újra az eszközt. [Támogatott modellek és keresés](direct-inverter.md)
+- **Mérési idő.** A helyi kapcsolat alapüteme 5 másodperc. A Fronius Solar.web és a SolaXCloud v2 lekérdezése 5 percenként, az AISWEI-é 20 percenként, a Huawei FusionSolar történeti adataié óránként történik. A felhőből többször visszakapott azonos időbélyeg egy mérésnek számít. A kijelző a működő kapcsolat után bekövetkező kapcsolatvesztést és az elavult mérést külön jelzi. [Frissítési idő és mérési hiányok](direct-inverter.md#frissítési-idő-és-mérési-hiányok)
+- **Érvényes és hiányzó adat.** Az érvényes termelés mérő vagy akku nélkül is megjelenhet. A közvetlen profilok teljesítménytartományának felső határa csatornánként 327,67 kW. A hálózati vételezés és az akku kisütése pozitív előjelű. A **Van akkumulátor** kapcsolóval jelölhető a telepített tároló. Az akku hőfoka minden módban opcionális. Hiánykor a témák elrejtik az értéket, a mért 0 °C megjelenik. [Profilonkénti adatmezők](direct-inverter.md#támogatott-invertercsaládok-és-adatgyűjtők) · [Hőmérséklet és időjárási határok](mqtt.md)
+- **Helyszín és napszak.** A felhasználó GPS-koordinátát ad meg. A Master 15 percenként tölti le az időjárást és helyben számolja a nappályát. A Master és a párosított v4 Slave napnyugtakor vált éjszakai témára, napkeltekor nappalira. [Nappálya és időjárás](direct-inverter.md#nappálya-időjárás-és-éjszakai-mód)
+- **Heti sötétítés.** A Slave alaphelyzetben örökli a Master heti programját, a saját eszközkártyáján ettől eltérő sávot is kaphat. Aktív időablakban az első érintés a napszakhoz tartozó fényerőre ébreszt. A következő érintés újraindítja az ébrenléti időt. Lejáratkor csak aktív időablakban sötétül vissza a kijelző. [Időprogram és érintéses ébresztés](direct-inverter.md#slave-ek-heti-sötétítés-és-érintéses-ébresztés)
 
-## 4. Inverterek és kommunikációs változatok
+A profilok leírásában külön szerepel a támogatott inverter- és modulváltozat, az elérési adatok, az olvasási protokoll, a mérő és az akkumulátor szerepe. A firmware meghajtóit rögzített vagy szintetikus mintaválaszokkal teszteltük. [Modbus-profilok](inverters/modbus.md) · [Helyi HTTP és gyártói API-k](inverters/http.md) · [Victron GX MQTT](inverters/victron-mqtt.md) · [SOFAR HYD modellek](inverters/sofar.md)
 
-| Támogatási cél | Helyi adatút | További, korábban azonosított kapcsolat vagy feltétel |
-| --- | --- | --- |
-| Fronius Primo / Symo GEN24 Plus | Solar API, HTTP/JSON, rendszerszintű PowerFlow | Solar.web Query API, üzleti hozzáféréssel és használati díjjal. Smart Meter, akku és backup képesség a telepítéstől függ. |
-| Sungrow SH5.0RT–SH10RT és RT-20 | Gyártói Modbus TCP az inverter LAN-portján | A LAN-port és a kommunikációs modul külön kezelendő. Típus és firmware szerint ellenőrizni kell az elérhető regisztereket. |
-| SolaX X3-Hybrid G4, köztük a G4 Pro dokumentált konfigurációja | Pocket modulon Modbus TCP; kompatibilis változaton helyi HTTP | G4 Pro LAN, SolaXCloud v2 külön tokenes profil. A felhős élő nézet frissítési ígérete nem alkalmazható automatikusan a külső API-ra. |
-| Huawei SUN2000 L1 / M1, kiemelten SUN2000-5KTL-M1 | SDongleA-05 WLAN-FE, engedélyezett helyi Modbus TCP | FusionSolar Northbound API engedélyezett fiókkal. Az egyetlen egyidejű Modbus kliens és a firmware-függő elérés legyen látható az útmutatóban. |
-| GoodWe ET / EH | Gyártói Modbus TCP, kompatibilis LAN vagy Wi-Fi+LAN modul | Hagyományos Wi-Fi-modul támogatását csak igazolt protokollal és típussal szabad feltüntetni. |
-| Victron MultiPlus / Quattro GX-szel | Cerbo GX / kompatibilis GX eszközön Modbus TCP vagy natív helyi MQTT | AC- és DC-csatolt PV, fázisösszesítés, hálózati mérés és rendszer-SOC a GX konfigurációja szerint. |
-| SolarEdge SetApp | SunSpec Modbus TCP | Egy klienskapcsolat. A mérő és az akku eszközmodelljeit fel kell deríteni; eltérő mérőszerepeket nem szabad összeadni. |
-| Deye SUN-SG, kiemelten SUN-12K-SG04LP3-EU | Kompatibilis adatgyűjtő SolarMAN V5 keretezéssel, illetve igazolt LSE-3 nyers Modbus-útvonal | Az adatgyűjtő hálózati protokollja és az inverter regisztertérképe külön azonosítandó. |
-| SOFAR HYD 5/6/8/10/15/20KTL-3PH | Modbus TCP–RTU átjáró a monitoring RS485-ön, vagy kompatibilis SOLARMAN V5 adatgyűjtő | Két PV-bemenetes háromfázisú hibridek. Külön ellenőrizendő az adatgyűjtő és az inverter azonosítója, a mérő és a tároló telepítése. [SOFAR-profilok](inverters/sofar.md) |
-| Solplanet ASW8000-T | Kompatibilis stick helyi HTTP/HTTPS, illetve az RS485-tel szerelt változat Modbus RTU–TCP átjáróval | AISWEI/Solplanet Cloud megfelelő API-hozzáféréssel. Termelés akkumulátor nélkül is; mérőadat csak igazolt eléréssel. Az RJ45 csatlakozó lehet RS485. |
+## Fizikai átvétel
 
-Gyártónként külön leírás és rögzített, titokmentes mintaválasz szükséges. Dokumentálandó a telepítői engedély, firmware/modul, IP/port, eszközcím, regiszter- vagy API-verzió, egység/előjel, mérő/akku és lekérdezési ütem. A válaszokból vezessük le a kijelzett állapotokat. Ellenőrizendő esetek: időtúllépés, hibás vagy csonka keret, hibás modell, lejárt token, kvóta, újrainduló inverter, hiányzó mérő, töltés/kisütés, vételezés/betáplálás. A kijelző energiamegfigyeléshez olvas; invertervezérlő parancsokat nem igényel.
+A képméret és a linkerjelentés a flashben és a statikusan foglalt memóriában elfoglalt helyet mutatja. A futás közbeni terhelhetőség és az adott telepítés adathelyessége az alábbi próbákkal ellenőrizhető.
 
-### Elsődleges kiinduló dokumentáció a driverekhez
+| Próba | Mit kell rögzíteni vagy összevetni? |
+| --- | --- |
+| 10,1″ Master és 4B indulás, módváltás, első beállítás | A két hardver saját OTA-képének mérete és partícióhatára. Bootkor, üres és mentett profillal rögzítendő a szabad belső RAM, a legnagyobb belső és DMA-képes blokk, a PSRAM és a feladatok szabad verme. Loxone és inverter között ellenőrizendő a szolgáltatások és a 4B kaputelefon erőforrásainak életciklusa. |
+| Valódi inverter, mérő, akkumulátor és jogosult gyártói fiók | A termelés, a vételezés/betáplálás és a töltés/kisütés előjele, SOC, hiányzó mezők és mérési idő egyezzen a gyári monitorozással. Újraindított helyi inverter új DHCP-címén a kijelző ugyanahhoz az eszközhöz térjen vissza. |
+| HTTPS, BLE és kezelőfelület egyidejű használata | Helyi és felhős mérés, TLS-kézfogás, időjárás, webes mentés, újracsatlakozás és OTA alatt mérendő a legkisebb szabad memória és a válaszidő. Ismételt témaváltás és bontás után újra rögzítendő a memória és a kezelhetőség. |
+| Párosított 10,1″ és 4B Slave | Napkelte/napnyugta, éjfélen átnyúló program, érintéses ébresztés, fényerő, rádiókapcsolat elvesztése és helyreállása a valós panelen. Régi és v4-es párosítást a dokumentált képességekkel kell összevetni. |
+
+A gazdagépes tesztek a protokollokat, állapotváltásokat és a firmware valódi LVGL-nézeteit ellenőrzik. A rádiós hatótáv, a panel tényleges fényereje, a telepített inverter válaszideje és a készülék szabad DMA-memóriája helyszíni mérés marad. [Protokolltesztek és helyszíni ellenőrzés](direct-inverter.md#mit-ellenőriztünk-az-integrációkban) · [Fejlesztői ellenőrzések](developer-checks.md)
+
+## Kiadás és eredeti források
+
+A v4.0.0 kiadási folyamata akkor indul el, amikor a projekt saját `feature/direct-inverter-v4` ágának PR-jét a main ágba egyesítik. A kiadás mindkét panel saját OTA-csomagját tartalmazza a sikeres kiadási ellenőrzések után. [v4.0.0 kiadási leírás](versions/v4.0.0.md)
 
 - [Fronius GEN24 magyar kézikönyv](https://manuals.fronius.com/html/4204260315/hu.html) és [Solar.web Query API](https://www.fronius.com/hu-hu/solarweb-query-api/csatlakozzon).
 - [Sungrow SH-RT / RT-20 kézikönyv](https://info-support.sungrowpower.com/product-materials/31d744b7-742d-4707-bd1d-d6ed665c733c.pdf).
@@ -63,71 +66,5 @@ Gyártónként külön leírás és rögzített, titokmentes mintaválasz szüks
 - [SolarEdge SunSpec műszaki leírás](https://knowledge-center.solaredge.com/sites/kc/files/sunspec-implementation-technical-note.pdf).
 - [Deye adatgyűjtők](https://www.deyeinverter.com/product/accessory-monitoring-1/stick-logger.html) és a [konkrét Deye modellen kipróbált helyi keretezések](https://www.openhab.org/addons/bindings/solarman/).
 - [Solplanet T sorozat magyar kézikönyv](https://solplanet.net/wp-content/uploads/2021/07/Manual_ASW3000-1000-T_HU.pdf) és a [felhős API hozzáférésének integrátori útmutatója](https://help.energyid.eu/en/apps/solplanet-or-aiswei/).
-
-## 5. Webes konfiguráció, időjárás, nappálya
-
-Az inverterválasztás után minden profil mutassa a szükséges helyi hozzáférés vagy gyártói fiók előfeltételeit. A kereshető profiloknál a Master felhasználói kérésre azonosítsa a helyi eszközöket. Több találatnál a felhasználó válasszon, és a beállítás csak mentéskor módosuljon. Külön ellenőrizendő az azonos porton válaszoló más gyártmány, az eltérő egységcím, az adatgyűjtő mögötti több inverter, a megszakított keresés és a TLS-tanúsítványhoz szükséges gépnév. Az üzem közbeni DHCP-címkövetés továbbra is a mentett eszközt keresi. [Telepítési folyamat](direct-inverter.md#inverter-keresése-a-helyi-hálózaton)
-
-A **Loxone** fül helyén csak ebben a módban jelenik meg az **Inverter beállítások**. A sorrend: inverter és kapcsolatváltozat, ahhoz tartozó elérési/hitelesítési adatok, akkujelölő, kijelzők és időprogramok, végül földrajzi hely. Egyszerű első megoldás a szélesség és hosszúság közvetlen megadása. Határértékek és negatív koordináták ellenőrizendők, a nulla is lehet érvényes. Az alapértelmezett magyar időzónában a téli/nyári időváltást a meglévő időkezelés végzi. Mentés után a lemezre mentett érvényes beállítás lép életbe és azonnali első olvasást indít. Újramentés, hibás mentés, módváltás és forrásváltás közben nem maradhat párhuzamos régi kliens. A kulcsok/jelszavak nem kerülhetnek naplóba, diagnosztikába vagy böngészőbe visszaolvasható nyers formában.
-
-Az időjárást a Master kéri az Open-Meteótól, **15 percenként**. Külső hőmérséklet, páratartalom, szél, csapadék és napsugárzás külön érvényességgel érkezik. A kijelzett esőjelzés környékbeli becslés. A koordinátákból és a pontos órából a napirány, a napmagasság, a napkelte és a napnyugta helyben számítható; az energiafrissítés, a nappálya és az időjárás hibája külön kezelendő. Az időjárási forrás megjelölése, licence és a nyilvános API használati feltételei a kézikönyvben és a webfelületen megjelennek.
-
-Az adatmezők és az elérési feltételek forrásai az [Open-Meteo dokumentációja](https://open-meteo.com/en/docs), a [szolgáltatási feltételek](https://open-meteo.com/en/terms) és a [SolarCalculator forrása](https://github.com/jpb10/SolarCalculator).
-
-## 6. Master, kétféle Slave, éjszakai megjelenés és sötétítés
-
-- A 10.1-es Slave mód és a külön 4B firmware is kapjon időt, képességeket, friss energiaadatot, időjárást, nappályát és a saját profilját. Inverteres Master mellett egyik Slave-nek sem kell inverter- vagy időjáráskapcsolat. A kaputelefon-erőforrásokat már az indítási és újracsatlakozási úton is ki kell zárni.
-- A jelenlegi párosított Slave-lista, eszközazonosság, fényerő, név és tájolás közös kezelőjét használja a Loxone és az inverteres fül. A Loxone-jelenlét UUID nem része az inverteres beállításoknak. A három meglévő Slave slot és a párosítás jogosultságai megmaradnak.
-- A Master és Slave éjszakai témája napnyugtakor vált, napkeltekor nappalira tér vissza. Ettől független a heti időprogram, amely ténylegesen elsötétíti a kijelzőt. Éjfélen átnyúló sáv, hétváltás, óraátállítás, újraindítás, BLE-újracsatlakozás és a kapcsolat elvesztése szerepeljen a próbákban.
-- A BLE formátum külön jelzi a módot és a mezők érvényességét. A régebbi Master/Slave viselkedését verzióegyeztetéssel kell kezelni; korábbi vevő ne kapjon hiányzó hőmérséklet helyett 0 °C-ot. Dokumentálni kell a fokozatos frissítést és azokat a képességeket, amelyekhez mindkét oldalon v4 szükséges.
-
-## 7. Commitok és átadás
-
-| Szakasz | Elkülönített commit, ellenőrzés |
-| --- | --- |
-| 1 | Ez a megvalósíthatósági terv, mért kiadási bázis, támogatási célok és döntési napló. |
-| 2 | Üzemmód, közös indulás, webes konfigurálhatóság, szolgáltatás-életciklus és visszatöltés. Izolációs és régi konfigurációs regressziók. |
-| 3 | Opcionális adatok minden bemeneten, statisztika, mindkét kijelző összes témája és BLE kompatibilitás. Nulla és hiány külön teszteset. |
-| 4 | Közös adatút és helyi driverek, gyártónként elkülönített commitokkal és protokolltesztekkel. |
-| 5 | Felhős adapterek gyártónként, kéréskorlátok, tokenek, mérési idő és ismételt válaszok tesztje. |
-| 6 | GPS, időjárás és offline nappálya; éjszakai téma, heti sötétítés, eszközprofilok és visszacsatlakozás. |
-| 7 | Részletes telepítési és hibakeresési útmutató, típusonkénti mátrix, fő README és v4.0.0 kiadási leírás. Csak a tényleges dokumentációs megjelenítési méretre kicsinyített képek kerülnek a repóba. |
-| 8 | Teljes regresszió, szimulátorok és mindkét ESP-IDF build, OTA-csomag, méretkülönbség és hardveres ellenőrzés állapota. Végül PR a mainre. |
-
-A meglévő kiadási folyamat automatikus kiadást az igazolt main merge-hez köt. A v4.0.0-t csak ezen saját repo megfelelő fejlesztési ágának azonosított PR-je válassza ki. Más PR, azonos nevű forkág, közvetlen main push, merge nélküli bezárás és ismételt CI nem hozhat létre ilyen új kiadást. Már létező v4.0.0 vagy újabb stabil verzió esetén a folyamat álljon meg. Mindkét, hardver szerint különböző OTA-bináris verzióját ellenőrizni kell.
-
-## Döntési napló
-
-1. Helyi inverter 5 másodpercenként, gyártói felhő a szolgáltatói ütemben, az utolsó valódi mérés korával. Elfogadva.
-2. Az egyszerűsített feltétel minden üzemmódban az OTA-kép véglegesítésére vonatkozik. A Közvetlen inverter beállítható az időszinkron után. A többi üzemmód megőrzi saját indulási folyamatát.
-3. Az időprogram alatt az első érintés ébreszt, az aktuális napi/éjjeli fényerőre. További érintés újraindítja a beállítható időt. Lejáratkor csak akkor sötétül vissza, ha még aktív a heti időablak. Elfogadva.
-4. A Master heti időprogramját minden Slave alapértelmezésben örökli. A Slave kártyáján önálló időprogram választható; az öröklés bármikor visszakapcsolható. Elfogadva.
-
-## Mérési tartomány és megjelenítés
-
-A Közvetlen inverter profilok csatornánként legfeljebb 327,67 kW-ot fogadnak.
-A termelés és a házfogyasztás alsó határa 0 kW. A hálózat és az akku teljesítménye
-előjeles. Hibás vagy ezen kívüli termelésből nem készül új minta. A többi
-érvénytelen csatorna elrejthető a termelés frissítése mellett. Az akkumulátor
-hőfoka −20…+80 °C között jelenik meg. A statisztika a mért teljesítményből integrál.
-A napi, heti és havi grafikonok az adatsorhoz méreteznek. A frissített Műszerfal
-témában a műszerívek és a végpontfeliratok is követik a 15 kW fölötti méréseket.
-
-## Első indítási varázsló
-
-Menet közben hozzáadott követelmény mindkét panelhez és az összes üzemmódhoz. Érvényes SD- vagy megőrzött belső konfiguráció hiányában a panel először kereshető, lapozható Wi-Fi-listát mutat. A kiválasztott védett hálózat jelszava ékezetes és speciális karaktereket támogató érintőbillentyűzeten adható meg. A tényleges IPv4-cím megszerzése engedi tovább a folyamatot. A hálózatválasztó és a jelszóbeviteli erőforrások felszabadulnak. A gyári időszerver sikeres szinkronja után a fekete felületen megjelenő nagy HTTP-cím közvetlenül a helyi webes beállítóoldalt nyitja meg. A mentett profil a következő indítástól kihagyja a varázslót. [Képes kezelési útmutató](first-run-wifi.md)
-A külső hőmérséklet megjelenítési tartománya −35…+50 °C, a szélé 0…150 km/h,
-a páratartalomé 0…100%. A határértékek is megjelennek. A határon túli értéket
-csak az érintett időjárási mezőből hagyja ki a kijelző, így a többi mérés és a
-Slave energiaadatainak frissítése folytatódik.
-
-## Frissítés meglévő kijelzőn
-
-| Üzemelő konfiguráció | A v4-es frissítéskor ellenőrzött működés |
-| --- | --- |
-| 10,1 hüvelykes Master érvényes SD-konfigurációval | A kártyán választott MQTT, HTTP vagy Loxone mód marad aktív. A Wi-Fi-varázsló kimarad. A Loxone Otthon-, jelenlét- és kaputelefonbeállításai a korábbi helyükről töltődnek be. |
-| Kártya nélküli 10,1 hüvelykes Slave | A v3-as szerepjelölő és a belső JSON alapján továbbra is Slave-ként indul. A beállítófelület mentése a firmware-ben is ellenőrzi ezt, így egy korábbi böngészőlap sem állíthatja át más szerepre. |
-| Párosított 4B és Loxone Master | A régi párosítás használható. A 4B a kaputelefont az igazolt képesség után indítja. Ha a hitelesített nappali és éjszakai fényerőprofil előbb érkezik meg, annak értékei maradnak érvényben. |
-| 4B és inverter Master átmeneti kapcsolatvesztéssel | A 4B helyben működteti az átvett időprogramot, amíg a rádió újabb keresési ciklusokat indít. A gazdagépes próba 700 másodpercnyi kiesést, az újbóli csatlakozásra várást és a beragadt rádió külön kezelését ellenőrzi. |
-
-A vizsgálat a konfigurációmentést, a BLE-állapotgépet, a fényerőszabályozást és a valódi LVGL-nézeteket gazdagépen futtatta. A rádiós hatótáv, a panel tényleges fényereje és a telepített inverter válaszideje helyszíni próbával mérhető. [BLE-verziók együttműködése](ble-data-seed.md#100a-védett-kijelzőprofil-és-verziók)
+- [SOFAR HYD 5–20KTL-3PH kézikönyv, G3 regiszterjegyzék és SOLARMAN V5 protokollforrások](inverters/sofar.md#források).
+- [Open-Meteo adatok](https://open-meteo.com/en/docs), [használati feltételek](https://open-meteo.com/en/terms) és [SolarCalculator](https://github.com/jpb10/SolarCalculator).
