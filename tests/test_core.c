@@ -565,7 +565,7 @@ static void test_cardless_stats(void)
     feed(t,3,1,0);feed(t+20,3,1,0);
     app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,0);
     assert(app_stats_save_now()==ESP_OK&&rename_calls==0&&!sd_ok);
-    app_stats_remote_source("master-one");
+    app_stats_remote_source("ble-0-010203040506");
     memset(&snapshot,0,sizeof(snapshot));strcpy(snapshot.date,"2026-10-18");
     snapshot.totals.production_kwh=42;snapshot.slots[123].valid=true;
     snapshot.slots[123].split.pv_home=3;
@@ -590,7 +590,9 @@ static void test_cardless_stats(void)
     app_state_get_runtime(&runtime);assert(!runtime.remote_stats_valid);
     assert(snapshot.remote_available&&snapshot.remote_stale);
     near(snapshot.totals.production_kwh,42);
-    app_stats_remote_source("master-two");app_stats_get_snapshot(&snapshot);
+    app_stats_remote_source("ble-0-010203040506");app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote_available && snapshot.remote_stale);
+    app_stats_remote_source("ble-0-010203040507");app_stats_get_snapshot(&snapshot);
     assert(!snapshot.remote_available);near(snapshot.totals.production_kwh,0);
     strcpy(snapshot.date,"2026-10-17");assert(!app_stats_remote_publish(&snapshot));
     strcpy(snapshot.date,"2026-10-18");snapshot.totals.production_kwh=99;

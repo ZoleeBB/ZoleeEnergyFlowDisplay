@@ -10,6 +10,7 @@
 #include "app_task_mem.h"
 #include "app_stats_compare.h"
 #include "app_stats_files.h"
+#include "app_slave_presence.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -83,7 +84,7 @@ static atomic_bool s_initialized;
 static app_stats_snapshot_t *s_remote;
 static bool s_remote_available, s_remote_disconnected;
 static int64_t s_remote_received_us;
-static char s_remote_identity[18];
+static char s_remote_identity[APP_SLAVE_PRESENCE_ID_SIZE];
 
 bool app_stats_is_ready(void) { return atomic_load(&s_initialized); }
 

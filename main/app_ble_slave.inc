@@ -218,6 +218,13 @@ static void slave_read_profile(void)
         slave_fail("védett profilolvasás nem indítható", -1);
 }
 
+/* Ugyanaz a párosított Master változó hirdetési címmel is azonos marad. */
+static bool slave_master_identity(char id[APP_SLAVE_PRESENCE_ID_SIZE])
+{
+    app_slave_identity_t identity;
+    return presence_identity(s_master, &identity) && app_slave_identity_id(&identity, id);
+}
+
 static void slave_try_frame(int64_t now)
 {
     if (!s_slave_ready || !s_received_valid[0] || !s_received_valid[1] || !s_received_valid[2])
@@ -272,9 +279,8 @@ static void slave_try_frame(int64_t now)
     if (sample.received_epoch_s > clock.epoch_ms / 1000 + 5)
         return;
     sample.integration_period_s = clock.integration_period_s;
-    app_slave_identity_t identity;
     char source[APP_SLAVE_PRESENCE_ID_SIZE];
-    if (!presence_identity(s_master, &identity) || !app_slave_identity_id(&identity, source))
+    if (!slave_master_identity(source))
         return;
     bool same_source = !strcmp(source, s_integrated_identity);
     if (same_source && sample.received_epoch_s < s_integrated_epoch) return;
