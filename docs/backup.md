@@ -42,7 +42,7 @@ Részleges mentés is visszaállítható: csak a benne szereplő fájlok íródn
 Az **Alaphelyzetbe állítás** a 10,1 hüvelykes kijelző saját webes kezdőlapján (`/`) érhető el Master és Slave szerepben is. A címsorban ellenőrizd, hogy a visszaállítandó kijelző IP-címét nyitottad meg. A törlés csak ezt az eszközt érinti. A többi kijelző és a hozzájuk tartozó helyi beállítások megmaradnak. A külön 4B Slave saját beüzemelő oldalán ez a művelet nem érhető el.
 
 1. Ha később szeretnéd visszatölteni a menthető beállításokat, SD-s készüléken előbb töltsd le a JSON-fájlt a **Mentés** oldalról a számítógépedre. A fenti táblázat mutatja, mit tudsz így megőrizni.
-2. SD-ről működő kijelzőn hagyd a használt kártyát a készülékben a visszaállítás végéig. Válaszd az **Alaphelyzetbe állítás** gombot. A megnyíló ablak felsorolja a törlendő adatokat. A **Mégsem** bezárja az ablakot. A törlést az **Adatok törlése és újraindítás** gomb indítja el. Ha csak újra szeretnéd indítani a készüléket, a kezdőlapon az **Eszköz újraindítása** műveletet válaszd.
+2. SD-ről működő kijelzőn a visszaállítás teljes idejére hagyd bent azt a kártyát, amellyel a kijelző üzemelt. A készülék ellenőrzi a kártya azonosítóját. Ha az eredeti kártyát kéri, helyezd vissza, majd próbáld újra. Folyamatban lévő firmware-csere esetén várd meg az új firmware indulását és véglegesítését. Válaszd az **Alaphelyzetbe állítás** gombot. A megnyíló ablak felsorolja a törlendő adatokat. A **Mégsem** bezárja az ablakot. A törlést az **Adatok törlése és újraindítás** gomb indítja el. Ha csak újra szeretnéd indítani a készüléket, a kezdőlapon az **Eszköz újraindítása** műveletet válaszd.
 3. A kijelző a jóváhagyás után újraindul. A Wi-Fi-modul és a tárolt adatok törlése után még egyszer automatikusan újraindul, majd megjelenik a Wi-Fi-választó. Áramszünet után a következő indításkor folytatja a megkezdett visszaállítást. A panelen válaszd ki a Wi-Fi-hálózatot és szükség esetén írd be a jelszót. Az időszinkron után nyisd meg a kijelzőn megjelenő HTTP-címet, és végezd el a beállítást. Slave szerephez ismét párosítsd a kijelzőt a Masterrel. [Első beállítás Wi-Fi-n](first-run-wifi.md) · [Párosítás a Masterrel](ble-data-seed.md#pin-es-párosítás-és-beállításöröklés)
 
 ![Az újraindítás és az alaphelyzetbe állítás gombja a kezdőlapon, alattuk a törlés megerősítése.](images/first-run/factory-reset.png)
@@ -83,5 +83,4 @@ a mastertől kapja.
 | `POST /api/backup/flash` | Belső tartalék frissítése most |
 | `POST /api/backup/flash/restore` | Visszaállítás a belső tartalékból |
 
-Minden `POST` kérés a beállításoknál is használt `X-Zolee-Settings: 1`
-fejlécet és a webes hitelesítést igényli.
+A fenti `POST` műveletekhez meg kell adni a `X-Zolee-Settings: 1` fejlécet. Ha a kijelzőn beállítottál webes adminfiókot, a mentési és visszaállítási műveletekhez annak felhasználóneve és jelszava is szükséges. [Webes beállítások](configuration.md)

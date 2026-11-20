@@ -2,13 +2,11 @@
 
 Az opcionális microSD-kártyát FAT32-re formázd. Ha előre beállított kijelzőt szeretnél, a kártya gyökerébe másold a kiválasztott mintát `config.json` néven. A 10,1 hüvelykes kijelző induláskor először az érvényes SD-konfigurációt használja. [Konfigurációs minták és mezők](configuration.md)
 
-A tíz választható nézet könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
+A telepített témák könyvtárai a `/templates/<azonosító>/` alatt legyenek. Minden csomag saját `template.json`-t és az abban hivatkozott PNG-ket, valamint `preview-light.png` és `preview-dark.png` képet tartalmaz. A régebbi, előnézet nélküli csomag továbbra is betölthető; a webes keret csak a frissítés után kap képet. A kiválasztás `selection.*` fájljait a készülék kezeli. Másoláskor a csomag JSON-ját és képeit együtt frissítsd; [telepítési útmutató](templates.md).
 
 A készülék a csomagok mellé `<alap>-<szélesség>x<magasság>.raw` segédfájlokat
 készít a háttérben: ezek a már dekódolt és a megjelenítési méretre hozott képek,
-tőlük lesz gyorsabb a témaváltás. Együtt a tíz gyári témánál nagyjából 45–90 MiB
-helyet foglalnak, a `.tmp`/`.bak` állományokhoz hasonlóan a készülék kezeli őket,
-és a csomag törlésével eltűnnek. Kézzel nem kell másolni vagy pótolni őket; ha
+tőlük lesz gyorsabb a témaváltás. A helyigény a telepített képektől és azok megjelenítési méretétől függ. A segédfájlokat a készülék kezeli, és a csomag törlésével ezek is eltűnnek. Kézzel nem kell másolni vagy pótolni őket; ha
 letörlöd, a kijelző a PNG-kkel dolgozik tovább, és a háttérben újra elkészíti
 őket. A háttérgenerálás kihagyja a lépést, ha a kártya hibásra van jelölve
 vagy 64 MiB-nál kevesebb a szabad hely: betelt vagy haldokló kártyát nem
@@ -24,7 +22,7 @@ Ha az SD hiányzik vagy a konfiguráció nem használható, a kijelző a belső 
 | Tulajdonság | SD-s Slave | SD nélküli Slave |
 | --- | --- | --- |
 | Konfiguráció | SD `config.json`, minimálisan `{"DataReceptMode":"slave"}` | Belső NVS, webes mentéssel, legfeljebb 3072 bájt |
-| Témák | Rendszer és mind a tíz telepített SD-s téma; a Nap pálya érvényes nappályaadattal | Kizárólag a beépített Rendszer téma |
+| Témák | Rendszer és a Slave módban használható telepített SD-s témák. A Nap pályához érvényes nappályaadat kell. Az Elektromos autó témát csak a Loxone Master használja. | Kizárólag a beépített Rendszer téma |
 | Napi statisztika | Saját integrálás a fogadott élő mintákból, saját SD-re mentve | A master ellenőrzött pillanatképe RAM-ban |
 | Korábbi adatok | Saját, legfeljebb 35 napos történet | Mai diagramok és a master tegnapi összehasonlítása; nincs helyi archívum |
 | Újraindítás | Saját SD-előzmény visszatöltése | Új statisztikai kép kérése a mastertől |

@@ -38,7 +38,7 @@ SD-kártyával a helyi sablonok és statisztikai tárhely használható; SD nél
 a kijelző az alábbi korlátozott, beépített Rendszer módban működik.
 
 SD-vel a Slave saját magának integrálja és menti a fogadott élő mintákat,
-és minden telepített témát használhat. A master korábbi történetét nem másolja
+és a Slave módban használható telepített témákból választhat. Az Elektromos autó témát csak a közvetlen Loxone Master használja. A master korábbi történetét nem másolja
 át. Az eltérő kezdési idő és adatrések miatt az összesítők eltérhetnek.
 
 ## SD nélküli Slave – csak Rendszer téma

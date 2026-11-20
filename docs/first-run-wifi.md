@@ -1,6 +1,8 @@
 # Első beállítás Wi-Fi-n
 
-Amikor a kijelző első beállítást kér, a Wi-Fi-hálózatot közvetlenül az érintőképernyőn válaszd ki. A további beállításhoz készíts elő egy telefont vagy számítógépet, amely ugyanahhoz a helyi hálózathoz csatlakozik.
+Új, előzetes beállítás nélküli vagy gyári állapotra visszaállított kijelzőn a Wi-Fi-hálózatot az érintőképernyőn válaszd ki. Ha a 10,1 hüvelykes készülék üres SD-kártyát kap, de van érvényes belső konfigurációs tartaléka, magától visszatölti a korábbi beállításokat. [Belső tartalék](backup.md#belső-tartalék)
+
+A további beállításhoz készíts elő egy telefont vagy számítógépet, amely ugyanahhoz a helyi hálózathoz csatlakozik.
 
 ## Kapcsolódás a hálózathoz
 
@@ -12,9 +14,11 @@ Amikor a kijelző első beállítást kér, a Wi-Fi-hálózatot közvetlenül az
 
 ## A beállítás folytatása böngészőben
 
-Sikeres csatlakozás után a kijelző megvárja az időszinkronizálást. Ha az **Időszinkronizálás** felirat hosszabb ideig megmarad, ellenőrizd, hogy a kiválasztott hálózaton elérhető-e az időkiszolgáló.
+A kijelző akkor lép tovább, amikor a kiválasztott hálózaton IP-címet kap. Ekkor felszabadítja a hálózatlistát és bezárja az érintőbillentyűzetet, majd szinkronizál a gyári `hu.pool.ntp.org` időkiszolgálóval. A mentett konfigurációval induló kijelző a bekapcsoláskor már a saját üzemmódját tölti be. Ha az **Időszinkronizálás** felirat hosszabb ideig megmarad, ellenőrizd, hogy a kiválasztott hálózaton elérhető-e az időkiszolgáló.
 
-Amikor megjelenik **A kijelző beállítása szükséges** felirat, írd a telefon vagy számítógép böngészőjének címsorába a kijelzőn látható teljes `http://` címet. Ott add meg és mentsd el a kijelző beállításait. Az alábbi 4B-képernyőképen a `192.0.2.47` példacím. A saját kijelződ a helyi hálózattól kapott IP-címet mutatja.
+Amikor megjelenik **A kijelző beállítása szükséges** felirat, írd a telefon vagy számítógép böngészőjének címsorába a kijelzőn látható teljes `http://` címet. A 10,1 hüvelykes kijelzőn válaszd ki az adatfogadási módot, és mentsd el a beállításokat. A dedikált 4B beüzemelő oldalán válaszd a **Slave kijelző** szerepet, majd a **Mentés és újraindítás** gombot. Újraindulás után a Master webfelületén nyiss párosítási ablakot, és a PIN-kódot a 4B érintőképernyőjén add meg. [Bluetooth-párosítás](ble-data-seed.md#pin-es-párosítás-és-beállításöröklés)
+
+Az alábbi 4B-képernyőképen a `192.0.2.47` példacím. A saját kijelződ a helyi hálózattól kapott IP-címet mutatja.
 
 ![A 4B kijelző a böngészőbe írandó címmel az időszinkronizálás után](images/first-run/web-address.png)
 

@@ -2,13 +2,16 @@
 
 [Dokumentáció](README.md) · [Telepítés és használat](getting-started/README.md)
 
-A fő README korábbi teljes indítási leírása, a Master/Slave és adatküldési
-részletekkel együtt.
+Az első indításkor a kijelző kap hálózati címet, utána a böngészőben választhatod ki, honnan kapja az adatokat. Előre beállított SD-kártyával is indíthatod.
 
 1. Telepítsd a firmware-t az [USB útmutató](usb-install.md) szerint.
 2. Konfiguráció nélküli új eszközön kövesd a [Wi-Fi első beállítását](first-run-wifi.md). Előre beállított telepítéshez a [MQTT konfigurációt](../config.sample.json) vagy [HTTP konfigurációt](../examples/config.http.sample.json), közvetlen kapcsolathoz a [Loxone konfigurációt](../examples/config.loxone.sample.json) töltsd ki, és másold az SD gyökerébe `config.json` néven.
 3. A repó `templates` vagy az USB-csomag `sd-card/templates` könyvtárát másold az SD gyökerébe.
-4. MQTT/HTTP esetén állítsd be a [Loxone adatküldést](loxone.md). Közvetlen Loxone módban a kijelző helyi `/loxone` weboldalán add meg a Miniservert és párosítsd az állapotokat. Ez az oldal már akkor is elérhető, amikor a kijelző még a Miniserverre vár.
+4. A választott módhoz állítsd be az adatforrást.
+
+   - **MQTT vagy HTTP** esetén állítsd be a [Loxone adatküldést](loxone.md).
+   - **Közvetlen Loxone** módban a kijelző helyi `/loxone` oldalán add meg a Miniservert és párosítsd az állapotokat. Az oldal már a Miniserverre várakozás közben is elérhető.
+   - **Közvetlen inverter** módban nyisd meg az **Inverter beállítások** fület (`/inverter`). Válaszd ki a családot és a kapcsolat típusát, majd add meg az elérési adatokat és a helyszín koordinátáit. Mentés után a Master megkezdi a lekérdezést. [Inverterkeresés és beállítás](direct-inverter.md)
 
 Slave-ként SD-vel a minimális `config.json`: `{"DataReceptMode":"slave"}`.
 Új eszközön az első webes beállítás során is kiválasztható a Slave szerep. A dedikált 4B Slave-ként párosítható. A masteren kapcsold be az adat seedet, nyisd meg a párosítási ablakot,
