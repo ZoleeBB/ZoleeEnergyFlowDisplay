@@ -44,6 +44,7 @@ async function checkFieldRows(page, grid) {
         const page = await browser.newPage({viewport: {width: 390, height: 900}});
         const errors = [], unexpected = [];
         let stored = structuredClone(initial), posted = null, fail = false;
+        let fullReads = 0, statusReads = 0;
         const registerRequests = [], discoveryRequests = [], cancellations = [];
         let job = 20, discoveryStatus = {}, holdStart, startReply, nextStartError = false;
 
@@ -103,6 +104,12 @@ async function checkFieldRows(page, grid) {
                 delete stored.secret; delete stored.key;
                 return route.fulfill({json: {saved: true}});
             }
+            if (new URL(request.url()).searchParams.get('status') === '1') {
+                statusReads++;
+                return route.fulfill({json: {profile: stored.profile, syncStatus: 'Státuszfrissítés',
+                    measurementAgeSeconds: stored.measurementAgeSeconds, activeIpv4: stored.activeIpv4}});
+            }
+            fullReads++;
             return route.fulfill({json: stored});
         });
         await page.goto('http://display.test/inverter');
@@ -176,7 +183,11 @@ async function checkFieldRows(page, grid) {
         assert.deepEqual(posted.registerOverrides, {x1_ac: 10});
         await page.locator('#device').selectOption('X3-G4-PRO');
         assert.equal(await pro.inputValue(), '0');
+        const previousFullReads = fullReads;
         await page.evaluate(() => refresh());
+        assert.equal(fullReads, previousFullReads);
+        assert(statusReads > 0);
+        assert.match(await page.locator('#sync-status').innerText(), /Státuszfrissítés/);
         assert.equal(await page.locator('#profile').inputValue(), 'solax_modbus');
         for (const width of [320, 390, 1280]) {
             await page.setViewportSize({width, height: 900});

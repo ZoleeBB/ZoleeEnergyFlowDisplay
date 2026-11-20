@@ -17,7 +17,10 @@ static esp_err_t inverter_page(httpd_req_t *req)
 static esp_err_t inverter_get(httpd_req_t *req)
 {
     if (!authorize(req)) return ESP_OK;
-    cJSON *settings = app_inverter_settings_get();
+    char query[16];
+    bool status_only = httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+                       strcmp(query, "status=1") == 0;
+    cJSON *settings = status_only ? app_inverter_status_get() : app_inverter_settings_get();
     char *json = settings ? cJSON_PrintUnformatted(settings) : NULL;
     cJSON_Delete(settings);
     if (!json) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
@@ -25,7 +28,7 @@ static esp_err_t inverter_get(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     esp_err_t result = httpd_resp_sendstr(req, json);
-    free(json);
+    cJSON_free(json);
     return result;
 }
 

@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     app_inverter_schedule_t schedule;
     runtime.data_recept_mode=APP_DATA_LOXONE;
     assert(!app_inverter_settings_local_name("unit.local", 10));
-    assert(!app_inverter_settings_get() && !app_inverter_display_schedule(NULL,&schedule) && !allocations);
+    assert(!app_inverter_status_get() && !app_inverter_settings_get() && !app_inverter_display_schedule(NULL,&schedule) && !allocations);
     runtime.data_recept_mode=APP_DATA_INVERTER; runtime.time_synced=runtime.wifi_connected=true;
     tick(0); assert(!configured && !reads && !weather);
     cJSON *s=settings("solax_http");
@@ -284,6 +284,14 @@ int main(int argc, char **argv)
            !strcmp(cJSON_GetArrayItem(available, 0)->valuestring, "huawei_modbus"));
     assert(cJSON_IsTrue(cJSON_GetObjectItem(view,"hasSecret")) && !strstr(text,"TEST-FIXTURE") &&
            cJSON_GetObjectItem(view,"measurementAgeSeconds")->valueint==300);
+    cJSON *status = app_inverter_status_get();
+    assert(cJSON_GetArraySize(status) == 3);
+    for (cJSON *field = status->child; field; field = field->next)
+        assert(cJSON_Compare(field, cJSON_GetObjectItemCaseSensitive(view, field->string), 1));
+    assert(cJSON_GetObjectItem(status, "measurementAgeSeconds")->valueint == 300);
+    assert(cJSON_IsString(cJSON_GetObjectItem(status, "profile")));
+    assert(cJSON_IsString(cJSON_GetObjectItem(status, "syncStatus")));
+    cJSON_Delete(status);
     free(text); cJSON_Delete(view);
     cJSON_ReplaceItemInObject(s,"host",cJSON_CreateString("other.local"));
     assert(app_inverter_settings_save(s)==ESP_ERR_INVALID_ARG);

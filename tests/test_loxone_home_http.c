@@ -173,6 +173,7 @@ static void *heap_caps_calloc(size_t n, size_t size, unsigned caps)
 static int saves;
 static esp_err_t save_result;
 cJSON *app_inverter_settings_get(void) { return cJSON_Parse("{\"hasSecret\":true}"); }
+cJSON *app_inverter_status_get(void) { return cJSON_Parse("{\"syncStatus\":\"OK\"}"); }
 esp_err_t app_inverter_settings_save(const cJSON *form)
 {
     assert(cJSON_IsObject(form)); saves++;
@@ -284,6 +285,8 @@ static void inverter_http_tests(void)
     inverter_get(&req); assert(status_code == 401);
     authorized = true;
     inverter_get(&req); assert(strcmp(response,"{\"hasSecret\":true}") == 0);
+    inverter_query = "status=1";
+    inverter_get(&req); assert(strcmp(response,"{\"syncStatus\":\"OK\"}") == 0);
     inverter_query = "profile=huawei_modbus";
     authorized = false; status_code = 200;
     inverter_registers_get(&req); assert(status_code == 401);

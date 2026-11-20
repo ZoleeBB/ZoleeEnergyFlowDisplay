@@ -220,8 +220,8 @@ function peerPrograms(peers) {
         get('slave-programs').append(box);
     }
 }
-async function readSettings() {
-    const response = await apiFetch('/api/inverter', {cache: 'no-store'});
+async function readSettings(statusOnly = false) {
+    const response = await apiFetch(statusOnly ? '/api/inverter?status=1' : '/api/inverter', {cache: 'no-store'});
     if (!response.ok) throw Error(await response.text());
     return response.json();
 }
@@ -267,8 +267,8 @@ async function refresh() {
     if (loading || saving || document.hidden) return;
     loading = true;
     try {
-        const data = await readSettings();
-        if (!saved) fill(data); else syncStatus(data);
+        if (saved) syncStatus(await readSettings(true));
+        else fill(await readSettings());
         peerPrograms(await LoxoneSlaves.refresh());
     } catch (error) {
         get('sync-status').textContent = 'A kijelző nem olvasható. ' + error.message;

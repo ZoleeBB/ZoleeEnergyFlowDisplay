@@ -439,21 +439,29 @@ fail:
     return NULL;
 }
 
-cJSON *app_inverter_settings_get(void)
+/* Az állapotfrissítéshez nem készítünk másolatot a PEM-ről, a gyári profilokról
+ * és a heti időprogramokról. A teljes űrlap ugyanazokat az állapotmezőket kapja. */
+static cJSON *web_settings(bool status_only)
 {
     if (!app_inverter_settings_open()) return NULL;
     cJSON *o = cJSON_CreateObject();
     lock();
     const app_inverter_config_t *c = &active->driver;
 #define ADD(f,k,v) if (!cJSON_Add##f##ToObject(o,k,v)) goto fail
+    ADD(String,"profile",c->profile);
+    ADD(String,"syncStatus",status_text);
+    if (active_ipv4[0]) { ADD(String,"activeIpv4",active_ipv4); }
+    if (last_measurement) { ADD(Number,"measurementAgeSeconds",fmax(0,difftime(time(NULL),last_measurement))); }
+    if (status_only) {
+        app_inverter_settings_unlock();
+        return o;
+    }
     ADD(Number,"revision",revision);
-    ADD(String,"profile",c->profile); ADD(String,"host",c->host); ADD(String,"device",c->device);
+    ADD(String,"host",c->host); ADD(String,"device",c->device);
     ADD(String,"user",c->user); ADD(Bool,"hasKey",c->key[0]); ADD(Bool,"hasSecret",c->secret[0]);
     ADD(Number,"port",c->port); ADD(Number,"unit",c->unit); ADD(Bool,"battery",c->battery);
-    ADD(String,"trustedPem",active->pem); ADD(String,"syncStatus",status_text);
-    if (active_ipv4[0]) { ADD(String,"activeIpv4",active_ipv4); }
+    ADD(String,"trustedPem",active->pem);
     if (c->profile[0]) { ADD(Number,"latitude",active->latitude); ADD(Number,"longitude",active->longitude); }
-    if (last_measurement) { ADD(Number,"measurementAgeSeconds",fmax(0,difftime(time(NULL),last_measurement))); }
 #undef ADD
     cJSON *discoverable = cJSON_AddArrayToObject(o, "discoverable");
     if (!discoverable) goto fail;
@@ -488,4 +496,14 @@ fail:
     app_inverter_settings_unlock();
     cJSON_Delete(o);
     return NULL;
+}
+
+cJSON *app_inverter_settings_get(void)
+{
+    return web_settings(false);
+}
+
+cJSON *app_inverter_status_get(void)
+{
+    return web_settings(true);
 }
