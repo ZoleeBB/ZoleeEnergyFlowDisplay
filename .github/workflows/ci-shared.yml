@@ -168,7 +168,7 @@ jobs:
       # dokumentációs képek, nem külön Actions-artifactok.
 
   template-packages:
-    name: Sablonok | 9 téma és Loxone-erőforrások
+    name: Sablonok | SD-témák és Loxone-erőforrások
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
