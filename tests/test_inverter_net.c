@@ -5,6 +5,8 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include <assert.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +23,10 @@ static int received_status, extra_len, opened, performed, closed;
 static bool complete, fail_alloc;
 static esp_err_t perform_result;
 static char *response_key, *response_value;
+static int sockets[2] = {-1, -1};
+static int64_t now_us, fragment_time;
+int64_t esp_timer_get_time(void) { return now_us; }
+int esp_http_client_get_socket(esp_http_client_handle_t c) { assert(c == &client); return sockets[0]; }
 
 esp_err_t esp_crt_bundle_attach(void *config) { (void)config; return ESP_OK; }
 void *heap_caps_realloc(void *ptr, size_t bytes, unsigned caps)
@@ -55,7 +61,7 @@ esp_err_t esp_http_client_set_header(esp_http_client_handle_t c, const char *key
 esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
 {
     ++performed;
-    esp_http_client_event_t event = {.user_data = c->config.user_data};
+    esp_http_client_event_t event = {.user_data = c->config.user_data, .client = c};
     if (response_key) {
         event.event_id = HTTP_EVENT_ON_HEADER;
         event.header_key = response_key;
@@ -66,6 +72,7 @@ esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
     for (size_t at = 0; at < payload_len;) {
         size_t n = payload_len - at;
         if (n > fragment) n = fragment;
+        now_us += fragment_time;
         event.data = payload + at;
         event.data_len = (int)n;
         if (c->config.event_handler(&event) != ESP_OK) return ESP_FAIL;
@@ -92,6 +99,7 @@ static void response(char *json)
     received_status = 200;
     complete = true;
     fail_alloc = false;
+    fragment_time = 0;
     extra_len = 0;
     perform_result = ESP_OK;
     response_key = "xSrF-tOkEn";
@@ -143,6 +151,16 @@ int main(void)
     response("{} unexpected"); rejected();
     response("{}"); extra_len = -1; rejected();
     response("{}"); extra_len = 48 * 1024; rejected();
+    /* Igazi socketen igazoljuk, hogy az időkorlát megszakítja az adatfolyamot,
+     * akkor is, ha minden darab a 4 s-os inaktivitási időn belül érkezik. */
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    response("{\"data\":[1,2,3,4,5,6,7]}");
+    fragment = 2;
+    fragment_time = 2000000;
+    rejected();
+    char ch;
+    assert(recv(sockets[1], &ch, 1, MSG_DONTWAIT) == 0);
+    close(sockets[0]); close(sockets[1]); sockets[0] = sockets[1] = -1;
     char nul[] = {'{', '}', '\0', 'x'};
     response(nul); payload_len = sizeof(nul); rejected();
     response("{\"field\\u0000suffix\":0}"); rejected();

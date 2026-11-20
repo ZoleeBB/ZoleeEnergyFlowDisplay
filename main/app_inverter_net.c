@@ -3,6 +3,8 @@
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
+#include "esp_timer.h"
+#include <sys/socket.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +12,14 @@
 
 #define RESPONSE_LIMIT (48U * 1024U)
 #define MAX_JSON_NODES 2048U
+#define RECEIVE_WINDOW_US INT64_C(12000000)
 typedef struct {
     char *data;
     size_t size, capacity;
     char *token;
     size_t token_size;
     bool failed;
+    int64_t deadline;
 } response_t;
 
 static void copy_token(response_t *r, const char *value)
@@ -27,9 +31,27 @@ static void copy_token(response_t *r, const char *value)
     }
 }
 
+/* Az IDF 5.5.4 HTTP-parsere az ON_DATA visszatérési értékét nem használja.
+ * A megszakítást az eseményt futtató HTTP-feladat végzi, még a socket
+ * felszabadítása előtt. A kliens marad az fd tulajdonosa és zárja le. */
+static esp_err_t stop_response(esp_http_client_event_t *event, esp_err_t error)
+{
+    response_t *r = event->user_data;
+    if (!r->failed) {
+        r->failed = true;
+        int fd = esp_http_client_get_socket(event->client);
+        if (fd >= 0) (void)shutdown(fd, SHUT_RDWR);
+    }
+    return error;
+}
+
 static esp_err_t collect(esp_http_client_event_t *event)
 {
     response_t *r = event->user_data;
+    if (event->event_id != HTTP_EVENT_ON_HEADER && event->event_id != HTTP_EVENT_ON_DATA)
+        return ESP_OK;
+    if (r->failed || esp_timer_get_time() >= r->deadline)
+        return stop_response(event, ESP_FAIL);
     if (event->event_id == HTTP_EVENT_ON_HEADER && r->token && event->header_key && event->header_value) {
         if (!strcasecmp(event->header_key, "XSRF-TOKEN"))
             copy_token(r, event->header_value);
@@ -37,22 +59,17 @@ static esp_err_t collect(esp_http_client_event_t *event)
                  !strncasecmp(event->header_value, "XSRF-TOKEN=", 11))
             copy_token(r, event->header_value + 11);
     }
-    if (event->event_id != HTTP_EVENT_ON_DATA || !event->data_len || r->failed)
+    if (event->event_id != HTTP_EVENT_ON_DATA || !event->data_len)
         return ESP_OK;
-    if (event->data_len < 0 || (size_t)event->data_len > RESPONSE_LIMIT - r->size) {
-        r->failed = true;
-        return ESP_FAIL;
-    }
+    if (event->data_len < 0 || (size_t)event->data_len > RESPONSE_LIMIT - r->size)
+        return stop_response(event, ESP_FAIL);
     size_t needed = r->size + (size_t)event->data_len + 1;
     if (needed > r->capacity) {
         size_t capacity = r->capacity ? r->capacity * 2 : 2048;
         if (capacity < needed) capacity = needed;
         if (capacity > RESPONSE_LIMIT + 1) capacity = RESPONSE_LIMIT + 1;
         char *data = heap_caps_realloc(r->data, capacity, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (!data) {
-            r->failed = true;
-            return ESP_ERR_NO_MEM;
-        }
+        if (!data) return stop_response(event, ESP_ERR_NO_MEM);
         r->data = data;
         r->capacity = capacity;
     }
@@ -104,7 +121,8 @@ cJSON *app_inverter_json_request(const char *url, const char *method, const char
                                  const char *const headers[][2], size_t header_count,
                                  char *response_token, size_t token_capacity, const char *trusted_pem)
 {
-    response_t r = {.token=response_token, .token_size=token_capacity};
+    response_t r = {.token=response_token, .token_size=token_capacity,
+                    .deadline=esp_timer_get_time() + RECEIVE_WINDOW_US};
     if (response_token && token_capacity) response_token[0] = 0;
     if (!url || !method || (header_count && !headers) || (strcmp(method, "GET") && strcmp(method, "POST"))) return NULL;
     esp_http_client_config_t cfg = {
