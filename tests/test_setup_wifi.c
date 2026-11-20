@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum scenario { RETRY, OPEN, SAVED, NO_DHCP, LEGACY, CROWDED };
+enum scenario { RETRY, OPEN, SAVED, NO_DHCP, LATE_DHCP, FULL_SSID, LEGACY, CROWDED };
 static enum scenario scenario;
 static const char *const secured_ssid = "Ház-5GHz", *const open_ssid = "Vendég Wi-Fi";
 static const char *const unicode_key = "árvíz tűrő?!@#'\"\\";
@@ -112,7 +112,7 @@ EventBits_t xEventGroupWaitBits(EventGroupHandle_t g, EventBits_t mask, int clea
     app_setup_wifi_snapshot(&view);
     assert(view.phase == APP_SETUP_CONNECTING && !online && !view.ip[0]);
     assert(!app_setup_wifi_scan() && !app_setup_wifi_connect("racing", "retry"));
-    if (scenario != SAVED && scenario != NO_DHCP) assert(!config.wifi.ssid[0] && !config.wifi.password[0]);
+    if (scenario != SAVED && scenario != NO_DHCP && scenario != LATE_DHCP) assert(!config.wifi.ssid[0] && !config.wifi.password[0]);
     waits++;
     if (scenario == RETRY && waits == 1) {
         assert(!strcmp((char *)credentials.sta.password, "wrong-password"));
@@ -158,14 +158,14 @@ void vTaskDelay(TickType_t ticks)
     assert(view.count == 3 && view.aps[0].secured && !view.aps[1].secured);
     assert(!strcmp(view.aps[0].ssid, secured_ssid) && !strcmp(view.aps[1].ssid, open_ssid));
     assert(!strcmp(view.aps[2].ssid, long_ssid));
-    if ((scenario == RETRY || scenario == NO_DHCP) && waits) {
+    if ((scenario == RETRY || scenario == NO_DHCP || scenario == LATE_DHCP) && waits) {
         assert(view.phase == APP_SETUP_FAILED && !strcmp(view.selected_ssid, secured_ssid));
         assert(app_setup_wifi_connect(secured_ssid, unicode_key));
     } else {
         assert(view.phase == APP_SETUP_SELECT);
         assert(!app_setup_wifi_connect("", "") && !app_setup_wifi_connect(NULL, NULL));
-        assert(app_setup_wifi_connect(scenario == OPEN ? open_ssid : secured_ssid,
-                                      scenario == OPEN ? "" : "wrong-password"));
+        assert(app_setup_wifi_connect(scenario == OPEN ? open_ssid : scenario == FULL_SSID ? long_ssid : secured_ssid,
+                                      scenario == OPEN ? "" : scenario == FULL_SSID ? unicode_key : "wrong-password"));
     }
 }
 void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
@@ -185,7 +185,13 @@ esp_netif_t *esp_netif_create_default_wifi_sta(void)
 { static esp_netif_t sta; assert(!in_reset); ++netifs; return &sta; }
 esp_err_t esp_netif_get_ip_info(esp_netif_t *netif, esp_netif_ip_info_t *info)
 { assert(netif && online); info->ip.addr = inet_addr("192.0.2.44"); return ESP_OK; }
-esp_err_t esp_wifi_sta_get_ap_info(wifi_ap_record_t *ap) { (void)ap; return ESP_OK; }
+esp_err_t esp_wifi_sta_get_ap_info(wifi_ap_record_t *ap)
+{
+    assert(online);
+    if (scenario == LATE_DHCP && waits == 1) strcpy((char *)ap->ssid, open_ssid);
+    else memcpy(ap->ssid, credentials.sta.ssid, sizeof(credentials.sta.ssid));
+    return ESP_OK;
+}
 esp_err_t esp_wifi_set_mode(int x) { assert(x == WIFI_MODE_STA); return ESP_OK; }
 esp_err_t esp_wifi_set_storage(int value)
 {
@@ -267,9 +273,9 @@ int main(int argc, char **argv)
         if (retry_only_close) assert(reset_erases == 1 && reset_closes == 2);
         in_reset = false;
     }
-    scenario = reset ? OPEN : !strcmp(argv[1],"retry") ? RETRY : !strcmp(argv[1],"open") ? OPEN :
+    scenario = !strcmp(argv[1], "late-dhcp") ? LATE_DHCP : !strcmp(argv[1], "full-ssid") ? FULL_SSID : reset ? OPEN : !strcmp(argv[1],"retry") ? RETRY : !strcmp(argv[1],"open") ? OPEN :
                !strcmp(argv[1],"crowded") ? CROWDED : !strcmp(argv[1],"saved") ? SAVED : !strcmp(argv[1],"no-dhcp") ? NO_DHCP : LEGACY;
-    if (scenario == SAVED || scenario == LEGACY || scenario == NO_DHCP) {
+    if (scenario == SAVED || scenario == LEGACY || scenario == NO_DHCP || scenario == LATE_DHCP) {
         strcpy(config.wifi.ssid, secured_ssid);
         strcpy(config.wifi.password, unicode_key);
     }
@@ -279,8 +285,8 @@ int main(int argc, char **argv)
     } else {
         assert(app_setup_wifi_provision(&config) == ESP_OK);
         assert(!strcmp(config.wifi.password, scenario == OPEN ? "" : unicode_key));
-        assert(!strcmp(config.wifi.ssid, scenario == OPEN ? open_ssid : scenario == CROWDED ? "SSID-32" : secured_ssid));
-        assert(waits == (scenario == RETRY || scenario == NO_DHCP ? 2U : 1U));
+        assert(!strcmp(config.wifi.ssid, scenario == OPEN ? open_ssid : scenario == CROWDED ? "SSID-32" : scenario == FULL_SSID ? long_ssid : secured_ssid));
+        assert(waits == (scenario == RETRY || scenario == NO_DHCP || scenario == LATE_DHCP ? 2U : 1U));
         assert(scans == (scenario == SAVED ? 0U : (scenario == RETRY || scenario == CROWDED) ? 2U : 1U));
         assert(actions == (scenario == SAVED ? 0U : scenario == RETRY ? 3U : scenario == CROWDED ? 2U : 1U));
         app_setup_wifi_state_t view;

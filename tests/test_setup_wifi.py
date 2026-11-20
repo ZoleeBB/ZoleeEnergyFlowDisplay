@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-setup-wifi-') as directory:
         'main/app_setup_wifi.c', 'main/app_wifi.c', 'tests/test_setup_wifi.c',
         '-o', str(binary)
     ], cwd=ROOT, check=True)
-    for scenario in ('retry', 'open', 'saved', 'no-dhcp', 'legacy', 'crowded', 'reset',
+    for scenario in ('retry', 'open', 'saved', 'no-dhcp', 'late-dhcp', 'full-ssid', 'legacy', 'crowded', 'reset',
                      'reset-init', 'reset-storage', 'reset-restore', 'reset-close', 'reset-lost-close',
                      'reset-double-fault'):
         subprocess.run([binary, scenario], check=True, timeout=8)

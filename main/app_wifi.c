@@ -315,7 +315,16 @@ esp_err_t app_wifi_join_setup(const char *ssid, const char *password)
         snprintf(s_cfg.password, sizeof(s_cfg.password), "%s", password);
         err = esp_wifi_connect();
     }
-    return err;
+    if (err != ESP_OK) return err;
+    if (!app_wifi_wait_connected(pdMS_TO_TICKS(15000))) return ESP_ERR_TIMEOUT;
+    /* AP-váltáskor az előző hálózat késői GOT_IP eseménye is benn lehet a
+     * sorban. A rádión ellenőrizzük, hogy valóban a kiválasztott SSID-n vagyunk. */
+    wifi_ap_record_t ap = {0};
+    err = esp_wifi_sta_get_ap_info(&ap);
+    if (err != ESP_OK) return err;
+    size_t length = strnlen((const char *)ap.ssid, sizeof(ap.ssid));
+    return length == strlen(ssid) && !memcmp(ap.ssid, ssid, length) && app_wifi_is_connected()
+         ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 void app_wifi_finish_setup(void)

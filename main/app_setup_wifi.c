@@ -198,8 +198,7 @@ esp_err_t app_setup_wifi_provision(app_config_t *cfg)
         portEXIT_CRITICAL(&guard);
         if (cmd == CMD_SCAN) scan_aps(c, APP_SETUP_SELECT);
         if (cmd == CMD_CONNECT) {
-            bool joined = app_wifi_join_setup(ssid,password)==ESP_OK &&
-                          app_wifi_wait_connected(pdMS_TO_TICKS(15000));
+            bool joined = app_wifi_join_setup(ssid,password)==ESP_OK;
             if (joined) {
                 strcpy(cfg->wifi.ssid,ssid);
                 strcpy(cfg->wifi.password,password);

@@ -20,6 +20,7 @@ esp_err_t app_wifi_factory_reset_credentials(void);
 
 /* Első beállítás: a STA egyszer indul, a választást a boot-feladat alkalmazza. */
 esp_err_t app_wifi_start_setup(const app_config_t *cfg);
+/* DHCP és az éppen társított SSID ellenőrzése után jelez sikert. */
 esp_err_t app_wifi_join_setup(const char *ssid, const char *password);
 void app_wifi_finish_setup(void);
 
