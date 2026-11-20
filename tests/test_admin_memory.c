@@ -128,6 +128,7 @@ size_t app_events_snapshot(app_event_entry_t *events, size_t count)
     memset(events[0].text, '"', sizeof(events[0].text) - 1);
     strcpy(events[0].text_en, "English");
     strcpy(events[1].text, "Legfrissebb");
+    strcpy(events[1].text_en, "Most recent");
     return 2;
 }
 
@@ -162,7 +163,11 @@ static unsigned check_events(unsigned stop)
                 assert(quoted && strstr(response, "Legfrissebb") && strstr(response, "Legfrissebb") < quoted);
                 for (unsigned i = 0; i < APP_EVENT_TEXT_MAX - 1; ++i, quoted += 6)
                     assert(!strncmp(quoted, "&quot;", 6));
-            } else assert(strstr(response, "English"));
+            } else {
+                const char *newest = strstr(response, "Most recent");
+                const char *previous = strstr(response, "English");
+                assert(newest && previous && newest < previous);
+            }
         }
     }
     return chunks;

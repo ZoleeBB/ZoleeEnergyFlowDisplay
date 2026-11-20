@@ -231,17 +231,15 @@ assert 'app_display_boot_sync(' in main_source
 # A 90 fokos próba/letiltás védelmet eltávolítottuk: indulás közbeni újraindítás
 # mindig visszaállította 270 fokra, pedig a 90 fokos mód stabil.
 assert 'orientation_verified_task' not in main_source and 'blocked' not in main_source
-# A Windows-szimulátor a POSIX olvasási úttól külön ágon fordul. A fejlécben
-# meghirdetett függvények definíciója ezért nem állhat `_WIN32`-függő blokkban:
-# ott az MSVC-s build linkelésnél bukik (LNK2019: unresolved external symbol).
-# Az információs oldal és a mentett napló is a legfrissebb bejegyzéssel kezd,
-# ahogy a kijelző diagnosztikai nézete.
+# A kezdőlap eseménysorrendjét a tényleges magyar és angol HTTP-kimeneten ellenőrizzük.
+subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
 web_source=(ROOT/'main/app_web.c').read_text()
-assert 'size_t i = event_count - 1 - shown;' in web_source
 assert 'app_event_log_reverse_lines(' in web_source
 diagnostics_source=(ROOT/'main/app_template_ui.inc').read_text()
 assert 's_diagnostic_events[s_diagnostic_event_count - 1 - i]' in diagnostics_source
 
+# A Windows-szimulátor más fordítási ágat használ. A publikus függvényeknek
+# Windows alatt is elérhetőnek kell maradniuk a linkeléshez.
 templates_header=(ROOT/'main/app_templates.h').read_text()
 exported={name for name in re.findall(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', templates_header, re.M)}
 assert 'app_templates_sd_write' in exported
@@ -337,7 +335,6 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=T
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_home_resources.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
-subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
 subprocess.run(['node', str(ROOT/'tests/test_settings_web.js')], cwd=ROOT, check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
