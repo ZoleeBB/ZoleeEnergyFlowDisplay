@@ -49,6 +49,7 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
   tartós NVS-ben vannak.
 - Nincs párhuzamos kézi OTA, konfigurációmentés vagy webes újraindítás: ilyenkor
   a webes módosítás 409 választ ad, illetve a foglalt éjféli ellenőrzés kimarad.
+- Közvetlen inverter módban a GitHub-frissítő a már futó inverteres vagy időjárási HTTPS-kérés befejezésére legfeljebb 30 másodpercet vár. Ha a kérés még fut, az OTA-kísérlet kimarad és az eseménynaplóban látszik az oka. A frissítés az oldalon kézzel ismételhető. [Memóriahasználat](performance.md#közvetlen-inverter-és-a-v4-memóriakerete)
 - A kapcsolódási hiba nem azonnal végleges: a letöltő 3 másodperc szünettel
   kétszer újrapróbálkozik, és ezt naplózza is. A TLS-kontextus pillanatnyi
   belső RAM-hiánytól is elbukhat, ezért érdemes megnézni a hiba melletti
@@ -102,6 +103,8 @@ A firmware két alkalmazáspartíciót használ. Az új image először próbaá
 | Már beállított Bluetooth Slave, SD-vel vagy SD nélkül | A párosított Mastertől megérkezik a hiteles idő. A Slave saját Wi-Fi-je ehhez opcionális. |
 
 A véglegesítés közben a 10,1″-es indulóképernyő még mutathatja a Loxone-kapcsolat felépítését vagy az első adatcsomagra várást. Az első mérés, a statisztika és a téma megjelenése külön követhető. [Az indulóképernyő viselkedése üzemmódonként](first-start.md#indulás-mentett-beállításokkal)
+
+Első üzembe helyezéskor a beállító webfelület megvárja a próbakép elfogadását, mert az első mentés újraindítja az eszközt. A tájolás miatti tervezett újraindítás és a Slave kapcsolatfigyelője is figyelembe veszi a próbaidőt.
 
 A szokásos ellenőrzési idő 5 perc. A már Slave módban induló, Masterre váró kijelző legfeljebb 20 percet kap, hogy a két eszköz egymást követő frissítésénél ismét létrejöhessen a kapcsolat.
 
