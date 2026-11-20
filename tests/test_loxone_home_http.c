@@ -158,7 +158,7 @@ bool app_slave_presence_service_update(const app_slave_identity_t *identity,
 #include "app_support_web.h"
 static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
 {
-    return app_web_send_template(req, page, hu, s_config.data_recept_mode == APP_DATA_INVERTER);
+    return app_web_send_template(req, page, hu, s_config.data_recept_mode);
 }
 #include "../main/app_loxone_web.inc"
 /* Ezen a szinten csak a hálózati határt teszteljük, a tárolót másik teszt fedi. */

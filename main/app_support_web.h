@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "esp_http_server.h"
+#include "app_config.h"
 #include "app_support_links.h"
 
 /* Közös támogatási blokk: nincs fizetési kérés, háttérkapcsolat vagy kijelzőállapot.
@@ -29,17 +30,18 @@ static inline esp_err_t app_web_send_support(httpd_req_t *req, bool hu)
 
 /* A menü a flashből, az aktív adatforrás linkjével kerül a válaszba. */
 static inline esp_err_t app_web_send_nav(httpd_req_t *req, const char *text, size_t len,
-                                          bool hu, bool inverter)
+                                          bool hu, app_data_mode_t mode)
 {
     static const char loxone[] = "<a href='/loxone' data-nav='loxone'>Loxone</a>";
-    const char *slot = inverter ? strstr(text, loxone) : NULL;
+    const char *slot = mode == APP_DATA_LOXONE ? NULL : strstr(text, loxone);
     if (!slot || (size_t)(slot - text) + sizeof(loxone) - 1 > len)
         return httpd_resp_send_chunk(req, text, len);
-    const char *link = hu ? "<a href='/inverter' data-nav='inverter'>Inverter beállítások</a>" :
-                            "<a href='/inverter' data-nav='inverter'>Inverter settings</a>";
     esp_err_t result = slot == text ? ESP_OK : httpd_resp_send_chunk(req, text, slot - text);
-    if (result == ESP_OK)
+    if (result == ESP_OK && mode == APP_DATA_INVERTER) {
+        const char *link = hu ? "<a href='/inverter' data-nav='inverter'>Inverter beállítások</a>" :
+                                "<a href='/inverter' data-nav='inverter'>Inverter settings</a>";
         result = httpd_resp_send_chunk(req, link, strlen(link));
+    }
     const char *tail = slot + sizeof(loxone) - 1;
     if (result == ESP_OK && tail < text + len)
         result = httpd_resp_send_chunk(req, tail, (text + len) - tail);
@@ -49,17 +51,17 @@ static inline esp_err_t app_web_send_nav(httpd_req_t *req, const char *text, siz
 /* Az oldalt másolás és új heapfoglalás nélkül, a jelölt helyen egészítjük ki.
  * Üres linkkonfigurációval az eredeti oldal marad elérhető; nincs hibás gomb.
  * Az első küldési hibánál leállunk, a sikeres chunked választ egyszer zárjuk. */
-static inline esp_err_t app_web_send_template(httpd_req_t *req, const char *page, bool hu, bool inverter)
+static inline esp_err_t app_web_send_template(httpd_req_t *req, const char *page, bool hu, app_data_mode_t mode)
 {
     static const char marker[] = "<!--APP_SUPPORT-->";
     const char *slot = strstr(page, marker);
     const char *card = hu ? app_support_card_hu : app_support_card_en;
-    if (!slot || (!inverter && !card[0])) {
+    if (!slot || (mode == APP_DATA_LOXONE && !card[0])) {
         return httpd_resp_sendstr(req, page);
     }
     esp_err_t result = ESP_OK;
     if (slot != page) {
-        result = app_web_send_nav(req, page, slot - page, hu, inverter);
+        result = app_web_send_nav(req, page, slot - page, hu, mode);
     }
     if (result == ESP_OK) {
         result = app_web_send_support(req, hu);

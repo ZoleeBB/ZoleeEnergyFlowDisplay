@@ -56,6 +56,8 @@ static const char *TAG = "web";
 
 static app_ota_config_t s_auth_cfg;
 static app_config_t s_config;
+/* A weben mentett új üzemmód végpontjai csak a következő indításkor léteznek. */
+static app_data_mode_t s_web_mode;
 static httpd_handle_t s_server;
 static bool s_restart_pending;
 static char s_expected_auth[256];
@@ -64,7 +66,7 @@ static bool s_hu = true;
 
 static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
 {
-    return app_web_send_template(req, page, hu, s_config.data_recept_mode == APP_DATA_INVERTER);
+    return app_web_send_template(req, page, hu, s_web_mode);
 }
 
 static const char *web_mode_name(app_data_mode_t mode)
@@ -420,7 +422,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
     const char *nav = s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN;
-    if (app_web_send_nav(req, nav, strlen(nav), s_hu, s_config.data_recept_mode == APP_DATA_INVERTER) != ESP_OK)
+    if (app_web_send_nav(req, nav, strlen(nav), s_hu, s_web_mode) != ESP_OK)
         return ESP_FAIL;
 
     if (app_web_send_support(req, s_hu) != ESP_OK) {
@@ -1037,6 +1039,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
     }
 
     s_config = *cfg;
+    s_web_mode = cfg->data_recept_mode;
     s_auth_cfg = cfg->ota;
     snprintf(
         s_project_title,

@@ -41,7 +41,7 @@ int httpd_req_recv(httpd_req_t *r,char *out,size_t n){if(interrupted)return -1;s
 #include "app_support_web.h"
 static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
 {
-    return app_web_send_template(req, page, hu, s_config.data_recept_mode == APP_DATA_INVERTER);
+    return app_web_send_template(req, page, hu, s_config.data_recept_mode);
 }
 #include "../main/app_template_web.inc"
 static void request(const char *uri,const unsigned char *bytes,size_t size){
