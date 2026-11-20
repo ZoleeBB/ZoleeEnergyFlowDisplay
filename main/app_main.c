@@ -337,6 +337,7 @@ static void __attribute__((noinline)) app_boot(void)
     /* Első konfigurálás alatt csak a helyi admin fut. A böngészős mentés
      * és az újraindítás után indul el a kiválasztott adatforrás. */
     if (setup) {
+        app_ota_wait_for_validation();
         while (app_web_start(&s_config) != ESP_OK)
             vTaskDelay(pdMS_TO_TICKS(5000));
         app_setup_wifi_set_phase(APP_SETUP_WEB);

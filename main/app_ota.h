@@ -5,6 +5,9 @@
 
 /* OTA próba-image ötperces automatikus validációjának elindítása. */
 esp_err_t app_ota_start_validation_task(void);
+/* Az első beállítás mentéskor újraindít. Csak a validáció befejezése után
+ * indítható az ezt engedélyező webfelület. Elfogadott képen azonnal visszatér. */
+void app_ota_wait_for_validation(void);
 
 /* Indulás után egyszer: ha az előző OTA visszaállt, naplózza a verzióját és –
  * ha az alkalmazás még le tudta írni – a visszaállás okát is. A RAM-napló a

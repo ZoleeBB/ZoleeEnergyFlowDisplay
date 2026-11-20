@@ -16,11 +16,13 @@
 #include "app_state.h"
 #include "nvs.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
 static const char *TAG = "ota_validation";
-static bool s_started;
+enum { VALIDATION_IDLE, VALIDATION_PENDING, VALIDATION_DONE };
+static atomic_int s_validation;
 
 /* A visszaállás oka túléli az újraindítást: az alkalmazás RAM-naplója nem. */
 #define OTA_RESULT_NAMESPACE "ota_result"
@@ -34,6 +36,17 @@ static void save_rollback_reason(const char *reason)
     if (nvs_set_str(handle, OTA_RESULT_KEY, reason) == ESP_OK)
         nvs_commit(handle);
     nvs_close(handle);
+}
+
+static void clear_rollback_reason(void)
+{
+    nvs_handle_t handle;
+    if (nvs_open(OTA_RESULT_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
+    {
+        if (nvs_erase_key(handle, OTA_RESULT_KEY) == ESP_OK)
+            nvs_commit(handle);
+        nvs_close(handle);
+    }
 }
 
 void app_ota_report_boot_state(void)
@@ -56,32 +69,24 @@ void app_ota_report_boot_state(void)
     if (reason[0])
     {
         app_events_add(APP_EVENT_WARNING, "Az OTA visszaállás oka: %.80s", reason);
-        if (nvs_open(OTA_RESULT_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
-        {
-            if (nvs_erase_key(handle, OTA_RESULT_KEY) == ESP_OK)
-                nvs_commit(handle);
-            nvs_close(handle);
-        }
+        clear_rollback_reason();
     }
+}
+
+static bool accept_ready_image(const app_runtime_state_t *runtime)
+{
+    if (!app_state_ota_ready(runtime) || esp_ota_mark_app_valid_cancel_rollback() != ESP_OK)
+        return false;
+    app_events_add(APP_EVENT_INFO, "OTA firmware ellenőrzése sikeres; verzió véglegesítve.");
+    ESP_LOGI(TAG, "OTA image marked valid");
+    atomic_store(&s_validation, VALIDATION_DONE);
+    return true;
 }
 
 /* A függőben lévő OTA image érvényesítési feltételeit figyelő háttértask. */
 static void validation_task(void *arg)
 {
     (void)arg;
-
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    esp_ota_img_states_t state;
-
-    /*
-     * Normál bootnál nincs mit validálni, ezért a task azonnal megszűnik.
-     */
-    if (!running || esp_ota_get_state_partition(running, &state) != ESP_OK ||
-        state != ESP_OTA_IMG_PENDING_VERIFY)
-    {
-        vTaskDelete(NULL);
-        return;
-    }
 
     const TickType_t start = xTaskGetTickCount();
     const TickType_t timeout = pdMS_TO_TICKS(300000);
@@ -99,17 +104,9 @@ static void validation_task(void *arg)
         if ((xTaskGetTickCount() - start) >= limit)
             break;
 
-        if (app_state_ota_ready(&runtime))
-        {
-            esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
-            if (err == ESP_OK)
-            {
-                app_events_add(APP_EVENT_INFO,
-                               "OTA firmware ellenőrzése sikeres; verzió véglegesítve.");
-                ESP_LOGI(TAG, "OTA image marked valid");
-                vTaskDelete(NULL);
-                return;
-            }
+        if (accept_ready_image(&runtime)) {
+            vTaskDelete(NULL);
+            return;
         }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -131,17 +128,42 @@ static void validation_task(void *arg)
     app_events_add(APP_EVENT_ERROR, "%s", reason);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
-    esp_ota_mark_app_invalid_rollback_and_reboot();
+    if (esp_ota_mark_app_invalid_rollback_and_reboot() != ESP_OK) {
+        /* Előző, indítható kép hiányában itt maradunk. A később csatlakozó
+         * első beállítás a hálózati feltételek teljesülése után folytatódhat. */
+        clear_rollback_reason();
+        app_events_add(APP_EVENT_WARNING, "Az OTA visszaállítása sikertelen; az ellenőrzés folytatódik.");
+        do {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            app_state_get_runtime(&runtime);
+        } while (!accept_ready_image(&runtime));
+    }
     vTaskDelete(NULL);
 }
 
 /* Az OTA validációs task egyszeri indítása. */
 esp_err_t app_ota_start_validation_task(void)
 {
-    if (s_started)
+    if (atomic_load(&s_validation) != VALIDATION_IDLE)
         return ESP_OK;
-    if (xTaskCreate(validation_task, "validation_task", 4096, NULL, 7, NULL) != pdPASS)
+    /* A már elfogadott kép induláskor nem igényel külön 4 KiB-os vermet. */
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    if (!running || esp_ota_get_state_partition(running, &state) != ESP_OK ||
+        state != ESP_OTA_IMG_PENDING_VERIFY) {
+        atomic_store(&s_validation, VALIDATION_DONE);
+        return ESP_OK;
+    }
+    atomic_store(&s_validation, VALIDATION_PENDING);
+    if (xTaskCreate(validation_task, "validation_task", 4096, NULL, 7, NULL) != pdPASS) {
+        atomic_store(&s_validation, VALIDATION_IDLE);
         return ESP_ERR_NO_MEM;
-    s_started = true;
+    }
     return ESP_OK;
+}
+
+void app_ota_wait_for_validation(void)
+{
+    while (atomic_load(&s_validation) == VALIDATION_PENDING)
+        vTaskDelay(pdMS_TO_TICKS(100));
 }

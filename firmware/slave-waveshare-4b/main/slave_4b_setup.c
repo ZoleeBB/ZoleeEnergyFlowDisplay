@@ -1,5 +1,6 @@
 #include "slave_4b_setup.h"
 #include "app_boot_config.h"
+#include "app_ota.h"
 #include "app_setup_ui.h"
 #include "app_setup_wifi.h"
 #include "app_time.h"
@@ -110,6 +111,7 @@ esp_err_t slave_4b_setup_run(app_config_t *cfg)
      * Slave role switches to the authenticated Master's clock. */
     if ((err = app_time_init(cfg)) != ESP_OK) return err;
     while (app_time_sync_once() != ESP_OK) vTaskDelay(pdMS_TO_TICKS(1000));
+    app_ota_wait_for_validation();
     httpd_config_t settings = HTTPD_DEFAULT_CONFIG();
     settings.stack_size = 8192;
     httpd_handle_t server = NULL;

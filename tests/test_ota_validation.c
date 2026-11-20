@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static const esp_partition_t partition = {.size = 8388608};
 static esp_ota_img_states_t image_state;
@@ -16,7 +18,7 @@ static app_runtime_state_t runtime;
 static TickType_t ticks, time_arrives;
 static unsigned scheduled, deleted, validated, rolled_back;
 static char reason[224];
-static bool committed;
+static bool committed, start_failed, run_on_wait, rollback_unavailable;
 static void (*worker)(void *);
 
 int xTaskCreate(void (*fn)(void *), const char *name, unsigned stack,
@@ -24,6 +26,7 @@ int xTaskCreate(void (*fn)(void *), const char *name, unsigned stack,
 {
     (void)name; (void)stack; (void)priority; (void)handle;
     assert(fn && !arg);
+    if (start_failed) return 0;
     worker = fn;
     ++scheduled;
     return pdPASS;
@@ -35,6 +38,10 @@ void vTaskDelay(TickType_t wait)
 {
     assert(wait && !deleted && ticks < pdMS_TO_TICKS(1300000));
     ticks += wait;
+    if (run_on_wait) {
+        run_on_wait = false;
+        worker(NULL);
+    }
     if (time_arrives && ticks >= time_arrives) runtime.time_synced = true;
 }
 
@@ -61,7 +68,7 @@ esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot(void)
 {
     assert(committed && reason[0]);
     ++rolled_back;
-    return ESP_OK;
+    return rollback_unavailable ? ESP_FAIL : ESP_OK;
 }
 
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *handle)
@@ -83,8 +90,9 @@ esp_err_t nvs_get_str(nvs_handle_t h, const char *key, char *value, size_t *len)
 }
 esp_err_t nvs_erase_key(nvs_handle_t h, const char *key)
 {
-    (void)h; (void)key;
-    return ESP_ERR_NOT_FOUND;
+    assert(h == 1 && !strcmp(key, "reason"));
+    reason[0] = 0;
+    return ESP_OK;
 }
 esp_err_t nvs_commit(nvs_handle_t h) { assert(h == 1); committed = true; return ESP_OK; }
 void nvs_close(nvs_handle_t h) { assert(h == 1); }
@@ -109,12 +117,35 @@ static void expect_timeout(TickType_t deadline, const char *cause)
 
 int main(void)
 {
+    /* A két hidegindításnak külön statikus OTA-állapota van. */
+    pid_t child = fork();
+    assert(child >= 0);
+    if (child == 0) {
+        image_state = ESP_OTA_IMG_VALID;
+        assert(app_ota_start_validation_task() == ESP_OK && !scheduled);
+        app_ota_wait_for_validation();
+        assert(!ticks);
+        _exit(0);
+    }
+    int status;
+    assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && !WEXITSTATUS(status));
+
+    boot(APP_DATA_MQTT);
+    start_failed = true;
+    assert(app_ota_start_validation_task() == ESP_ERR_NO_MEM && !scheduled);
+    start_failed = false;
     assert(app_ota_start_validation_task() == ESP_OK && worker);
     assert(app_ota_start_validation_task() == ESP_OK && scheduled == 1);
-    boot(APP_DATA_MQTT);
-    image_state = ESP_OTA_IMG_VALID;
-    worker(NULL);
-    assert(deleted == 1 && !ticks && !validated && !rolled_back);
+    /* Ha a felhasználó 5 perc után állítja be a Wi-Fi-t, és nincs használható
+     * régi kép, az új időszinkron még feloldja a konfigurálást. */
+    runtime.wifi_connected = true;
+    rollback_unavailable = true;
+    time_arrives = pdMS_TO_TICKS(303000);
+    run_on_wait = true;
+    app_ota_wait_for_validation();
+    assert(ticks >= time_arrives && validated == 1 && rolled_back == 1 && deleted == 1 && !reason[0]);
+    rollback_unavailable = false;
+    app_ota_wait_for_validation();
 
     const app_data_mode_t master[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_INVERTER};
     for (size_t i = 0; i < sizeof(master)/sizeof(master[0]); ++i) {

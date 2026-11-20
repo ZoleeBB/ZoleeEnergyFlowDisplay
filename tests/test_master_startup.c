@@ -28,6 +28,7 @@ static int fixture_rename(const char *from, const char *to);
 static app_data_mode_t mode;
 static bool setup, retry_loxone, resetting, reset_cardless;
 static unsigned reset_calls, remounts;
+static bool setup_ota_valid;
 static int wifi_starts, wifi_waits, ntp_attempts, web_starts, mqtt_starts;
 static int audio_starts, audio_runs, loxone_starts, intercom_preparations, inverter_ticks, ingest_starts;
 static bool runtime_started, ble_started, ble_profile_applied, setup_waiting_for_time, setup_web;
@@ -143,6 +144,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
 {
     assert(cfg->data_recept_mode == mode && runtime().time_synced);
     /* Hibás első szerverindítás: a kezelőfelület mérés nélkül is újrapróbálja. */
+    assert(setup_ota_valid == setup);
     ++web_starts;
     return !retry_loxone && web_starts == 1 ? ESP_FAIL : ESP_OK;
 }
@@ -287,6 +289,11 @@ esp_err_t app_ui_init(uint16_t rotation) { assert(rotation == 270); return ESP_O
 void app_ui_set_config(const app_config_t *cfg) { assert(cfg->data_recept_mode == mode); }
 void app_events_init(void) {}
 void app_ota_report_boot_state(void) {}
+void app_ota_wait_for_validation(void)
+{
+    assert(setup && runtime().time_synced && !web_starts);
+    setup_ota_valid = true;
+}
 void app_ble_profile_boot_complete(void) {}
 void app_boot_config_use_trusted_backup(void) {}
 void app_storage_set_cardless(void) {}
