@@ -162,8 +162,8 @@ Utómunka: 1280×800-ra méretezés, 256 színre kvantálás után RGB PNG kódo
 - A valódi C-modell teszteli a két energiairányt, SOC-ablakot, mediánt,
   illesztett és elutasított hatásfokpárokat, timeoutot, óraugrást, SOC-ugrást,
   kapacitásváltást, elavulást és JSON-visszatöltést.
-- Az `app_stats` integráció tényleges SD-fájlokkal ellenőrzi az éjféli
-  átmenetet, bootot és mind a négy helyi statisztikát számoló adatfogadási módot.
+- Az `app_stats` integráció tényleges SD-fájlokkal ellenőrzi a
+  napváltást és az újraindulás utáni folytatást MQTT, HTTP, Közvetlen Loxone, Közvetlen inverter és SD-kártyás Slave módban.
 - A headless LVGL a firmware saját UI-ját rajzolja, a demóeredményt a valódi
   diagnosztikai modell állítja elő. Kevés adat és hiányzó referencia is tesztelt.
 - A fizikai akkurendszer mérési pontját, előjelét és névleges/használható

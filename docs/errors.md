@@ -29,6 +29,10 @@ Külön MQTT kapcsolati hibaképernyő jelenik meg. Az újracsatlakozási idő a
 
 A 10,1″-es kijelző MQTT, HTTP és Loxone módban az első érvényes energiamérést az indulóképernyőn várja. Ha a már működő energiaábra adatai elévülnek, teljes képernyős adathiányjelzés jelenik meg. A felület a következő érvényes csomagnál automatikusan helyreáll.
 
+## Megszakadt az inverterkapcsolat
+
+Ha egy működő inverterkapcsolat megszakad, a Master a háttérben újrapróbálkozik. Az **Inverter beállítások** fülön láthatod az utolsó mérést és a kapcsolat állapotát. A **Nincs friss invertermérés** felirat azt jelzi, hogy friss mérési adat hiányzik. Felhős profilnál ellenőrizd, mikor kapott adatot a gyártó alkalmazása. Helyi kapcsolatnál ellenőrizd, hogy az inverter és az adatgyűjtő elérhető-e a Master hálózatán. [Kapcsolati hibák, türelmi idő és automatikus visszatérés](direct-inverter.md#hibakeresés) · [IP-címváltozás követése](direct-inverter.md#helyi-elérés-dhcp-vel)
+
 ## Futás közbeni SD hiba
 
 A dashboard és az adatfeldolgozás tovább működik RAM-ból.

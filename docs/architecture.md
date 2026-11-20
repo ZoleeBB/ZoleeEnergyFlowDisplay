@@ -1,15 +1,14 @@
 # Felépítés
 
-Az ESP32-P4 firmware közös állapotmodellt használ az MQTT-, HTTP-, közvetlen Loxone- és BLE Slave-adatfogadáshoz. Az első három út a közös JSON-validálón át publikál; a Slave a master bináris energia/időjárás/óra csomagjait ellenőrzi és állítja össze. Hibás vagy hiányos minta nem hosszabbítja meg az adatfrissességet. Az opcionális BLE master a már validált állapotot szolgáltatja; Slave módban nincs továbbosztás.
+Az ESP32-P4 firmware öt adatfogadási módja közös energiaállapotot szolgáltat. Az MQTT, a HTTP POST és a közvetlen Loxone a közös JSON-validálón keresztül publikál. Közvetlen inverter módban a kiválasztott meghajtó az inverter, a helyi adatgyűjtő vagy a gyártói felhő adataiból képez mintát. A Slave a Master bináris energia-, időjárás- és óracsomagjait ellenőrzi és állítja össze. Az inverteres mintához érvényes PV-mérés szükséges. A hiányzó ház-, hálózati és akkumulátorértékeket a Master külön jelöli. A bekapcsolt BLE-adatmegosztás a Master ellenőrzött állapotát adja tovább a Slave-eknek.
 
-A konfiguráció SD-s működésben a FAT32 microSD gyökerében található. SD nélküli Slave-nél a `device_boot` NVS-névtér JSON-konfigurációt és tartós szerepjelölőt tárol. A `ble_profile` a párosított master Wi-Fi/OTA profilját őrzi. A helyi naptári statisztikához MQTT/HTTP/Loxone módban NTP, Slave módban a master UTC ideje és helyi UTC-eltolása szükséges. A fogadási módot a `DataReceptMode` választja; egyszerre egy mód aktív.
+A konfiguráció SD-s működésben a FAT32 microSD gyökerében található. SD nélküli Slave-nél a `device_boot` NVS-névtér JSON-konfigurációt és tartós szerepjelölőt tárol. A `ble_profile` a párosított master Wi-Fi/OTA profilját őrzi. A Master saját belső tárában őrzi az inverterprofilt, a helyszín koordinátáit és a heti sötétítési programot. A helyi naptári statisztikához Masteren NTP, Slave módban a párosított Master UTC-ideje és helyi UTC-eltolása szükséges. A `DataReceptMode` mező választja ki az aktív adatfogadási módot.
 
 A LVGL 9.5.0 felület 1280×800 fekvő tájolású. Az állapotfrissítés 200 ms (az elfogadott navigációs gesztus a runtime taskot azonnal felébreszti), az energiaanimáció kerete 16 ms, a normál részleges frissítés periódusa 15 ms, kész frame utáni plusz várakozás nélkül, a diagramok frissítése 5 másodperc. A PNG-dekódolás gyorsítótára 10 MiB; a 10.1-es kijelző a három meglévő RGB565 panelpuffert használó `TRIPLE_PARTIAL` módban csak a változásokat rajzolja újra, és kész képeket ad át. A 4B saját, nem forgatott kijelzője továbbra is `TRIPLE_PARTIAL` módú. A PNG-k és a betűkészletek PSRAM-igényét a sablonvalidátor korlátozza.
 
 A statisztika 35 helyi naptári napot tárol. A mai és tegnapi részletes adatok RAM-ban vannak; a pillanatfelvétel készítése és az SD-műveletek külön zárolást használnak. SD-hiba esetén az adatfogadás és a RAM-beli számolás folytatódik. A kártya állapotellenőrzése 5, újracsatlakoztatási próbája 60 másodpercenként történik.
 
-Ez az SD-s Slave saját integrálására is érvényes; az összes telepített témát
-használhatja. SD nélkül a helyi integrálás és az SD-helyreállító task kimarad,
+Az SD-s Slave saját statisztikát integrál, és a számára elérhető telepített témák között lapozhat. Az Elektromos autó téma Loxone Masteren választható. SD nélkül a helyi integrálás és az SD-helyreállító task kimarad,
 csak a beépített Rendszer nézet aktív. A 1005 GATT-karakterisztikán érkező,
 6664 bájtos master-pillanatkép 14 lapon, ellenőrzés után atomi RAM-cserével frissül.
 Az élő energia/óra értesítések ettől külön működnek. A 1004 profil és a 1005
@@ -26,9 +25,9 @@ hellyel rendelkező kártyán a generálás kimarad. Az SD-olvasás egyetlen,
 induláskor foglalt belső DMA-pufferen keresztül megy, mert az SD-vezérlő
 DMA-ja a PSRAM-ot nem éri el. Részletek: [teljesítmény](performance.md).
 
-A beépített nézet és tíz SD-s sablon ugyanazt az adatmodellt használja. Balra/jobbra húzás témát vált; Master/Loxone Otthon-nézetben a saját oldalak között lapoz. Felfelé húzás nyitja a diagnosztikát, a jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-oldalakat, a ház érintése a fogyasztókat nyitja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
+A beépített nézet és a telepített SD-s sablonok ugyanazt az adatmodellt használják. Balra/jobbra húzás témát vált; Master/Loxone Otthon-nézetben a saját oldalak között lapoz. Felfelé húzás nyitja a diagnosztikát, a jobb felső X zárja. Master/Loxone módban lefelé húzás az Otthon-oldalakat, a ház érintése a fogyasztókat nyitja. A webes OTA két alkalmazáspartíciót és automatikus visszaállítást használ.
 
-Részletek: [adatprotokoll](mqtt.md), [statisztika](statistics.md), [sablonok](templates.md), [OTA](ota.md), [hibák](errors.md).
+A profilok frissítési idejét, a részleges mérések és a kimaradás kezelését az inverteres útmutató részletezi. [Közvetlen inverter](direct-inverter.md) · [JSON-adatprotokoll](mqtt.md) · [Statisztika](statistics.md) · [Sablonok](templates.md) · [OTA](ota.md) · [Hibák](errors.md)
 
 A MIPI LVGL képpufferei PSRAM-ban vannak. A Waveshare BSP 2.0.3 belső RAM-ra rögzített beállítását a `main/app_display.c` regisztrációs linker-wrapper korrigálja. A függőségek eredeti forrásai érintetlenek; a méret és tájolás megmarad. A v3 Master a panel meglévő három pufferét és egy 800×50 pixeles, 80 000 bájtos PSRAM-részpuffert használ.
 

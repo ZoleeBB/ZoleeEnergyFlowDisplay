@@ -4,6 +4,8 @@ Ebben a módban a Master maga olvassa az inverter termelési adatait. Egy Master
 
 ## Első beállítás
 
+Az **Inverter beállítások** fül és a hozzá tartozó keresés a 10,1 hüvelykes Master **Közvetlen inverter** üzemmódjában érhető el. A helyi webes felület az általános beállításokban megadott adminfiókot használja. Ha ott nincs felhasználónév beállítva, a webfelület bejelentkezés nélkül elérhető a Master helyi IP-címén. A gyártói fiók kulcsait a kiválasztott inverterprofilnál add meg.
+
 Ha a Masteren már a **Közvetlen inverter** mód van elmentve, az időszinkron után az üres inverterprofilhoz a kijelző beállítást kér. Nyisd meg a helyi webfelületen az **Inverter beállítások** fület. Az energiaábra az első érvényes mérésből épül fel.
 
 1. Új, mentett konfiguráció nélküli készüléken válassz Wi-Fi-hálózatot a panelen. A jelszót az érintőbillentyűzettel adhatod meg. Az IP-cím megszerzése után a kijelző szinkronizál a gyári `hu.pool.ntp.org` szerverrel. A fekete beállítóképernyőn látható címet, például `http://192.168.1.80`, nyisd meg a helyi hálózat egyik böngészőjében. [A képernyők és a billentyűzet](first-run-wifi.md)
@@ -61,11 +63,13 @@ Módosítsd a kívánt címet, majd válaszd az **Inverter és időprogramok men
 
 ## Támogatott invertercsaládok és adatgyűjtők
 
+A tíz családhoz összesen 22 kapcsolati profil tartozik. A 18 helyi profilból 16 támogat hálózati keresést. A SolaX Pocket HTTP és a Solplanet HTTPS helyi címe kézzel adható meg. A négy felhős profilhoz a gyártói API-hoz tartozó hozzáférés kell.
+
 | Inverter | Használható kapcsolat | Telepítéskor ezt ellenőrizd |
 | --- | --- | --- |
 | Fronius Primo/Symo GEN24 Plus | Helyi Solar API HTTP, Solar.web Query API | Engedélyezett Solar API vagy külön Solar.web API-kulcs. Ház és hálózat megjelenítéséhez Smart Meter. |
 | Sungrow SH5.0–10RT, RT-20 | Helyi Modbus TCP | Az inverter megfelelő LAN-portja, Modbus-eszközcíme, mérő és a telepített akkumulátor. |
-| SolaX X3-Hybrid G4 és X3-HYB-G4 PRO | Helyi Modbus TCP, kompatibilis Pocket HTTP, SolaXCloud v2 | Modbusnál válaszd ki a pontos kivitelt. A külön PRO beállítás az inverter protokollverzióját és a két- vagy három-MPPT-s kiosztást is figyelembe veszi. A helyi Pocket HTTP profil a hagyományos G4-hez készült. |
+| SolaX X1-Hybrid G4, X3-Hybrid G4 és X3-HYB-G4 PRO | Helyi Modbus TCP, X3-Hybrid G4 esetén kompatibilis Pocket HTTP, továbbá SolaXCloud v2 külön API-hozzáféréssel | Modbusnál válaszd ki az X1, X3 vagy PRO változatot. A PRO beállítás a protokollverziót és az MPPT-bemenetek számát is figyelembe veszi. A helyi HTTP-profil a két MPPT-s X3-Hybrid G4 típushoz készült. |
 | Huawei SUN2000 L1/M1, köztük 5KTL-M1 | Helyi Modbus TCP, FusionSolar Northbound | WLAN-FE Smart Dongle és telepítő által engedélyezett Modbus TCP, illetve külön API-fiók. A helyi adatgyűjtő egyidejű klienskorlátjára ügyelj. |
 | GoodWe ET/EH | Helyi Modbus TCP | A megfelelő adatgyűjtő támogassa a Modbus TCP-t. A Wi-Fi kapcsolat önmagában a gyártói felhő elérését is jelentheti. |
 | Victron MultiPlus/Quattro GX rendszerrel | GX Modbus TCP vagy helyi MQTT | A GX-ben engedélyezd a választott szolgáltatást. MQTT-hez a VRM Portal ID kell. [GX MQTT beállítása](inverters/victron-mqtt.md) |
@@ -106,11 +110,11 @@ Aktív időablakban a panel elsötétül. Az első érintés a pillanatnyilag é
 
 | Kapcsolat | Automatizált ellenőrzés | Mit érdemes a saját telepítésen összevetni? |
 | --- | --- | --- |
-| 11 helyi Modbus-profil | A tényleges meghajtó által küldött regisztercím, olvasási funkció, szósorrend és skála. Gyári és módosított címek, hiányzó mérő, több tároló és eltérő SolaX-változatok. | A pontos modell és adatgyűjtő regisztertérképe, a hálózati teljesítmény előjele, a csatlakoztatott fogyasztásmérő szerepe. [Modbus-kézikönyv](inverters/modbus.md) |
+| 13 helyi Modbus-profil | A tényleges meghajtó által küldött regisztercím, olvasási funkció, szósorrend és skála. Gyári és módosított címek, hiányzó mérő, több tároló és eltérő SolaX-változatok. | A pontos modell és adatgyűjtő regisztertérképe, a hálózati teljesítmény előjele, a csatlakoztatott fogyasztásmérő szerepe. [Modbus-kézikönyv](inverters/modbus.md) |
 | 8 helyi HTTP/HTTPS vagy felhős profil | Gyártói válaszformátumok feldolgozása, részleges adat, hitelesítés, mérési idő és munkamenet-megújítás. | A stick firmware-e, az API-fiók régiója és jogosultsága, valamint a legutolsó adat ideje a gyártó alkalmazásában. [HTTP-kézikönyv](inverters/http.md) |
 | Victron GX MQTT | Feliratkozás, mérési témák, azonosító, megszakadt adatfolyam és új kapcsolat. | A GX helyi MQTT-beállítása és a Portal ID. [GX-beállítások](inverters/victron-mqtt.md) |
 
-A hálózati próbák helyi szerverrel vagy rögzített mintaválasszal futnak. Egy konkrét inverter, mérő és firmware együttműködését a telepítésenkénti próba igazolja.
+A hálózati próbákban a firmware meghajtója helyi tesztszerverrel, rögzített vagy szintetikus mintaválaszokkal működik. A helyszínen az inverter és adatgyűjtő típusa, a firmware-verzió, az engedélyezett szolgáltatások és a bekötött mérő határozza meg, mely csatornák olvashatók. Az első mérésnél hasonlítsd össze a termelést, a hálózat és az akkumulátor irányát a gyári kijelzéssel.
 
 ## Hibakeresés
 

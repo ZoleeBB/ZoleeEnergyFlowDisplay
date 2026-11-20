@@ -6,10 +6,7 @@ Frissítés, mentés, diagnosztika, ismert hibák és támogatás.
 
 ## Hiba esetén
 
-Az általános hibakezelés mellett az automatikus frissítés és a kaputelefon
-helyreállítása külön leírást kapott. A korábbi fejlesztési tapasztalatok a
-[történeti jegyzetekből](../history/README.md) is elérhetők; dátumhoz kötött
-megállapításaikat ne tekintsd automatikusan a jelenlegi firmware állapotának.
+Ha az első beállítás a hálózatválasztónál vagy az időszinkronnál megáll, kövesd a [Wi-Fi beüzemelési útmutatót](../first-run-wifi.md). Ha az üzemelő kijelző elvesztette az invertert, a [kapcsolati hibák útmutatója](../direct-inverter.md#hibakeresés) a helyi eléréshez és a gyártói felhőhöz is ad ellenőrzési pontokat. Az előző kiadások tapasztalatait a [történeti jegyzetek](../history/README.md) őrzik.
 
 ## Útmutatók
 

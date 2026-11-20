@@ -26,7 +26,7 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 ## Funkciók és üzemmódok
 
 - **Energiaáramlás és statisztika:** pillanatnyi teljesítmények, animált energiautak, napi/heti/havi adatok és pénzügyi mutatók. [Statisztika](docs/statistics.md).
-- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter és Bluetooth Master/Slave. A helyi inverter beállítását típusfüggő súgó és a kompatibilis profiloknál hálózati keresés segíti. [Inverterkeresés és támogatott típusok](docs/direct-inverter.md#inverter-keresése-a-helyi-hálózaton) · [Adatkapcsolatok beállítása](docs/integrations/README.md).
+- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter és Bluetooth Master/Slave. A Közvetlen inverter tíz gyártó 22 profilját kínálja. A helyi eszközöket öt másodpercenként olvassa, a négy gyártói felhőt profiltól függően 5, 20 vagy 60 percenként kérdezi. A beállítást típusfüggő súgó és a kompatibilis helyi profiloknál hálózati keresés segíti. [Inverterkeresés és támogatott típusok](docs/direct-inverter.md#inverter-keresése-a-helyi-hálózaton) · [Adatkapcsolatok beállítása](docs/integrations/README.md).
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. A szerkesztés típusválasztással indul, a kártyák fel/le gombokkal rendezhetők. [Otthon-konfiguráció](docs/v3-home-config.md).
 - **Világításvezérlés:** automatikus blokkfelismerés, `− / Ki / +` gombok, dimmer- és RGB/RGBW-kezelés. [Útmutató és képek](docs/lighting-controller.md).
 - **IRC termosztát:** célhőfok a kötött termosztátikonon, mért szobahőmérséklet, fűtési/hűtési üzemmódjel és `− / +` állítás 0,5 °C-os lépéssel. [Használat és beállítás](docs/irc-controller.md).
@@ -80,5 +80,5 @@ témakörönként csoportosítva.
 
 ## Verziók
 
-[Kiadási leírások és fejlesztési napló](docs/versions/README.md) ·
+[v4.0.0 – Közvetlen inverter és első beállítás](docs/versions/v4.0.0.md) · [Kiadási leírások és fejlesztési napló](docs/versions/README.md) ·
 [Letölthető kiadások](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases)

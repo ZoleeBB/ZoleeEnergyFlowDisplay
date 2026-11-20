@@ -21,17 +21,17 @@ Előre beállított kártyához a [MQTT-mintát](../config.sample.json) vagy a [
 | `energy` | Vételi és visszatáplálási egységár, CO₂- és faelnyelési tényező, `battery_capacity_kwh` (0 = ismeretlen), `battery_min_soc_pct` 0–90 (az akku hátralévő idejének alsó határa; 0 = alapértelmezés: normál üzemben 15%, áramszünetre készülve és szigetüzemben 5%) |
 | `ota` | A kezelő webfelület közös Basic Auth felhasználóneve/jelszava |
 
-HTTP módban MQTT broker nem szükséges. A kiválasztott mód adatkimaradási időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli.
+MQTT vagy HTTP POST adatfogadásnál az adatkimaradás időkorlátja 5–3600 másodperc, alapértéke 30. A nappali/éjszakai módot a mérési csomag `NightMode` mezője vezérli. Közvetlen inverter módban az éjszakai időszak napnyugtától napkeltéig tart, az adatkimaradási időt a kiválasztott profil határozza meg.
 
 A `display.rotation_degrees` csak `270` (csatlakozók jobb oldalon, alapérték) vagy `90` (csatlakozók bal oldalon) lehet. A GT911 érintéskezelése együtt fordul a képpel. A mező opcionális: régi konfigurációs fájloknál automatikusan 270° érvényes; más értéket az ellenőrzés elutasít. A kijelző az induláskor NVS-ből kiválasztott tájolással inicializálódik, és az SD-kártyát csak ezután olvassa. A betöltött konfiguráció (SD-vel `config.json`, SD nélkül belső JSON) a hiteles forrás: ha a tájolás eltér az NVS-ben tárolt értéktől, azt frissíti és egyszer újraindul. Futás közbeni LVGL-forgatás nincs, mert a MIPI DSI részleges framebufferrel hardveres összeomlást okozhat. Az első átállítás egy szándékos, vezérelt újraindítást eredményez. A korábbi 15 másodperces „próbaidőszak” megszűnt: az indulás közbeni újraindítás (frissítés, kézi reset) emiatt mindig visszaállt 270°-ra, pedig a 90°-os mód stabil. Az NVS most csak a kiválasztott tájolást tárolja.
 
 A `Europe/Budapest` időzónát a firmware CET/CEST szabályként kezeli. `auto_dst=0` esetén fix `utc_offset_minutes` érvényes; más automatikus időzónához POSIX TZ szabály kell, nincs általános IANA-időzónaadatbázis. Alap NTP: `hu.pool.ntp.org`, ismételt szinkron 6 óránként, háttérbeli újrapróbálás 15 percenként.
 
-Az OTA hitelesítésnél mindkét mező legyen kitöltve vagy mindkettő üres. Ez a sablonkezelőt és diagnosztikát is védi; a `POST /api/energy` nem kér hitelesítést. Az időjárás hiányát a JSON `null` értékek jelzik, nem konfigurációs kapcsoló.
+A webes adminfiókhoz az OTA felhasználónevet és jelszót együtt add meg. Mindkét mező üresen hagyásával a kezelőfelület a helyi hálózatról bejelentkezés nélkül elérhető. A beállított fiók védi a sablonkezelőt, a diagnosztikát és az inverter beállítását is. A `POST /api/energy` helyi adatfogadó hitelesítés nélkül fogad méréseket. Az időjárás hiányát a JSON `null` értékek jelzik, nem konfigurációs kapcsoló.
 
 ## Beállítások a webes felületen
 
-Az `/settings` oldalon a rendszerbeállítások módosíthatók, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, adatfogadási módot érintő, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek. A Master és az egyes Slave-ek jelenlét szerinti nappali/éjszakai sötétítése a külön [Loxone oldalon](loxone-direct.md#mester-jelenlét-szerinti-sötétítése) található.
+A 10,1 hüvelykes kijelző menüjében a **Loxone** fül Közvetlen Loxone módban, az **Inverter beállítások** fül Közvetlen inverter módban jelenik meg. Az `/settings` oldalon a rendszerbeállítások módosíthatók, az `/api/settings` végpontok a `config.json` mentését és ellenőrzését végzik. A kijelző hálózati, adatfogadási módot érintő, időkezelési és más rendszerbeállításainak módosítása biztonságos újraindítással lép életbe. A statisztikai beállítások újraindítás nélkül érvényesülnek. A Master és az egyes Slave-ek jelenlét szerinti nappali/éjszakai sötétítése a külön [Loxone oldalon](loxone-direct.md#mester-jelenlét-szerinti-sötétítése) található.
 
 Kártya nélkül az általános beállítások legfeljebb 3072 bájtos JSON-ként
 a belső NVS-tárba menthetők. A működő, SD nélküli Slave beállítófelületén
