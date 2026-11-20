@@ -1,5 +1,6 @@
 #include "slave_4b_setup.h"
 #include "app_boot_config.h"
+#include "app_events.h"
 #include "app_ota.h"
 #include "app_setup_ui.h"
 #include "app_setup_wifi.h"
@@ -105,27 +106,39 @@ esp_err_t slave_4b_setup_run(app_config_t *cfg)
     if (!timer) return ESP_ERR_NO_MEM;
     esp_err_t err = app_setup_wifi_provision(cfg);
     if (err != ESP_OK) return err;
-    if ((err = app_boot_config_save_setup_wifi(cfg)) != ESP_OK) return err;
+    while (app_boot_config_save_setup_wifi(cfg) != ESP_OK) {
+        app_events_add(APP_EVENT_WARNING, "A Wi-Fi profil belső mentését újrapróbáljuk.");
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
     app_setup_wifi_set_phase(APP_SETUP_WAIT_TIME);
-    /* The first boot uses network time. On the next boot the confirmed
-     * Slave role switches to the authenticated Master's clock. */
+    /* Első indításkor a hálózatról, párosított Slave-ként már a hitelesített
+     * Mastertől érkezik az idő. */
     if ((err = app_time_init(cfg)) != ESP_OK) return err;
     while (app_time_sync_once() != ESP_OK) vTaskDelay(pdMS_TO_TICKS(1000));
     app_ota_wait_for_validation();
     httpd_config_t settings = HTTPD_DEFAULT_CONFIG();
     settings.stack_size = 8192;
+    settings.max_open_sockets = 2;
+    settings.lru_purge_enable = true;
     httpd_handle_t server = NULL;
-    if ((err = httpd_start(&server, &settings)) != ESP_OK) return err;
     setup_context_t ctx = {.config = cfg};
     snprintf(ctx.token, sizeof(ctx.token), "%08lx%08lx", (unsigned long)esp_random(), (unsigned long)esp_random());
     httpd_uri_t get = {.uri = "/", .method = HTTP_GET, .handler = setup_page, .user_ctx = &ctx};
     httpd_uri_t post = {.uri = "/setup", .method = HTTP_POST, .handler = setup_save, .user_ctx = &ctx};
-    if ((err = httpd_register_uri_handler(server, &get)) == ESP_OK &&
-        (err = httpd_register_uri_handler(server, &post)) == ESP_OK) {
-        app_setup_wifi_set_phase(APP_SETUP_WEB);
-        while (!atomic_load(&ctx.saved)) vTaskDelay(pdMS_TO_TICKS(200));
+    for (;;) {
+        if (httpd_start(&server, &settings) == ESP_OK) {
+            if (httpd_register_uri_handler(server, &get) == ESP_OK &&
+                httpd_register_uri_handler(server, &post) == ESP_OK)
+                break;
+            /* Félig regisztrált szerver nem maradhat a következő mellett. */
+            while (httpd_stop(server) != ESP_OK) vTaskDelay(pdMS_TO_TICKS(5000));
+        }
+        app_events_add(APP_EVENT_WARNING, "A beállító webfelület indítását újrapróbáljuk.");
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
+    app_setup_wifi_set_phase(APP_SETUP_WEB);
+    while (!atomic_load(&ctx.saved)) vTaskDelay(pdMS_TO_TICKS(200));
     httpd_stop(server);
-    if (err == ESP_OK) esp_restart();
-    return err;
+    esp_restart();
+    return ESP_OK;
 }

@@ -38,5 +38,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-setup-wifi-') as directory:
                      'reset-init', 'reset-storage', 'reset-restore', 'reset-close', 'reset-lost-close',
                      'reset-double-fault'):
         subprocess.run([binary, scenario], check=True, timeout=8)
+    binary = build / 'setup_4b'
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-fsanitize=undefined', '-fno-sanitize-recover=all', '-DESP_ERR_TIMEOUT=0x107',
+        '-Itests/setup_4b_stubs', '-Itests/stubs', '-Itests/ble_profile_stubs',
+        '-Itests/ota_stubs', '-Imain', 'tests/test_setup_4b.c', '-l:libcjson.so.1', '-o', str(binary)
+    ], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=8)
 print('PASS: Wi-Fi scan cleanup, crowded multi-page selection, duplicate APs, retry, open/UTF-8 passwords, DHCP '
       'gating, keyboard-free saved-profile boot and verified cold Hosted Wi-Fi reset with retries')
