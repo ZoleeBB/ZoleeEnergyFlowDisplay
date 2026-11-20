@@ -717,7 +717,7 @@ static void test_assistant_night_history(void)
 
 static void test_battery_diagnostics_storage(void)
 {
-    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_SLAVE};
+    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_INVERTER, APP_DATA_SLAVE};
     for (unsigned mode = 0; mode < sizeof(modes) / sizeof(modes[0]); mode++)
     {
         time_t start = instant("2026-10-21", 22, 0, 0);
@@ -789,7 +789,7 @@ static void test_battery_diagnostics_storage(void)
         app_stats_get_snapshot(&snapshot);
         assert(!snapshot.battery.capacity_valid && snapshot.battery.cycles == 0);
     }
-    puts("PASS: battery diagnostics across midnight, actual SD/reboot and all four local data modes");
+    puts("PASS: battery diagnostics across midnight, actual SD/reboot in MQTT, HTTP, Loxone, direct inverter and SD-backed Slave modes");
     tests++;
 }
 
