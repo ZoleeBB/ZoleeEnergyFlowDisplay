@@ -243,6 +243,7 @@ jobs:
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5.4
+          command: idf.py build size
           target: esp32p4
           path: '.'
 
@@ -260,6 +261,7 @@ jobs:
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5.4
+          command: idf.py build size
           target: esp32p4
           path: firmware/slave-waveshare-4b
 
