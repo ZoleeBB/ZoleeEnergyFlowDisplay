@@ -1,11 +1,14 @@
 /* Szintetikus STA, nettó idő és socketek, a teszt nem érint hálózatot. */
 #include "app_inverter_discovery.h"
 #include "app_inverter_settings.h"
+#include "esp_heap_caps.h"
 #include "esp_netif.h"
+#include "freertos/idf_additions.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,10 +16,14 @@
 #include <sys/socket.h>
 
 static const char *own = "192.168.8.2", *mask = "255.255.255.248", *gateway = "192.168.8.1";
-static bool wifi = true, fail_create, decline, slow, stale, interrupt, all, v5, mqtt;
+static bool wifi = true, decline, slow, stale, interrupt, all, v5, mqtt;
 static app_data_mode_t mode = APP_DATA_INVERTER;
 static int64_t usec;
 static unsigned sockets, protocols, connects, packets, allocations, stack;
+static unsigned rtc_limit = 8192, internal_limit = 7936, rtc_attempts, internal_attempts, releases;
+static void *stack_memory;
+static jmp_buf scheduler;
+static bool worker_running, ota, ota_during_search;
 static uint32_t id, tested[256];
 static int live, kind, index_reply;
 static const char *wire[5];
@@ -32,7 +39,7 @@ void app_state_get_runtime(app_runtime_state_t *state)
     state->data_recept_mode = mode;
     state->wifi_connected = wifi;
 }
-bool app_ota_operation_active(void) { return false; }
+bool app_ota_operation_active(void) { return ota; }
 struct esp_netif { int index; };
 static esp_netif_t sta;
 esp_netif_t *esp_netif_get_handle_from_ifkey(const char *key)
@@ -55,15 +62,42 @@ void *heap_caps_calloc(size_t count, size_t size, unsigned caps)
     return calloc(count, size);
 }
 int64_t esp_timer_get_time(void) { return usec; }
-int xTaskCreate(void (*func)(void *), const char *name, unsigned bytes, void *arg, unsigned priority, void *handle)
+int xTaskCreateWithCaps(void (*func)(void *), const char *name, unsigned bytes, void *arg,
+                        unsigned priority, TaskHandle_t *handle, unsigned caps)
 {
-    assert(!handle && priority < 4 && !strcmp(name, "inverter_search"));
+    assert(!stack_memory && !handle && priority == 2 && bytes == 8192 && !strcmp(name, "inverter_search"));
+    if (caps == MALLOC_CAP_RTCRAM) {
+        ++rtc_attempts;
+        if (rtc_limit < bytes) return 0;
+    } else {
+        assert(caps == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        ++internal_attempts;
+        if (internal_limit < bytes) return 0;
+    }
+    stack_memory = malloc(bytes);
+    assert(stack_memory);
     stack = bytes;
     run_task = func;
     context = arg;
-    return fail_create ? 0 : 1;
+    return pdPASS;
 }
-void vTaskDelete(void *self) { assert(!self); }
+TaskHandle_t xTaskGetCurrentTaskHandle(void)
+{
+    assert(worker_running && stack_memory);
+    return stack_memory;
+}
+void vTaskSuspend(TaskHandle_t self)
+{
+    assert(!self && worker_running && stack_memory);
+    longjmp(scheduler, 1);
+}
+void vTaskDeleteWithCaps(TaskHandle_t handle)
+{
+    assert(!worker_running && handle && handle == stack_memory);
+    free(stack_memory);
+    stack_memory = NULL;
+    ++releases;
+}
 const app_inverter_profile_t *app_inverter_profile(const char *profile)
 {
     static const app_inverter_profile_t valid = {0};
@@ -127,6 +161,7 @@ int __wrap_connect(int fd, const struct sockaddr *addr, socklen_t len)
     tested[connects++] = a;
     if (interrupt && connects == 1) assert(app_inverter_discovery_cancel(id) == ESP_OK);
     if (stale && connects == 1) wifi = false;
+    if (ota_during_search && connects == 1) ota = true;
     if (all || v5 || a == inet_addr("192.168.8.5") || a == inet_addr("192.168.99.9")) return 0;
     errno = EINPROGRESS;
     return -1;
@@ -197,8 +232,13 @@ static void start(const char *profile, const char *device)
 }
 static void finish(void)
 {
-    run_task(context);
-    assert(!live);
+    worker_running = true;
+    if (!setjmp(scheduler)) {
+        run_task(context);
+        assert(0 && "a WithCaps worker must suspend at completion");
+    }
+    worker_running = false;
+    assert(!live && stack_memory);
     assert(app_inverter_discovery_snapshot(id, &status) == ESP_OK);
 }
 int main(void)
@@ -215,15 +255,30 @@ int main(void)
     assert(status.state == APP_DISCOVERY_DONE && connects == 4 && status.checked == 4 && status.total == 4 &&
            !status.limited && protocols == 1 && status.count == 1 && status.results[0].verified);
     assert(!strcmp(status.results[0].host, "192.168.8.5"));
+    assert(rtc_attempts == 1 && !internal_attempts && !releases);
+    rtc_limit = 7936;
+    internal_limit = 8192;
     start("solax_modbus", "X3_G4");
+    assert(rtc_attempts == 2 && internal_attempts == 1 && releases == 1);
     variant = "X3_G4";
     assert(app_inverter_discovery_snapshot(first, &status) == ESP_ERR_NOT_FOUND);
     finish();
     variant = "";
-    fail_create = true;
+    internal_limit = 7936;
     assert(app_inverter_discovery_start("huawei_modbus", 502, 7, NULL, &unused) == ESP_ERR_NO_MEM);
     assert(app_inverter_discovery_snapshot(id, &status) == ESP_OK);
-    fail_create = false;
+    assert(rtc_attempts == 3 && internal_attempts == 2 && releases == 2 && !stack_memory);
+    rtc_limit = 8192;
+
+    ota_during_search = true;
+    start("http", "");
+    finish();
+    assert(status.state == APP_DISCOVERY_FAILED && !status.count && ota);
+    app_inverter_discovery_expire();
+    app_inverter_discovery_expire();
+    assert(releases == 3 && !stack_memory && app_inverter_discovery_snapshot(id, &status) == ESP_OK);
+    assert(app_inverter_discovery_start("http", 502, 7, NULL, &unused) == ESP_ERR_INVALID_STATE);
+    ota_during_search = ota = false;
 
     stale = true;
     start("http", "");
@@ -280,6 +335,7 @@ int main(void)
     ++usec;
     app_inverter_discovery_expire();
     assert(app_inverter_discovery_snapshot(id, &status) == ESP_ERR_NOT_FOUND);
+    assert(!stack_memory && releases == rtc_attempts - 1);
     puts("Inverterkeresés állapotgép, címkorlátok, gyártói találatok és takarítás rendben.");
     return 0;
 }

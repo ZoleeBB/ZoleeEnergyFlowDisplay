@@ -37,6 +37,7 @@ Az első beállításkor indított keresés legfeljebb 90 másodpercig fut, és 
 
 **Ha nincs találat**, a következőket ellenőrizd.
 
+- **„Nincs elegendő memória a kereséshez.”** Ha a keresés indításakor ezt látod, a Master nem tudta lefoglalni a szükséges memóriát. Megadhatod a helyi gépnevet vagy IP-címet az űrlapon, vagy később újra próbálkozhatsz. A mentett inverterkapcsolat a kereséstől függetlenül működik.
 - **Átjáró és egységcím.** Az IP-cím az átjáróé, az egységcím a mögötte lévő inverteré. Több inverteres RS485-láncnál egy keresés a beírt egységcímet vizsgálja. A következő inverterhez írd át az egységcímet és indíts új keresést.
 - **Port és protokoll.** Ellenőrizd a helyi szolgáltatás engedélyét, a beállított portot és a modul típusát. Deye esetén például a V5 és az LSE-3 RAW ugyanazt a portot használhatja, mégis másik profil kell hozzá. Egyetlen klienst fogadó inverternél a keresés idejére bontsd a másik helyi olvasó kapcsolatát.
 - **Hálózat és kézi adatbevitel.** Vendég-Wi-Fi-n vagy elkülönített hálózatok között a router akadályozhatja a felderítést. Ha a keresés üres, de a helyi adatkapcsolat működik, a router eszközlistájából másold át az adatgyűjtő IP-címét, vagy adj meg helyben feloldható gépnevet. Ez akkor is segíthet, ha az inverter firmware-e eltérő azonosítót ad. Mentés után az első friss mérés jelzi, hogy sikerült a beállítás.

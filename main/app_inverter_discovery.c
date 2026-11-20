@@ -9,6 +9,7 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/task.h"
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -26,6 +27,7 @@
 #define RESULT_TTL_US INT64_C(60000000)
 #define PROBE_MS 1600
 #define CONNECT_MS 250
+#define SEARCH_STACK_BYTES 8192
 
 typedef struct {
     uint32_t own, mask, gateway;
@@ -39,6 +41,7 @@ typedef struct {
     char device[96];
     bool cancel;
     int64_t expires, deadline;
+    TaskHandle_t finished_task;
 } search_t;
 
 typedef struct {
@@ -360,13 +363,17 @@ static void search_task(void *arg)
         free(buf);
     }
     int64_t expires = esp_timer_get_time() + RESULT_TTL_US;
+    ESP_LOGI("inverter_search", "Keresés vége, szabad feladatverem minimuma: %u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+    TaskHandle_t self = xTaskGetCurrentTaskHandle();
     portENTER_CRITICAL(&lock);
     s->expires = expires;
     s->status.state = s->cancel ? APP_DISCOVERY_CANCELLED : end;
+    s->finished_task = self;
     atomic_store(&cached, true);
     portEXIT_CRITICAL(&lock);
-    ESP_LOGI("inverter_search", "Keresés vége, szabad feladatverem minimuma: %u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
-    vTaskDelete(NULL);
+    /* Az IDF WithCaps öntörléshez új belső vermet foglalna. A tick vagy a
+     * következő keresés kívülről törli ezt a feladatot, további foglalás nélkül. */
+    for (;;) vTaskSuspend(NULL);
 }
 
 esp_err_t app_inverter_discovery_start(const char *profile, uint16_t port, uint8_t unit,
@@ -400,7 +407,14 @@ esp_err_t app_inverter_discovery_start(const char *profile, uint16_t port, uint8
     active = s;
     atomic_store(&cached, false);
     portEXIT_CRITICAL(&lock);
-    if (xTaskCreate(search_task, "inverter_search", 8192, s, 2, NULL) != pdPASS) {
+    if (previous && previous->finished_task) {
+        vTaskDeleteWithCaps(previous->finished_task);
+        previous->finished_task = NULL;
+    }
+    if (xTaskCreateWithCaps(search_task, "inverter_search", SEARCH_STACK_BYTES, s, 2, NULL,
+                            MALLOC_CAP_RTCRAM) != pdPASS &&
+        xTaskCreateWithCaps(search_task, "inverter_search", SEARCH_STACK_BYTES, s, 2, NULL,
+                            MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) != pdPASS) {
         portENTER_CRITICAL(&lock);
         active = previous;
         atomic_store(&cached, previous != NULL);
@@ -437,12 +451,18 @@ void app_inverter_discovery_expire(void)
     if (!atomic_load(&cached)) return;
     int64_t now = esp_timer_get_time();
     search_t *old = NULL;
+    TaskHandle_t finished = NULL;
     portENTER_CRITICAL(&lock);
-    if (active && active->status.state != APP_DISCOVERY_RUNNING && now >= active->expires) {
-        old = active;
-        active = NULL;
-        atomic_store(&cached, false);
+    if (active && active->status.state != APP_DISCOVERY_RUNNING) {
+        finished = active->finished_task;
+        active->finished_task = NULL;
+        if (now >= active->expires) {
+            old = active;
+            active = NULL;
+            atomic_store(&cached, false);
+        }
     }
     portEXIT_CRITICAL(&lock);
+    if (finished) vTaskDeleteWithCaps(finished);
     free(old);
 }
