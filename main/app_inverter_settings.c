@@ -148,6 +148,14 @@ bool app_inverter_settings_open(void)
                 err = nvs_get_blob(h, "profile1", s, &len);
                 nvs_close(h);
             }
+            /* Hibás formátum felülírható a webfelületen. Átmeneti NVS-hiba
+             * viszont nem teheti üressé a már mentett profilt ebben az indításban. */
+            if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND &&
+                err != ESP_ERR_NVS_INVALID_LENGTH && err != ESP_ERR_NVS_TYPE_MISMATCH) {
+                free(s);
+                app_inverter_settings_unlock();
+                return false;
+            }
             if (err != ESP_OK || !decode_profile(s, len) || !normalize_host(&s->driver)) {
                 memset(s, 0, sizeof(*s));
                 s->master.touch_wake_seconds = 30;

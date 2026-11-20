@@ -30,7 +30,7 @@ static app_energy_sample_t measurement = {.power_pv_kw = 2.5, .status = 1};
 static double weather_temp, weather_wind;
 static bool https_busy;
 static int allocations, commits, weather, reads, samples, breaks;
-static bool fail_save, configured, offline;
+static bool fail_save, fail_read, configured, offline;
 static time_t clock_now = 1782010800;
 static int64_t source_time, mono = 1000000;
 static void (*meteo_job)(void *);
@@ -75,7 +75,9 @@ esp_err_t nvs_set_blob(nvs_handle_t h,const char *key,const void *v,size_t size)
     memcpy(nvs_data,v,size); nvs_size=size; return ESP_OK;
 }
 esp_err_t nvs_get_blob(nvs_handle_t h,const char *key,void *v,size_t *size) {
-    assert(h==1 && !strcmp(key,"profile1")); if (!nvs_size) return ESP_ERR_NOT_FOUND;
+    assert(h==1 && !strcmp(key,"profile1"));
+    if (fail_read) return ESP_FAIL;
+    if (!nvs_size) return ESP_ERR_NOT_FOUND;
     assert(*size>=nvs_size); memcpy(v,nvs_data,nvs_size); *size=nvs_size; return ESP_OK;
 }
 void app_state_get_runtime(app_runtime_state_t *out) { *out=runtime; }
@@ -246,6 +248,9 @@ int main(int argc, char **argv)
         nvs_size = fread(nvs_data, 1, sizeof(nvs_data), image);
         assert(nvs_size && !ferror(image) && !fclose(image));
         runtime.data_recept_mode = APP_DATA_INVERTER;
+        fail_read = true;
+        assert(!app_inverter_settings_open()); /* The saved profile is still authoritative. */
+        fail_read = false;
         cJSON *view = app_inverter_settings_get();
         cJSON *values = cJSON_GetObjectItem(view, "registerOverrides");
         assert(cJSON_GetArraySize(values) == 1 && cJSON_IsNumber(cJSON_GetObjectItem(values, "pv")) &&
