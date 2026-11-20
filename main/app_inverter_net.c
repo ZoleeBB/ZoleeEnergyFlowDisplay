@@ -9,6 +9,7 @@
 #include <strings.h>
 
 #define RESPONSE_LIMIT (48U * 1024U)
+#define MAX_JSON_NODES 2048U
 typedef struct {
     char *data;
     size_t size, capacity;
@@ -63,9 +64,9 @@ static esp_err_t collect(esp_http_client_event_t *event)
 
 /* A szolgáltatói válasz lehet sérült. A rekurzív JSON-parser előtt egyetlen
  * bejárás korlátozza a veremmélységet, az idézett JSON-szöveget átugorva. */
-static bool nesting_allowed(const char *data, size_t length)
+static bool json_fits(const char *data, size_t length)
 {
-    unsigned depth = 0;
+    unsigned depth = 0, nodes = 1;
     bool string = false, escape = false;
     for (size_t i = 0; i < length; ++i) {
         char ch = data[i];
@@ -80,7 +81,11 @@ static bool nesting_allowed(const char *data, size_t length)
             else if (ch == '"') string = false;
         } else if (ch == '"') string = true;
         else if (ch == '{' || ch == '[') {
-            if (++depth > 20) return false;
+            /* A nem üres konténer első elemének helye. Az üres konténert is
+             * beleszámítjuk, így a becslés mindig felső korlát. */
+            if (++depth > 20 || ++nodes > MAX_JSON_NODES) return false;
+        } else if (ch == ',') {
+            if (++nodes > MAX_JSON_NODES) return false;
         } else if (ch == '}' || ch == ']') {
             if (!depth) return false;
             --depth;
@@ -91,7 +96,7 @@ static bool nesting_allowed(const char *data, size_t length)
 
 cJSON *app_inverter_json_parse(const char *data, size_t length)
 {
-    if (!data || !length || data[length] != 0 || !nesting_allowed(data, length)) return NULL;
+    if (!data || !length || data[length] != 0 || !json_fits(data, length)) return NULL;
     return cJSON_ParseWithOpts(data, NULL, true);
 }
 

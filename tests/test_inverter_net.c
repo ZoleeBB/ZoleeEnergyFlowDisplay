@@ -154,6 +154,23 @@ int main(void)
         if (depth == 20) { assert(json); cJSON_Delete(json); }
         else assert(!json && !*token);
     }
+    /* A támogatott SolaX regisztertömb és egy teljes nap 288 AISWEI-sora
+     * elfér. A sok apró elemből álló tömb már a cJSON-foglalások előtt megáll. */
+    static char day[12000];
+    size_t used = (size_t)snprintf(day, sizeof(day), "{\"data\":[");
+    for (unsigned i = 0; i < 288; ++i)
+        used += (size_t)snprintf(day + used, sizeof(day) - used, "%s{\"time\":\"12:00\",\"value\":0}", i ? "," : "");
+    strcpy(day + used, "]}");
+    response(day); json = get(token, sizeof(token));
+    assert(json && cJSON_GetArraySize(cJSON_GetObjectItem(json, "data")) == 288);
+    cJSON_Delete(json);
+    day[0] = '[';
+    for (unsigned i = 0; i < 3000; ++i) {
+        day[1+2*i] = '0';
+        day[2+2*i] = i == 2999 ? ']' : ',';
+    }
+    day[6001] = 0;
+    response(day); rejected();
     size_t limit = 48 * 1024;
     char *large = malloc(limit + 2); assert(large);
     memset(large, ' ', limit + 1); large[0] = '{'; large[1] = '}'; large[limit] = 0;
@@ -169,5 +186,5 @@ int main(void)
     assert(!app_inverter_json_request("https://inverter.test", "DELETE", NULL, NULL, 0, token, sizeof(token), NULL));
     assert(!app_inverter_json_request("https://inverter.test", "GET", NULL, NULL, 1, token, sizeof(token), NULL));
     assert(performed == before && opened == closed);
-    puts("PASS: real inverter HTTP collector, TLS trust selection, XSRF headers/cookies, byte limits, depth, NUL and partial/redirect rejection");
+    puts("PASS: real inverter HTTP collector, TLS trust selection, XSRF headers/cookies, byte, node and depth limits, complete cloud day, NUL and partial/redirect rejection");
 }
