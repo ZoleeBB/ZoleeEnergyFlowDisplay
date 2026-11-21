@@ -4,7 +4,7 @@ static uint8_t s_stats_page_data[APP_BLE_STATS_PAGE_MAX];
 static size_t s_stats_page_length;
 static uint16_t s_stats_page_index;
 static uint32_t s_stats_transfer_id;
-static bool s_stats_active, s_stats_missing_reported;
+static bool s_stats_active, s_stats_missing_reported, s_stats_source_set;
 static bool s_stats_inflight;
 static int64_t s_stats_next_us, s_stats_deadline_us;
 
@@ -25,6 +25,7 @@ static void slave_stats_reset(void)
     s_stats_active = false;
     s_stats_inflight = false;
     s_stats_missing_reported = false;
+    s_stats_source_set = false;
     ++s_stats_transfer_id;
     s_stats_next_us = 0;
     app_stats_remote_disconnected();
@@ -161,6 +162,14 @@ static void slave_stats_poll(int64_t now)
 {
     if (!s_config.cardless_slave || !s_slave_ready || !app_stats_is_ready())
         return;
+    /* Az előző Master napi értékei akkor is eltűnnek, ha az új párosított
+     * kijelző nem kínál statisztikát. Az azonos Master utolsó jó képe megmarad. */
+    if (!s_stats_source_set) {
+        char id[APP_SLAVE_PRESENCE_ID_SIZE];
+        if (!slave_master_identity(id)) return;
+        app_stats_remote_source(id);
+        s_stats_source_set = true;
+    }
     if (!s_remote_stats)
     {
         if (!s_stats_missing_reported)
@@ -188,7 +197,6 @@ static void slave_stats_poll(int64_t now)
         return;
     if (!security_authenticated(s_master))
         return;
-    app_stats_remote_source(s_master_address);
     s_stats_wire = malloc(APP_BLE_STATS_SIZE);
     if (!s_stats_wire)
     {

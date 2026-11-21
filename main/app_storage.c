@@ -5,6 +5,8 @@
  * de az élő mérések ettől függetlenül tovább feldolgozhatók.
  */
 #include "app_storage.h"
+#include "app_factory_reset.h"
+#include <string.h>
 #include <stdatomic.h>
 #include "bsp/esp-bsp.h"
 #include "sdmmc_cmd.h"
@@ -101,6 +103,31 @@ esp_err_t app_storage_boot_mount(void)
                    error == ESP_OK ? "SD-kártya csatlakoztatva."
                                    : "SD-kártya csatlakoztatási hiba.");
     return error;
+}
+
+
+esp_err_t app_factory_reset_card(app_reset_card_t *card)
+{
+    if (!card) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = app_storage_lock();
+    if (err != ESP_OK) return err;
+    err = app_storage_is_ok() && bsp_sdcard ? sdmmc_get_status(bsp_sdcard) : ESP_ERR_INVALID_STATE;
+    if (err == ESP_OK) {
+        const sdmmc_cid_t *cid = &bsp_sdcard->cid;
+        *card = (app_reset_card_t){.serial = (uint32_t)cid->serial, .oem = (uint16_t)cid->oem_id,
+                                   .date = (uint16_t)cid->date, .manufacturer = (uint8_t)cid->mfg_id,
+                                   .revision = (uint8_t)cid->revision};
+        memcpy(card->product, cid->name, sizeof(card->product));
+    }
+    app_storage_unlock();
+    return err;
+}
+
+esp_err_t app_factory_reset_remount(void)
+{
+    /* A félbeszakadt reset ezt még a recovery_task és az összes adatszolgáltató előtt hívja. */
+    if (bsp_sdcard) (void)bsp_sdcard_unmount();
+    return app_storage_boot_mount();
 }
 
 /* Egy hibát csak egyszer naplózunk, amíg a kártya ismét elérhetővé nem válik. */

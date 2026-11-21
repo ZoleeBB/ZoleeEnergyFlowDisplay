@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "01-live-home",
   "name": "Élő otthon",
-  "version": 13,
+  "version": 14,
   "light": {
     "home_hotspot": {
       "x": 460,
@@ -280,6 +280,7 @@
         "negative_color": "#1875D1"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 74,
         "y": 342,
@@ -293,6 +294,7 @@
         "shadow": true
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 72,
         "y": 340,
@@ -399,6 +401,7 @@
         "align": "left"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1092,
         "y": 266,
@@ -412,6 +415,7 @@
         "shadow": true
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1090,
         "y": 264,
@@ -472,6 +476,7 @@
         "negative_color": "#1875D1"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 522,
         "y": 556,
@@ -485,6 +490,7 @@
         "shadow": true
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 520,
         "y": 554,
@@ -520,6 +526,7 @@
         "align": "center"
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 1092,
         "y": 394,
@@ -532,6 +539,7 @@
         "shadow": true
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 1090,
         "y": 392,
@@ -564,6 +572,7 @@
         "color": "#00B0FF"
       },
       {
+        "requires": "battery_temp",
         "type": "label",
         "x": 1092,
         "y": 469,
@@ -576,6 +585,7 @@
         "shadow": true
       },
       {
+        "requires": "battery_temp",
         "type": "label",
         "x": 1090,
         "y": 467,
@@ -675,6 +685,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 507,
         "y": 700,
@@ -688,6 +699,7 @@
         "shadow": true
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 505,
         "y": 698,
@@ -723,6 +735,7 @@
         "align": "center"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 848,
         "y": 700,
@@ -736,6 +749,7 @@
         "shadow": true
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 846,
         "y": 698,
@@ -992,6 +1006,7 @@
         "negative_color": "#1875D1"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 72,
         "y": 340,
@@ -1050,6 +1065,7 @@
         "align": "left"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1090,
         "y": 264,
@@ -1087,6 +1103,7 @@
         "negative_color": "#1875D1"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 520,
         "y": 554,
@@ -1110,6 +1127,7 @@
         "align": "center"
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 1090,
         "y": 392,
@@ -1131,6 +1149,7 @@
         "color": "#559CDE"
       },
       {
+        "requires": "battery_temp",
         "type": "label",
         "x": 1090,
         "y": 467,
@@ -1194,6 +1213,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 505,
         "y": 698,
@@ -1217,6 +1237,7 @@
         "align": "center"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 846,
         "y": 698,

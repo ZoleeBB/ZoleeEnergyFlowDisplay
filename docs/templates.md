@@ -338,7 +338,7 @@ Az időjárásikon akkor látható, ha hőmérséklet, napsugárzás és csapad�
 
 ## 09 – Nap pálya
 
-A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A napív a háttér része; a mozgó napkorong a hozzá kalibrált 31 pontos nappali és 21 pontos éjszakai útvonalat követi. A v18-as csomagban csak a napnyugta előtti nappali szakasz kapott sűrűbb illesztést; a reggeli/déli és az éjszakai geometria változatlan. Érvényes `SunPosition` nélkül a lapozás átugorja a témát.
+A téma jóváhagyott, külön nappali/éjszakai napelemes házfotót használ. A világos vagy sötét hátteret a kijelző éjszakai módja (`NightMode`) választja ki. A Nap a kijelző helyi órája szerint a napkelte percében jelenik meg a felső íven, a Hold a napnyugta percében az alsó íven. Ha napnyugta előtt váltasz sötét témára, a Nap a sötét házfotó felett folytatja az útját. A háttérhez kalibrált v27-es pálya nappal 50, éjszaka 44 pontból áll. A v18-as csomagban csak a napnyugta előtti nappali szakasz kapott sűrűbb illesztést; a reggeli/déli és az éjszakai geometria változatlan. Érvényes naphelyzet nélkül a lapozás átugorja a témát.
 
 A v17-es akkukártya SOC-sávja `soc_four_bands: true` beállítást használ:
 30% alatt piros, 30–50% narancs, 50–70% citromsárga, 70% fölött zöld.
@@ -351,10 +351,10 @@ A SOC-sáv vékony körvonalat és kontrasztosabb üres hátteret kapott;
 a napkelte-kártya a felirataival együtt további 15 px-szel balra került. Az éjszakai korong
 képe állandó, csak a holdudvar kap 4,2 másodperces légző animációt.
 A holdudvar kitöltése 22–38/255 fedettségű; nap→hold és hold→nap váltáskor
-a friss adatcsomag alapján már az első képkockán beáll. A firmware javítja
+a helyi órához és a napadatokhoz igazodik. A firmware javítja
 a sablonanimáció korábban elavult mérési mintáját is. A v19-es ZIP geometriája
 változatlan, előnézete az erősebb holdudvart mutatja.
-A részletes működés: [Nap pálya](solar-journey-acceptance.md).
+A gyári v27-es SD-csomag a firmware frissítése után mindkét égitestet meg tudja jeleníteni világos és sötét témában is. [Nap pálya és adatforrásai](solar-journey-acceptance.md)
 
 ## Mentett előnézeti képek
 

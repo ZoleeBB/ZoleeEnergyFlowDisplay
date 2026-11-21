@@ -159,13 +159,14 @@ void app_state_set_data_mode(app_data_mode_t mode)
     unlock();
 }
 
-void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet)
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet, bool inverter_searching)
 {
     lock();
     if (connected && !s_runtime.slave_connected)
         s_runtime.slave_connected_monotonic_us = esp_timer_get_time();
     s_runtime.slave_connected = connected;
     s_runtime.slave_source_stale = stale;
+    s_runtime.slave_inverter_searching = inverter_searching;
     s_runtime.slave_source_timeout_seconds = source_timeout;
     if (packet)
         s_runtime.slave_packet_monotonic_us = esp_timer_get_time();
@@ -188,6 +189,29 @@ void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
     snprintf(s_runtime.ble_peer, sizeof(s_runtime.ble_peer), "%s", peer ? peer : "");
     unlock();
 }
+void app_state_set_inverter_read_failed(bool failed)
+{
+    lock();
+    s_runtime.inverter_read_failed = failed;
+    unlock();
+}
+
+void app_state_set_inverter_ready(bool ready)
+{
+    lock();
+    if (ready && !s_runtime.inverter_ready)
+        s_runtime.inverter_ready_monotonic_us = esp_timer_get_time();
+    s_runtime.inverter_ready = ready;
+    unlock();
+}
+
+void app_state_set_inverter_timeout(uint16_t seconds)
+{
+    lock();
+    s_runtime.inverter_timeout_seconds = seconds;
+    unlock();
+}
+
 void app_state_set_http_ready(bool ready)
 {
     lock();

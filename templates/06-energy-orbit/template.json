@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "06-energy-orbit",
   "name": "Energiakör",
-  "version": 14,
+  "version": 15,
   "light": {
     "background": "#E8EEF7",
     "home_hotspot": {
@@ -246,6 +246,7 @@
         "color": "#18352B"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 576,
         "y": 196,
@@ -256,6 +257,7 @@
         "opacity": 248
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 588,
         "y": 203,
@@ -277,6 +279,7 @@
         "color": "#18352B"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 1116,
         "y": 104,
@@ -310,6 +313,7 @@
         "zero_color": "#56645E"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 1116,
         "y": 354,
@@ -320,6 +324,7 @@
         "opacity": 248
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1128,
         "y": 362,
@@ -415,6 +420,7 @@
         "color": "#18352B"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 454,
         "y": 682,
@@ -423,6 +429,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 514,
         "y": 670,
@@ -444,6 +451,7 @@
         "color": "#18352B"
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 876,
         "y": 682,
@@ -452,6 +460,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 936,
         "y": 670,
@@ -753,6 +762,7 @@
         "color": "#EDF3EF"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 576,
         "y": 196,
@@ -763,6 +773,7 @@
         "opacity": 248
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 588,
         "y": 203,
@@ -784,6 +795,7 @@
         "color": "#EDF3EF"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 1116,
         "y": 104,
@@ -817,6 +829,7 @@
         "zero_color": "#B8C8D5"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 1116,
         "y": 354,
@@ -827,6 +840,7 @@
         "opacity": 248
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 1128,
         "y": 362,
@@ -922,6 +936,7 @@
         "color": "#EDF3EF"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 454,
         "y": 682,
@@ -930,6 +945,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 514,
         "y": 670,
@@ -951,6 +967,7 @@
         "color": "#EDF3EF"
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 876,
         "y": 682,
@@ -959,6 +976,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 936,
         "y": 670,

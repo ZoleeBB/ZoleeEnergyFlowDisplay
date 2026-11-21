@@ -8,7 +8,7 @@ bejegyzéseket az eredeti tartalommal őrizzük meg.
 
 Otthoni energiaáramlás-kijelző a **Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (SKU 33150)** panelhez. A 1280×800 fekvő LVGL felület a napelem, a ház, a hálózat és az akkumulátor pillanatnyi teljesítményét, energiaútjait és napi statisztikáit mutatja. A külön Slave firmware a **Waveshare ESP32-P4-WIFI6-Touch-LCD-4B (SKU 31416)** panelen fut, 720×720-as felbontással.
 
-A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST fogadja a teljes mérési JSON-t öt másodpercenként; a közvetlen Loxone mód WebSocket-állapotokból állítja össze ugyanazt a mintát, a Slave pedig Bluetooth-on a mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, tizenegy, módtól függően választható, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. A világos/sötét módot a `NightMode` adat vezérli; az OTA két alkalmazáspartícióval és visszaállítással működik.
+A firmware ESP-IDF 5.5.4 és LVGL 9.5.0 alapú. MQTT vagy HTTP POST módban a külső adatforrás küldi a mérési JSON-t. Közvetlen Loxone módban a Master WebSocket-állapotokból állítja össze a mintát. Közvetlen inverter módban öt másodpercenként olvassa a helyi eszközt, vagy a kiválasztott gyártói felhő ütemében kéri a legutóbbi mérést. A Slave Bluetooth-on a Mastertől kapja az élő adatokat és az időt. SD-s működésben FAT32 microSD tárolja a konfigurációt, tizenegy, módtól függően választható, szabadon sorbarendezhető sablont és 35 nap saját statisztikáját. Inverteres Masteren és a hozzá párosított v4 Slave-en napnyugtakor kezdődik az éjszakai mód. A külső adatforrásos módokban a `NightMode` jel vezérli a váltást. Az OTA két alkalmazáspartícióval és visszaállítással működik.
 
 A közvetlen Loxone mód beállítása és jelenlegi ellenőrzési korlátai: [Loxone adatkapcsolat](loxone-direct.md).
 
@@ -53,10 +53,7 @@ Opcionális **Bluetooth adat seed**: a Beállításokban bekapcsolható master m
 `ZoleeEnergy` néven, párosítás nélkül, csak olvasható energia- és időjárásadatokkal.
 Beállítások, protokoll és a C6 firmware követelményei: [BLE adatmegosztás](ble-data-seed.md).
 
-**SD nélküli Slave** is használható: új eszköz automatikus Slave indulással,
-belső NVS-beállításokkal és kizárólag a beépített Rendszer témával. A napi
-diagramokat és összehasonlításokat hitelesített BLE-kapcsolaton a mastertől
-kapja; nincs szükség hálózati fájlmegosztásra vagy flashbe írt statisztikára.
+**SD nélküli Slave-ként** is használható a 10,1 hüvelykes panel. Új, konfigurálatlan készüléken a Wi-Fi beállítása után válaszd a Slave szerepet a webfelületen. A korábban beállított Slave a belső NVS-beállításaival és a beépített Rendszer témával indul. A napi diagramokat és összehasonlításokat hitelesített BLE-kapcsolaton a Mastertől kapja. [Első beállítás](first-run-wifi.md)
 A korábban fő kijelzőként használt eszköz SD-hibája nem vált automatikusan Slave-re.
 **SD-kártyával a Slave az adott módban elérhető telepített témákat használhatja,
 és saját statisztikát gyűjt a fogadott élő mintákból.** Az Elektromos autó téma
@@ -74,7 +71,7 @@ Az üzemállapotok között az **5: Hálózat újra elérhető** is támogatott 
 ## Funkciók és üzemmódok
 
 - **Energiaáramlás és statisztika:** élő teljesítmények, animált energiautak, napi/heti/havi adatok, pénzügyi mutatók és akkumulátordiagnosztika.
-- **Adatfogadás:** MQTT, HTTP POST, közvetlen Loxone vagy Bluetooth Slave; világos/sötét megjelenés a `NightMode` szerint.
+- **Adatfogadás:** MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter vagy Bluetooth Slave. [Inverterprofilok és beállítások](direct-inverter.md).
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor-, állapot- és világításvezérlő-kártyák, energiaasszisztens, jelenlét és postaláda-jelzés. Rövid, legfeljebb 10 másodperces adatkapcsolati kimaradáskor a már megjelenített energianézet/Otthon-oldal figyelmeztetés nélkül, változatlan adatokkal marad látható; a vezérlés ilyenkor nem aktív. [Loxone kapcsolat és türelmi idő](loxone-direct.md#kapcsolat-és-hibák).
 - **Elektromos autó:** nappali/éjszakai házjelenet, összegzett töltési teljesítmény, mai töltési energia és becsült közvetlen napelemes arány. Töltő konfigurálása nélkül is választható, rejtett autós adatokkal. [Beállítás](electric-car.md).
 - **Kaputelefon:** MJPEG-kép, kétirányú hang, kapunyitás, csengőhangok és párosított 4B kijelzők központi híváskezelése. Csengetés után a médiafeladatok leállása megelőzi a háttértéma visszatöltését; elhúzódó betöltésnél korlátozott újrapróbálás és biztonságos tartalék nézet áll rendelkezésre. [Kaputelefon útmutató](intercom.md) · [Helyreállítás és korlátok](intercom.md#kaputelefon-utáni-témahelyreállítás).

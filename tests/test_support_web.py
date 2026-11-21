@@ -115,7 +115,7 @@ for configured, config in ((0, empty), (1, enabled)):
             os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
             '-Werror=frame-larger-than=1024',
             '-fsanitize=undefined', '-fno-sanitize-recover=all',
-            f'-DSUPPORT_ENABLED={configured}', '-I' + temporary, '-Itests/stubs',
+            f'-DSUPPORT_ENABLED={configured}', '-I' + temporary, '-Itests/stubs', '-Imain',
             'tests/test_support_web.c', '-o', binary,
         ], cwd=ROOT, check=True)
         subprocess.run([binary], check=True)

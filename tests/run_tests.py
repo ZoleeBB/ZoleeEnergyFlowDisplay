@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix='energy-assistant-') as directory:
         '-lm', '-o', binary,
     ], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_factory_reset_storage.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='battery-diagnostics-') as directory:
     binary = str(Path(directory) / 'test')
     subprocess.run([
@@ -138,6 +139,7 @@ with tempfile.TemporaryDirectory(prefix='zolee-boot-config-') as directory:
                     '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
                     '-Itests/ble_profile_stubs', '-Itests/stubs', '-Imain',
                     'tests/test_boot_config.c', 'main/app_boot_config.c', 'main/app_config.c',
+                    'main/app_ble_profile_model.c',
                     '-l:libcjson.so.1', '-lm', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ble-stats-') as directory:
@@ -167,6 +169,13 @@ with tempfile.TemporaryDirectory(prefix='zolee-auto-ota-') as directory:
                     '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all',
                     '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_auto.c',
                     'main/app_ota_release.c', '-l:libcjson.so.1', '-lmbedcrypto', '-o', binary], cwd=ROOT, check=True)
+    subprocess.run([binary], check=True, timeout=10)
+with tempfile.TemporaryDirectory(prefix='zolee-ota-validation-') as directory:
+    binary = str(Path(directory) / 'test_ota_validation')
+    subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                    '-fsanitize=undefined', '-fno-sanitize-recover=all', '-Itests/ble_profile_stubs',
+                    '-Itests/ota_stubs', '-Itests/stubs', '-Imain', 'tests/test_ota_validation.c',
+                    'main/app_ota.c', '-o', binary], cwd=ROOT, check=True)
     subprocess.run([binary], check=True, timeout=10)
 with tempfile.TemporaryDirectory(prefix='zolee-ota-release-') as directory:
     binary = str(Path(directory) / 'test_ota_release')
@@ -222,17 +231,15 @@ assert 'app_display_boot_sync(' in main_source
 # A 90 fokos próba/letiltás védelmet eltávolítottuk: indulás közbeni újraindítás
 # mindig visszaállította 270 fokra, pedig a 90 fokos mód stabil.
 assert 'orientation_verified_task' not in main_source and 'blocked' not in main_source
-# A Windows-szimulátor a POSIX olvasási úttól külön ágon fordul. A fejlécben
-# meghirdetett függvények definíciója ezért nem állhat `_WIN32`-függő blokkban:
-# ott az MSVC-s build linkelésnél bukik (LNK2019: unresolved external symbol).
-# Az információs oldal és a mentett napló is a legfrissebb bejegyzéssel kezd,
-# ahogy a kijelző diagnosztikai nézete.
+# A kezdőlap eseménysorrendjét a tényleges magyar és angol HTTP-kimeneten ellenőrizzük.
+subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
 web_source=(ROOT/'main/app_web.c').read_text()
-assert 'size_t i = event_count - 1 - shown;' in web_source
 assert 'app_event_log_reverse_lines(' in web_source
 diagnostics_source=(ROOT/'main/app_template_ui.inc').read_text()
 assert 's_diagnostic_events[s_diagnostic_event_count - 1 - i]' in diagnostics_source
 
+# A Windows-szimulátor más fordítási ágat használ. A publikus függvényeknek
+# Windows alatt is elérhetőnek kell maradniuk a linkeléshez.
 templates_header=(ROOT/'main/app_templates.h').read_text()
 exported={name for name in re.findall(r'^[A-Za-z_][\w ]*\**\s*(app_templates_\w+)\s*\(', templates_header, re.M)}
 assert 'app_templates_sd_write' in exported
@@ -296,6 +303,21 @@ with tempfile.TemporaryDirectory(prefix='zolee-boot-') as directory:
     subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
                     '-Imain','tests/test_display_boot.c','-o',binary],cwd=ROOT,check=True)
     subprocess.run([binary],check=True,timeout=10)
+# A 10,1-es firmware belépési pontja lassú DHCP-vel, NTP-vel és hibázó szolgáltatással.
+with tempfile.TemporaryDirectory(prefix='zolee-master-boot-') as directory:
+    binary = str(Path(directory) / 'test_master_startup')
+    subprocess.run([
+        os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-fsanitize=undefined', '-fno-sanitize-recover=all',
+        '-Itests/master_boot_stubs', '-Itests/stubs', '-Itests/ota_stubs',
+        '-Itests/loxone_stubs', '-Itests/discovery_stubs', '-Imain',
+        'tests/test_master_startup.c', 'main/app_state.c', '-pthread', '-o', binary,
+    ], cwd=ROOT, check=True)
+    for scenario in ('mqtt', 'http', 'loxone', 'loxone-retry', 'inverter', 'slave', 'setup', 'reset-sd', 'reset-cardless', 'trial-rotation'):
+        subprocess.run([binary, scenario], check=True, timeout=10)
+
+subprocess.run([os.sys.executable, str(ROOT / 'tests/test_factory_reset_transaction.py')], check=True)
+
 # Generated full/partial five-minute energy histories, built as real C code.
 with tempfile.TemporaryDirectory(prefix="zolee-compare-") as directory:
     binary=str(Path(directory)/"test_stats_comparison")
@@ -313,13 +335,13 @@ subprocess.run([os.sys.executable, str(ROOT/"tests/test_templates.py")], check=T
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_home_resources.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/'tests/test_web_preview.py')], check=True)
-subprocess.run([os.sys.executable, str(ROOT/'tests/test_settings.py')], check=True)
 subprocess.run(['node', str(ROOT/'tests/test_settings_web.js')], cwd=ROOT, check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_memory.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_rotation.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_display_partial.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_time.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT/"tests/test_inverter_modbus.py")], check=True)
 
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_hosted_rx.py")], check=True)
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_sdio_window.py")], check=True)
@@ -341,7 +363,17 @@ subprocess.run(['node','--check',str(ROOT/'assets/web/loxone.js')],check=True)
 
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_store.py")],check=True)
 subprocess.run([os.sys.executable,str(ROOT/"tests/test_loxone_protocol.py")],check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_http.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_runtime.py")], check=True)
+for discovery_test in ("test_inverter_discovery.py", "test_inverter_discovery_http.py",
+                       "test_inverter_discovery_modbus.py"):
+    subprocess.run([os.sys.executable, str(ROOT / "tests" / discovery_test)], check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_inverter_victron.py")], check=True)
 subprocess.run(['node',str(ROOT/'tests/test_loxone_web.js')],cwd=ROOT,check=True)
 
 # A kézi automatikus OTA tesztgomb valódi HTTP-kezelője és JS-e.
 subprocess.run([os.sys.executable, str(ROOT/"tests/test_ota_web.py")], check=True)
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_factory_reset_web.py")], check=True)
+
+# Első indítás és mentett Wi-Fi profil a tényleges STA eseménykezelővel.
+subprocess.run([os.sys.executable, str(ROOT / "tests/test_setup_wifi.py")], check=True)

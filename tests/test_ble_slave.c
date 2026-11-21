@@ -5,11 +5,18 @@
 #include <stdlib.h>
 #include <time.h>
 #include "app_ble_stats_protocol.h"
+#include "app_ble_seed.h"
 #include "app_ble_protocol.h"
+#include "app_ble_display_policy.h"
+#define portMUX_TYPE int
+#define portMUX_INITIALIZER_UNLOCKED 0
+#define portENTER_CRITICAL(lock) ((void)(lock))
+#define portEXIT_CRITICAL(lock) ((void)(lock))
 #include "app_events.h"
 #include "app_ble_profile.h"
 #ifdef APP_INTERCOM_SLAVE
 #include "app_intercom_control.h"
+#include "../firmware/slave-waveshare-4b/main/slave_4b_link_watchdog.h"
 #endif
 #include "app_slave_presence_service.h"
 
@@ -121,7 +128,7 @@ typedef int (*attr_cb)(uint16_t, const struct ble_gatt_error *, struct ble_gatt_
 
 static const ble_uuid128_t s_service_uuid = {{1000}}, s_energy_uuid = {{1001}},
                            s_weather_uuid = {{1002}}, s_clock_uuid = {{1003}},
-                           s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
+                           s_v4_profile_uuid = {{1010}}, s_profile_uuid = {{1004}}, s_stats_uuid = {{1005}}, s_presence_uuid = {{1006}};
 #ifdef APP_INTERCOM_SLAVE
 static const ble_uuid128_t s_intercom_uuid = {{1007}}, s_intercom_profile_uuid = {{1008}}, s_intercom_extras_uuid = {{1009}};
 void app_intercom_control_disconnected(void) {}
@@ -353,10 +360,11 @@ void app_state_set_energy_flow_disabled(bool disabled, bool night)
     runtime.standalone_night = night;
     if (disabled) runtime.has_valid_sample = false;
 }
-void app_state_set_slave(bool connected, bool stale, uint16_t timeout, bool packet)
+void app_state_set_slave(bool connected, bool stale, uint16_t timeout, bool packet, bool inverter_searching)
 {
     runtime.slave_connected = connected;
     runtime.slave_source_stale = stale;
+    runtime.slave_inverter_searching = inverter_searching;
     runtime.slave_source_timeout_seconds = timeout;
     if (packet)
         runtime.slave_packet_monotonic_us = now_us;
@@ -380,6 +388,7 @@ void app_state_set_ble(bool enabled,
 }
 esp_err_t app_time_sync_from_master(int64_t epoch, int16_t offset)
 {
+    runtime.time_synced = true;
     clock_ms = epoch;
     clock_offset = offset;
     ++clocks;
@@ -395,6 +404,17 @@ esp_err_t app_ingest_slave_sample(const app_energy_sample_t *sample)
     return ESP_OK;
 }
 
+static bool presence_identity(uint16_t conn, app_slave_identity_t *identity)
+{
+    if (!security_authenticated(conn)) return false;
+    *identity = (app_slave_identity_t){.address={1,2,3,4,5,6}};
+    return true;
+}
+void app_state_set_sample(const app_energy_sample_t *sample)
+{
+    ingested = *sample;
+    runtime.has_valid_sample = true;
+}
 #include "../main/app_ble_slave.inc"
 
 static const struct ble_gatt_error ok = {0}, done = {BLE_HS_EDONE};
@@ -407,6 +427,7 @@ static void make_frame(uint16_t sequence, int64_t epoch)
                                   .power_bat_kw = -2,
                                   .power_grid_kw = -1,
                                   .soc_bat_pct = 80,
+                                  .battery_temperature_valid = true,
                                   .battery_temperature_c = 25,
                                   .status = 1,
                                   .received_monotonic_us = 1000000,
@@ -634,6 +655,10 @@ int main(void)
     make_frame(80, 1800000010);
     connect_link(true);
     assert(ingests == 4);
+    s_applied_sample_epoch = 0; /* Reconnected, previous measurement on the same Master. */
+    runtime.has_valid_sample = false;
+    slave_try_frame(now_us);
+    assert(ingests == 4 && runtime.has_valid_sample);
     make_frame(81, 1800000015);
     packets[0].data[12] = 0xff;
     packets[0].data[13] = 0xff;
@@ -679,6 +704,104 @@ int main(void)
     assert(!s_intercom_reading && s_intercom_next > now_us);
     slave_poll(now_us);
     assert(stats_ready_checks == before_stats + 3);
+#endif
+    /* A v4 Master külön védett profilja az összes heti ablakot viszi.
+     * A közvetlen módban nincs energia vagy kaputelefon a kezdéskor. */
+    slave_reset();
+    s_master = 7;
+    s_remote_v4_profile = 150;
+    app_ble_display_profile_t policy = {.intercom = true};
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_ALLOWED);
+    slave_reset();
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_ALLOWED);
+    s_master = 7;
+    s_profile_length = APP_BLE_PROFILE_SIZE;
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_UNKNOWN);
+    s_remote_v4_profile = 150;
+    policy = (app_ble_display_profile_t){0}; /* HTTP/MQTT */
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    assert(app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_DISABLED && !app_ble_seed_slave_direct());
+    policy = (app_ble_display_profile_t){.direct = true, .schedule.touch_wake_seconds = 5};
+    for (unsigned i = 0; i < 7; ++i) policy.schedule.days[i].enabled = true;
+    app_ble_policy_encode(&policy, s_slave_profile + APP_BLE_PROFILE_SIZE);
+    s_profile_length = sizeof(s_slave_profile);
+    slave_profile_read(7, &done, NULL, NULL);
+    s_profile_accepted = true;
+    assert(app_ble_seed_slave_direct() && app_ble_seed_slave_intercom_policy() == APP_BLE_INTERCOM_DISABLED);
+    app_ble_clock_encode(INT64_C(1800000016123), 60, 1860, true, 80, packets[2].data);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    app_ble_clock_cadence(packets[2].data, 900);
+    unsigned clocks_before = clocks;
+    slave_receive(2, &packets[2]);
+    assert(clocks == clocks_before + 1 && !runtime.has_valid_sample);
+    runtime.data_recept_mode = APP_DATA_SLAVE;
+    app_config_t direct_config = {.data_recept_mode = APP_DATA_INVERTER};
+    s_slave_ready = true;
+    app_ble_protocol_encode_timeout(NULL, &direct_config, 1860, false, now_us, 80,
+                                    packets[0].data, packets[1].data);
+    slave_receive(0, &packets[0]);
+    slave_receive(1, &packets[1]);
+    assert(runtime.slave_connected && runtime.slave_source_stale && !runtime.slave_inverter_searching);
+    app_ble_protocol_encode_timeout(NULL, &direct_config, 1860, true, now_us, 81,
+                                    packets[0].data, packets[1].data);
+    app_ble_clock_encode(INT64_C(1800000017123), 60, 1860, true, 81, packets[2].data);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    slave_receive(0, &packets[0]);
+    slave_receive(1, &packets[1]);
+    assert(!runtime.slave_inverter_searching); /* A korábbi óra másik mintához tartozik. */
+    slave_receive(2, &packets[2]);
+    assert(app_state_slave_inverter_search(&runtime, now_us));
+    assert(!app_state_slave_inverter_search(&runtime, now_us + INT64_C(15000000)));
+    s_remote_v4_profile = 0;
+    slave_try_frame(now_us);
+    assert(!runtime.slave_inverter_searching); /* A régi vagy más forrás nem jelez inverterhibát. */
+    s_remote_v4_profile = 150;
+    make_frame(82, 1800000018);
+    app_ble_clock_sun(packets[2].data, true, 0, 0);
+    slave_receive(2, &packets[2]);
+    slave_receive(1, &packets[1]);
+    slave_receive(0, &packets[0]);
+    assert(runtime.has_valid_sample && !runtime.slave_inverter_searching);
+    slave_reset();
+    assert(!runtime.slave_connected && !app_state_slave_inverter_search(&runtime, now_us));
+    app_slave_display_t display;
+    app_slave_display_profile_t local = {.day_brightness = 80, .night_brightness = 20, .presence_timeout_seconds = 30};
+    assert(app_slave_display_init(&display, &local, now_us));
+    bool night = false;
+    assert(app_ble_seed_slave_backlight(&display, now_us, &night) && night);
+    assert(app_slave_display_brightness(&display, now_us) == 0);
+    assert(app_slave_display_pointer(&display, true, now_us));
+    assert(app_slave_display_pointer(&display, false, now_us));
+    assert(app_slave_display_brightness(&display, now_us + 4999999) == 20);
+    assert(app_slave_display_brightness(&display, now_us + 5000000) == 0);
+    app_inverter_schedule_t weekend = {.days = {[6] = {true, 1320, 360}}};
+    assert(!app_inverter_schedule_active(&weekend, 6, 1319));
+    assert(app_inverter_schedule_active(&weekend, 6, 1320));
+    assert(app_inverter_schedule_active(&weekend, 0, 359));
+    assert(!app_inverter_schedule_active(&weekend, 0, 360));
+#ifdef APP_INTERCOM_SLAVE
+    /* Tartósan kikapcsolt Master: a működő 4B rádió keresési ciklusai alatt
+     * a memóriában lévő heti program megmarad. Beragadt rádiónál javítunk. */
+    slave_4b_link_watchdog_t direct_link = {0}, legacy_link = {0};
+    int64_t t = 1;
+    app_runtime_state_t link = {.ble_ready = true, .slave_connected = true};
+    assert(!slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t));
+    assert(!slave_4b_link_timed_out(&legacy_link, &link, false, false, 0, t));
+    link.slave_connected = false;
+    for (unsigned sec = 1; sec <= 700; ++sec) {
+        t = 1 + (int64_t)sec * 1000000;
+        link.ble_scanning = (sec % 8) < 5;
+        assert(!slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t));
+        assert(!slave_4b_link_timed_out(&legacy_link, &link, false, true, 0, t));
+        assert((slave_4b_link_timed_out(&legacy_link, &link, false, false, 0, t) != 0) == (sec >= 600));
+    }
+    assert(slave_4b_link_timed_out(&direct_link, &link, true, false, 0, t + INT64_C(600000000)));
 #endif
     puts("PASS: actual BLE central discovery/CCCD/read/notify, ordering, startup cache, dedup, "
          "heartbeat, reconnect, old-master and malformed rejection");

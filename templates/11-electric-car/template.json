@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "11-electric-car",
   "name": "Elektromos autó",
-  "version": 6,
+  "version": 7,
   "light": {
     "background": "#10251F",
     "home_hotspot": {
@@ -361,6 +361,7 @@
         "source": "pv"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 28,
         "y": 270,
@@ -399,6 +400,7 @@
         "source": "grid"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 28,
         "y": 549,
@@ -409,6 +411,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 40,
         "y": 557,
@@ -466,6 +469,7 @@
         "source": "battery_temp"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 510,
         "y": 574,
@@ -476,6 +480,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 522,
         "y": 582,
@@ -629,6 +634,7 @@
         "source": "production_today"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 440,
         "y": 710,
@@ -639,6 +645,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 452,
         "y": 717,
@@ -668,6 +675,7 @@
         "source": "consumption_today"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 852,
         "y": 710,
@@ -678,6 +686,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 864,
         "y": 717,
@@ -1099,6 +1108,7 @@
         "source": "pv"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 28,
         "y": 270,
@@ -1137,6 +1147,7 @@
         "source": "grid"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 28,
         "y": 549,
@@ -1147,6 +1158,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 40,
         "y": 557,
@@ -1204,6 +1216,7 @@
         "source": "battery_temp"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 510,
         "y": 574,
@@ -1214,6 +1227,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 522,
         "y": 582,
@@ -1367,6 +1381,7 @@
         "source": "production_today"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 440,
         "y": 710,
@@ -1377,6 +1392,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 452,
         "y": 717,
@@ -1406,6 +1422,7 @@
         "source": "consumption_today"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 852,
         "y": 710,
@@ -1416,6 +1433,7 @@
         "background": "#10251F"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 864,
         "y": 717,

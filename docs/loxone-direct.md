@@ -18,8 +18,8 @@ kínálja fel. Javasolt külön kategória és felhasználó, virtuális állapo
 a többi energia-párosítás megmarad. A Miniserver és az egyes funkciószakaszok
 külön menthetők. [Működés és logós készenlét](energy-flow-disable.md).
 
-Normál módban a kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status,
-NightMode és BatteryTemperature. Az öt időjárási mező kihagyható (null); az új relatív páratartalom
+Normál módban a kötelező mezők: PowerGrid, PowerBat, PowerPV, PowerFull, SocBat, Status és
+NightMode. A BatteryTemperature párosítása opcionális. Érvényes mérésig a kijelző elrejti az akkuhőfokot. Az öt időjárási mező kihagyható (null); az új relatív páratartalom
 szorzóval/eltolással, egész százalékként használható: [beállítás és Slave-frissítés](relative-humidity.md).
 A nappálya opcionális, négy külön numerikus párosítással: `SunAzimuth` (fok,
 0 ≤ érték < 360), `SunAltitude` (fok, −90…90), `Sunrise` és `Sunset`

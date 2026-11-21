@@ -49,6 +49,7 @@ végponton ellenőrzi a legújabb kiadást. Nincs külön szerver, token vagy UR
   tartós NVS-ben vannak.
 - Nincs párhuzamos kézi OTA, konfigurációmentés vagy webes újraindítás: ilyenkor
   a webes módosítás 409 választ ad, illetve a foglalt éjféli ellenőrzés kimarad.
+- Közvetlen inverter módban a GitHub-frissítő a már futó inverteres vagy időjárási HTTPS-kérés befejezésére legfeljebb 30 másodpercet vár. Ha a kérés még fut, az OTA-kísérlet kimarad és az eseménynaplóban látszik az oka. A frissítés az oldalon kézzel ismételhető. [Memóriahasználat](performance.md#közvetlen-inverter-és-a-v4-memóriakerete)
 - A kapcsolódási hiba nem azonnal végleges: a letöltő 3 másodperc szünettel
   kétszer újrapróbálkozik, és ezt naplózza is. A TLS-kontextus pillanatnyi
   belső RAM-hiánytól is elbukhat, ezért érdemes megnézni a hiba melletti
@@ -95,27 +96,19 @@ Ha mindkettő üres, nincs hitelesítés.
 
 A firmware két alkalmazáspartíciót használ. Az új image először próbaállapotban indul.
 
-Az új firmware legfeljebb 5 percen belül akkor minősül sikeresnek, ha a
-konfiguráció betöltődött, és a módnak megfelelő indulási feltételek teljesültek:
+| Hol indul a friss firmware? | Mikor véglegesül az OTA-kép? |
+| --- | --- |
+| Wi-Fi-t használó Master, bármely adatforrással | A kijelző IP-címet kap a Wi-Fi-hálózaton, és sikeresen szinkronizálja az óráját. |
+| Első beállítás alatt álló 10,1″ vagy 4B kijelző | A panelen kiválasztott hálózat IP-címet ad, és a gyári NTP-kiszolgálóról sikerül az időszinkron. |
+| Már beállított Bluetooth Slave, SD-vel vagy SD nélkül | A párosított Mastertől megérkezik a hiteles idő. A Slave saját Wi-Fi-je ehhez opcionális. |
 
-| Mód | Tárhely | Kapcsolat és idő | Adatfeltétel |
-| --- | --- | --- | --- |
-| MQTT | Elérhető SD | Wi-Fi és NTP | Brokerkapcsolat |
-| HTTP | Elérhető SD | Wi-Fi és NTP | Elindult HTTP-fogadó |
-| Közvetlen Loxone | Elérhető SD | Wi-Fi és NTP | Működő webfelület; a kezdeti párosítás kivárható |
-| Slave SD-vel | Elérhető SD | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
-| Slave SD nélkül | Friss, teljes master-statisztika RAM-ban | Masterkapcsolat és BT-időszinkron | Érvényes, nem elavult élő mérés |
+A véglegesítés közben a 10,1″-es indulóképernyő még mutathatja a Loxone-kapcsolat felépítését vagy az első adatcsomagra várást. Az első mérés, a statisztika és a téma megjelenése külön követhető. [Az indulóképernyő viselkedése üzemmódonként](first-start.md#indulás-mentett-beállításokkal)
 
-Az első három módhoz nem kell már beérkezett érvényes mérés. Slave módban kell;
-a Wi-Fi és az NTP viszont nem feltétele a próbaindítás elfogadásának.
+Első üzembe helyezéskor a beállító webfelület megvárja a próbakép elfogadását, mert az első mentés újraindítja az eszközt. A tájolás miatti tervezett újraindítás és a Slave kapcsolatfigyelője is figyelembe veszi a próbaidőt.
+
+A szokásos ellenőrzési idő 5 perc. A már Slave módban induló, Masterre váró kijelző legfeljebb 20 percet kap, hogy a két eszköz egymást követő frissítésénél ismét létrejöhessen a kapcsolat.
 
 Ha a feltételek nem teljesülnek, a bootloader visszaáll az előző működő firmware-re.
-
-A Slave-nek lassabb az indulása (BLE-párosítás, időszinkron, master-statisztika),
-ezért az ablak szándékosan bőven az indulási idő felett van. Ha a Slave frissítése
-közben a **Master is újraindul** (például ő is frissül), a hiányzó masterkapcsolat
-nem futtathatja ki az időt: amíg nincs BLE-kapcsolat, az ellenőrzés legfeljebb
-20 percig türelmesen vár, és csak utána áll vissza.
 
 A visszaállás nyomot hagy: az alkalmazás az időtúllépéskor NVS-be írja, **melyik
 feltétel hiányzott**, és a következő induláskor a rendszernaplóba kerül a nem
@@ -163,4 +156,4 @@ Az eseménynapló a legutóbbi 20 RAM-bejegyzést jeleníti meg. A napló az esz
 
 A gyári Napi mérleg, Nyugodt otthon, Energiakör és Energiafőkönyv témák szín-/háttérjavításait az OTA után a kijelző a régebbi SD-sablonokon is alkalmazza. A teljesen új sablonfájlok telepítéséhez továbbra is a webes sablonkezelő vagy az SD-re másolás használható.
 
-Loxone módban az új firmware OTA-érvényesítéséhez a működő webfelület elegendő; a kezdeti párosítás közbeni adathiány nem okoz visszaállítást. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.
+A v2-es Loxone mód OTA-ellenőrzése a működő webfelületet vizsgálta. A v4 OTA-képének elfogadási feltételeit a fenti táblázat mutatja. A v2.0.0 megőrzi a korábbi általános beállításokat; a Loxone-párosítás külön fájlban van. A régi szöveges Loxone nappálya-párosítás helyett négy numerikus állapotot kell választani; az MQTT/HTTP szöveges protokoll változatlan.

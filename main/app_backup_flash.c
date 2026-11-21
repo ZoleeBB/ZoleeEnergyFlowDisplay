@@ -9,12 +9,13 @@
  * az SD-n); a Loxone- és kamerajelszó eszközkulccsal titkosított marad.
  */
 #include "app_backup.h"
+#include "cJSON.h"
 #include "app_task_mem.h"
 #include "app_events.h"
 #include "app_storage.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
-#include "esp_partition.h"
+#include "app_backup_flash_partition.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -24,25 +25,19 @@
 #include <string.h>
 #include <time.h>
 
-#define SLOT_SIZE (1024U * 1024U)
 #define SYNC_DELAY_MS 15000
 
 static const char *TAG = "backup";
 static SemaphoreHandle_t s_lock, s_request;
-
-static const esp_partition_t *partition(void)
-{
-    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "storage");
-}
 
 /* Egy slot fejléce és hasznos adatának CRC-je együtt érvényes. */
 static bool slot_read(const esp_partition_t *part, unsigned index, app_backup_slot_t *slot,
                       char **payload)
 {
     uint8_t header[APP_BACKUP_SLOT_HEADER];
-    size_t offset = (size_t)index * SLOT_SIZE;
+    size_t offset = (size_t)index * APP_BACKUP_FLASH_SLOT_SIZE;
     if (esp_partition_read(part, offset, header, sizeof(header)) != ESP_OK ||
-        !app_backup_slot_decode(header, SLOT_SIZE, slot))
+        !app_backup_slot_decode(header, APP_BACKUP_FLASH_SLOT_SIZE, slot))
         return false;
     char *data = heap_caps_malloc(slot->length + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!data)
@@ -76,11 +71,11 @@ static bool ensure_lock(void)
 
 esp_err_t app_backup_flash_info(app_backup_flash_info_t *out)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (!out)
         return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -100,12 +95,12 @@ esp_err_t app_backup_flash_info(app_backup_flash_info_t *out)
 
 esp_err_t app_backup_flash_load(char **json, size_t *length)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (!json || !length)
         return ESP_ERR_INVALID_ARG;
     *json = NULL;
     *length = 0;
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -125,12 +120,12 @@ esp_err_t app_backup_flash_load(char **json, size_t *length)
 
 esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
 {
-    const esp_partition_t *part = partition();
+    const esp_partition_t *part = app_backup_flash_partition();
     if (written)
         *written = false;
     if (!json || !length || length > APP_BACKUP_MAX)
         return ESP_ERR_INVALID_ARG;
-    if (!part || part->size < 2 * SLOT_SIZE)
+    if (!part || part->size < APP_BACKUP_FLASH_SLOT_COUNT * APP_BACKUP_FLASH_SLOT_SIZE)
         return ESP_ERR_NOT_FOUND;
     if (!ensure_lock())
         return ESP_ERR_NO_MEM;
@@ -156,7 +151,7 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
     };
     uint8_t header[APP_BACKUP_SLOT_HEADER];
     app_backup_slot_encode(&slot, header);
-    size_t offset = (size_t)target * SLOT_SIZE;
+    size_t offset = (size_t)target * APP_BACKUP_FLASH_SLOT_SIZE;
     size_t erase = (APP_BACKUP_SLOT_HEADER + length + 4095U) & ~4095U;
     /* Előbb a hasznos adat, a fejléc utoljára: félbeszakadt írásnál a slot érvénytelen. */
     result = esp_partition_erase_range(part, offset, erase);
@@ -168,6 +163,26 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written)
     if (result == ESP_OK && written)
         *written = true;
     return result;
+}
+
+/* Sérült vagy hiányzó SD esetén csak a hitelesített konfigurációt olvassuk
+ * RAM-ba. Az eredeti fájlokat a kezelő javíthatja a webes felületen. */
+esp_err_t app_backup_flash_boot_config(app_config_t *cfg, char *error, size_t error_len)
+{
+    char *json;
+    size_t length;
+    esp_err_t err = app_backup_flash_load(&json, &length);
+    if (err != ESP_OK) return err;
+    cJSON *bundle = cJSON_ParseWithLength(json, length);
+    free(json);
+    const cJSON *files = cJSON_GetObjectItemCaseSensitive(bundle, "files");
+    const cJSON *config = cJSON_GetObjectItemCaseSensitive(files, "config.json");
+    char *text = cJSON_IsObject(config) ? cJSON_PrintUnformatted(config) : NULL;
+    cJSON_Delete(bundle);
+    if (!text) return ESP_ERR_INVALID_STATE;
+    err = app_config_parse_json(text, strlen(text), cfg, error, error_len);
+    cJSON_free(text);
+    return err;
 }
 
 esp_err_t app_backup_flash_restore_sd(unsigned *files, char error[APP_BACKUP_ERROR_SIZE])

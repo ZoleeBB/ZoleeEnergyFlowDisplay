@@ -20,6 +20,8 @@ korábbi készülékes tapasztalatokat.
 
 ## Útmutatók
 
+- [Közvetlen inverter – v3.4.0 mérési bázis, v4-es döntések és hardveres átvétel](../direct-inverter-v4-plan.md)
+
 - [Akku diagnosztika – fejlesztési és folytatási állapot](../battery-diagnostics-plan.md)
 - [Elektromos autó – fejlesztési terv és ellenőrzési állapot](../electric-car-development.md)
 - [Energiaáramlás tiltás – fejlesztési terv és ellenőrzési állapot](../energy-flow-disable-plan.md)

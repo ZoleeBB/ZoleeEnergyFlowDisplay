@@ -10,7 +10,7 @@ panelhez, külön **Waveshare 4B Slave (720×720)** firmware-rel. A napelem, a h
 a hálózat és az akkumulátor pillanatnyi adatait, energiaútjait és statisztikáit
 mutatja, nappali és éjszakai megjelenéssel.
 
-Adatfogadás: **MQTT, HTTP POST, közvetlen Loxone vagy Bluetooth Slave**.
+Adatfogadás: **MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter vagy Bluetooth Slave**.
 A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 
 [Első indítás](#első-indítás) · [Funkciók](#funkciók-és-üzemmódok) ·
@@ -19,14 +19,14 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 ## Első indítás
 
 1. Telepítsd a megfelelő Master vagy Slave firmware-t az [USB útmutató](docs/usb-install.md) szerint.
-2. Készítsd elő a [konfigurációt](docs/configuration.md) és az [SD-kártyát](docs/sd-card.md), amennyiben az adott üzemmód használja.
+2. Konfiguráció nélküli készüléken kövesd az [érintőképernyős első beállítást](docs/first-run-wifi.md). Előre konfigurált telepítéshez készítsd elő a [konfigurációt](docs/configuration.md) és az [SD-kártyát](docs/sd-card.md), amennyiben az adott üzemmód használja.
 3. Állítsd be a kiválasztott [adatkapcsolatot](docs/integrations/README.md); Slave esetén végezd el a Masterrel a párosítást.
-4. A kezeléshez és a helyi webfelülethez kövesd az [első indítás részletes leírását](docs/first-start.md) és a [gesztusok útmutatóját](docs/gestures.md).
+4. A 10,1″-es Loxone kijelzőn az indulási lista végigkíséri a kapcsolat felépülését. Közvetlen inverter módban az időszinkron után már megadható az inverterprofil. [Indulás üzemmódonként](docs/first-start.md#indulás-mentett-beállításokkal) · [Kezelés és gesztusok](docs/gestures.md)
 
 ## Funkciók és üzemmódok
 
 - **Energiaáramlás és statisztika:** pillanatnyi teljesítmények, animált energiautak, napi/heti/havi adatok és pénzügyi mutatók. [Statisztika](docs/statistics.md).
-- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone és Bluetooth Master/Slave. [Beállítások](docs/integrations/README.md).
+- **Adatkapcsolatok:** MQTT, HTTP POST, közvetlen Loxone, Közvetlen inverter és Bluetooth Master/Slave. A Közvetlen inverter tíz gyártó 22 profilját kínálja. A helyi eszközöket öt másodpercenként olvassa, a négy gyártói felhőt profiltól függően 5, 20 vagy 60 percenként kérdezi. A beállítást típusfüggő súgó és a kompatibilis helyi profiloknál hálózati keresés segíti. [Inverterkeresés és támogatott típusok](docs/direct-inverter.md#inverter-keresése-a-helyi-hálózaton) · [Adatkapcsolatok beállítása](docs/integrations/README.md).
 - **Loxone Otthon:** külön mért fogyasztók, lapozható kapcsoló-, nyomógomb-, szenzor- és állapotkártyák. A szerkesztés típusválasztással indul, a kártyák fel/le gombokkal rendezhetők. [Otthon-konfiguráció](docs/v3-home-config.md).
 - **Világításvezérlés:** automatikus blokkfelismerés, `− / Ki / +` gombok, dimmer- és RGB/RGBW-kezelés. [Útmutató és képek](docs/lighting-controller.md).
 - **IRC termosztát:** célhőfok a kötött termosztátikonon, mért szobahőmérséklet, fűtési/hűtési üzemmódjel és `− / +` állítás 0,5 °C-os lépéssel. [Használat és beállítás](docs/irc-controller.md).
@@ -36,7 +36,7 @@ A beállítás, frissítés és diagnosztika helyi webfelületen érhető el.
 - **Kaputelefon:** élőkép, kétirányú hang, kapunyitás és csengőhangok, Master és 4B Slave támogatással. [Útmutató](docs/intercom.md).
 - **Energiafunkciók:** [akkudiagnosztika](docs/battery-diagnostics.md), [elektromos autó](docs/electric-car.md) és [helyi energiaasszisztens](docs/energy-assistant.md).
 - **Megjelenítés:** világos/sötét témák, saját sablonok és [Loxone Otthon kaputelefon-kijelzőként](docs/energy-flow-disable.md).
-- **Karbantartás:** webes beállítások, mentés/visszaállítás, OTA és diagnosztika. [Útmutatók](docs/maintenance/README.md).
+- **Karbantartás:** webes beállítások, mentés, OTA és diagnosztika. A 10,1 hüvelykes kijelző a saját webes kezdőlapjáról gyári állapotba állítható. [Gyári visszaállítás](docs/backup.md#gyári-visszaállítás) · [Karbantartási útmutatók](docs/maintenance/README.md).
 
 ## Téma-előnézetek
 
@@ -80,5 +80,5 @@ témakörönként csoportosítva.
 
 ## Verziók
 
-[Kiadási leírások és fejlesztési napló](docs/versions/README.md) ·
+[v4.0.0 – Közvetlen inverter és első beállítás](docs/versions/v4.0.0.md) · [Kiadási leírások és fejlesztési napló](docs/versions/README.md) ·
 [Letölthető kiadások](https://github.com/ZoleeBB/ZoleeEnergyFlowDisplay/releases)

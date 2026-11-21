@@ -2,17 +2,17 @@
 
 [Dokumentációs kezdőlap](../README.md) · [Projektáttekintés](../../README.md)
 
-Adatprotokollok, mintakonfigurációk, közvetlen Loxone-kapcsolat és Bluetooth.
+Energiaadatok fogadása MQTT-n, HTTP-n, közvetlenül Loxone-ról, inverterről vagy Bluetooth-on.
 
 ## Kapcsolat kiválasztása
 
-Az MQTT/HTTP adatküldés és a közvetlen Loxone-kapcsolat eltérő beállításokat
-használ; a saját módod útmutatóját kövesd. A Bluetooth Master/Slave és a 4B
+MQTT és HTTP POST esetén a külső adatküldőt kell beállítani. Közvetlen Loxone esetén a Miniserver állapotait párosítsd. Közvetlen inverter módban a Masterhez egy aktív helyi vagy gyártói felhős kapcsolatot válassz. A Bluetooth Master/Slave és a 4B
 firmware külön leírást kapott. Az alábbi protokoll- és konfigurációs
 szerződések a felhasználói beállításhoz és a fejlesztéshez is elérhetők.
 
 ## Útmutatók
 
+- [Közvetlen inverter – családok, helyi és felhős elérés, sötétítés](../direct-inverter.md)
 - [JSON és MQTT](../mqtt.md)
 - [HTTP adatfogadás](../http-input.md)
 - [Közvetlen Loxone kapcsolat](../loxone-direct.md)

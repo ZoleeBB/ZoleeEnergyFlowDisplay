@@ -6,12 +6,14 @@
  *   GET  /update  - firmware feltöltő oldal
  *   POST /update  - bináris OTA image feltöltése
  *   POST /reboot  - eszköz újraindítása
+ *   POST /api/factory-reset - megerősített helyi alaphelyzetbe állítás
  *
  * Ha az OTA felhasználónév és jelszó ki van töltve, minden végpont ugyanazt
  * a HTTP Basic Auth hitelesítést használja.
  */
 #include "app_web.h"
 #include "app_support_web.h"
+#include "app_home_actions.h"
 #include "app_web_style.h"
 #include "app_http.h"
 #include "app_loxone.h"
@@ -54,11 +56,29 @@ static const char *TAG = "web";
 
 static app_ota_config_t s_auth_cfg;
 static app_config_t s_config;
+/* A weben mentett új üzemmód végpontjai csak a következő indításkor léteznek. */
+static app_data_mode_t s_web_mode;
 static httpd_handle_t s_server;
 static bool s_restart_pending;
 static char s_expected_auth[256];
 static char s_project_title[APP_PROJECT_TITLE_MAX];
 static bool s_hu = true;
+
+static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
+{
+    return app_web_send_template(req, page, hu, s_web_mode);
+}
+
+static const char *web_mode_name(app_data_mode_t mode)
+{
+    switch (mode) {
+        case APP_DATA_INVERTER: return s_hu ? "Közvetlen inverter" : "Direct inverter";
+        case APP_DATA_LOXONE: return "Loxone";
+        case APP_DATA_SLAVE: return "Slave (BLE)";
+        case APP_DATA_HTTP: return "HTTP";
+        default: return "MQTT";
+    }
+}
 
 /* Az ESP reset okának rövid, emberileg olvasható szövege. */
 static const char *reset_text(esp_reset_reason_t reason)
@@ -278,6 +298,51 @@ static void html_escape(
 /* A fő információs oldal összeállítása az aktuális runtime állapotból. */
 #include "app_battery_web.inc"
 
+/* Az események kétnyelvű pillanatképe csak a táblázat küldéséig él.
+ * A több mint 5 KiB-os tömb nem foglalja a HTTP-task belső vermét. */
+static esp_err_t send_recent_events(httpd_req_t *req)
+{
+    app_event_entry_t *events = heap_caps_malloc(APP_EVENT_LOG_CAPACITY * sizeof(*events),
+                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!events) {
+        return httpd_resp_send_chunk(req, s_hu ? "<p class='muted'>Az eseménylista nem tölthető be.</p>"
+                                               : "<p class='muted'>The event list could not be loaded.</p>",
+                                     HTTPD_RESP_USE_STRLEN);
+    }
+    size_t count = app_events_snapshot(events, APP_EVENT_LOG_CAPACITY);
+    if (!count) {
+        free(events);
+        return httpd_resp_send_chunk(req, s_hu ? "<p class='muted'>Még nincs esemény.</p>"
+                                               : "<p class='muted'>No events yet.</p>",
+                                     HTTPD_RESP_USE_STRLEN);
+    }
+
+    esp_err_t result = httpd_resp_send_chunk(req, "<div class='events-box'><table class='events'>",
+                                             HTTPD_RESP_USE_STRLEN);
+    /* A legfrissebb esemény elöl, ahogy a kijelző diagnosztikai nézetében. */
+    while (count && result == ESP_OK) {
+        const app_event_entry_t *entry = &events[--count];
+        char when[32] = "-";
+        if (entry->epoch_s > 0) {
+            time_t epoch = (time_t)entry->epoch_s;
+            struct tm local;
+            localtime_r(&epoch, &local);
+            strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", &local);
+        }
+        const char *css = entry->level == APP_EVENT_ERROR ? "error" :
+                          entry->level == APP_EVENT_WARNING ? "warning" : "";
+        char safe_event[APP_EVENT_TEXT_MAX * 6];
+        html_escape(s_hu ? entry->text : entry->text_en, safe_event, sizeof(safe_event));
+        result = sendf(req, "<tr><td class='muted'>%s</td><td class='%s'>%s</td><td>",
+                       when, css, event_level_text(entry->level));
+        if (result == ESP_OK) result = httpd_resp_send_chunk(req, safe_event, strlen(safe_event));
+        if (result == ESP_OK) result = httpd_resp_send_chunk(req, "</td></tr>", HTTPD_RESP_USE_STRLEN);
+    }
+    free(events);
+    if (result != ESP_OK) return result;
+    return httpd_resp_send_chunk(req, "</table></div>", HTTPD_RESP_USE_STRLEN);
+}
+
 static esp_err_t root_handler(httpd_req_t *req)
 {
     if (!authorize(req)) {
@@ -329,13 +394,6 @@ static esp_err_t root_handler(httpd_req_t *req)
     const esp_app_desc_t *description =
         esp_app_get_description();
 
-    /* A RAM eseménynaplóból konzisztens snapshotot kérünk. */
-    app_event_entry_t events[APP_EVENT_LOG_CAPACITY];
-    size_t event_count =
-        app_events_snapshot(
-            events,
-            APP_EVENT_LOG_CAPACITY);
-
     httpd_resp_set_type(
         req,
         "text/html; charset=utf-8");
@@ -350,11 +408,22 @@ static esp_err_t root_handler(httpd_req_t *req)
         /* Fix magasságú, görgethető lista: a kártya nem nyúlik el, a korábbi
          * sorok mégis visszanézhetők. */
         ".events-box{max-height:320px;overflow-y:auto;overscroll-behavior:contain}"
-        ".events-box table{margin:0}.events-box thead th{position:sticky;top:0;background:var(--card)}"
+        ".events-box table{margin:0}"
         ".log-links{margin:10px 0 0;display:flex;gap:10px;flex-wrap:wrap}"
+        "button.restart{background:#b34a09;color:#fff}"
+        "@media(prefers-color-scheme:dark){button.restart{background:#ff9e4f;color:#211205}"
+        "body[data-page=home] button.danger{color:#27100e}}"
+        "#device-dialog{width:min(32rem,calc(100% - 24px));max-height:calc(100% - 24px);"
+        "padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--card);"
+        "color:var(--text);box-shadow:var(--shadow);overflow:auto;overflow-wrap:anywhere}"
+        "#device-dialog::backdrop{background:#091219b8}#device-dialog p:empty{margin:0}"
+        "#device-countdown{font-weight:600}"
+        "@media(max-width:480px){.device-actions>*,#device-buttons>button{width:100%}}"
         "</style></head><body data-page='home'>",
         HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req, s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN, HTTPD_RESP_USE_STRLEN);
+    const char *nav = s_hu ? APP_WEB_NAV_HU : APP_WEB_NAV_EN;
+    if (app_web_send_nav(req, nav, strlen(nav), s_hu, s_web_mode) != ESP_OK)
+        return ESP_FAIL;
 
     if (app_web_send_support(req, s_hu) != ESP_OK) {
         return ESP_FAIL;
@@ -372,13 +441,15 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* A navigáció a felső menüben van; itt csak az állapot és a gyakori műveletek. */
     httpd_resp_send_chunk(req, s_hu ?
         "<p class='lead'>Eszközállapot, legutóbbi események és gyors műveletek.</p>"
-        "<div class='actions'><a class='button secondary' href='/settings'>Beállítások</a>"
+        "<div class='actions device-actions'><a class='button secondary' href='/settings'>Beállítások</a>"
         "<a class='button secondary' href='/backup'>Mentés és visszaállítás</a>"
-        "<button class='danger restart' type='button' onclick='restartDevice()'>Eszköz újraindítása</button></div>" :
+        "<button class='restart' type='button' data-device-action='restart'>Eszköz újraindítása</button>"
+        "<button class='danger' type='button' data-device-action='factory'>Alaphelyzetbe állítás</button></div>" :
         "<p class='lead'>Device status, recent events and quick actions.</p>"
-        "<div class='actions'><a class='button secondary' href='/settings'>Settings</a>"
+        "<div class='actions device-actions'><a class='button secondary' href='/settings'>Settings</a>"
         "<a class='button secondary' href='/backup'>Backup and restore</a>"
-        "<button class='danger restart' type='button' onclick='restartDevice()'>Restart device</button></div>",
+        "<button class='restart' type='button' data-device-action='restart'>Restart device</button>"
+        "<button class='danger' type='button' data-device-action='factory'>Factory reset</button></div>",
         HTTPD_RESP_USE_STRLEN);
 
     /* Eszközinformációs kártya. */
@@ -411,7 +482,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         "<div><span class='k'>Wi-Fi RSSI</span><div class='v'>%d dBm</div></div>",
         runtime.wifi_connected ? rssi : 0);
 
-    const char *mode = runtime.data_recept_mode == APP_DATA_SLAVE ? "Slave (BLE)" : runtime.data_recept_mode == APP_DATA_LOXONE ? "Loxone" : runtime.data_recept_mode == APP_DATA_HTTP ? "HTTP" : "MQTT";
+    const char *mode = web_mode_name(runtime.data_recept_mode);
     sendf(req, "<div><span class='k'>%s</span><div class='v'>%s</div></div>", s_hu ? "Adatfogadási mód" : "Data reception mode", mode);
     sendf(req, "<div><span class='k'>%s %s</span><div class='v'>%s</div></div>", mode,
         s_hu ? "adatfogadó" : "receiver",
@@ -447,68 +518,7 @@ static esp_err_t root_handler(httpd_req_t *req)
             : "<div class='card'><h2>Recent events</h2>",
         HTTPD_RESP_USE_STRLEN);
 
-    if (event_count == 0) {
-        httpd_resp_send_chunk(
-            req,
-            s_hu
-                ? "<p class='muted'>Még nincs esemény.</p>"
-                : "<p class='muted'>No events yet.</p>",
-            HTTPD_RESP_USE_STRLEN);
-    } else {
-        httpd_resp_send_chunk(
-            req,
-            "<div class='events-box'><table class='events'>",
-            HTTPD_RESP_USE_STRLEN);
-
-        /* A legfrissebb esemény elöl, ahogy a kijelző diagnosztikai nézetében. */
-        for (size_t shown = 0; shown < event_count; shown++) {
-            size_t i = event_count - 1 - shown;
-            char when[32] = "-";
-
-            if (events[i].epoch_s > 0) {
-                time_t event_epoch =
-                    (time_t)events[i].epoch_s;
-
-                struct tm local_time;
-                localtime_r(
-                    &event_epoch,
-                    &local_time);
-
-                strftime(
-                    when,
-                    sizeof(when),
-                    "%Y-%m-%d %H:%M:%S",
-                    &local_time);
-            }
-
-            const char *css_class =
-                events[i].level == APP_EVENT_ERROR
-                    ? "error"
-                    : events[i].level == APP_EVENT_WARNING
-                        ? "warning"
-                        : "";
-
-            char safe_event[APP_EVENT_TEXT_MAX * 6];
-            html_escape(
-                s_hu?events[i].text:events[i].text_en,
-                safe_event,
-                sizeof(safe_event));
-
-            sendf(
-                req,
-                "<tr><td class='muted'>%s</td>"
-                "<td class='%s'>%s</td><td>%s</td></tr>",
-                when,
-                css_class,
-                event_level_text(events[i].level),
-                safe_event);
-        }
-
-        httpd_resp_send_chunk(
-            req,
-            "</table></div>",
-            HTTPD_RESP_USE_STRLEN);
-    }
+    if (send_recent_events(req) != ESP_OK) return ESP_FAIL;
 
     /* A teljes napló az SD-ről: a mai és az előző napi fájl külön nyitható,
      * így újraindítás után is visszakereshető, mi történt. */
@@ -535,34 +545,9 @@ static esp_err_t root_handler(httpd_req_t *req)
     /* A műveletgombok már az oldal tetején, a Beállítások mellett szerepelnek. */
 
     sendf(req,"<script>document.documentElement.lang='%s';</script>",s_hu?"hu":"en");
-    httpd_resp_send_chunk(req,
-        "<div id='reboot-mask' hidden style='position:fixed;inset:0;background:#000;color:#fff;"
-        "z-index:999;display:none;align-items:center;justify-content:center;text-align:center'>"
-        "<div><h1 id='reboot-title'></h1><p id='reboot-state'></p>"
-        "<p id='reboot-countdown' style='font-size:28px'></p></div></div>"
-        "<script>"
-        "async function restartDevice(){"
-        "const hu=document.documentElement.lang!=='en';"
-        "if(!confirm(hu?'Biztosan újraindítod az eszközt?':'Restart the device?'))return;"
-        "const m=document.getElementById('reboot-mask');m.hidden=false;m.style.display='flex';"
-        "document.getElementById('reboot-title').textContent=hu?'Újraindítás folyamatban':'Restarting device';"
-        "const status=document.getElementById('reboot-state');"
-        "const counter=document.getElementById('reboot-countdown');"
-        "status.textContent=hu?'Statisztika mentése és az eszköz újraindítása…':'Saving statistics and restarting…';"
-        "try{const r=await fetch('/reboot',{method:'POST'});if(!r.ok)throw Error(await r.text());}"
-        "catch(e){status.textContent=(hu?'Újraindítási hiba: ':'Restart error: ')+e.message;return;}"
-        "let remaining=20,started=Date.now(),offline=false;"
-        "const tick=async()=>{remaining=Math.max(0,20-Math.floor((Date.now()-started)/1000));"
-        "counter.textContent=remaining>0?(hu?'Visszaszámlálás: ':'Countdown: ')+remaining+' s':'';"
-        "if(remaining>0){setTimeout(tick,1000);return;}"
-        "status.textContent=hu?'Kapcsolódás az újraindult eszközhöz…':'Reconnecting to device…';"
-        "const probe=async()=>{try{const c=new AbortController();"
-        "const t=setTimeout(()=>c.abort(),1800);"
-        "const r=await fetch('/api/settings?ping='+Date.now(),{cache:'no-store',signal:c.signal});"
-        "clearTimeout(t);if(r.ok){location.href='/';return;} }catch(e){}"
-        "setTimeout(probe,2000);};probe();};tick();"
-        "}"
-        "</script>",HTTPD_RESP_USE_STRLEN);
+    if (httpd_resp_send_chunk(req, app_home_actions, sizeof(app_home_actions) - 1) != ESP_OK) {
+        return ESP_FAIL;
+    }
 
     /* A chunked HTTP választ nulla hosszú chunk zárja le. */
     if (httpd_resp_send_chunk(
@@ -583,11 +568,11 @@ static esp_err_t update_get(httpd_req_t *req)
     if(!authorize(req))return ESP_OK;
     static const char page_hu[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Firmware frissítés</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
+        "<title>Firmware frissítés</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_HU "<!--APP_SUPPORT-->"
         "<h1>Firmware frissítés</h1><p class='lead'>Új firmware a GitHubról automatikusan vagy kézzel, .bin fájlból. A frissítés után az eszköz újraindul; az SD-s témákat a Sablonok oldalon frissítheted.</p>"
         "<section><h2>Automatikus frissítés</h2><p>A legújabb stabil GitHub-kiadás ellenőrzése és telepítése. <a href='/'>Rendszernapló megnyitása</a></p><button id='auto' onclick='autoNow()'>Automatikus frissítés most</button></section>"
         "<section><h2>Kézi frissítés</h2>"
-        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
+        "<div id='pick'><input id='f' type='file' aria-label='Firmware-fájl (.bin)' accept='.bin'><button id='btn' onclick='go()'>Frissítés indítása</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Válassz egy .bin fájlt.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"GitHub-ellenőrzés indítása…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Kapcsolati hiba; ellenőrizd a rendszernaplót.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
@@ -613,11 +598,11 @@ static esp_err_t update_get(httpd_req_t *req)
         "x.onerror=()=>{pick.hidden=false;document.getElementById('auto').disabled=false;p.hidden=true;s.textContent=\"Kapcsolati hiba. Ellenőrizd, hogy elindult-e az új firmware.\";};x.send(f);}</script></body></html>";
     static const char page_en[] =
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Firmware update</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_EN "<!--APP_SUPPORT-->"
+        "<title>Firmware update</title><style>" APP_WEB_CSS "progress{margin-top:15px}#s{font-weight:600}#pick{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}#pick input{flex:1 1 260px}</style></head><body data-page='update'>" APP_WEB_NAV_EN "<!--APP_SUPPORT-->"
         "<h1>Firmware update</h1><p class='lead'>Install new firmware from GitHub automatically or manually from a .bin file. The device restarts afterwards; update SD themes on the Templates page.</p>"
         "<section><h2>Automatic update</h2><p>Check and install the latest stable GitHub release. <a href='/'>Open system log</a></p><button id='auto' onclick='autoNow()'>Check for automatic update now</button></section>"
         "<section><h2>Manual update</h2>"
-        "<div id='pick'><input id='f' type='file' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
+        "<div id='pick'><input id='f' type='file' aria-label='Firmware file (.bin)' accept='.bin'><button id='btn' onclick='go()'>Start update</button></div>"
         "<progress id='p' value='0' max='100' hidden></progress><p role='status' aria-live='polite' id='s'>Select a .bin file.</p></section>"
         "<script>"
         "async function autoNow(){const b=document.getElementById('auto'),u=document.getElementById('btn'),f=document.getElementById('f'),s=document.getElementById('s');b.disabled=u.disabled=f.disabled=true;s.textContent=\"Starting GitHub check…\";try{const r=await fetch('/api/ota/auto',{method:'POST',headers:{'X-Zolee-OTA':'1'},cache:'no-store'});s.textContent=await r.text();}catch(e){s.textContent=\"Connection error; check the system log.\";}finally{b.disabled=u.disabled=f.disabled=false;}}"
@@ -856,13 +841,20 @@ static esp_err_t reboot_post(httpd_req_t *req)
     return exclusive_request(req, reboot_post_locked);
 }
 
+#include "app_factory_reset_web.inc"
+
+static esp_err_t factory_reset_post(httpd_req_t *req)
+{
+    return exclusive_request(req, factory_reset_post_locked);
+}
+
 static esp_err_t diagnostics_get(httpd_req_t *req){
     if(!authorize(req))return ESP_OK;
     app_diagnostics_t d;app_diagnostics_capture(&d);
     cJSON *o=cJSON_CreateObject();if(!o)return ESP_ERR_NO_MEM;
     cJSON_AddBoolToObject(o,"wifi_connected",d.runtime.wifi_connected);
     cJSON_AddStringToObject(o,"ip",d.ip);cJSON_AddNumberToObject(o,"rssi_dbm",d.rssi);
-    cJSON_AddStringToObject(o,"data_mode",d.runtime.data_recept_mode==APP_DATA_SLAVE?"Slave (BLE)":d.runtime.data_recept_mode==APP_DATA_LOXONE?"Loxone":d.runtime.data_recept_mode==APP_DATA_HTTP?"HTTP":"MQTT");
+    cJSON_AddStringToObject(o,"data_mode",web_mode_name(d.runtime.data_recept_mode));
     cJSON_AddBoolToObject(o,"ble_enabled",d.runtime.ble_enabled);
     if(d.runtime.ble_enabled){
         cJSON_AddStringToObject(o,"ble_role",d.runtime.ble_master?"Master":"Slave");
@@ -1033,6 +1025,7 @@ static esp_err_t diagnostics_page(httpd_req_t *req){
 #include "app_template_web.inc"
 #include "app_settings_web.inc"
 #include "app_loxone_web.inc"
+#include "app_inverter_web.inc"
 #include "app_backup_web.inc"
 #include "app_template_update_web.inc"
 esp_err_t app_web_start(const app_config_t *cfg)
@@ -1046,6 +1039,7 @@ esp_err_t app_web_start(const app_config_t *cfg)
     }
 
     s_config = *cfg;
+    s_web_mode = cfg->data_recept_mode;
     s_auth_cfg = cfg->ota;
     snprintf(
         s_project_title,
@@ -1093,11 +1087,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
         return err;
     }
 
-    /* A négy alkalmazásszintű végpont definíciója. */
+    /* A kezdőlap és a készülékműveletek végpontjai. */
     httpd_uri_t root_uri = {
         .uri = "/",
         .method = HTTP_GET,
-        .handler = root_handler
+        /* A fekete beállítóképernyőn a csupasz helyi IP-cím látszik. */
+        .handler = app_boot_config_setup_pending() ? settings_page : root_handler
     };
 
     httpd_uri_t update_get_uri = {
@@ -1122,6 +1117,12 @@ esp_err_t app_web_start(const app_config_t *cfg)
         .uri = "/reboot",
         .method = HTTP_POST,
         .handler = reboot_post
+    };
+
+    const httpd_uri_t factory_reset_uri = {
+        .uri = "/api/factory-reset",
+        .method = HTTP_POST,
+        .handler = factory_reset_post
     };
 
     if ((err = httpd_register_uri_handler(
@@ -1151,11 +1152,15 @@ esp_err_t app_web_start(const app_config_t *cfg)
     if ((err = httpd_register_uri_handler(s_server, &auto_update_uri)) != ESP_OK) {
         goto failed;
     }
+    if ((err = httpd_register_uri_handler(s_server, &factory_reset_uri)) != ESP_OK) {
+        goto failed;
+    }
 
     if ((err = app_http_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_register(s_server)) != ESP_OK) goto failed;
     if ((err = settings_register(s_server)) != ESP_OK) goto failed;
     if ((err = loxone_register(s_server)) != ESP_OK) goto failed;
+    if ((err = inverter_register(s_server)) != ESP_OK) goto failed;
     if ((err = backup_register(s_server)) != ESP_OK) goto failed;
     if ((err = template_updates_register(s_server)) != ESP_OK) goto failed;
     const httpd_uri_t diagnostic_routes[]={

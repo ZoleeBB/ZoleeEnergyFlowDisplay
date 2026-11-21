@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "09-solar-journey",
   "name": "Nap pálya",
-  "version": 26,
+  "version": 27,
   "light": {
     "home_hotspot": {
       "x": 970,
@@ -473,6 +473,7 @@
         "negative_color": "#C83C49"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 950,
         "y": 244,
@@ -482,6 +483,7 @@
         "color": "#10223C"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 965,
         "y": 345,
@@ -521,6 +523,7 @@
         "file": "pv.png"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 1076,
         "y": 448,
@@ -529,6 +532,7 @@
         "file": "home.png"
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 1193,
         "y": 448,
@@ -652,6 +656,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 1062,
         "y": 534,
@@ -674,6 +679,7 @@
         "align": "center"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 951,
         "y": 562,
@@ -686,6 +692,7 @@
         "outline_width": 1
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 956,
         "y": 577,
@@ -714,6 +721,7 @@
         "color": "#10223C"
       },
       {
+        "requires": "battery_temp",
         "type": "image",
         "x": 1156,
         "y": 580,
@@ -732,6 +740,7 @@
         "color": "#10223C"
       },
       {
+        "requires": "battery_temp",
         "type": "label",
         "x": 1182,
         "y": 613,
@@ -742,6 +751,7 @@
         "color": "#1D426B"
       },
       {
+        "requires": "savings_day",
         "type": "box",
         "x": 18,
         "y": 667,
@@ -752,6 +762,7 @@
         "radius": 16
       },
       {
+        "requires": "savings_day",
         "type": "image",
         "x": 33,
         "y": 680,
@@ -760,6 +771,7 @@
         "file": "eco_leaf.png"
       },
       {
+        "requires": "savings_day",
         "type": "label",
         "x": 95,
         "y": 679,
@@ -780,6 +792,7 @@
         "color": "#10223C"
       },
       {
+        "requires": "savings_day",
         "type": "image",
         "x": 265,
         "y": 705,
@@ -788,6 +801,7 @@
         "file": "eco_tree.png"
       },
       {
+        "requires": "savings_day",
         "type": "label",
         "x": 33,
         "y": 750,
@@ -880,6 +894,7 @@
         "negative_color": "#C83C49"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 648,
         "y": 667,
@@ -890,6 +905,7 @@
         "radius": 16
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 663,
         "y": 680,
@@ -898,6 +914,7 @@
         "file": "home.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 725,
         "y": 679,
@@ -918,6 +935,7 @@
         "color": "#10223C"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 895,
         "y": 705,
@@ -1102,6 +1120,7 @@
         "radius": 3
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 965,
         "y": 361,
@@ -1126,6 +1145,7 @@
         "outline_color": "#41627D"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 663,
         "y": 750,
@@ -1627,6 +1647,7 @@
         "negative_color": "#FF7E88"
       },
       {
+        "requires": "split",
         "type": "chart",
         "x": 950,
         "y": 244,
@@ -1636,6 +1657,7 @@
         "color": "#F7FAFF"
       },
       {
+        "requires": "split",
         "type": "label",
         "x": 965,
         "y": 345,
@@ -1675,6 +1697,7 @@
         "file": "pv.png"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 1076,
         "y": 448,
@@ -1683,6 +1706,7 @@
         "file": "home.png"
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 1193,
         "y": 448,
@@ -1806,6 +1830,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 1062,
         "y": 534,
@@ -1828,6 +1853,7 @@
         "align": "center"
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 951,
         "y": 562,
@@ -1840,6 +1866,7 @@
         "outline_width": 1
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 956,
         "y": 577,
@@ -1868,6 +1895,7 @@
         "color": "#F7FAFF"
       },
       {
+        "requires": "battery_temp",
         "type": "image",
         "x": 1156,
         "y": 580,
@@ -1886,6 +1914,7 @@
         "color": "#F7FAFF"
       },
       {
+        "requires": "battery_temp",
         "type": "label",
         "x": 1182,
         "y": 613,
@@ -1896,6 +1925,7 @@
         "color": "#C4D8EA"
       },
       {
+        "requires": "savings_day",
         "type": "box",
         "x": 18,
         "y": 667,
@@ -1906,6 +1936,7 @@
         "radius": 16
       },
       {
+        "requires": "savings_day",
         "type": "image",
         "x": 33,
         "y": 680,
@@ -1914,6 +1945,7 @@
         "file": "eco_leaf.png"
       },
       {
+        "requires": "savings_day",
         "type": "label",
         "x": 95,
         "y": 679,
@@ -1934,6 +1966,7 @@
         "color": "#F7FAFF"
       },
       {
+        "requires": "savings_day",
         "type": "image",
         "x": 265,
         "y": 705,
@@ -1942,6 +1975,7 @@
         "file": "eco_tree.png"
       },
       {
+        "requires": "savings_day",
         "type": "label",
         "x": 33,
         "y": 750,
@@ -2034,6 +2068,7 @@
         "negative_color": "#FF7E88"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 648,
         "y": 667,
@@ -2044,6 +2079,7 @@
         "radius": 16
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 663,
         "y": 680,
@@ -2052,6 +2088,7 @@
         "file": "home.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 725,
         "y": 679,
@@ -2072,6 +2109,7 @@
         "color": "#F7FAFF"
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 895,
         "y": 705,
@@ -2256,6 +2294,7 @@
         "radius": 3
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 965,
         "y": 361,
@@ -2280,6 +2319,7 @@
         "outline_color": "#93B5D0"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 663,
         "y": 750,

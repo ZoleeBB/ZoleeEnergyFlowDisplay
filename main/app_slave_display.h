@@ -20,6 +20,7 @@ typedef struct
      * a hívó keep_visible felülbírálása tartja a fényt. Slave-nél a Master már
      * időzítette a kérést, ott ez maradjon false. */
     bool delay_initial_absence;
+    bool scheduled;
 } app_slave_display_profile_t;
 
 /* A Slave másodpercenként olvassa a jelenlétcsomagot, a sötétítés időzítését
@@ -72,3 +73,7 @@ void app_slave_display_keep_visible(app_slave_display_t *state, bool visible, in
  * A hívó inputréteg ilyenkor ne továbbítson kattintást/gesztust az LVGL-nek. */
 bool app_slave_display_pointer(app_slave_display_t *state, bool pressed, int64_t now_us);
 unsigned app_slave_display_brightness(app_slave_display_t *state, int64_t now_us);
+
+/* Az önálló heti időprogram minden érintésnél a megadott ébrenléti időt indítja. */
+void app_slave_display_scheduled(app_slave_display_t *state, bool blank,
+                                 uint16_t wake_seconds, int64_t now_us);

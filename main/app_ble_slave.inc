@@ -7,12 +7,61 @@ static uint16_t s_master = BLE_HS_CONN_HANDLE_NONE;
 static bool s_connecting, s_slave_ready, s_source_disabled;
 static uint16_t s_service_start, s_service_end;
 static uint16_t s_remote_values[3], s_remote_defs[3], s_cccd;
-static uint16_t s_remote_profile;
+static uint16_t s_remote_profile, s_remote_v4_profile;
+static portMUX_TYPE s_policy_lock = portMUX_INITIALIZER_UNLOCKED;
+static app_ble_display_profile_t s_display_profile;
+static app_ble_clock_t s_solar_clock;
+static app_ble_intercom_policy_t s_intercom_policy;
+
+app_ble_intercom_policy_t app_ble_seed_slave_intercom_policy(void)
+{
+    portENTER_CRITICAL(&s_policy_lock);
+    app_ble_intercom_policy_t policy = s_intercom_policy;
+    portEXIT_CRITICAL(&s_policy_lock);
+    return policy;
+}
+
+bool app_ble_seed_slave_direct(void)
+{
+    portENTER_CRITICAL(&s_policy_lock);
+    bool direct = s_display_profile.direct;
+    portEXIT_CRITICAL(&s_policy_lock);
+    return direct;
+}
+
+bool app_ble_seed_slave_backlight(app_slave_display_t *display, int64_t now_us, bool *night)
+{
+    portENTER_CRITICAL(&s_policy_lock);
+    app_ble_display_profile_t profile = s_display_profile;
+    app_ble_clock_t solar = s_solar_clock;
+    portEXIT_CRITICAL(&s_policy_lock);
+    if (!profile.direct) return false;
+    struct tm local;
+    time_t current = time(NULL);
+    if (!localtime_r(&current, &local)) return true;
+    unsigned minute = (unsigned)(local.tm_hour * 60 + local.tm_min);
+    bool dark = solar.night;
+    if (solar.sun_valid && solar.sunrise != solar.sunset) {
+        bool daylight = solar.sunrise < solar.sunset ?
+            minute >= solar.sunrise && minute < solar.sunset :
+            minute >= solar.sunrise || minute < solar.sunset;
+        dark = !daylight;
+    }
+    if (night) *night = dark;
+    if (display) {
+        if (solar.sun_valid) app_slave_display_night(display, dark, now_us);
+        bool blank = app_inverter_schedule_active(&profile.schedule,
+                        (unsigned)(local.tm_wday + 6) % 7, minute);
+        app_slave_display_scheduled(display, blank, profile.schedule.touch_wake_seconds, now_us);
+    }
+    return true;
+}
+
 static uint16_t s_remote_stats;
 static bool s_profile_reading, s_profile_waiting;
 static bool s_profile_accepted;
 static size_t s_profile_length;
-static uint8_t s_slave_profile[APP_BLE_PROFILE_SIZE];
+static uint8_t s_slave_profile[APP_BLE_PROFILE_SIZE + APP_BLE_POLICY_SIZE];
 static int64_t s_profile_next_read;
 static unsigned s_setup_packet;
 static uint8_t s_received[3][APP_BLE_PACKET_SIZE];
@@ -22,6 +71,9 @@ static int64_t s_next_scan_us, s_setup_deadline_us, s_last_frame_us;
  * csatlakozási állapotba: a keresés különben sosem indulna újra. */
 static int64_t s_connect_deadline_us;
 static int64_t s_applied_sample_epoch;
+/* A forrás utolsó feldolgozott időbélyegét újracsatlakozáskor is megőrizzük. */
+static char s_integrated_identity[APP_SLAVE_PRESENCE_ID_SIZE];
+static int64_t s_integrated_epoch;
 static int64_t s_last_clock_receive_us;
 static int64_t s_energy_receive_us;
 static uint16_t s_frame_sequence;
@@ -72,7 +124,7 @@ static void slave_reset(void)
     s_service_start = s_service_end = 0;
     memset(s_remote_values, 0, sizeof(s_remote_values));
     memset(s_remote_defs, 0, sizeof(s_remote_defs));
-    s_remote_profile = 0;
+    s_remote_profile = s_remote_v4_profile = 0;
     s_remote_stats = 0;
     s_profile_reading = s_profile_waiting = false;
     s_profile_accepted = false;
@@ -90,7 +142,7 @@ static void slave_reset(void)
     s_master_timeout = 45;
     s_next_scan_us = esp_timer_get_time() + 3000000;
     s_source_disabled = false;
-    app_state_set_slave(false, true, 45, false);
+    app_state_set_slave(false, true, 45, false, false);
     app_state_set_energy_flow_disabled(false, false);
     app_state_clear_sample();
 }
@@ -126,8 +178,25 @@ static int slave_profile_read(uint16_t conn,
         s_profile_length += length;
     }
     else if (error->status == BLE_HS_EDONE && security_authenticated(conn) &&
-             s_profile_length == sizeof(s_slave_profile) && app_ble_profile_submit(s_slave_profile))
+             s_profile_length == (s_remote_v4_profile ? sizeof(s_slave_profile) : APP_BLE_PROFILE_SIZE))
     {
+        app_ble_display_profile_t policy = {0};
+        if ((s_remote_v4_profile && !app_ble_policy_decode(s_slave_profile + APP_BLE_PROFILE_SIZE, &policy)) ||
+            !app_ble_profile_submit(s_slave_profile)) {
+            slave_fail("érvénytelen kijelzőprofil", -1);
+            return 0;
+        }
+#ifdef APP_INTERCOM_SLAVE
+        if (s_remote_v4_profile && !policy.intercom) slave_intercom_reset();
+        if (!s_remote_v4_profile) policy.intercom = slave_intercom_available() && s_intercom_status_data[0] != 0;
+#endif
+        portENTER_CRITICAL(&s_policy_lock);
+        if (!policy.direct || !s_display_profile.direct) memset(&s_solar_clock, 0, sizeof(s_solar_clock));
+        s_display_profile = policy;
+        /* A régi Master csak a kaputelefon státuszolvasásával igazolhatja a támogatását. */
+        s_intercom_policy = policy.intercom ? APP_BLE_INTERCOM_ALLOWED :
+            s_remote_v4_profile ? APP_BLE_INTERCOM_DISABLED : APP_BLE_INTERCOM_UNKNOWN;
+        portEXIT_CRITICAL(&s_policy_lock);
         memset(s_slave_profile, 0, sizeof(s_slave_profile));
         s_profile_reading = false;
         s_profile_waiting = true;
@@ -149,8 +218,15 @@ static void slave_read_profile(void)
     }
     s_profile_length = 0;
     s_profile_reading = true;
-    if (ble_gattc_read_long(s_master, s_remote_profile, 0, slave_profile_read, NULL))
+    if (ble_gattc_read_long(s_master, s_remote_v4_profile ? s_remote_v4_profile : s_remote_profile, 0, slave_profile_read, NULL))
         slave_fail("védett profilolvasás nem indítható", -1);
+}
+
+/* Ugyanaz a párosított Master változó hirdetési címmel is azonos marad. */
+static bool slave_master_identity(char id[APP_SLAVE_PRESENCE_ID_SIZE])
+{
+    app_slave_identity_t identity;
+    return presence_identity(s_master, &identity) && app_slave_identity_id(&identity, id);
 }
 
 static void slave_try_frame(int64_t now)
@@ -182,7 +258,9 @@ static void slave_try_frame(int64_t now)
         s_last_frame_us = now;
     }
     if (result == ESP_OK && sample.energy_flow_disabled) s_master_stale = false;
-    app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame);
+    bool inverter_searching = s_remote_v4_profile && app_ble_packet_inverter_search(s_received[0]) &&
+                              app_ble_seed_slave_direct();
+    app_state_set_slave(true, s_master_stale, s_master_timeout, new_frame, inverter_searching);
     if (result != ESP_OK)
     {
         s_source_disabled = false;
@@ -204,8 +282,23 @@ static void slave_try_frame(int64_t now)
         return;
     if (sample.received_epoch_s > clock.epoch_ms / 1000 + 5)
         return;
-    if (app_ingest_slave_sample(&sample) == ESP_OK)
-        s_applied_sample_epoch = sample.received_epoch_s;
+    sample.integration_period_s = clock.integration_period_s;
+    char source[APP_SLAVE_PRESENCE_ID_SIZE];
+    if (!slave_master_identity(source))
+        return;
+    bool same_source = !strcmp(source, s_integrated_identity);
+    if (same_source && sample.received_epoch_s < s_integrated_epoch) return;
+    if (same_source && sample.received_epoch_s == s_integrated_epoch) {
+        /* Újracsatlakozáskor az utolsó felhőmérés visszakerül a kijelzőre.
+         * Csak az új időbélyegű mintát integráljuk a statisztikába. */
+        app_state_set_sample(&sample);
+    } else {
+        if (!same_source && s_integrated_epoch) app_stats_break_continuity();
+        if (app_ingest_slave_sample(&sample) != ESP_OK) return;
+        memcpy(s_integrated_identity, source, sizeof(source));
+        s_integrated_epoch = sample.received_epoch_s;
+    }
+    s_applied_sample_epoch = sample.received_epoch_s;
     /* Induláskor a main előbb órát szinkronizál, utána indít statisztikát.
      * Addig ez a csomag a cache-ben marad, és a poll újrapróbálja. */
 }
@@ -232,6 +325,9 @@ static void slave_receive(unsigned packet, const struct os_mbuf *om)
             {
                 if (app_time_sync_from_master(clock.epoch_ms, clock.utc_offset_minutes) == ESP_OK)
                 {
+                    portENTER_CRITICAL(&s_policy_lock);
+                    s_solar_clock = clock;
+                    portEXIT_CRITICAL(&s_policy_lock);
                     s_last_clock_sequence = sequence;
                     s_have_clock_sequence = true;
                     s_last_clock_receive_us = now;
@@ -320,7 +416,7 @@ static void slave_setup_next(void)
         if (!s_remote_presence)
             app_slave_presence_service_legacy();
         s_last_frame_us = esp_timer_get_time();
-        app_state_set_slave(true, true, s_master_timeout, false);
+        app_state_set_slave(true, true, s_master_timeout, false, false);
         slave_try_frame(s_last_frame_us);
         app_events_add(APP_EVENT_INFO, "BLE master csatlakoztatva: %s", s_master_address);
         return;
@@ -360,6 +456,9 @@ static int slave_characteristic(uint16_t conn,
         if (ble_uuid_cmp(&chr->uuid.u, &s_presence_uuid.u) == 0 &&
             (chr->properties & BLE_GATT_CHR_PROP_READ))
             s_remote_presence = chr->val_handle;
+        if (ble_uuid_cmp(&chr->uuid.u, &s_v4_profile_uuid.u) == 0 &&
+            (chr->properties & BLE_GATT_CHR_PROP_READ))
+            s_remote_v4_profile = chr->val_handle;
         if (ble_uuid_cmp(&chr->uuid.u, &s_profile_uuid.u) == 0 &&
             (chr->properties & BLE_GATT_CHR_PROP_READ))
             s_remote_profile = chr->val_handle;
@@ -534,7 +633,14 @@ static void slave_poll(int64_t now)
     if (s_master != BLE_HS_CONN_HANDLE_NONE)
     {
 #ifdef APP_INTERCOM_SLAVE
-        slave_intercom_poll(now);
+        if (s_slave_ready && slave_intercom_available()) {
+            slave_intercom_poll(now);
+            if (!s_remote_v4_profile && s_intercom_status_data[0]) {
+                portENTER_CRITICAL(&s_policy_lock);
+                s_intercom_policy = APP_BLE_INTERCOM_ALLOWED;
+                portEXIT_CRITICAL(&s_policy_lock);
+            }
+        }
         if (!s_intercom_reading && !s_presence_reading && (!slave_intercom_available() || s_intercom_next > now))
 #else
         if (!s_presence_reading)

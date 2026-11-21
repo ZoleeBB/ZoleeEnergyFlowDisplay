@@ -66,8 +66,32 @@ typedef enum
     APP_DATA_MQTT = 0,
     APP_DATA_HTTP = 1,
     APP_DATA_LOXONE = 2,
-    APP_DATA_SLAVE = 3
+    APP_DATA_SLAVE = 3,
+    APP_DATA_INVERTER = 4
 } app_data_mode_t;
+
+static inline const char *app_data_mode_token(app_data_mode_t mode)
+{
+    switch (mode) {
+    case APP_DATA_HTTP: return "http";
+    case APP_DATA_LOXONE: return "loxone";
+    case APP_DATA_SLAVE: return "slave";
+    case APP_DATA_INVERTER: return "inverter";
+    default: return "mqtt";
+    }
+}
+
+static inline const char *app_data_mode_label(app_data_mode_t mode)
+{
+    switch (mode) {
+    case APP_DATA_HTTP: return "HTTP";
+    case APP_DATA_LOXONE: return "Loxone";
+    case APP_DATA_SLAVE: return "Slave (BLE)";
+    case APP_DATA_INVERTER: return "Közvetlen inverter";
+    default: return "MQTT";
+    }
+}
+
 typedef struct
 {
     uint32_t data_timeout_seconds;
@@ -154,6 +178,7 @@ static inline uint32_t app_config_data_timeout(const app_config_t *cfg)
 {
     if (cfg->data_recept_mode == APP_DATA_SLAVE)
         return 15; /* BLE heartbeat felügyelet; a forrás lejáratát a master küldi. */
+    if (cfg->data_recept_mode == APP_DATA_INVERTER) return 30;
     return cfg->data_recept_mode == APP_DATA_LOXONE ? 45
          : cfg->data_recept_mode == APP_DATA_HTTP   ? cfg->http.data_timeout_seconds
                                                     : cfg->mqtt.data_timeout_seconds;

@@ -7,6 +7,7 @@
 #include "app_mqtt.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -34,7 +35,7 @@ static esp_mqtt_client_handle_t s_client;
 static EventGroupHandle_t s_events;
 
 /* Az ESP-MQTT darabokban is adhat át payloadot, ezért saját összeállító puffer kell. */
-static char s_rx[MQTT_MAX_PAYLOAD_BYTES + 1];
+static char *s_rx;
 static char s_rx_topic[APP_TOPIC_MAX];
 static int s_rx_total;
 
@@ -233,7 +234,7 @@ esp_err_t app_mqtt_start(const app_config_t *cfg)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (cfg->data_recept_mode != APP_DATA_MQTT)
+    if (cfg->data_recept_mode != APP_DATA_MQTT || !cfg->mqtt.broker[0])
         return ESP_ERR_INVALID_STATE;
 
     if (s_client)
@@ -242,9 +243,14 @@ esp_err_t app_mqtt_start(const app_config_t *cfg)
     }
 
     s_cfg = cfg->mqtt;
+    /* Az inaktív MQTT-adatút nem foglal 4 KiB állandó belső RAM-ot. */
+    s_rx = calloc(MQTT_MAX_PAYLOAD_BYTES + 1, 1);
+    if (!s_rx) return ESP_ERR_NO_MEM;
     s_events = xEventGroupCreate();
     if (!s_events)
     {
+        free(s_rx);
+        s_rx = NULL;
         return ESP_ERR_NO_MEM;
     }
 
@@ -269,20 +275,19 @@ esp_err_t app_mqtt_start(const app_config_t *cfg)
     }
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
-    if (!s_client)
-    {
-        return ESP_FAIL;
+    esp_err_t err = s_client
+        ? esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL)
+        : ESP_ERR_NO_MEM;
+    if (err == ESP_OK) err = esp_mqtt_client_start(s_client);
+    if (err != ESP_OK) {
+        if (s_client) esp_mqtt_client_destroy(s_client);
+        s_client = NULL;
+        vEventGroupDelete(s_events);
+        s_events = NULL;
+        free(s_rx);
+        s_rx = NULL;
     }
-
-    esp_err_t err =
-        esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-
-    if (err != ESP_OK)
-    {
-        return err;
-    }
-
-    return esp_mqtt_client_start(s_client);
+    return err;
 }
 
 /* Blokkoló várakozás a brokerkapcsolat EventGroup bitjére. */

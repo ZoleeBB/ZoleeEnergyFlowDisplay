@@ -13,6 +13,7 @@ fejlesztési jegyzet önmagában nem új firmware-verzió vagy publikált kiadá
 
 A részletes kiadási leírások és a korábbi fejlesztési bejegyzések külön dokumentumokban találhatók:
 
+- [v4.0.0 – Közvetlen inverter és érintőképernyős első beállítás](v4.0.0.md)
 - [v3.1.0 – Kaputelefon](v3.1.0.md)
 - [v3.0.0 – Loxone Otthon, energiaasszisztens és Slave](v3.0.0.md)
 - [Korábbi fejlesztések és hibajavítások – részletes napló](development-notes.md)

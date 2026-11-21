@@ -315,7 +315,7 @@ static bool parse_config(
     char *error,
     size_t error_len)
 {
-    char mode[8] = "mqtt";
+    char mode[16] = "mqtt";
     if (!read_bool01(root, "DataSeedEnabled", &cfg->data_seed_enabled, false, error, error_len))
         return false;
     if (!read_string(root, "DataSeedPin", cfg->data_seed_pin, sizeof(cfg->data_seed_pin), false, true, error, error_len))
@@ -328,10 +328,11 @@ static bool parse_config(
     }
     if (!read_string(root, "DataReceptMode", mode, sizeof(mode), false, false, error, error_len)) return false;
     if (strcasecmp(mode, "loxone") == 0) cfg->data_recept_mode = APP_DATA_LOXONE;
+    else if (strcasecmp(mode, "inverter") == 0) cfg->data_recept_mode = APP_DATA_INVERTER;
     else if (strcasecmp(mode, "http") == 0) cfg->data_recept_mode = APP_DATA_HTTP;
     else if (strcasecmp(mode, "slave") == 0) cfg->data_recept_mode = APP_DATA_SLAVE;
     else if (strcasecmp(mode, "mqtt") != 0) {
-        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http', 'loxone' vagy 'slave' lehet.");
+        set_error(error, error_len, "A DataReceptMode csak 'mqtt', 'http', 'loxone', 'inverter' vagy 'slave' lehet.");
         return false;
     }
     if (!read_bool01(root, "EnergyFlowDisabled", &cfg->energy_flow_disabled, false, error, error_len))
@@ -431,15 +432,13 @@ static bool parse_config(
         return false;
     }
 
-    if (cfg->data_recept_mode == APP_DATA_MQTT) {
-        /* MQTT szekció kötelező, a broker cím nélkül nem tudunk működni. */
+    /* Az üres MQTT-profil is konfigurálható a weben az időszinkron után. */
+    if (cfg->data_recept_mode == APP_DATA_MQTT && cJSON_GetObjectItemCaseSensitive(root, "mqtt")) {
         cJSON *mqtt = get_object_section(root, "mqtt", true, error, error_len);
-        if (!mqtt) {
-            return false;
-        }
+        if (!mqtt) return false;
 
         uint32_t mqtt_port = cfg->mqtt.port;
-        if (!read_string(mqtt, "broker", cfg->mqtt.broker, sizeof(cfg->mqtt.broker), true, false, error, error_len) ||
+        if (!read_string(mqtt, "broker", cfg->mqtt.broker, sizeof(cfg->mqtt.broker), false, true, error, error_len) ||
             !read_u32(mqtt, "port", &mqtt_port, 1, 65535, false, error, error_len) ||
             !read_string(mqtt, "topic", cfg->mqtt.topic, sizeof(cfg->mqtt.topic), false, false, error, error_len) ||
             !read_string(mqtt, "username", cfg->mqtt.username, sizeof(cfg->mqtt.username), false, true, error, error_len) ||

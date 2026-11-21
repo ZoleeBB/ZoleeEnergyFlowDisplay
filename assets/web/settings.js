@@ -29,7 +29,7 @@ const byPath=p=>document.getElementById(p);
 const nestedGet=(obj,path)=>path.split('.').reduce((v,k)=>v?.[k],obj);
 function nestedSet(obj,path,value){const a=path.split('.'),last=a.pop();const target=a.reduce((v,k)=>v[k],obj);target[last]=value;}
 for(const [title,fields] of definitions){
- const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid';
+ const section=document.createElement('section'),h=document.createElement('h2'),grid=document.createElement('div');h.textContent=title;grid.className='grid field-grid';
  sections.set(fields[0][0],section);
  for(const [path,labelText,type='text'] of fields){
   const label=document.createElement('label'),input=document.createElement(type==='mode'||type==='language'||type==='rotation'?'select':'input');
@@ -39,12 +39,18 @@ for(const [title,fields] of definitions){
   else if(type==='integer'||type==='number'){input.type='number';input.step=type==='integer'?'1':'any';}
   else if(type==='secret'){input.type='password';input.autocomplete='new-password';input.placeholder='Változatlan jelszó';}
   else if(input.tagName==='INPUT')input.type='text';
-  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
-   const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);
+  if(type==='mode'||type==='language'||type==='rotation')for(const [value,text] of (type==='mode'?[['','Válassz adatfogadási módot…'],['mqtt','MQTT'],['http','HTTP'],['loxone','Loxone'],['inverter','Közvetlen inverter'],['slave','Slave (Bluetooth)']]:type==='language'?[['hu','Magyar'],['en','Angol']]:[['270','270° – csatlakozók jobb oldalon'],['90','90° – csatlakozók bal oldalon']])){
+   const option=document.createElement('option');option.value=value;option.textContent=text;if(type==='mode'&&!value){option.disabled=true;option.hidden=true;input.required=true;}input.append(option);
   }
-  label.append(input);
-  if(type==='secret'){const clear=document.createElement('label'),check=document.createElement('input');clear.className='clear';clear.textContent='Meglévő jelszó törlése';check.type='checkbox';check.id=path+'__clear';clear.prepend(check);label.append(clear);check.onchange=()=>{input.disabled=check.checked;if(check.checked)input.value='';};}
-  grid.append(label);
+  if(type==='secret'){
+   const field=document.createElement('div'),controls=document.createElement('div'),clear=document.createElement('label'),check=document.createElement('input');
+   field.className='field-extra';label.htmlFor=path;clear.className='clear';clear.textContent='Meglévő jelszó törlése';
+   check.type='checkbox';check.id=path+'__clear';clear.prepend(check);controls.append(input,clear);field.append(label,controls);grid.append(field);
+   check.onchange=()=>{input.disabled=check.checked;if(check.checked)input.value='';};
+  }else{
+   label.append(input);
+   grid.append(label);
+  }
  }
  section.append(h,grid);holder.append(section);
  if(fields[0][0]==='display.day_brightness'){
@@ -72,6 +78,7 @@ for(const [title,fields] of definitions){
 }
 function updateVisibility(){
  const mode=byPath('DataReceptMode').value,slave=mode==='slave';
+ if(state?.setup_pending)save.disabled=!mode;
  const disabled=byPath('EnergyFlowDisabled');disabled.disabled=mode!=='loxone';if(mode!=='loxone')disabled.checked=false;
  sections.get('mqtt.broker').hidden=mode!=='mqtt';
  sections.get('http.data_timeout_seconds').hidden=mode!=='http';
@@ -82,12 +89,12 @@ function updateVisibility(){
  byPath('DataSeedPin').parentElement.hidden=!seed.checked;
  byPath('ble-pairing-open').hidden=!seed.checked;
  byPath('ota.auto_update').disabled=slave;
- byPath('DataReceptMode').disabled=!!state?.cardless_slave;
+ byPath('DataReceptMode').disabled=!!state?.cardless_slave && !state?.setup_pending;
 }
 byPath('DataReceptMode').onchange=updateVisibility;
 byPath('DataSeedEnabled').onchange=updateVisibility;
-function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}updateVisibility();}
-function values(){const result=structuredClone(state);for(const [path,type] of fieldTypes){
+function fill(){for(const [path,type] of fieldTypes){const e=byPath(path),value=nestedGet(state,path);if(type==='bool')e.checked=!!value;else e.value=(value == null ? '' : value);if(type==='secret'){const clear=byPath(path+'__clear');clear.checked=false;e.disabled=false;}}if(state.setup_pending)byPath('DataReceptMode').value='';updateVisibility();}
+function values(){const result=structuredClone(state);delete result.setup_pending;for(const [path,type] of fieldTypes){
  const input=byPath(path);let value;
  if(type==='bool')value=input.checked?1:0;
  else if(type==='integer'||type==='number'||type==='rotation')value=Number(input.value);
@@ -96,8 +103,8 @@ function values(){const result=structuredClone(state);for(const [path,type] of f
  nestedSet(result,path,value);
  }return result;
 }
-async function load(){message.textContent='Beállítások betöltése…';try{const response=await fetch('/api/settings',{cache:'no-store'});if(!response.ok)throw Error(await response.text());state=await response.json();fill();message.textContent=state.cardless_slave?'SD nélküli Slave: csak Rendszer téma; beállítások a belső tárban.':'';}catch(e){message.textContent='Betöltési hiba: '+e.message;save.disabled=true;}}
-form.addEventListener('submit',async event=>{event.preventDefault();if(!state)return;save.disabled=true;message.textContent='Mentés és ellenőrzés folyamatban…';
+async function load(){message.textContent='Beállítások betöltése…';try{const response=await fetch('/api/settings',{cache:'no-store'});if(!response.ok)throw Error(await response.text());state=await response.json();fill();message.textContent=state.setup_pending?'Első beállítás. Válassz adatfogadási módot, ellenőrizd a beállításokat, majd mentsd őket a kijelző indításához.':state.cardless_slave?'SD nélküli Slave: csak Rendszer téma; beállítások a belső tárban.':'';}catch(e){message.textContent='Betöltési hiba: '+e.message;save.disabled=true;}}
+form.addEventListener('submit',async event=>{event.preventDefault();if(!state||!byPath('DataReceptMode').value)return;save.disabled=true;message.textContent='Mentés és ellenőrzés folyamatban…';
  try{const response=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','X-Zolee-Settings':'1'},body:JSON.stringify(values())});
  const result=await response.json();if(!response.ok)throw Error(result.message||'HTTP '+response.status);
  state=result.config||state;
@@ -105,5 +112,4 @@ form.addEventListener('submit',async event=>{event.preventDefault();if(!state)re
  if(!result.restart){fill();save.disabled=false;}
  }catch(e){message.textContent='Mentési hiba: '+e.message;save.disabled=false;}
 });
-async function loxoneLink(){try{const r=await fetch('/api/settings',{cache:'no-store'});if(r.ok&&(await r.json()).DataReceptMode==='loxone'){const a=document.createElement('a');a.href='/loxone';a.className='button secondary';a.textContent='Loxone beállítások';const p=document.createElement('p');p.append(a);document.querySelector('h1').after(p);}}catch{}}
-loxoneLink();load();
+load();

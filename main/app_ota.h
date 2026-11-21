@@ -5,6 +5,10 @@
 
 /* OTA próba-image ötperces automatikus validációjának elindítása. */
 esp_err_t app_ota_start_validation_task(void);
+/* A beállítás, tájolás és Slave-kapcsolatfigyelő által kért újraindítás csak
+ * az új firmware véglegesítése után biztonságos. Normál bootnál nincs várás. */
+bool app_ota_validation_pending(void);
+void app_ota_wait_for_validation(void);
 
 /* Indulás után egyszer: ha az előző OTA visszaállt, naplózza a verzióját és –
  * ha az alkalmazás még le tudta írni – a visszaállás okát is. A RAM-napló a
@@ -19,6 +23,11 @@ bool app_ota_try_begin_operation(void);
 void app_ota_end_operation(void);
 /* Igaz, amíg ilyen művelet fut: a kijelző ilyenkor statikus üzenetre vált. */
 bool app_ota_operation_active(void);
+
+/* Egy rövid életű, kimenő inverteres HTTPS-munkamenet fér el egyszerre.
+ * Foglaltságkor a lekérdezés később próbálkozik, a webes mentés elérhető marad. */
+bool app_ota_try_background_https(void);
+void app_ota_end_background_https(void);
 
 /* Ugyanazon GitHub-ellenőrzés azonnali, aszinkron indítása; az éjszakai
  * kapcsolót nem módosítja, kikapcsolt automatikánál is tesztelhető. */

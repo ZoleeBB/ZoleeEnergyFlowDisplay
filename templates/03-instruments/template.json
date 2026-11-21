@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "03-instruments",
   "name": "Műszerfal",
-  "version": 12,
+  "version": 14,
   "light": {
     "home_hotspot": {"x": 440, "y": 205, "w": 100, "h": 90},
     "background": "#E8E9FA",
@@ -96,6 +96,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "pv",
         "type": "gauge",
         "x": 59,
         "y": 190,
@@ -147,6 +148,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "pv",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -154,6 +156,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 136,
@@ -164,6 +167,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "home",
         "type": "gauge",
         "x": 367,
         "y": 190,
@@ -176,6 +180,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 454,
         "y": 215,
@@ -184,6 +189,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 358,
         "y": 163,
@@ -210,11 +216,13 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 380,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "home",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -222,6 +230,7 @@
         "align": "center"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 648,
         "y": 136,
@@ -232,6 +241,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "grid",
         "type": "gauge",
         "x": 675,
         "y": 190,
@@ -245,6 +255,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 762,
         "y": 215,
@@ -253,6 +264,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 666,
         "y": 163,
@@ -279,11 +291,13 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 688,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "grid",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -305,6 +319,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 956,
         "y": 136,
@@ -315,6 +330,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "battery",
         "type": "gauge",
         "x": 983,
         "y": 190,
@@ -328,6 +344,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 1070,
         "y": 215,
@@ -336,6 +353,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 974,
         "y": 163,
@@ -362,11 +380,13 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 996,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "battery",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -388,6 +408,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "soc",
         "type": "box",
         "x": 32,
         "y": 551,
@@ -398,6 +419,7 @@
         "opacity": 150
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 56,
         "y": 577,
@@ -479,6 +501,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -489,6 +512,7 @@
         "opacity": 150
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -513,6 +537,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -523,6 +548,7 @@
         "opacity": 150
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -547,6 +573,7 @@
         "shadow_opacity": 40
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -557,6 +584,7 @@
         "opacity": 150
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,
@@ -681,6 +709,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "pv",
         "type": "gauge",
         "x": 59,
         "y": 190,
@@ -732,6 +761,7 @@
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "pv",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -739,6 +769,7 @@
         "align": "center"
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 136,
@@ -749,6 +780,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "home",
         "type": "gauge",
         "x": 367,
         "y": 190,
@@ -761,6 +793,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "home",
         "type": "image",
         "x": 454,
         "y": 215,
@@ -769,6 +802,7 @@
         "file": "flow_house.png"
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 358,
         "y": 163,
@@ -795,11 +829,13 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 380,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "home",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -807,6 +843,7 @@
         "align": "center"
       },
       {
+        "requires": "grid",
         "type": "box",
         "x": 648,
         "y": 136,
@@ -817,6 +854,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "grid",
         "type": "gauge",
         "x": 675,
         "y": 190,
@@ -830,6 +868,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "grid",
         "type": "image",
         "x": 762,
         "y": 215,
@@ -838,6 +877,7 @@
         "file": "flow_grid.png"
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 666,
         "y": 163,
@@ -864,11 +904,13 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "grid",
         "type": "label",
         "x": 688,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "grid",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -890,6 +932,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "installed",
         "type": "box",
         "x": 956,
         "y": 136,
@@ -900,6 +943,7 @@
         "opacity": 150
       },
       {
+        "power_scale": "battery",
         "type": "gauge",
         "x": 983,
         "y": 190,
@@ -913,6 +957,7 @@
         "animate_ms": 280
       },
       {
+        "requires": "installed",
         "type": "image",
         "x": 1070,
         "y": 215,
@@ -921,6 +966,7 @@
         "file": "flow_battery.png"
       },
       {
+        "requires": "installed",
         "type": "label",
         "x": 974,
         "y": 163,
@@ -947,11 +993,13 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 996,
         "y": 423,
         "w": 220,
         "h": 22,
+        "power_scale": "battery",
         "text": "0                    15 kW",
         "text_en": "0                    15 kW",
         "font": 12,
@@ -973,6 +1021,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "soc",
         "type": "box",
         "x": 32,
         "y": 551,
@@ -983,6 +1032,7 @@
         "opacity": 150
       },
       {
+        "requires": "soc",
         "type": "label",
         "x": 56,
         "y": 577,
@@ -1064,6 +1114,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "home",
         "type": "box",
         "x": 340,
         "y": 650,
@@ -1074,6 +1125,7 @@
         "opacity": 150
       },
       {
+        "requires": "home",
         "type": "label",
         "x": 360,
         "y": 666,
@@ -1098,6 +1150,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 648,
         "y": 650,
@@ -1108,6 +1161,7 @@
         "opacity": 150
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 668,
         "y": 666,
@@ -1132,6 +1186,7 @@
         "shadow_opacity": 100
       },
       {
+        "requires": "battery",
         "type": "box",
         "x": 956,
         "y": 650,
@@ -1142,6 +1197,7 @@
         "opacity": 150
       },
       {
+        "requires": "battery",
         "type": "label",
         "x": 976,
         "y": 666,

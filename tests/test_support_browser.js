@@ -18,9 +18,11 @@ for name in ('settings', 'template-manager', 'loxone'):
     page = Path('assets/web/' + name + '.html').read_text()
     page = page.replace('/*COMMON_CSS*/', Path('assets/web/common.css').read_text())
     pages.append([name, page.replace('<!--APP_SUPPORT-->', render_card(config, 'hu'))])
+style_header = Path('main/app_web_style.h').read_text()
+macros = dict(re.findall(r'^#define (APP_WEB_(?:CSS|NAV_HU|NAV_EN)) (.*)$', style_header, re.M))
 for language in ('hu', 'en'):
     match = re.search(r'static const char page_' + language + r'\[\] =\s*(.*?);\n', source, re.S)
-    page = literals(match[1])
+    page = literals(re.sub(r'\bAPP_WEB_(?:CSS|NAV_HU|NAV_EN)\b', lambda m: macros[m[0]], match[1]))
     pages.append(['update-' + language, page.replace('<!--APP_SUPPORT-->', render_card(config, language))])
 diagnostics = source.split('static esp_err_t diagnostics_page(', 1)[1].split('\n}', 1)[0]
 page = literals(diagnostics.split('return app_web_send_page(req,', 1)[1].rsplit(', s_hu);', 1)[0])
@@ -33,7 +35,7 @@ print(json.dumps(pages))
 assert.equal(fixtures.status, 0, fixtures.stderr);
 
 (async () => {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({headless: true, executablePath: process.env.CHROMIUM_EXECUTABLE || undefined});
     try {
         for (const width of [320, 390, 768, 1280]) {
             for (const colorScheme of ['light', 'dark']) {
@@ -47,6 +49,18 @@ assert.equal(fixtures.status, 0, fixtures.stderr);
                 const page = await context.newPage();
                 for (const [name, html] of JSON.parse(fixtures.stdout)) {
                     await page.setContent(html);
+                    if (name.startsWith('update-')) {
+                        // A magyar és angol firmware-frissítőben a fájlnév és a gomb felirata is hosszú lehet.
+                        const picker = await page.locator('#pick').boundingBox();
+                        const file = await page.locator('#f').boundingBox();
+                        const button = await page.locator('#btn').boundingBox();
+                        for (const box of [file, button]) {
+                            assert(box.x >= picker.x - 1 && box.x + box.width <= picker.x + picker.width + 1, name);
+                            assert(box.x >= 0 && box.x + box.width <= width + 1, name);
+                        }
+                        if (width <= 390) assert(button.y >= file.y + file.height - 1, name + ': upload action overlaps the file picker');
+                        else assert(Math.abs(button.y - file.y) <= 1, name + ': upload controls should share their top edge');
+                    }
                     const card = page.locator('#development-support');
                     assert.equal(await card.count(), 1, name);
                     assert.equal(await card.isVisible(), true, name);

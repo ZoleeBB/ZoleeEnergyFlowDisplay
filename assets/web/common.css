@@ -15,9 +15,19 @@ h2{font-size:20px;margin:0 0 14px}
 h3{font-size:17px;margin:0 0 10px}
 .lead{color:var(--muted);margin:0 0 8px}
 section,article,.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin:16px 0;box-shadow:var(--shadow)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}
 label{display:flex;flex-direction:column;gap:6px;font-weight:600}
-label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:10px}
+label:where(:has(>input[type=checkbox])){flex-direction:row;align-items:center;gap:10px}
+.field-grid>label,.field-grid>.field-extra{min-width:0;overflow-wrap:anywhere}
+@supports(grid-template-rows:subgrid){
+    .field-grid>label,.field-grid>.field-extra{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:subgrid;grid-row:span 2;row-gap:6px;align-self:stretch}
+    .field-grid>label>:is(input,select,textarea),.field-grid>.field-extra>div{grid-row:2;align-self:start;min-width:0}
+    .field-grid>label>input:is([type=checkbox],[type=radio]){margin:0}
+}
+@supports not (grid-template-rows:subgrid){
+    .field-grid{grid-template-columns:minmax(0,1fr)!important}
+    .field-grid>*{grid-column:1/-1!important}
+}
 input,select,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;width:100%}
 input[type=checkbox],input[type=radio]{width:20px;height:20px;flex:none;accent-color:var(--accent)}
 input[type=file]{background:none;border-style:dashed}
@@ -35,7 +45,8 @@ small,.hint,.muted{color:var(--muted)}
 [role=status],[role=alert]{white-space:pre-wrap}
 .status-ok{color:var(--ok)}.error{color:var(--danger)}.warning{color:var(--warn)}
 details{margin:12px 0}summary{cursor:pointer;font-weight:600}
-fieldset{border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+fieldset{min-inline-size:0;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+legend{max-inline-size:100%;overflow-wrap:anywhere}
 code{background:var(--accent-soft);padding:2px 6px;border-radius:6px}
 progress{width:100%;accent-color:var(--accent)}
 .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}

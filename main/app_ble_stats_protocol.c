@@ -1,5 +1,6 @@
 /* Explicit little-endian formátum: nincs natív struktúra/padding a vezetéken. */
 #include "app_ble_stats_protocol.h"
+#include "app_stats_files.h"
 #include <string.h>
 #include <math.h>
 
@@ -45,19 +46,7 @@ uint32_t app_ble_stats_crc(const uint8_t *data, size_t length)
 
 static bool valid_date(const char *s)
 {
-    if (strlen(s) != 10 || s[4] != '-' || s[7] != '-')
-        return false;
-    for (unsigned i = 0; i < 10; i++)
-        if (i != 4 && i != 7 && (s[i] < '0' || s[i] > '9'))
-            return false;
-    unsigned year = (s[0] - '0') * 1000 + (s[1] - '0') * 100 + (s[2] - '0') * 10 + s[3] - '0';
-    unsigned month = (s[5] - '0') * 10 + s[6] - '0', day = (s[8] - '0') * 10 + s[9] - '0';
-    static const unsigned days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    if (year < 2020 || year > 2100 || month < 1 || month > 12)
-        return false;
-    unsigned maximum =
-        days[month - 1] + (month == 2 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
-    return day > 0 && day <= maximum;
+    return strlen(s) == 10 && app_stats_date_prefix_valid(s, 2020, 2100);
 }
 
 #define TOTAL_FIELDS(X)                                                                            \
@@ -77,13 +66,19 @@ bool app_ble_stats_encode(const app_stats_snapshot_t *s,
                           uint8_t out[APP_BLE_STATS_SIZE])
 {
     _Static_assert(sizeof(double) == 8 && sizeof(float) == 4, "IEEE-754 adattípusok szükségesek");
+    return app_ble_stats_encode_peer(s, id, epoch, false, out);
+}
+
+bool app_ble_stats_encode_peer(const app_stats_snapshot_t *s, uint32_t id, uint32_t epoch,
+                               bool extended, uint8_t out[APP_BLE_STATS_SIZE])
+{
     if (!s || !out || !id || !valid_date(s->date) || !s->reference_valid ||
         !s->reference_currency[0] || !memchr(s->reference_currency, 0, APP_CURRENCY_MAX) ||
         s->comparison_paired_slots > APP_STATS_SLOT_COUNT || epoch < 1577836800U ||
         epoch > 4102444800U)
         return false;
     memset(out, 0, APP_BLE_STATS_SIZE);
-    memcpy(out, "ZST1", 4);
+    memcpy(out, extended ? "ZST2" : "ZST1", 4);
     put(out + 4, id, 4);
     put(out + 8, epoch, 4);
     memcpy(out + 12, s->date, 10);
@@ -119,11 +114,14 @@ bool app_ble_stats_encode(const app_stats_snapshot_t *s,
     for (unsigned i = 0; i < APP_STATS_SLOT_COUNT; i++)
     {
         const app_stats_slot_t *slot = &s->slots[i];
-        out[offset++] = (slot->valid ? 1 : 0) | (slot->chart_gap ? 2 : 0);
+        if (slot->partial_fields & ~15u) return false;
+        bool gap = slot->chart_gap || (!extended && slot->partial_fields);
+        out[offset++] = (slot->valid ? 1 : 0) | (gap ? 2 : 0) |
+                        (extended ? slot->partial_fields << 2 : 0);
 #define SAVE_SPLIT(field)                                                                          \
     {                                                                                              \
         float value = slot->split.field;                                                           \
-        if (!isfinite(value) || value < 0 || value > 30)                                           \
+        if (!isfinite(value) || value < 0 || value > (extended ? 32767 : 30))                                           \
             return false;                                                                          \
         uint32_t bits;                                                                             \
         memcpy(&bits, &value, 4);                                                                  \
@@ -146,7 +144,9 @@ bool app_ble_stats_decode(const uint8_t *wire,
                           const char *date,
                           app_stats_snapshot_t *out)
 {
-    if (!wire || !out || !date || length != APP_BLE_STATS_SIZE || memcmp(wire, "ZST1", 4) || !id ||
+    if (!wire || length != APP_BLE_STATS_SIZE) return false;
+    bool extended = !memcmp(wire, "ZST2", 4);
+    if (!out || !date || (!extended && memcmp(wire, "ZST1", 4)) || !id ||
         get(wire + 4, 4) != id ||
         get(wire + length - 4, 4) != app_ble_stats_crc(wire, length - 4) || !valid_date(date) ||
         memcmp(wire + 12, date, 10) || (wire[22] & ~7) || get(wire + 23, 2) > 288)
@@ -201,8 +201,9 @@ bool app_ble_stats_decode(const uint8_t *wire,
     {
         app_stats_slot_t *slot = &out->slots[i];
         unsigned flags = wire[offset++];
-        if (flags & ~3)
+        if (flags & ~(extended ? 63u : 3u))
             return false;
+        slot->partial_fields = (uint8_t)(flags >> 2);
         slot->valid = flags & 1;
         slot->chart_gap = flags & 2;
         slot->sample_count = slot->valid ? 1 : 0;
@@ -211,7 +212,7 @@ bool app_ble_stats_decode(const uint8_t *wire,
         uint32_t bits = (uint32_t)get(wire + offset, 4);                                           \
         offset += 4;                                                                               \
         memcpy(&slot->split.field, &bits, 4);                                                      \
-        if (!isfinite(slot->split.field) || slot->split.field < 0 || slot->split.field > 30)       \
+        if (!isfinite(slot->split.field) || slot->split.field < 0 || slot->split.field > (extended ? 32767 : 30))       \
             return false;                                                                          \
     }
         SPLIT_FIELDS(READ_SPLIT)

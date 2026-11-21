@@ -4,6 +4,14 @@
 #include <stdint.h>
 #include "app_config.h"
 
+/* Közvetlen profiloknál az egyes csatornákat eddig legalább 10 W felbontással továbbítjuk. */
+#define APP_DIRECT_POWER_MAX_KW 327.67
+
+static inline bool app_battery_temperature_in_range(double celsius)
+{
+    return celsius >= -20 && celsius <= 80;
+}
+
 /*
  * Egy teljesen validált MQTT mérési minta.
  * A teljesítmények kW-ban, a hőmérsékletek Celsius-fokban szerepelnek.
@@ -36,6 +44,13 @@ typedef struct
     bool night_mode;
     bool energy_flow_disabled; /* BLE vezérlőállapot, nem energiaminta. */
     double battery_temperature_c;
+    bool battery_temperature_valid;
+    /* A régi, teljes energiaminták nulla inicializálással is érvényesek. */
+    bool battery_unavailable;       /* Nincs telepítve akkumulátor. */
+    bool grid_unavailable;
+    bool home_unavailable;
+    bool soc_unavailable;
+    bool battery_power_unavailable;
 
     /* Csak közvetlen Loxone módban: az „Elektromos autótöltő” ikonos
      * fogyasztók összege. Hiányzó/elavult részadatnál érvénytelen. */
@@ -50,6 +65,7 @@ typedef struct
     int sunset_minute;
 
     /* Monotonic idő a timeoutokhoz, epoch idő a statisztikához. */
+    uint16_t integration_period_s; /* Felhőmérés forrásoldali periódusa. Helyi mintánál 0. */
     int64_t received_monotonic_us;
     int64_t received_epoch_s;
 } app_energy_sample_t;
@@ -62,6 +78,9 @@ typedef struct
     bool loxone_configured;
     bool loxone_connected;
     int64_t loxone_connected_monotonic_us;
+    bool inverter_ready, inverter_read_failed;
+    uint16_t inverter_timeout_seconds;
+    int64_t inverter_ready_monotonic_us;
     bool http_ready;
     int64_t http_ready_monotonic_us;
     bool sd_ok;
@@ -73,6 +92,7 @@ typedef struct
     bool has_valid_sample;
     bool slave_connected;
     bool slave_source_stale;
+    bool slave_inverter_searching;
     uint16_t slave_source_timeout_seconds;
     int64_t slave_connected_monotonic_us;
     int64_t slave_packet_monotonic_us;
@@ -109,10 +129,13 @@ bool app_state_get_sample(app_energy_sample_t *out);
 
 void app_state_set_data_mode(app_data_mode_t mode);
 void app_state_set_http_ready(bool ready);
+void app_state_set_inverter_ready(bool ready);
+void app_state_set_inverter_read_failed(bool failed);
+void app_state_set_inverter_timeout(uint16_t seconds);
 void app_state_set_loxone(bool configured, bool connected);
 void app_state_clear_sample(void);
 void app_state_set_energy_flow_disabled(bool disabled, bool night);
-void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet);
+void app_state_set_slave(bool connected, bool stale, uint16_t source_timeout, bool packet, bool inverter_searching);
 void app_state_set_ble(bool enabled, bool master, bool ready, bool advertising,
                        bool scanning, unsigned slaves, const char *address,
                        const char *peer, int rssi);
@@ -120,6 +143,7 @@ static inline bool app_state_data_ready(const app_runtime_state_t *s)
 {
     if (s->data_recept_mode == APP_DATA_SLAVE)
         return s->slave_connected;
+    if (s->data_recept_mode == APP_DATA_INVERTER) return s->inverter_ready;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready
                                                   : s->mqtt_connected;
@@ -128,18 +152,50 @@ static inline int64_t app_state_data_ready_since(const app_runtime_state_t *s)
 {
     if (s->data_recept_mode == APP_DATA_SLAVE)
         return s->slave_connected_monotonic_us;
+    if (s->data_recept_mode == APP_DATA_INVERTER) return s->inverter_ready_monotonic_us;
     return s->data_recept_mode == APP_DATA_LOXONE ? s->loxone_connected_monotonic_us
          : s->data_recept_mode == APP_DATA_HTTP   ? s->http_ready_monotonic_us
                                                   : s->mqtt_connected_monotonic_us;
 }
 static inline bool app_state_ota_ready(const app_runtime_state_t *s)
 {
-    if (s->data_recept_mode == APP_DATA_SLAVE)
-        return s->config_ok && s->time_synced && s->slave_connected && !s->slave_source_stale &&
-            (s->energy_flow_disabled || ((s->cardless_slave ? s->remote_stats_valid : s->sd_ok) && s->has_valid_sample));
-    return s->sd_ok && s->config_ok && s->wifi_connected && s->time_synced &&
-           (s->data_recept_mode == APP_DATA_LOXONE ? s->http_ready : app_state_data_ready(s));
+    /* Configured Slaves synchronize with their paired Master over BLE. */
+    return s->time_synced && (s->data_recept_mode == APP_DATA_SLAVE || s->wifi_connected);
 }
+
+/* A felhőmérés két lekérdezési ciklus és egy perc ráhagyás után avul el. */
+static inline unsigned app_cloud_sample_timeout(unsigned cadence_s)
+{
+    return 2 * cadence_s + 60;
+}
+
+#define APP_INVERTER_LOCAL_TIMEOUT_SECONDS 30u
+
+/* A már mért inverter átmeneti kiesésekor két helyi mérési periódusig a
+ * legutolsó mintát mutatjuk. Felhőnél a szolgáltatói frissítési idő számít. */
+static inline bool app_state_inverter_searching(const app_runtime_state_t *s, int64_t now)
+{
+    if (s->data_recept_mode != APP_DATA_INVERTER || !s->inverter_ready ||
+        !s->has_valid_sample || !s->inverter_read_failed || !s->wifi_connected) return false;
+    unsigned grace = s->inverter_timeout_seconds > APP_INVERTER_LOCAL_TIMEOUT_SECONDS ? s->inverter_timeout_seconds : 10;
+    return now - s->last_valid_packet_monotonic_us >= (int64_t)grace * 1000000;
+}
+
+static inline uint32_t app_state_source_timeout(const app_runtime_state_t *s, uint32_t fallback)
+{
+    if (s->data_recept_mode == APP_DATA_INVERTER && s->inverter_timeout_seconds)
+        return s->inverter_timeout_seconds;
+    return fallback;
+}
+
+/* Az upstream hibát csak a jelenleg is élő Master közölheti. A BLE-link
+ * megszakadásakor az eredeti Master-keresés kap elsőbbséget. */
+static inline bool app_state_slave_inverter_search(const app_runtime_state_t *s, int64_t now)
+{
+    return s->data_recept_mode == APP_DATA_SLAVE && s->slave_connected && s->time_synced &&
+           s->slave_inverter_searching && now - s->slave_packet_monotonic_us < INT64_C(15000000);
+}
+
 static inline bool
 app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t seconds)
 {
@@ -151,6 +207,7 @@ app_state_data_timed_out(const app_runtime_state_t *s, int64_t now, uint32_t sec
         if (s->energy_flow_disabled) return false; /* A friss módjelzés nem vár energiamintát. */
         seconds = s->slave_source_timeout_seconds ? s->slave_source_timeout_seconds : 45;
     }
+    seconds = app_state_source_timeout(s, seconds);
     int64_t since =
         s->has_valid_sample ? s->last_valid_packet_monotonic_us : app_state_data_ready_since(s);
     return app_state_data_ready(s) && now - since >= (int64_t)seconds * 1000000LL;

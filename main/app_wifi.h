@@ -14,6 +14,16 @@
 /* Wi-Fi STA mód indítása a betöltött konfigurációval. */
 esp_err_t app_wifi_start(const app_config_t *cfg);
 
+/* A tartós gyári reset folytatása a normál STA indítása előtt. A C6 régi
+ * flashprofilját törli; nem indít rádiókapcsolatot vagy újracsatlakozó feladatot. */
+esp_err_t app_wifi_factory_reset_credentials(void);
+
+/* Első beállítás: a STA egyszer indul, a választást a boot-feladat alkalmazza. */
+esp_err_t app_wifi_start_setup(const app_config_t *cfg);
+/* DHCP és az éppen társított SSID ellenőrzése után jelez sikert. */
+esp_err_t app_wifi_join_setup(const char *ssid, const char *password);
+void app_wifi_finish_setup(void);
+
 /* Kapcsolódásra várás a megadott timeoutig. */
 bool app_wifi_wait_connected(TickType_t timeout_ticks);
 
@@ -22,6 +32,8 @@ bool app_wifi_is_connected(void);
 
 /* Jelerősség lekérése dBm-ben. */
 esp_err_t app_wifi_get_rssi(int *rssi);
+
+const char *app_wifi_configured_ssid(void);
 
 /* Aktuális IPv4 cím szöveges lekérése. */
 esp_err_t app_wifi_get_ip(char *out, size_t out_len);

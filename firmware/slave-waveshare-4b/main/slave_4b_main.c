@@ -2,6 +2,8 @@
 #include <math.h>
 #include <stdio.h>
 #include "slave_4b_ui.h"
+#include "slave_4b_setup.h"
+#include "slave_4b_link_watchdog.h"
 #include "slave_4b_intercom.h"
 #include "app_intercom.h"
 #include "app_intercom_audio.h"
@@ -42,6 +44,7 @@
 static app_config_t config;
 static uint16_t rotation_degrees;
 static int last_brightness = -1;
+static atomic_bool intercom_started;
 static bool last_runtime_wifi;
 static bool pairing_pin_required;
 static app_slave_display_t display_state;
@@ -97,7 +100,7 @@ static void rotation_follow(int64_t now, bool busy)
         pending_since = now;
         return;
     }
-    if (now - pending_since < SLAVE_ROTATION_DELAY_US)
+    if (now - pending_since < SLAVE_ROTATION_DELAY_US || app_ota_validation_pending())
         return;
     if (!rotation_save(desired))
     {
@@ -205,13 +208,11 @@ static void slave_report_restart(void)
     nvs_close(handle);
 }
 
-#define SLAVE_BLE_SYNC_LIMIT_US INT64_C(90000000)
-#define SLAVE_BLE_LINK_LIMIT_US INT64_C(600000000)
 #define SLAVE_BLE_BACKOFF_KEY "ble_restarts"
 
-static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
+static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime, bool direct)
 {
-    static int64_t good_us;
+    static slave_4b_link_watchdog_t watchdog;
     static bool restarting;
     static uint8_t attempts = UINT8_MAX;
     if (attempts == UINT8_MAX)
@@ -225,11 +226,9 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
             nvs_close(handle);
         }
     }
-    if (!good_us)
-        good_us = now;
+    int64_t limit = slave_4b_link_timed_out(&watchdog, runtime, direct, app_ota_validation_pending(), attempts, now);
     if (runtime->slave_connected)
     {
-        good_us = now;
         if (attempts)
         {
             nvs_handle_t handle;
@@ -243,15 +242,7 @@ static void ble_watchdog(int64_t now, const app_runtime_state_t *runtime)
         }
         return;
     }
-    if (restarting)
-        return;
-    /* Az első próbálkozás 10 perc után, a továbbiak 30, majd 120 percenként. */
-    int64_t limit = !runtime->ble_ready ? SLAVE_BLE_SYNC_LIMIT_US :
-                    attempts == 0 ? SLAVE_BLE_LINK_LIMIT_US :
-                    attempts == 1 ? 3 * SLAVE_BLE_LINK_LIMIT_US :
-                                    12 * SLAVE_BLE_LINK_LIMIT_US;
-    if (now - good_us < limit || now < limit)
-        return;
+    if (!limit || restarting) return;
     restarting = true;
     nvs_handle_t handle;
     if (nvs_open(SLAVE_ROTATION_NAMESPACE, NVS_READWRITE, &handle) == ESP_OK)
@@ -439,7 +430,8 @@ static void refresh(lv_timer_t *timer)
     app_runtime_state_t visible_runtime = runtime;
     if (now - runtime.slave_packet_monotonic_us >= 15000000LL)
         visible_runtime.slave_source_stale = true;
-    slave_4b_ui_update(&sample, available, &visible_runtime, clock, elapsed);
+    bool direct = app_ble_seed_slave_backlight(&display_state, now, &sample.night_mode);
+    slave_4b_ui_update(&sample, available, &visible_runtime, now, clock, elapsed);
     /* Kulcshiány után a kijelző mondja meg, mit kell tenni: a Slave magától
      * nem tud újrapárosítani, ahhoz a Masteren kell ablakot nyitni. */
     if (app_ble_pairing_required() && !pairing_pin_required)
@@ -452,19 +444,19 @@ static void refresh(lv_timer_t *timer)
     slave_4b_ui_pairing(&pairing);
     /* Csak friss, csatlakoztatott minta változtathat napszakot. Kieséskor az
      * utolsó ismert napszak marad, nem ugrunk vissza nappali fényerőre. */
-    if (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale))
+    if (!direct && (available || (runtime.energy_flow_disabled && runtime.slave_connected && !visible_runtime.slave_source_stale)))
         app_slave_display_night(&display_state, runtime.energy_flow_disabled ? runtime.standalone_night : sample.night_mode, now);
-    bool intercom_visible = slave_4b_intercom_update();
+    bool intercom_visible = atomic_load(&intercom_started) && slave_4b_intercom_update();
     /* Nyitott diagnosztika alatt nem sötétítünk: a hibakeresést nem szakíthatja
      * meg az időkorlát lejárta. */
     app_slave_display_keep_visible(&display_state,
                                    intercom_visible || !atomic_load(&boot_complete) || pairing.pin_required ||
                                    !input_gate.input || slave_4b_ui_diagnostics_visible(), now);
-    app_slave_presence_service_apply(&display_state, now);
+    if (!direct) app_slave_presence_service_apply(&display_state, now);
     last_runtime_wifi = runtime.wifi_connected;
     rotation_follow(now, intercom_visible || pairing.pin_required);
     if (!pairing.pin_required && !intercom_visible)
-        ble_watchdog(now, &runtime);
+        ble_watchdog(now, &runtime, direct);
     if (atomic_load(&boot_complete))
         brightness_follow(now);
     /* A Master webes „frissítések keresése" gombja ide is elér: a Slave a saját
@@ -558,14 +550,19 @@ void app_main(void)
     display.lv_adapter_cfg.task_stack_size = 32768;
     display.lv_adapter_cfg.stack_in_psram = true;
     ESP_ERROR_CHECK(bsp_display_start_with_config(&display) ? ESP_OK : ESP_FAIL);
+    bsp_display_backlight_on();
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    char explanation[256] = {0};
+    esp_err_t restored = app_boot_config_restore(&config, true, explanation, sizeof(explanation));
+    if (restored == ESP_ERR_NOT_FOUND || (restored == ESP_OK && app_boot_config_setup_pending())) {
+        ESP_ERROR_CHECK(slave_4b_setup_run(&config));
+        return;
+    }
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     slave_4b_ui_create(lv_screen_active());
     bsp_display_unlock();
-    bsp_display_backlight_on();
-
-    char explanation[256] = {0};
-    if (app_boot_config_fallback(&config, explanation, sizeof(explanation)) != ESP_OK)
-        fatal(explanation[0] ? explanation : "Belső konfigurációs hiba");
+    if (restored != ESP_OK) fatal(explanation[0] ? explanation : "Belső konfigurációs hiba");
     /* A hardver szerepe fordításkor rögzített, a tárolt profil nem írhatja felül. */
     config.data_recept_mode = APP_DATA_SLAVE;
     config.data_seed_enabled = false;
@@ -584,8 +581,6 @@ void app_main(void)
     app_slave_display_keep_visible(&display_state, true, esp_timer_get_time());
     app_state_set_data_mode(APP_DATA_SLAVE);
     app_state_set_config_ok(true);
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(app_time_init(&config));
     ESP_ERROR_CHECK(bsp_display_lock(5000) ? ESP_OK : ESP_ERR_TIMEOUT);
     for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
@@ -601,8 +596,6 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(lv_timer_create(refresh, 33, NULL) ? ESP_OK : ESP_ERR_NO_MEM);
     bsp_display_unlock();
-    (void)app_intercom_prepare_video();
-    ESP_ERROR_CHECK(app_intercom_start());
     ESP_ERROR_CHECK(app_ble_seed_start(&config));
 
     app_runtime_state_t runtime;
@@ -611,6 +604,7 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(250));
         app_state_get_runtime(&runtime);
     } while (!runtime.time_synced);
+    app_ota_wait_for_validation();
     app_ble_profile_apply(&config);
     if (config.wifi.ssid[0] && app_wifi_start(&config) != ESP_OK)
         app_events_add(APP_EVENT_WARNING, "Opcionális Slave Wi-Fi nem indult el.");
@@ -624,8 +618,24 @@ void app_main(void)
     app_ble_profile_boot_complete();
     atomic_store(&boot_complete, true);
     for (;;) {
-        app_intercom_audio_poll();
-        slave_4b_intercom_prepare();
+        app_ble_intercom_policy_t media = app_ble_seed_slave_intercom_policy();
+        if (atomic_load(&intercom_started) && media == APP_BLE_INTERCOM_DISABLED) {
+            /* A korábban lefoglalt JPEG/I²S DMA felszabadul a Master igazolt
+             * üzemmódváltásakor. Egy még ismeretlen régi profil nem indít újra. */
+            app_events_add(APP_EVENT_INFO, "A Master profilja megváltozott. Újraindulás kaputelefon nélkül.");
+            esp_restart();
+        }
+        if (media == APP_BLE_INTERCOM_ALLOWED) {
+            if (!atomic_load(&intercom_started)) {
+                app_intercom_control_init(&config);
+                (void)app_intercom_prepare_video();
+                if (app_intercom_start() == ESP_OK) atomic_store(&intercom_started, true);
+            }
+            if (atomic_load(&intercom_started)) {
+                app_intercom_audio_poll();
+                slave_4b_intercom_prepare();
+            }
+        }
         /* A kijelzőkör megállását nem tudja kezelni önmagában: az érintés és a
          * fényerő is onnan jönne. Ilyenkor az eszköz inkább újraindul. */
         int64_t now = esp_timer_get_time();

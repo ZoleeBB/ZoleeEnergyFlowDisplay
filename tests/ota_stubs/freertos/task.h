@@ -15,6 +15,7 @@ int xTaskCreate(void (*function)(void *),
                 void *arg,
                 unsigned priority,
                 void *handle);
+TickType_t xTaskGetTickCount(void);
 void vTaskDelay(TickType_t ticks);
 void xTaskNotifyGive(TaskHandle_t task);
 unsigned ulTaskNotifyTake(int clear, TickType_t ticks);

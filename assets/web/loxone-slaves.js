@@ -3,8 +3,11 @@
 const LoxoneSlaves = (() => {
     'use strict';
     const get = id => document.getElementById(id);
+    const inverter = !!get('inverter-form');
+    const url = inverter ? '/api/inverter/slaves' : '/api/loxone/slaves';
+    const requestHeader = inverter ? 'X-Zolee-Inverter' : 'X-Zolee-Loxone';
     const rows = new Map();
-    const keys = ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_day', 'blank_at_night',
+    const keys = inverter ? ['name', 'rotation_degrees', 'day_brightness', 'night_brightness'] : ['name', 'presence_uuid', 'timeout_seconds', 'blank_at_day', 'blank_at_night',
         'rotation_degrees', 'day_brightness', 'night_brightness'];
     const rotations = [['0', 'Álló (0°)'], ['90', 'Elforgatva 90°-kal'],
         ['180', 'Fejjel lefelé (180°)'], ['270', 'Elforgatva 270°-kal']];
@@ -36,6 +39,7 @@ const LoxoneSlaves = (() => {
         }
     }
     function choices(row) {
+        if (inverter) return;
         const select = row.inputs.presence_uuid, selected = row.draft.presence_uuid;
         const room = get('slave-room').value, category = get('slave-category').value;
         select.replaceChildren();
@@ -58,6 +62,7 @@ const LoxoneSlaves = (() => {
         select.value = selected;
     }
     function filters() {
+        if (inverter) return;
         for (const [id, key, title] of [['slave-room', 'room', 'Összes helyiség'],
             ['slave-category', 'category', 'Összes funkció']]) {
             const select = get(id), selected = select.value;
@@ -92,7 +97,7 @@ const LoxoneSlaves = (() => {
         row.box.append(row.legend);
         row.box.append(create('small', 'Eszköz: ' + value.id));
         const grid = create('div');
-        grid.className = 'grid';
+        grid.className = 'grid field-grid';
         for (const [key, title, type] of [['name', 'Eszköz neve', 'text'],
             ['presence_uuid', 'Loxone jelenlétállapot', 'select'],
             ['timeout_seconds', 'Sötétítési késleltetés (másodperc)', 'number'],
@@ -101,6 +106,7 @@ const LoxoneSlaves = (() => {
             ['rotation_degrees', 'Kijelző elforgatása (a Slave újraindul)', 'rotation'],
             ['day_brightness', 'Nappali fényerő (%)', 'brightness'],
             ['night_brightness', 'Éjszakai fényerő (%)', 'brightness']]) {
+            if (!keys.includes(key)) continue;
             const list = type === 'select' || type === 'rotation';
             const label = create('label', title), input = create(list ? 'select' : 'input');
             input.id = 'slave-' + value.id + '-' + key;
@@ -199,7 +205,7 @@ const LoxoneSlaves = (() => {
         if (fetching) return fetching;
         fetching = (async () => {
             try {
-                const response = await apiFetch('/api/loxone/slaves', {cache: 'no-store'});
+                const response = await apiFetch(url, {cache: 'no-store'});
                 if (!response.ok) throw Error(await response.text());
                 apply(await response.json());
                 return true;
@@ -218,7 +224,7 @@ const LoxoneSlaves = (() => {
             [...value.name].some(char => { const code = char.codePointAt(0); return code < 32 ||
                 (code >= 127 && code <= 159) || (code >= 0xd800 && code <= 0xdfff); }))
             return 'Adj meg olvasható, legfeljebb 80 bájtos nevet (az ékezetes betűk több helyet foglalnak).';
-        if (!Number.isInteger(value.timeout_seconds) || value.timeout_seconds < 1 || value.timeout_seconds > 86400)
+        if (!inverter && (!Number.isInteger(value.timeout_seconds) || value.timeout_seconds < 1 || value.timeout_seconds > 86400))
             return 'A sötétítési késleltetés 1 és 86400 közötti egész másodperc legyen.';
         if (value.presence_uuid && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$/.test(value.presence_uuid))
             return 'Válassz érvényes Loxone jelenlétállapotot.';
@@ -246,8 +252,8 @@ const LoxoneSlaves = (() => {
             }
             let response;
             try {
-                response = await apiFetch('/api/loxone/slaves', {method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-Zolee-Loxone': '1'},
+                response = await apiFetch(url, {method: 'POST',
+                    headers: {'Content-Type': 'application/json', [requestHeader]: '1'},
                     body: JSON.stringify({schema: 1, revision: state.revision, id: row.id, profile: desired})});
             } catch (error) {
                 /* A válasz elveszhetett a kérés átvétele után. Csak visszaolvasunk. */
@@ -273,8 +279,9 @@ const LoxoneSlaves = (() => {
         if (key !== catalogKey) { catalogKey = key; catalog = nextCatalog; filters(); }
         controls();
         if (!writing) await read();
+        return state?.profiles || [];
     }
-    for (const id of ['slave-room', 'slave-category']) get(id).onchange = () => {
+    if (!inverter) for (const id of ['slave-room', 'slave-category']) get(id).onchange = () => {
         for (const row of rows.values()) choices(row);
     };
     filters();

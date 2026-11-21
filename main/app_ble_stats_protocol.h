@@ -13,6 +13,8 @@ bool app_ble_stats_encode(const app_stats_snapshot_t *snapshot,
                           uint32_t id,
                           uint32_t epoch,
                           uint8_t out[APP_BLE_STATS_SIZE]);
+bool app_ble_stats_encode_peer(const app_stats_snapshot_t *snapshot, uint32_t id, uint32_t epoch,
+                               bool extended, uint8_t out[APP_BLE_STATS_SIZE]);
 bool app_ble_stats_decode(const uint8_t *wire,
                           size_t length,
                           uint32_t id,

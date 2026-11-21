@@ -281,7 +281,7 @@ const LoxoneHome = (() => {
         target.replaceChildren(); currentSection = 'intercom';
         const group = title => {
             const box = create('fieldset'), legend = create('legend', title), grid = create('div');
-            grid.className = 'intercom-grid'; box.append(legend); box.append(grid); target.append(box);
+            grid.className = 'intercom-grid field-grid'; box.append(legend); box.append(grid); target.append(box);
             return grid;
         };
         const wide = input => { input.parentNode.className = 'intercom-wide'; return input; };
@@ -376,7 +376,7 @@ const LoxoneHome = (() => {
                 box.id = domId(entry, 'editor');
                 box.append(legend);
                 if (section === 'cards') {
-                    const first = create('div'); first.className = 'card-grid home-entry-type'; box.append(first);
+                    const first = create('div'); first.className = 'card-grid home-entry-type field-grid'; box.append(first);
                     const type = select(first, 'Kártyatípus', entry, 'type', [
                         ['', 'Válassz…'], ['value', 'Érték'], ['pulse', 'Pillanatnyi gomb'], ['switch', 'Be/ki kapcsoló'],
                         ['lighting', 'Világításvezérlő'], ['irc', 'IRC termosztát'], ['shading', 'Redőnyvezérlő'],
@@ -399,7 +399,7 @@ const LoxoneHome = (() => {
                 }
                 if (section === 'consumers' || entry.type) {
                     const body = create('div'); body.className = 'home-entry-body'; box.append(body);
-                    const grid = create('div'); grid.className = 'grid card-grid'; body.append(grid);
+                    const grid = create('div'); grid.className = 'grid card-grid field-grid'; body.append(grid);
                     const preview = create('div'); preview.className = 'home-entry-icon'; body.append(preview);
                     if (section === 'consumers') {
                         field(grid, 'Név', entry, 'name');

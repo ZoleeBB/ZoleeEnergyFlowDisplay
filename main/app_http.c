@@ -21,7 +21,7 @@ static esp_err_t reject(httpd_req_t *req, const char *status, const char *body)
     return ESP_FAIL;
 }
 
-static bool json_content_type(httpd_req_t *req)
+bool app_http_is_json_request(httpd_req_t *req)
 {
     char type[128];
     size_t length = httpd_req_get_hdr_value_len(req, "Content-Type");
@@ -55,7 +55,7 @@ static esp_err_t energy_post(httpd_req_t *req)
         return reject(req, "503 Service Unavailable", "{\"ok\":false,\"error\":\"not_ready\"}");
     if (req->content_len > MAX_BODY_BYTES)
         return reject(req, "413 Payload Too Large", "{\"ok\":false,\"error\":\"size\"}");
-    if (!json_content_type(req))
+    if (!app_http_is_json_request(req))
         return reject(
             req, "415 Unsupported Media Type", "{\"ok\":false,\"error\":\"content_type\"}");
     if (!req->content_len)

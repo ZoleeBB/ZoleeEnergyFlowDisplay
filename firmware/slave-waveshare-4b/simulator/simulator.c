@@ -61,7 +61,7 @@ static void scene(bool night)
         .power_bat_kw = night ? .6 : -2,
         .power_pv_kw = night ? 0 : 7,
         .power_full_kw = night ? 2.1 : 4,
-        .soc_bat_pct = 74, .battery_temperature_c = 32,
+        .soc_bat_pct = 74, .battery_temperature_valid = true, .battery_temperature_c = 32,
         .temperature_c = 18.2, .wind_speed_kmh = 12,
         .temperature_valid = true, .wind_speed_valid = true,
         .relative_humidity_valid = true, .relative_humidity_pct = 61,
@@ -69,7 +69,7 @@ static void scene(bool night)
         .has_sun_radiation = !night, .night_mode = night, .status = 1,
         .received_epoch_s = 1792327020
     };
-    runtime = (app_runtime_state_t){.slave_connected = true, .time_synced = true,
+    runtime = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .slave_connected = true, .time_synced = true,
         .has_valid_sample = true, .ble_rssi = -51, .wifi_connected = true};
     snprintf(runtime.ble_peer, sizeof(runtime.ble_peer), "AA:BB:CC:DD:EE:FF");
 }
@@ -79,7 +79,7 @@ static void step(unsigned ms)
     elapsed_ms += ms;
     lv_tick_inc(ms);
     slave_4b_ui_update(&sample, runtime.slave_connected && !runtime.slave_source_stale,
-                    &runtime, sample.night_mode ? "21:37" : "14:37", ms / 1000.f);
+                    &runtime, (int64_t)elapsed_ms * 1000, sample.night_mode ? "21:37" : "14:37", ms / 1000.f);
     slave_4b_ui_pairing(&pairing);
     lv_timer_handler();
     lv_refr_now(display);
@@ -194,7 +194,7 @@ static int summary_test(void)
 
 /* A képernyő feliratai közül az elsőt adja vissza, amelyik a mintával kezdődik;
  * a diagnosztika rétegen belüli feliratokat is megtalálja. */
-static const char *find_label_in(lv_obj_t *parent, const char *prefix)
+static lv_obj_t *find_label_in(lv_obj_t *parent, const char *prefix)
 {
     for (uint32_t i = 0; i < lv_obj_get_child_count(parent); i++)
     {
@@ -203,18 +203,51 @@ static const char *find_label_in(lv_obj_t *parent, const char *prefix)
         {
             const char *text = lv_label_get_text(child);
             if (text && !strncmp(text, prefix, strlen(prefix)))
-                return text;
+                return child;
         }
-        const char *found = find_label_in(child, prefix);
+        lv_obj_t *found = find_label_in(child, prefix);
         if (found)
             return found;
     }
     return NULL;
 }
 
-static const char *find_label(const char *prefix)
+static lv_obj_t *find_label(const char *prefix)
 {
     return find_label_in(lv_screen_active(), prefix);
+}
+
+/* A valós Master-csomag dekódolása után csak a rendelkezésre álló adatok
+ * legyenek láthatók. A mért 0 °C és az érzékelő hiánya külön eset. */
+static int optional_inverter_fields(const app_config_t *config)
+{
+    app_energy_sample_t original = sample, source = sample;
+    lv_obj_t *detail = find_label("74%"), *pv = find_label("Napelem");
+    lv_obj_t *grid = find_label("Hálózat"), *battery = find_label("Akkumulátor");
+    lv_obj_t *home = find_label("Ház");
+    CHECK(detail && pv && grid && battery && home);
+    for (unsigned stage = 0; stage < 3; ++stage) {
+        source.battery_temperature_c = 0;
+        source.battery_temperature_valid = stage == 0;
+        source.battery_unavailable = stage == 2;
+        source.grid_unavailable = source.home_unavailable = stage == 2;
+        uint8_t energy[APP_BLE_PACKET_SIZE], weather[APP_BLE_PACKET_SIZE];
+        app_ble_protocol_encode(&source, config, 0, 1, energy, weather);
+        CHECK(app_ble_protocol_decode(energy, sizeof(energy), weather, sizeof(weather), 0, &sample) == ESP_OK);
+        step(0);
+        CHECK(!lv_obj_has_flag(pv, LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_has_flag(grid, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(battery, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(lv_obj_has_flag(detail, LV_OBJ_FLAG_HIDDEN) == (stage == 2));
+        CHECK(!strcmp(lv_label_get_text(detail), stage == 0 ? "74% · 0 °C" : stage == 1 ? "74%" : ""));
+    }
+    sample = original;
+    step(0);
+    CHECK(!lv_obj_has_flag(grid, LV_OBJ_FLAG_HIDDEN) && !lv_obj_has_flag(battery, LV_OBJ_FLAG_HIDDEN));
+    CHECK(!lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN) && !lv_obj_has_flag(detail, LV_OBJ_FLAG_HIDDEN));
+    puts("PASS: 4B shows measured 0 C, hides absent battery temperature and renders PV-only BLE samples");
+    return 0;
 }
 
 static int self_test(void)
@@ -232,6 +265,7 @@ static int self_test(void)
     CHECK(decoded.relative_humidity_valid && decoded.relative_humidity_pct == 61);
     sample = decoded;
     step(33);
+    CHECK(optional_inverter_fields(&config) == 0);
     /* A hiányzó adat és a valódi 0% különbözik; az ikon is követi a flaget. */
     lv_obj_t *humidity_label = NULL, *humidity_image = NULL;
     lv_obj_t *humidity_screen = lv_screen_active();
@@ -340,12 +374,33 @@ static int self_test(void)
     step(200);
     CHECK(hash() == stale); /* Lejárt adatnál nincs továbbmozgó energia. */
     CHECK(save("slave-4b-timeout.ppm") == 0);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    runtime.slave_inverter_searching = true;
+    runtime.slave_packet_monotonic_us = (int64_t)elapsed_ms * 1000;
+    runtime.slave_source_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
+    step(33);
+    CHECK(find_label("Megszakadt az inverterkapcsolat") && find_label("A Master a háttérben"));
+    uint64_t search = hash();
+    step(200);
+    CHECK(hash() == search);
+    swipe(600, 150);
+    CHECK(!slave_4b_ui_summary_visible());
+    runtime.slave_source_timeout_seconds = 7260;
+    step(33);
+    CHECK(find_label("A Master újra megpróbálja"));
+    runtime.slave_source_stale = runtime.slave_inverter_searching = false;
+    step(33);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    runtime.slave_source_stale = runtime.slave_inverter_searching = true;
     runtime.slave_connected = false;
     step(33);
     uint64_t disconnected = hash();
     step(200);
     CHECK(hash() == disconnected);
     CHECK(save("slave-4b-disconnected.ppm") == 0);
+    CHECK(!find_label("Megszakadt az inverterkapcsolat"));
+    CHECK(find_label("Master keresése"));
+    puts("PASS: 4B separates confirmed local/cloud inverter loss, stale data, recovery and missing Master");
     /* Változatlan adatnál a 33 ms-os refresh nem érvényteleníthet: a feliratok,
      * a képek és a színek csak tényleges változáskor íródnak újra. */
     invalidations = 0;
@@ -393,7 +448,9 @@ static int self_test(void)
     slave_4b_ui_status(&status);
     step(0);
     CHECK(save("slave-4b-diagnostics.ppm") == 0);
-    const char *info = find_label("Waveshare 4B");
+    lv_obj_t *info_label = find_label("Waveshare 4B");
+    CHECK(info_label);
+    const char *info = lv_label_get_text(info_label);
     CHECK(info && strstr(info, "IP: 192.168.2.77") && strstr(info, "FW: 3.3.0-test"));
     CHECK(strstr(info, "Tájolás: 90°") && strstr(info, "Üzemidő: 1 ó 2 p"));
     CHECK(strstr(info, "Érintések indulás óta: 3"));

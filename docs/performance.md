@@ -2,6 +2,22 @@
 
 A célpanel a Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1, 32 MB PSRAM-mal. A firmware ESP-IDF 5.5.4, LVGL 9.5.0, esp_lvgl_adapter 0.6.4 és ESP-Hosted 1.4.7 verziókra épül. A változtatások nem módosítják a C6 társprocesszor firmware-ét, az SDIO streaming protokollt vagy a flash-partíciókat.
 
+## Közvetlen inverter és a v4 memóriakerete
+
+A 10,1″-es Master a meglévő 10 KiB-os főfeladatban olvassa a kiválasztott invertert. Az időjárást a meglévő 8 KiB-os OTA-feladat kéri le. A nem kiválasztott profilokhoz nem indul kapcsolat. A Victron GX helyi MQTT kliensének saját, 6144 bájtos verme és két 1024 bájtos puffere csak az aktív GX MQTT-profilhoz kell. A kézzel indított hálózati kereső 8192 bájtos ideiglenes vermét elsősorban RTC-memóriából kapja. Ha ott kevés a hely, belső RAM-ból próbálkozik. A befejezett feladat vermét a következő inverterciklus vagy az új keresés felszabadítja. Az eredménylista a keresés vége után egy perccel lejár.
+
+| Terhelés | Mi korlátozza a memóriaigényt? | Mit ellenőriztünk? |
+| --- | --- | --- |
+| Gyártói felhő, Solplanet helyi HTTPS, Open-Meteo és automatikus OTA | Egyszerre egy rövid életű kimenő HTTPS-művelet kaphat helyet. Foglaltságkor az esedékes invertermérés és időjáráslekérés újrapróbálkozik. Az OTA elsőbbséget kap az új kérésekkel szemben, a már futóra legfeljebb 30 másodpercet vár. | Egyidejű próbálkozás, felszabadítás, OTA-várakozás és határidő. A sima helyi HTTP-lekérdezés foglalt HTTPS mellett is lefutott. A tartós MQTT/TLS-kapcsolat saját kapcsolatkezelést használ. |
+| Inverter és időjárás JSON-válasza | A fogadópuffer legfeljebb 48 KiB adatot és a lezáró bájtot foglalja PSRAM-ban. A feldolgozó legfeljebb 20 szintet és 2048 csomópontos felső becslést enged. Túlméretes vagy időkereten túl érkező adatnál megszakítja a fogadást. | Egy 49 149 bájtos számsor a korábbi 64 bites gazdagépes mérésben 1 572 802 bájt csúcsfoglalást okozott a cJSON-ban. Ugyanez most a fa foglalása előtt kiesik. A 288 soros teljes AISWEI-nap kezelhető maradt. |
+| Webes admin | A 15 másodperces inverterállapot-frissítés csak állapotmezőket kér. A kezdőlapi eseménylista 5440 bájtja csak a válasz idejére kerül PSRAM-ba. Mentéskor két 1216 bájtos köztes konfigurációmásolat kikerült a hívási láncból. | A valódi oldal Chromiumban, a HTTP-kezelő megszakított adatküldéssel és a beállításkezelés 283 szándékosan meghiúsított foglalással. Hibánál a tárolt jelszavak megmaradtak. |
+| Nap pálya és témaváltás | Új SD-téma betöltése előtt felszabadul az előző csomag. A 09-es téma 26 RAW-képe együtt 6 350 917 bájt. Ugyanazon csomag nappali és éjszakai jelenetei újrahasználják a betöltött erőforrásokat. | Valódi LVGL 9.5 alatt 96 RGB565 témaváltás, valamint 100 életciklusváltás és 400 megjelenített oldal. A korongváltást mindkét háttérrel ellenőriztük. |
+| Első indítás és 4B Slave | Hiányzó beállításrekordhoz nem foglalunk előre kb. 3 KiB-ot. A Wi-Fi-billentyűzet élettartama az első kapcsolódásig tart. Elfogadott firmware-en elmarad az átmeneti 4096 bájtos OTA-validáló verem. A 4B az igazolt Master-képességek szerint indít médiát. | A beüzemelő és OTA-állapotgép, a régi párosítás, a kapcsolatvesztés, valamint a korábban indított kaputelefon erőforrásainak elengedése módváltáskor. |
+
+**Mit mutat a firmware-build?** Az ESP-IDF mindkét hardvernél kiírja a bináris OTA-méretét és az `idf.py size` régiónkénti linkerösszesítést. A szabad flash, a statikusan lefoglalt belső RAM és a futó program legkisebb szabad DMA-blokkja három külön mérték. A PR-ben közölt bájtértékekhez a CI-futás tartozik. A [kiinduló kapacitásmérés](direct-inverter-v4-plan.md) a v3.4.0 kiadás azonos partícióival hasonlítható össze.
+
+**Mi vár még panelmérésre?** A fizikai inverteres üzemre jelenleg nincs mért DMA-minimum. A korábbi Loxone Audio-próbán a 20 795 bájt szabad belső RAM mellett csak 7936 bájtos egybefüggő blokk és 10 995 bájt szabad DMA volt. A Masteren a `/api/diagnostics/tasks` jelentést és a diagnosztika PSRAM-értékét érdemes ugyanazzal a konfigurációval rögzíteni nyugalomban, első és ismételt TLS-kézfogáskor, BLE Slave mellett, majd téma- és adatforrásváltás, valamint OTA után. A kiosztható legnagyobb DMA-blokk, az egyes feladatok legkisebb szabad verme és a visszaálló nyugalmi érték együtt mutatja meg a tényleges tartalékot. A 4B-n a soros diagnosztika és a Slave saját állapotjelzése használható.
+
 ## Kutatási alap és alkalmazott javítások
 
 A [Waveshare hivatalos példatárának](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X) `08_lvgl_demo_v9`, `09_video_lcd_display` és `10_mp4_player` példái PSRAM-ot és elkülönített grafikus/videó adatútvonalakat használnak. A kamera és MP4 példák képpuffert adnak át a kijelzőnek; ez nem ugyanaz a terhelés, mint PNG-dekódolás, méretezés, átlátszó rétegek és sok LVGL objektum újrarajzolása. A kameraminta beállított 50 FPS-e nem a jelen firmware mért sebessége.
@@ -77,9 +93,9 @@ eseménynaplóba (Kezdőlap → eseménynapló):
 Témaváltás 09-solar-journey: kép 95, SD 420, csere 12, felépítés 60, 1. képkocka 380, összesen 967 ms
 ```
 
-- **kép**: a betöltőképernyő megjelenítése, benne a kötelező 85 ms várakozás.
+- **kép**: a betöltőképernyő megjelenítése, a lecserélt téma erőforrásainak felszabadítása és a kötelező 85 ms várakozás.
 - **SD**: a csomag beolvasása és ellenőrzése (`app_templates_load_pending`).
-- **csere**: a régi téma objektumainak és képeinek felszabadítása.
+- **csere**: az előkészített téma átvétele és az LVGL-képleírók beállítása.
 - **felépítés**: az LVGL objektumfa összeállítása (`template_build`).
 - **1. képkocka**: a felépítés vége és az első kész frissítés között eltelt idő;
   **ebben fut a háttér PNG-dekódolása**, ezért tipikusan ez a legnagyobb tétel.
@@ -89,9 +105,12 @@ A mérés néhány időbélyeg és váltásonként egy naplósor; a 200 ms-os fr
 körben nincs többletmunka. A további gyorsítás (például előre dekódolt RGB565
 háttér az SD-n) csak ezekkel a számokkal együtt érdemes.
 
-A témaváltás betöltőképernyője mögött a régi téma egyetlen objektuma sem látszik,
-ezért a dekódolt képeit és a raszter-gyorsítótárat már a betöltőképocka után
-elengedjük. Enélkül az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
+Témaváltáskor a betöltőképernyő felépítése után felszabadul a régi téma
+LVGL-képgyorsítótára, PNG- és RAW-puffere, illetve JSON-leírója. Így a
+következő SD-olvasás már használhatja ezt a memóriát. A Nap pálya két
+1280×800-as RGB565A8 háttérfájlja fejléccel együtt egyenként 3 072 032 bájt.
+Azonos téma nappali és éjszakai jelenete között a betöltött SD-csomag megmarad.
+A korábbi működésben az SD-olvasás és az új háttér dekódolása a régi téma 4–10 MiB-os
 dekódolt képei mellé kért PSRAM-ot: gyors oda-vissza lapozásnál elfogyhatott a hely,
 a háttér dekódolása minden képkockán újra elbukott, és a kijelző használhatatlanul
 lelassult. A betöltőképernyő a runtime szálban hat másodperces szakaszokat

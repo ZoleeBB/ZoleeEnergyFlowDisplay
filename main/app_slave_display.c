@@ -38,7 +38,7 @@ static void wake(app_slave_display_t *state, int64_t now)
 static void wake_touch(app_slave_display_t *state, int64_t now)
 {
     int64_t duration = (int64_t)state->profile.presence_timeout_seconds * 1000000;
-    if (duration < APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US)
+    if (!state->profile.scheduled && duration < APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US)
         duration = APP_SLAVE_DISPLAY_TOUCH_WAKE_MIN_US;
     state->touch_until_us = now > INT64_MAX - duration ? INT64_MAX : now + duration;
     /* Új érintés már az új profil idejét használja. A régi érintési határidőt
@@ -213,4 +213,15 @@ unsigned app_slave_display_brightness(app_slave_display_t *state, int64_t now_us
     int64_t now = monotonic(state, now_us);
     expire_presence(state, now);
     return brightness(state, now);
+}
+
+void app_slave_display_scheduled(app_slave_display_t *state, bool blank,
+                                 uint16_t wake_seconds, int64_t now_us)
+{
+    if (!state || !wake_seconds) return;
+    if (!state->profile.scheduled) app_slave_display_reset_presence(state, now_us);
+    state->profile.scheduled = true;
+    state->profile.delay_initial_absence = false;
+    state->profile.presence_timeout_seconds = wake_seconds;
+    app_slave_display_blanking(state, blank, blank, now_us);
 }

@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha }}
-      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev zlib1g-dev libmbedtls-dev python3-numpy python3-pil
+      - run: sudo apt-get update && sudo apt-get install -y libhttp-parser-dev libcjson-dev zlib1g-dev libmbedtls-dev python3-numpy python3-pil
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -88,10 +88,22 @@ jobs:
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_slave_presence_browser.js
+      - name: Exercise direct inverter and Slave settings in Chromium
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_inverter_browser.js
+      - name: Check form geometry on phone, tablet and desktop
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_form_layout_browser.js
       - name: Check Intercom save on actual embedded HTTP page
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
         run: node tests/test_intercom_browser.js
+      - name: Check home page restart and factory reset confirmations
+        env:
+          NODE_PATH: /tmp/zolee-web-browser/node_modules
+        run: node tests/test_home_actions_browser.js
       - name: Check voluntary support cards on desktop and mobile
         env:
           NODE_PATH: /tmp/zolee-web-browser/node_modules
@@ -135,6 +147,7 @@ jobs:
           export ZOLEE_TEMPLATE_ROOT="$PWD/.preview-template-sd"
           export ZOLEE_HOME_RESOURCE_ZIP="$PWD/dist/templates/loxone-home.zip"
           cd .preview-images
+          ../.preview-build/setup_ui_test
           ../.preview-build/slave_intercom_preview
           ../.preview-build/ui_preview
           ZOLEE_PREVIEW_RGB565=1 ../.preview-build/ui_preview
@@ -155,7 +168,7 @@ jobs:
       # dokumentációs képek, nem külön Actions-artifactok.
 
   template-packages:
-    name: Sablonok | 9 téma és Loxone-erőforrások
+    name: Sablonok | SD-témák és Loxone-erőforrások
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
@@ -230,6 +243,7 @@ jobs:
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5.4
+          command: idf.py build size
           target: esp32p4
           path: '.'
 
@@ -247,6 +261,7 @@ jobs:
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5.4
+          command: idf.py build size
           target: esp32p4
           path: firmware/slave-waveshare-4b
 

@@ -1,5 +1,6 @@
 # A teljes PNG készlet és a valódi fájlméretek egy forrásból származnak.
 set(app_png_files
+    "assets/png/boot_logo.png"
     "assets/png/flow_battery.png"
     "assets/png/flow_grid.png"
     "assets/png/flow_house.png"
@@ -40,6 +41,30 @@ set(app_png_files
 idf_component_register(
     SRCS
         "app_main.c"
+        "app_factory_reset.c"
+        "app_factory_reset_storage.c"
+        "app_setup_wifi.c"
+        "app_setup_ui.c"
+        "app_inverter.c"
+        "app_inverter_discovery.c"
+        "app_inverter_discovery_http.c"
+        "app_inverter_discovery_modbus.c"
+        "app_inverter_settings.c"
+        "app_inverter_net.c"
+        "app_inverter_identity.c"
+        "app_inverter_neighbor.c"
+        "app_inverter_mdns.c"
+        "app_inverter_weather.c"
+        "app_inverter_solar.cpp"
+        "third_party/SolarCalculator/SolarCalculator.cpp"
+        "app_inverter_http.c"
+        "app_inverter_http_local.c"
+        "app_inverter_http_cloud.c"
+        "app_inverter_modbus.c"
+        "app_inverter_registers.c"
+        "app_inverter_modbus_wire.c"
+        "app_inverter_victron.c"
+        "app_inverter_victron_model.c"
         "app_ble_seed.c"
         "app_ble_protocol.c"
         "app_ble_profile.c"
@@ -120,6 +145,7 @@ idf_component_register(
         esp_event
         esp_driver_jpeg
         esp_http_client
+        http_parser
         esp_websocket_client
         esp_http_server
         esp_netif
@@ -181,6 +207,10 @@ add_custom_command(TARGET ${COMPONENT_LIB} POST_BUILD
 )
 
 
+# Az lwIP a main archívumon kívül hivatkozik az egyetlen egyedi DNS-hookra.
+# A linker a komponensek sorrendjétől függetlenül vegye fel az alkalmazásét.
+target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,-u,lwip_hook_netconn_external_resolve")
+
 # BSP 2.0.3 hardcodes use_psram=false. Wrap its display registration, keeping
 # managed components intact and the existing rotation/triple-partial mode.
 target_link_options(${COMPONENT_LIB} INTERFACE
@@ -195,3 +225,10 @@ target_link_options(${COMPONENT_LIB} INTERFACE
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE APP_INTERCOM_DISTRIBUTED=1)
+
+
+# Egyetlen párosított helyi partner ARP-bejelentéseit figyeljük a TCP/IP szálon.
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=etharp_input"
+    "-Wl,-u,__wrap_etharp_input"
+)

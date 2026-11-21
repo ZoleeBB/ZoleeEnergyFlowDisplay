@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "esp_err.h"
+#include "app_config.h"
 
 #define APP_BACKUP_FORMAT "ZoleeEnergyFlowDisplay-backup"
 #define APP_BACKUP_VERSION 1
@@ -82,4 +83,5 @@ esp_err_t app_backup_flash_save(const char *json, size_t length, bool *written);
 esp_err_t app_backup_flash_start(void);
 void app_backup_flash_request(void);
 /* Bootkor, a config.json hiányában: visszaállítás a belső tartalékból. */
+esp_err_t app_backup_flash_boot_config(app_config_t *cfg, char *error, size_t error_len);
 esp_err_t app_backup_flash_restore_sd(unsigned *files, char error[APP_BACKUP_ERROR_SIZE]);

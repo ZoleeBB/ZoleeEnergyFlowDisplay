@@ -25,6 +25,14 @@ typedef struct
     double pv_home_kwh, pv_export_kwh, pv_stored_kwh, grid_home_kwh, battery_home_kwh;
 } app_energy_totals_t;
 
+/* A hiányos csatorna adott ötperces átlaga nem rajzolható ki. */
+enum {
+    APP_STATS_NO_GRID = 1,
+    APP_STATS_NO_HOME = 2,
+    APP_STATS_NO_BATTERY_POWER = 4,
+    APP_STATS_NO_SPLIT = 8
+};
+
 /*
  * Egy ötperces grafikonpont.
  * A teljesítményértékek a slotban érkezett minták futó átlagai,
@@ -43,6 +51,7 @@ typedef struct
     uint32_t soc_sample_count;
     app_energy_totals_t energy;
     app_energy_split_t split; /* Mintánként szétválasztott, majd átlagolt kW. */
+    uint8_t partial_fields;
     bool chart_gap;           /* Hiányos ötperces ablak: a grafikon nem köti át. */
 } app_stats_slot_t;
 

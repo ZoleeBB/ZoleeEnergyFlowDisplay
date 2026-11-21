@@ -66,6 +66,11 @@ int main(void)
     assert(v.value[0]==-2.5&&v.value[1]==2504);
     cJSON *payload=lx_values_payload(&v,&cfg);assert(payload);
     assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(payload,"Temperature")));cJSON_Delete(payload);
+    v.seen[LX_FIELD_BATTERY_TEMP] = false;
+    payload = lx_values_payload(&v, &cfg);
+    assert(payload && cJSON_IsNull(cJSON_GetObjectItem(payload, "BatteryTemperature")));
+    cJSON_Delete(payload);
+    v.seen[LX_FIELD_BATTERY_TEMP] = true;
     lx_values_t previous=v;numeric(bytes,1);numeric(bytes+24,NAN);
     assert(!lx_values_update(&v,&cfg,2,bytes,48));assert(memcmp(&v,&previous,sizeof(v))==0);
     assert(!lx_values_update(&v,&cfg,2,bytes,23));

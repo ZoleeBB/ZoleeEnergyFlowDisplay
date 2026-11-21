@@ -40,6 +40,8 @@ esp_err_t app_ringtones_install_prepared(const char *path, cJSON **report, char 
         snprintf(error, 160, "%s", "Egyetlen hangot sem sikerült telepíteni.");
     return ringtone_all_failed ? ESP_ERR_INVALID_ARG : ESP_OK;
 }
+static bool s_hu = true;
+static const char *inverter_query;
 static bool ringtone_query, ringtone_file = true, task_fail, async_fail;
 static app_ringtone_load_status_t ringtone_load_status = APP_RINGTONE_LOAD_OK;
 static unsigned media_loads, media_sends, async_complete, deleted_tasks, queued;
@@ -56,10 +58,21 @@ uint8_t *app_ringtones_load_ex(const char *name, size_t *size, app_ringtone_load
 bool app_intercom_control_media_key(const char *key) { (void)key; return false; }
 bool app_loxone_intercom_snapshot(app_intercom_snapshot_t *out) { memset(out, 0, sizeof(*out)); return true; }
 esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *q, size_t n) {
-    (void)r; snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
+    (void)r;
+    if (inverter_query) { snprintf(q, n, "%s", inverter_query); return ESP_OK; }
+    snprintf(q, n, "name=tubular-chime.wav"); return ringtone_query ? ESP_OK : ESP_FAIL;
 }
 esp_err_t httpd_query_key_value(const char *q, const char *k, char *v, size_t n) {
-    (void)q; (void)k; snprintf(v, n, "tubular-chime.wav"); return ESP_OK;
+    if (!strcmp(k, "job")) {
+        if (strncmp(q, "job=", 4) || strlen(q + 4) >= n) return ESP_FAIL;
+        strcpy(v, q + 4);
+        return ESP_OK;
+    }
+    if (!strcmp(k, "profile")) {
+        if (strncmp(q, "profile=", 8)) return ESP_FAIL;
+        snprintf(v, n, "%s", q + 8); return ESP_OK;
+    }
+    snprintf(v, n, "tubular-chime.wav"); return ESP_OK;
 }
 esp_err_t httpd_resp_send(httpd_req_t *r, const char *b, int n) {
     (void)r; assert(b && n == 64); media_sends++; return ESP_OK;
@@ -110,7 +123,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *req, const char *data, int size)
     return ESP_OK;
 }
 esp_err_t httpd_resp_send_err(httpd_req_t *r,int code,const char *s) { status_code=code;return httpd_resp_sendstr(r,s); }
-esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,"X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
+esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *key,char *out,size_t n) { (void)r;if(!strcmp(key,"X-Zolee-Media"))return ESP_FAIL;assert(!strcmp(key,s_config.data_recept_mode == APP_DATA_INVERTER ? "X-Zolee-Inverter" : "X-Zolee-Loxone")&&n>=2);if(!header_ok)return ESP_FAIL;strcpy(out,"1");return ESP_OK; }
 int httpd_req_recv(httpd_req_t *r,char *out,size_t n) { (void)r;if(require_ringtone_reset)assert(ringtone_resets);if(receive_timeouts){receive_timeouts--;return HTTPD_SOCK_ERR_TIMEOUT;}if(broken)return -1;if(n>3)n=3;memcpy(out,input+position,n);position+=n;return (int)n; }
 esp_err_t httpd_register_uri_handler(httpd_handle_t server,const httpd_uri_t *route) { (void)server;assert(route->handler);registered++;return ESP_OK; }
 cJSON *app_loxone_web_state(void) { return cJSON_CreateObject(); }
@@ -142,7 +155,174 @@ bool app_slave_presence_service_update(const app_slave_identity_t *identity,
     if (changed) slave_state.revision++;
     return true;
 }
+#include "app_support_web.h"
+static esp_err_t app_web_send_page(httpd_req_t *req, const char *page, bool hu)
+{
+    return app_web_send_template(req, page, hu, s_config.data_recept_mode);
+}
 #include "../main/app_loxone_web.inc"
+/* Ezen a szinten csak a hálózati határt teszteljük, a tárolót másik teszt fedi. */
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+static void *heap_caps_calloc(size_t n, size_t size, unsigned caps)
+{
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    return calloc(n, size);
+}
+#include "../main/app_inverter_web.inc"
+static int saves;
+static esp_err_t save_result;
+cJSON *app_inverter_settings_get(void) { return cJSON_Parse("{\"hasSecret\":true}"); }
+cJSON *app_inverter_status_get(void) { return cJSON_Parse("{\"syncStatus\":\"OK\"}"); }
+esp_err_t app_inverter_settings_save(const cJSON *form)
+{
+    assert(cJSON_IsObject(form)); saves++;
+    return save_result;
+}
+
+/* A több egymást követő admin-kérés csak a saját feladatazonosítóját használja. */
+static unsigned discovery_starts, discovery_stops;
+esp_err_t app_inverter_discovery_start(const char *profile, uint16_t port, uint8_t unit,
+                                       const char *device, uint32_t *job)
+{
+    if (strcmp(profile, "huawei_modbus")) return ESP_ERR_INVALID_ARG;
+    assert(port == 502 && unit == 1 && !device[0]);
+    ++discovery_starts;
+    *job = UINT32_MAX;
+    return ESP_OK;
+}
+esp_err_t app_inverter_discovery_cancel(uint32_t job)
+{
+    if (job != UINT32_MAX) return ESP_ERR_NOT_FOUND;
+    ++discovery_stops;
+    return ESP_OK;
+}
+esp_err_t app_inverter_discovery_snapshot(uint32_t job, app_inverter_discovery_status_t *s)
+{
+    if (job != UINT32_MAX) return ESP_ERR_NOT_FOUND;
+    s->count = 1;
+    s->state = APP_DISCOVERY_DONE;
+    strcpy(s->profile, "huawei_modbus");
+    strcpy(s->results[0].host, "192.168.1.23");
+    strcpy(s->results[0].model, "SUN2000-5KTL-M1");
+    strcpy(s->results[0].serial, "test \"escaped\"");
+    s->results[0].port = 502;
+    s->results[0].unit = 1;
+    s->results[0].verified = true;
+    return ESP_OK;
+}
+
+static int discovery_post_test(esp_err_t (*handler)(httpd_req_t *), const char *body)
+{
+    httpd_req_t request = {.method=HTTP_POST, .content_len=strlen(body)};
+    input = body;
+    position = 0;
+    status_code = 200;
+    response[0] = 0;
+    assert(handler(&request) == ESP_OK);
+    return status_code;
+}
+
+static void discovery_http_tests(void)
+{
+    const char *valid = "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1}";
+    authorized = false;
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 401);
+    authorized = true;
+    header_ok = false;
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 400);
+    header_ok = true;
+    const char *invalid[] = {
+        "{}", "{\"profile\":\"fronius_cloud\",\"port\":443,\"unit\":0}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1,\"host\":\"elsewhere\"}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":1,\"secret\":\"private\"}",
+        "{\"profile\":\"huawei_modbus\",\"port\":65536,\"unit\":1}",
+        "{\"profile\":\"huawei_modbus\",\"port\":502,\"unit\":0.5}"
+    };
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(*invalid); ++i)
+        assert(discovery_post_test(inverter_discovery_start_post, invalid[i]) == 400);
+    assert(discovery_starts == 0);
+    assert(discovery_post_test(inverter_discovery_start_post, valid) == 200);
+    assert(discovery_starts == 1 && !strcmp(response, "{\"job\":4294967295}"));
+    httpd_req_t request = {.method=HTTP_GET};
+    const char *bad_jobs[] = {"", "job=0", "job=-5", "job=1.1", "job=4294967296", "job=2x"};
+    for (unsigned i = 0; i < sizeof(bad_jobs) / sizeof(*bad_jobs); ++i) {
+        inverter_query = bad_jobs[i];
+        inverter_discovery_get(&request);
+        assert(status_code == 400);
+    }
+    inverter_query = "job=1";
+    inverter_discovery_get(&request);
+    assert(status_code == 404);
+    inverter_query = "job=4294967295";
+    authorized = false;
+    inverter_discovery_get(&request);
+    assert(status_code == 401);
+    authorized = true;
+    status_code = 200;
+    inverter_discovery_get(&request);
+    cJSON *json = cJSON_Parse(response);
+    assert(json && status_code == 200);
+    assert(!strcmp(cJSON_GetObjectItem(json, "state")->valuestring, "done"));
+    cJSON *row = cJSON_GetArrayItem(cJSON_GetObjectItem(json, "results"), 0);
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(row, "verified")));
+    assert(!strcmp(cJSON_GetObjectItem(row, "serial")->valuestring, "test \"escaped\""));
+    cJSON_Delete(json);
+    assert(discovery_post_test(inverter_discovery_cancel_post, "{\"job\":2}") == 404 && !discovery_stops);
+    assert(discovery_post_test(inverter_discovery_cancel_post, "{\"job\":4294967295}") == 200 && discovery_stops == 1);
+    inverter_query = NULL;
+}
+static void inverter_http_tests(void)
+{
+    int count = registered;
+    s_config.data_recept_mode = APP_DATA_LOXONE;
+    assert(inverter_register(NULL) == ESP_OK && registered == count);
+    s_config.data_recept_mode = APP_DATA_INVERTER;
+    assert(loxone_register(NULL) == ESP_OK && registered == count);
+    assert(inverter_register(NULL) == ESP_OK && registered == count + 9);
+    httpd_req_t req = {.method=HTTP_GET, .uri="/api/inverter"};
+    authorized = false; status_code = 200;
+    inverter_get(&req); assert(status_code == 401);
+    authorized = true;
+    inverter_get(&req); assert(strcmp(response,"{\"hasSecret\":true}") == 0);
+    inverter_query = "status=1";
+    inverter_get(&req); assert(strcmp(response,"{\"syncStatus\":\"OK\"}") == 0);
+    inverter_query = "profile=huawei_modbus";
+    authorized = false; status_code = 200;
+    inverter_registers_get(&req); assert(status_code == 401);
+    authorized = true; response[0] = 0; status_code = 200;
+    inverter_registers_get(&req);
+    cJSON *schema = cJSON_Parse(response);
+    cJSON *rows = cJSON_GetObjectItem(schema, "registers");
+    assert(cJSON_GetArraySize(rows) > 1 && status_code == 200);
+    cJSON *first = cJSON_GetArrayItem(rows, 0);
+    assert(cJSON_GetObjectItem(first, "address")->valueint == 32064);
+    assert(cJSON_GetObjectItem(first, "words")->valueint == 2);
+    assert(cJSON_IsNull(cJSON_GetObjectItem(first, "base")));
+    cJSON_Delete(schema);
+    inverter_query = "profile=fronius_http";
+    inverter_registers_get(&req); assert(status_code == 400);
+    inverter_query = NULL;
+    discovery_http_tests();
+    req.method = HTTP_POST; req.content_len = 2;
+    input = "{}"; position = 0; status_code = 200;
+    header_ok = false;
+    inverter_post(&req); assert(status_code == 400 && !saves);
+    header_ok = true;
+    req.content_len = 12289;
+    inverter_post(&req); assert(status_code == 400 && !saves);
+    const char *invalid[] = {"{}", "{\"secret\":\"x\\u0000y\"}", "[]", "{}junk"};
+    for (unsigned i = 0; i < sizeof(invalid)/sizeof(invalid[0]); ++i) {
+        input = invalid[i]; req.content_len = strlen(input); position = 0;
+        broken = (i == 0); inverter_post(&req); assert(status_code == 400 && !saves);
+    }
+    broken = false; input = "{\"secret\":\"test\",\"key\":\"other\"}"; req.content_len = strlen(input);
+    position = 0; save_result = ESP_ERR_INVALID_STATE;
+    inverter_post(&req); assert(status_code == 409 && saves == 1);
+    position = 0; status_code = 200; save_result = ESP_OK;
+    inverter_post(&req); assert(status_code == 200 && saves == 2 && strstr(response, "saved"));
+    s_config.data_recept_mode = APP_DATA_LOXONE;
+}
 static void post(const char *body)
 {
     input=body;position=0;status_code=200;response[0]=0;
@@ -296,6 +476,19 @@ static void slave_tests(void)
     slave_post(request_body); assert(status_code == 202 && !slave_state.table.peers[0].profile.blank_at_day);
     free(request_body);
     cJSON_Delete(json);
+    /* Inverter módban kizárólag az aktív kijelzőmezők kerülnek a válaszba.
+     * Nevük/tájolásuk módosítása közben a Loxone jelenlétforrás megmarad. */
+    s_config.data_recept_mode = APP_DATA_INVERTER;
+    slave_get();
+    assert(status_code == 200 && !strstr(response, "presence_uuid") && !strstr(response, "timeout_seconds"));
+    char edit[512];
+    snprintf(edit,sizeof(edit),"{\"schema\":1,\"revision\":%u,\"id\":\"ble-0-060504030201\","
+        "\"profile\":{\"name\":\"Inverter Slave\",\"rotation_degrees\":180,\"day_brightness\":null,"
+        "\"night_brightness\":1}}", slave_state.revision);
+    slave_post(edit);
+    assert(status_code == 202 && slave_state.table.peers[0].profile.rotation_degrees == 180);
+    assert(!strcmp(slave_state.table.peers[0].profile.presence_uuid, "11223344-5566-7788-99aabbccddeeff00"));
+    s_config.data_recept_mode = APP_DATA_LOXONE;
     /* Minden cJSON-allokáció hibája tiszta 500-as válasz legyen. */
     cJSON_Hooks hooks = {.malloc_fn=fail_malloc, .free_fn=free};
     cJSON_InitHooks(&hooks);
@@ -338,6 +531,7 @@ int main(void)
     assert(cJSON_GetObjectItem(home_state,"resources_version")->valueint == 3);
     cJSON_Delete(home_state);
     slave_tests();
+    inverter_http_tests();
     char upload_path[] = "/tmp/ringtone-upload-test-XXXXXX";
     int upload_fd = mkstemp(upload_path); assert(upload_fd >= 0); close(upload_fd);
     char upload_error[160] = "";

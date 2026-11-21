@@ -53,7 +53,8 @@ target_link_libraries(ui_preview PRIVATE lvgl m z -l:libcjson.so.1)
 target_link_options(ui_preview PRIVATE "-Wl,--wrap=app_templates_home_load_for"
     "-Wl,--wrap=app_templates_home_load_icons"
     "-Wl,--wrap=app_templates_home_load_page"
-    "-Wl,--wrap=app_templates_load_blocked")
+    "-Wl,--wrap=app_templates_load_blocked"
+    "-Wl,--wrap=lodepng_decode32")
 
 if(UNIX)
     add_executable(slave_intercom_preview slave_intercom_preview.c
@@ -66,4 +67,12 @@ if(UNIX)
         target_compile_options(slave_intercom_preview PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(slave_intercom_preview PRIVATE -fsanitize=address,undefined)
     endif()
+endif()
+
+if(UNIX)
+    add_executable(setup_ui_test setup_ui_test.c "${APP_ROOT}/main/app_setup_ui.c"
+        "${APP_ROOT}/main/fonts/app_font_20.c" "${APP_ROOT}/main/fonts/app_font_28.c")
+    target_include_directories(setup_ui_test PRIVATE "${APP_ROOT}/tests/stubs" "${APP_ROOT}/main")
+    target_compile_options(setup_ui_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    target_link_libraries(setup_ui_test PRIVATE lvgl m)
 endif()

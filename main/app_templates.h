@@ -107,6 +107,9 @@ char *app_templates_manifest_json(const char *id);
 /* SD I/O: kizárólag az LVGL lock előtt, a runtime szálból hívható. */
 /* Lock-only query: no SD I/O, safe before showing the loading frame. */
 bool app_templates_has_pending(unsigned applied_generation);
+/* Elmenti a kirajzolt generáció kiválasztását. Új generációnál igazat ad;
+ * képet sosem olvas be. Foglalt katalógusnál a következő kör újrapróbálja. */
+bool app_templates_service_selection(unsigned applied_generation);
 bool app_templates_load_pending(app_template_view_t *out);
 void app_templates_view_free(app_template_view_t *view);
 bool app_templates_validate(const char *directory, cJSON **document, char error[160]);

@@ -9,6 +9,8 @@
 #include "app_stats.h"
 #include "app_task_mem.h"
 #include "app_stats_compare.h"
+#include "app_stats_files.h"
+#include "app_slave_presence.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -82,7 +84,7 @@ static atomic_bool s_initialized;
 static app_stats_snapshot_t *s_remote;
 static bool s_remote_available, s_remote_disconnected;
 static int64_t s_remote_received_us;
-static char s_remote_identity[18];
+static char s_remote_identity[APP_SLAVE_PRESENCE_ID_SIZE];
 
 bool app_stats_is_ready(void) { return atomic_load(&s_initialized); }
 
@@ -139,6 +141,32 @@ static void totals_add(app_energy_totals_t *dst, const app_energy_totals_t *src)
 #undef ADD
 }
 
+static uint8_t partial_fields(const app_energy_sample_t *s)
+{
+    uint8_t flags = 0;
+    if (s->grid_unavailable) flags |= APP_STATS_NO_GRID;
+    if (s->home_unavailable) flags |= APP_STATS_NO_HOME;
+    if (s->battery_unavailable || s->battery_power_unavailable) flags |= APP_STATS_NO_BATTERY_POWER;
+    /* Akku nélkül ismert a nulla akkuforgalom. Hiányzó mérésnél nem az. */
+    if (s->home_unavailable || (!s->battery_unavailable && s->battery_power_unavailable))
+        flags |= APP_STATS_NO_SPLIT;
+    return flags;
+}
+
+/* Előjelváltáskor a nullátmetszés két oldalát külön integráljuk. */
+static void signed_energy(double a, double b, double hours, double *positive, double *negative)
+{
+    if (a >= 0 && b >= 0)
+        *positive = (a + b) * .5 * hours;
+    else if (a <= 0 && b <= 0)
+        *negative = -(a + b) * .5 * hours;
+    else {
+        double first = hours * a / (a - b);
+        *positive = .5 * (a > 0 ? a * first : b * (hours - first));
+        *negative = -.5 * (a < 0 ? a * first : b * (hours - first));
+    }
+}
+
 /* Két teljesítményminta közötti energia számítása trapézszabállyal. */
 static app_energy_totals_t energy_between(
     const app_energy_sample_t *a,
@@ -147,69 +175,18 @@ static app_energy_totals_t energy_between(
 {
     app_energy_totals_t result = {0};
 
-    double pv = (a->power_pv_kw + b->power_pv_kw) * 0.5;
-    double load = (a->power_full_kw + b->power_full_kw) * 0.5;
-    double grid = (a->power_grid_kw + b->power_grid_kw) * 0.5;
-    double battery = (a->power_bat_kw + b->power_bat_kw) * 0.5;
-
-    result.production_kwh = pv * hours;
-    result.consumption_kwh = load * hours;
-
-    /*
-     * A hálózat és az akkumulátor előjeles teljesítménye két minta között
-     * lineárisan változik. Ha az előjel közben megfordul, a nullátmetszést
-     * külön kezeljük, különben az import/export vagy töltés/kisütés részben
-     * kioltaná egymást.
-     */
-    if (a->power_grid_kw >= 0 && b->power_grid_kw >= 0) {
-        result.grid_import_kwh = grid * hours;
-    } else if (a->power_grid_kw <= 0 && b->power_grid_kw <= 0) {
-        result.grid_export_kwh = -grid * hours;
-    } else {
-        double fraction =
-            a->power_grid_kw /
-            (a->power_grid_kw - b->power_grid_kw);
-
-        double first_hours = hours * fraction;
-        double second_hours = hours - first_hours;
-
-        if (a->power_grid_kw > 0) {
-            result.grid_import_kwh =
-                0.5 * a->power_grid_kw * first_hours;
-            result.grid_export_kwh =
-                0.5 * (-b->power_grid_kw) * second_hours;
-        } else {
-            result.grid_export_kwh =
-                0.5 * (-a->power_grid_kw) * first_hours;
-            result.grid_import_kwh =
-                0.5 * b->power_grid_kw * second_hours;
-        }
-    }
-
-    if (a->power_bat_kw >= 0 && b->power_bat_kw >= 0) {
-        result.battery_discharge_kwh = battery * hours;
-    } else if (a->power_bat_kw <= 0 && b->power_bat_kw <= 0) {
-        result.battery_charge_kwh = -battery * hours;
-    } else {
-        double fraction =
-            a->power_bat_kw /
-            (a->power_bat_kw - b->power_bat_kw);
-
-        double first_hours = hours * fraction;
-        double second_hours = hours - first_hours;
-
-        if (a->power_bat_kw > 0) {
-            result.battery_discharge_kwh =
-                0.5 * a->power_bat_kw * first_hours;
-            result.battery_charge_kwh =
-                0.5 * (-b->power_bat_kw) * second_hours;
-        } else {
-            result.battery_charge_kwh =
-                0.5 * (-a->power_bat_kw) * first_hours;
-            result.battery_discharge_kwh =
-                0.5 * b->power_bat_kw * second_hours;
-        }
-    }
+    uint8_t missing = partial_fields(a) | partial_fields(b);
+    result.production_kwh = (a->power_pv_kw + b->power_pv_kw) * .5 * hours;
+    if (!(missing & APP_STATS_NO_HOME))
+        result.consumption_kwh = (a->power_full_kw + b->power_full_kw) * .5 * hours;
+    if (!(missing & APP_STATS_NO_GRID))
+        signed_energy(a->power_grid_kw, b->power_grid_kw, hours,
+                      &result.grid_import_kwh, &result.grid_export_kwh);
+    if (!(missing & APP_STATS_NO_BATTERY_POWER))
+        signed_energy(a->power_bat_kw, b->power_bat_kw, hours,
+                      &result.battery_discharge_kwh, &result.battery_charge_kwh);
+    if (missing & APP_STATS_NO_SPLIT)
+        return result;
 
     /* A min/max felosztás töréspontjainál vágunk, így az energiaarányok
      * előjelváltás és PV/ház keresztezés esetén sem mintaszám-függők. */
@@ -241,8 +218,14 @@ static app_energy_sample_t interpolate_sample(
     int64_t epoch_s)
 {
     app_energy_sample_t x = *a;
+    x.grid_unavailable = a->grid_unavailable || b->grid_unavailable;
+    x.home_unavailable = a->home_unavailable || b->home_unavailable;
+    x.battery_unavailable = a->battery_unavailable && b->battery_unavailable;
+    x.battery_power_unavailable = a->battery_power_unavailable || b->battery_power_unavailable ||
+                                  a->battery_unavailable != b->battery_unavailable;
     x.power_grid_kw = a->power_grid_kw + (b->power_grid_kw - a->power_grid_kw) * fraction;
     x.power_bat_kw = a->power_bat_kw + (b->power_bat_kw - a->power_bat_kw) * fraction;
+    if (x.battery_unavailable) x.power_bat_kw = 0;
     x.power_pv_kw = a->power_pv_kw + (b->power_pv_kw - a->power_pv_kw) * fraction;
     x.power_full_kw = a->power_full_kw + (b->power_full_kw - a->power_full_kw) * fraction;
     /* Az autótöltést csak két érvényes minta között integráljuk. */
@@ -277,14 +260,21 @@ static void slot_average_add(app_stats_slot_t *slot, const app_energy_sample_t *
     float n = (float)slot->sample_count;
 
     slot->pv_kw += ((float)sample->power_pv_kw - slot->pv_kw) / n;
-    slot->load_kw += ((float)sample->power_full_kw - slot->load_kw) / n;
-    slot->grid_kw += ((float)sample->power_grid_kw - slot->grid_kw) / n;
-    slot->battery_kw += ((float)sample->power_bat_kw - slot->battery_kw) / n;
-    app_energy_split_average(&slot->split,app_energy_split(sample->power_pv_kw,
-        sample->power_full_kw,sample->power_bat_kw),n);
-    slot->soc_sample_count++;
-    slot->soc_pct += ((float)sample->soc_bat_pct-slot->soc_pct)/(float)slot->soc_sample_count;
-    slot->soc_valid = true;
+    slot->partial_fields |= partial_fields(sample);
+    if (!(slot->partial_fields & APP_STATS_NO_HOME))
+        slot->load_kw += ((float)sample->power_full_kw - slot->load_kw) / n;
+    if (!(slot->partial_fields & APP_STATS_NO_GRID))
+        slot->grid_kw += ((float)sample->power_grid_kw - slot->grid_kw) / n;
+    if (!(slot->partial_fields & APP_STATS_NO_BATTERY_POWER))
+        slot->battery_kw += ((float)sample->power_bat_kw - slot->battery_kw) / n;
+    if (!(slot->partial_fields & APP_STATS_NO_SPLIT))
+        app_energy_split_average(&slot->split, app_energy_split(sample->power_pv_kw,
+            sample->power_full_kw, sample->battery_unavailable ? 0 : sample->power_bat_kw), n);
+    if (!sample->battery_unavailable && !sample->soc_unavailable) {
+        slot->soc_sample_count++;
+        slot->soc_pct += ((float)sample->soc_bat_pct-slot->soc_pct)/(float)slot->soc_sample_count;
+        slot->soc_valid = true;
+    }
     slot->valid = true;
 }
 
@@ -298,12 +288,22 @@ static day_data_t *day_for(time_t epoch)
     return NULL;
 }
 
+/* A felhőben két egymást követő valódi mérés közötti, legfeljebb fél periódusnyi
+ * időzítési eltérés fér bele. Kihagyott mérést vagy forrásváltást nem hidalunk át. */
+static unsigned allowed_gap(const app_energy_sample_t *a, const app_energy_sample_t *b,
+                            unsigned local_limit)
+{
+    if (a->integration_period_s != b->integration_period_s) return 0;
+    unsigned cadence = a->integration_period_s;
+    return cadence ? cadence + cadence / 2 : local_limit;
+}
+
 /* Ötperces és éjféli határokon is pontosan vágunk; a háttértask sorrendjétől függetlenül. */
 static void integrate_pair(const app_energy_sample_t *previous,const app_energy_sample_t *current,
                            bool trusted_night_time)
 {
     int64_t duration=current->received_epoch_s-previous->received_epoch_s;
-    if(duration<=0 || duration>s_cfg.statistics.max_integration_gap_seconds)return;
+    if(duration<=0 || duration>allowed_gap(previous, current, s_cfg.statistics.max_integration_gap_seconds))return;
     int64_t cursor=previous->received_epoch_s;
     while(cursor<current->received_epoch_s){
         struct tm local;
@@ -318,6 +318,7 @@ static void integrate_pair(const app_energy_sample_t *previous,const app_energy_
         day_data_t *day=day_for((time_t)cursor);
         if(day){
             app_energy_totals_t energy=energy_between(&a,&b,(next-cursor)/3600.);
+            day->slots[slot_for((time_t)cursor)].partial_fields |= partial_fields(&a) | partial_fields(&b);
             totals_add(&day->totals,&energy);
             totals_add(&day->slots[slot_for((time_t)cursor)].energy,&energy);
             if (a.ev_charging_valid && b.ev_charging_valid)
@@ -472,6 +473,11 @@ static cJSON *day_to_json(const day_data_t *day)
         }
 
         cJSON_AddBoolToObject(obj, "valid", slot->valid);
+        if (slot->partial_fields && !cJSON_AddNumberToObject(obj, "partial_fields", slot->partial_fields)) {
+            cJSON_Delete(obj);
+            cJSON_Delete(root);
+            return NULL;
+        }
         cJSON_AddNumberToObject(obj, "count", slot->sample_count);
         cJSON_AddNumberToObject(obj, "pv", slot->pv_kw);
         cJSON_AddNumberToObject(obj, "load", slot->load_kw);
@@ -574,10 +580,10 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             !isfinite(count->valuedouble) || count->valuedouble < 0 ||
             count->valuedouble > UINT32_MAX || floor(count->valuedouble)!=count->valuedouble ||
             (cJSON_IsTrue(valid)!=(count->valuedouble>0)) ||
-            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) || pv->valuedouble<0 || pv->valuedouble>15 ||
-            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) || load->valuedouble<0 || load->valuedouble>15 ||
-            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) || fabs(grid->valuedouble)>15 ||
-            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) || fabs(battery->valuedouble)>15 ||
+            !cJSON_IsNumber(pv) || !isfinite(pv->valuedouble) || pv->valuedouble<0 || pv->valuedouble>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(load) || !isfinite(load->valuedouble) || load->valuedouble<0 || load->valuedouble>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(grid) || !isfinite(grid->valuedouble) || fabs(grid->valuedouble)>(float)APP_DIRECT_POWER_MAX_KW ||
+            !cJSON_IsNumber(battery) || !isfinite(battery->valuedouble) || fabs(battery->valuedouble)>(float)APP_DIRECT_POWER_MAX_KW ||
             !totals_from_json(energy, &parsed->slots[i].energy)) {
             goto invalid;
         }
@@ -603,6 +609,13 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
         parsed->slots[i].grid_kw = (float)grid->valuedouble;
         parsed->slots[i].battery_kw = (float)battery->valuedouble;
         app_stats_slot_t *slot=&parsed->slots[i];
+        const cJSON *partial = cJSON_GetObjectItemCaseSensitive(obj, "partial_fields");
+        if (partial) {
+            if (!cJSON_IsNumber(partial) || !isfinite(partial->valuedouble) ||
+                partial->valuedouble < 0 || partial->valuedouble > 15 ||
+                floor(partial->valuedouble) != partial->valuedouble) goto invalid;
+            slot->partial_fields = (uint8_t)partial->valuedouble;
+        }
         if(version->valuedouble>=3){
             cJSON *soc=cJSON_GetObjectItemCaseSensitive(obj,"soc");
             cJSON *soc_valid=cJSON_GetObjectItemCaseSensitive(obj,"soc_valid");
@@ -625,14 +638,14 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
             slot->chart_gap=cJSON_IsTrue(gap);
 #define LOAD_SPLIT(field) do { \
     cJSON *v=cJSON_GetObjectItemCaseSensitive(split,#field); \
-    if(!cJSON_IsNumber(v) || !isfinite(v->valuedouble) || v->valuedouble<0 || v->valuedouble>15)goto invalid; \
+    if(!cJSON_IsNumber(v) || !isfinite(v->valuedouble) || v->valuedouble<0 || v->valuedouble>(float)APP_DIRECT_POWER_MAX_KW)goto invalid; \
     slot->split.field=(float)v->valuedouble; \
 } while(0)
             LOAD_SPLIT(pv_home); LOAD_SPLIT(pv_export); LOAD_SPLIT(pv_stored);
             LOAD_SPLIT(grid_home); LOAD_SPLIT(battery_home);
 #undef LOAD_SPLIT
-            if(fabs(slot->split.pv_home+slot->split.pv_export+slot->split.pv_stored-slot->pv_kw)>.001 ||
-               fabs(slot->split.pv_home+slot->split.grid_home+slot->split.battery_home-slot->load_kw)>.001)goto invalid;
+            if(!(slot->partial_fields & APP_STATS_NO_SPLIT) && (fabs(slot->split.pv_home+slot->split.pv_export+slot->split.pv_stored-slot->pv_kw)>.001 ||
+               fabs(slot->split.pv_home+slot->split.grid_home+slot->split.battery_home-slot->load_kw)>.001))goto invalid;
         }
     }
 
@@ -646,8 +659,15 @@ static bool day_from_json(cJSON *root, const char *expected_date, day_data_t *ou
     if(version->valuedouble>=3){
         MATCH_TOTAL(pv_home_kwh);MATCH_TOTAL(pv_export_kwh);MATCH_TOTAL(pv_stored_kwh);
         MATCH_TOTAL(grid_home_kwh);MATCH_TOTAL(battery_home_kwh);
-        if(fabs(parsed->totals.pv_home_kwh+parsed->totals.pv_export_kwh+parsed->totals.pv_stored_kwh-parsed->totals.production_kwh)>1e-5)goto invalid;
-        if(fabs(parsed->totals.pv_home_kwh+parsed->totals.grid_home_kwh+parsed->totals.battery_home_kwh-parsed->totals.consumption_kwh)>1e-5)goto invalid;
+        for (int i = 0; i < APP_STATS_SLOT_COUNT; i++) {
+            const app_stats_slot_t *slot = &parsed->slots[i];
+            const app_energy_totals_t *e = &slot->energy;
+            double unmatched_pv = e->production_kwh - e->pv_home_kwh - e->pv_export_kwh - e->pv_stored_kwh;
+            double unmatched_home = e->consumption_kwh - e->pv_home_kwh - e->grid_home_kwh - e->battery_home_kwh;
+            if (unmatched_pv < -1e-5 || unmatched_home < -1e-5 ||
+                (!(slot->partial_fields & APP_STATS_NO_SPLIT) &&
+                 (unmatched_pv > 1e-5 || unmatched_home > 1e-5))) goto invalid;
+        }
     }
 #undef MATCH_TOTAL
     if(version->valuedouble<3){
@@ -882,12 +902,7 @@ static void cleanup_old_files(const char *today, const char *yesterday)
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        size_t len = strlen(entry->d_name);
-        if (len < 10 ||
-            entry->d_name[4] != '-' ||
-            entry->d_name[7] != '-') {
-            continue;
-        }
+        if (entry->d_type == DT_DIR || !app_stats_history_file(entry->d_name)) continue;
 
         char date[11] = {0};
         memcpy(date, entry->d_name, 10);
@@ -1010,6 +1025,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
     if (!cfg) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (cfg != &s_cfg) s_cfg = *cfg;
 
     if (!s_mutex) {
         s_mutex = xSemaphoreCreateMutex();
@@ -1019,7 +1035,6 @@ esp_err_t app_stats_init(const app_config_t *cfg)
         return ESP_ERR_NO_MEM;
     }
 
-    s_cfg = *cfg;
     if (cfg->cardless_slave) {
         if (cfg->data_recept_mode != APP_DATA_SLAVE) return ESP_ERR_INVALID_ARG;
         if (!s_remote) s_remote = calloc(1, sizeof(*s_remote));
@@ -1109,7 +1124,7 @@ esp_err_t app_stats_init(const app_config_t *cfg)
 /* Egy új érvényes MQTT minta beépítése a napi energiába és az ötperces átlagba. */
 void app_stats_process_sample(const app_energy_sample_t *sample)
 {
-    if (s_cfg.cardless_slave) return; /* A master az egyetlen hiteles integrátor. */
+    if (!app_stats_is_ready() || s_cfg.cardless_slave) return; /* A master az egyetlen hiteles integrátor. */
     if (!sample || !s_mutex) {
         return;
     }
@@ -1146,7 +1161,7 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
         }
         integrate_pair(&s_prev, sample, s_prev_time_synced && runtime.time_synced);
         int64_t gap=sample->received_epoch_s-s_prev.received_epoch_s;
-        if(gap>(int64_t)app_config_data_timeout(&s_cfg)){
+        if(gap>allowed_gap(&s_prev, sample, app_config_data_timeout(&s_cfg))){
             /* Az érintett ötperces ablakok kimaradnak; nem lesz kitalált összekötés. */
             int64_t cursor=s_prev.received_epoch_s;
             if(now-cursor>2*86400)cursor=now-2*86400;
@@ -1174,7 +1189,9 @@ void app_stats_process_sample(const app_energy_sample_t *sample)
 /* Szálbiztos snapshot készítése a UI számára, tegnapi azonos időszakos referenciával. */
 void app_stats_get_snapshot(app_stats_snapshot_t *out)
 {
-    if (!out || !s_mutex) {
+    if (!out) return;
+    if (!app_stats_is_ready()) {
+        memset(out, 0, sizeof(*out));
         return;
     }
 
@@ -1239,7 +1256,7 @@ bool app_stats_get_night_reference(app_assistant_night_t *out)
     if (!out)
         return false;
     memset(out, 0, sizeof(*out));
-    if (!s_mutex || s_cfg.data_recept_mode != APP_DATA_LOXONE)
+    if (!app_stats_is_ready() || s_cfg.data_recept_mode != APP_DATA_LOXONE)
         return false;
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
@@ -1292,7 +1309,7 @@ esp_err_t app_stats_save_now(void)
     /* SD nélküli slave-en nincs helyi, elveszíthető statisztikai írás.
      * A konfiguráció/profil már a saját NVS-commitja után kér újraindítást. */
     if (app_stats_is_ready() && s_cfg.cardless_slave) return ESP_OK;
-    if(!s_mutex || !s_save_mutex)return ESP_ERR_INVALID_STATE;
+    if(!app_stats_is_ready())return ESP_ERR_INVALID_STATE;
     if(!app_storage_is_ok())return ESP_ERR_INVALID_STATE;
     day_data_t *copy=malloc(sizeof(*copy));
     if(!copy)return ESP_ERR_NO_MEM;
@@ -1330,7 +1347,7 @@ esp_err_t app_stats_save_now(void)
 
 void app_stats_update_config(const app_statistics_config_t *cfg)
 {
-    if (!cfg || !s_mutex) return;
+    if (!cfg || !app_stats_is_ready()) return;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_cfg.statistics = *cfg;
     xSemaphoreGive(s_mutex);
@@ -1385,6 +1402,16 @@ static void stats_task(void *arg)
 {
     (void)arg;
     while(true){
+        if (!app_stats_is_ready()) {
+            if ((s_cfg.cardless_slave || app_storage_is_ok()) && app_storage_lock() == ESP_OK) {
+                (void)app_stats_init(&s_cfg);
+                app_storage_unlock();
+            }
+            if (!app_stats_is_ready()) {
+                vTaskDelay(pdMS_TO_TICKS(10000));
+                continue;
+            }
+        }
         app_stats_tick();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -1439,7 +1466,7 @@ void app_stats_remote_disconnected(void)
 
 /* Naptári hét (hétfőtől) vagy aktuális hónap; hiányzó nap nem nulla mérés. */
 void app_stats_get_period(bool month,app_stats_period_t *out){
-    if (s_cfg.cardless_slave) { if (out) memset(out, 0, sizeof(*out)); return; }
+    if (!app_stats_is_ready() || s_cfg.cardless_slave) { if (out) memset(out, 0, sizeof(*out)); return; }
     if(!out)return;
     memset(out,0,sizeof(*out));if(!s_mutex)return;
     time_t now=time(NULL);struct tm local;localtime_r(&now,&local);
@@ -1462,7 +1489,7 @@ void app_stats_get_period(bool month,app_stats_period_t *out){
 
 void app_stats_break_continuity(void)
 {
-    if(!s_mutex)return;
+    if(!app_stats_is_ready())return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     s_have_prev=false;
     app_battery_break(&s_today.battery);

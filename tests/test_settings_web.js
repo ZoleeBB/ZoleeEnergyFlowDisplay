@@ -24,6 +24,16 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
 (async()=>{
  await sandbox.api.load();
  const mode=nodes.get('DataReceptMode'),seed=nodes.get('DataSeedEnabled'),sections=sandbox.api.sections;
+ for(const id of ['wifi.password','mqtt.password','ota.password']){
+  const password=nodes.get(id),clear=nodes.get(id+'__clear'),controls=password.parentElement;
+  assert.equal(controls.parentElement.children[0].htmlFor,id);
+  assert.equal(controls.children[1].children[0],clear);
+  password.value='replacement';clear.checked=true;clear.onchange();
+  assert.equal(password.value,'');assert(password.disabled);
+  assert.equal(sandbox.api.values()[id.split('.')[0]].password,'');
+  clear.checked=false;clear.onchange();assert(!password.disabled);
+  assert.equal(sandbox.api.values()[id.split('.')[0]].password,null);
+ }
  const disabled=nodes.get('EnergyFlowDisabled');assert(disabled.disabled&&!disabled.checked);
  mode.value='loxone';mode.onchange();assert(!disabled.disabled);disabled.checked=true;assert.equal(sandbox.api.values().EnergyFlowDisabled,1);
  mode.value='mqtt';mode.onchange();assert(disabled.disabled&&!disabled.checked);
@@ -52,5 +62,13 @@ vm.runInContext(fs.readFileSync('assets/web/settings.js','utf8')+'\nglobalThis.a
  await nodes.get('settings').onsubmit({preventDefault(){}});
  assert.equal(posted.DataReceptMode,'slave');assert.equal(posted.DataSeedEnabled,0);
  assert.equal(posted.cardless_slave,true);
+ configuration.setup_pending=true; configuration.cardless_slave=false;
+ await sandbox.api.load();
+ assert.equal(mode.value,'');assert(nodes.get('save').disabled);assert(!mode.disabled);
+ assert(nodes.get('message').textContent.includes('Első beállítás'));
+ mode.value='inverter';mode.onchange();
+ assert(!nodes.get('save').disabled);
+ assert.equal(sandbox.api.values().DataReceptMode,'inverter');
+ assert(!Object.hasOwn(sandbox.api.values(),'setup_pending'));
  console.log('PASS: actual settings JS switches Slave without Wi-Fi/MQTT/NTP, prevents relay mode and saves canonical config');
 })().catch(error=>{console.error(error);process.exitCode=1;});

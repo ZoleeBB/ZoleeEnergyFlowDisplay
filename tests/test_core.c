@@ -110,6 +110,46 @@ static void test_integrals(void){
     feed(t+41,15,15,15);app_stats_get_snapshot(&snapshot);
     near(snapshot.totals.production_kwh,70./3600);tests++;
 }
+static void test_partial_cloud_measurements(void)
+{
+    time_t t = instant("2026-10-05", 12, 0, 0);
+    reset(t);
+    app_energy_sample_t s = sample(t, 3, -2, 4);
+    s.home_unavailable = s.grid_unavailable = s.battery_unavailable = true;
+    s.integration_period_s = 300;
+    const unsigned elapsed[] = {0, 300, 900};
+    for (unsigned i = 0; i < 3; i++) {
+        s.received_epoch_s = t + elapsed[i];
+        clock_at(s.received_epoch_s);
+        app_stats_process_sample(&s);
+    }
+    assert(app_stats_save_now() == ESP_OK);
+    assert(app_stats_init(&cfg) == ESP_OK);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.production_kwh, .25);
+    near(snapshot.totals.consumption_kwh, 0);
+    near(snapshot.totals.pv_export_kwh, 0);
+    near(snapshot.totals.battery_discharge_kwh, 0);
+    near(snapshot.totals.grid_export_kwh, 0);
+    assert(snapshot.slots[144].partial_fields == 15);
+    assert(!snapshot.slots[144].soc_valid && !snapshot.slots[144].chart_gap);
+    assert(snapshot.slots[146].chart_gap);
+    tests++;
+}
+static void test_wide_power_storage(void)
+{
+    time_t t = instant("2026-10-05", 12, 0, 0);
+    reset(t);
+    feed(t, APP_DIRECT_POWER_MAX_KW, -80, 45);
+    feed(t + 10, APP_DIRECT_POWER_MAX_KW, -80, 45);
+    assert(app_stats_save_now() == ESP_OK && app_stats_init(&cfg) == ESP_OK);
+    app_stats_get_snapshot(&snapshot);
+    near(snapshot.totals.production_kwh, APP_DIRECT_POWER_MAX_KW * 10 / 3600.);
+    near(snapshot.totals.grid_export_kwh, 80. * 10 / 3600.);
+    near(snapshot.totals.battery_discharge_kwh, 45. * 10 / 3600.);
+    assert(fabs(snapshot.slots[144].split.pv_home - APP_DIRECT_POWER_MAX_KW) < .001);
+    tests++;
+}
 static unsigned day_notifications;
 static void day_notification(void){day_notifications++;}
 static void test_midnight(bool background_first){
@@ -243,9 +283,27 @@ static void test_payload(void){
         cJSON *d=cJSON_Parse(payload);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateString("null"));
         char *text=cJSON_PrintUnformatted(d);assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);
         cJSON_free(text);cJSON_ReplaceItemInObject(d,all[j],cJSON_CreateNull());text=cJSON_PrintUnformatted(d);
-        bool optional=j>=5 && j<=8;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
+        bool optional=(j>=5 && j<=8) || j==11;assert((app_payload_parse(text,strlen(text),&result,error,sizeof(error))==ESP_OK)==optional);
         cJSON_free(text);cJSON_Delete(d);
     }
+    cJSON *sensor = cJSON_Parse(payload);
+    cJSON_DeleteItemFromObject(sensor, "BatteryTemperature");
+    for (int kind = 0; kind < 3; kind++) {
+        if (kind == 1) cJSON_AddNullToObject(sensor, "BatteryTemperature");
+        if (kind == 2) cJSON_ReplaceItemInObject(sensor, "BatteryTemperature", cJSON_CreateNumber(0));
+        char *wire = cJSON_PrintUnformatted(sensor);
+        assert(app_payload_parse(wire, strlen(wire), &result, error, sizeof(error)) == ESP_OK);
+        assert(result.battery_temperature_valid == (kind == 2));
+        near(result.battery_temperature_c, 0);
+        cJSON_free(wire);
+    }
+    cJSON_ReplaceItemInObject(sensor, "BatteryTemperature", cJSON_CreateNumber(81));
+    char *hot = cJSON_PrintUnformatted(sensor);
+    assert(app_payload_parse(hot, strlen(hot), &result, error, sizeof(error)) == ESP_OK);
+    assert(!result.battery_temperature_valid);
+    near(result.power_pv_kw, 3);
+    cJSON_free(hot);
+    cJSON_Delete(sensor);
     /* Mind az öt egész státusz fogadható; a határon kívüli/tört érték atomi hibát ad. */
     const double states[] = {1, 2, 3, 4, 5, 0, 6, 4.5, 5.5};
     for (unsigned i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
@@ -259,8 +317,8 @@ static void test_payload(void){
         cJSON_free(text);
         cJSON_Delete(state);
     }
-    const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","BatteryTemperature","WindSpeed"};
-    double bad[]={101,1.5,2,-.051,-36,81,-1};
+    const char *fields[]={"SocBat","Status","NightMode","PowerPV","Temperature","WindSpeed"};
+    double bad[]={101,1.5,2,-.051,-36,-1};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){
         cJSON *d=cJSON_Parse(payload);cJSON_SetNumberValue(cJSON_GetObjectItem(d,fields[i]),bad[i]);char *text=cJSON_PrintUnformatted(d);
         result.power_pv_kw=123;assert(app_payload_parse(text,strlen(text),&result,error,sizeof(error))!=ESP_OK);near(result.power_pv_kw,123);
@@ -507,20 +565,20 @@ static void test_cardless_stats(void)
     feed(t,3,1,0);feed(t+20,3,1,0);
     app_stats_get_snapshot(&snapshot);near(snapshot.totals.production_kwh,0);
     assert(app_stats_save_now()==ESP_OK&&rename_calls==0&&!sd_ok);
-    app_stats_remote_source("master-one");
+    app_stats_remote_source("ble-0-010203040506");
     memset(&snapshot,0,sizeof(snapshot));strcpy(snapshot.date,"2026-10-18");
     snapshot.totals.production_kwh=42;snapshot.slots[123].valid=true;
     snapshot.slots[123].split.pv_home=3;
     assert(app_stats_remote_publish(&snapshot));
     app_state_set_cardless(true);app_state_set_data_mode(APP_DATA_SLAVE);
     app_state_set_config_ok(true);app_state_set_time_synced(true);
-    app_state_set_slave(true,false,30,true);
+    app_state_set_slave(true,false,30,true,false);
     app_runtime_state_t runtime;
     app_state_get_runtime(&runtime);
-    runtime.has_valid_sample=true;
+    runtime.wifi_connected=false;runtime.has_valid_sample=false;
     assert(runtime.remote_stats_valid&&app_state_ota_ready(&runtime));
-    runtime.remote_stats_valid=false;assert(!app_state_ota_ready(&runtime));
-    runtime.cardless_slave=false;runtime.sd_ok=false;assert(!app_state_ota_ready(&runtime));
+    runtime.remote_stats_valid=false;assert(app_state_ota_ready(&runtime));
+    runtime.cardless_slave=false;runtime.sd_ok=false;assert(app_state_ota_ready(&runtime));
     app_stats_get_snapshot(&snapshot);
     assert(snapshot.remote&&snapshot.remote_available&&!snapshot.remote_stale);
     near(snapshot.totals.production_kwh,42);
@@ -532,7 +590,9 @@ static void test_cardless_stats(void)
     app_state_get_runtime(&runtime);assert(!runtime.remote_stats_valid);
     assert(snapshot.remote_available&&snapshot.remote_stale);
     near(snapshot.totals.production_kwh,42);
-    app_stats_remote_source("master-two");app_stats_get_snapshot(&snapshot);
+    app_stats_remote_source("ble-0-010203040506");app_stats_get_snapshot(&snapshot);
+    assert(snapshot.remote_available && snapshot.remote_stale);
+    app_stats_remote_source("ble-0-010203040507");app_stats_get_snapshot(&snapshot);
     assert(!snapshot.remote_available);near(snapshot.totals.production_kwh,0);
     strcpy(snapshot.date,"2026-10-17");assert(!app_stats_remote_publish(&snapshot));
     strcpy(snapshot.date,"2026-10-18");snapshot.totals.production_kwh=99;
@@ -657,7 +717,7 @@ static void test_assistant_night_history(void)
 
 static void test_battery_diagnostics_storage(void)
 {
-    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_SLAVE};
+    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_LOXONE, APP_DATA_INVERTER, APP_DATA_SLAVE};
     for (unsigned mode = 0; mode < sizeof(modes) / sizeof(modes[0]); mode++)
     {
         time_t start = instant("2026-10-21", 22, 0, 0);
@@ -729,14 +789,38 @@ static void test_battery_diagnostics_storage(void)
         app_stats_get_snapshot(&snapshot);
         assert(!snapshot.battery.capacity_valid && snapshot.battery.cycles == 0);
     }
-    puts("PASS: battery diagnostics across midnight, actual SD/reboot and all four local data modes");
+    puts("PASS: battery diagnostics across midnight, actual SD/reboot in MQTT, HTTP, Loxone, direct inverter and SD-backed Slave modes");
+    tests++;
+}
+
+static void test_history_retention_preserves_other_files(void)
+{
+    reset(instant("2026-11-18", 12, 0, 0));
+    const char *const names[] = {
+        "2024-02-29.json", "2024-02-29.json.tmp", "2024-02-29.JSON.BAK",
+        "2024-02-29.csv", "2024-02-29.json.notes", "2025-02-29.json"
+    };
+    for (unsigned i = 0; i < 6; ++i) {
+        char path[256];
+        snprintf(path, sizeof(path), APP_SD_MOUNT_POINT "/stats/%s", names[i]);
+        FILE *file = fopen(path, "wb");
+        assert(file);
+        assert(fclose(file) == 0);
+    }
+    assert(app_stats_init(&cfg) == ESP_OK); /* First configured boot after reset also runs retention. */
+    for (unsigned i = 0; i < 6; ++i) {
+        char path[256];
+        snprintf(path, sizeof(path), APP_SD_MOUNT_POINT "/stats/%s", names[i]);
+        assert((access(path, F_OK) == 0) == (i >= 3));
+    }
     tests++;
 }
 
 int main(void){
     setenv("TZ","UTC0",1);tzset();app_state_init();app_events_init();
+    test_history_retention_preserves_other_files();
     test_payload();test_config();test_flow();test_events();
-    test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
+    test_wide_power_storage();test_partial_cloud_measurements();test_integrals();test_midnight(false);test_midnight(true);test_completed_interval();
     test_sd_recovery();test_nonblocking_save();test_tmp_and_backup();test_corrupt_schema();
     /* Budapesti helyi éjfél: ugyanaz az elvárt elosztás. */
     setenv("TZ","CET-1CEST,M3.5.0/2,M10.5.0/3",1);tzset();test_midnight(true);

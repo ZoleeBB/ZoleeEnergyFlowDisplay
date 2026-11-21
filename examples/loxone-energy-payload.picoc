@@ -12,7 +12,7 @@
 // I9  HasPrecipitation   [0/1]
 // I10 Status             [1..5]
 // I11 NightMode          [0/1]
-// I12 BatteryTemperature [C]
+// I12 BatteryTemperature [C]   opcionális, bekötve: BATTERY_TEMP_PRESENT = 1
 // I13 WeatherPresent     [0..15] jelenlétmaszk: I6=1, I7=2, I8=4, I9=8
 // A nem használt időjárásbemenet bitje 0; minden bekötve: 15.
 // Pico C nem jelzi a bekötöttséget: a maszkot a Configban kell beállítani.
@@ -27,6 +27,7 @@
 // írt C string literálok automatikus összefűzését. A teljes JSON formátum
 // ezért egyetlen string literál marad az sprintf() hívásban.
 
+#define BATTERY_TEMP_PRESENT 0
 #define UPDATE_INTERVAL_MS 5000
 #define JSON_BUFFER_SIZE 1024
 
@@ -48,7 +49,9 @@ while (TRUE)
     float hasPrecipitation = getinput(8);
     float status = getinput(9);
     float nightMode = getinput(10);
-    float batteryTemperature = getinput(11);
+    char batteryTemperatureJson[64];
+    if (BATTERY_TEMP_PRESENT) sprintf(batteryTemperatureJson, "%f", getinput(11));
+    else sprintf(batteryTemperatureJson, "null");
     float weatherPresentInput = getinput(12);
     int weatherPresent = 0;
     if (weatherPresentInput >= 0 && weatherPresentInput <= 15)
@@ -95,10 +98,10 @@ while (TRUE)
     if (weatherPresent & 4) sprintf(sunJson, "%f", hasSunRadiation);
     if (weatherPresent & 8) sprintf(precipitationJson, "%f", hasPrecipitation);
 
-    // A firmware által elvárt 12 kötelező mezőből egyetlen JSON objektum készül.
+    // A mért értékekből egyetlen JSON objektum készül.
     sprintf(
         json,
-        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%s,\"WindSpeed\":%s,\"HasSunRadiation\":%s,\"HasPrecipitation\":%s,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%f,\"SunPosition\":%s}",
+        "{\"PowerGrid\":%f,\"PowerBat\":%f,\"PowerPV\":%f,\"SocBat\":%f,\"PowerFull\":%f,\"Temperature\":%s,\"WindSpeed\":%s,\"HasSunRadiation\":%s,\"HasPrecipitation\":%s,\"Status\":%f,\"NightMode\":%f,\"BatteryTemperature\":%s,\"SunPosition\":%s}",
         powerGrid,
         powerBat,
         powerPV,
@@ -110,7 +113,7 @@ while (TRUE)
         precipitationJson,
         status,
         nightMode,
-        batteryTemperature,
+        batteryTemperatureJson,
         sunPositionJson
     );
 

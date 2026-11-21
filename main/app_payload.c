@@ -1,9 +1,9 @@
 /*
  * MQTT JSON payload validálása és normalizálása.
  *
- * A csomag csak akkor kerül tovább a rendszerbe, ha mind a 12 kötelező mező
+ * A csomag csak akkor kerül tovább a rendszerbe, ha mind a 11 kötelező mező
  * megtalálható, megfelelő típusú és a specifikált tartományban van.
- * A négy időjárási mező JSON null értéke is megengedett.
+ * Az akkuhőmérséklet elhagyható. Az időjárás és az akkuhőfok null is lehet.
  */
 #include "app_payload.h"
 
@@ -15,7 +15,7 @@
 #include "cJSON.h"
 #include "esp_timer.h"
 
-#define REQUIRED_FIELD_COUNT 12
+#define FIELD_COUNT 12
 
 /* A kötelező mezők belső azonosítói. */
 typedef enum
@@ -35,7 +35,7 @@ typedef enum
 } field_id_t;
 
 /* A protokollban használt kanonikus mezőnevek. */
-static const char *s_names[REQUIRED_FIELD_COUNT] = {"PowerGrid",
+static const char *s_names[FIELD_COUNT] = {"PowerGrid",
                                                     "PowerBat",
                                                     "PowerPV",
                                                     "SocBat",
@@ -56,7 +56,7 @@ static int field_id_for_name(const char *name)
         return -1;
     }
 
-    for (int i = 0; i < REQUIRED_FIELD_COUNT; i++)
+    for (int i = 0; i < FIELD_COUNT; i++)
     {
         if (strcasecmp(name, s_names[i]) == 0)
         {
@@ -158,7 +158,7 @@ esp_err_t app_payload_parse(
     }
 
     /* Először összegyűjtjük a kötelező mezők mutatóit és kiszűrjük a duplikációt. */
-    cJSON *fields[REQUIRED_FIELD_COUNT] = {0};
+    cJSON *fields[FIELD_COUNT] = {0};
     cJSON *item = NULL;
 
     cJSON_ArrayForEach(item, root)
@@ -182,9 +182,9 @@ esp_err_t app_payload_parse(
         fields[id] = item;
     }
 
-    for (int i = 0; i < REQUIRED_FIELD_COUNT; i++)
+    for (int i = 0; i < FIELD_COUNT; i++)
     {
-        if (!fields[i])
+        if (i != F_BAT_TEMP && !fields[i])
         {
             fail(error, error_len, "Hiányzó kötelező mező", s_names[i]);
             cJSON_Delete(root);
@@ -237,10 +237,17 @@ esp_err_t app_payload_parse(
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_WIND_SPEED]);
         goto invalid;
     }
-    if (!number_in_range(fields[F_BAT_TEMP], -20, 80, &sample.battery_temperature_c))
+    sample.battery_temperature_valid = fields[F_BAT_TEMP] && !cJSON_IsNull(fields[F_BAT_TEMP]);
+    if (sample.battery_temperature_valid && !cJSON_IsNumber(fields[F_BAT_TEMP]))
     {
         fail(error, error_len, "Érvénytelen tartomány vagy típus", s_names[F_BAT_TEMP]);
         goto invalid;
+    }
+
+    if (sample.battery_temperature_valid) {
+        double celsius = fields[F_BAT_TEMP]->valuedouble;
+        sample.battery_temperature_valid = app_battery_temperature_in_range(celsius);
+        if (sample.battery_temperature_valid) sample.battery_temperature_c = celsius;
     }
 
     /* A logikai mezők a protokoll szerint kizárólag numerikus 0/1 értékek lehetnek. */

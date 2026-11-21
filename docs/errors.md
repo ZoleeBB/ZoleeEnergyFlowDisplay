@@ -2,11 +2,11 @@
 
 ## Induláskori blokkoló hibák
 
-Az alábbi hibák esetén a normál dashboard nem indul el:
+Ha a 10,1″-es kijelzőn a bekapcsolás után a Wi-Fi, a Loxone-kapcsolat vagy az első mérés sora látható, a kijelző még a kapcsolatot építi fel. A Loxone-beállításokat a megjelenített webcímen már ekkor is javíthatod. [Indulás üzemmódonként](first-start.md#indulás-mentett-beállításokkal)
 
-- SD-kártya nem érhető el
-- config.json hiányzik
-- config.json hibás
+Hiányzó SD vagy hiányzó, hibás `config.json` esetén a kijelző megpróbálja visszaállítani a mentett konfigurációt. Új eszközön a [Wi-Fi első beállítása](first-run-wifi.md) indul el. A normál indulást például az alábbi hibák állíthatják meg.
+
+- belső konfiguráció olvasási hibája
 - Wi-Fi inicializálás sikertelen
 - NTP inicializálás sikertelen
 - statisztikai tárhely nem inicializálható
@@ -17,7 +17,7 @@ A képernyőn a konkrét hiba látható, a részletes technikai log a soros konz
 
 ## Wi-Fi kapcsolat megszakad
 
-Azonnal teljes képernyős `Nincs Wi-Fi kapcsolat` állapot jelenik meg.
+A Wi-Fi-t használó, már üzemben lévő Masteren teljes képernyős `Nincs Wi-Fi kapcsolat` állapot jelenik meg.
 
 Újracsatlakozás alapértelmezés szerint 15 másodpercenként történik. Siker esetén a normál működés automatikusan folytatódik.
 
@@ -27,7 +27,11 @@ Külön MQTT kapcsolati hibaképernyő jelenik meg. Az újracsatlakozási idő a
 
 ## Adatkimaradás
 
-Ha az aktív MQTT-, HTTP- vagy Loxone-fogadó kész, de a konfigurált időn belül nincs érvényes csomag, teljes képernyős adathiányjelzés jelenik meg. A hibás csomag nem indítja újra az időkorlátot; érvényes csomagnál a felület automatikusan helyreáll.
+A 10,1″-es kijelző MQTT, HTTP és Loxone módban az első érvényes energiamérést az indulóképernyőn várja. Ha a már működő energiaábra adatai elévülnek, teljes képernyős adathiányjelzés jelenik meg. A felület a következő érvényes csomagnál automatikusan helyreáll.
+
+## Megszakadt az inverterkapcsolat
+
+Ha egy működő inverterkapcsolat megszakad, a Master a háttérben újrapróbálkozik. Az **Inverter beállítások** fülön láthatod az utolsó mérést és a kapcsolat állapotát. A **Nincs friss invertermérés** felirat azt jelzi, hogy friss mérési adat hiányzik. Felhős profilnál ellenőrizd, mikor kapott adatot a gyártó alkalmazása. Helyi kapcsolatnál ellenőrizd, hogy az inverter és az adatgyűjtő elérhető-e a Master hálózatán. [Kapcsolati hibák, türelmi idő és automatikus visszatérés](direct-inverter.md#hibakeresés) · [IP-címváltozás követése](direct-inverter.md#helyi-elérés-dhcp-vel)
 
 ## Futás közbeni SD hiba
 
@@ -162,7 +166,7 @@ A `Timeout time too long, max is LWIP_UINT32_MAX/4 msecs` assert firmware-időz�
 
 Ez az assert nem bizonyít NAS- vagy hálózati hibát. Az NTP-szerver lehet közvetlen IP-cím is. Az új napló jelzi az inicializálást, a szervert, a tíz másodperces várakozást és annak eredményét. Az indulás továbbra is megvárja a sikeres időszinkront, mert a napi statisztika valós helyi időt igényel; sikertelen válasznál a konfigurált retry szerint próbálkozik újra.
 
-A kezdeti Wi-Fi/MQTT kapcsolódás a bootképernyőn marad. A kapcsolatvesztés hibaképernyője az adott indulási kapcsolódási lépés után használható. A hibaikon háttérkörén csak a színes körvonal átlátszósága pulzál; a PNG-t tartalmazó teljes objektum átlátszósága változatlan, és nincs örökölt outline/shadow.
+A hibaikon háttérkörén csak a színes körvonal átlátszósága pulzál; a PNG-t tartalmazó teljes objektum átlátszósága változatlan, és nincs örökölt outline/shadow.
 
 ## Villódzó vagy függőleges csíkokra széteső feliratok
 

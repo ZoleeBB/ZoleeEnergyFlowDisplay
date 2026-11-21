@@ -61,6 +61,10 @@ A `DataReceptMode=http` módhoz közvetlen POST-minta tartozik: [loxone-energy-h
 
 ## Időjárás jelenlétjelzés (I13)
 
+Az I12 bemenet használatához állítsd a mintakód `BATTERY_TEMP_PRESENT` értékét
+1-re. Alapértéken (0) a program `null` értéket küld. Ez üres bemenetnél
+elrejti a hőfokot, bekötött érzékelőnél pedig a mért 0 °C is megjelenhet.
+
 Az **I1–I12 sorrendje változatlan**. A minták az eddig szabad **I13** bemenetet
 használják `WeatherPresent` jelenlétmaszkként; ez nem lesz új JSON-mező.
 A dokumentált Pico C API-ban nincs bekötöttség-lekérdezés: a `getinput()`

@@ -56,6 +56,16 @@ static bool home_storage_wait;
 static bool home_icon_corrupt;
 static bool home_missing_card_icons;
 
+/* A valódi LVGL-dekódert hívjuk tovább, miközben az ismételt bontást számláljuk. */
+static unsigned png_decodes;
+unsigned __real_lodepng_decode32(unsigned char **, unsigned *, unsigned *, const unsigned char *, size_t);
+unsigned __wrap_lodepng_decode32(unsigned char **out, unsigned *width, unsigned *height,
+                                const unsigned char *png, size_t size)
+{
+    ++png_decodes;
+    return __real_lodepng_decode32(out, width, height, png, size);
+}
+
 bool __real_app_templates_load_blocked(void);
 bool __wrap_app_templates_load_blocked(void)
 {
@@ -200,7 +210,10 @@ void bsp_display_brightness_set(int value){last_pwm_brightness=value;}
 int xTaskCreate(void (*f)(void *),const char *n,unsigned st,void *a,unsigned p,void *h)
 {(void)f;(void)n;(void)st;(void)a;(void)p;(void)h;return 1;}
 void vTaskDelay(unsigned ms){(void)ms;}
-void app_state_get_runtime(app_runtime_state_t *out){*out=(app_runtime_state_t){.wifi_connected=runtime_wifi_connected,.mqtt_connected=true};}
+void app_state_get_runtime(app_runtime_state_t *out)
+{
+    *out = (app_runtime_state_t){.wifi_connected = runtime_wifi_connected, .mqtt_connected = true};
+}
 bool app_state_get_sample(app_energy_sample_t *out){(void)out;return false;}
 void app_stats_get_snapshot(app_stats_snapshot_t *out){*out=fixture;}
 void app_stats_get_period(bool month,app_stats_period_t *out){
@@ -709,7 +722,8 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     assert(disc&&bar&&grid&&production&&comparison);
     app_energy_sample_t s=*original;
     s.sun_position_valid=true;s.sun_altitude_deg=25;s.night_mode=false;
-    s_animation_sample=s;
+    s.sunrise_minute=s.sunset_minute=-1;
+    template_update(&s,&fixture);
     const double levels[]={2,4,8,16};
     for(unsigned i=0;i<4;i++){
         s_animation_sample.power_pv_kw=levels[i];disc->phase=0;
@@ -740,11 +754,14 @@ static void test_solar_dashboard(const app_energy_sample_t *original){
     s_animation_sample.power_pv_kw=0;disc->phase=.5f;template_animate(.1f);
     assert(fabsf(disc->phase-.62f)<.0001f&&lv_obj_get_style_border_opa(disc->detail,0)==0);
     assert(lv_obj_get_style_bg_opa(disc->detail,0)==0);
-    s_animation_sample.night_mode=true;s_animation_sample.sun_altitude_deg=-10;
+    s.night_mode=true;s.sun_altitude_deg=-10;
+    template_update(&s,&fixture);
+    lv_obj_update_layout(s_screen);
     int disc_x=lv_obj_get_x(disc->obj),disc_y=lv_obj_get_y(disc->obj);
     template_animate(.1f);
     assert(lv_obj_get_style_border_width(disc->detail,0)==0);
     assert(lv_obj_get_x(disc->obj)==disc_x&&lv_obj_get_y(disc->obj)==disc_y);
+    s.night_mode=false;s.sun_altitude_deg=25;
     const int socs[]={0,29,30,47,49,50,70,71,100};
     const uint32_t soc_colors[]={RED,RED,ORANGE,ORANGE,ORANGE,YELLOW,YELLOW,GREEN,GREEN};
     for(unsigned i=0;i<sizeof(socs)/sizeof(socs[0]);i++){
@@ -825,6 +842,116 @@ static void test_solar_sunset(const app_energy_sample_t *original){
     puts("PASS: sunset last-hour clock sweep follows measured photo ridge within 2px; continuous night transition");
 }
 
+/* A változat nyers, PNG vagy előméretezett LVGL-forrása is a megnevezett SD-fájlhoz tartozzon. */
+static bool template_uses_asset(lv_obj_t *object, const char *file)
+{
+    const void *source = lv_image_get_src(object);
+    for (unsigned a = 0; a < template_view.asset_count; ++a) {
+        if (strcmp(template_view.assets[a].name, file)) continue;
+        if (source == &template_images[a]) return true;
+        for (unsigned r = 0; r < template_view.raw_count; ++r)
+            if (template_view.raws[r].asset == a && source == &template_raw_images[r]) return true;
+#if LV_USE_SNAPSHOT
+        for (unsigned r = 0; r < template_raster_count; ++r)
+            if (template_rasters[r].asset == a && source == &template_rasters[r].image) return true;
+#endif
+    }
+    return false;
+}
+
+/* A 09-es gyári fotón mért végpontok és ívfelezők. A háttér végig ugyanaz
+ * marad, a Nap és a Hold a szimulált helyi óra szerint cserélődik. */
+static void test_solar_clock(app_runtime_state_t rt, app_energy_sample_t sample)
+{
+    assert(!strcmp(template_view.id, "09-solar-journey"));
+    const time_t saved_epoch = epoch;
+    const app_energy_sample_t saved_sample = sample;
+    struct tm date = {.tm_year=126, .tm_mon=9, .tm_mday=5, .tm_isdst=-1};
+    const time_t midnight = mktime(&date);
+    static const struct {
+        int minute, second, rise, set, altitude;
+        bool day;
+        int x, y;
+    } cases[] = {
+        {1079, 59, 360, 1080, -8, true, 846, 414},
+        {1080,  0, 360, 1080,  8, false, 846, 416},
+        {1440,  0, 360, 1080,  8, false, 466, 610},
+        {1799, 59, 360, 1080,  8, false, 88, 403},
+        {1800,  0, 360, 1080, -8, true, 88, 401},
+        {2160,  0, 360, 1080, -8, true, 480, 94},
+        {   0,  0, 1080, 360, -8, true, 480, 94},
+        { 360,  0, 1080, 360,  8, false, 846, 416},
+        { 720,  0, 1080, 360,  8, false, 466, 610},
+        {1080,  0, 1080, 360, -8, true, 88, 401},
+        { 720,  0, -1,  1080,  8, true, 480, 94},
+        { 720,  0, 360,   -1, -8, false, 466, 610},
+        { 720,  0, 360,  360,  0, false, 466, 610},
+        { 720,  0, 360, 1440,  8, true, 480, 94},
+    };
+    sample.sun_position_valid = true;
+    sample.sun_azimuth_deg = 180;
+    sample.power_pv_kw = 0;
+    render_runtime(rt, sample, true, 31000000);
+    lv_obj_t *background = template_nodes[0].obj;
+    template_node_t *disc = NULL;
+    for (unsigned i = 0; i < template_node_count; ++i)
+        if (!strcmp(ts(template_nodes[i].spec, "type"), "solar_disc")) disc = &template_nodes[i];
+    assert(disc && template_uses_asset(background, sample.night_mode ? "night.png" : "day.png"));
+    lv_obj_t *sprite = disc->obj;
+    const void *scene_image = lv_image_get_src(background);
+    for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i) {
+        epoch = midnight + cases[i].minute * 60 + cases[i].second;
+        sample.sunrise_minute = cases[i].rise;
+        sample.sunset_minute = cases[i].set;
+        sample.sun_altitude_deg = cases[i].altitude;
+        render_runtime(rt, sample, true, 31000000);
+        lv_obj_update_layout(s_screen);
+        assert(template_nodes[0].obj == background && lv_image_get_src(background) == scene_image);
+        assert(disc->obj == sprite && !lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN));
+        assert(template_uses_asset(sprite, cases[i].day ? "solar_day.png" : "solar_night.png"));
+        assert(lv_color_eq(lv_obj_get_style_bg_color(disc->detail, 0), c(cases[i].day ? 0xFFD23B : 0x78BFEF)));
+        assert(abs(lv_obj_get_x(sprite) + 21 - cases[i].x) <= 2);
+        assert(abs(lv_obj_get_y(sprite) + 21 - cases[i].y) <= 2);
+        if (i < 2 && !sample.night_mode) save_frame(i ? "solar-clock-sunset" : "solar-clock-before-sunset");
+        template_update(&sample, &fixture);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        unsigned invalidations = 0, before = png_decodes;
+        lv_display_add_event_cb(display, count_invalidations, LV_EVENT_INVALIDATE_AREA, &invalidations);
+        template_update(&sample, &fixture);
+        lv_obj_update_layout(s_screen);
+        lv_refr_now(display);
+        lv_display_remove_event_cb_with_user_data(display, count_invalidations, &invalidations);
+        assert(invalidations == 0 && png_decodes == before);
+    }
+    /* Egy régi vagy még nem szinkronizált falióra ne írja felül a mért magasságot. */
+    sample.sunrise_minute = 360;
+    sample.sunset_minute = 1080;
+    sample.sun_altitude_deg = -1;
+    epoch = midnight + 720 * 60;
+    rt.time_synced = false;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_night.png"));
+    rt.time_synced = true;
+    epoch = 12 * 3600;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_night.png"));
+    epoch = midnight + 720 * 60;
+    render_runtime(rt, sample, true, 31000000);
+    assert(template_uses_asset(sprite, "solar_day.png"));
+    sample.sunset_minute = -1;
+    sample.sun_position_valid = false;
+    render_runtime(rt, sample, true, 31000000);
+    assert(lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(disc->detail, LV_OBJ_FLAG_HIDDEN));
+    sample.sun_position_valid = true;
+    sample.sun_altitude_deg = -1;
+    render_runtime(rt, sample, true, 31000000);
+    assert(!lv_obj_has_flag(sprite, LV_OBJ_FLAG_HIDDEN) && template_uses_asset(sprite, "solar_night.png"));
+    epoch = saved_epoch;
+    render_runtime(rt, saved_sample, true, 31000000);
+    puts("PASS: 09 solar clock boundaries, midnight, conflicting elevation, missing data and no idle redraw/decode");
+}
+
 /* A runtime frissítsen animációs mintát, képet és fényudvart lapozás nélkül. */
 static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_sample_t *original){
     if(strcmp(template_view.id,"09-solar-journey"))return;
@@ -849,18 +976,7 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         assert(disc&&disc->detail);
         const char *file=night?"solar_night.png":"solar_day.png";
         assert(!strcmp(ts(disc->spec,"file"),file));
-        bool image_matches=false;
-        for(unsigned a=0;a<template_view.asset_count;a++)if(!strcmp(template_view.assets[a].name,file)){
-            const void *src=lv_image_get_src(disc->obj);
-            if(src==&template_images[a])image_matches=true;
-            for(unsigned r=0;r<template_view.raw_count;r++)
-                if(template_view.raws[r].asset==a&&src==&template_raw_images[r])image_matches=true;
-#if LV_USE_SNAPSHOT
-            for(unsigned r=0;r<template_raster_count;r++)
-                if(template_rasters[r].asset==a&&src==&template_rasters[r].image)image_matches=true;
-#endif
-        }
-        assert(image_matches);
+        assert(template_uses_asset(disc->obj, file));
         assert(lv_obj_get_index(disc->detail)<lv_obj_get_index(disc->obj));
         assert(!lv_obj_has_flag(disc->detail,LV_OBJ_FLAG_HIDDEN));
         /* Már az első frame-en legyen megfelelő kitöltés és kiterjedés. */
@@ -893,6 +1009,7 @@ static void test_solar_mode_transitions(app_runtime_state_t rt,const app_energy_
         }
     }
     epoch=saved_epoch;render_runtime(rt,*original,true,31000000);
+    test_solar_clock(rt, *original);
     puts("PASS: direct-template startup and day/moon/day transitions refresh image, live sample and halo on first frame; invalid/valid recovery without paging");
 }
 
@@ -2021,6 +2138,9 @@ static void test_rapid_paging(app_runtime_state_t runtime, app_energy_sample_t s
     slow_swipe(640, 400, -8, 0);
     assert(template_loading_requested);
     assert(template_loading_frame() && s_view == VIEW_THEME_LOADING);
+    /* A következő SD-olvasás előtt az eredeti PNG-knek és a közvetlenül
+     * kirajzolt RAW-puffereknek is fel kell szabadulniuk. */
+    assert(!template_view.document && !template_view.asset_count && !template_view.raw_count);
 #if LV_USE_SNAPSHOT
     assert(template_raster_count == 0 && template_raster_bytes == 0);
 #endif
@@ -2194,6 +2314,22 @@ static void test_raw_sidecars(app_runtime_state_t runtime, app_energy_sample_t s
      * bilineáris szűrővel készül, ezért az ikonok képpontjai térhetnek el. */
     assert(!background);
     assert(strong < 1280 * 800 / 100);
+    /* Csak a jelenet újrarajzolását kérjük: a kiválasztás és az SD-pufferek
+     * azonosak maradnak. Tényleges témaváltásnál már az olvasás előtt eltűnnek. */
+    const void *raw_buffer = template_view.raws[0].bytes;
+    template_loading_requested = true;
+    assert(template_loading_frame());
+    template_prepare();
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && template_view.raws[0].bytes == raw_buffer);
+    /* A webes választás a normál kör betöltőkép-ellenőrzése után érkezik. */
+    assert(template_loading_frame() && s_view == VIEW_DASHBOARD);
+    assert(app_templates_select("builtin") == ESP_OK);
+    template_prepare();
+    assert(s_view == VIEW_THEME_LOADING);
+    assert(!template_view.document && !template_view.asset_count && !template_view.raw_count);
+    render_runtime(runtime, sample, true, 31000000);
+    assert(s_view == VIEW_DASHBOARD && !template_is_active());
     puts("PASS: raw sidecars are built step by step in the background, replace the PNG path and render the same frame");
 }
 
@@ -2795,6 +2931,229 @@ static void test_master_presence(app_config_t *config, app_energy_sample_t sampl
     puts("PASS: actual Master presence UI/PWM: first-0 and loss delay, day/night flags, touch, mode switch, source reset, reconnect and visible error screens");
 }
 
+static void test_inverter_connection_views(app_config_t *cfg, const app_energy_sample_t *sample)
+{
+    cfg->data_recept_mode = APP_DATA_INVERTER;
+    strcpy(cfg->project.language, "hu");
+    app_ui_set_config(cfg);
+    app_runtime_state_t rt = {.data_recept_mode = APP_DATA_INVERTER, .wifi_connected = true,
+                              .time_synced = true, .inverter_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS};
+    const int64_t measured = 100000000;
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_INVERTER_SETUP);
+    assert(strstr(lv_label_get_text(lv_obj_get_child(s_screen, 3)), "/inverter"));
+
+    rt.inverter_ready = true;
+    rt.inverter_read_failed = true;
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_INVERTER_WAIT);
+    assert(strstr(lv_label_get_text(s_error_title), "első"));
+    rt.has_valid_sample = true;
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = measured;
+    render_runtime(rt, *sample, true, measured);
+    assert(s_view == VIEW_DASHBOARD);
+
+    rt.inverter_read_failed = true;
+    render_runtime(rt, *sample, true, measured + 9999999);
+    assert(s_view == VIEW_DASHBOARD);
+    render_runtime(rt, *sample, true, measured + 10000000);
+    assert(s_view == VIEW_INVERTER_LOST);
+    assert(!strcmp(lv_label_get_text(s_error_title), "Megszakadt az inverterkapcsolat"));
+    assert(strstr(lv_label_get_text(s_error_detail), "háttérben keresi"));
+    save_frame("inverter-connection-lost-hu");
+    lv_obj_t *heading = s_error_title;
+    render_runtime(rt, *sample, true, measured + 15000000);
+    assert(s_error_title == heading);
+    rt.wifi_connected = false;
+    render_runtime(rt, *sample, true, measured + 16000000);
+    assert(s_view == VIEW_WIFI_ERROR);
+    rt.wifi_connected = true;
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = measured + 20000000;
+    render_runtime(rt, *sample, true, rt.last_valid_packet_monotonic_us);
+    assert(s_view == VIEW_DASHBOARD);
+
+    rt.inverter_timeout_seconds = app_cloud_sample_timeout(3600);
+    rt.inverter_read_failed = true;
+    int64_t deadline = rt.last_valid_packet_monotonic_us +
+                       (int64_t)rt.inverter_timeout_seconds * 1000000;
+    render_runtime(rt, *sample, true, deadline - 1);
+    assert(s_view == VIEW_DASHBOARD);
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "felhőből"));
+    rt.inverter_read_failed = false;
+    rt.last_valid_packet_monotonic_us = deadline;
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_DASHBOARD);
+    deadline += (int64_t)rt.inverter_timeout_seconds * 1000000;
+    render_runtime(rt, *sample, true, deadline);
+    assert(s_view == VIEW_INVERTER_STALE);
+
+    cfg->data_recept_mode = APP_DATA_SLAVE;
+    strcpy(cfg->project.language, "en");
+    app_ui_set_config(cfg);
+    rt = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .slave_connected = true,
+        .time_synced = true, .slave_source_stale = true, .slave_inverter_searching = true,
+        .slave_packet_monotonic_us = measured, .slave_source_timeout_seconds = APP_INVERTER_LOCAL_TIMEOUT_SECONDS};
+    render_runtime(rt, *sample, false, measured);
+    assert(s_view == VIEW_SLAVE_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "Master"));
+    assert(lv_obj_get_child_count(s_screen) == 3); /* The Slave does not host the inverter settings. */
+    rt.slave_source_timeout_seconds = app_cloud_sample_timeout(300);
+    render_runtime(rt, *sample, false, measured + 5000000);
+    assert(s_view == VIEW_SLAVE_INVERTER_LOST && strstr(lv_label_get_text(s_error_detail), "cloud"));
+    render_runtime(rt, *sample, false, measured + 15000000);
+    assert(s_view == VIEW_DATA_TIMEOUT);
+    rt.slave_connected = false;
+    render_runtime(rt, *sample, false, measured + 15000001);
+    assert(!strcmp(lv_label_get_text(s_error_title), "Searching for master"));
+    rt.slave_connected = true;
+    rt.slave_packet_monotonic_us = measured + 20000000;
+    rt.slave_source_stale = false;
+    rt.slave_inverter_searching = false;
+    rt.has_valid_sample = true;
+    rt.last_valid_packet_monotonic_us = rt.slave_packet_monotonic_us;
+    render_runtime(rt, *sample, true, rt.slave_packet_monotonic_us);
+    assert(s_view == VIEW_DASHBOARD);
+    puts("PASS: inverter setup, first reading, local grace, cloud stale/outage, Slave outage vs BLE loss, automatic recovery");
+}
+
+static void assert_boot_stage(app_boot_stage_t stage, const char *heading)
+{
+    assert(s_view == VIEW_BOOT && !s_error_pulse && s_boot_stage == stage);
+    assert(!strcmp(lv_label_get_text(lv_obj_get_child(s_screen, 2)), heading));
+    lv_obj_t *logo = lv_obj_get_child(s_screen, -1);
+    assert(lv_obj_check_type(logo, &lv_image_class));
+    assert(lv_image_get_src(logo) == &app_img_boot_logo);
+    lv_obj_update_layout(s_screen);
+    lv_area_t area;
+    lv_obj_get_coords(logo, &area);
+    assert(lv_area_get_width(&area) == app_img_boot_logo.header.w);
+    assert(lv_area_get_height(&area) == app_img_boot_logo.header.h);
+    assert(area.x2 == W - 35 && area.y2 == H - 29);
+}
+
+static void test_display_startup(const app_config_t *original)
+{
+    app_config_t cfg = *original;
+    const int64_t now = 60000000;
+    const app_data_mode_t modes[] = {APP_DATA_HTTP, APP_DATA_MQTT, APP_DATA_LOXONE, APP_DATA_SLAVE};
+    const char *connections[] = {"HTTP adatfogadó", "MQTT kapcsolat", "Loxone kapcsolat", "Slave / master keresése"};
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i) {
+        app_data_mode_t mode = modes[i];
+        cfg.data_recept_mode = mode;
+        cfg.http.data_timeout_seconds = cfg.mqtt.data_timeout_seconds = 30;
+        app_ui_set_config(&cfg);
+        display_startup_t boot = {0};
+        app_runtime_state_t rt = {.data_recept_mode = mode};
+        app_ui_show_boot(APP_BOOT_NTP, NULL);
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        if (mode != APP_DATA_SLAVE) {
+            assert_boot_stage(APP_BOOT_WIFI, "Wi-Fi kapcsolat");
+            rt.wifi_connected = true;
+        }
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_NTP, mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron");
+        if (mode == APP_DATA_SLAVE) {
+            pairing_fixture = (app_ble_pairing_status_t){.pin_required = true, .token = 19, .seconds = 30};
+            animation_tick(NULL);
+            assert(s_pair_pad);
+            strcpy(s_pair_digits, "12");
+            app_ui_show_boot(APP_BOOT_MQTT, NULL);
+            assert(s_pair_pad && !strcmp(s_pair_digits, "12") && s_boot_stage == APP_BOOT_NTP);
+            pairing_fixture.pin_required = false;
+            animation_tick(NULL);
+            assert(!s_pair_pad);
+        }
+        rt.time_synced = true;
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_MQTT, connections[i]);
+        if (mode == APP_DATA_LOXONE) {
+            assert(strstr(lv_label_get_text(lv_obj_get_child(s_screen, 3)), "/loxone"));
+            rt.loxone_configured = true;
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_MQTT, connections[i]);
+            save_frame("loxone-boot-connection-hu");
+            unsigned green = 0;
+            for (int y = H - 28 - app_img_boot_logo.header.h; y < H - 28; ++y)
+                for (int x = W - 34 - app_img_boot_logo.header.w; x < W - 34; ++x) {
+                    unsigned pixel = pixel_rgb(y * W + x);
+                    unsigned g = (pixel >> 8) & 255;
+                    if (g > (pixel >> 16) + 20 && g > (pixel & 255) + 20) ++green;
+                }
+            assert(green > 100);
+        }
+        rt.http_ready = rt.mqtt_connected = rt.loxone_connected = rt.slave_connected = true;
+        rt.slave_packet_monotonic_us = now;
+        assert(display_startup_waiting(&boot, &rt, false, now));
+        assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+        lv_obj_t *logo = lv_obj_get_child(s_screen, -1);
+        assert(display_startup_waiting(&boot, &rt, false, now + 100000000));
+        assert(lv_obj_get_child(s_screen, -1) == logo);
+        if (mode == APP_DATA_LOXONE) {
+            /* OTA-képernyő és a csengetéshez felszabadított háttér után is újrarajzol. */
+            busy_screen();
+            assert(s_view == VIEW_BUSY);
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+            home_reset_theme();
+            assert(display_startup_waiting(&boot, &rt, false, now));
+            assert_boot_stage(APP_BOOT_WAIT_DATA, "Várakozás az első adatcsomagra");
+        }
+        rt.has_valid_sample = true;
+        rt.last_valid_packet_monotonic_us = 1;
+        assert(display_startup_waiting(&boot, &rt, true, now));
+        rt.last_valid_packet_monotonic_us = now;
+        if (mode == APP_DATA_SLAVE) {
+            rt.slave_source_stale = true;
+            assert(display_startup_waiting(&boot, &rt, true, now));
+            rt.slave_source_stale = false;
+            assert(display_startup_waiting(&boot, &rt, true, now + 15000000));
+        }
+        assert(!display_startup_waiting(&boot, &rt, true, now));
+        rt.wifi_connected = rt.slave_connected = rt.loxone_connected = rt.mqtt_connected = false;
+        assert(!display_startup_waiting(&boot, &rt, false, now + 60000000));
+        if (mode == APP_DATA_HTTP) {
+            render_runtime(rt, (app_energy_sample_t){0}, false, now);
+            assert(s_view == VIEW_WIFI_ERROR && s_error_pulse);
+            assert(lv_obj_get_style_opa(s_error_pulse, 0) == LV_OPA_COVER);
+            assert(!lv_obj_get_style_outline_width(s_error_pulse, 0));
+            assert(!lv_obj_get_style_shadow_width(s_error_pulse, 0));
+            assert(lv_obj_get_style_border_opa(s_error_pulse, 0) >= 175);
+        }
+    }
+    cfg.data_recept_mode = APP_DATA_LOXONE;
+    cfg.energy_flow_disabled = true;
+    app_ui_set_config(&cfg);
+    app_runtime_state_t only = {.data_recept_mode = APP_DATA_LOXONE, .time_synced = true,
+                                .wifi_connected = true, .loxone_configured = true};
+    display_startup_t boot = {0};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.loxone_connected = true;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    cfg.energy_flow_disabled = false;
+    cfg.data_recept_mode = APP_DATA_SLAVE;
+    app_ui_set_config(&cfg);
+    only = (app_runtime_state_t){.data_recept_mode = APP_DATA_SLAVE, .time_synced = true,
+                                 .slave_connected = true, .energy_flow_disabled = true};
+    boot = (display_startup_t){0};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.slave_packet_monotonic_us = now;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    cfg.data_recept_mode = APP_DATA_INVERTER;
+    app_ui_set_config(&cfg);
+    boot = (display_startup_t){0};
+    app_ui_show_boot(APP_BOOT_NTP, NULL);
+    app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    assert_boot_stage(APP_BOOT_NTP, "Időszinkron");
+    only = (app_runtime_state_t){.data_recept_mode = APP_DATA_INVERTER};
+    assert(display_startup_waiting(&boot, &only, false, now));
+    only.time_synced = true;
+    assert(!display_startup_waiting(&boot, &only, false, now));
+    app_ui_set_config(original);
+    puts("PASS: mode-specific LVGL boot checklists, branded corner, first fresh data, controls-only and recovery");
+}
+
 int main(void)
 {
     /* Tegnap 0 értéknél sem szabad téves hiányjelet kiírni. */
@@ -2825,11 +3184,7 @@ int main(void)
     assert(s_error_pulse==NULL); /* Initial connection is progress, not a fault. */
     app_ui_show_boot(APP_BOOT_NTP,NULL);
     animation_tick(NULL);
-    assert(s_view==VIEW_WIFI_ERROR && s_error_pulse!=NULL);
-    assert(lv_obj_get_style_opa(s_error_pulse,0)==LV_OPA_COVER);
-    assert(lv_obj_get_style_outline_width(s_error_pulse,0)==0);
-    assert(lv_obj_get_style_shadow_width(s_error_pulse,0)==0);
-    assert(lv_obj_get_style_border_opa(s_error_pulse,0)>=175);
+    assert(s_view==VIEW_BOOT && !s_error_pulse);
     runtime_wifi_connected=true;
     app_ui_show_boot(APP_BOOT_NTP,NULL);
     lv_obj_t *text_probe=lbl(s_screen,"Probe",10,10,APP_FONT_14,0xffffff);
@@ -2846,7 +3201,6 @@ int main(void)
     assert(full_refresh ? frame_flushes>changed_flushes : invalidations>0);
     lv_display_remove_event_cb_with_user_data(display,count_invalidations,&invalidations);lv_obj_delete(text_probe);
     puts("PASS: unchanged labels, colours and opacity do not invalidate the screen; changed text still refreshes");
-    puts("PASS: initial Wi-Fi wait stays on boot page; later loss uses border-only error pulse without outline/shadow");
     app_config_t config={0};
     snprintf(config.project.title,sizeof(config.project.title),"Otthoni energia");
     snprintf(config.project.language,sizeof(config.project.language),"hu");
@@ -2855,6 +3209,8 @@ int main(void)
     config.energy.battery_capacity_kwh=15;
     config.energy.co2_factor_kg_per_kwh=.381;config.energy.tree_absorption_kg_per_year=22;
     app_ui_set_config(&config);s_started=true;
+    test_display_startup(&config);
+    if (getenv("ZOLEE_STARTUP_ONLY")) return 0;
     test_intercom_frame_mailbox();
     if (getenv("ZOLEE_INTERCOM_MAILBOX_ONLY")) {
         lv_display_delete(display); lv_deinit(); return 0;
@@ -2880,7 +3236,28 @@ int main(void)
     app_energy_sample_t sample={.power_pv_kw=7,.power_full_kw=2.1,.power_grid_kw=-4.5,.power_bat_kw=.4,
         .temperature_valid=true,.wind_speed_valid=true,.sun_radiation_valid=true,.precipitation_valid=true,
         .relative_humidity_valid=true,.relative_humidity_pct=61,
-        .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
+        .soc_bat_pct=87.4,.temperature_c=18.2,.wind_speed_kmh=12,.battery_temperature_valid=true,.battery_temperature_c=35,.has_sun_radiation=true,.status=1};
+    if (getenv("ZOLEE_SOLAR_CLOCK_ONLY")) {
+        ticks = 31000000;
+        config.data_recept_mode = APP_DATA_LOXONE;
+        app_ui_set_config(&config);
+        app_runtime_state_t runtime = {.data_recept_mode=APP_DATA_LOXONE, .wifi_connected=true, .time_synced=true,
+            .loxone_configured=true, .loxone_connected=true, .has_valid_sample=true,
+            .last_valid_packet_monotonic_us=31000000};
+        assert(app_templates_init() == ESP_OK);
+        assert(app_templates_select("09-solar-journey") == ESP_OK);
+        template_prepare();
+        for (unsigned night = 0; night < 2; ++night) {
+            sample.night_mode = night;
+            render_runtime(runtime, sample, true, 31000000);
+            test_solar_dashboard(&sample);
+            test_solar_sunset(&sample);
+            test_solar_mode_transitions(runtime, &sample);
+        }
+        lv_display_delete(display);
+        lv_deinit();
+        return 0;
+    }
     if (getenv("ZOLEE_AUDIO_ONLY") || getenv("ZOLEE_CONTROLS_ONLY") || getenv("ZOLEE_SHADING_ONLY") || getenv("ZOLEE_IRC_ONLY") || getenv("ZOLEE_LIGHTING_ONLY") || getenv("ZOLEE_HUMIDITY_ONLY") || getenv("ZOLEE_ENERGY_DISABLED_ONLY") || getenv("ZOLEE_NAVIGATION_ONLY") || getenv("ZOLEE_RENDER_COST_ONLY") || getenv("ZOLEE_CONSUMER_NOISE_ONLY") || getenv("ZOLEE_HOME_CLEANUP_ONLY") || getenv("ZOLEE_THEME_SWITCH_BENCH") || getenv("ZOLEE_EXPORT_SCALED_BACKGROUNDS"))
     {
         assert(app_templates_init() == ESP_OK);
@@ -2979,16 +3356,27 @@ int main(void)
         assert(lv_obj_has_flag(lv_obj_get_parent(s_wind_icon),LV_OBJ_FLAG_HIDDEN)==!optional.wind_speed_valid);
     }
     update(&sample,&fixture);
+    sample.battery_temperature_valid = false;
+    update(&sample, &fixture);
+    assert(lv_obj_has_flag(s_bt, LV_OBJ_FLAG_HIDDEN));
+    sample.battery_temperature_valid = true;
+    sample.battery_temperature_c = 0;
+    update(&sample, &fixture);
+    assert(!lv_obj_has_flag(s_bt, LV_OBJ_FLAG_HIDDEN) && strstr(lv_label_get_text(s_bt), "0 °C"));
     sample.status=4;sample.battery_temperature_c=51;update(&sample,&fixture);save_frame("hu-system-error");
     sample.status=1;sample.night_mode=true;sample.power_pv_kw=0;sample.has_sun_radiation=false;
     snprintf(config.project.language,sizeof(config.project.language),"en");app_ui_set_config(&config);
     build_dashboard(true);s_last_night=true;update(&sample,&fixture);save_frame("en-night");
     error_screen(VIEW_WIFI_ERROR,"No Wi-Fi connection","Waiting for connection to recover...",false);save_frame("en-wifi-error");
+    test_inverter_connection_views(&config, &sample);
     snprintf(config.project.language,sizeof(config.project.language),"hu");
     sample.night_mode=false;
     config.data_recept_mode=APP_DATA_HTTP;config.http.data_timeout_seconds=30;
     app_ui_set_config(&config);
-    app_ui_show_boot(APP_BOOT_MQTT,NULL);save_frame("http-boot-hu");
+    app_ui_show_boot(APP_BOOT_NTP,NULL);
+    app_ui_show_boot(APP_BOOT_MQTT, NULL);
+    assert(s_boot_stage == APP_BOOT_MQTT);
+    save_frame("http-boot-hu");
     app_runtime_state_t rt={.data_recept_mode=APP_DATA_HTTP,.wifi_connected=true,.http_ready=true,.http_ready_monotonic_us=1000000};
     render_runtime(rt,sample,false,30000000);assert(s_view==VIEW_WAIT_DATA);save_frame("http-wait-hu");
     render_runtime(rt,sample,false,31000000);assert(s_view==VIEW_DATA_TIMEOUT);save_frame("http-timeout-hu");
@@ -3070,7 +3458,7 @@ int main(void)
     app_boot_stage_t previous_boot=s_boot_stage;
     runtime_wifi_connected=false;s_started=false;
     app_ui_show_boot(APP_BOOT_NTP,"Master keresése...");
-    animation_tick(NULL);assert(s_view==VIEW_NONE);
+    animation_tick(NULL);assert(s_view==VIEW_BOOT);
     save_frame("slave-boot-no-wifi");
     s_started=previous_started;s_boot_stage=previous_boot;runtime_wifi_connected=true;
     clear();render_runtime(rt,sample,true,31000000);
@@ -3219,6 +3607,44 @@ int main(void)
                 if(!strcmp(template_view.id,"08-statistics"))expected_bg=night?0x1B2B38:0xE8F2EE;
                 assert(lv_color_eq(lv_obj_get_style_bg_color(s_screen,0),c(expected_bg)));
                 test_humidity_ui(&sample);test_weather_visibility(&sample);test_template_weather(&sample);test_template_motion();test_template_indicators(&sample);test_flow_rendering();test_solar_battery_route();test_legacy_solar_battery_route();test_theme_readability();test_calm_dashboard(&sample);test_orbit_dashboard(&sample);test_template_grid_restored(&sample);test_solar_status(&sample);test_solar_comparison_colors(&sample);test_solar_dashboard(&sample);test_solar_sunset(&sample);test_solar_mode_transitions(rt,&sample);
+                if (!strcmp(list[i].id, "03-instruments")) {
+                    app_energy_sample_t wide = sample;
+                    wide.power_pv_kw = 52.25;
+                    template_update(&wide, &fixture);
+                    unsigned checked = 0;
+                    for (unsigned j = 0; j < template_node_count; j++) {
+                        template_node_t *n = &template_nodes[j];
+                        if (strcmp(ts(n->spec, "power_scale"), "pv")) continue;
+                        if (!strcmp(ts(n->spec, "type"), "gauge"))
+                            assert(lv_arc_get_max_value(n->obj) == 600 && n->gauge_target == 522);
+                        else
+                            assert(strstr(lv_label_get_text(n->obj), "60 kW"));
+                        checked++;
+                    }
+                    assert(checked == 2);
+                }
+                app_energy_sample_t missing = sample;
+                missing.battery_temperature_valid = false;
+                template_update(&missing, &fixture);
+                for (unsigned j = 0; j < template_node_count; j++) {
+                    template_node_t *node = &template_nodes[j];
+                    if (node->needs & NEED_TEMP) {
+                        assert(lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN));
+                        if (node->detail) assert(lv_obj_has_flag(node->detail, LV_OBJ_FLAG_HIDDEN));
+                    }
+                }
+                missing.battery_unavailable = missing.grid_unavailable = missing.home_unavailable = true;
+                template_update(&missing, &fixture);
+                template_animate(.1f);
+                for (unsigned j = 0; j < template_node_count; j++) {
+                    template_node_t *node = &template_nodes[j];
+                    if (node->needs & (NEED_BAT | NEED_GRID | NEED_HOME | NEED_SPLIT)) {
+                        assert(lv_obj_has_flag(node->obj, LV_OBJ_FLAG_HIDDEN));
+                        for (unsigned d = 0; d < 4; d++)
+                            if (node->dots[d]) assert(lv_obj_has_flag(node->dots[d], LV_OBJ_FLAG_HIDDEN));
+                    }
+                }
+                template_update(&sample, &fixture);
                 if(!strcmp(list[i].id,"01-live-home")){
                     bool consumption_found=false;
                     for(unsigned node_id=0;node_id<template_node_count;node_id++){
@@ -3428,7 +3854,7 @@ int main(void)
     clear();template_release_cache();app_templates_view_free(&template_view);
     /* A firmware-be kerülő apró előnézetek ugyanebből a rajzolóból készülnek. */
     app_energy_sample_t builtin_sample=sample;
-    builtin_sample.status=1;builtin_sample.soc_bat_pct=74;builtin_sample.battery_temperature_c=32;
+    builtin_sample.status=1;builtin_sample.soc_bat_pct=74;builtin_sample.battery_temperature_valid=true;builtin_sample.battery_temperature_c=32;
     snprintf(config.project.language,sizeof(config.project.language),"hu");app_ui_set_config(&config);
     for(int night=0;night<2;night++){
         builtin_sample.night_mode=night;builtin_sample.power_pv_kw=night?0:7;

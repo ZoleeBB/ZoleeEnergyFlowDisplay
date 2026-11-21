@@ -58,10 +58,33 @@ static const char *card_html(int hu)
 
 int main(void)
 {
+    const char *menu = "<nav><a href='/loxone' data-nav='loxone'>Loxone</a></nav>";
+    const char with_menu[] = "<nav><a href='/loxone' data-nav='loxone'>Loxone</a></nav>"
+                             "<!--APP_SUPPORT--><main>OK</main>";
+    const app_data_mode_t modes[] = {APP_DATA_MQTT, APP_DATA_HTTP, APP_DATA_SLAVE,
+                                     APP_DATA_LOXONE, APP_DATA_INVERTER};
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i) {
+        for (int hu = 0; hu < 2; ++hu) {
+            for (int full = 0; full < 2; ++full) {
+                reset_response();
+                if (full) {
+                    assert(app_web_send_template(NULL, with_menu, hu, modes[i]) == ESP_OK);
+                    assert(strstr(response, "</nav>") && strstr(response, "<main>OK</main>"));
+                } else {
+                    assert(app_web_send_nav(NULL, menu, strlen(menu), hu, modes[i]) == ESP_OK);
+                }
+                assert((strstr(response, "/loxone") != NULL) == (modes[i] == APP_DATA_LOXONE));
+                assert((strstr(response, "/inverter") != NULL) == (modes[i] == APP_DATA_INVERTER));
+                if (modes[i] == APP_DATA_INVERTER)
+                    assert(strstr(response, hu ? "Inverter beállítások" : "Inverter settings"));
+            }
+        }
+    }
+
     const char page[] = "<html><body><!--APP_SUPPORT--><form>Settings</form></body></html>";
     for (int hu = 0; hu < 2; hu++) {
         reset_response();
-        assert(app_web_send_page(NULL, page, hu) == ESP_OK);
+        assert(app_web_send_template(NULL, page, hu, APP_DATA_LOXONE) == ESP_OK);
         assert(strstr(response, "<form>Settings</form>"));
         assert(strstr(response, "</body></html>"));
 #if SUPPORT_ENABLED
@@ -79,11 +102,11 @@ int main(void)
         for (int failure = 0; failure < 6; failure++) {
             reset_response();
             fail_at = failure;
-            assert(app_web_send_page(NULL, page, hu) == ESP_FAIL);
+            assert(app_web_send_template(NULL, page, hu, APP_DATA_LOXONE) == ESP_FAIL);
             assert(calls == failure + 1 && endings == 0);
         }
         reset_response();
-        assert(app_web_send_page(NULL, "<!--APP_SUPPORT-->", hu) == ESP_OK);
+        assert(app_web_send_template(NULL, "<!--APP_SUPPORT-->", hu, APP_DATA_LOXONE) == ESP_OK);
         assert(!strcmp(response, card_html(hu)) && endings == 1 && calls == 4);
 #else
         assert(!(hu ? app_support_card_hu : app_support_card_en)[0] && !app_support_logo[0]);
@@ -92,12 +115,12 @@ int main(void)
         assert(direct_sends == 1 && calls == 0 && endings == 0);
 #endif
         reset_response();
-        assert(app_web_send_page(NULL, "<html>Unmarked</html>", hu) == ESP_OK);
+        assert(app_web_send_template(NULL, "<html>Unmarked</html>", hu, APP_DATA_LOXONE) == ESP_OK);
         assert(!strcmp(response, "<html>Unmarked</html>") && direct_sends == 1);
         reset_response();
         assert(app_web_send_support(NULL, hu) == ESP_OK);
         assert(!strcmp(response, card_html(hu)) && endings == 0);
     }
-    puts("PASS: support HU/EN, exact page preservation, single termination, send errors and empty links");
+    puts("PASS: all five mode-specific menus, support HU/EN, exact page preservation, single termination, send errors and empty links");
     return 0;
 }

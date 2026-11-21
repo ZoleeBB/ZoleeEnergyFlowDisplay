@@ -6,9 +6,17 @@
  * hibaoldalakat. A kijelzőt csak az LVGL lock birtokában módosítjuk.
  */
 #include "app_ui.h"
+#ifndef APP_TEMPLATE_DESKTOP
+#include "app_boot_config.h"
+#include "app_setup_wifi.h"
+#include "app_setup_ui.h"
+#endif
 #include "app_ble_seed.h"
+#include "app_wifi.h"
 #ifndef APP_TEMPLATE_DESKTOP
 #include "app_ble_profile.h"
+#include "app_inverter.h"
+#include "app_inverter_schedule.h"
 #endif
 #include "app_slave_display_input.h"
 #include "app_slave_presence_service.h"
@@ -98,6 +106,7 @@ static lv_obj_t *s_screen, *s_dash, *s_sd_warn;
 static lv_obj_t *s_title, *s_date, *s_clock, *s_weather_temp, *s_wind_speed, *s_weather_icon,
     *s_wind_icon;
 static lv_obj_t *s_humidity, *s_humidity_icon;
+static lv_obj_t *s_grid_name, *s_home_name, *s_battery_name;
 static lv_obj_t *s_pv, *s_home, *s_bat, *s_grid, *s_soc, *s_bt, *s_status;
 static lv_obj_t *s_bat_icon, *s_grid_icon, *s_status_icon;
 static lv_obj_t *s_grid_node, *s_battery_node, *s_pv_node, *s_home_node, *s_status_bubble,
@@ -109,7 +118,7 @@ static lv_obj_t *s_chart1, *s_chart2;
 static lv_obj_t *s_chart1_y_top, *s_chart1_y_mid, *s_chart1_y_bottom;
 static lv_obj_t *s_chart2_y_top, *s_chart2_y_mid, *s_chart2_y_bottom;
 
-static lv_obj_t *s_error_pulse;
+static lv_obj_t *s_error_pulse, *s_error_title, *s_error_detail;
 static int s_brightness = 50, s_target = 50;
 static app_slave_display_t s_slave_display;
 /* Loxone kijelzővezérlő jelek (jelenlét, postaláda) pillanatképe; a runtime
@@ -186,8 +195,14 @@ typedef enum
     VIEW_LOXONE_WAIT,
     VIEW_LOXONE_ERROR,
     VIEW_WAIT_DATA,
+    VIEW_INVERTER_SETUP,
+    VIEW_INVERTER_WAIT,
+    VIEW_INVERTER_STALE,
+    VIEW_INVERTER_LOST,
+    VIEW_SLAVE_INVERTER_LOST,
     VIEW_DATA_TIMEOUT,
-    VIEW_FATAL
+    VIEW_FATAL,
+    VIEW_BOOT
 } runtime_view_t;
 
 static bool home_is_open(void);
@@ -451,7 +466,7 @@ static void clear(void)
     memset(s_pair_digits, 0, sizeof(s_pair_digits));
     s_dash = NULL;
     s_dash_created = false;
-    s_error_pulse = NULL;
+    s_error_pulse = s_error_title = s_error_detail = NULL;
     s_view = VIEW_NONE;
 }
 
@@ -988,10 +1003,10 @@ static void build_dashboard(bool night)
     lv_obj_set_width(s_grid, 150);
     lv_obj_set_style_text_align(s_grid, LV_TEXT_ALIGN_CENTER, 0);
 
-    lv_obj_t *grid_name =
+    s_grid_name =
         lbl(flow, tr("Hálózat", "Grid"), 170, 35, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
-    lv_obj_set_width(grid_name, 150);
-    lv_obj_set_style_text_align(grid_name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_grid_name, 150);
+    lv_obj_set_style_text_align(s_grid_name, LV_TEXT_ALIGN_CENTER, 0);
 
     /* Akkumulátor bal oldalon. */
     s_battery_node =
@@ -1013,7 +1028,7 @@ static void build_dashboard(bool night)
     lv_obj_set_style_radius(s_battery_bar, 4, LV_PART_MAIN);
     lv_obj_set_style_radius(s_battery_bar, 4, LV_PART_INDICATOR);
 
-    lbl(flow, tr("Akkumulátor", "Battery"), 6, 145, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
+    s_battery_name = lbl(flow, tr("Akkumulátor", "Battery"), 6, 145, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
 
     s_bat = lbl(flow, "-", 6, 166, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
 
@@ -1030,13 +1045,15 @@ static void build_dashboard(bool night)
 
     /* Ház alul. */
     s_home_node = energy_circle(flow, 245, 390, 92, &app_img_home_scene, NULL, night, ORANGE);
-    lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE) {
+        lv_obj_add_flag(s_home_node, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_event_cb(s_home_node, home_open_clicked, LV_EVENT_CLICKED, NULL);
+    }
 
-    lv_obj_t *home_name =
+    s_home_name =
         lbl(flow, tr("Ház", "Home"), 170, 439, APP_FONT_14, night ? MUTED_DARK : MUTED_LIGHT);
-    lv_obj_set_width(home_name, 150);
-    lv_obj_set_style_text_align(home_name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_home_name, 150);
+    lv_obj_set_style_text_align(s_home_name, LV_TEXT_ALIGN_CENTER, 0);
 
     s_home = lbl(flow, "-", 170, 459, APP_FONT_22, night ? TEXT_DARK : TEXT_LIGHT);
     lv_obj_set_width(s_home, 150);
@@ -1429,7 +1446,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
      * Negatív PowerBat = töltés, ezért hub -> akku és zöld.
      */
     flow_update(&f_bat,
-                s->power_bat_kw,
+                s->battery_unavailable || s->battery_power_unavailable ? 0 : s->power_bat_kw,
                 s->power_bat_kw > 0,
                 s->power_bat_kw < 0 ? GREEN : ORANGE,
                 s->night_mode,
@@ -1438,7 +1455,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
     /*
      * A ház fogyasztása külön, narancs ágon mindig a hub -> ház irányba halad.
      */
-    flow_update(&f_home, s->power_full_kw, true, ORANGE, s->night_mode, dt);
+    flow_update(&f_home, s->home_unavailable ? 0 : s->power_full_kw, true, ORANGE, s->night_mode, dt);
 
     border_color_if_changed(s_pv_node, c(flow_color(s->power_pv_kw, GREEN, s->night_mode)), 0);
     border_color_if_changed(
@@ -1477,7 +1494,7 @@ static void update_flows(const app_energy_sample_t *s, float dt)
          */
         uint32_t grid_color = s->power_grid_kw < 0 ? GREEN : ORANGE;
 
-        flow_update(&f_grid, s->power_grid_kw, s->power_grid_kw > 0, grid_color, s->night_mode, dt);
+        flow_update(&f_grid, s->grid_unavailable ? 0 : s->power_grid_kw, s->power_grid_kw > 0, grid_color, s->night_mode, dt);
 
         if (lv_image_get_src(s_grid_icon) != &app_img_grid)
             lv_image_set_src(s_grid_icon, &app_img_grid);
@@ -1491,35 +1508,37 @@ static void update_flows(const app_energy_sample_t *s, float dt)
 
 #include "app_ble_pin_ui.inc"
 
+#ifndef APP_TEMPLATE_DESKTOP
+/* A paneles hálózatválasztásnak már az időszinkron és a runtime előtt élnie kell. */
+static void __attribute__((noinline)) setup_ui_tick(void)
+{
+    static int64_t next_update;
+    int64_t now = esp_timer_get_time();
+    if (now < next_update) return;
+    next_update = now + 150000;
+    app_setup_wifi_state_t setup;
+    app_setup_wifi_snapshot(&setup);
+    app_setup_ui_update(lv_layer_top(), lv_display_get_horizontal_resolution(NULL),
+                        lv_display_get_vertical_resolution(NULL), &setup);
+}
+#endif
+
 /* A render loophoz közeli, 16 ms-os animáció. Nem végez SD- vagy statisztikai műveletet. */
 static void animation_tick(lv_timer_t *timer)
 {
     (void)timer;
+#ifndef APP_TEMPLATE_DESKTOP
+    if (!s_started && s_view != VIEW_FATAL && app_boot_config_setup_pending()) {
+        setup_ui_tick();
+        return;
+    }
+#endif
     if (s_view != VIEW_FATAL && pairing_ui_tick()) return;
     /* Nincs animált energiaút vagy újrarajzolás befagyasztott Loxone-adattal.
      * A belső időalap tovább lép, helyreálláskor sincs animációs ugrás. */
     if (loxone_display_is_held()) {
         s_animation_us = esp_timer_get_time();
         return;
-    }
-    /* Az indulás hosszú NTP/MQTT várakozásai alatt is azonnal látszik a kapcsolatvesztés. */
-    if (!s_started && s_view != VIEW_FATAL && s_boot_stage > APP_BOOT_WIFI)
-    {
-        app_runtime_state_t state;
-        app_state_get_runtime(&state);
-        if (s_cfg.data_recept_mode != APP_DATA_SLAVE && !state.wifi_connected)
-            error_screen(
-                VIEW_WIFI_ERROR,
-                tr("Nincs Wi-Fi kapcsolat", "No Wi-Fi connection"),
-                tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
-                false);
-        else if (s_boot_stage > APP_BOOT_MQTT && s_cfg.data_recept_mode == APP_DATA_MQTT &&
-                 !state.mqtt_connected)
-            error_screen(
-                VIEW_MQTT_ERROR,
-                tr("Nincs MQTT kapcsolat", "No MQTT connection"),
-                tr("Kapcsolat helyreállítására várunk...", "Waiting for connection to recover..."),
-                false);
     }
     int64_t now = esp_timer_get_time();
     float dt = s_animation_us ? (now - s_animation_us) / 1000000.f : 0.f;
@@ -1585,6 +1604,33 @@ static void update(const app_energy_sample_t *s, const app_stats_snapshot_t *st)
         snprintf(q, sizeof(q), "%04d-%02d-%02d", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
     label_text_if_changed(s_date, q);
 
+    bool battery = !s->battery_unavailable;
+    bool power = battery && !s->battery_power_unavailable;
+    bool soc = battery && !s->soc_unavailable;
+    bool balance = !s->home_unavailable && (power || !battery);
+    weather_visibility(s_battery_node, battery);
+    weather_visibility(s_battery_name, battery);
+    weather_visibility(s_bat, power);
+    weather_visibility(f_bat.line, power);
+    weather_visibility(s_soc, soc);
+    weather_visibility(s_battery_bar, soc);
+    weather_visibility(s_bt, battery && s->battery_temperature_valid);
+    weather_visibility(lv_obj_get_parent(s_bat_charge), power);
+    weather_visibility(s_home_name, !s->home_unavailable);
+    weather_visibility(s_home, !s->home_unavailable);
+    weather_visibility(s_home_node, !s->home_unavailable);
+    weather_visibility(f_home.line, !s->home_unavailable);
+    weather_visibility(s_grid_name, !s->grid_unavailable);
+    weather_visibility(s_grid, !s->grid_unavailable);
+    weather_visibility(s_grid_node, !s->grid_unavailable);
+    weather_visibility(f_grid.line, !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[1]), !s->home_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[2]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[3]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[4]), !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_metric[7]), !s->home_unavailable && !s->grid_unavailable);
+    weather_visibility(lv_obj_get_parent(s_chart1), balance);
+    weather_visibility(lv_obj_get_parent(s_chart2), balance);
     weather_visibility(lv_obj_get_parent(s_weather_icon), weather_available(s));
     weather_visibility(lv_obj_get_parent(s_wind_icon), s->wind_speed_valid);
     weather_visibility(s_weather_temp, s->temperature_valid);
@@ -1851,16 +1897,17 @@ static void error_screen(runtime_view_t view, const char *title, const char *det
 
         asset_image_box(s_error_pulse, 14, 14, 104, 92, error_asset, false);
 
-        lv_obj_t *title_label = lbl(s_screen, title, 0, 326, APP_FONT_28, fatal ? RED : TEXT_DARK);
-        lv_obj_set_width(title_label, W);
-        lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
+        s_error_title = lbl(s_screen, title, 0, 326, APP_FONT_28, fatal ? RED : TEXT_DARK);
+        lv_obj_set_width(s_error_title, W);
+        lv_obj_set_style_text_align(s_error_title, LV_TEXT_ALIGN_CENTER, 0);
 
-        lv_obj_t *detail_label =
-            lbl(s_screen, detail ? detail : "", 0, 386, APP_FONT_18, MUTED_DARK);
-        lv_obj_set_width(detail_label, W);
-        lv_obj_set_style_text_align(detail_label, LV_TEXT_ALIGN_CENTER, 0);
-
+        s_error_detail = lbl(s_screen, detail ? detail : "", 0, 386, APP_FONT_18, MUTED_DARK);
+        lv_obj_set_width(s_error_detail, W);
+        lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
         s_view = view;
+    } else {
+        label_text_if_changed(s_error_title, title);
+        label_text_if_changed(s_error_detail, detail ? detail : "");
     }
 }
 
@@ -1962,7 +2009,8 @@ void app_ui_set_config(const app_config_t *cfg)
      * nappali fényerő az indulási képernyőkre is azonnal érvényes.
      */
     bsp_display_brightness_set(s_brightness);
-    if (cfg->data_recept_mode == APP_DATA_LOXONE && !cfg->energy_flow_disabled &&
+    if (((cfg->data_recept_mode == APP_DATA_LOXONE && !cfg->energy_flow_disabled) ||
+         cfg->data_recept_mode == APP_DATA_INVERTER) &&
         bsp_display_lock(-1) == ESP_OK)
     {
         /* Jelenlétpárosítás nélkül a keep_visible miatt sosem sötétít:
@@ -2000,11 +2048,24 @@ void app_ui_set_config(const app_config_t *cfg)
         bsp_display_unlock();
     }
 }
+static void boot_logo_deleted(lv_event_t *event)
+{
+    (void)event;
+    lv_image_cache_drop(&app_img_boot_logo);
+}
+
 /* Indulási folyamat aktuális lépésének megjelenítése vektoros állapotikonokkal. */
 void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
 {
-    if (bsp_display_lock(-1) != ESP_OK)
+    app_boot_stage_t last = !s_cfg_ok || s_cfg.data_recept_mode == APP_DATA_INVERTER
+                                ? APP_BOOT_NTP : APP_BOOT_WAIT_DATA;
+    if ((unsigned)stage > (unsigned)last || bsp_display_lock(-1) != ESP_OK)
     {
+        return;
+    }
+    /* A bootfázis frissítése nem törölheti a még beírás alatt álló párosítási PIN-t. */
+    if (s_pair_pad) {
+        bsp_display_unlock();
         return;
     }
 
@@ -2017,9 +2078,8 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (opcionális)" : "Wi-Fi kapcsolat",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth időszinkron" : "Időszinkron",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / master keresése" :
-                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone kapcsolat"
-                              : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP adatfogadó"
-                                                                        : "MQTT kapcsolat",
+                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone kapcsolat" :
+                              s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP adatfogadó" : "MQTT kapcsolat",
                               "Várakozás az első adatcsomagra"};
 
     const char *en_steps[] = {s_cfg.cardless_slave ? "Internal storage (no SD)" : "SD card",
@@ -2027,9 +2087,8 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Wi-Fi (optional)" : "Wi-Fi connection",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Bluetooth time sync" : "Time synchronization",
                               s_cfg.data_recept_mode == APP_DATA_SLAVE ? "Slave / searching for master" :
-                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone connection"
-                              : s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP receiver"
-                                                                        : "MQTT connection",
+                              s_cfg.data_recept_mode == APP_DATA_LOXONE ? "Loxone connection" :
+                              s_cfg.data_recept_mode == APP_DATA_HTTP ? "HTTP receiver" : "MQTT connection",
                               "Waiting for first data packet"};
 
     lbl(s_screen,
@@ -2054,7 +2113,7 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
      * kész = zöld ellenőrzött otthon, aktív = narancs adatmozgás,
      * jövőbeli = visszafogott szürke kör.
      */
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i <= (int)last; i++)
     {
         int y = 300 + i * 57;
 
@@ -2082,6 +2141,11 @@ void app_ui_show_boot(app_boot_stage_t stage, const char *detail)
                               : GRAY);
     }
 
+    lv_obj_t *logo = lv_image_create(s_screen);
+    lv_image_set_src(logo, &app_img_boot_logo);
+    lv_obj_align(logo, LV_ALIGN_BOTTOM_RIGHT, -34, -28);
+    lv_obj_add_event_cb(logo, boot_logo_deleted, LV_EVENT_DELETE, NULL);
+    s_view = VIEW_BOOT;
     bsp_display_unlock();
 }
 
@@ -2214,6 +2278,89 @@ static void energy_disabled_screen(void)
     lv_obj_align(credit, LV_ALIGN_BOTTOM_RIGHT, -20, -16);
     s_view = VIEW_ENERGY_DISABLED;
 }
+static runtime_view_t inverter_status_view(const app_runtime_state_t *rt, bool have, int64_t now)
+{
+    if (rt->data_recept_mode == APP_DATA_SLAVE && app_state_slave_inverter_search(rt, now))
+        return VIEW_SLAVE_INVERTER_LOST;
+    if (rt->data_recept_mode != APP_DATA_INVERTER || !rt->wifi_connected)
+        return VIEW_NONE;
+    if (!rt->inverter_ready) return VIEW_INVERTER_SETUP;
+    if (!have || !rt->has_valid_sample) return VIEW_INVERTER_WAIT;
+    if (app_state_inverter_searching(rt, now)) return VIEW_INVERTER_LOST;
+    if (app_state_data_timed_out(rt, now, app_config_data_timeout(&s_cfg))) return VIEW_INVERTER_STALE;
+    return VIEW_NONE;
+}
+
+/* A webfelület címe a kijelzőé. A Slave-en a Master végzi az újracsatlakozást. */
+static void inverter_status_screen(runtime_view_t view, const app_runtime_state_t *rt)
+{
+    bool slave = view == VIEW_SLAVE_INVERTER_LOST;
+    bool cloud = (slave ? rt->slave_source_timeout_seconds : rt->inverter_timeout_seconds) >
+                 APP_INVERTER_LOCAL_TIMEOUT_SECONDS;
+    const char *title;
+    const char *detail;
+    switch (view) {
+        case VIEW_INVERTER_SETUP:
+            title = tr("Inverter beállítása szükséges", "Inverter setup required");
+            detail = tr("Nyisd meg az Inverter beállítások fület a webes felületen.",
+                        "Open Inverter settings in the web interface.");
+            break;
+        case VIEW_INVERTER_WAIT:
+            title = tr("Várakozás az első invertermérésre", "Waiting for the first inverter reading");
+            detail = tr("A beállításokat és a lekérdezés állapotát a webes felületen láthatod.",
+                        "Check the settings and request status in the web interface.");
+            break;
+        case VIEW_INVERTER_STALE:
+            title = tr("Nincs friss invertermérés", "No fresh inverter reading");
+            detail = tr("A kijelző a következő friss mérésre vár.", "Waiting for a new reading.");
+            break;
+        case VIEW_SLAVE_INVERTER_LOST:
+            title = tr("Megszakadt az inverterkapcsolat", "Inverter connection lost");
+            detail = cloud ? tr("A Master újra megpróbálja lekérni a felhőből a mérést.",
+                                "The Master is retrying the cloud service.")
+                           : tr("A Master a háttérben keresi az invertert.",
+                                "The Master is looking for the inverter in the background.");
+            break;
+        default:
+            title = tr("Megszakadt az inverterkapcsolat", "Inverter connection lost");
+            detail = cloud ? tr("A kijelző a beállított időközönként újra lekéri a felhőből a mérést.",
+                                "The display retries the cloud service at the provider's polling interval.")
+                           : tr("A kijelző a háttérben keresi az invertert, és automatikusan újracsatlakozik.",
+                                "The display is looking for the inverter in the background and will reconnect automatically.");
+            break;
+    }
+    if (s_view != view) {
+        clear();
+        screen_style(s_screen, true);
+        bool lost = view == VIEW_INVERTER_LOST || slave;
+        asset_image_box(s_screen, (W - 130) / 2, 180, 130, 104,
+                        lost || view == VIEW_INVERTER_STALE ? &app_img_timeout : &app_img_waiting_data, true);
+        s_error_title = lbl(s_screen, title, 40, 350, APP_FONT_28, TEXT_DARK);
+        s_error_detail = lbl(s_screen, detail, 40, 412, APP_FONT_18, 0xB9C6BE);
+        lv_obj_set_width(s_error_title, W - 80);
+        lv_obj_set_width(s_error_detail, W - 80);
+        lv_obj_set_style_text_align(s_error_title, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(s_error_detail, LV_TEXT_ALIGN_CENTER, 0);
+        if (!slave) {
+            const char *host = APP_DEVICE_HOSTNAME ".local";
+#ifndef APP_TEMPLATE_DESKTOP
+            char ip[16];
+            if (app_wifi_get_ip(ip, sizeof(ip)) == ESP_OK && strcmp(ip, "0.0.0.0") != 0)
+                host = ip;
+#endif
+            char url[80];
+            snprintf(url, sizeof(url), "http://%s/inverter", host);
+            lv_obj_t *link = lbl(s_screen, url, 40, 468, APP_FONT_18, 0x80C64A);
+            lv_obj_set_width(link, W - 80);
+            lv_obj_set_style_text_align(link, LV_TEXT_ALIGN_CENTER, 0);
+        }
+        s_view = view;
+    } else {
+        label_text_if_changed(s_error_title, title);
+        label_text_if_changed(s_error_detail, detail);
+    }
+}
+
 static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool have, int64_t now)
 {
     /* A szimulátor ezt közvetlenül hívja, a firmware runtime ciklusa pedig
@@ -2245,7 +2392,7 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         loxone_screen(!rt.loxone_configured ? VIEW_LOXONE_SETUP : VIEW_HOME_SETUP);
         return;
     }
-    if (home_render(&s, have && rt.loxone_connected &&
+    if (s_cfg.data_recept_mode == APP_DATA_LOXONE && home_render(&s, have && rt.loxone_connected &&
                     !app_state_data_timed_out(&rt, now, app_config_data_timeout(&s_cfg)))) return;
     static bool had_loxone_connection;
     if (s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected && have)
@@ -2257,6 +2404,12 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
         loxone_screen(!rt.loxone_configured   ? VIEW_LOXONE_SETUP
                       : had_loxone_connection ? VIEW_LOXONE_ERROR
                                               : VIEW_LOXONE_WAIT);
+        return;
+    }
+    runtime_view_t inverter_view = inverter_status_view(&rt, have, now);
+    if (inverter_view != VIEW_NONE) {
+        if (s_diagnostics_requested) diagnostics_render(rt);
+        else inverter_status_screen(inverter_view, &rt);
         return;
     }
     template_apply();
@@ -2332,6 +2485,23 @@ static void render_runtime(app_runtime_state_t rt, app_energy_sample_t s, bool h
     }
 }
 
+static void bind_backlight_input(void)
+{
+    if (!s_slave_input.input)
+    {
+        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
+        {
+            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
+                lv_indev_get_display(input) == lv_display_get_default())
+            {
+                (void)app_slave_display_input_bind(&s_slave_input, input,
+                                                  &s_slave_display, esp_timer_get_time);
+                break;
+            }
+        }
+    }
+}
+
 /* Kizárólag a kijelző zárja alatt: az inputkapu ugyanazt az állapotot frissíti. */
 static void slave_display_update(const app_runtime_state_t *state,
                                   const app_energy_sample_t *sample, bool have, int64_t now)
@@ -2350,19 +2520,7 @@ static void slave_display_update(const app_runtime_state_t *state,
         (void)app_slave_display_profile(&s_slave_display, &profile, now);
     }
 #endif
-    if (!s_slave_input.input)
-    {
-        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
-        {
-            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
-                lv_indev_get_display(input) == lv_display_get_default())
-            {
-                (void)app_slave_display_input_bind(&s_slave_input, input,
-                                                  &s_slave_display, esp_timer_get_time);
-                break;
-            }
-        }
-    }
+    bind_backlight_input();
     if (have && state->slave_connected &&
         !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg)))
         app_slave_display_night(&s_slave_display, sample->night_mode, now);
@@ -2371,7 +2529,10 @@ static void slave_display_update(const app_runtime_state_t *state,
     /* Használható érintő nélkül ne lehessen véletlenül felébreszthetetlenül sötét. */
     app_slave_display_keep_visible(&s_slave_display,
                                    pairing.pin_required || !s_slave_input.input, now);
-    app_slave_presence_service_apply(&s_slave_display, now);
+#ifndef APP_TEMPLATE_DESKTOP
+    if (!app_ble_seed_slave_backlight(&s_slave_display, now, NULL))
+#endif
+        app_slave_presence_service_apply(&s_slave_display, now);
     s_target = (int)app_slave_display_brightness(&s_slave_display, now);
     if (s_brightness != s_target)
     {
@@ -2390,6 +2551,28 @@ static void slave_display_update(const app_runtime_state_t *state,
 static void master_presence_update(const app_runtime_state_t *state,
                                    const app_energy_sample_t *sample, bool have, int64_t now)
 {
+#ifndef APP_TEMPLATE_DESKTOP
+    if (s_cfg.data_recept_mode == APP_DATA_INVERTER && s_master_display_ready) {
+        bind_backlight_input();
+        /* A runtime az LVGL-zár előtt már frissítette az adott perc napadatát. */
+        if (sample->sun_position_valid)
+            app_slave_display_night(&s_slave_display, sample->night_mode, now);
+        app_inverter_schedule_t schedule = {.touch_wake_seconds = s_cfg.display.touch_wake_seconds};
+        struct tm local;
+        time_t epoch = time(NULL);
+        bool blank = state->time_synced && app_inverter_display_schedule(NULL, &schedule) &&
+                     localtime_r(&epoch, &local) &&
+                     app_inverter_schedule_active(&schedule, (unsigned)(local.tm_wday + 6) % 7,
+                                                 (unsigned)(local.tm_hour * 60 + local.tm_min));
+        app_slave_display_scheduled(&s_slave_display, blank, schedule.touch_wake_seconds, now);
+        app_slave_display_keep_visible(&s_slave_display, !s_slave_input.input, now);
+        int level = (int)app_slave_display_brightness(&s_slave_display, now);
+        if (level != s_brightness) bsp_display_brightness_set(level);
+        s_target = s_brightness = level;
+        s_presence_control = true;
+        return;
+    }
+#endif
     bool control = s_master_display_ready && s_cfg.data_recept_mode == APP_DATA_LOXONE &&
                    !s_cfg.energy_flow_disabled && s_loxone_signals.presence.configured;
     if (!control)
@@ -2420,19 +2603,7 @@ static void master_presence_update(const app_runtime_state_t *state,
         app_slave_display_reset_presence(&s_slave_display, now);
         s_master_presence_revision = s_loxone_signals.presence_revision;
     }
-    if (!s_slave_input.input)
-    {
-        for (lv_indev_t *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input))
-        {
-            if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER &&
-                lv_indev_get_display(input) == lv_display_get_default())
-            {
-                (void)app_slave_display_input_bind(&s_slave_input, input,
-                                                  &s_slave_display, esp_timer_get_time);
-                break;
-            }
-        }
-    }
+    bind_backlight_input();
     bool fresh = have && state->loxone_connected &&
                  !app_state_data_timed_out(state, now, app_config_data_timeout(&s_cfg));
     if (fresh)
@@ -2463,7 +2634,7 @@ static void master_display_update(bool have, bool night, bool intercom_active)
 {
     /* A jelenlétvezérlés a zár alatt állítja a fényerőt; a kaputelefon
      * viszont mindig a napszak szerinti, látható fényerőt kapja. */
-    if (s_presence_control && !intercom_active)
+    if ((s_presence_control || s_cfg.data_recept_mode == APP_DATA_INVERTER) && !intercom_active)
         return;
     if ((have || s_cfg.energy_flow_disabled) && s_cfg.data_recept_mode != APP_DATA_SLAVE)
     {
@@ -2483,10 +2654,63 @@ static void master_display_update(bool have, bool night, bool intercom_active)
     }
 }
 
+typedef struct {
+    bool complete;
+    bool loxone_setup_hint;
+} display_startup_t;
+
+/* A bootlista csak az első használható adatforrásig aktív. A későbbi
+ * szakadásokat a már működő dashboard saját hiba- és helyreállítási nézetei kezelik. */
+static bool display_startup_waiting(display_startup_t *startup,
+                                    const app_runtime_state_t *rt, bool have, int64_t now)
+{
+    app_data_mode_t mode = rt->data_recept_mode;
+    if (startup->complete) return false;
+    app_boot_stage_t stage;
+    bool setup_hint = false;
+    if (mode != APP_DATA_SLAVE && mode != APP_DATA_INVERTER && !rt->wifi_connected)
+        stage = APP_BOOT_WIFI;
+    else if (!rt->time_synced)
+        stage = APP_BOOT_NTP;
+    else if (mode == APP_DATA_INVERTER) {
+        startup->complete = true;
+        return false;
+    } else if (!app_state_data_ready(rt)) {
+        stage = APP_BOOT_MQTT;
+        setup_hint = mode == APP_DATA_LOXONE && !rt->loxone_configured;
+    } else {
+        bool home_only = mode == APP_DATA_LOXONE && s_cfg.energy_flow_disabled;
+        bool received = (have && rt->has_valid_sample) ||
+                        (mode == APP_DATA_SLAVE && rt->energy_flow_disabled && rt->slave_packet_monotonic_us > 0);
+        if (home_only || (received && !app_state_data_timed_out(rt, now, app_config_data_timeout(&s_cfg)))) {
+            startup->complete = true;
+            return false;
+        }
+        stage = APP_BOOT_WAIT_DATA;
+    }
+    if (s_view != VIEW_BOOT || stage != s_boot_stage || setup_hint != startup->loxone_setup_hint) {
+        char hint[160];
+        if (setup_hint) {
+            const char *host = APP_DEVICE_HOSTNAME ".local";
+#ifndef APP_TEMPLATE_DESKTOP
+            char ip[16];
+            if (app_wifi_get_ip(ip, sizeof(ip)) == ESP_OK && strcmp(ip, "0.0.0.0") != 0)
+                host = ip;
+#endif
+            snprintf(hint, sizeof(hint), tr("Ellenőrizd a Loxone beállításait a webfelületen: http://%s/loxone",
+                                            "Check the Loxone settings in the web interface: http://%s/loxone"), host);
+        }
+        app_ui_show_boot(stage, setup_hint ? hint : NULL);
+        startup->loxone_setup_hint = setup_hint;
+    }
+    return true;
+}
+
 static void runtime(void *arg)
 {
     (void)arg;
     (void)esp_task_wdt_add(NULL);
+    display_startup_t startup = {0};
 
     while (true)
     {
@@ -2499,6 +2723,10 @@ static void runtime(void *arg)
         app_energy_sample_t s = {0};
         bool have = app_state_get_sample(&s);
         if (rt.energy_flow_disabled) s.night_mode = rt.standalone_night;
+#ifndef APP_TEMPLATE_DESKTOP
+        if (s_cfg.data_recept_mode == APP_DATA_INVERTER) (void)app_inverter_sun_now(&s);
+        if (s_cfg.data_recept_mode == APP_DATA_SLAVE) (void)app_ble_seed_slave_backlight(NULL, now, &s.night_mode);
+#endif
         if (have)
         {
             app_stats_get_snapshot(&s_stats_snapshot);
@@ -2513,14 +2741,15 @@ static void runtime(void *arg)
 
         if (s_cfg.data_recept_mode == APP_DATA_LOXONE)
             (void)app_loxone_signals(&s_loxone_signals);
-        bool intercom_active = intercom_prepare();
+        bool loxone = s_cfg.data_recept_mode == APP_DATA_LOXONE;
+        bool intercom_active = loxone && intercom_prepare();
 #ifdef APP_INTERCOM_DISTRIBUTED
-        app_intercom_audio_poll();
+        if (loxone || (s_cfg.data_recept_mode == APP_DATA_SLAVE && app_ble_seed_slave_intercom_allowed()))
+            app_intercom_audio_poll();
 #endif
-        master_display_update(have, s.night_mode, intercom_active);
         /* A felugró nézet a türelmi idő alatt sem maradhat vezérelhető.
          * A kaputelefon elsőbbsége még a rendes Otthon-frissítés előtt él. */
-        if ((!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
+        if (loxone && (!rt.loxone_connected || intercom_active) && bsp_display_lock(-1) == ESP_OK)
         {
             home_controls_suspend();
             bsp_display_unlock();
@@ -2530,6 +2759,7 @@ static void runtime(void *arg)
          * függetlenül, a csengetés teljes ideje alatt elsőbbséget kap. */
         if (intercom_active)
         {
+            master_display_update(have, s.night_mode, true);
             if (bsp_display_lock(-1) == ESP_OK)
             {
                 intercom_render();
@@ -2538,7 +2768,7 @@ static void runtime(void *arg)
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
-        if (intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
+        if (loxone && intercom_needs_cleanup() && bsp_display_lock(-1) == ESP_OK)
         {
             intercom_render();
             bsp_display_unlock();
@@ -2559,6 +2789,11 @@ static void runtime(void *arg)
             continue;
         }
 #endif
+        if (display_startup_waiting(&startup, &rt, have, now)) {
+            runtime_sleep(200);
+            continue;
+        }
+        master_display_update(have, s.night_mode, false);
         /* A rövid Loxone-szakadást a régi, már kirajzolt kép tartja meg.
          * Nincs SD-olvasás, kártyafrissítés, témabetöltés, új adat vagy
          * figyelmeztető felirat. A kaputelefon és OTA előbbi prioritásai
@@ -2569,36 +2804,40 @@ static void runtime(void *arg)
             continue;
         }
         diagnostics_capture();
-        assistant_prepare();
+        if (loxone) assistant_prepare();
         /* Az Otthon-kártyák külön előtöltési ága is kap időkorlátot.
          * Visszatérés után a normál UI-ciklus építi fel a helyes nézetet. */
-        if (home_restore_watchdog())
+        if (loxone && home_restore_watchdog())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
         /* Egy frame betöltőképernyő a sablon nagy PNG-inek feldolgozása előtt. */
-        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() && !template_loading_frame())
+        bool prepare_theme = !s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open() &&
+                             inverter_status_view(&rt, have, now) == VIEW_NONE;
+        if (prepare_theme && !template_loading_frame())
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        if (!home_prepare(have || s_cfg.energy_flow_disabled ? s.night_mode : home_night))
+        if (loxone && !home_prepare(have || s_cfg.energy_flow_disabled ? s.night_mode : home_night))
         {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        if (!s_cfg.energy_flow_disabled && !rt.energy_flow_disabled && !home_is_open()) template_prepare();
+        if (prepare_theme) template_prepare();
         if (bsp_display_lock(-1) == ESP_OK)
         {
             slave_display_update(&rt, &s, have || rt.energy_flow_disabled, now);
             master_presence_update(&rt, &s, have, now);
-            app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
+            if (loxone) app_assistant_update(&assistant_state, esp_timer_get_time(), &s,
                 have && s_cfg.data_recept_mode == APP_DATA_LOXONE && rt.loxone_connected,
                 &assistant_consumers, &assistant_night);
             render_runtime(rt, s, have, now);
-            assistant_render();
-            mail_render();
+            if (loxone) {
+                assistant_render();
+                mail_render();
+            }
 
             bsp_display_unlock();
         }

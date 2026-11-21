@@ -7,7 +7,7 @@
 /* Egy példány, egy LVGL szál: a firmware és a szimulátor közös nézete. */
 void slave_4b_ui_create(lv_obj_t *screen);
 void slave_4b_ui_update(const app_energy_sample_t *sample, bool available,
-                    const app_runtime_state_t *runtime, const char *clock,
+                    const app_runtime_state_t *runtime, int64_t now_us, const char *clock,
                     float seconds);
 void slave_4b_ui_pairing(const app_ble_pairing_status_t *status);
 void slave_4b_ui_message(const char *text);

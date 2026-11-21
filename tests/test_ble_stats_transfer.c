@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include "app_ble_stats_protocol.h"
+#include "app_slave_presence.h"
 #include "app_events.h"
 #define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 3
 #define BLE_HS_EDONE 14
@@ -39,6 +40,7 @@ typedef int (*callback_t)(uint16_t, const struct ble_gatt_error *, struct ble_ga
 typedef struct
 {
     bool used;
+    bool accepts_optional;
     uint16_t handle;
     uint8_t *stats_wire;
     uint32_t stats_id;
@@ -49,7 +51,9 @@ static seed_peer_t s_peers[3] = {
     {.used = true, .handle = 7}, {.used = true, .handle = 8}, {.used = true, .handle = 9}};
 static app_config_t s_config;
 static uint16_t s_master = 7, s_remote_stats = 112;
-static char s_master_address[18] = "01:02:03:04:05:06";
+static char master_identity[APP_SLAVE_PRESENCE_ID_SIZE] = "ble-0-010203040506";
+static char selected_identity[APP_SLAVE_PRESENCE_ID_SIZE];
+static unsigned source_selections;
 static bool s_slave_ready = true, s_profile_reading, s_profile_waiting, authenticated = true;
 static int64_t now_us = 10000000;
 static app_stats_snapshot_t master_snapshot, published;
@@ -82,9 +86,16 @@ bool app_stats_remote_publish(const app_stats_snapshot_t *out)
     publishes++;
     return true;
 }
+static bool slave_master_identity(char id[APP_SLAVE_PRESENCE_ID_SIZE])
+{
+    if (!authenticated) return false;
+    strcpy(id, master_identity);
+    return true;
+}
 void app_stats_remote_source(const char *id)
 {
-    assert(!strcmp(id, s_master_address));
+    strcpy(selected_identity, id);
+    ++source_selections;
 }
 void app_stats_remote_disconnected(void)
 {
@@ -263,6 +274,19 @@ int main(void)
     assert(request(8, true, 0, 101) == BLE_ATT_ERR_INSUFFICIENT_RES);
     now_us += 46000000;
     assert(request(8, false, 3, 100) != 0);
+    /* Másik, 1005 nélküli Master mellé nem kerülhet az előző összesítése.
+     * A hirdetés önmagában a hitelesített identitás előtt nem cserél forrást. */
+    slave_stats_reset();
+    unsigned previous_selections = source_selections;
+    s_remote_stats = 0;
+    strcpy(master_identity, "ble-0-010203040507");
+    authenticated = false;
+    slave_stats_poll(now_us);
+    assert(source_selections == previous_selections && strcmp(selected_identity, master_identity));
+    authenticated = true;
+    slave_stats_poll(now_us);
+    slave_stats_poll(now_us);
+    assert(source_selections == previous_selections + 1 && !strcmp(selected_identity, master_identity) && !pending);
     for (unsigned i = 0; i < 3; i++)
         free(s_peers[i].stats_wire);
     slave_stats_reset();

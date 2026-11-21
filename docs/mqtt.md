@@ -14,7 +14,7 @@ Alapértelmezett topic:
 
 A firmware nem használ payload timestampet és nem próbálja a retained üzenet korát meghatározni.
 
-## Kötelező mezők
+## Az energiaminta mezői
 
 | Mező | Tartomány | Jelentés |
 | --- | ---: | --- |
@@ -29,7 +29,7 @@ A firmware nem használ payload timestampet és nem próbálja a retained üzene
 | HasPrecipitation | 0 vagy 1 | csapadék állapot |
 | Status | 1 .. 5 | rendszerállapot |
 | NightMode | 0 vagy 1 | nappali / éjszakai mód |
-| BatteryTemperature | -20 .. +80 °C | akkumulátor hőmérséklet |
+| BatteryTemperature | -20 .. +80 °C, illetve `null` | Opcionális akkumulátor-hőmérséklet. A kulcs is elhagyható. |
 
 A mezőnevek kis-/nagybetű érzéketlenek. Ha ugyanaz a mező eltérő írásmóddal kétszer szerepel, a teljes csomag hibás.
 
@@ -71,11 +71,11 @@ A timeout után teljes képernyős MQTT-adathiány hiba jelenik meg. Érvényes 
 
 ## Opcionális időjárási értékek
 
-A 12 JSON-kulcs továbbra is kötelező. A `Temperature`, `WindSpeed`,
-`HasSunRadiation` és `HasPrecipitation` értéke lehet JSON `null` (idézőjelek
-nélkül). A numerikus 0 érvényes adat, nem hiányjelzés. A többi nyolc mező
-változatlanul nem lehet null; különösen a `NightMode` vezérli a teljes témát,
-és a `BatteryTemperature` akkumulátoradat.
+A 11 kötelező kulcs közül a `Temperature`, `WindSpeed`, `HasSunRadiation` és
+`HasPrecipitation` értéke lehet JSON `null`. Az opcionális `BatteryTemperature`
+elhagyható vagy lehet `null`. Ekkor minden téma elrejti az akku hőfokát.
+A mért 0 °C érvényes érték. A −20…80 °C tartományon kívül eső
+számnál a hőfok eltűnik, a csomag többi érvényes mérése tovább frissül.
 
 A hőmérséklet és a szél külön-külön jelenik meg, ha van adat. Az időjárásikon
 csak érvényes hőmérséklet-, napsugárzás- és csapadékadat mellett látszik,

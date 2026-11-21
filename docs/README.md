@@ -8,7 +8,7 @@ az új kezdőoldalak összerendezik őket, nem cserélik le a tartalmukat.
 
 ## Gyors elérés
 
-[Első indítás](first-start.md) · [Közvetlen Loxone](loxone-direct.md) ·
+[Első indítás](first-start.md) · [Wi-Fi választása a panelen](first-run-wifi.md) · [Közvetlen inverter](direct-inverter.md) · [Közvetlen Loxone](loxone-direct.md) ·
 [Világításvezérlés és képgaléria](lighting-controller.md) ·
 [IRC termosztát](irc-controller.md) ·
 [Redőnyvezérlés](shading-controller.md) ·

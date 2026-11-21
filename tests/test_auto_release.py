@@ -48,6 +48,18 @@ class AutomaticReleaseTests(unittest.TestCase):
             self.assertRegex(result, r'^v[0-9]\.[0-9]\.[0-9]$')
             self.assertEqual(int(result.replace('v', '').replace('.', '')), value + 1)
 
+    def test_direct_inverter_major_release(self):
+        repository = 'ZoleeBB/ZoleeEnergyFlowDisplay'
+        head = {'ref': 'feature/direct-inverter-v4', 'repo': {'full_name': repository}}
+        tags = [{'name': 'v3.4.0'}, {'name': 'v4.0.0-rc.1'}]
+        self.assertEqual(tag_for_merged_pr(repository, 100, tags, [], {'head': head}), 'v4.0.0')
+        for other in [dict(head, repo={'full_name': 'fork/project'}), dict(head, ref='other')]:
+            self.assertEqual(tag_for_merged_pr(repository, 100, tags, [], {'head': other}), 'v3.4.1')
+        for reserved_tags, releases in [([{'name': 'v4.0.0'}], []),
+                                        ([], [{'tag_name': 'Prod', 'name': '4.0.1'}])]:
+            with self.assertRaisesRegex(ValueError, 'Cannot assign v4.0.0'):
+                tag_for_merged_pr(repository, 100, reserved_tags, releases, {'head': head})
+
     def test_loxone_major_release(self):
         self.assertEqual(tag_for_merged_pr('ZoleeBB/ZoleeEnergyFlowDisplay',12,[{'name':'v1.4.9'}],[]),'v2.0.0')
         self.assertEqual(tag_for_merged_pr('other/repo',12,[{'name':'v1.4.9'}],[]),'v1.5.0')

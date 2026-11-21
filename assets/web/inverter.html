@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inverter beállítások</title><style>/*COMMON_CSS*/
+body[data-page=inverter] a[data-nav=inverter]{background:var(--accent);color:#fff}
+.week-row{display:grid;grid-template-columns:minmax(7em,1fr) 1fr 1fr;gap:10px;align-items:center;margin:7px 0}
+.week-row label{min-width:0}.week-row input[type=time]{padding:8px 4px}
+.register-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(6em,8em) auto;gap:12px;align-items:start;border-top:1px solid var(--line);padding:12px 0}
+.register-row>div,.register-row button{overflow-wrap:anywhere}.register-row small{display:block}.register-row label{margin:0}
+@media(max-width:640px){.register-row{grid-template-columns:minmax(min(6em,45%),1fr) minmax(0,auto)}.register-row>div{grid-column:1/-1}}
+.discovery-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
+.discovery-row span{overflow-wrap:anywhere}.discovery-row small{display:block}#discovery{margin-bottom:16px}
+#inverter-fields{min-width:0;border:0;padding:0;margin:0}
+#slave-profiles button{margin:4px 8px 4px 0}.feedback-error{color:var(--danger)}
+@media(max-width:480px){.week-row{grid-template-columns:1fr 1fr}.week-row>label:first-child{grid-column:1/-1}.grid{grid-template-columns:minmax(0,1fr)}}
+</style></head>
+<body data-page="inverter"><!--APP_NAV--><!--APP_SUPPORT-->
+<h1>Inverter beállítások</h1>
+<p id="sync-status" role="status"></p>
+<form id="inverter-form"><fieldset id="inverter-fields">
+<section><h2>Inverterkapcsolat</h2>
+<label>Inverter és kapcsolattípus<select id="profile" required><option value="">Válassz invertert…</option></select></label>
+<p id="setup-help"></p><p class="hint" id="transport-help"></p>
+<div id="discovery" hidden>
+<div class="actions"><button type="button" class="secondary" id="search-inverter">Inverter keresése a helyi hálózaton</button>
+<button type="button" class="secondary" id="cancel-search" hidden>Keresés leállítása</button></div>
+<p id="discovery-status" role="status"></p><div id="discovery-results"></div>
+</div>
+<div id="connection" class="grid field-grid"></div>
+<div id="rebind-control" hidden>
+<label><input id="rebind-device" type="checkbox" aria-describedby="rebind-help">Új inverter párosítása ezen az IP-címen</label>
+<small id="rebind-help">Csere vagy hálózati adatgyűjtőcsere után válaszd ezt, ha mentéskor a kijelző újra azonosíthatja a megadott címen elérhető eszközt.</small>
+</div>
+<p><label><input id="battery" type="checkbox">Van akkumulátor</label></p>
+</section>
+<section id="registers" aria-labelledby="register-heading" hidden><h2 id="register-heading">Modbus olvasási regiszterek</h2>
+<p>A címeket tízes számrendszerben, nullától számozva add meg. A SunSpec-modellhez viszonyított sorokban eltolást adhatsz meg. A funkciókód és az adatformátum az adott méréshez tartozik.</p>
+<div id="register-rows"></div>
+<p id="register-status" role="status"></p><button type="button" class="secondary" id="register-retry" hidden>Regiszterlista újrapróbálása</button>
+</section>
+<section><h2>Master sötétítési időprogramja</h2>
+<p>A kijelző napnyugtától napkeltéig az éjszakai fényerőt használja. Az időprogram a kijelző teljes elsötétítését szabályozza a beállított helyi idő szerint. Az éjfélen átnyúló időszakot a kezdőnapján jelöld be. Azonos kezdet és vég a teljes kijelölt napot jelenti.</p>
+<div id="master-program"></div></section>
+<section><h2>Slave kijelzők</h2>
+<p id="slave-status" role="status"></p><div id="slave-profiles"></div>
+<div id="slave-programs"></div></section>
+<section><h2>Időjárás és nappálya</h2>
+<p>Az otthon GPS-koordinátáit tizedes fokban add meg. A helyi napszak számításához a kijelző időzónáját a Beállítások fülön állíthatod be. Az időjárás 15 percenként frissül.</p>
+<div class="grid field-grid"><label>Földrajzi szélesség (°)<input id="latitude" type="number" min="-90" max="90" step="any" placeholder="47.4979" required></label>
+<label>Földrajzi hosszúság (°)<input id="longitude" type="number" min="-180" max="180" step="any" placeholder="19.0402" required></label></div>
+<small>Időjárási adatok: <a href="https://open-meteo.com/" rel="noopener noreferrer" target="_blank">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>. Az ingyenes végpont személyes, nem kereskedelmi használatra érhető el.</small></section>
+<button type="submit" id="save-inverter" disabled>Inverter és időprogramok mentése</button>
+</fieldset><p id="result" role="status" aria-live="polite"></p></form>
+<script>/*SLAVES_JS*/</script><script>/*REGISTER_JS*/</script><script>/*DISCOVERY_JS*/</script><script>/*INVERTER_JS*/</script></body></html>

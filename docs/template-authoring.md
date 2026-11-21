@@ -191,7 +191,7 @@ vagy `"source":"temperature"` mezőt, hogy ne maradjon magában a képernyőn.
 ## Nap pálya kiterjesztések
 
 A `solar_disc` LVGL-elem az opcionális `SunPosition` bemenetről vezérelt,
-24 órás felső/alsó ív mentén mozgó napkorong. Fényudvara a `PowerPV` alapján
+24 órás felső/alsó ív mentén mozgó korong. A gyári `09-solar-journey` esetében a helyi napkelte és napnyugta választja ki a Nap vagy a Hold képét és a hozzá tartozó fényudvart. Saját témában a korong képét továbbra is az adott jelenet `file` mezője adja. Fényudvara a `PowerPV` alapján
 0–8 kW között arányosan nagyobb végméretet ér el, a maximum fölött korlátozott;
 üteme fix 1,2 ciklus/s, a kitöltés minden méretnél teljesen eltűnik a ciklus végére. A `solar_hourly` chart 24 valódi, órás oszlopban
 mutatja a helyben felhasznált/tárolt (zöld) és visszatáplált (sárga) energiát.
@@ -306,3 +306,19 @@ A `source: "humidity"` a validált, egész 0–100% érték. A `value` elemen
 `weather_humidity.png`, natív 30×30 RGBA, az azonos `w`/`h` elkerüli a
 futásidejű skálázást. A `label`/`value` és szövegárnyéka a `left`, `center`,
 `right` igazítást támogatja. A teljes elemlista továbbra is legfeljebb 96 elem.
+
+## Hiányzó mérések
+
+A v4 megjelenítő a mérőérték forrásából állapítja meg, mikor rajzolható ki.
+A statikus címke, ikon, keret vagy grafikon opcionális `requires` mezővel ugyanahhoz a
+méréshez köthető. Például az akkuhőmérő feliratához és ikonjához használd a
+`"requires": "battery_temp"` beállítást. A valódi 0 °C esetén is látszanak.
+A `grid`, `home`, `battery` és `soc` függőséghez mért hálózati teljesítmény,
+fogyasztás, akkuteljesítmény, illetve töltöttség szükséges. Az `installed`
+telepített akkumulátort, a `split` kiszámolható energiamérleget igényel.
+
+A `gauge` és a hozzá tartozó `label` azonos `power_scale` attribútumot kaphat.
+A megengedett források a `pv`, `home`, `grid` és `battery`. A címkén és a
+műszeren ugyanazt a `max` alapskálát add meg (alapérték 15 kW). Ha a teljesítmény
+abszolút értéke ezt meghaladja, a skála a szükséges kétszeresére, négyszeresére
+vagy további kétszeresére bővül. A többi műszer a szerző által megadott fix skálát használja.

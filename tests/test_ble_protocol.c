@@ -33,6 +33,7 @@ int main(void)
         .power_pv_kw = 15,
         .power_full_kw = 0.042,
         .soc_bat_pct = 76.54,
+        .battery_temperature_valid = true,
         .battery_temperature_c = -20,
         .status = 3,
         .night_mode = true,
@@ -107,6 +108,7 @@ int main(void)
         .power_pv_kw = 7,
         .power_full_kw = 3.421,
         .soc_bat_pct = 54.32,
+        .battery_temperature_valid = true,
         .battery_temperature_c = 31.25,
         .status = 2,
         .received_epoch_s = 1800000000,
@@ -125,6 +127,12 @@ int main(void)
     assert(decoded.wind_speed_valid && decoded.wind_speed_kmh == 0);
     assert(decoded.received_monotonic_us == 6000000 && decoded.received_epoch_s == 1800000000);
     app_energy_sample_t original = decoded;
+    /* A hibás akkumulátor-hőmérséklet sem rejtheti el a régi Master PV mérését. */
+    energy[14] = 0;
+    energy[15] = 0x80;
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK &&
+           !decoded.battery_temperature_valid && decoded.power_pv_kw == 7);
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 77, energy, weather);
     /* Az új érték változatlan BLE v1 csomagban, minden régi státusszal együtt átvihető. */
     for (int status = 1; status <= 5; status++) {
         energy[2] = status;
@@ -151,11 +159,50 @@ int main(void)
     energy[13] = 0xff;
     assert(app_ble_protocol_decode(energy, 20, weather, 20, 0, &decoded) == ESP_ERR_INVALID_ARG);
 
+    sample.battery_temperature_valid = false;
+    sample.battery_unavailable = sample.grid_unavailable = sample.home_unavailable = true;
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 78, energy, weather);
+    assert(energy[0] == APP_BLE_OPTIONAL_VERSION && energy[3] == UINT8_MAX);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK);
+    assert(decoded.battery_unavailable && decoded.grid_unavailable && decoded.home_unavailable);
+    assert(decoded.soc_unavailable && decoded.battery_power_unavailable && !decoded.battery_temperature_valid);
+    assert(!decoded.relative_humidity_valid && decoded.power_pv_kw == 7);
+
+    cfg.data_recept_mode = APP_DATA_INVERTER;
+    sample.power_pv_kw = 123.45;
+    sample.sun_position_valid = true;
+    sample.sunrise_minute = sample.sunset_minute = -1;
+    app_ble_protocol_encode(&sample, &cfg, 2000000, 79, energy, weather);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_OK);
+    assert(fabs(decoded.power_pv_kw - 123.45) < 1e-9 && decoded.sunrise_minute == -1 &&
+           decoded.sunset_minute == -1 && !decoded.battery_temperature_valid);
+
+    /* A hibás kapcsolat külön vezérlőkeret, akkor is, ha a cache-ben még van minta. */
+    app_ble_protocol_encode_timeout(&sample, &cfg, 30, true, 2000000, 80, energy, weather);
+    assert(app_ble_packet_inverter_search(energy) && weather[0] == APP_BLE_OPTIONAL_VERSION);
+    assert(app_ble_protocol_decode(energy, 20, weather, 20, 7000000, &decoded) == ESP_ERR_INVALID_STATE);
+    assert(app_ble_packet_sequence(energy) == 80 && u16(energy + 16) == UINT16_MAX);
+    app_ble_protocol_encode_timeout(NULL, &cfg, 30, false, 2000000, 81, energy, weather);
+    assert(!app_ble_packet_inverter_search(energy) && energy[0] == APP_BLE_PROTOCOL_VERSION);
     uint8_t clock_packet[20];
     app_ble_clock_t clock;
+    /* FusionSolar óránként küld adatot. Az első óra még minta nélkül is érvényes. */
+    app_ble_clock_encode(INT64_C(1800000000123), 60, 7260, true, 90, clock_packet);
+    assert(u16(clock_packet + 10) == 3600);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.source_timeout_seconds == 3600);
+    app_ble_clock_cadence(clock_packet, 3600);
+    app_ble_clock_sun(clock_packet, true, 400, 1100);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.source_timeout_seconds == 7260 && clock.integration_period_s == 3600 && clock.night);
     app_ble_clock_encode(INT64_C(1800000000123), 120, 45, true, 77, clock_packet);
     assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK);
     assert(clock.epoch_ms == INT64_C(1800000000123) && clock.utc_offset_minutes == 120);
+    app_ble_clock_sun(clock_packet, true, 345, 1167);
+    app_ble_clock_cadence(clock_packet, 900);
+    assert(app_ble_clock_decode(clock_packet, 20, &clock) == ESP_OK &&
+           clock.sun_valid && clock.night && clock.sunrise == 345 && clock.sunset == 1167 &&
+           clock.integration_period_s == 900);
     assert(clock.source_timeout_seconds == 45 && app_ble_packet_sequence(clock_packet) == 77);
     assert(app_ble_clock_decode(clock_packet, 19, &clock) == ESP_ERR_INVALID_ARG);
     clock_packet[0] = 2;
@@ -186,7 +233,7 @@ int main(void)
     rt.slave_packet_monotonic_us = 46000000;
     assert(app_state_data_timed_out(&rt, 46000000, 15)); /* Forrás lejárat 45 s. */
     rt.slave_source_stale = true;
-    assert(!app_state_ota_ready(&rt));
+    assert(app_state_ota_ready(&rt));
     assert(app_state_data_timed_out(&rt, 20000000, 15));
     rt.slave_connected = false;
     assert(!app_state_data_ready(&rt));
